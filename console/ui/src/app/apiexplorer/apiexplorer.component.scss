@@ -7,3 +7,15 @@
   background-color: transparent;
   cursor: pointer;
 }
+
+.btn-light {
+  &:not(:disabled) {
+    background-color: #e5e2ff;
+    color: #7668ED;
+
+    &:hover {
+      background-color: #cfcbf2;
+      color: #7668ED;
+    }
+  }
+}
