@@ -225,6 +225,16 @@ export class ApiExplorerComponent implements OnInit {
     this.reqBodyChanged = false;
   }
 
+  isRpc(): boolean {
+    return !!this.rpcEndpoints.find((e) => {
+      if (this.f.method.value === e.method) {
+        return e;
+      } else {
+        return null;
+      }
+    });
+  }
+
   get f(): any {
     return this.endpointCallForm.controls;
   }
