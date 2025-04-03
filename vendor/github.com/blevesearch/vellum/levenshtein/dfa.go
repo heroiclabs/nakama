@@ -28,23 +28,45 @@ type DFA struct {
 	ed          uint8
 }
 
-/// Returns the initial state
+// Returns the initial state
 func (d *DFA) initialState() int {
 	return d.initState
 }
 
-/// Returns the Levenshtein distance associated to the
-/// current state.
+// Returns the Levenshtein distance associated to the
+// current state.
 func (d *DFA) distance(stateId int) Distance {
 	return d.distances[stateId]
 }
 
-/// Returns the number of states in the `DFA`.
+func (d *DFA) EditDistance(stateId int) uint8 {
+	return d.distances[stateId].distance()
+}
+
+func (d *DFA) MatchAndDistance(input string) (bool, uint8) {
+	currentState := d.Start()
+	index := 0
+	// Traverse the DFA while characters can still match
+	for d.CanMatch(currentState) && index < len(input) {
+		currentState = d.Accept(currentState, input[index])
+		if currentState == int(SinkState) {
+			break
+		}
+		index++
+	}
+	// Ensure we've processed the entire input and check if the current state is a match
+	if index == len(input) && d.IsMatch(currentState) {
+		return true, d.EditDistance(currentState)
+	}
+	return false, 0
+}
+
+// Returns the number of states in the `DFA`.
 func (d *DFA) numStates() int {
 	return len(d.transitions)
 }
 
-/// Returns the destination state reached after consuming a given byte.
+// Returns the destination state reached after consuming a given byte.
 func (d *DFA) transition(fromState int, b uint8) int {
 	return int(d.transitions[fromState][b])
 }
