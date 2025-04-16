@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS subscription (
     product_id              VARCHAR(512) NOT NULL,
     purchase_time           TIMESTAMPTZ  NOT NULL DEFAULT now(),
     store                   SMALLINT     NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1), Huawei(2)
-    user_id                 UUID         DEFAULT NULL,
+    user_id                 STRING       DEFAULT NULL,
     expire_time             TIMESTAMPTZ  NOT NULL
 );
 CREATE INDEX IF NOT EXISTS subscription_user_id_purchase_time_transaction_id_idx

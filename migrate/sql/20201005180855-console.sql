@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS console_user (
     create_time  TIMESTAMPTZ  NOT NULL DEFAULT now(),
     disable_time TIMESTAMPTZ  NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',
     email        VARCHAR(255) NOT NULL CONSTRAINT console_user_email_uniq UNIQUE,
-    id           UUID         NOT NULL,
+    id           STRING       NOT NULL,
     metadata     JSONB        NOT NULL DEFAULT '{}',
     password     BYTEA        CHECK (length(password) < 32000),
     role         SMALLINT     NOT NULL DEFAULT 4 CHECK (role >= 1), -- unused(0), admin(1), developer(2), maintainer(3), readonly(4)
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS purchase_receipt (
     store          SMALLINT     NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1), Huawei(2)
     transaction_id VARCHAR(512) NOT NULL CHECK (length(transaction_id) > 0),
     update_time    TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    user_id        UUID         NOT NULL
+    user_id        STRING       NOT NULL
 );
 CREATE INDEX IF NOT EXISTS purchase_receipt_user_id_purchase_time_transaction_id_idx
     ON purchase_receipt (user_id, purchase_time DESC, transaction_id);

@@ -18,7 +18,7 @@
 CREATE TABLE IF NOT EXISTS users (
     PRIMARY KEY (id),
 
-    id            UUID          NOT NULL,
+    id            STRING        NOT NULL,
     username      VARCHAR(128)  NOT NULL CONSTRAINT users_username_key UNIQUE,
     display_name  VARCHAR(255),
     avatar_url    VARCHAR(512),
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS user_device (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
     id      VARCHAR(128) NOT NULL,
-    user_id UUID         NOT NULL,
+    user_id STRING       NOT NULL,
 
     UNIQUE (user_id, id)
 );
@@ -62,10 +62,10 @@ CREATE TABLE IF NOT EXISTS user_edge (
     FOREIGN KEY (source_id)      REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (destination_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    source_id      UUID        NOT NULL CHECK (source_id <> '00000000-0000-0000-0000-000000000000'),
+    source_id      STRING      NOT NULL CHECK (source_id <> '00000000-0000-0000-0000-000000000000'),
     position       BIGINT      NOT NULL, -- Used for sort order on rows.
     update_time    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    destination_id UUID        NOT NULL CHECK (destination_id <> '00000000-0000-0000-0000-000000000000'),
+    destination_id STRING      NOT NULL CHECK (destination_id <> '00000000-0000-0000-0000-000000000000'),
     state          SMALLINT    NOT NULL DEFAULT 0, -- friend(0), invite_sent(1), invite_received(2), blocked(3)
 
     UNIQUE (source_id, destination_id)
@@ -77,12 +77,12 @@ CREATE TABLE IF NOT EXISTS notification (
     PRIMARY KEY (user_id, create_time, id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id          UUID         NOT NULL CONSTRAINT notification_id_key UNIQUE,
-    user_id     UUID         NOT NULL,
+    id          STRING       NOT NULL CONSTRAINT notification_id_key UNIQUE,
+    user_id     STRING       NOT NULL,
     subject     VARCHAR(255) NOT NULL,
     content     JSONB        NOT NULL DEFAULT '{}',
     code        SMALLINT     NOT NULL, -- Negative values are system reserved.
-    sender_id   UUID         NOT NULL,
+    sender_id   STRING       NOT NULL,
     create_time TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS storage (
 
     collection  VARCHAR(128) NOT NULL,
     key         VARCHAR(128) NOT NULL,
-    user_id     UUID         NOT NULL,
+    user_id     STRING       NOT NULL,
     value       JSONB        NOT NULL DEFAULT '{}',
     version     VARCHAR(32)  NOT NULL, -- md5 hash of value object.
     read        SMALLINT     NOT NULL DEFAULT 1 CHECK (read >= 0),
@@ -109,14 +109,14 @@ CREATE TABLE IF NOT EXISTS message (
     PRIMARY KEY (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id),
     FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id                UUID         NOT NULL UNIQUE,
+    id                STRING       NOT NULL UNIQUE,
     -- chat(0), chat_update(1), chat_remove(2), group_join(3), group_add(4), group_leave(5), group_kick(6), group_promoted(7)
     code              SMALLINT     NOT NULL DEFAULT 0,
-    sender_id         UUID         NOT NULL,
+    sender_id         STRING       NOT NULL,
     username          VARCHAR(128) NOT NULL,
     stream_mode       SMALLINT     NOT NULL,
-    stream_subject    UUID         NOT NULL,
-    stream_descriptor UUID         NOT NULL,
+    stream_subject    STRING       NOT NULL,
+    stream_descriptor STRING       NOT NULL,
     stream_label      VARCHAR(128) NOT NULL,
     content           JSONB        NOT NULL DEFAULT '{}',
     create_time       TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
     FOREIGN KEY (leaderboard_id) REFERENCES leaderboard (id) ON DELETE CASCADE,
 
     leaderboard_id VARCHAR(128)  NOT NULL,
-    owner_id       UUID          NOT NULL,
+    owner_id       STRING        NOT NULL,
     username       VARCHAR(128),
     score          BIGINT        NOT NULL DEFAULT 0 CHECK (score >= 0),
     subscore       BIGINT        NOT NULL DEFAULT 0 CHECK (subscore >= 0),
@@ -159,8 +159,8 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
     PRIMARY KEY (user_id, create_time, id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id          UUID        NOT NULL UNIQUE,
-    user_id     UUID        NOT NULL,
+    id          STRING      NOT NULL UNIQUE,
+    user_id     STRING      NOT NULL,
     changeset   JSONB       NOT NULL,
     metadata    JSONB       NOT NULL,
     create_time TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -170,15 +170,15 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
 CREATE TABLE IF NOT EXISTS user_tombstone (
     PRIMARY KEY (create_time, user_id),
 
-    user_id        UUID        NOT NULL UNIQUE,
+    user_id        STRING      NOT NULL UNIQUE,
     create_time    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS groups (
     PRIMARY KEY (disable_time, lang_tag, edge_count, id),
 
-    id           UUID          NOT NULL UNIQUE,
-    creator_id   UUID          NOT NULL,
+    id           STRING        NOT NULL UNIQUE,
+    creator_id   STRING        NOT NULL,
     name         VARCHAR(255)  NOT NULL CONSTRAINT groups_name_key UNIQUE,
     description  VARCHAR(255),
     avatar_url   VARCHAR(512),
@@ -198,10 +198,10 @@ CREATE INDEX IF NOT EXISTS update_time_edge_count_id_idx ON groups (disable_time
 CREATE TABLE IF NOT EXISTS group_edge (
     PRIMARY KEY (source_id, state, position),
 
-    source_id      UUID        NOT NULL CHECK (source_id <> '00000000-0000-0000-0000-000000000000'),
+    source_id      STRING      NOT NULL CHECK (source_id <> '00000000-0000-0000-0000-000000000000'),
     position       BIGINT      NOT NULL, -- Used for sort order on rows.
     update_time    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    destination_id UUID        NOT NULL CHECK (destination_id <> '00000000-0000-0000-0000-000000000000'),
+    destination_id STRING      NOT NULL CHECK (destination_id <> '00000000-0000-0000-0000-000000000000'),
     state          SMALLINT    NOT NULL DEFAULT 0, -- superadmin(0), admin(1), member(2), join_request(3), banned(4)
 
     UNIQUE (source_id, destination_id)

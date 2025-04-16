@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS purchase (
     store          SMALLINT     NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1), Huawei(2)
     transaction_id VARCHAR(512) NOT NULL CHECK (length(transaction_id) > 0),
     update_time    TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    user_id        UUID         DEFAULT NULL
+    user_id        STRING       DEFAULT NULL
 );
 CREATE INDEX IF NOT EXISTS purchase_user_id_purchase_time_transaction_id_idx
     ON purchase (user_id, purchase_time DESC, transaction_id);
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS purchase_receipt (
     store          SMALLINT     NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1), Huawei(2)
     transaction_id VARCHAR(512) NOT NULL CHECK (length(transaction_id) > 0),
     update_time    TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    user_id        UUID         NOT NULL
+    user_id        STRING       NOT NULL
 );
 CREATE INDEX IF NOT EXISTS purchase_receipt_user_id_purchase_time_transaction_id_idx
     ON purchase_receipt (user_id, purchase_time DESC, transaction_id);

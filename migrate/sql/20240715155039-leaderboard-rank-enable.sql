@@ -15,7 +15,7 @@
  */
 
 -- +migrate Up
-ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS enable_ranks boolean DEFAULT true;
+ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS enable_ranks BOOLEAN DEFAULT TRUE;
 
 -- +migrate Down
 ALTER TABLE leaderboard DROP COLUMN IF EXISTS enable_ranks;
