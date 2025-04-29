@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AfterViewInit, Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, Injectable, OnInit, ViewChild} from '@angular/core';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot} from '@angular/router';
 import {ApiEndpointDescriptor, ApiEndpointList, CallApiEndpointRequest, ConsoleService} from '../console.service';
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from '@angular/forms';
@@ -23,10 +23,10 @@ import {JSONEditor, Mode, toJSONContent, toTextContent} from 'vanilla-jsoneditor
   templateUrl: './apiexplorer.component.html',
   styleUrls: ['./apiexplorer.component.scss']
 })
-export class ApiExplorerComponent implements OnInit, AfterViewInit {
-  @ViewChild('editorReq') private editorReq: ElementRef<HTMLElement>;
-  @ViewChild('editorVars') private editorVars: ElementRef<HTMLElement>;
-  @ViewChild('editorRes') private editorRes: ElementRef<HTMLElement>;
+export class ApiExplorerComponent implements OnInit {
+  @ViewChild('editorReq', {static: true}) private editorReq: ElementRef<HTMLElement>;
+  @ViewChild('editorVars', {static: true}) private editorVars: ElementRef<HTMLElement>;
+  @ViewChild('editorRes', {static: true}) private editorRes: ElementRef<HTMLElement>;
 
   private jsonEditorReq: JSONEditor;
   private jsonEditorVars: JSONEditor;
@@ -36,6 +36,7 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
   public endpoints: Array<ApiEndpointDescriptor> = [];
   public endpointCallForm: UntypedFormGroup;
   public addVars = false;
+  public reqBodyChanged = false;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -55,7 +56,9 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
         return e.method === newMethod ? e : null;
       });
       this.updateQueryParam(endpoint.method);
-      this.setupRequestBody(endpoint.body_template);
+      if (!this.reqBodyChanged) {
+        this.setupRequestBody(endpoint.body_template);
+      }
     });
 
     this.route.data.subscribe(data => {
@@ -68,20 +71,13 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       this.error = err;
     });
 
-    const qpEndpoint = this.endpoints.concat(this.rpcEndpoints).find((e) => {
-      return e.method === this.route.snapshot.queryParamMap.get('endpoint') ? e : null;
-    });
-    if (qpEndpoint != null) {
-      this.f.method.setValue(qpEndpoint.method);
-    }
-  }
-
-  ngAfterViewInit(): void {
     this.jsonEditorReq = new JSONEditor({
       target: this.editorReq.nativeElement,
       props: {
         mode: Mode.text,
-        readOnly: true,
+        onChange: () => {
+          this.reqBodyChanged = true;
+        },
       },
     });
     this.jsonEditorVars = new JSONEditor({
@@ -94,9 +90,15 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       target: this.editorRes.nativeElement,
       props: {
         mode: Mode.text,
-        readOnly: true,
       },
     });
+
+    const qpEndpoint = this.endpoints.concat(this.rpcEndpoints).find((e) => {
+      return e.method === this.route.snapshot.queryParamMap.get('endpoint') ? e : null;
+    });
+    if (qpEndpoint != null) {
+      this.f.method.setValue(qpEndpoint.method);
+    }
   }
 
   public sendRequest(): void {
@@ -211,6 +213,24 @@ export class ApiExplorerComponent implements OnInit, AfterViewInit {
       json: {
         '<key1>': '<value1>',
         '<key2>': '<value2>',
+      }
+    });
+  }
+
+  resetReqBodyTemplate(): void {
+    const endpoint = this.endpoints.find((e) => {
+      return e.method === this.f.method.value ? e : null;
+    });
+    this.setupRequestBody(endpoint.body_template);
+    this.reqBodyChanged = false;
+  }
+
+  isRpc(): boolean {
+    return !!this.rpcEndpoints.find((e) => {
+      if (this.f.method.value === e.method) {
+        return e;
+      } else {
+        return null;
       }
     });
   }

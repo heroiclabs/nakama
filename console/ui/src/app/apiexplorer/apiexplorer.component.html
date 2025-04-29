@@ -44,11 +44,12 @@
     <div class="card p-2 mb-3 jsoneditor">
       <div #editorReq style="height: 500px"></div>
     </div>
+    <button *ngIf="!isRpc()" class="btn btn-light" type="button" (click)="resetReqBodyTemplate();" [disabled]="!reqBodyChanged">Reset Body</button>
   </div>
   <div class="col-lg-6 py-3">
     <h5>Response</h5>
     <div class="card p-2 mb-3 jsoneditor">
-      <div #editorRes style="height: 500px"></div>
+      <div #editorRes tabindex="0" style="height: 500px"></div>
     </div>
   </div>
 </div>
