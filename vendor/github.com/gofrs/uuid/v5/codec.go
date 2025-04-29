@@ -34,10 +34,15 @@ func FromBytes(input []byte) (UUID, error) {
 // FromBytesOrNil returns a UUID generated from the raw byte slice input.
 // Same behavior as FromBytes(), but returns uuid.Nil instead of an error.
 func FromBytesOrNil(input []byte) UUID {
-	uuid, err := FromBytes(input)
-	if err != nil {
+	// The logic here is duplicated from UnmarshalBinary as there is unnecessary
+	// overhead generating errors which would be checked and discarded.
+	if len(input) != Size {
 		return Nil
 	}
+
+	uuid := UUID{}
+	copy(uuid[:], input)
+
 	return uuid
 }
 
