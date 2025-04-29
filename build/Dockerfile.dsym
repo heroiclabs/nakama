@@ -12,7 +12,7 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-FROM golang:1.23.5-bookworm AS builder
+FROM golang:1.24.1-bookworm AS builder
 
 ARG COMMIT
 ARG VERSION

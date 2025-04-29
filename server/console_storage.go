@@ -108,7 +108,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 		return nil, status.Error(codes.Internal, "An error occurred while reading storage object.")
 	}
 
-	if objects.Objects == nil || len(objects.Objects) < 1 {
+	if len(objects.Objects) == 0 {
 		// Not found.
 		return nil, status.Error(codes.NotFound, "Storage object not found.")
 	}

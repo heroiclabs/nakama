@@ -1255,6 +1255,44 @@ func (e *compiledAssignExpr) emitGetter(putOnStack bool) {
 			e.right.emitGetter(true)
 			e.c.emit(shr)
 		}, false, putOnStack)
+	case token.LOGICAL_AND, token.LOGICAL_OR, token.COALESCE:
+		e.left.emitRef()
+		e.c.emit(getValue)
+		mark := len(e.c.p.code)
+		e.c.emit(nil)
+		if id, ok := e.left.(*compiledIdentifierExpr); ok {
+			e.c.emitNamedOrConst(e.right, id.name)
+		} else {
+			e.right.emitGetter(true)
+		}
+		if putOnStack {
+			e.c.emit(putValue)
+		} else {
+			e.c.emit(putValueP)
+		}
+		e.c.emit(jump(2))
+		offset := len(e.c.p.code) - mark
+		switch e.operator {
+		case token.LOGICAL_AND:
+			if putOnStack {
+				e.c.p.code[mark] = jne(offset)
+			} else {
+				e.c.p.code[mark] = jneP(offset)
+			}
+		case token.LOGICAL_OR:
+			if putOnStack {
+				e.c.p.code[mark] = jeq(offset)
+			} else {
+				e.c.p.code[mark] = jeqP(offset)
+			}
+		case token.COALESCE:
+			if putOnStack {
+				e.c.p.code[mark] = jcoalesc(offset)
+			} else {
+				e.c.p.code[mark] = jcoalescP(offset)
+			}
+		}
+		e.c.emit(popRef)
 	default:
 		e.c.assert(false, e.offset, "Unknown assign operator: %s", e.operator.String())
 		panic("unreachable")
@@ -2598,7 +2636,7 @@ func (e *compiledConditionalExpr) emitGetter(putOnStack bool) {
 	e.consequent.emitGetter(putOnStack)
 	j1 := len(e.c.p.code)
 	e.c.emit(nil)
-	e.c.p.code[j] = jne(len(e.c.p.code) - j)
+	e.c.p.code[j] = jneP(len(e.c.p.code) - j)
 	e.alternate.emitGetter(putOnStack)
 	e.c.p.code[j1] = jump(len(e.c.p.code) - j1)
 }
@@ -2648,7 +2686,7 @@ func (e *compiledLogicalOr) emitGetter(putOnStack bool) {
 	e.addSrcMap()
 	e.c.emit(nil)
 	e.c.emitExpr(e.right, true)
-	e.c.p.code[j] = jeq1(len(e.c.p.code) - j)
+	e.c.p.code[j] = jeq(len(e.c.p.code) - j)
 	if !putOnStack {
 		e.c.emit(pop)
 	}
@@ -2730,7 +2768,7 @@ func (e *compiledLogicalAnd) emitGetter(putOnStack bool) {
 	e.addSrcMap()
 	e.c.emit(nil)
 	e.c.emitExpr(e.right, true)
-	e.c.p.code[j] = jneq1(len(e.c.p.code) - j)
+	e.c.p.code[j] = jne(len(e.c.p.code) - j)
 	if !putOnStack {
 		e.c.emit(pop)
 	}

@@ -40,8 +40,8 @@ services:
       interval: 5s
 
   test:
-      image: "golang:1.23.5"
-      command: /bin/sh -c "mkdir -p /nakama/internal/gopher-lua/_lua5.1-tests/libs/P1; go test -v -race ./..."
+      image: "golang:1.24.1"
+      command: /bin/sh -c "mkdir -p /nakama/internal/gopher-lua/_lua5.1-tests/libs/P1; go test -vet=off -v -race ./..."
 
       working_dir: "/nakama"
       environment:

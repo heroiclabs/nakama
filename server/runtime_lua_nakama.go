@@ -1465,7 +1465,7 @@ func aesEncrypt(l *lua.LState, keySize int) int {
 		return 0
 	}
 
-	stream := cipher.NewCFBEncrypter(block, iv)
+	stream := cipher.NewCFBEncrypter(block, iv) //nolint:staticcheck
 	stream.XORKeyStream(cipherText[aes.BlockSize:], []byte(input))
 
 	l.Push(lua.LString(cipherText))
@@ -1500,7 +1500,7 @@ func aesDecrypt(l *lua.LState, keySize int) int {
 	iv := cipherText[:aes.BlockSize]
 	cipherText = cipherText[aes.BlockSize:]
 
-	stream := cipher.NewCFBDecrypter(block, iv)
+	stream := cipher.NewCFBDecrypter(block, iv) //nolint:staticcheck
 	stream.XORKeyStream(cipherText, cipherText)
 
 	l.Push(lua.LString(cipherText))

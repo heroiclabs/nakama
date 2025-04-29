@@ -37,10 +37,10 @@ type Accumulator uint64
 
 // NewAccumulator creates a new Accumulator with a default seed value.
 //
-// n.b. Here and elsewhere, we use nosplit to avoid stack size checks, which
-//      are unnecessary as memory width is bounded to each instance of `a` (a
-//      uint64) and, potentially, a single stack-local loop temporary while
-//      iterating.
+//	 n.b. Here and elsewhere, we use nosplit to avoid stack size checks, which
+//		are unnecessary as memory width is bounded to each instance of `a` (a
+//		uint64) and, potentially, a single stack-local loop temporary while
+//		iterating.
 func NewAccumulator() Accumulator {
 	return Accumulator(_hashSeed)
 }

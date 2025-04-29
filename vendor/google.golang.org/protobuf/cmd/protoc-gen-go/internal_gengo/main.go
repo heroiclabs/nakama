@@ -215,12 +215,10 @@ func genImport(gen *protogen.Plugin, g *protogen.GeneratedFile, f *fileInfo, imp
 		// Don't generate imports or aliases for types in the same Go package.
 		return
 	}
-	// Generate imports for all non-weak dependencies, even if they are not
+	// Generate imports for all dependencies, even if they are not
 	// referenced, because other code and tools depend on having the
 	// full transitive closure of protocol buffer types in the binary.
-	if !imp.IsWeak {
-		g.Import(impFile.GoImportPath)
-	}
+	g.Import(impFile.GoImportPath)
 	if !imp.IsPublic {
 		return
 	}
@@ -440,10 +438,6 @@ func genMessageInternalFields(g *protogen.GeneratedFile, f *fileInfo, m *message
 	sf.append(genid.State_goname)
 	g.P(genid.SizeCache_goname, " ", protoimplPackage.Ident("SizeCache"))
 	sf.append(genid.SizeCache_goname)
-	if m.hasWeak {
-		g.P(genid.WeakFields_goname, " ", protoimplPackage.Ident("WeakFields"))
-		sf.append(genid.WeakFields_goname)
-	}
 	g.P(genid.UnknownFields_goname, " ", protoimplPackage.Ident("UnknownFields"))
 	sf.append(genid.UnknownFields_goname)
 	if m.Desc.ExtensionRanges().Len() > 0 {
@@ -508,9 +502,6 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 	}
 
 	name := field.GoName
-	if field.Desc.IsWeak() {
-		name = genid.WeakFieldPrefix_goname + name
-	}
 	g.AnnotateSymbol(m.GoIdent.GoName+"."+name, protogen.Annotation{Location: field.Location})
 	leadingComments := appendDeprecationSuffix(field.Comments.Leading,
 		field.Desc.ParentFile(),
@@ -590,7 +581,6 @@ func genMessageDefaultDecls(g *protogen.GeneratedFile, f *fileInfo, m *messageIn
 func genMessageMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
 	genMessageBaseMethods(g, f, m)
 	genMessageGetterMethods(g, f, m)
-	genMessageSetterMethods(g, f, m)
 }
 
 func genMessageBaseMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
@@ -655,17 +645,6 @@ func genMessageGetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 			field.Desc.ParentFile(),
 			field.Desc.Options().(*descriptorpb.FieldOptions).GetDeprecated())
 		switch {
-		case field.Desc.IsWeak():
-			g.P(leadingComments, "func (x *", m.GoIdent, ") Get", field.GoName, "() ", protoPackage.Ident("Message"), "{")
-			g.P("var w ", protoimplPackage.Ident("WeakFields"))
-			g.P("if x != nil {")
-			g.P("w = x.", genid.WeakFields_goname)
-			if m.isTracked {
-				g.P("_ = x.", genid.WeakFieldPrefix_goname+field.GoName)
-			}
-			g.P("}")
-			g.P("return ", protoimplPackage.Ident("X"), ".GetWeak(w, ", field.Desc.Number(), ", ", strconv.Quote(string(field.Message.Desc.FullName())), ")")
-			g.P("}")
 		case field.Oneof != nil && !field.Oneof.Desc.IsSynthetic():
 			g.P(leadingComments, "func (x *", m.GoIdent, ") Get", field.GoName, "() ", goType, " {")
 			g.P("if x, ok := x.Get", field.Oneof.GoName, "().(*", field.GoIdent, "); ok {")
@@ -693,43 +672,10 @@ func genMessageGetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 	}
 }
 
-func genMessageSetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
-	for _, field := range m.Fields {
-		if !field.Desc.IsWeak() {
-			continue
-		}
-
-		genNoInterfacePragma(g, m.noInterface)
-
-		g.AnnotateSymbol(m.GoIdent.GoName+".Set"+field.GoName, protogen.Annotation{
-			Location: field.Location,
-			Semantic: descriptorpb.GeneratedCodeInfo_Annotation_SET.Enum(),
-		})
-		leadingComments := appendDeprecationSuffix("",
-			field.Desc.ParentFile(),
-			field.Desc.Options().(*descriptorpb.FieldOptions).GetDeprecated())
-		g.P(leadingComments, "func (x *", m.GoIdent, ") Set", field.GoName, "(v ", protoPackage.Ident("Message"), ") {")
-		g.P("var w *", protoimplPackage.Ident("WeakFields"))
-		g.P("if x != nil {")
-		g.P("w = &x.", genid.WeakFields_goname)
-		if m.isTracked {
-			g.P("_ = x.", genid.WeakFieldPrefix_goname+field.GoName)
-		}
-		g.P("}")
-		g.P(protoimplPackage.Ident("X"), ".SetWeak(w, ", field.Desc.Number(), ", ", strconv.Quote(string(field.Message.Desc.FullName())), ", v)")
-		g.P("}")
-		g.P()
-	}
-}
-
 // fieldGoType returns the Go type used for a field.
 //
 // If it returns pointer=true, the struct field is a pointer to the type.
 func fieldGoType(g *protogen.GeneratedFile, f *fileInfo, field *protogen.Field) (goType string, pointer bool) {
-	if field.Desc.IsWeak() {
-		return "struct{}", false
-	}
-
 	pointer = field.Desc.HasPresence()
 	switch field.Desc.Kind() {
 	case protoreflect.BoolKind:
