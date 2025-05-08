@@ -62,7 +62,7 @@ func (tb *LTable) Len() int {
 	return 0
 }
 
-// RaiseIfReadonly should be called from code on the path between the lua script and the table operation to ensure that
+// RaiseIfReadOnly should be called from code on the path between the lua script and the table operation to ensure that
 // the given table is writable
 func (tb *LTable) RaiseIfReadOnly(L *LState) {
 	if tb.ReadOnly {
@@ -312,7 +312,7 @@ func (tb *LTable) RawGetInt(key int) LValue {
 	return tb.array[index]
 }
 
-// RawGet returns an LValue associated with a given key without __index metamethod.
+// RawGetH returns an LValue associated with a given key without __index metamethod.
 func (tb *LTable) RawGetH(key LValue) LValue {
 	if s, sok := key.(LString); sok {
 		if tb.strdict == nil {
