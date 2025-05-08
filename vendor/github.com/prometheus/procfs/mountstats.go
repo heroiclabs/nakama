@@ -45,11 +45,11 @@ const (
 	fieldTransport11TCPLen = 13
 	fieldTransport11UDPLen = 10
 
-	// Kernel version >= 4.14 MaxLen
+	// kernel version >= 4.14 MaxLen
 	// See: https://elixir.bootlin.com/linux/v6.4.8/source/net/sunrpc/xprtrdma/xprt_rdma.h#L393
 	fieldTransport11RDMAMaxLen = 28
 
-	// Kernel version <= 4.2 MinLen
+	// kernel version <= 4.2 MinLen
 	// See: https://elixir.bootlin.com/linux/v4.2.8/source/net/sunrpc/xprtrdma/xprt_rdma.h#L331
 	fieldTransport11RDMAMinLen = 20
 )
@@ -601,12 +601,11 @@ func parseNFSTransportStats(ss []string, statVersion string) (*NFSTransportStats
 	switch statVersion {
 	case statVersion10:
 		var expectedLength int
-		switch protocol {
-		case "tcp":
+		if protocol == "tcp" {
 			expectedLength = fieldTransport10TCPLen
-		case "udp":
+		} else if protocol == "udp" {
 			expectedLength = fieldTransport10UDPLen
-		default:
+		} else {
 			return nil, fmt.Errorf("%w: Invalid NFS protocol \"%s\" in stats 1.0 statement: %v", ErrFileParse, protocol, ss)
 		}
 		if len(ss) != expectedLength {
@@ -614,14 +613,13 @@ func parseNFSTransportStats(ss []string, statVersion string) (*NFSTransportStats
 		}
 	case statVersion11:
 		var expectedLength int
-		switch protocol {
-		case "tcp":
+		if protocol == "tcp" {
 			expectedLength = fieldTransport11TCPLen
-		case "udp":
+		} else if protocol == "udp" {
 			expectedLength = fieldTransport11UDPLen
-		case "rdma":
+		} else if protocol == "rdma" {
 			expectedLength = fieldTransport11RDMAMinLen
-		default:
+		} else {
 			return nil, fmt.Errorf("%w: invalid NFS protocol \"%s\" in stats 1.1 statement: %v", ErrFileParse, protocol, ss)
 		}
 		if (len(ss) != expectedLength && (protocol == "tcp" || protocol == "udp")) ||
@@ -657,12 +655,11 @@ func parseNFSTransportStats(ss []string, statVersion string) (*NFSTransportStats
 	// For the udp RPC transport there is no connection count, connect idle time,
 	// or idle time (fields #3, #4, and #5); all other fields are the same. So
 	// we set them to 0 here.
-	switch protocol {
-	case "udp":
+	if protocol == "udp" {
 		ns = append(ns[:2], append(make([]uint64, 3), ns[2:]...)...)
-	case "tcp":
+	} else if protocol == "tcp" {
 		ns = append(ns[:fieldTransport11TCPLen], make([]uint64, fieldTransport11RDMAMaxLen-fieldTransport11TCPLen+3)...)
-	case "rdma":
+	} else if protocol == "rdma" {
 		ns = append(ns[:fieldTransport10TCPLen], append(make([]uint64, 3), ns[fieldTransport10TCPLen:]...)...)
 	}
 

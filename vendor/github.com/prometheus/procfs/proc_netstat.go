@@ -209,232 +209,232 @@ func parseProcNetstat(r io.Reader, fileName string) (ProcNetstat, error) {
 			case "TcpExt":
 				switch key {
 				case "SyncookiesSent":
-					procNetstat.SyncookiesSent = &value
+					procNetstat.TcpExt.SyncookiesSent = &value
 				case "SyncookiesRecv":
-					procNetstat.SyncookiesRecv = &value
+					procNetstat.TcpExt.SyncookiesRecv = &value
 				case "SyncookiesFailed":
-					procNetstat.SyncookiesFailed = &value
+					procNetstat.TcpExt.SyncookiesFailed = &value
 				case "EmbryonicRsts":
-					procNetstat.EmbryonicRsts = &value
+					procNetstat.TcpExt.EmbryonicRsts = &value
 				case "PruneCalled":
-					procNetstat.PruneCalled = &value
+					procNetstat.TcpExt.PruneCalled = &value
 				case "RcvPruned":
-					procNetstat.RcvPruned = &value
+					procNetstat.TcpExt.RcvPruned = &value
 				case "OfoPruned":
-					procNetstat.OfoPruned = &value
+					procNetstat.TcpExt.OfoPruned = &value
 				case "OutOfWindowIcmps":
-					procNetstat.OutOfWindowIcmps = &value
+					procNetstat.TcpExt.OutOfWindowIcmps = &value
 				case "LockDroppedIcmps":
-					procNetstat.LockDroppedIcmps = &value
+					procNetstat.TcpExt.LockDroppedIcmps = &value
 				case "ArpFilter":
-					procNetstat.ArpFilter = &value
+					procNetstat.TcpExt.ArpFilter = &value
 				case "TW":
-					procNetstat.TW = &value
+					procNetstat.TcpExt.TW = &value
 				case "TWRecycled":
-					procNetstat.TWRecycled = &value
+					procNetstat.TcpExt.TWRecycled = &value
 				case "TWKilled":
-					procNetstat.TWKilled = &value
+					procNetstat.TcpExt.TWKilled = &value
 				case "PAWSActive":
-					procNetstat.PAWSActive = &value
+					procNetstat.TcpExt.PAWSActive = &value
 				case "PAWSEstab":
-					procNetstat.PAWSEstab = &value
+					procNetstat.TcpExt.PAWSEstab = &value
 				case "DelayedACKs":
-					procNetstat.DelayedACKs = &value
+					procNetstat.TcpExt.DelayedACKs = &value
 				case "DelayedACKLocked":
-					procNetstat.DelayedACKLocked = &value
+					procNetstat.TcpExt.DelayedACKLocked = &value
 				case "DelayedACKLost":
-					procNetstat.DelayedACKLost = &value
+					procNetstat.TcpExt.DelayedACKLost = &value
 				case "ListenOverflows":
-					procNetstat.ListenOverflows = &value
+					procNetstat.TcpExt.ListenOverflows = &value
 				case "ListenDrops":
-					procNetstat.ListenDrops = &value
+					procNetstat.TcpExt.ListenDrops = &value
 				case "TCPHPHits":
-					procNetstat.TCPHPHits = &value
+					procNetstat.TcpExt.TCPHPHits = &value
 				case "TCPPureAcks":
-					procNetstat.TCPPureAcks = &value
+					procNetstat.TcpExt.TCPPureAcks = &value
 				case "TCPHPAcks":
-					procNetstat.TCPHPAcks = &value
+					procNetstat.TcpExt.TCPHPAcks = &value
 				case "TCPRenoRecovery":
-					procNetstat.TCPRenoRecovery = &value
+					procNetstat.TcpExt.TCPRenoRecovery = &value
 				case "TCPSackRecovery":
-					procNetstat.TCPSackRecovery = &value
+					procNetstat.TcpExt.TCPSackRecovery = &value
 				case "TCPSACKReneging":
-					procNetstat.TCPSACKReneging = &value
+					procNetstat.TcpExt.TCPSACKReneging = &value
 				case "TCPSACKReorder":
-					procNetstat.TCPSACKReorder = &value
+					procNetstat.TcpExt.TCPSACKReorder = &value
 				case "TCPRenoReorder":
-					procNetstat.TCPRenoReorder = &value
+					procNetstat.TcpExt.TCPRenoReorder = &value
 				case "TCPTSReorder":
-					procNetstat.TCPTSReorder = &value
+					procNetstat.TcpExt.TCPTSReorder = &value
 				case "TCPFullUndo":
-					procNetstat.TCPFullUndo = &value
+					procNetstat.TcpExt.TCPFullUndo = &value
 				case "TCPPartialUndo":
-					procNetstat.TCPPartialUndo = &value
+					procNetstat.TcpExt.TCPPartialUndo = &value
 				case "TCPDSACKUndo":
-					procNetstat.TCPDSACKUndo = &value
+					procNetstat.TcpExt.TCPDSACKUndo = &value
 				case "TCPLossUndo":
-					procNetstat.TCPLossUndo = &value
+					procNetstat.TcpExt.TCPLossUndo = &value
 				case "TCPLostRetransmit":
-					procNetstat.TCPLostRetransmit = &value
+					procNetstat.TcpExt.TCPLostRetransmit = &value
 				case "TCPRenoFailures":
-					procNetstat.TCPRenoFailures = &value
+					procNetstat.TcpExt.TCPRenoFailures = &value
 				case "TCPSackFailures":
-					procNetstat.TCPSackFailures = &value
+					procNetstat.TcpExt.TCPSackFailures = &value
 				case "TCPLossFailures":
-					procNetstat.TCPLossFailures = &value
+					procNetstat.TcpExt.TCPLossFailures = &value
 				case "TCPFastRetrans":
-					procNetstat.TCPFastRetrans = &value
+					procNetstat.TcpExt.TCPFastRetrans = &value
 				case "TCPSlowStartRetrans":
-					procNetstat.TCPSlowStartRetrans = &value
+					procNetstat.TcpExt.TCPSlowStartRetrans = &value
 				case "TCPTimeouts":
-					procNetstat.TCPTimeouts = &value
+					procNetstat.TcpExt.TCPTimeouts = &value
 				case "TCPLossProbes":
-					procNetstat.TCPLossProbes = &value
+					procNetstat.TcpExt.TCPLossProbes = &value
 				case "TCPLossProbeRecovery":
-					procNetstat.TCPLossProbeRecovery = &value
+					procNetstat.TcpExt.TCPLossProbeRecovery = &value
 				case "TCPRenoRecoveryFail":
-					procNetstat.TCPRenoRecoveryFail = &value
+					procNetstat.TcpExt.TCPRenoRecoveryFail = &value
 				case "TCPSackRecoveryFail":
-					procNetstat.TCPSackRecoveryFail = &value
+					procNetstat.TcpExt.TCPSackRecoveryFail = &value
 				case "TCPRcvCollapsed":
-					procNetstat.TCPRcvCollapsed = &value
+					procNetstat.TcpExt.TCPRcvCollapsed = &value
 				case "TCPDSACKOldSent":
-					procNetstat.TCPDSACKOldSent = &value
+					procNetstat.TcpExt.TCPDSACKOldSent = &value
 				case "TCPDSACKOfoSent":
-					procNetstat.TCPDSACKOfoSent = &value
+					procNetstat.TcpExt.TCPDSACKOfoSent = &value
 				case "TCPDSACKRecv":
-					procNetstat.TCPDSACKRecv = &value
+					procNetstat.TcpExt.TCPDSACKRecv = &value
 				case "TCPDSACKOfoRecv":
-					procNetstat.TCPDSACKOfoRecv = &value
+					procNetstat.TcpExt.TCPDSACKOfoRecv = &value
 				case "TCPAbortOnData":
-					procNetstat.TCPAbortOnData = &value
+					procNetstat.TcpExt.TCPAbortOnData = &value
 				case "TCPAbortOnClose":
-					procNetstat.TCPAbortOnClose = &value
+					procNetstat.TcpExt.TCPAbortOnClose = &value
 				case "TCPDeferAcceptDrop":
-					procNetstat.TCPDeferAcceptDrop = &value
+					procNetstat.TcpExt.TCPDeferAcceptDrop = &value
 				case "IPReversePathFilter":
-					procNetstat.IPReversePathFilter = &value
+					procNetstat.TcpExt.IPReversePathFilter = &value
 				case "TCPTimeWaitOverflow":
-					procNetstat.TCPTimeWaitOverflow = &value
+					procNetstat.TcpExt.TCPTimeWaitOverflow = &value
 				case "TCPReqQFullDoCookies":
-					procNetstat.TCPReqQFullDoCookies = &value
+					procNetstat.TcpExt.TCPReqQFullDoCookies = &value
 				case "TCPReqQFullDrop":
-					procNetstat.TCPReqQFullDrop = &value
+					procNetstat.TcpExt.TCPReqQFullDrop = &value
 				case "TCPRetransFail":
-					procNetstat.TCPRetransFail = &value
+					procNetstat.TcpExt.TCPRetransFail = &value
 				case "TCPRcvCoalesce":
-					procNetstat.TCPRcvCoalesce = &value
+					procNetstat.TcpExt.TCPRcvCoalesce = &value
 				case "TCPRcvQDrop":
-					procNetstat.TCPRcvQDrop = &value
+					procNetstat.TcpExt.TCPRcvQDrop = &value
 				case "TCPOFOQueue":
-					procNetstat.TCPOFOQueue = &value
+					procNetstat.TcpExt.TCPOFOQueue = &value
 				case "TCPOFODrop":
-					procNetstat.TCPOFODrop = &value
+					procNetstat.TcpExt.TCPOFODrop = &value
 				case "TCPOFOMerge":
-					procNetstat.TCPOFOMerge = &value
+					procNetstat.TcpExt.TCPOFOMerge = &value
 				case "TCPChallengeACK":
-					procNetstat.TCPChallengeACK = &value
+					procNetstat.TcpExt.TCPChallengeACK = &value
 				case "TCPSYNChallenge":
-					procNetstat.TCPSYNChallenge = &value
+					procNetstat.TcpExt.TCPSYNChallenge = &value
 				case "TCPFastOpenActive":
-					procNetstat.TCPFastOpenActive = &value
+					procNetstat.TcpExt.TCPFastOpenActive = &value
 				case "TCPFastOpenActiveFail":
-					procNetstat.TCPFastOpenActiveFail = &value
+					procNetstat.TcpExt.TCPFastOpenActiveFail = &value
 				case "TCPFastOpenPassive":
-					procNetstat.TCPFastOpenPassive = &value
+					procNetstat.TcpExt.TCPFastOpenPassive = &value
 				case "TCPFastOpenPassiveFail":
-					procNetstat.TCPFastOpenPassiveFail = &value
+					procNetstat.TcpExt.TCPFastOpenPassiveFail = &value
 				case "TCPFastOpenListenOverflow":
-					procNetstat.TCPFastOpenListenOverflow = &value
+					procNetstat.TcpExt.TCPFastOpenListenOverflow = &value
 				case "TCPFastOpenCookieReqd":
-					procNetstat.TCPFastOpenCookieReqd = &value
+					procNetstat.TcpExt.TCPFastOpenCookieReqd = &value
 				case "TCPFastOpenBlackhole":
-					procNetstat.TCPFastOpenBlackhole = &value
+					procNetstat.TcpExt.TCPFastOpenBlackhole = &value
 				case "TCPSpuriousRtxHostQueues":
-					procNetstat.TCPSpuriousRtxHostQueues = &value
+					procNetstat.TcpExt.TCPSpuriousRtxHostQueues = &value
 				case "BusyPollRxPackets":
-					procNetstat.BusyPollRxPackets = &value
+					procNetstat.TcpExt.BusyPollRxPackets = &value
 				case "TCPAutoCorking":
-					procNetstat.TCPAutoCorking = &value
+					procNetstat.TcpExt.TCPAutoCorking = &value
 				case "TCPFromZeroWindowAdv":
-					procNetstat.TCPFromZeroWindowAdv = &value
+					procNetstat.TcpExt.TCPFromZeroWindowAdv = &value
 				case "TCPToZeroWindowAdv":
-					procNetstat.TCPToZeroWindowAdv = &value
+					procNetstat.TcpExt.TCPToZeroWindowAdv = &value
 				case "TCPWantZeroWindowAdv":
-					procNetstat.TCPWantZeroWindowAdv = &value
+					procNetstat.TcpExt.TCPWantZeroWindowAdv = &value
 				case "TCPSynRetrans":
-					procNetstat.TCPSynRetrans = &value
+					procNetstat.TcpExt.TCPSynRetrans = &value
 				case "TCPOrigDataSent":
-					procNetstat.TCPOrigDataSent = &value
+					procNetstat.TcpExt.TCPOrigDataSent = &value
 				case "TCPHystartTrainDetect":
-					procNetstat.TCPHystartTrainDetect = &value
+					procNetstat.TcpExt.TCPHystartTrainDetect = &value
 				case "TCPHystartTrainCwnd":
-					procNetstat.TCPHystartTrainCwnd = &value
+					procNetstat.TcpExt.TCPHystartTrainCwnd = &value
 				case "TCPHystartDelayDetect":
-					procNetstat.TCPHystartDelayDetect = &value
+					procNetstat.TcpExt.TCPHystartDelayDetect = &value
 				case "TCPHystartDelayCwnd":
-					procNetstat.TCPHystartDelayCwnd = &value
+					procNetstat.TcpExt.TCPHystartDelayCwnd = &value
 				case "TCPACKSkippedSynRecv":
-					procNetstat.TCPACKSkippedSynRecv = &value
+					procNetstat.TcpExt.TCPACKSkippedSynRecv = &value
 				case "TCPACKSkippedPAWS":
-					procNetstat.TCPACKSkippedPAWS = &value
+					procNetstat.TcpExt.TCPACKSkippedPAWS = &value
 				case "TCPACKSkippedSeq":
-					procNetstat.TCPACKSkippedSeq = &value
+					procNetstat.TcpExt.TCPACKSkippedSeq = &value
 				case "TCPACKSkippedFinWait2":
-					procNetstat.TCPACKSkippedFinWait2 = &value
+					procNetstat.TcpExt.TCPACKSkippedFinWait2 = &value
 				case "TCPACKSkippedTimeWait":
-					procNetstat.TCPACKSkippedTimeWait = &value
+					procNetstat.TcpExt.TCPACKSkippedTimeWait = &value
 				case "TCPACKSkippedChallenge":
-					procNetstat.TCPACKSkippedChallenge = &value
+					procNetstat.TcpExt.TCPACKSkippedChallenge = &value
 				case "TCPWinProbe":
-					procNetstat.TCPWinProbe = &value
+					procNetstat.TcpExt.TCPWinProbe = &value
 				case "TCPKeepAlive":
-					procNetstat.TCPKeepAlive = &value
+					procNetstat.TcpExt.TCPKeepAlive = &value
 				case "TCPMTUPFail":
-					procNetstat.TCPMTUPFail = &value
+					procNetstat.TcpExt.TCPMTUPFail = &value
 				case "TCPMTUPSuccess":
-					procNetstat.TCPMTUPSuccess = &value
+					procNetstat.TcpExt.TCPMTUPSuccess = &value
 				case "TCPWqueueTooBig":
-					procNetstat.TCPWqueueTooBig = &value
+					procNetstat.TcpExt.TCPWqueueTooBig = &value
 				}
 			case "IpExt":
 				switch key {
 				case "InNoRoutes":
-					procNetstat.InNoRoutes = &value
+					procNetstat.IpExt.InNoRoutes = &value
 				case "InTruncatedPkts":
-					procNetstat.InTruncatedPkts = &value
+					procNetstat.IpExt.InTruncatedPkts = &value
 				case "InMcastPkts":
-					procNetstat.InMcastPkts = &value
+					procNetstat.IpExt.InMcastPkts = &value
 				case "OutMcastPkts":
-					procNetstat.OutMcastPkts = &value
+					procNetstat.IpExt.OutMcastPkts = &value
 				case "InBcastPkts":
-					procNetstat.InBcastPkts = &value
+					procNetstat.IpExt.InBcastPkts = &value
 				case "OutBcastPkts":
-					procNetstat.OutBcastPkts = &value
+					procNetstat.IpExt.OutBcastPkts = &value
 				case "InOctets":
-					procNetstat.InOctets = &value
+					procNetstat.IpExt.InOctets = &value
 				case "OutOctets":
-					procNetstat.OutOctets = &value
+					procNetstat.IpExt.OutOctets = &value
 				case "InMcastOctets":
-					procNetstat.InMcastOctets = &value
+					procNetstat.IpExt.InMcastOctets = &value
 				case "OutMcastOctets":
-					procNetstat.OutMcastOctets = &value
+					procNetstat.IpExt.OutMcastOctets = &value
 				case "InBcastOctets":
-					procNetstat.InBcastOctets = &value
+					procNetstat.IpExt.InBcastOctets = &value
 				case "OutBcastOctets":
-					procNetstat.OutBcastOctets = &value
+					procNetstat.IpExt.OutBcastOctets = &value
 				case "InCsumErrors":
-					procNetstat.InCsumErrors = &value
+					procNetstat.IpExt.InCsumErrors = &value
 				case "InNoECTPkts":
-					procNetstat.InNoECTPkts = &value
+					procNetstat.IpExt.InNoECTPkts = &value
 				case "InECT1Pkts":
-					procNetstat.InECT1Pkts = &value
+					procNetstat.IpExt.InECT1Pkts = &value
 				case "InECT0Pkts":
-					procNetstat.InECT0Pkts = &value
+					procNetstat.IpExt.InECT0Pkts = &value
 				case "InCEPkts":
-					procNetstat.InCEPkts = &value
+					procNetstat.IpExt.InCEPkts = &value
 				case "ReasmOverlaps":
-					procNetstat.ReasmOverlaps = &value
+					procNetstat.IpExt.ReasmOverlaps = &value
 				}
 			}
 		}

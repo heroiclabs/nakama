@@ -361,6 +361,9 @@ type builderNode struct {
 func (n *builderNode) reset() {
 	n.final = false
 	n.finalOutput = 0
+	for i := range n.trans {
+		n.trans[i] = emptyTransition
+	}
 	n.trans = n.trans[:0]
 	n.next = nil
 }
@@ -389,6 +392,8 @@ func (n *builderNode) equiv(o *builderNode) bool {
 	}
 	return true
 }
+
+var emptyTransition = transition{}
 
 type transition struct {
 	out  uint64

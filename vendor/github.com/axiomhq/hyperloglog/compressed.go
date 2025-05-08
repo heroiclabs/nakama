@@ -1,16 +1,18 @@
 package hyperloglog
 
-import (
-	"encoding/binary"
-	"slices"
-)
+import "encoding/binary"
 
 // Original author of this file is github.com/clarkduvall/hyperloglog
+type iterable interface {
+	decode(i int, last uint32) (uint32, int)
+	Len() int
+	Iter() *iterator
+}
 
 type iterator struct {
 	i    int
 	last uint32
-	v    *compressedList
+	v    iterable
 }
 
 func (iter *iterator) Next() uint32 {
@@ -20,13 +22,9 @@ func (iter *iterator) Next() uint32 {
 	return n
 }
 
-func (iter *iterator) Peek() (uint32, int) {
-	return iter.v.decode(iter.i, iter.last)
-}
-
-func (iter *iterator) Advance(last uint32, i int) {
-	iter.last = last
-	iter.i = i
+func (iter *iterator) Peek() uint32 {
+	n, _ := iter.v.decode(iter.i, iter.last)
+	return n
 }
 
 func (iter iterator) HasNext() bool {
@@ -54,26 +52,32 @@ func (v *compressedList) Clone() *compressedList {
 	return newV
 }
 
-func (v *compressedList) AppendBinary(data []byte) ([]byte, error) {
-	// At least 4 bytes for the two fixed sized values
-	data = slices.Grow(data, 4+4)
+func (v *compressedList) MarshalBinary() (data []byte, err error) {
+	// Marshal the variableLengthList
+	bdata, err := v.b.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	// At least 4 bytes for the two fixed sized values plus the size of bdata.
+	data = make([]byte, 0, 4+4+len(bdata))
 
 	// Marshal the count and last values.
-	data = append(data,
+	data = append(data, []byte{
 		// Number of items in the list.
-		byte(v.count>>24),
-		byte(v.count>>16),
-		byte(v.count>>8),
+		byte(v.count >> 24),
+		byte(v.count >> 16),
+		byte(v.count >> 8),
 		byte(v.count),
 		// The last item in the list.
-		byte(v.last>>24),
-		byte(v.last>>16),
-		byte(v.last>>8),
+		byte(v.last >> 24),
+		byte(v.last >> 16),
+		byte(v.last >> 8),
 		byte(v.last),
-	)
+	}...)
 
-	// Append the variableLengthList
-	return v.b.AppendBinary(data)
+	// Append the list
+	return append(data, bdata...), nil
 }
 
 func (v *compressedList) UnmarshalBinary(data []byte) error {
@@ -99,9 +103,9 @@ func (v *compressedList) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func newCompressedList(capacity int) *compressedList {
+func newCompressedList() *compressedList {
 	v := &compressedList{}
-	v.b = make(variableLengthList, 0, capacity)
+	v.b = make(variableLengthList, 0)
 	return v
 }
 
@@ -110,7 +114,7 @@ func (v *compressedList) Len() int {
 }
 
 func (v *compressedList) decode(i int, last uint32) (uint32, int) {
-	n, i := v.b.decode(i)
+	n, i := v.b.decode(i, last)
 	return n + last, i
 }
 
@@ -120,26 +124,26 @@ func (v *compressedList) Append(x uint32) {
 	v.last = x
 }
 
-func (v *compressedList) Iter() iterator {
-	return iterator{0, 0, v}
+func (v *compressedList) Iter() *iterator {
+	return &iterator{0, 0, v}
 }
 
 type variableLengthList []uint8
 
-func (v variableLengthList) AppendBinary(data []byte) ([]byte, error) {
+func (v variableLengthList) MarshalBinary() (data []byte, err error) {
 	// 4 bytes for the size of the list, and a byte for each element in the
 	// list.
-	data = slices.Grow(data, 4+len(v))
+	data = make([]byte, 0, 4+v.Len())
 
 	// Length of the list. We only need 32 bits because the size of the set
 	// couldn't exceed that on 32 bit architectures.
-	sz := len(v)
-	data = append(data,
-		byte(sz>>24),
-		byte(sz>>16),
-		byte(sz>>8),
+	sz := v.Len()
+	data = append(data, []byte{
+		byte(sz >> 24),
+		byte(sz >> 16),
+		byte(sz >> 8),
 		byte(sz),
-	)
+	}...)
 
 	// Marshal each element in the list.
 	for i := 0; i < sz; i++ {
@@ -149,7 +153,15 @@ func (v variableLengthList) AppendBinary(data []byte) ([]byte, error) {
 	return data, nil
 }
 
-func (v variableLengthList) decode(i int) (uint32, int) {
+func (v variableLengthList) Len() int {
+	return len(v)
+}
+
+func (v *variableLengthList) Iter() *iterator {
+	return &iterator{0, 0, v}
+}
+
+func (v variableLengthList) decode(i int, last uint32) (uint32, int) {
 	var x uint32
 	j := i
 	for ; v[j]&0x80 != 0; j++ {

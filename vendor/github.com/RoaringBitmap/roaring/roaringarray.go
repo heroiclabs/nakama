@@ -5,15 +5,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-
 	"github.com/RoaringBitmap/roaring/internal"
 )
 
 type container interface {
-	// addOffset returns the (low, high) parts of the shifted container.
-	// Whenever one of them would be empty, nil will be returned instead to
-	// avoid unnecessary allocations.
-	addOffset(uint16) (container, container)
+	addOffset(uint16) []container
 
 	clone() container
 	and(container) container
@@ -113,10 +109,9 @@ func newRoaringArray() *roaringArray {
 // runOptimize compresses the element containers to minimize space consumed.
 // Q: how does this interact with copyOnWrite and needCopyOnWrite?
 // A: since we aren't changing the logical content, just the representation,
-//
-//	we don't bother to check the needCopyOnWrite bits. We replace
-//	(possibly all) elements of ra.containers in-place with space
-//	optimized versions.
+//    we don't bother to check the needCopyOnWrite bits. We replace
+//    (possibly all) elements of ra.containers in-place with space
+//    optimized versions.
 func (ra *roaringArray) runOptimize() {
 	for i := range ra.containers {
 		ra.containers[i] = ra.containers[i].toEfficientContainer()
@@ -467,7 +462,9 @@ func (ra *roaringArray) serializedSizeInBytes() uint64 {
 	return answer
 }
 
+//
 // spec: https://github.com/RoaringBitmap/RoaringFormatSpec
+//
 func (ra *roaringArray) writeTo(w io.Writer) (n int64, err error) {
 	hasRun := ra.hasRunCompression()
 	isRunSizeInBytes := 0
@@ -544,18 +541,19 @@ func (ra *roaringArray) writeTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
+//
 // spec: https://github.com/RoaringBitmap/RoaringFormatSpec
+//
 func (ra *roaringArray) toBytes() ([]byte, error) {
 	var buf bytes.Buffer
 	_, err := ra.writeTo(&buf)
 	return buf.Bytes(), err
 }
 
-// Reads a serialized roaringArray from a byte slice.
 func (ra *roaringArray) readFrom(stream internal.ByteInput, cookieHeader ...byte) (int64, error) {
-	var cookie uint32
+  var cookie uint32
 	var err error
-	if len(cookieHeader) > 0 && len(cookieHeader) != 4 {
+  if len(cookieHeader) > 0 && len(cookieHeader) != 4 {
 		return int64(len(cookieHeader)), fmt.Errorf("error in roaringArray.readFrom: could not read initial cookie: incorrect size of cookie header")
 	}
 	if len(cookieHeader) == 4 {
@@ -566,8 +564,6 @@ func (ra *roaringArray) readFrom(stream internal.ByteInput, cookieHeader ...byte
 			return stream.GetReadBytes(), fmt.Errorf("error in roaringArray.readFrom: could not read initial cookie: %s", err)
 		}
 	}
-	// If NextReturnsSafeSlice is false, then willNeedCopyOnWrite should be true
-	willNeedCopyOnWrite := !stream.NextReturnsSafeSlice()
 
 	var size uint32
 	var isRunBitmap []byte
@@ -632,7 +628,7 @@ func (ra *roaringArray) readFrom(stream internal.ByteInput, cookieHeader ...byte
 		key := keycard[2*i]
 		card := int(keycard[2*i+1]) + 1
 		ra.keys[i] = key
-		ra.needCopyOnWrite[i] = willNeedCopyOnWrite
+		ra.needCopyOnWrite[i] = true
 
 		if isRunBitmap != nil && isRunBitmap[i/8]&(1<<(i%8)) != 0 {
 			// run container
@@ -649,7 +645,7 @@ func (ra *roaringArray) readFrom(stream internal.ByteInput, cookieHeader ...byte
 			}
 
 			nb := runContainer16{
-				iv: byteSliceAsInterval16Slice(buf),
+				iv:   byteSliceAsInterval16Slice(buf),
 			}
 
 			ra.containers[i] = &nb

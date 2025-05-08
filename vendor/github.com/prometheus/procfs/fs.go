@@ -24,14 +24,8 @@ type FS struct {
 	isReal bool
 }
 
-const (
-	// DefaultMountPoint is the common mount point of the proc filesystem.
-	DefaultMountPoint = fs.DefaultProcMountPoint
-
-	// SectorSize represents the size of a sector in bytes.
-	// It is specific to Linux block I/O operations.
-	SectorSize = 512
-)
+// DefaultMountPoint is the common mount point of the proc filesystem.
+const DefaultMountPoint = fs.DefaultProcMountPoint
 
 // NewDefaultFS returns a new proc FS mounted under the default proc mountPoint.
 // It will error if the mount point directory can't be read or is a file.

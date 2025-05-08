@@ -146,11 +146,7 @@ func (s *ProcStatus) fillStatus(k string, vString string, vUint uint64, vUintByt
 			}
 		}
 	case "NSpid":
-		nspids, err := calcNSPidsList(vString)
-		if err != nil {
-			return err
-		}
-		s.NSpids = nspids
+		s.NSpids = calcNSPidsList(vString)
 	case "VmPeak":
 		s.VmPeak = vUintBytes
 	case "VmSize":
@@ -226,17 +222,17 @@ func calcCpusAllowedList(cpuString string) []uint64 {
 	return g
 }
 
-func calcNSPidsList(nspidsString string) ([]uint64, error) {
-	s := strings.Split(nspidsString, "\t")
+func calcNSPidsList(nspidsString string) []uint64 {
+	s := strings.Split(nspidsString, " ")
 	var nspids []uint64
 
 	for _, nspid := range s {
-		nspid, err := strconv.ParseUint(nspid, 10, 64)
-		if err != nil {
-			return nil, err
+		nspid, _ := strconv.ParseUint(nspid, 10, 64)
+		if nspid == 0 {
+			continue
 		}
 		nspids = append(nspids, nspid)
 	}
 
-	return nspids, nil
+	return nspids
 }

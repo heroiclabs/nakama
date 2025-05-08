@@ -21,7 +21,7 @@ import (
 )
 
 func sysctlToPath(sysctl string) string {
-	return strings.ReplaceAll(sysctl, ".", "/")
+	return strings.Replace(sysctl, ".", "/", -1)
 }
 
 func (fs FS) SysctlStrings(sysctl string) ([]string, error) {

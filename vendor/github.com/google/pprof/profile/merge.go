@@ -326,13 +326,12 @@ func (l *Location) key() locationKey {
 		key.addr -= l.Mapping.Start
 		key.mappingID = l.Mapping.ID
 	}
-	lines := make([]string, len(l.Line)*3)
+	lines := make([]string, len(l.Line)*2)
 	for i, line := range l.Line {
 		if line.Function != nil {
 			lines[i*2] = strconv.FormatUint(line.Function.ID, 16)
 		}
 		lines[i*2+1] = strconv.FormatInt(line.Line, 16)
-		lines[i*2+2] = strconv.FormatInt(line.Column, 16)
 	}
 	key.lines = strings.Join(lines, "|")
 	return key
@@ -419,7 +418,6 @@ func (pm *profileMerger) mapLine(src Line) Line {
 	ln := Line{
 		Function: pm.mapFunction(src.Function),
 		Line:     src.Line,
-		Column:   src.Column,
 	}
 	return ln
 }
@@ -476,7 +474,6 @@ func combineHeaders(srcs []*Profile) (*Profile, error) {
 	var timeNanos, durationNanos, period int64
 	var comments []string
 	seenComments := map[string]bool{}
-	var docURL string
 	var defaultSampleType string
 	for _, s := range srcs {
 		if timeNanos == 0 || s.TimeNanos < timeNanos {
@@ -495,9 +492,6 @@ func combineHeaders(srcs []*Profile) (*Profile, error) {
 		if defaultSampleType == "" {
 			defaultSampleType = s.DefaultSampleType
 		}
-		if docURL == "" {
-			docURL = s.DocURL
-		}
 	}
 
 	p := &Profile{
@@ -513,7 +507,6 @@ func combineHeaders(srcs []*Profile) (*Profile, error) {
 
 		Comments:          comments,
 		DefaultSampleType: defaultSampleType,
-		DocURL:            docURL,
 	}
 	copy(p.SampleType, srcs[0].SampleType)
 	return p, nil
