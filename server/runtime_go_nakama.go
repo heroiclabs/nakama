@@ -2541,7 +2541,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardList(limit int, cursor string) (*api.
 
 	var cursorPtr *LeaderboardListCursor
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, errors.New("expects cursor to be valid when provided")
 		}
@@ -2975,7 +2975,7 @@ func (n *RuntimeGoNakamaModule) TournamentList(ctx context.Context, categoryStar
 
 	var cursorPtr *TournamentListCursor
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, errors.New("expects cursor to be valid when provided")
 		}

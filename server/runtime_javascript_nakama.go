@@ -5548,7 +5548,7 @@ func (n *RuntimeJavascriptNakamaModule) leaderboardList(r *goja.Runtime) func(go
 		var cursorValue *LeaderboardListCursor
 		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
 			cursor := getJsString(r, f.Argument(1))
-			cb, err := base64.StdEncoding.DecodeString(cursor)
+			cb, err := base64.URLEncoding.DecodeString(cursor)
 			if err != nil {
 				panic(r.NewTypeError("expects cursor to be valid when provided"))
 			}
@@ -6869,7 +6869,7 @@ func (n *RuntimeJavascriptNakamaModule) tournamentList(r *goja.Runtime) func(goj
 		var cursorValue *TournamentListCursor
 		if f.Argument(5) != goja.Undefined() && f.Argument(5) != goja.Null() {
 			cursor := getJsString(r, f.Argument(5))
-			cb, err := base64.StdEncoding.DecodeString(cursor)
+			cb, err := base64.URLEncoding.DecodeString(cursor)
 			if err != nil {
 				panic(r.NewTypeError("expects cursor to be valid when provided"))
 			}

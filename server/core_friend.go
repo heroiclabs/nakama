@@ -188,7 +188,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1 AND destinati
 func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userID uuid.UUID, limit int, state *wrapperspb.Int32Value, cursor string) (*api.FriendList, error) {
 	var incomingCursor *edgeListCursor
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, runtime.ErrFriendInvalidCursor
 		}
@@ -275,7 +275,7 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 				logger.Error("Error creating friend list cursor", zap.Error(err))
 				return nil, err
 			}
-			outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+			outgoingCursor = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 			break
 		}
 
@@ -328,7 +328,7 @@ type friendsOfFriendsListCursor struct {
 func ListFriendsOfFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userID uuid.UUID, limit int, cursor string) (*api.FriendsOfFriendsList, error) {
 	var incomingCursor *friendsOfFriendsListCursor
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			return nil, runtime.ErrFriendInvalidCursor
 		}
@@ -424,7 +424,7 @@ AND state = 0
 					logger.Error("Error creating friends of friends list cursor", zap.Error(err))
 					return nil, err
 				}
-				outgoingCursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+				outgoingCursor = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 				break friendLoop
 			}
 

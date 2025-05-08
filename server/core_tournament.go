@@ -385,7 +385,7 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			logger.Error("Error creating tournament records list cursor", zap.Error(err))
 			return nil, err
 		}
-		tournamentList.Cursor = base64.StdEncoding.EncodeToString(cursorBuf.Bytes())
+		tournamentList.Cursor = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
 	}
 
 	return tournamentList, nil
