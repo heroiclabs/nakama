@@ -184,10 +184,6 @@ func (c *Consumer) Source(
 func (c *Consumer) source(
 	m *sourceMap, genLine, genColumn int,
 ) (source, name string, line, column int, ok bool) {
-	if len(m.mappings) == 0 {
-		return
-	}
-
 	i := sort.Search(len(m.mappings), func(i int) bool {
 		m := &m.mappings[i]
 		if int(m.genLine) == genLine {
@@ -196,24 +192,19 @@ func (c *Consumer) source(
 		return int(m.genLine) >= genLine
 	})
 
-	var match *mapping
-	// Mapping not found
+	// Mapping not found.
 	if i == len(m.mappings) {
-		// lets see if the line is correct but the column is bigger
-		match = &m.mappings[i-1]
-		if int(match.genLine) != genLine {
+		return
+	}
+
+	match := &m.mappings[i]
+
+	// Fuzzy match.
+	if int(match.genLine) > genLine || int(match.genColumn) > genColumn {
+		if i == 0 {
 			return
 		}
-	} else {
-		match = &m.mappings[i]
-
-		// Fuzzy match.
-		if int(match.genLine) > genLine || int(match.genColumn) > genColumn {
-			if i == 0 {
-				return
-			}
-			match = &m.mappings[i-1]
-		}
+		match = &m.mappings[i-1]
 	}
 
 	if match.sourcesInd >= 0 {

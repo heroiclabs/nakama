@@ -173,138 +173,138 @@ func parseSnmp(r io.Reader, fileName string) (ProcSnmp, error) {
 			case "Ip":
 				switch key {
 				case "Forwarding":
-					procSnmp.Forwarding = &value
+					procSnmp.Ip.Forwarding = &value
 				case "DefaultTTL":
-					procSnmp.DefaultTTL = &value
+					procSnmp.Ip.DefaultTTL = &value
 				case "InReceives":
-					procSnmp.InReceives = &value
+					procSnmp.Ip.InReceives = &value
 				case "InHdrErrors":
-					procSnmp.InHdrErrors = &value
+					procSnmp.Ip.InHdrErrors = &value
 				case "InAddrErrors":
-					procSnmp.InAddrErrors = &value
+					procSnmp.Ip.InAddrErrors = &value
 				case "ForwDatagrams":
-					procSnmp.ForwDatagrams = &value
+					procSnmp.Ip.ForwDatagrams = &value
 				case "InUnknownProtos":
-					procSnmp.InUnknownProtos = &value
+					procSnmp.Ip.InUnknownProtos = &value
 				case "InDiscards":
-					procSnmp.InDiscards = &value
+					procSnmp.Ip.InDiscards = &value
 				case "InDelivers":
-					procSnmp.InDelivers = &value
+					procSnmp.Ip.InDelivers = &value
 				case "OutRequests":
-					procSnmp.OutRequests = &value
+					procSnmp.Ip.OutRequests = &value
 				case "OutDiscards":
-					procSnmp.OutDiscards = &value
+					procSnmp.Ip.OutDiscards = &value
 				case "OutNoRoutes":
-					procSnmp.OutNoRoutes = &value
+					procSnmp.Ip.OutNoRoutes = &value
 				case "ReasmTimeout":
-					procSnmp.ReasmTimeout = &value
+					procSnmp.Ip.ReasmTimeout = &value
 				case "ReasmReqds":
-					procSnmp.ReasmReqds = &value
+					procSnmp.Ip.ReasmReqds = &value
 				case "ReasmOKs":
-					procSnmp.ReasmOKs = &value
+					procSnmp.Ip.ReasmOKs = &value
 				case "ReasmFails":
-					procSnmp.ReasmFails = &value
+					procSnmp.Ip.ReasmFails = &value
 				case "FragOKs":
-					procSnmp.FragOKs = &value
+					procSnmp.Ip.FragOKs = &value
 				case "FragFails":
-					procSnmp.FragFails = &value
+					procSnmp.Ip.FragFails = &value
 				case "FragCreates":
-					procSnmp.FragCreates = &value
+					procSnmp.Ip.FragCreates = &value
 				}
 			case "Icmp":
 				switch key {
 				case "InMsgs":
-					procSnmp.InMsgs = &value
+					procSnmp.Icmp.InMsgs = &value
 				case "InErrors":
 					procSnmp.Icmp.InErrors = &value
 				case "InCsumErrors":
 					procSnmp.Icmp.InCsumErrors = &value
 				case "InDestUnreachs":
-					procSnmp.InDestUnreachs = &value
+					procSnmp.Icmp.InDestUnreachs = &value
 				case "InTimeExcds":
-					procSnmp.InTimeExcds = &value
+					procSnmp.Icmp.InTimeExcds = &value
 				case "InParmProbs":
-					procSnmp.InParmProbs = &value
+					procSnmp.Icmp.InParmProbs = &value
 				case "InSrcQuenchs":
-					procSnmp.InSrcQuenchs = &value
+					procSnmp.Icmp.InSrcQuenchs = &value
 				case "InRedirects":
-					procSnmp.InRedirects = &value
+					procSnmp.Icmp.InRedirects = &value
 				case "InEchos":
-					procSnmp.InEchos = &value
+					procSnmp.Icmp.InEchos = &value
 				case "InEchoReps":
-					procSnmp.InEchoReps = &value
+					procSnmp.Icmp.InEchoReps = &value
 				case "InTimestamps":
-					procSnmp.InTimestamps = &value
+					procSnmp.Icmp.InTimestamps = &value
 				case "InTimestampReps":
-					procSnmp.InTimestampReps = &value
+					procSnmp.Icmp.InTimestampReps = &value
 				case "InAddrMasks":
-					procSnmp.InAddrMasks = &value
+					procSnmp.Icmp.InAddrMasks = &value
 				case "InAddrMaskReps":
-					procSnmp.InAddrMaskReps = &value
+					procSnmp.Icmp.InAddrMaskReps = &value
 				case "OutMsgs":
-					procSnmp.OutMsgs = &value
+					procSnmp.Icmp.OutMsgs = &value
 				case "OutErrors":
-					procSnmp.OutErrors = &value
+					procSnmp.Icmp.OutErrors = &value
 				case "OutDestUnreachs":
-					procSnmp.OutDestUnreachs = &value
+					procSnmp.Icmp.OutDestUnreachs = &value
 				case "OutTimeExcds":
-					procSnmp.OutTimeExcds = &value
+					procSnmp.Icmp.OutTimeExcds = &value
 				case "OutParmProbs":
-					procSnmp.OutParmProbs = &value
+					procSnmp.Icmp.OutParmProbs = &value
 				case "OutSrcQuenchs":
-					procSnmp.OutSrcQuenchs = &value
+					procSnmp.Icmp.OutSrcQuenchs = &value
 				case "OutRedirects":
-					procSnmp.OutRedirects = &value
+					procSnmp.Icmp.OutRedirects = &value
 				case "OutEchos":
-					procSnmp.OutEchos = &value
+					procSnmp.Icmp.OutEchos = &value
 				case "OutEchoReps":
-					procSnmp.OutEchoReps = &value
+					procSnmp.Icmp.OutEchoReps = &value
 				case "OutTimestamps":
-					procSnmp.OutTimestamps = &value
+					procSnmp.Icmp.OutTimestamps = &value
 				case "OutTimestampReps":
-					procSnmp.OutTimestampReps = &value
+					procSnmp.Icmp.OutTimestampReps = &value
 				case "OutAddrMasks":
-					procSnmp.OutAddrMasks = &value
+					procSnmp.Icmp.OutAddrMasks = &value
 				case "OutAddrMaskReps":
-					procSnmp.OutAddrMaskReps = &value
+					procSnmp.Icmp.OutAddrMaskReps = &value
 				}
 			case "IcmpMsg":
 				switch key {
 				case "InType3":
-					procSnmp.InType3 = &value
+					procSnmp.IcmpMsg.InType3 = &value
 				case "OutType3":
-					procSnmp.OutType3 = &value
+					procSnmp.IcmpMsg.OutType3 = &value
 				}
 			case "Tcp":
 				switch key {
 				case "RtoAlgorithm":
-					procSnmp.RtoAlgorithm = &value
+					procSnmp.Tcp.RtoAlgorithm = &value
 				case "RtoMin":
-					procSnmp.RtoMin = &value
+					procSnmp.Tcp.RtoMin = &value
 				case "RtoMax":
-					procSnmp.RtoMax = &value
+					procSnmp.Tcp.RtoMax = &value
 				case "MaxConn":
-					procSnmp.MaxConn = &value
+					procSnmp.Tcp.MaxConn = &value
 				case "ActiveOpens":
-					procSnmp.ActiveOpens = &value
+					procSnmp.Tcp.ActiveOpens = &value
 				case "PassiveOpens":
-					procSnmp.PassiveOpens = &value
+					procSnmp.Tcp.PassiveOpens = &value
 				case "AttemptFails":
-					procSnmp.AttemptFails = &value
+					procSnmp.Tcp.AttemptFails = &value
 				case "EstabResets":
-					procSnmp.EstabResets = &value
+					procSnmp.Tcp.EstabResets = &value
 				case "CurrEstab":
-					procSnmp.CurrEstab = &value
+					procSnmp.Tcp.CurrEstab = &value
 				case "InSegs":
-					procSnmp.InSegs = &value
+					procSnmp.Tcp.InSegs = &value
 				case "OutSegs":
-					procSnmp.OutSegs = &value
+					procSnmp.Tcp.OutSegs = &value
 				case "RetransSegs":
-					procSnmp.RetransSegs = &value
+					procSnmp.Tcp.RetransSegs = &value
 				case "InErrs":
-					procSnmp.InErrs = &value
+					procSnmp.Tcp.InErrs = &value
 				case "OutRsts":
-					procSnmp.OutRsts = &value
+					procSnmp.Tcp.OutRsts = &value
 				case "InCsumErrors":
 					procSnmp.Tcp.InCsumErrors = &value
 				}

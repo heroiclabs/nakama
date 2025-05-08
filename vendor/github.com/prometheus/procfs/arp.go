@@ -23,9 +23,9 @@ import (
 
 // Learned from include/uapi/linux/if_arp.h.
 const (
-	// Completed entry (ha valid).
+	// completed entry (ha valid).
 	ATFComplete = 0x02
-	// Permanent entry.
+	// permanent entry.
 	ATFPermanent = 0x04
 	// Publish entry.
 	ATFPublish = 0x08
