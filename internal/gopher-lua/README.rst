@@ -869,7 +869,7 @@ Libraries for GopherLua
 - `gluasql <https://github.com/tengattack/gluasql>`_ : A native Go implementation of SQL client for the GopherLua VM.
 - `purr <https://github.com/leyafo/purr>`_ : A http mock testing tool.
 - `vadv/gopher-lua-libs <https://github.com/vadv/gopher-lua-libs>`_ : Some usefull libraries for GopherLua VM.
-- `gluaperiphery <https://github.com/BixData/gluaperiphery>`_ : A periphery library for the GopherLua VM (GPIO, SPI, I2C, MMIO, and Serial peripheral I/O for Linux).
+- `gluasocket <https://gitlab.com/megalithic-llc/gluasocket>`_ : A native Go implementation of LuaSocket for the GopherLua VM.
 - `glua-async <https://github.com/CuberL/glua-async>`_ : An async/await implement for gopher-lua.
 - `gopherlua-debugger <https://github.com/edolphin-ydf/gopherlua-debugger>`_ : A debugger for gopher-lua
 - `gluamahonia <https://github.com/super1207/gluamahonia>`_ : An encoding converter for gopher-lua
