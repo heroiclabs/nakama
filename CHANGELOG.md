@@ -4,21 +4,25 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.27.0] - 2025-05-12
 ### Added
 - Add Satori client API to list Flags Overrides.
 
 ### Changed
-- Change FB Limited Login validation Keys URL.
-- Update FB Graph API to v22.
+- Change Facebook Limited Login validation keys URL.
+- Update Facebook Graph API to v22.
 - Enable Satori FlagsList to return all default flags.
-- Reduce IAP validation logged errors to debug level.
+- Reduce In-App Purchase validation logged errors to debug level.
+- Increase default timeout for Apple In-App Purchase verification.
+- Build with Go 1.24.3.
 
 ### Fixed
 - Fix chat message listing pagination issue.
-- Ensure that IAP validation for Google rejects pending or cancelled receipts.
-- Fix Lua runtime register_storage_index_filter function.
-- Fix context issue when calling Satori runtime APIs via socket.
-- Fix an issue with message ts precision in returned structs.
+- Ensure In-App Purchase validation for Google always rejects pending or cancelled receipts.
+- Fix Lua runtime storage index filter registration function.
+- Fix context issue when calling Satori runtime APIs via socket operations.
+- Fix an issue with message timestamp precision in returned channel messages.
 
 ## [3.26.0] - 2025-01-25
 ### Added

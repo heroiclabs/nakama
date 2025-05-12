@@ -39,7 +39,7 @@ import (
 
 var ErrPurchasesListInvalidCursor = errors.New("purchases list cursor invalid")
 
-var httpc = &http.Client{Timeout: 5 * time.Second}
+var httpc = &http.Client{Timeout: 20 * time.Second}
 
 func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	validation, raw, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
