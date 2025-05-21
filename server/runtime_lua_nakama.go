@@ -1465,7 +1465,7 @@ func aesEncrypt(l *lua.LState, keySize int) int {
 		return 0
 	}
 
-	stream := cipher.NewCFBEncrypter(block, iv)
+	stream := cipher.NewCFBEncrypter(block, iv) //nolint:staticcheck
 	stream.XORKeyStream(cipherText[aes.BlockSize:], []byte(input))
 
 	l.Push(lua.LString(cipherText))
@@ -1500,7 +1500,7 @@ func aesDecrypt(l *lua.LState, keySize int) int {
 	iv := cipherText[:aes.BlockSize]
 	cipherText = cipherText[aes.BlockSize:]
 
-	stream := cipher.NewCFBDecrypter(block, iv)
+	stream := cipher.NewCFBDecrypter(block, iv) //nolint:staticcheck
 	stream.XORKeyStream(cipherText, cipherText)
 
 	l.Push(lua.LString(cipherText))
@@ -7236,7 +7236,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardList(l *lua.LState) int {
 	var listCursor *LeaderboardListCursor
 	cursor := l.OptString(2, "")
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			l.ArgError(2, "expects cursor to be valid when provided")
 			return 0
@@ -8631,7 +8631,7 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 	var listCursor *TournamentListCursor
 	cursor := l.OptString(6, "")
 	if cursor != "" {
-		cb, err := base64.StdEncoding.DecodeString(cursor)
+		cb, err := base64.URLEncoding.DecodeString(cursor)
 		if err != nil {
 			l.ArgError(6, "expects cursor to be valid when provided")
 			return 0
@@ -10911,16 +10911,17 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 	satoriFunctions := map[string]lua.LGFunction{
-		"authenticate":      n.satoriAuthenticate,
-		"properties_get":    n.satoriPropertiesGet,
-		"properties_update": n.satoriPropertiesUpdate,
-		"events_publish":    n.satoriEventsPublish,
-		"experiments_list":  n.satoriExperimentsList,
-		"flags_list":        n.satoriFlagsList,
-		"live_events_list":  n.satoriLiveEventsList,
-		"messages_list":     n.satoriMessagesList,
-		"message_update":    n.satoriMessageUpdate,
-		"message_delete":    n.satoriMessageDelete,
+		"authenticate":         n.satoriAuthenticate,
+		"properties_get":       n.satoriPropertiesGet,
+		"properties_update":    n.satoriPropertiesUpdate,
+		"events_publish":       n.satoriEventsPublish,
+		"experiments_list":     n.satoriExperimentsList,
+		"flags_list":           n.satoriFlagsList,
+		"flags_overrides_list": n.satoriFlagsOverridesList,
+		"live_events_list":     n.satoriLiveEventsList,
+		"messages_list":        n.satoriMessagesList,
+		"message_update":       n.satoriMessageUpdate,
+		"message_delete":       n.satoriMessageDelete,
 	}
 
 	satoriMod := l.SetFuncs(l.CreateTable(0, len(satoriFunctions)), satoriFunctions)
@@ -11272,6 +11273,66 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 	}
 
 	l.Push(flagsTable)
+	return 1
+}
+
+// @group satori
+// @summary List flags overrides.
+// @param identifier(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
+// @param names(type=table, optional=true, default=[]) Optional list of flag names to filter.
+// @return flagsOverrides(table) The flag list.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	names := l.OptTable(2, nil)
+	namesArray := make([]string, 0)
+	if names != nil {
+		var conversionError bool
+		names.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(1, "name filter must be a string")
+				conversionError = true
+				return
+			}
+
+			namesArray = append(namesArray, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	flagsList, err := n.satori.FlagsOverridesList(l.Context(), identifier, namesArray...)
+	if err != nil {
+		l.RaiseError("failed to satori list flags: %v", err.Error())
+		return 0
+	}
+
+	flagOverrides := l.CreateTable(len(flagsList.Flags), 0)
+	for i, fl := range flagsList.Flags {
+		overridesTable := l.CreateTable(len(fl.Overrides), 0)
+		for j, o := range fl.Overrides {
+			flagTable := l.CreateTable(0, 5)
+			flagTable.RawSetString("name", lua.LString(o.Name))
+			flagTable.RawSetString("type", lua.LString(o.Type))
+			flagTable.RawSetString("variant_name", lua.LString(o.VariantName))
+			flagTable.RawSetString("value", lua.LString(o.Value))
+			flagTable.RawSetString("create_time_sec", lua.LNumber(o.CreateTimeSec))
+			overridesTable.RawSetInt(j+1, flagTable)
+		}
+		ft := l.CreateTable(2, 0)
+		ft.RawSetString("flag_name", lua.LString(fl.FlagName))
+		ft.RawSetString("overrides", overridesTable)
+
+		flagOverrides.RawSetInt(i+1, ft)
+	}
+
+	l.Push(flagOverrides)
 	return 1
 }
 

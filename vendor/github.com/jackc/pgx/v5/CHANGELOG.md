@@ -1,3 +1,33 @@
+# 5.7.4 (March 24, 2025)
+
+* Fix / revert change to scanning JSON `null` (Felix Röhrich)
+
+# 5.7.3 (March 21, 2025)
+
+* Expose EmptyAcquireWaitTime in pgxpool.Stat (vamshiaruru32)
+* Improve SQL sanitizer performance (ninedraft)
+* Fix Scan confusion with json(b), sql.Scanner, and automatic dereferencing (moukoublen, felix-roehrich)
+* Fix Values() for xml type always returning nil instead of []byte
+* Add ability to send Flush message in pipeline mode (zenkovev)
+* Fix pgtype.Timestamp's JSON behavior to match PostgreSQL (pconstantinou)
+* Better error messages when scanning structs (logicbomb)
+* Fix handling of error on batch write (bonnefoa)
+* Match libpq's connection fallback behavior more closely (felix-roehrich)
+* Add MinIdleConns to pgxpool (djahandarie)
+
+# 5.7.2 (December 21, 2024)
+
+* Fix prepared statement already exists on batch prepare failure
+* Add commit query to tx options (Lucas Hild)
+* Fix pgtype.Timestamp json unmarshal (Shean de Montigny-Desautels)
+* Add message body size limits in frontend and backend (zene)
+* Add xid8 type
+* Ensure planning encodes and scans cannot infinitely recurse
+* Implement pgtype.UUID.String() (Konstantin Grachev)
+* Switch from ExecParams to Exec in ValidateConnectTargetSessionAttrs functions (Alexander Rumyantsev)
+* Update golang.org/x/crypto
+* Fix json(b) columns prefer sql.Scanner interface like database/sql (Ludovico Russo)
+
 # 5.7.1 (September 10, 2024)
 
 * Fix data race in tracelog.TraceLog

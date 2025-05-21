@@ -1,5 +1,5 @@
-//go:build !noasm && amd64 && gc && !purego
-// +build !noasm,amd64,gc,!purego
+// +build !noasm,amd64
+// +build !gccgo
 
 package metro
 

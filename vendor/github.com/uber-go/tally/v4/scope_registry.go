@@ -25,8 +25,6 @@ import (
 	"runtime"
 	"sync"
 	"unsafe"
-
-	"go.uber.org/atomic"
 )
 
 var (
@@ -304,41 +302,50 @@ func (r *scopeRegistry) reportInternalMetrics() {
 		return
 	}
 
-	counters, gauges, histograms, scopes := atomic.Int64{}, atomic.Int64{}, atomic.Int64{}, atomic.Int64{}
-	rootCounters, rootGauges, rootHistograms := atomic.Int64{}, atomic.Int64{}, atomic.Int64{}
-	scopes.Inc() // Account for root scope.
+	var counters, gauges, histograms int64
+	var rootCounters, rootGauges, rootHistograms int64
+	scopes := 1 // Account for root scope.
 	r.ForEachScope(
 		func(ss *scope) {
 			ss.cm.RLock()
-			defer ss.cm.RUnlock()
-			counterSliceLen, gaugeSliceLen, histogramSliceLen := int64(len(ss.countersSlice)), int64(len(ss.gaugesSlice)), int64(len(ss.histogramsSlice))
+			counterSliceLen := int64(len(ss.countersSlice))
+			ss.cm.RUnlock()
+
+			ss.gm.RLock()
+			gaugeSliceLen := int64(len(ss.gaugesSlice))
+			ss.gm.RUnlock()
+
+			ss.hm.RLock()
+			histogramSliceLen := int64(len(ss.histogramsSlice))
+			ss.hm.RUnlock()
+
 			if ss.root { // Root scope is referenced across all buckets.
-				rootCounters.Store(counterSliceLen)
-				rootGauges.Store(gaugeSliceLen)
-				rootHistograms.Store(histogramSliceLen)
+				rootCounters = counterSliceLen
+				rootGauges = gaugeSliceLen
+				rootHistograms = histogramSliceLen
 				return
 			}
-			counters.Add(counterSliceLen)
-			gauges.Add(gaugeSliceLen)
-			histograms.Add(histogramSliceLen)
-			scopes.Inc()
+			counters += counterSliceLen
+			gauges += gaugeSliceLen
+			histograms += histogramSliceLen
+			scopes++
 		},
 	)
 
-	counters.Add(rootCounters.Load())
-	gauges.Add(rootGauges.Load())
-	histograms.Add(rootHistograms.Load())
+	counters += rootCounters
+	gauges += rootGauges
+	histograms += rootHistograms
 	if r.root.reporter != nil {
-		r.root.reporter.ReportGauge(r.sanitizedCounterCardinalityName, r.cardinalityMetricsTags, float64(counters.Load()))
-		r.root.reporter.ReportGauge(r.sanitizedGaugeCardinalityName, r.cardinalityMetricsTags, float64(gauges.Load()))
-		r.root.reporter.ReportGauge(r.sanitizedHistogramCardinalityName, r.cardinalityMetricsTags, float64(histograms.Load()))
-		r.root.reporter.ReportGauge(r.sanitizedScopeCardinalityName, r.cardinalityMetricsTags, float64(scopes.Load()))
+		r.root.reporter.ReportGauge(r.sanitizedCounterCardinalityName, r.cardinalityMetricsTags, float64(counters))
+		r.root.reporter.ReportGauge(r.sanitizedGaugeCardinalityName, r.cardinalityMetricsTags, float64(gauges))
+		r.root.reporter.ReportGauge(r.sanitizedHistogramCardinalityName, r.cardinalityMetricsTags, float64(histograms))
+		r.root.reporter.ReportGauge(r.sanitizedScopeCardinalityName, r.cardinalityMetricsTags, float64(scopes))
 	}
 
 	if r.root.cachedReporter != nil {
-		r.cachedCounterCardinalityGauge.ReportGauge(float64(counters.Load()))
-		r.cachedGaugeCardinalityGauge.ReportGauge(float64(gauges.Load()))
-		r.cachedHistogramCardinalityGauge.ReportGauge(float64(histograms.Load()))
-		r.cachedScopeCardinalityGauge.ReportGauge(float64(scopes.Load()))
+		r.cachedCounterCardinalityGauge.ReportGauge(float64(counters))
+		r.cachedGaugeCardinalityGauge.ReportGauge(float64(gauges))
+		r.cachedHistogramCardinalityGauge.ReportGauge(float64(histograms))
+		r.cachedScopeCardinalityGauge.ReportGauge(float64(scopes))
 	}
 }

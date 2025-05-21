@@ -23,9 +23,8 @@ type mappings struct {
 	rd  *strings.Reader
 	dec base64vlq.Decoder
 
-	hasValue bool
-	hasName  bool
-	value    mapping
+	hasName bool
+	value   mapping
 
 	values []mapping
 }
@@ -92,7 +91,6 @@ func (m *mappings) parse() error {
 			if err != nil {
 				return err
 			}
-			m.hasValue = true
 		}
 	}
 }
@@ -144,10 +142,10 @@ func parseNamesInd(m *mappings) (fn, error) {
 }
 
 func (m *mappings) pushValue() {
-	if !m.hasValue {
+	if m.value.sourceLine == 1 && m.value.sourceColumn == 0 {
 		return
 	}
-	m.hasValue = false
+
 	if m.hasName {
 		m.values = append(m.values, m.value)
 		m.hasName = false
