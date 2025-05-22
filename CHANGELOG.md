@@ -5,6 +5,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.27.1] - 2025-05-22
+### Changed
+- Minor dependency updates.
+
 ## [3.27.0] - 2025-05-12
 ### Added
 - Add Satori client API to list Flags Overrides.
