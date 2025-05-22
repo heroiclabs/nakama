@@ -115,12 +115,16 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	}
 	sort.Strings(mainConfig.GetRuntime().Env)
 
-	if mainConfig.GetGoogleAuth() != nil && mainConfig.GetGoogleAuth().CredentialsJSON != "" {
-		cnf, err := google.ConfigFromJSON([]byte(mainConfig.GetGoogleAuth().CredentialsJSON))
-		if err != nil {
-			logger.Fatal("Failed to parse Google's credentials JSON", zap.Error(err))
+	if mainConfig.GetGoogleAuth() != nil {
+		if mainConfig.GetGoogleAuth().CredentialsJSON != "" {
+			cnf, err := google.ConfigFromJSON([]byte(mainConfig.GetGoogleAuth().CredentialsJSON))
+			if err != nil {
+				logger.Fatal("Failed to parse Google's credentials JSON", zap.Error(err))
+			}
+			mainConfig.GetGoogleAuth().OAuthConfig = cnf
+		} else {
+			mainConfig.GetGoogleAuth().OAuthConfig = nil
 		}
-		mainConfig.GetGoogleAuth().OAuthConfig = cnf
 	}
 
 	return mainConfig
