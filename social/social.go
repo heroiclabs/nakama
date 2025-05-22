@@ -336,7 +336,7 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 
 func (c *Client) exchangeGoogleAuthCode(ctx context.Context, authCode string) (*oauth2.Token, error) {
 	if c.config == nil {
-		return nil, fmt.Errorf("failed to exchange authorization code due to due misconfiguration")
+		return nil, fmt.Errorf("failed to exchange authorization code: google credentials_json not configured")
 	}
 
 	token, err := c.config.Exchange(ctx, authCode)
