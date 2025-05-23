@@ -112,7 +112,7 @@ type MatchRegistry interface {
 	// Notify a match handler that one or more users have left or disconnected.
 	// Expects that the caller has already determined the match is hosted on the current node.
 	Leave(id uuid.UUID, presences []*MatchPresence)
-	// Called by match handlers to request the removal fo a match participant.
+	// Called by match handlers to request the removal of a match participant.
 	Kick(stream PresenceStream, presences []*MatchPresence)
 	// Pass a data payload (usually from a user) to the appropriate match handler.
 	// Assumes that the data sender has already been validated as a match participant before this call.
