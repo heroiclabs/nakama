@@ -448,6 +448,14 @@ message PartyCreate {
   int32 max_size = 2;
 }
 
+// Update a party label.
+message PartyUpdate {
+  // Label to set.
+  string label = 1;
+  // Change the party to open or closed.
+  bool open = 2;
+}
+
 // Join a party, or request to join if the party is not open.
 message PartyJoin {
   // Party ID to join.

@@ -504,6 +504,10 @@ service Nakama {
     option (google.api.http).get = "/v2/match";
   }
 
+  rpc ListParties (api.ListPartiesRequest) returns (api.PartyList) {
+    option (google.api.http).get = "/v2/party";
+  }
+
   // Fetch list of notifications.
   rpc ListNotifications (api.ListNotificationsRequest) returns (api.NotificationList) {
     option (google.api.http).get = "/v2/notification";
