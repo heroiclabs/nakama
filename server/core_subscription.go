@@ -973,7 +973,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 						SeenBefore:       dbPurchase.seenBefore,
 					}
 
-					if err = purchaseNotificationCallback(context.Background(), validatedPurchase, string(body)); err != nil {
+					if err = purchaseNotificationCallback(r.Context(), validatedPurchase, string(body)); err != nil {
 						logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
