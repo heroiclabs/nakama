@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS subscription (
     original_transaction_id VARCHAR(512) NOT NULL CHECK (length(original_transaction_id) > 0),
     create_time             TIMESTAMPTZ  NOT NULL DEFAULT now(),
     update_time             TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    environment             SMALLINT     NOT NULL DEFAULT 0, -- Unknown(0), Sandbox(1), Production(2)
+    environment             INT          NOT NULL DEFAULT 0, -- Unknown(0), Sandbox(1), Production(2)
     product_id              VARCHAR(512) NOT NULL,
     purchase_time           TIMESTAMPTZ  NOT NULL DEFAULT now(),
     store                   SMALLINT     NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1), Huawei(2)
-    user_id                 STRING       DEFAULT NULL,
+    user_id                 VARCHAR(36)  DEFAULT NULL,
     expire_time             TIMESTAMPTZ  NOT NULL
 );
 CREATE INDEX IF NOT EXISTS subscription_user_id_purchase_time_transaction_id_idx

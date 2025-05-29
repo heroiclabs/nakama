@@ -16,7 +16,9 @@
 
 -- +migrate Up
 ALTER TABLE users
-    ADD COLUMN apple_id VARCHAR(128) UNIQUE;
+    ADD COLUMN apple_id VARCHAR(128);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_apple_id ON users (apple_id);
 
 -- +migrate Down
 ALTER TABLE users

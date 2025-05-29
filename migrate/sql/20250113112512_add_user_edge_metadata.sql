@@ -16,7 +16,7 @@
 
 -- +migrate Up
 ALTER TABLE user_edge
-    ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
+    ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}'::JSONB;
 
 -- +migrate Down
 ALTER TABLE user_edge

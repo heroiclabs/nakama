@@ -16,7 +16,7 @@
 
 -- +migrate Up
 ALTER TABLE leaderboard
-    ADD COLUMN category      SMALLINT     NOT NULL DEFAULT 0 CHECK (category >= 0),
+    ADD COLUMN category      INT          NOT NULL DEFAULT 0 CHECK (category >= 0),
     ADD COLUMN description   VARCHAR(255) NOT NULL DEFAULT '',
     ADD COLUMN duration      INT          NOT NULL DEFAULT 0 CHECK (duration >= 0), -- in seconds.
     ADD COLUMN end_time      TIMESTAMPTZ  NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',

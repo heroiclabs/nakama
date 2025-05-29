@@ -629,12 +629,14 @@ func (ms MigrationSet) createMigrationTable(ctx context.Context, db *pgx.Conn) e
 	}
 
 	if _, err := db.Exec(ctx, fmt.Sprintf(`
-CREATE TABLE IF NOT EXISTS %q (
+CREATE TABLE IF NOT EXISTS %[1]q (
 	PRIMARY KEY (id),
 
-	id         TEXT        NOT NULL UNIQUE,
+	id         TEXT        NOT NULL,
 	applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-)`, ms.getTableName())); err != nil {
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_%[1]s_id_uniq ON %[1]q (id);
+`, ms.getTableName())); err != nil {
 		return fmt.Errorf("failed to create migration table: %s", err.Error())
 	}
 

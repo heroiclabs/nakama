@@ -18,29 +18,37 @@
 CREATE TABLE IF NOT EXISTS users (
     PRIMARY KEY (id),
 
-    id            STRING        NOT NULL,
-    username      VARCHAR(128)  NOT NULL CONSTRAINT users_username_key UNIQUE,
+    id            VARCHAR(36)   NOT NULL,
+    username      VARCHAR(128)  NOT NULL,
     display_name  VARCHAR(255),
     avatar_url    VARCHAR(512),
     -- https://tools.ietf.org/html/bcp47
     lang_tag      VARCHAR(18)   NOT NULL DEFAULT 'en',
     location      VARCHAR(255), -- e.g. "San Francisco, CA"
     timezone      VARCHAR(255), -- e.g. "Pacific Time (US & Canada)"
-    metadata      JSONB         NOT NULL DEFAULT '{}',
-    wallet        JSONB         NOT NULL DEFAULT '{}',
-    email         VARCHAR(255)  UNIQUE,
+    metadata      JSONB         NOT NULL DEFAULT '{}'::JSONB,
+    wallet        JSONB         NOT NULL DEFAULT '{}'::JSONB,
+    email         VARCHAR(255),
     password      BYTEA         CHECK (length(password) < 32000),
-    facebook_id   VARCHAR(128)  UNIQUE,
-    google_id     VARCHAR(128)  UNIQUE,
-    gamecenter_id VARCHAR(128)  UNIQUE,
-    steam_id      VARCHAR(128)  UNIQUE,
-    custom_id     VARCHAR(128)  UNIQUE,
+    facebook_id   VARCHAR(128),
+    google_id     VARCHAR(128),
+    gamecenter_id VARCHAR(128),
+    steam_id      VARCHAR(128),
+    custom_id     VARCHAR(128),
     edge_count    INT           NOT NULL DEFAULT 0 CHECK (edge_count >= 0),
     create_time   TIMESTAMPTZ   NOT NULL DEFAULT now(),
     update_time   TIMESTAMPTZ   NOT NULL DEFAULT now(),
     verify_time   TIMESTAMPTZ   NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',
     disable_time  TIMESTAMPTZ   NOT NULL DEFAULT '1970-01-01 00:00:00 UTC'
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_key ON users (username);
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_key ON users (email);
+CREATE UNIQUE INDEX IF NOT EXISTS users_facebook_id_key ON users (facebook_id);
+CREATE UNIQUE INDEX IF NOT EXISTS users_google_id_key ON users (google_id);
+CREATE UNIQUE INDEX IF NOT EXISTS users_gamecenter_id_key ON users (gamecenter_id);
+CREATE UNIQUE INDEX IF NOT EXISTS users_steam_id_key ON users (steam_id);
+CREATE UNIQUE INDEX IF NOT EXISTS users_custom_id_key ON users (custom_id);
 
 -- Setup System user.
 INSERT INTO users (id, username)
@@ -52,24 +60,23 @@ CREATE TABLE IF NOT EXISTS user_device (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
     id      VARCHAR(128) NOT NULL,
-    user_id STRING       NOT NULL,
-
-    UNIQUE (user_id, id)
+    user_id VARCHAR(36)  NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS user_device_user_id_id ON user_device (user_id, id);
 
 CREATE TABLE IF NOT EXISTS user_edge (
     PRIMARY KEY (source_id, state, position),
     FOREIGN KEY (source_id)      REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (destination_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    source_id      STRING      NOT NULL CHECK (source_id <> '00000000-0000-0000-0000-000000000000'),
+    source_id      VARCHAR(36) NOT NULL CHECK (source_id <> '00000000-0000-0000-0000-000000000000'),
     position       BIGINT      NOT NULL, -- Used for sort order on rows.
     update_time    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    destination_id STRING      NOT NULL CHECK (destination_id <> '00000000-0000-0000-0000-000000000000'),
-    state          SMALLINT    NOT NULL DEFAULT 0, -- friend(0), invite_sent(1), invite_received(2), blocked(3)
-
-    UNIQUE (source_id, destination_id)
+    destination_id VARCHAR(36) NOT NULL CHECK (destination_id <> '00000000-0000-0000-0000-000000000000'),
+    state          INT         NOT NULL DEFAULT 0 -- friend(0), invite_sent(1), invite_received(2), blocked(3)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS user_edge_source_id_destination_id ON user_edge (source_id, destination_id);
 CREATE INDEX IF NOT EXISTS user_edge_auto_index_fk_destination_id_ref_users ON user_edge (destination_id);
 
 CREATE TABLE IF NOT EXISTS notification (
@@ -77,14 +84,15 @@ CREATE TABLE IF NOT EXISTS notification (
     PRIMARY KEY (user_id, create_time, id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id          STRING       NOT NULL CONSTRAINT notification_id_key UNIQUE,
-    user_id     STRING       NOT NULL,
+    id          VARCHAR(36)  NOT NULL,
+    user_id     VARCHAR(36)  NOT NULL,
     subject     VARCHAR(255) NOT NULL,
-    content     JSONB        NOT NULL DEFAULT '{}',
-    code        SMALLINT     NOT NULL, -- Negative values are system reserved.
-    sender_id   STRING       NOT NULL,
+    content     JSONB        NOT NULL DEFAULT '{}'::JSONB,
+    code        INT          NOT NULL, -- Negative values are system reserved.
+    sender_id   VARCHAR(36)  NOT NULL,
     create_time TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS notification_id_key ON notification (id);
 
 CREATE TABLE IF NOT EXISTS storage (
     PRIMARY KEY (collection, key, user_id),
@@ -92,11 +100,11 @@ CREATE TABLE IF NOT EXISTS storage (
 
     collection  VARCHAR(128) NOT NULL,
     key         VARCHAR(128) NOT NULL,
-    user_id     STRING       NOT NULL,
-    value       JSONB        NOT NULL DEFAULT '{}',
+    user_id     VARCHAR(36)  NOT NULL,
+    value       JSONB        NOT NULL DEFAULT '{}'::JSONB,
     version     VARCHAR(32)  NOT NULL, -- md5 hash of value object.
-    read        SMALLINT     NOT NULL DEFAULT 1 CHECK (read >= 0),
-    write       SMALLINT     NOT NULL DEFAULT 1 CHECK (write >= 0),
+    read        INT          NOT NULL DEFAULT 1 CHECK (read >= 0),
+    write       INT          NOT NULL DEFAULT 1 CHECK (write >= 0),
     create_time TIMESTAMPTZ  NOT NULL DEFAULT now(),
     update_time TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
@@ -109,31 +117,31 @@ CREATE TABLE IF NOT EXISTS message (
     PRIMARY KEY (stream_mode, stream_subject, stream_descriptor, stream_label, create_time, id),
     FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id                STRING       NOT NULL UNIQUE,
+    id                VARCHAR(36)  NOT NULL,
     -- chat(0), chat_update(1), chat_remove(2), group_join(3), group_add(4), group_leave(5), group_kick(6), group_promoted(7)
-    code              SMALLINT     NOT NULL DEFAULT 0,
-    sender_id         STRING       NOT NULL,
+    code              INT          NOT NULL DEFAULT 0,
+    sender_id         VARCHAR(36)  NOT NULL,
     username          VARCHAR(128) NOT NULL,
-    stream_mode       SMALLINT     NOT NULL,
-    stream_subject    STRING       NOT NULL,
-    stream_descriptor STRING       NOT NULL,
+    stream_mode       INT          NOT NULL,
+    stream_subject    VARCHAR(36)  NOT NULL,
+    stream_descriptor VARCHAR(36)  NOT NULL,
     stream_label      VARCHAR(128) NOT NULL,
-    content           JSONB        NOT NULL DEFAULT '{}',
+    content           JSONB        NOT NULL DEFAULT '{}'::JSONB,
     create_time       TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    update_time       TIMESTAMPTZ  NOT NULL DEFAULT now(),
-
-    UNIQUE (sender_id, id)
+    update_time       TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS message_id ON message (id);
+CREATE UNIQUE INDEX IF NOT EXISTS message_sender_id_id ON message (sender_id, id);
 
 CREATE TABLE IF NOT EXISTS leaderboard (
     PRIMARY KEY (id),
 
     id             VARCHAR(128) NOT NULL,
     authoritative  BOOLEAN      NOT NULL DEFAULT FALSE,
-    sort_order     SMALLINT     NOT NULL DEFAULT 1, -- asc(0), desc(1)
-    operator       SMALLINT     NOT NULL DEFAULT 0, -- best(0), set(1), increment(2), decrement(3)
+    sort_order     INT          NOT NULL DEFAULT 1, -- asc(0), desc(1)
+    operator       INT          NOT NULL DEFAULT 0, -- best(0), set(1), increment(2), decrement(3)
     reset_schedule VARCHAR(64), -- e.g. cron format: "* * * * * * *"
-    metadata       JSONB        NOT NULL DEFAULT '{}',
+    metadata       JSONB        NOT NULL DEFAULT '{}'::JSONB,
     create_time    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
@@ -142,70 +150,73 @@ CREATE TABLE IF NOT EXISTS leaderboard_record (
     FOREIGN KEY (leaderboard_id) REFERENCES leaderboard (id) ON DELETE CASCADE,
 
     leaderboard_id VARCHAR(128)  NOT NULL,
-    owner_id       STRING        NOT NULL,
+    owner_id       VARCHAR(36)   NOT NULL,
     username       VARCHAR(128),
     score          BIGINT        NOT NULL DEFAULT 0 CHECK (score >= 0),
     subscore       BIGINT        NOT NULL DEFAULT 0 CHECK (subscore >= 0),
     num_score      INT           NOT NULL DEFAULT 1 CHECK (num_score >= 0),
-    metadata       JSONB         NOT NULL DEFAULT '{}',
+    metadata       JSONB         NOT NULL DEFAULT '{}'::JSONB,
     create_time    TIMESTAMPTZ   NOT NULL DEFAULT now(),
     update_time    TIMESTAMPTZ   NOT NULL DEFAULT now(),
-    expiry_time    TIMESTAMPTZ   NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',
-
-    UNIQUE (owner_id, leaderboard_id, expiry_time)
+    expiry_time    TIMESTAMPTZ   NOT NULL DEFAULT '1970-01-01 00:00:00 UTC'
 );
+CREATE UNIQUE INDEX IF NOT EXISTS leaderboard_record_owner_id_leaderboard_id_expiry_time
+    ON leaderboard_record (owner_id, leaderboard_id, expiry_time);
 
 CREATE TABLE IF NOT EXISTS wallet_ledger (
     PRIMARY KEY (user_id, create_time, id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 
-    id          STRING      NOT NULL UNIQUE,
-    user_id     STRING      NOT NULL,
+    id          VARCHAR(36) NOT NULL,
+    user_id     VARCHAR(36) NOT NULL,
     changeset   JSONB       NOT NULL,
     metadata    JSONB       NOT NULL,
     create_time TIMESTAMPTZ NOT NULL DEFAULT now(),
     update_time TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS wallet_ledger_id ON wallet_ledger (id);
 
 CREATE TABLE IF NOT EXISTS user_tombstone (
     PRIMARY KEY (create_time, user_id),
 
-    user_id        STRING      NOT NULL UNIQUE,
+    user_id        VARCHAR(36) NOT NULL,
     create_time    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS user_tombstone_user_id ON user_tombstone (user_id);
 
 CREATE TABLE IF NOT EXISTS groups (
     PRIMARY KEY (disable_time, lang_tag, edge_count, id),
 
-    id           STRING        NOT NULL UNIQUE,
-    creator_id   STRING        NOT NULL,
-    name         VARCHAR(255)  NOT NULL CONSTRAINT groups_name_key UNIQUE,
+    id           VARCHAR(36)   NOT NULL,
+    creator_id   VARCHAR(36)   NOT NULL,
+    name         VARCHAR(255)  NOT NULL,
     description  VARCHAR(255),
     avatar_url   VARCHAR(512),
     -- https://tools.ietf.org/html/bcp47
     lang_tag     VARCHAR(18)   NOT NULL DEFAULT 'en',
-    metadata     JSONB         NOT NULL DEFAULT '{}',
-    state        SMALLINT      NOT NULL DEFAULT 0 CHECK (state >= 0), -- open(0), closed(1)
+    metadata     JSONB         NOT NULL DEFAULT '{}'::JSONB,
+    state        INT           NOT NULL DEFAULT 0 CHECK (state >= 0), -- open(0), closed(1)
     edge_count   INT           NOT NULL DEFAULT 0 CHECK (edge_count >= 1 AND edge_count <= max_count),
     max_count    INT           NOT NULL DEFAULT 100 CHECK (max_count >= 1),
     create_time  TIMESTAMPTZ   NOT NULL DEFAULT now(),
     update_time  TIMESTAMPTZ   NOT NULL DEFAULT now(),
     disable_time TIMESTAMPTZ   NOT NULL DEFAULT '1970-01-01 00:00:00 UTC'
 );
+CREATE UNIQUE INDEX IF NOT EXISTS groups_id ON groups (id);
+CREATE UNIQUE INDEX IF NOT EXISTS groups_name_key ON groups (name);
 CREATE INDEX IF NOT EXISTS edge_count_update_time_id_idx ON groups (disable_time, edge_count, update_time, id);
 CREATE INDEX IF NOT EXISTS update_time_edge_count_id_idx ON groups (disable_time, update_time, edge_count, id);
 
 CREATE TABLE IF NOT EXISTS group_edge (
     PRIMARY KEY (source_id, state, position),
 
-    source_id      STRING      NOT NULL CHECK (source_id <> '00000000-0000-0000-0000-000000000000'),
+    source_id      VARCHAR(36) NOT NULL CHECK (source_id <> '00000000-0000-0000-0000-000000000000'),
     position       BIGINT      NOT NULL, -- Used for sort order on rows.
     update_time    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    destination_id STRING      NOT NULL CHECK (destination_id <> '00000000-0000-0000-0000-000000000000'),
-    state          SMALLINT    NOT NULL DEFAULT 0, -- superadmin(0), admin(1), member(2), join_request(3), banned(4)
-
-    UNIQUE (source_id, destination_id)
+    destination_id VARCHAR(36) NOT NULL CHECK (destination_id <> '00000000-0000-0000-0000-000000000000'),
+    state          INT         NOT NULL DEFAULT 0 -- superadmin(0), admin(1), member(2), join_request(3), banned(4)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS group_edge_source_id_destination_id ON group_edge (source_id, destination_id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS

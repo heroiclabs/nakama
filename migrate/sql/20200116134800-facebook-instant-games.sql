@@ -16,7 +16,9 @@
 
 -- +migrate Up
 ALTER TABLE users
-    ADD COLUMN facebook_instant_game_id VARCHAR(128) UNIQUE;
+    ADD COLUMN facebook_instant_game_id VARCHAR(128);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_facebook_instant_game_id ON users (facebook_instant_game_id);
 
 -- +migrate Down
 ALTER TABLE users
