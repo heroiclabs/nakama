@@ -6987,7 +6987,7 @@ func (n *RuntimeJavascriptNakamaModule) tournamentRecordWrite(r *goja.Runtime) f
 			}
 		}
 
-		record, err := TournamentRecordWrite(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, userID, username, score, subscore, metadataStr, api.Operator(overrideOperator))
+		record, err := TournamentRecordWrite(n.ctx, n.logger, n.db, n.leaderboardCache, n.rankCache, uuid.Nil, id, userID, username, score, subscore, metadataStr, api.Operator(overrideOperator), 1)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error writing tournament record: %v", err.Error())))
 		}

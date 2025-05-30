@@ -8874,6 +8874,8 @@ type WriteTournamentRecordRequest_TournamentRecordWrite struct {
 	Metadata string `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// Operator override.
 	Operator Operator `protobuf:"varint,4,opt,name=operator,proto3,enum=nakama.api.Operator" json:"operator,omitempty"`
+	// Optional increment for num_score field (default 1 if not set).
+	NumScoreIncrement int32 `protobuf:"varint,5,opt,name=num_score_increment,json=numScoreIncrement,proto3" json:"num_score_increment,omitempty"`
 }
 
 func (x *WriteTournamentRecordRequest_TournamentRecordWrite) Reset() {
@@ -8934,6 +8936,13 @@ func (x *WriteTournamentRecordRequest_TournamentRecordWrite) GetOperator() Opera
 		return x.Operator
 	}
 	return Operator_NO_OVERRIDE
+}
+
+func (x *WriteTournamentRecordRequest_TournamentRecordWrite) GetNumScoreIncrement() int32 {
+	if x != nil {
+		return x.NumScoreIncrement
+	}
+	return 0
 }
 
 var File_api_proto protoreflect.FileDescriptor
