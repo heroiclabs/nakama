@@ -15,11 +15,12 @@
  */
 
 -- +migrate Up
+DROP INDEX IF EXISTS purchase_receipt_user_id_purchase_time_transaction_id_idx;
 DROP TABLE IF EXISTS purchase_receipt;
 
 CREATE TABLE IF NOT EXISTS purchase (
     PRIMARY KEY (transaction_id),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id),
 
     create_time    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     environment    INT          NOT NULL DEFAULT 0, -- Unknown(0), Sandbox(1), Production(2)

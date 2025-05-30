@@ -18,16 +18,9 @@
 -- This migration is split in two files due to the following CRDB limitation
 -- https://stackoverflow.com/questions/68803747/encapsulating-a-drop-and-add-constraint-in-a-transaction
 ALTER TABLE purchase
-    ALTER COLUMN user_id SET NOT NULL,
-    ALTER COLUMN user_id SET DEFAULT '00000000-0000-0000-0000-000000000000';
+    ADD CONSTRAINT purchase_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id);
 ALTER TABLE subscription
-    ALTER COLUMN user_id SET NOT NULL,
-    ALTER COLUMN user_id SET DEFAULT '00000000-0000-0000-0000-000000000000';
-
-ALTER TABLE purchase
-    ADD CONSTRAINT purchase_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET DEFAULT;
-ALTER TABLE subscription
-    ADD CONSTRAINT subscription_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET DEFAULT;
+    ADD CONSTRAINT subscription_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id);
 
 -- +migrate Down
 -- This migration is split in two files due to the following CRDB limitation

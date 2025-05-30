@@ -16,8 +16,10 @@
 
 -- +migrate Up
 ALTER TABLE subscription
-    ADD COLUMN IF NOT EXISTS raw_response     JSONB NOT NULL DEFAULT '{}'::JSONB,
-    ADD COLUMN IF NOT EXISTS raw_notification JSONB NOT NULL DEFAULT '{}'::JSONB,
+    ADD COLUMN IF NOT EXISTS raw_response     JSONB NOT NULL DEFAULT '{}'::JSONB;
+ALTER TABLE subscription
+    ADD COLUMN IF NOT EXISTS raw_notification JSONB NOT NULL DEFAULT '{}'::JSONB;
+ALTER TABLE subscription
     ADD COLUMN IF NOT EXISTS refund_time      TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00 UTC';
 
 ALTER TABLE purchase

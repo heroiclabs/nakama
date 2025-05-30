@@ -49,11 +49,16 @@ CREATE INDEX IF NOT EXISTS purchase_receipt_user_id_purchase_time_transaction_id
     ON purchase_receipt (user_id, purchase_time DESC, transaction_id);
 
 ALTER TABLE user_device
-    ADD COLUMN IF NOT EXISTS preferences        JSONB        NOT NULL DEFAULT '{}'::JSONB,
-    ADD COLUMN IF NOT EXISTS push_token_amazon  VARCHAR(512) NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS push_token_android VARCHAR(512) NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS push_token_huawei  VARCHAR(512) NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS push_token_ios     VARCHAR(512) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS preferences        JSONB        NOT NULL DEFAULT '{}'::JSONB;
+ALTER TABLE user_device
+    ADD COLUMN IF NOT EXISTS push_token_amazon  VARCHAR(512) NOT NULL DEFAULT '';
+ALTER TABLE user_device
+    ADD COLUMN IF NOT EXISTS push_token_android VARCHAR(512) NOT NULL DEFAULT '';
+ALTER TABLE user_device
+    ADD COLUMN IF NOT EXISTS push_token_huawei  VARCHAR(512) NOT NULL DEFAULT '';
+ALTER TABLE user_device
+    ADD COLUMN IF NOT EXISTS push_token_ios     VARCHAR(512) NOT NULL DEFAULT '';
+ALTER TABLE user_device
     ADD COLUMN IF NOT EXISTS push_token_web     VARCHAR(512) NOT NULL DEFAULT '';
 
 -- +migrate Down

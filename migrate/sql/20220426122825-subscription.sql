@@ -17,7 +17,7 @@
 -- +migrate Up
 CREATE TABLE IF NOT EXISTS subscription (
     PRIMARY KEY (original_transaction_id),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id),
 
     original_transaction_id VARCHAR(512) NOT NULL CHECK (length(original_transaction_id) > 0),
     create_time             TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS subscription (
     environment             INT          NOT NULL DEFAULT 0, -- Unknown(0), Sandbox(1), Production(2)
     product_id              VARCHAR(512) NOT NULL,
     purchase_time           TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    store                   SMALLINT     NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1), Huawei(2)
+    store                   INT          NOT NULL DEFAULT 0, -- AppleAppStore(0), GooglePlay(1), Huawei(2)
     user_id                 VARCHAR(36)  DEFAULT NULL,
     expire_time             TIMESTAMPTZ  NOT NULL
 );

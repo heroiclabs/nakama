@@ -16,19 +16,28 @@
 
 -- +migrate Up
 ALTER TABLE leaderboard
-    ADD COLUMN category      INT          NOT NULL DEFAULT 0 CHECK (category >= 0),
-    ADD COLUMN description   VARCHAR(255) NOT NULL DEFAULT '',
-    ADD COLUMN duration      INT          NOT NULL DEFAULT 0 CHECK (duration >= 0), -- in seconds.
-    ADD COLUMN end_time      TIMESTAMPTZ  NOT NULL DEFAULT '1970-01-01 00:00:00 UTC',
-    ADD COLUMN join_required BOOLEAN      NOT NULL DEFAULT FALSE,
-    ADD COLUMN max_size      INT          NOT NULL DEFAULT 100000000 CHECK (max_size > 0),
-    ADD COLUMN max_num_score INT          NOT NULL DEFAULT 1000000 CHECK (max_num_score > 0), -- max allowed score attempts.
-    ADD COLUMN title         VARCHAR(255) NOT NULL DEFAULT '',
-    ADD COLUMN size          INT          NOT NULL DEFAULT 0,
+    ADD COLUMN category      INT          NOT NULL DEFAULT 0;
+ALTER TABLE leaderboard
+    ADD COLUMN description   VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE leaderboard
+    ADD COLUMN duration      INT          NOT NULL DEFAULT 0; -- in seconds.
+ALTER TABLE leaderboard
+    ADD COLUMN end_time      TIMESTAMPTZ  NOT NULL DEFAULT '1970-01-01 00:00:00 UTC';
+ALTER TABLE leaderboard
+    ADD COLUMN join_required BOOLEAN      NOT NULL DEFAULT FALSE;
+ALTER TABLE leaderboard
+    ADD COLUMN max_size      INT          NOT NULL DEFAULT 100000000;
+ALTER TABLE leaderboard
+    ADD COLUMN max_num_score INT          NOT NULL DEFAULT 1000000; -- max allowed score attempts.
+ALTER TABLE leaderboard
+    ADD COLUMN title         VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE leaderboard
+    ADD COLUMN size          INT          NOT NULL DEFAULT 0;
+ALTER TABLE leaderboard
     ADD COLUMN start_time    TIMESTAMPTZ  NOT NULL DEFAULT now();
 
 ALTER TABLE leaderboard_record
-    ADD COLUMN max_num_score INT NOT NULL DEFAULT 1000000 CHECK (max_num_score > 0);
+    ADD COLUMN max_num_score INT NOT NULL DEFAULT 1000000;
 
 CREATE INDEX IF NOT EXISTS duration_start_time_end_time_category_idx
     ON leaderboard (duration, start_time, end_time DESC, category);
