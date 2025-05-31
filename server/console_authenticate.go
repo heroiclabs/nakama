@@ -108,20 +108,44 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				}
 
 				// Create console root user to keep track of mfa configs.
-				query := `
-				WITH q AS (
-					INSERT INTO console_user (id, email, role, username, password, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
-					ON CONFLICT (id) DO
-					UPDATE SET update_time = now(), username = $4, password = $5, mfa_required = $6
-					WHERE console_user.username <> $4 OR console_user.password <> $5 OR console_user.mfa_required <> $6
-					RETURNING mfa_secret, mfa_recovery_codes, mfa_required
-				)
-				(SELECT mfa_secret, mfa_recovery_codes, mfa_required FROM q)
-				UNION ALL
-				(SELECT mfa_secret, mfa_recovery_codes, mfa_required FROM console_user WHERE id = $1)
-				`
+				updateTag, err := tx.ExecContext(ctx, `
+UPDATE console_user
+SET
+	update_time = CURRENT_TIMESTAMP,
+	username = $2,
+	password = $3,
+	mfa_required = $4
+WHERE
+			id = $1 AND (username <> $2 OR password <> $3 OR mfa_required <> $4)
+`, userId, uname, hashedPassword, s.config.GetMFA().AdminAccountOn)
+				if err != nil {
+					s.logger.Error("failed to update admin console user", zap.Error(err))
+					return status.Error(codes.Internal, "Internal error")
+				}
+				updatedCount, err := updateTag.RowsAffected()
+				if err != nil {
+					s.logger.Error("failed to update admin console user", zap.Error(err))
+					return status.Error(codes.Internal, "Internal error")
+				}
 
-				if err = tx.QueryRowContext(ctx, query, userId, "admin@nakama", role, uname, hashedPassword, s.config.GetMFA().AdminAccountOn).Scan(&mfaSecret, &mfaRecoveryCodes, &mfaRequired); err != nil {
+				if updatedCount < 1 {
+					_, err := tx.ExecContext(ctx, `
+INSERT INTO console_user (id, email, role, username, password, mfa_required)
+VALUES ($1, $2, $3, $4, $5, $6)
+`, userId, "admin@nakama", role, uname, hashedPassword, s.config.GetMFA().AdminAccountOn)
+					if err != nil {
+						s.logger.Error("failed to create admin console user", zap.Error(err))
+						return status.Error(codes.Internal, "Internal error")
+					}
+				}
+
+				query := `
+SELECT mfa_secret, mfa_recovery_codes, mfa_required
+FROM console_user
+WHERE id = $1
+`
+
+				if err = tx.QueryRowContext(ctx, query, userId).Scan(&mfaSecret, &mfaRecoveryCodes, &mfaRequired); err != nil {
 					s.logger.Error("failed to create admin console user", zap.Error(err))
 					return status.Error(codes.Internal, "Internal error")
 				}

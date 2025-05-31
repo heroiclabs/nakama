@@ -391,37 +391,6 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 
 func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableName string) int32 {
 	var count sql.NullInt64
-	// First try a fast count on table metadata.
-	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = $1", tableName).Scan(&count); err != nil {
-		logger.Warn("Error counting storage objects.", zap.Error(err))
-		if err == context.Canceled {
-			// If the context was cancelled do not attempt any further counts.
-			return 0
-		}
-	}
-	// It may return -1 if there are no statistics collected (PG14)
-	if count.Valid && count.Int64 > 0 {
-		// Use this count result.
-		return int32(count.Int64)
-	}
-
-	// If the first fast count failed, returned NULL, or returned 0 try a fast count on partitioned table metadata.
-	if err := db.QueryRowContext(ctx, "SELECT sum(reltuples)::BIGINT FROM pg_class WHERE relname ILIKE $1", tableName+"%_pkey").Scan(&count); err != nil {
-		logger.Warn("Error counting storage objects.", zap.Error(err))
-		if err == context.Canceled {
-			// If the context was cancelled do not attempt any further counts.
-			return 0
-		}
-	}
-	if count.Valid && count.Int64 > 0 {
-		// Use this count result.
-		return int32(count.Int64)
-	}
-
-	// If both fast counts failed, returned NULL, returned 0 or -1 try a full count.
-	// NOTE: PostgreSQL parses the expression count(*) as a special case taking no
-	// arguments, while count(1) takes an argument and PostgreSQL has to check that
-	// 1 is indeed still not NULL for every row.
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM "+tableName).Scan(&count); err != nil {
 		logger.Warn("Error counting storage objects.", zap.Error(err))
 	}
