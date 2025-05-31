@@ -43,8 +43,17 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 		Username:  session.Username(),
 	}
 
+	// TODO: get label from message.
+
 	// Handle through the party registry.
-	ph := p.partyRegistry.Create(incoming.Open, int(incoming.MaxSize), presence)
+	ph, err := p.partyRegistry.Create(incoming.Open, int(incoming.MaxSize), presence)
+	if err != nil {
+		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_BAD_INPUT),
+			Message: fmt.Sprintf("Error creating party: %s", err.Error()),
+		}}}, true)
+		return false, nil
+	}
 	if ph == nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),

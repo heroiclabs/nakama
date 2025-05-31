@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -44,12 +45,13 @@ type PartyHandler struct {
 	streamManager StreamManager
 	router        MessageRouter
 
-	ID      uuid.UUID
-	Node    string
-	IDStr   string
-	Open    bool
-	MaxSize int
-	Stream  PresenceStream
+	ID         uuid.UUID
+	Node       string
+	IDStr      string
+	Open       bool
+	CreateTime time.Time
+	MaxSize    int
+	Stream     PresenceStream
 
 	stopped               bool
 	ctx                   context.Context
@@ -72,12 +74,13 @@ func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker
 		streamManager: streamManager,
 		router:        router,
 
-		ID:      id,
-		Node:    node,
-		IDStr:   idStr,
-		Open:    open,
-		MaxSize: maxSize,
-		Stream:  PresenceStream{Mode: StreamModeParty, Subject: id, Label: node},
+		ID:         id,
+		Node:       node,
+		IDStr:      idStr,
+		Open:       open,
+		CreateTime: time.Now(),
+		MaxSize:    maxSize,
+		Stream:     PresenceStream{Mode: StreamModeParty, Subject: id, Label: node},
 
 		stopped:               false,
 		ctx:                   ctx,
