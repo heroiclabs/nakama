@@ -8347,7 +8347,7 @@ func (n *RuntimeJavascriptNakamaModule) groupUsersDemote(r *goja.Runtime) func(g
 // @param name(type=string) Search for groups that contain this value in their name.
 // @param langTag(type=string, optional=true) Filter based upon the entered language tag.
 // @param open(type=bool, optional=true) Filter based on whether groups are Open or Closed.
-// @param edgeCount(type=number, optional=true) Search by number of group members.
+// @param edgeCount(type=number, optional=true) Search groups with an equal or lower number of members in descending order.
 // @param limit(type=number, optional=true, default=100) Return only the required number of groups denoted by this limit value.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return groups(nkruntime.GroupList) A list of groups.
