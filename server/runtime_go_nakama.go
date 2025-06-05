@@ -3901,7 +3901,7 @@ func (n *RuntimeGoNakamaModule) GroupUsersList(ctx context.Context, groupID stri
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param name(type=string, optional=true) Search for groups that contain this value in their name. Cannot be combined with any other filter.
 // @param langTag(type=string, optional=true) Filter based upon the entered language tag.
-// @param members(type=int, optional=true) Search by number of group members.
+// @param members(type=int, optional=true) Search groups with an equal or lower number of members in descending order.
 // @param open(type=bool, optional=true) Filter based on whether groups are Open or Closed.
 // @param limit(type=int, optional=true) Return only the required number of groups denoted by this limit value.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
