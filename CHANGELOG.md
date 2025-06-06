@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [3.27.1] - 2025-05-22
 ### Changed
 - Minor dependency updates.
+- Decorate request context in authentication after hooks.
 
 ## [3.27.0] - 2025-05-12
 ### Added
