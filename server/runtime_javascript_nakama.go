@@ -460,7 +460,7 @@ func (n *RuntimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 func (n *RuntimeJavascriptNakamaModule) partiesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		limit := 10
-		if f.Argument(0) != goja.Undefined() {
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
 			limit = int(getJsInt(r, f.Argument(0)))
 		}
 
@@ -498,9 +498,9 @@ func (n *RuntimeJavascriptNakamaModule) partiesList(r *goja.Runtime) func(goja.F
 		}
 
 		partyList := r.NewObject()
-		partyList.Set("parties", r.NewArray(parties...))
+		_ = partyList.Set("parties", r.NewArray(parties...))
 		if cursor != "" {
-			partyList.Set("cursor", cursor)
+			_ = partyList.Set("cursor", cursor)
 		}
 
 		return r.ToValue(partyList)
