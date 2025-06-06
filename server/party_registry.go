@@ -173,8 +173,6 @@ func (p *LocalPartyRegistry) processUpdates(batch *index.Batch) {
 func (p *LocalPartyRegistry) Create(open bool, maxSize int, presence *rtapi.UserPresence, label string) (*PartyHandler, error) {
 	id := uuid.Must(uuid.NewV4())
 
-	label = "{\"players\":[\"one\",\"two\"],\"mode\":0}"
-
 	var labelMap map[string]any
 	if label != "" {
 		if len(label) > PartyLabelMaxBytes {
