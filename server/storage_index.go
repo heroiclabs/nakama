@@ -154,6 +154,11 @@ func (si *LocalStorageIndex) Write(ctx context.Context, objects []*api.StorageOb
 			si.logger.Error("Failed to get index storage reader", zap.Error(err))
 			continue
 		}
+		defer func() {
+			if err = reader.Close(); err != nil {
+				si.logger.Error("error closing index reader", zap.Error(err))
+			}
+		}()
 		count, _ := reader.Count() // cannot return err
 
 		si.metrics.GaugeStorageIndexEntries(idx.Name, float64(count))
@@ -286,6 +291,11 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 	if err != nil {
 		return nil, "", err
 	}
+	defer func() {
+		if err = indexReader.Close(); err != nil {
+			si.logger.Error("error closing index reader", zap.Error(err))
+		}
+	}()
 
 	results, err := indexReader.Search(ctx, searchReq)
 	if err != nil {
