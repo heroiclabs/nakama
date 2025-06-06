@@ -850,12 +850,11 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			env = api.StoreEnvironment_SANDBOX
 		}
 
-		ctx := context.Background()
 		if signedTransactionInfo.ExpiresDateMs != 0 {
 			// Notification regarding a subscription.
 			if uid.IsNil() {
 				// No user ID was found in receipt, lookup a validated subscription.
-				s, err := getSubscriptionByOriginalTransactionId(ctx, logger, db, signedTransactionInfo.OriginalTransactionId)
+				s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, signedTransactionInfo.OriginalTransactionId)
 				if err != nil || s == nil {
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
@@ -875,7 +874,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				refundTime:            parseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
 			}
 
-			if err = upsertSubscription(ctx, db, sub); err != nil {
+			if err = upsertSubscription(r.Context(), db, sub); err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 					// User id was not found, ignore this notification
@@ -915,7 +914,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				}
 
 				if subscriptionNotificationCallback != nil {
-					if err = subscriptionNotificationCallback(ctx, validatedSub, string(body)); err != nil {
+					if err = subscriptionNotificationCallback(r.Context(), validatedSub, string(body)); err != nil {
 						logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
@@ -927,7 +926,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			// Notification regarding a purchase.
 			if uid.IsNil() {
 				// No user ID was found in receipt, lookup a validated subscription.
-				p, err := GetPurchaseByTransactionId(ctx, logger, db, signedTransactionInfo.TransactionId)
+				p, err := GetPurchaseByTransactionId(r.Context(), logger, db, signedTransactionInfo.TransactionId)
 				if err != nil || p == nil {
 					// User validated purchase not found.
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
@@ -947,7 +946,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					environment:   env,
 				}
 
-				dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{purchase})
+				dbPurchases, err := upsertPurchases(r.Context(), db, []*storagePurchase{purchase})
 				if err != nil {
 					logger.Error("Failed to store App Store notification purchase data")
 					w.WriteHeader(http.StatusInternalServerError)
@@ -974,7 +973,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 						SeenBefore:       dbPurchase.seenBefore,
 					}
 
-					if err = purchaseNotificationCallback(ctx, validatedPurchase, string(body)); err != nil {
+					if err = purchaseNotificationCallback(r.Context(), validatedPurchase, string(body)); err != nil {
 						logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
@@ -1065,7 +1064,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
-		gResponse, _, _, err := iap.ValidateSubscriptionReceiptGoogle(context.Background(), httpc, config.ClientEmail, config.PrivateKey, string(encodedReceipt))
+		gResponse, _, _, err := iap.ValidateSubscriptionReceiptGoogle(r.Context(), httpc, config.ClientEmail, config.PrivateKey, string(encodedReceipt))
 		if err != nil {
 			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
@@ -1096,7 +1095,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			uid = extUID
 		} else if gResponse.ProfileId != "" {
 			var dbUID uuid.UUID
-			if err = db.QueryRowContext(context.Background(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&dbUID); err != nil {
+			if err = db.QueryRowContext(r.Context(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&dbUID); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					logger.Warn("Google Play Billing subscription notification user not found", zap.String("profile_id", gResponse.ProfileId), zap.String("payload", string(body)))
 					w.WriteHeader(http.StatusOK) // Subscription could not be assigned to a user ID, ack and ignore it.
@@ -1108,7 +1107,12 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			uid = dbUID
 		} else {
 			// Get user id by existing validated subscription.
-			sub, err := getSubscriptionByOriginalTransactionId(context.Background(), logger, db, googleNotification.SubscriptionNotification.PurchaseToken)
+			purchaseToken := googleNotification.SubscriptionNotification.PurchaseToken
+			if gResponse.LinkedPurchaseToken != "" {
+				// https://medium.com/androiddevelopers/implementing-linkedpurchasetoken-correctly-to-prevent-duplicate-subscriptions-82dfbf7167da
+				purchaseToken = gResponse.LinkedPurchaseToken
+			}
+			sub, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, purchaseToken)
 			if err != nil || sub == nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -1151,7 +1155,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			storageSub.originalTransactionId = gResponse.LinkedPurchaseToken
 		}
 
-		if err = upsertSubscription(context.Background(), db, storageSub); err != nil {
+		if err = upsertSubscription(r.Context(), db, storageSub); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 				// Record was inserted and the user id was not found, ignore this notification
