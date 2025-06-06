@@ -133,6 +133,8 @@ message Envelope {
     PartyDataSend party_data_send = 49;
     // Presence update for a particular party.
     PartyPresenceEvent party_presence_event = 50;
+    // Update Party label and whether it's open or closed.
+    PartyUpdate party_update = 51;
   }
 }
 
@@ -446,14 +448,18 @@ message PartyCreate {
   bool open = 1;
   // Maximum number of party members.
   int32 max_size = 2;
+  // Label
+  string label = 3;
 }
 
 // Update a party label.
 message PartyUpdate {
+  // Party ID.
+  string party_id = 1;
   // Label to set.
-  string label = 1;
+  string label = 2;
   // Change the party to open or closed.
-  bool open = 2;
+  bool open = 3;
 }
 
 // Join a party, or request to join if the party is not open.

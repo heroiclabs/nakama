@@ -374,8 +374,7 @@ func (r *LocalMatchRegistry) ListMatches(ctx context.Context, limit int, authori
 		return nil, nil, fmt.Errorf("error accessing index reader: %v", err.Error())
 	}
 	defer func() {
-		err = indexReader.Close()
-		if err != nil {
+		if err = indexReader.Close(); err != nil {
 			r.logger.Error("error closing index reader", zap.Error(err))
 		}
 	}()

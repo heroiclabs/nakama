@@ -668,3 +668,41 @@ func (p *PartyHandler) DataSend(sessionID, node string, opCode int64, data []byt
 
 	return nil
 }
+
+func (p *PartyHandler) Update(sessionID, node, label string, open bool) error {
+	p.Lock()
+	if p.stopped {
+		p.Unlock()
+		return runtime.ErrPartyClosed
+	}
+
+	// Only the party leader may update the label.
+	if p.leader == nil || p.leader.PresenceID.SessionID.String() != sessionID || p.leader.PresenceID.Node != node {
+		p.Unlock()
+		return runtime.ErrPartyNotLeader
+	}
+
+	if err := p.partyRegistry.LabelUpdate(p.IDStr, p.Node, label, open, p.MaxSize, p.CreateTime); err != nil {
+		p.Unlock()
+		return err
+	}
+
+	p.Open = open
+
+	p.Unlock()
+
+	envelope := &rtapi.Envelope{
+		Message: &rtapi.Envelope_PartyUpdate{
+			PartyUpdate: &rtapi.PartyUpdate{
+				PartyId: p.IDStr,
+				Label:   label,
+				Open:    open,
+			},
+		},
+	}
+
+	// Send updated label and open status to all party members.
+	p.router.SendToStream(p.logger, p.Stream, envelope, true)
+
+	return nil
+}
