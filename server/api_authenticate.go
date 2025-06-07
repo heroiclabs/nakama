@@ -111,8 +111,9 @@ func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateA
 		return nil, err
 	}
 
+	uid := uuid.Must(uuid.FromString(dbUserID))
 	if s.config.GetSession().SingleSession {
-		s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(dbUserID)))
+		s.sessionCache.RemoveAll(uid)
 	}
 
 	tokenIssuedAt := time.Now().Unix()
@@ -125,6 +126,7 @@ func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateA
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateApple(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			ctx = populateCtx(ctx, uid, dbUsername, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
@@ -197,6 +199,8 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateCustom(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			uid := uuid.Must(uuid.FromString(dbUserID))
+			ctx = populateCtx(ctx, uid, dbUsername, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
@@ -269,6 +273,8 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateDevice(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			uid := uuid.Must(uuid.FromString(dbUserID))
+			ctx = populateCtx(ctx, uid, dbUsername, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
@@ -371,6 +377,8 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateEmail(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			uid := uuid.Must(uuid.FromString(dbUserID))
+			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, username, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
@@ -444,6 +452,8 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateFacebook(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			uid := uuid.Must(uuid.FromString(dbUserID))
+			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
@@ -512,6 +522,8 @@ func (s *ApiServer) AuthenticateFacebookInstantGame(ctx context.Context, in *api
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateFacebookInstantGame(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			uid := uuid.Must(uuid.FromString(dbUserID))
+			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
@@ -592,6 +604,8 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateGameCenter(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			uid := uuid.Must(uuid.FromString(dbUserID))
+			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
@@ -660,6 +674,8 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateGoogle(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			uid := uuid.Must(uuid.FromString(dbUserID))
+			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
@@ -737,6 +753,8 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 	// After hook.
 	if fn := s.runtime.AfterAuthenticateSteam(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
+			uid := uuid.Must(uuid.FromString(dbUserID))
+			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
 			return fn(ctx, s.logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 

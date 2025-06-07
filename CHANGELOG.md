@@ -7,6 +7,14 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add party listing API and party labeling support.
 
+### Fixed
+- Fix an issue where a purchased Google Subscription would not be looked up by the LinkedPurchaseToken field contained in a notification.
+
+## [3.27.1] - 2025-05-22
+### Changed
+- Minor dependency updates.
+- Decorate request context in authentication after hooks.
+
 ## [3.27.0] - 2025-05-12
 ### Added
 - Add Satori client API to list Flags Overrides.
