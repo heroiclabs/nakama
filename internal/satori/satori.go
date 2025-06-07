@@ -62,14 +62,9 @@ type SatoriClient struct {
 }
 
 func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
+	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
+	// the server.
 	parsedUrl, _ := url.Parse(satoriUrl)
-
-	var ticker *time.Ticker
-	if cacheEnabled {
-		// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
-		// the server.
-		ticker = time.NewTicker(30 * time.Second)
-	}
 
 	sc := &SatoriClient{
 		logger:               logger,
@@ -85,10 +80,10 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
 		propertiesCache:      make(map[context.Context]*runtime.Properties),
-		flagsCache:           newSatoriCache[flagCacheEntry](ctx, ticker),
-		flagsOverridesCache:  newSatoriCache[[]flagOverridesCacheEntry](ctx, ticker),
-		liveEventsCache:      newSatoriCache[*runtime.LiveEvent](ctx, ticker),
-		experimentsCache:     newSatoriCache[*runtime.Experiment](ctx, ticker),
+		flagsCache:           newSatoriCache[flagCacheEntry](ctx, cacheEnabled),
+		flagsOverridesCache:  newSatoriCache[[]flagOverridesCacheEntry](ctx, cacheEnabled),
+		liveEventsCache:      newSatoriCache[*runtime.LiveEvent](ctx, cacheEnabled),
+		experimentsCache:     newSatoriCache[*runtime.Experiment](ctx, cacheEnabled),
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -1027,8 +1022,8 @@ type satoriCache[T any] struct {
 	entries     map[context.Context]map[string]T
 }
 
-func newSatoriCache[T any](ctx context.Context, ticker *time.Ticker) *satoriCache[T] {
-	if ticker == nil {
+func newSatoriCache[T any](ctx context.Context, enabled bool) *satoriCache[T] {
+	if !enabled {
 		return &satoriCache[T]{
 			enabled: atomic.NewBool(false),
 		}
@@ -1042,6 +1037,8 @@ func newSatoriCache[T any](ctx context.Context, ticker *time.Ticker) *satoriCach
 	}
 
 	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -1062,7 +1059,7 @@ func newSatoriCache[T any](ctx context.Context, ticker *time.Ticker) *satoriCach
 }
 
 func (s *satoriCache[T]) Get(ctx context.Context, keys ...string) (values []T, missingKeys []string) {
-	if s.enabled.Load() == false {
+	if !s.enabled.Load() {
 		return nil, nil
 	}
 	s.RLock()
@@ -1092,7 +1089,7 @@ func (s *satoriCache[T]) Get(ctx context.Context, keys ...string) (values []T, m
 }
 
 func (s *satoriCache[T]) Add(ctx context.Context, values map[string]T) {
-	if s.enabled.Load() == false {
+	if !s.enabled.Load() {
 		return
 	}
 	s.Lock()
@@ -1106,7 +1103,7 @@ func (s *satoriCache[T]) Add(ctx context.Context, values map[string]T) {
 }
 
 func (s *satoriCache[T]) SetAll(ctx context.Context, values map[string]T) {
-	if s.enabled.Load() == false {
+	if !s.enabled.Load() {
 		return
 	}
 
