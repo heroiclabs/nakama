@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Fix an issue where a purchased Google Subscription would not be looked up by the LinkedPurchaseToken field contained in a notification.
+- Improve Satori caching to prevent incorrect hits.
 
 ## [3.27.1] - 2025-05-22
 ### Changed
