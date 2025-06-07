@@ -20,7 +20,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.uber.org/atomic"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -50,21 +52,24 @@ type SatoriClient struct {
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
 
-	cacheEnabled             bool
-	flagsCacheMutex          sync.RWMutex
-	flagsOverridesCacheMutex sync.RWMutex
-	propertiesCacheMutex     sync.RWMutex
-	liveEventsCacheMutex     sync.RWMutex
-	experimentsCacheMutex    sync.RWMutex
-	flagsCache               map[context.Context]map[string]flagCacheEntry
-	flagsOverridesCache      map[context.Context]map[string][]flagOverridesCacheEntry
-	propertiesCache          map[context.Context]*runtime.Properties
-	liveEventsCache          map[context.Context]*runtime.LiveEventList
-	experimentsCache         map[context.Context]*runtime.ExperimentList
+	cacheEnabled         bool
+	propertiesCacheMutex sync.RWMutex
+	propertiesCache      map[context.Context]*runtime.Properties
+	flagsCache           *satoriCache[flagCacheEntry]
+	flagsOverridesCache  *satoriCache[[]flagOverridesCacheEntry]
+	liveEventsCache      *satoriCache[*runtime.LiveEvent]
+	experimentsCache     *satoriCache[*runtime.Experiment]
 }
 
 func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
 	parsedUrl, _ := url.Parse(satoriUrl)
+
+	var ticker *time.Ticker
+	if cacheEnabled {
+		// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
+		// the server.
+		ticker = time.NewTicker(30 * time.Second)
+	}
 
 	sc := &SatoriClient{
 		logger:               logger,
@@ -77,17 +82,13 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
 
-		cacheEnabled:             cacheEnabled,
-		flagsCacheMutex:          sync.RWMutex{},
-		flagsOverridesCacheMutex: sync.RWMutex{},
-		propertiesCacheMutex:     sync.RWMutex{},
-		liveEventsCacheMutex:     sync.RWMutex{},
-		experimentsCacheMutex:    sync.RWMutex{},
-		flagsCache:               make(map[context.Context]map[string]flagCacheEntry),
-		flagsOverridesCache:      make(map[context.Context]map[string][]flagOverridesCacheEntry),
-		propertiesCache:          make(map[context.Context]*runtime.Properties),
-		liveEventsCache:          make(map[context.Context]*runtime.LiveEventList),
-		experimentsCache:         make(map[context.Context]*runtime.ExperimentList),
+		cacheEnabled:         cacheEnabled,
+		propertiesCacheMutex: sync.RWMutex{},
+		propertiesCache:      make(map[context.Context]*runtime.Properties),
+		flagsCache:           newSatoriCache[flagCacheEntry](ctx, ticker),
+		flagsOverridesCache:  newSatoriCache[[]flagOverridesCacheEntry](ctx, ticker),
+		liveEventsCache:      newSatoriCache[*runtime.LiveEvent](ctx, ticker),
+		experimentsCache:     newSatoriCache[*runtime.Experiment](ctx, ticker),
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -95,71 +96,6 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 	} else if err := sc.validateConfig(); err != nil {
 		sc.invalidConfig = true
 		logger.Warn(err.Error())
-	}
-
-	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
-	// the server.
-	if sc.cacheEnabled {
-		go func() {
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					go func() {
-						sc.flagsCacheMutex.Lock()
-						for cacheCtx := range sc.flagsCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.flagsCache, cacheCtx)
-							}
-						}
-						sc.flagsCacheMutex.Unlock()
-					}()
-
-					go func() {
-						sc.flagsOverridesCacheMutex.Lock()
-						for cacheCtx := range sc.flagsOverridesCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.flagsCache, cacheCtx)
-							}
-						}
-						sc.flagsOverridesCacheMutex.Unlock()
-					}()
-
-					go func() {
-						sc.propertiesCacheMutex.Lock()
-						for cacheCtx := range sc.propertiesCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.propertiesCache, cacheCtx)
-							}
-						}
-						sc.propertiesCacheMutex.Unlock()
-					}()
-
-					go func() {
-						sc.liveEventsCacheMutex.Lock()
-						for cacheCtx := range sc.liveEventsCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.liveEventsCache, cacheCtx)
-							}
-						}
-						sc.liveEventsCacheMutex.Unlock()
-					}()
-
-					go func() {
-						sc.experimentsCacheMutex.Lock()
-						for cacheCtx := range sc.experimentsCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.experimentsCache, cacheCtx)
-							}
-						}
-						sc.experimentsCacheMutex.Unlock()
-					}()
-				}
-			}
-		}()
 	}
 
 	return sc
@@ -357,7 +293,7 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 	entry, found := s.propertiesCache[ctx]
 	s.propertiesCacheMutex.RUnlock()
 
-	if !found {
+	if !s.cacheEnabled || !found {
 		url := s.url.String() + "/v1/properties"
 
 		sessionToken, err := s.generateToken(ctx, id)
@@ -538,11 +474,9 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.experimentsCacheMutex.RLock()
-	entry, found := s.experimentsCache[ctx]
-	s.experimentsCacheMutex.RUnlock()
+	entry, missingKeys := s.experimentsCache.Get(ctx, names...)
 
-	if !found {
+	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
 		url := s.url.String() + "/v1/experiment"
 
 		sessionToken, err := s.generateToken(ctx, id)
@@ -555,6 +489,10 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 			return nil, err
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		if len(missingKeys) > 0 {
+			names = missingKeys
+		}
 
 		if len(names) > 0 {
 			q := req.URL.Query()
@@ -583,9 +521,17 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 				return nil, err
 			}
 
-			s.experimentsCacheMutex.Lock()
-			s.experimentsCache[ctx] = experiments
-			s.experimentsCacheMutex.Unlock()
+			newExperiments := make(map[string]*runtime.Experiment)
+			for _, exp := range experiments.Experiments {
+				entry = append(entry, exp)
+				newExperiments[exp.Name] = exp
+			}
+
+			if len(names) > 0 {
+				s.experimentsCache.Add(ctx, newExperiments)
+			} else {
+				s.experimentsCache.SetAll(ctx, newExperiments)
+			}
 
 			return experiments, nil
 		default:
@@ -597,10 +543,11 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 		}
 	}
 
-	return entry, nil
+	return &runtime.ExperimentList{Experiments: entry}, nil
 }
 
 type flagCacheEntry struct {
+	Name             string
 	Value            unique.Handle[string]
 	ConditionChanged bool
 }
@@ -622,11 +569,9 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.flagsCacheMutex.RLock()
-	entry, found := s.flagsCache[ctx]
-	s.flagsCacheMutex.RUnlock()
+	entry, missingKeys := s.flagsCache.Get(ctx, names...)
 
-	if !found {
+	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
 		url := s.url.String() + "/v1/flag"
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -642,6 +587,10 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
 		} else {
 			req.SetBasicAuth(s.apiKey, "")
+		}
+
+		if len(missingKeys) > 0 {
+			names = missingKeys
 		}
 
 		if len(names) > 0 {
@@ -673,17 +622,19 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 			entries := make(map[string]flagCacheEntry, len(flags.Flags))
 			for _, f := range flags.Flags {
 				cacheEntry := flagCacheEntry{
+					Name:             f.Name,
 					Value:            unique.Make(f.Value),
 					ConditionChanged: f.ConditionChanged,
 				}
+				entry = append(entry, cacheEntry)
 				entries[f.Name] = cacheEntry
 			}
 
-			s.flagsCacheMutex.Lock()
-			s.flagsCache[ctx] = entries
-			s.flagsCacheMutex.Unlock()
-
-			return flags, nil
+			if len(names) > 0 {
+				s.flagsCache.Add(ctx, entries)
+			} else {
+				s.flagsCache.SetAll(ctx, entries)
+			}
 		default:
 			if len(resBody) > 0 {
 				return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
@@ -694,9 +645,9 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	}
 
 	flagList := make([]*runtime.Flag, 0, len(entry))
-	for flName, flEntry := range entry {
+	for _, flEntry := range entry {
 		flagList = append(flagList, &runtime.Flag{
-			Name:             flName,
+			Name:             flEntry.Name,
 			Value:            flEntry.Value.Value(),
 			ConditionChanged: flEntry.ConditionChanged,
 		})
@@ -717,11 +668,9 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.flagsOverridesCacheMutex.RLock()
-	entry, found := s.flagsOverridesCache[ctx]
-	s.flagsOverridesCacheMutex.RUnlock()
+	entry, missingKeys := s.flagsOverridesCache.Get(ctx, names...)
 
-	if !found {
+	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
 		url := s.url.String() + "/v1/flag/override"
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -737,6 +686,10 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
 		} else {
 			req.SetBasicAuth(s.apiKey, "")
+		}
+
+		if len(missingKeys) > 0 {
+			names = missingKeys
 		}
 
 		if len(names) > 0 {
@@ -777,9 +730,11 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 				entries[f.FlagName] = overrides
 			}
 
-			s.flagsOverridesCacheMutex.Lock()
-			s.flagsOverridesCache[ctx] = entries
-			s.flagsOverridesCacheMutex.Unlock()
+			if len(names) > 0 {
+				s.flagsOverridesCache.Add(ctx, entries)
+			} else {
+				s.flagsOverridesCache.SetAll(ctx, entries)
+			}
 
 			return flagOverrides, nil
 		default:
@@ -792,12 +747,14 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 	}
 
 	flagOverridesList := make([]*runtime.FlagOverrides, 0, len(entry))
-	for flagName, flagEntry := range entry {
+	for _, flagEntry := range entry {
 		flagOverrides := make([]*runtime.FlagOverride, 0, len(flagEntry))
+		var flagName string
 		for _, flagOverride := range flagEntry {
+			flagName = flagOverride.Name
 			flagOverrides = append(flagOverrides, &runtime.FlagOverride{
 				Type:          flagOverride.Type,
-				Name:          flagOverride.Name,
+				Name:          flagName,
 				VariantName:   flagOverride.VariantName,
 				Value:         flagOverride.Value.Value(),
 				CreateTimeSec: flagOverride.CreateTimeSec,
@@ -827,11 +784,9 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.liveEventsCacheMutex.RLock()
-	entry, found := s.liveEventsCache[ctx]
-	s.liveEventsCacheMutex.RUnlock()
+	entry, missingKeys := s.liveEventsCache.Get(ctx, names...)
 
-	if !found {
+	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
 		url := s.url.String() + "/v1/live-event"
 
 		sessionToken, err := s.generateToken(ctx, id)
@@ -844,6 +799,10 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 			return nil, err
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		if len(missingKeys) > 0 {
+			names = missingKeys
+		}
 
 		if len(names) > 0 {
 			q := req.URL.Query()
@@ -871,9 +830,17 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 				return nil, err
 			}
 
-			s.liveEventsCacheMutex.Lock()
-			s.liveEventsCache[ctx] = liveEvents
-			s.liveEventsCacheMutex.Unlock()
+			entries := make(map[string]*runtime.LiveEvent)
+			for _, le := range liveEvents.LiveEvents {
+				entries[le.Name] = le
+				entry = append(entry, le)
+			}
+
+			if len(names) > 0 {
+				s.liveEventsCache.Add(ctx, entries)
+			} else {
+				s.liveEventsCache.SetAll(ctx, entries)
+			}
 
 			return liveEvents, nil
 		default:
@@ -884,7 +851,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 		}
 	}
 
-	return entry, nil
+	return &runtime.LiveEventList{LiveEvents: entry}, nil
 }
 
 // @group satori
@@ -1051,4 +1018,100 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 		}
 		return fmt.Errorf("%d status code", res.StatusCode)
 	}
+}
+
+type satoriCache[T any] struct {
+	sync.RWMutex
+	enabled     *atomic.Bool
+	containsAll *atomic.Bool // If the first request fetched all entries, then we can skip fetching them again.
+	entries     map[context.Context]map[string]T
+}
+
+func newSatoriCache[T any](ctx context.Context, ticker *time.Ticker) *satoriCache[T] {
+	if ticker == nil {
+		return &satoriCache[T]{
+			enabled: atomic.NewBool(false),
+		}
+	}
+
+	sc := &satoriCache[T]{
+		enabled:     atomic.NewBool(true),
+		RWMutex:     sync.RWMutex{},
+		containsAll: atomic.NewBool(false),
+		entries:     make(map[context.Context]map[string]T),
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				sc.Lock()
+				for cacheCtx := range sc.entries {
+					if cacheCtx.Err() != nil {
+						delete(sc.entries, cacheCtx)
+					}
+				}
+				sc.Unlock()
+			}
+		}
+	}()
+
+	return sc
+}
+
+func (s *satoriCache[T]) Get(ctx context.Context, keys ...string) (values []T, missingKeys []string) {
+	if s.enabled.Load() == false {
+		return nil, nil
+	}
+	s.RLock()
+	entry, found := s.entries[ctx]
+	defer s.RUnlock()
+
+	switch {
+	case found && len(keys) > 0:
+		for _, name := range keys {
+			if e, ok := entry[name]; ok {
+				values = append(values, e)
+			} else {
+				missingKeys = append(missingKeys, name)
+			}
+		}
+		return values, missingKeys
+	case found && len(keys) == 0 && s.containsAll.Load():
+		values = make([]T, 0, len(entry))
+		for _, e := range entry {
+			values = append(values, e)
+		}
+		return values, nil
+	default:
+		// Asked for all keys, but they were never fetched, or no cache entrie exists for the context.
+		return nil, nil
+	}
+}
+
+func (s *satoriCache[T]) Add(ctx context.Context, values map[string]T) {
+	if s.enabled.Load() == false {
+		return
+	}
+	s.Lock()
+	entries, ok := s.entries[ctx]
+	if !ok {
+		entries = make(map[string]T, len(values))
+		s.entries[ctx] = entries
+	}
+	maps.Copy(entries, values)
+	s.Unlock()
+}
+
+func (s *satoriCache[T]) SetAll(ctx context.Context, values map[string]T) {
+	if s.enabled.Load() == false {
+		return
+	}
+
+	s.containsAll.Store(true)
+	s.Lock()
+	s.entries[ctx] = values
+	s.Unlock()
 }
