@@ -563,7 +563,7 @@ func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, playerID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by GameCenter ID.", zap.Error(err), zap.String("gameCenterID", playerID), zap.String("username", username), zap.Bool("create", create))
@@ -627,7 +627,7 @@ func RemapGoogleId(ctx context.Context, logger *zap.Logger, db *sql.DB, googlePr
 func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, idToken, username string, create bool) (string, string, bool, error) {
 	googleProfile, err := client.CheckGoogleToken(ctx, idToken)
 	if err != nil {
-		logger.Info("Could not authenticate Google profile.", zap.Error(err))
+		logger.Error("Could not authenticate Google profile.", zap.Error(err))
 		return "", "", false, status.Error(codes.Unauthenticated, "Could not authenticate Google profile.")
 	}
 	found := true
