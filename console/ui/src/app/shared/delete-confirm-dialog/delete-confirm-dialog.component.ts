@@ -10,6 +10,7 @@ export class DeleteConfirmDialogComponent {
   @Output() canceled: EventEmitter<void> = new EventEmitter<void>();
   title = 'Delete Confirmation';
   message = 'Are you sure you want to delete this item?';
+  btnAction = 'Delete'
   /*
 This parameter is optional
 we support two type of control

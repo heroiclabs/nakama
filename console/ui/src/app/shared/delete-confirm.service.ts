@@ -16,7 +16,8 @@ export class DeleteConfirmService {
     confirmedCallback: (formValue: any) => void,
     formGroup: FormGroup = null,
     title: string = '',
-    message: string = ''): void {
+    message: string = '',
+    btnAction: string = '',): void {
     const modalOptions: NgbModalOptions = {
       backdrop: false,
       centered: true,
@@ -30,6 +31,9 @@ export class DeleteConfirmService {
     }
     if (message) {
       modalRef.componentInstance.message = message;
+    }
+    if (btnAction) {
+      modalRef.componentInstance.btnAction = btnAction;
     }
     modalRef.componentInstance.confirmed.subscribe(() => {
       confirmedCallback(formGroup?.value);

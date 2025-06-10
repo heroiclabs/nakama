@@ -75,27 +75,43 @@ export class AccountComponent implements OnInit {
   }
 
   banUnbanAccount(event): void {
-    event.target.disabled = true;
-    this.error = '';
+    let title = 'Ban Confirmation';
+    let msg = 'Are you sure you want to ban this account?';
+    let btnAction = 'Ban'
     if (this.account.disable_time) {
-      this.consoleService.unbanAccount('', this.account.user.id).subscribe(() => {
-        this.error = '';
-        this.account.disable_time = null;
-        event.target.disabled = false;
-      }, err => {
-        this.error = err;
-        event.target.disabled = false;
-      });
-    } else {
-      this.consoleService.banAccount('', this.account.user.id).subscribe(() => {
-        this.error = '';
-        this.account.disable_time = Date.now().toString();
-        event.target.disabled = false;
-      }, err => {
-        this.error = err;
-        event.target.disabled = false;
-      });
+      title = 'Unban Confirmation';
+      msg = 'Are you sure you want to unban this account?';
+      btnAction = 'Unban'
     }
+    this.deleteConfirmService.openDeleteConfirmModal(
+      () => {
+        event.target.disabled = true;
+        this.error = '';
+        if (this.account.disable_time) {
+          this.consoleService.unbanAccount('', this.account.user.id).subscribe(() => {
+            this.error = '';
+            this.account.disable_time = null;
+            event.target.disabled = false;
+          }, err => {
+            this.error = err;
+            event.target.disabled = false;
+          });
+        } else {
+          this.consoleService.banAccount('', this.account.user.id).subscribe(() => {
+            this.error = '';
+            this.account.disable_time = Date.now().toString();
+            event.target.disabled = false;
+          }, err => {
+            this.error = err;
+            event.target.disabled = false;
+          });
+        }
+      },
+      null,
+      title,
+      msg,
+      btnAction
+    );
   }
 
   exportAccount(event): void {
