@@ -50,6 +50,8 @@ type SatoriClient struct {
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
 
+	strictContextModes map[string]bool
+
 	cacheEnabled             bool
 	flagsCacheMutex          sync.RWMutex
 	flagsOverridesCacheMutex sync.RWMutex
@@ -63,7 +65,7 @@ type SatoriClient struct {
 	experimentsCache         map[context.Context]*runtime.ExperimentList
 }
 
-func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool, strictContextModes []string) *SatoriClient {
 	parsedUrl, _ := url.Parse(satoriUrl)
 
 	sc := &SatoriClient{
@@ -76,6 +78,8 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		signingKey:           strings.TrimSpace(signingKey),
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
+
+		strictContextModes: make(map[string]bool, len(strictContextModes)),
 
 		cacheEnabled:             cacheEnabled,
 		flagsCacheMutex:          sync.RWMutex{},
@@ -95,6 +99,10 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 	} else if err := sc.validateConfig(); err != nil {
 		sc.invalidConfig = true
 		logger.Warn(err.Error())
+	}
+
+	for _, strictContextMode := range strictContextModes {
+		sc.strictContextModes[strictContextMode] = true
 	}
 
 	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
@@ -221,16 +229,20 @@ func (s *sessionTokenClaims) GetSubject() (string, error) {
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
+	// Ensure we only log warnings when context is expected to contain values.
+	mode, ok := ctx.Value(runtime.RUNTIME_CTX_MODE).(string)
+	contextExpected := ok && s.strictContextModes[mode]
+
 	tid, ok := ctx.Value(ctxkeys.TokenIDKey{}).(string)
-	if !ok {
+	if !ok && contextExpected {
 		s.logger.Warn("satori request token id was not found in ctx")
 	}
 	tIssuedAt, ok := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
-	if !ok {
+	if !ok && contextExpected {
 		s.logger.Warn("satori request token issued at was not found in ctx")
 	}
 	tExpirySec, ok := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
-	if !ok {
+	if !ok && contextExpected {
 		s.logger.Warn("satori request token expires at was not found in ctx")
 	}
 
