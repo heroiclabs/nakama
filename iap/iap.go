@@ -27,7 +27,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -36,20 +35,8 @@ import (
 )
 
 const (
-	AppleReceiptValidationUrlSandbox    = "https://sandbox.itunes.apple.com/verifyReceipt"
-	AppleReceiptValidationUrlProduction = "https://buy.itunes.apple.com/verifyReceipt"
-)
-
-const (
-	AppleReceiptIsValid           = 0
-	HuaweiReceiptIsValid          = 0
-	HuaweiSandboxPurchaseType     = 0
-	AppleReceiptIsFromTestSandbox = 21007 // Receipt from test env was sent to prod. Should retry against the sandbox env.
-)
-
-const (
-	AppleSandboxEnvironment    = "Sandbox"
-	AppleProductionEnvironment = "Production"
+	HuaweiReceiptIsValid      = 0
+	HuaweiSandboxPurchaseType = 0
 )
 
 const accessTokenExpiresGracePeriod = 300 // 5 min grace period
@@ -58,6 +45,34 @@ var cachedTokensGoogle = &googleTokenCache{
 	tokenMap: make(map[string]*accessTokenGoogle),
 }
 var cachedTokenHuawei accessTokenHuawei
+
+type Platform int
+
+const (
+	Unknown Platform = iota
+	Apple
+	Google
+	Facebook
+	Huawei
+	Xbox
+	Playstation
+	Steam
+	Epic
+	Discord
+)
+
+func (enum Platform) String() string {
+	return [...]string{"apple", "google", "facebook", "huawei"}[enum]
+}
+
+func FromString(s string) Platform {
+	return map[string]Platform{
+		"apple":    Apple,
+		"google":   Google,
+		"facebook": Facebook,
+		"huawei":   Huawei,
+	}[s]
+}
 
 type googleTokenCache struct {
 	sync.RWMutex
@@ -76,7 +91,6 @@ func (e *ValidationError) Error() string {
 func (e *ValidationError) Unwrap() error { return e.Err }
 
 var (
-	ErrNon200ServiceApple     = errors.New("non-200 response from Apple service")
 	ErrNon200ServiceGoogle    = errors.New("non-200 response from Google service")
 	ErrNon200ServiceHuawei    = errors.New("non-200 response from Huawei service")
 	ErrInvalidSignatureHuawei = errors.New("inAppPurchaseData invalid signature")
@@ -87,144 +101,6 @@ func init() {
 	// This ensures that for example `["foo"]` is marshaled as `"foo"`.
 	// Note: this is required particularly for Google IAP verification JWT audience fields.
 	jwt.MarshalSingleStringAsArray = false
-}
-
-// Apple
-
-type ValidateReceiptAppleResponseReceiptInApp struct {
-	OriginalTransactionID string `json:"original_transaction_id"`
-	TransactionId         string `json:"transaction_id"` // Different from OriginalTransactionId if the user Auto-renews subscription or restores a purchase.
-	ProductID             string `json:"product_id"`
-	ExpiresDateMs         string `json:"expires_date_ms"` // Subscription expiration or renewal date.
-	PurchaseDateMs        string `json:"purchase_date_ms"`
-	CancellationDateMs    string `json:"cancellation_date_ms"`
-}
-
-type ValidateReceiptAppleResponseReceipt struct {
-	OriginalPurchaseDateMs string                                      `json:"original_purchase_date_ms"`
-	InApp                  []*ValidateReceiptAppleResponseReceiptInApp `json:"in_app"`
-}
-
-type ValidateReceiptAppleResponseLatestReceiptInfo struct {
-	CancellationDateMs          string `json:"cancellation_date_ms"`
-	CancellationReason          string `json:"cancellation_reason"`
-	ExpiresDateMs               string `json:"expires_date_ms"`
-	InAppOwnershipType          string `json:"in_app_ownership_type"`
-	IsInIntroOfferPeriod        string `json:"is_in_intro_offer_period"` // "true" or "false"
-	IsTrialPeriod               string `json:"is_trial_period"`
-	IsUpgraded                  string `json:"is_upgraded"`
-	OfferCodeRefName            string `json:"offer_code_ref_name"`
-	OriginalPurchaseDateMs      string `json:"original_purchase_date_ms"`
-	OriginalTransactionId       string `json:"original_transaction_id"` // First subscription transaction
-	ProductId                   string `json:"product_id"`
-	PromotionalOfferId          string `json:"promotional_offer_id"`
-	PurchaseDateMs              string `json:"purchase_date_ms"`
-	Quantity                    string `json:"quantity"`
-	SubscriptionGroupIdentifier string `json:"subscription_group_identifier"`
-	TransactionId               string `json:"transaction_id"` // Different from OriginalTransactionId if the user Auto-renews subscription or restores a purchase.
-}
-
-type ValidateReceiptAppleResponsePendingRenewalInfo struct {
-	AutoRenewProductId       string `json:"auto_renew_product_id"`
-	AutoRenewStatus          string `json:"auto_renew_status"` // 1: subscription will renew at end of current subscription period, 0: the customer has turned off automatic renewal for the subscription.
-	ExpirationIntent         string `json:"expiration_intent"`
-	GracePeriodExpiresDateMs string `json:"grace_period_expires_date_ms"`
-	IsInBillingRetryPeriod   string `json:"is_in_billing_retry_period"`
-	OfferCodeRefName         string `json:"offer_code_ref_name"`
-	OriginalTransactionId    string `json:"original_transaction_id"`
-	PriceConsentStatus       string `json:"price_consent_status"`
-	ProductId                string `json:"product_id"`
-	PromotionalOfferId       string `json:"promotional_offer_id"`
-}
-
-type ValidateReceiptAppleResponse struct {
-	Environment        string                                           `json:"environment"`  // possible values: 'Sandbox', 'Production'.
-	IsRetryable        bool                                             `json:"is-retryable"` // If true, request must be retried later.
-	LatestReceipt      string                                           `json:"latest_receipt"`
-	LatestReceiptInfo  []ValidateReceiptAppleResponseLatestReceiptInfo  `json:"latest_receipt_info"`
-	PendingRenewalInfo []ValidateReceiptAppleResponsePendingRenewalInfo `json:"pending_renewal_info"` // Only returned for auto-renewable subscriptions.
-	Receipt            *ValidateReceiptAppleResponseReceipt             `json:"receipt"`
-	Status             int                                              `json:"status"`
-}
-
-// Validate an IAP receipt with Apple. This function will check against both the production and sandbox Apple URLs.
-func ValidateReceiptApple(ctx context.Context, httpc *http.Client, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
-	resp, raw, err := ValidateReceiptAppleWithUrl(ctx, httpc, AppleReceiptValidationUrlProduction, receipt, password)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	switch resp.Status {
-	case AppleReceiptIsFromTestSandbox:
-		// Receipt should be checked with the Apple sandbox.
-		return ValidateReceiptAppleWithUrl(ctx, httpc, AppleReceiptValidationUrlSandbox, receipt, password)
-	}
-
-	return resp, raw, nil
-}
-
-// Validate an IAP receipt with Apple against the specified URL.
-func ValidateReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, url, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
-	if len(url) < 1 {
-		return nil, nil, errors.New("'url' must not be empty")
-	}
-
-	if len(receipt) < 1 {
-		return nil, nil, errors.New("'receipt' must not be empty")
-	}
-
-	if len(password) < 1 {
-		return nil, nil, errors.New("'password' must not be empty")
-	}
-
-	payload := map[string]interface{}{
-		"receipt-data":             receipt,
-		"exclude-old-transactions": true,
-		"password":                 password,
-	}
-
-	var w bytes.Buffer
-	if err := json.NewEncoder(&w).Encode(&payload); err != nil {
-		return nil, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &w)
-	if err != nil {
-		return nil, nil, err
-	}
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-
-	resp, err := httpc.Do(req)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer resp.Body.Close()
-
-	buf, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	switch resp.StatusCode {
-	case 200:
-		var out ValidateReceiptAppleResponse
-		if err := json.Unmarshal(buf, &out); err != nil {
-			return nil, nil, err
-		}
-
-		// Sort by ExpiresDateMs in desc order
-		sort.Slice(out.LatestReceiptInfo, func(i, j int) bool {
-			return sort.StringsAreSorted([]string{out.LatestReceiptInfo[j].ExpiresDateMs, out.LatestReceiptInfo[i].ExpiresDateMs})
-		})
-
-		return &out, buf, nil
-	default:
-		return nil, nil, &ValidationError{
-			Err:        ErrNon200ServiceApple,
-			StatusCode: resp.StatusCode,
-			Payload:    string(buf),
-		}
-	}
 }
 
 // Google

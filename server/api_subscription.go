@@ -54,6 +54,10 @@ func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.Valid
 		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
 	}
 
+	if s.runtime.iapAppleManager == nil {
+		return nil, status.Error(codes.FailedPrecondition, "iap adapter not registered")
+	}
+
 	if len(in.Receipt) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
 	}
@@ -63,7 +67,7 @@ func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.Valid
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidateSubscriptionApple(ctx, s.logger, s.db, userID, s.config.GetIAP().Apple.SharedPassword, in.Receipt, persist)
+	validation, err := s.runtime.iapAppleManager.ValidateSubscriptionApple(ctx, s.logger, s.db, userID, s.config.GetIAP().Apple.SharedPassword, in.Receipt, persist)
 	if err != nil {
 		return nil, err
 	}
