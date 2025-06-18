@@ -64,6 +64,7 @@ type RuntimeGoNakamaModule struct {
 	satori               runtime.Satori
 	fleetManager         runtime.FleetManager
 	storageIndex         StorageIndex
+	IAPAppleManager      runtime.IAPAppleManager
 }
 
 func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori) *RuntimeGoNakamaModule {
@@ -3160,7 +3161,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt, persist)
+	validation, err := n.IAPAppleManager.ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -3353,7 +3354,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, u
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidateSubscriptionApple(ctx, n.logger, n.db, uid, password, receipt, persist)
+	validation, err := n.IAPAppleManager.ValidateSubscriptionApple(ctx, n.logger, n.db, uid, password, receipt, persist)
 	if err != nil {
 		return nil, err
 	}
