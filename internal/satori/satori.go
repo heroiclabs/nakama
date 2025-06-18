@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.uber.org/atomic"
 	"io"
 	"maps"
 	"net"
@@ -51,6 +50,7 @@ type SatoriClient struct {
 	tokenExpirySec       int
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
+	strictContextModes   map[string]bool
 
 	cacheEnabled         bool
 	propertiesCacheMutex sync.RWMutex
@@ -61,7 +61,7 @@ type SatoriClient struct {
 	experimentsCache     *satoriCache[*runtime.Experiment]
 }
 
-func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool, strictContextModes []string) *SatoriClient {
 	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
 	// the server.
 	parsedUrl, _ := url.Parse(satoriUrl)
@@ -76,6 +76,7 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		signingKey:           strings.TrimSpace(signingKey),
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
+		strictContextModes:   make(map[string]bool, len(strictContextModes)),
 
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
@@ -91,6 +92,10 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 	} else if err := sc.validateConfig(); err != nil {
 		sc.invalidConfig = true
 		logger.Warn(err.Error())
+	}
+
+	for _, strictContextMode := range strictContextModes {
+		sc.strictContextModes[strictContextMode] = true
 	}
 
 	return sc
@@ -152,16 +157,20 @@ func (s *sessionTokenClaims) GetSubject() (string, error) {
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
+	// Ensure we only log warnings when context is expected to contain values.
+	mode, ok := ctx.Value(runtime.RUNTIME_CTX_MODE).(string)
+	contextExpected := ok && s.strictContextModes[mode]
+
 	tid, ok := ctx.Value(ctxkeys.TokenIDKey{}).(string)
-	if !ok {
+	if !ok && contextExpected {
 		s.logger.Warn("satori request token id was not found in ctx")
 	}
 	tIssuedAt, ok := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
-	if !ok {
+	if !ok && contextExpected {
 		s.logger.Warn("satori request token issued at was not found in ctx")
 	}
 	tExpirySec, ok := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
-	if !ok {
+	if !ok && contextExpected {
 		s.logger.Warn("satori request token expires at was not found in ctx")
 	}
 
@@ -284,9 +293,13 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.propertiesCacheMutex.RLock()
-	entry, found := s.propertiesCache[ctx]
-	s.propertiesCacheMutex.RUnlock()
+	var entry *runtime.Properties
+	var found bool
+	if s.cacheEnabled {
+		s.propertiesCacheMutex.RLock()
+		entry, found = s.propertiesCache[ctx]
+		s.propertiesCacheMutex.RUnlock()
+	}
 
 	if !s.cacheEnabled || !found {
 		url := s.url.String() + "/v1/properties"
@@ -321,9 +334,11 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 				return nil, err
 			}
 
-			s.propertiesCacheMutex.Lock()
-			s.propertiesCache[ctx] = props
-			s.propertiesCacheMutex.Unlock()
+			if s.cacheEnabled {
+				s.propertiesCacheMutex.Lock()
+				s.propertiesCache[ctx] = props
+				s.propertiesCacheMutex.Unlock()
+			}
 
 			return props, nil
 		default:
@@ -1015,25 +1030,28 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 	}
 }
 
+type satoriCacheEntry[T any] struct {
+	containsAll bool
+	entryData   map[string]T
+}
+
 type satoriCache[T any] struct {
 	sync.RWMutex
-	enabled     *atomic.Bool
-	containsAll *atomic.Bool // If the first request fetched all entries, then we can skip fetching them again.
-	entries     map[context.Context]map[string]T
+	enabled bool
+	entries map[context.Context]*satoriCacheEntry[T]
 }
 
 func newSatoriCache[T any](ctx context.Context, enabled bool) *satoriCache[T] {
 	if !enabled {
 		return &satoriCache[T]{
-			enabled: atomic.NewBool(false),
+			enabled: false,
 		}
 	}
 
 	sc := &satoriCache[T]{
-		enabled:     atomic.NewBool(true),
-		RWMutex:     sync.RWMutex{},
-		containsAll: atomic.NewBool(false),
-		entries:     make(map[context.Context]map[string]T),
+		enabled: true,
+		RWMutex: sync.RWMutex{},
+		entries: make(map[context.Context]*satoriCacheEntry[T]),
 	}
 
 	go func() {
@@ -1059,7 +1077,7 @@ func newSatoriCache[T any](ctx context.Context, enabled bool) *satoriCache[T] {
 }
 
 func (s *satoriCache[T]) Get(ctx context.Context, keys ...string) (values []T, missingKeys []string) {
-	if !s.enabled.Load() {
+	if !s.enabled {
 		return nil, nil
 	}
 	s.RLock()
@@ -1069,16 +1087,16 @@ func (s *satoriCache[T]) Get(ctx context.Context, keys ...string) (values []T, m
 	switch {
 	case found && len(keys) > 0:
 		for _, name := range keys {
-			if e, ok := entry[name]; ok {
+			if e, ok := entry.entryData[name]; ok {
 				values = append(values, e)
 			} else {
 				missingKeys = append(missingKeys, name)
 			}
 		}
 		return values, missingKeys
-	case found && len(keys) == 0 && s.containsAll.Load():
-		values = make([]T, 0, len(entry))
-		for _, e := range entry {
+	case found && len(keys) == 0 && entry.containsAll:
+		values = make([]T, 0, len(entry.entryData))
+		for _, e := range entry.entryData {
 			values = append(values, e)
 		}
 		return values, nil
@@ -1089,26 +1107,31 @@ func (s *satoriCache[T]) Get(ctx context.Context, keys ...string) (values []T, m
 }
 
 func (s *satoriCache[T]) Add(ctx context.Context, values map[string]T) {
-	if !s.enabled.Load() {
+	if !s.enabled {
 		return
 	}
 	s.Lock()
-	entries, ok := s.entries[ctx]
+	entry, ok := s.entries[ctx]
 	if !ok {
-		entries = make(map[string]T, len(values))
-		s.entries[ctx] = entries
+		entry = &satoriCacheEntry[T]{
+			containsAll: false,
+			entryData:   make(map[string]T, len(values)),
+		}
+		s.entries[ctx] = entry
 	}
-	maps.Copy(entries, values)
+	maps.Copy(entry.entryData, values)
 	s.Unlock()
 }
 
 func (s *satoriCache[T]) SetAll(ctx context.Context, values map[string]T) {
-	if !s.enabled.Load() {
+	if !s.enabled {
 		return
 	}
 
-	s.containsAll.Store(true)
 	s.Lock()
-	s.entries[ctx] = values
+	s.entries[ctx] = &satoriCacheEntry[T]{
+		containsAll: true,
+		entryData:   values,
+	}
 	s.Unlock()
 }
