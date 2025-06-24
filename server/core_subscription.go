@@ -859,7 +859,9 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
 				}
-				uid = uuid.Must(uuid.FromString(s.UserId))
+				if s.UserId != "" {
+					uid = uuid.Must(uuid.FromString(s.UserId))
+				}
 			}
 
 			sub := &storageSubscription{
