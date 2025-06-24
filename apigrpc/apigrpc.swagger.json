@@ -2371,6 +2371,39 @@
         ]
       }
     },
+    "/v2/iap/purchase/xbox": {
+      "post": {
+        "summary": "Validate Xbox Receipt",
+        "operationId": "Nakama_ValidatePurchaseXbox",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseXboxRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/iap/subscription": {
       "post": {
         "summary": "List user's subscriptions.",
@@ -4827,10 +4860,11 @@
         "APPLE_APP_STORE",
         "GOOGLE_PLAY_STORE",
         "HUAWEI_APP_GALLERY",
-        "FACEBOOK_INSTANT_STORE"
+        "FACEBOOK_INSTANT_STORE",
+        "XBOX_STORE"
       ],
       "default": "APPLE_APP_STORE",
-      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store\n - XBOX_STORE: Xbox Store",
       "title": "Validation Provider,"
     },
     "apiSubscriptionList": {
@@ -5223,6 +5257,18 @@
         }
       },
       "description": "Validate IAP response."
+    },
+    "apiValidatePurchaseXboxRequest": {
+      "type": "object",
+      "properties": {
+        "productId": {
+          "type": "string"
+        },
+        "persist": {
+          "type": "boolean"
+        }
+      },
+      "title": "Xbox Purchase validation request"
     },
     "apiValidateSubscriptionAppleRequest": {
       "type": "object",
