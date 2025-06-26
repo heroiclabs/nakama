@@ -85,6 +85,8 @@ type RuntimeJavascriptNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 
 	satori runtime.Satori
+
+	iapAppleManager runtime.IAPAppleManager
 }
 
 func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *RuntimeJavascriptNakamaModule {
@@ -5953,7 +5955,7 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			persist = getJsBool(r, f.Argument(2))
 		}
 
-		validation, err := ValidatePurchasesApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
+		validation, err := n.iapAppleManager.ValidatePurchasesApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
@@ -6229,7 +6231,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionValidateApple(r *goja.Runtim
 			panic(r.NewGoError(errors.New("apple IAP is not configured")))
 		}
 
-		validation, err := ValidateSubscriptionApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
+		validation, err := n.iapAppleManager.ValidateSubscriptionApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
