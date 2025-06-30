@@ -321,7 +321,12 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 		}
 	}
 
-	err = signingMethod.Verify(payloadBase64, []byte(signatureBase64), []byte(appSecret))
+	signatureBytes, err := base64.RawURLEncoding.DecodeString(signatureBase64)
+	if err != nil {
+		return "", errors.New("Failed to decode signature")
+	}
+
+	err = signingMethod.Verify(payloadBase64, signatureBytes, []byte(appSecret))
 	if err != nil {
 		return "", err
 	}
