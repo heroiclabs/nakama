@@ -108,7 +108,7 @@ func (s *SatoriClient) validateConfig() error {
 		errorStrings = append(errorStrings, fmt.Sprintf("Invalid URL: %s", err.Error()))
 	}
 
-	if satoriUrl.String() != "" {
+	if satoriUrl != nil && satoriUrl.String() != "" {
 		if s.apiKeyName == "" {
 			errorStrings = append(errorStrings, "api_key_name not set")
 		}
@@ -737,6 +737,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 						Value:        unique.Make(o.Value),
 					})
 				}
+				entry = append(entry, overrides)
 				entries[f.FlagName] = overrides
 			}
 
@@ -1101,7 +1102,7 @@ func (s *satoriCache[T]) Get(ctx context.Context, keys ...string) (values []T, m
 		}
 		return values, nil
 	default:
-		// Asked for all keys, but they were never fetched, or no cache entrie exists for the context.
+		// Asked for all keys, but they were never fetched, or no cache entries exist for the context.
 		return nil, nil
 	}
 }
