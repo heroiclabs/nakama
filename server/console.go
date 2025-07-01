@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -417,12 +418,17 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 			return
 		}
 
+		// inject variables into the index.html file
 		indexBytes, err := io.ReadAll(indexFile)
 		if err != nil {
 			logger.Error("Failed to read index file.", zap.Error(err))
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		indexFile.Close()
+		indexHTMLStr := string(indexBytes)
+		indexHTMLStr = strings.ReplaceAll(indexHTMLStr, "{{nt}}", strconv.FormatBool(console.UIFS.Nt))
+		indexBytes = []byte(indexHTMLStr)
 
 		w.Header().Add("Cache-Control", "no-cache")
 		w.Header().Set("X-Frame-Options", "deny")
@@ -433,15 +439,41 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 	router.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// get the absolute path to prevent directory traversal
 		path := r.URL.Path
-		logger = logger.With(zap.String("path", path))
+		isAsset := false
+
+		if strings.HasPrefix(path, "/assets/") {
+			isAsset = true
+
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+
+			if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+				if strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".js") {
+					w.Header().Set("Content-Encoding", "gzip")
+
+					if strings.HasSuffix(path, ".css") {
+						w.Header().Set("Content-Type", "text/css")
+					} else {
+						w.Header().Set("Content-Type", "application/javascript")
+					}
+
+					path = path + ".gz"
+				}
+			}
+		}
 
 		// check whether a file exists at the given path
 		if _, err := console.UIFS.Open(path); err == nil {
 			// otherwise, use http.FileServer to serve the static dir
 			r.URL.Path = path // override the path with the prefixed path
 			console.UI.ServeHTTP(w, r)
+
 			return
 		} else {
+			if isAsset {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
 			indexFn(w, r)
 		}
 	})
