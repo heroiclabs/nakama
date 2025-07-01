@@ -240,61 +240,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "username": {
-                  "type": "string",
-                  "description": "Username."
-                },
-                "display_name": {
-                  "type": "string",
-                  "description": "Display name."
-                },
-                "metadata": {
-                  "type": "string",
-                  "description": "Metadata."
-                },
-                "avatar_url": {
-                  "type": "string",
-                  "description": "Avatar URL."
-                },
-                "lang_tag": {
-                  "type": "string",
-                  "description": "Langtag."
-                },
-                "location": {
-                  "type": "string",
-                  "description": "Location."
-                },
-                "timezone": {
-                  "type": "string",
-                  "description": "Timezone."
-                },
-                "custom_id": {
-                  "type": "string",
-                  "description": "Custom ID."
-                },
-                "email": {
-                  "type": "string",
-                  "description": "Email."
-                },
-                "password": {
-                  "type": "string",
-                  "description": "Password."
-                },
-                "device_ids": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "description": "Device ID modifications."
-                },
-                "wallet": {
-                  "type": "string",
-                  "description": "Wallet."
-                }
-              },
-              "description": "Update user account information."
+              "$ref": "#/definitions/ConsoleUpdateAccountBody"
             }
           }
         ],
@@ -643,14 +589,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "device_id": {
-                  "type": "string",
-                  "description": "Device ID to unlink."
-                }
-              },
-              "description": "Unlink a particular device ID from a user's account."
+              "$ref": "#/definitions/ConsoleUnlinkDeviceBody"
             }
           }
         ],
@@ -974,22 +913,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string"
-                },
-                "user_id": {
-                  "type": "string"
-                },
-                "session_vars": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  }
-                }
-              },
-              "title": "API Explorer request definition for CallApiEndpoint"
+              "$ref": "#/definitions/ConsoleCallRpcEndpointBody"
             }
           }
         ],
@@ -1028,22 +952,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string"
-                },
-                "user_id": {
-                  "type": "string"
-                },
-                "session_vars": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  }
-                }
-              },
-              "title": "API Explorer request definition for CallApiEndpoint"
+              "$ref": "#/definitions/ConsoleCallApiEndpointBody"
             }
           }
         ],
@@ -1407,18 +1316,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "ids": {
-                  "type": "string",
-                  "description": "Users to add/join."
-                },
-                "join_request": {
-                  "type": "boolean",
-                  "description": "Whether it is a join request."
-                }
-              },
-              "description": "Add/join users to a group."
+              "$ref": "#/definitions/ConsoleAddGroupUsersBody"
             }
           }
         ],
@@ -1520,39 +1418,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Name."
-                },
-                "description": {
-                  "type": "string",
-                  "description": "Description."
-                },
-                "lang_tag": {
-                  "type": "string",
-                  "description": "Langtag."
-                },
-                "metadata": {
-                  "type": "string",
-                  "description": "Metadata."
-                },
-                "avatar_url": {
-                  "type": "string",
-                  "description": "Avatar URL."
-                },
-                "open": {
-                  "type": "boolean",
-                  "description": "Anyone can join open groups, otherwise only admins can accept members."
-                },
-                "max_count": {
-                  "type": "integer",
-                  "format": "int32",
-                  "description": "The maximum number of members allowed."
-                }
-              },
-              "description": "Update group information."
+              "$ref": "#/definitions/ConsoleUpdateGroupBody"
             }
           }
         ],
@@ -2492,28 +2358,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "value": {
-                  "type": "string",
-                  "description": "Value."
-                },
-                "version": {
-                  "type": "string",
-                  "description": "Version for OCC."
-                },
-                "permission_read": {
-                  "type": "integer",
-                  "format": "int32",
-                  "description": "Read permission value."
-                },
-                "permission_write": {
-                  "type": "integer",
-                  "format": "int32",
-                  "description": "Write permission value."
-                }
-              },
-              "description": "Write a new storage object or update an existing one."
+              "$ref": "#/definitions/consoleConsoleWriteStorageObjectBody"
             }
           }
         ],
@@ -2741,14 +2586,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "required": {
-                  "type": "boolean",
-                  "description": "Required."
-                }
-              },
-              "description": "Make a user's mfa required or not."
+              "$ref": "#/definitions/ConsoleRequireUserMfaBody"
             }
           }
         ],
@@ -2805,6 +2643,168 @@
         }
       },
       "description": "A warning for a configuration field."
+    },
+    "ConsoleAddGroupUsersBody": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "string",
+          "description": "Users to add/join."
+        },
+        "join_request": {
+          "type": "boolean",
+          "description": "Whether it is a join request."
+        }
+      },
+      "description": "Add/join users to a group."
+    },
+    "ConsoleCallApiEndpointBody": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        },
+        "session_vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "API Explorer request definition for CallApiEndpoint"
+    },
+    "ConsoleCallRpcEndpointBody": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        },
+        "session_vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "API Explorer request definition for CallApiEndpoint"
+    },
+    "ConsoleRequireUserMfaBody": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Required."
+        }
+      },
+      "description": "Make a user's mfa required or not."
+    },
+    "ConsoleUnlinkDeviceBody": {
+      "type": "object",
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "description": "Device ID to unlink."
+        }
+      },
+      "description": "Unlink a particular device ID from a user's account."
+    },
+    "ConsoleUpdateAccountBody": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Username."
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "lang_tag": {
+          "type": "string",
+          "description": "Langtag."
+        },
+        "location": {
+          "type": "string",
+          "description": "Location."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Timezone."
+        },
+        "custom_id": {
+          "type": "string",
+          "description": "Custom ID."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email."
+        },
+        "password": {
+          "type": "string",
+          "description": "Password."
+        },
+        "device_ids": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Device ID modifications."
+        },
+        "wallet": {
+          "type": "string",
+          "description": "Wallet."
+        }
+      },
+      "description": "Update user account information."
+    },
+    "ConsoleUpdateGroupBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description."
+        },
+        "lang_tag": {
+          "type": "string",
+          "description": "Langtag."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "open": {
+          "type": "boolean",
+          "description": "Anyone can join open groups, otherwise only admins can accept members."
+        },
+        "max_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum number of members allowed."
+        }
+      },
+      "description": "Update group information."
     },
     "GroupUserListGroupUser": {
       "type": "object",
@@ -3703,6 +3703,30 @@
         }
       },
       "description": "A console user session."
+    },
+    "consoleConsoleWriteStorageObjectBody": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "Value."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version for OCC."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Read permission value."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Write permission value."
+        }
+      },
+      "description": "Write a new storage object or update an existing one."
     },
     "consoleDeleteChannelMessagesResponse": {
       "type": "object",

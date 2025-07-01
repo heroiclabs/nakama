@@ -300,7 +300,7 @@ func (s *ApiServer) ValidatePurchaseXbox(ctx context.Context, in *api.ValidatePu
 	}
 
 	//validation, err := ValidatePurchaseFacebookInstant(ctx, s.logger, s.db, userID, s.config.GetIAP().FacebookInstant, in.SignedRequest, persist)
-	validation, err := s.runtime.iapXboxManager.PurchaseValidateXbox(ctx, s.logger, s.db, s.config.GetIAP().Xbox.Token, in.ProductId, userID, persist)
+	validation, err := s.runtime.iapXboxManager.PurchaseValidate(ctx, s.logger, s.db, s.config.GetIAP().Xbox.Token, in.ProductId, userID, persist)
 	if err != nil {
 		return nil, err
 	}

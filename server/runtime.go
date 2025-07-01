@@ -233,6 +233,7 @@ type (
 	RuntimeSubscriptionNotificationAppleFunction  func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
 	RuntimePurchaseNotificationGoogleFunction     func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error
 	RuntimeSubscriptionNotificationGoogleFunction func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
+	RuntimePurchaseNotificationXboxFunction       func(ctx context.Context, logger *zap.Logger, db *sql.DB, nk runtime.NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error
 
 	RuntimeStorageIndexFilterFunction func(ctx context.Context, write *StorageOpWrite) (bool, error)
 
@@ -269,6 +270,7 @@ const (
 	RuntimeExecutionModeSubscriptionNotificationApple
 	RuntimeExecutionModePurchaseNotificationGoogle
 	RuntimeExecutionModeSubscriptionNotificationGoogle
+	RuntimeExecutionModePurchaseNotificationXbox
 	RuntimeExecutionModeStorageIndexFilter
 	RuntimeExecutionModeShutdown
 )
@@ -307,6 +309,8 @@ func (e RuntimeExecutionMode) String() string {
 		return "purchase_notification_google"
 	case RuntimeExecutionModeSubscriptionNotificationGoogle:
 		return "subscription_notification_google"
+	case RuntimeExecutionModePurchaseNotificationXbox:
+		return "purchase_notification_xbox"
 	case RuntimeExecutionModeStorageIndexFilter:
 		return "storage_index_filter"
 	case RuntimeExecutionModeShutdown:
@@ -543,6 +547,7 @@ type Runtime struct {
 	subscriptionNotificationAppleFunction  RuntimeSubscriptionNotificationAppleFunction
 	purchaseNotificationGoogleFunction     RuntimePurchaseNotificationGoogleFunction
 	subscriptionNotificationGoogleFunction RuntimeSubscriptionNotificationGoogleFunction
+	purchaseNotificationXboxFunction       RuntimePurchaseNotificationXboxFunction
 
 	storageIndexFilterFunctions map[string]RuntimeStorageIndexFilterFunction
 
@@ -556,7 +561,7 @@ type Runtime struct {
 
 	fleetManager runtime.FleetManager
 
-	iapXboxManager runtime.IAPXboxManager
+	iapXboxManager runtime.IAPManager
 }
 
 type MatchNamesListFunction func() []string
@@ -683,7 +688,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		config.GetSatori().CacheEnabled,
 	)
 
-	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, fleetManager, iapXboxManager, httpHandlers, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
+	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goPurchaseNotificationXboxFn, goIndexFilterFns, fleetManager, iapXboxManager, httpHandlers, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -2635,6 +2640,13 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered JavaScript runtime Purchase Notification Apple function invocation")
 	}
 
+	var allPurchaseNotificationXboxFunction RuntimePurchaseNotificationXboxFunction
+	switch {
+	case goPurchaseNotificationXboxFn != nil:
+		allPurchaseNotificationXboxFunction = goPurchaseNotificationXboxFn
+		startupLogger.Info("Registered Go runtime Purchase Notification Xbox function invocation")
+	}
+
 	var allSubscriptionNotificationAppleFunction RuntimeSubscriptionNotificationAppleFunction
 	switch {
 	case goSubscriptionNotificationAppleFn != nil:
@@ -2737,6 +2749,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		subscriptionNotificationAppleFunction:  allSubscriptionNotificationAppleFunction,
 		purchaseNotificationGoogleFunction:     allPurchaseNotificationGoogleFunction,
 		subscriptionNotificationGoogleFunction: allSubscriptionNotificationGoogleFunction,
+		purchaseNotificationXboxFunction:       allPurchaseNotificationXboxFunction,
 		storageIndexFilterFunctions:            allStorageIndexFilterFunctions,
 
 		httpHandlers: httpHandlers,
@@ -3523,6 +3536,10 @@ func (r *Runtime) StorageIndexFilterFunction(indexName string) RuntimeStorageInd
 
 func (r *Runtime) SubscriptionNotificationGoogle() RuntimeSubscriptionNotificationGoogleFunction {
 	return r.subscriptionNotificationGoogleFunction
+}
+
+func (r *Runtime) PurchaseNotificationXbox() RuntimePurchaseNotificationXboxFunction {
+	return r.purchaseNotificationXboxFunction
 }
 
 func (r *Runtime) LeaderboardReset() RuntimeLeaderboardResetFunction {

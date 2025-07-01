@@ -1538,7 +1538,8 @@ func (i IAPFacebookInstantConfig) GetAppSecret() string {
 }
 
 type IAPXboxConfig struct {
-	Token string `yaml:"token" json:"token" usage:"Xbox credentials token"`
+	Token                string `yaml:"token" json:"token" usage:"Xbox credentials token"`
+	RefundCheckPeriodMin int    `yaml:"refund_check_period_min" json:"refund_check_period_min" usage:"Defines the polling interval in minutes of the azure queue that the microsoft clawback service uses."`
 }
 
 func (i IAPXboxConfig) GetToken() string { return i.Token }
