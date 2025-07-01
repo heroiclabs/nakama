@@ -682,7 +682,7 @@ func (p *PartyHandler) Update(sessionID, node, label string, open bool) error {
 		return runtime.ErrPartyNotLeader
 	}
 
-	if err := p.partyRegistry.LabelUpdate(p.IDStr, p.Node, label, open, p.MaxSize, p.CreateTime); err != nil {
+	if err := p.partyRegistry.LabelUpdate(p.ID, p.Node, label, open, p.MaxSize, p.CreateTime); err != nil {
 		p.Unlock()
 		return err
 	}

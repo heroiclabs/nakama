@@ -440,6 +440,8 @@ message Party {
   UserPresence leader = 5;
   // All current party members.
   repeated UserPresence presences = 6;
+  // Label for party listing.
+  string label = 7;
 }
 
 // Create a party.
