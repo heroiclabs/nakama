@@ -260,11 +260,8 @@ func (s *ApiServer) ValidatePurchaseFacebookInstant(ctx context.Context, in *api
 func (s *ApiServer) ValidatePurchaseXbox(ctx context.Context, in *api.ValidatePurchaseXboxRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 
-	s.logger.Info("ValidatePurchaseXbox hit")
 	// Before hook.
 	if fn := s.runtime.BeforeValidatePurchaseXbox(); fn != nil {
-		s.logger.Info("ValidatePurchaseXbox before hook hit")
-
 		beforeFn := func(clientIP, clientPort string) error {
 			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
@@ -299,7 +296,6 @@ func (s *ApiServer) ValidatePurchaseXbox(ctx context.Context, in *api.ValidatePu
 		persist = in.Persist.GetValue()
 	}
 
-	//validation, err := ValidatePurchaseFacebookInstant(ctx, s.logger, s.db, userID, s.config.GetIAP().FacebookInstant, in.SignedRequest, persist)
 	validation, err := s.runtime.iapXboxManager.PurchaseValidate(ctx, s.logger, s.db, s.config.GetIAP().Xbox.Token, in.ProductId, userID, persist)
 	if err != nil {
 		return nil, err
