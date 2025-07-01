@@ -62,7 +62,7 @@ type PartyRegistry interface {
 	PartyDataSend(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, opCode int64, data []byte) error
 	PartyUpdate(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, label string, open bool) error
 	PartiesList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error)
-	LabelUpdate(id, node, label string, open bool, maxSize int, createTime time.Time) error
+	LabelUpdate(id uuid.UUID, node, label string, open bool, maxSize int, createTime time.Time) error
 }
 
 type LocalPartyRegistry struct {
@@ -370,8 +370,8 @@ func (p *LocalPartyRegistry) PartyUpdate(ctx context.Context, id uuid.UUID, node
 	return nil
 }
 
-func (p *LocalPartyRegistry) LabelUpdate(id, node, label string, open bool, maxSize int, createTime time.Time) error {
-	idStr := fmt.Sprintf("%v.%v", id, node)
+func (p *LocalPartyRegistry) LabelUpdate(id uuid.UUID, node, label string, open bool, maxSize int, createTime time.Time) error {
+	idStr := fmt.Sprintf("%v.%v", id.String(), node)
 	if label == "" {
 		// If the label is empty we remove it from the index.
 		p.pendingUpdatesMutex.Lock()

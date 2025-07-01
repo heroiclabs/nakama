@@ -85,6 +85,7 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 		MaxSize:   incoming.MaxSize,
 		Self:      presence,
 		Leader:    presence,
+		Label:     incoming.Label,
 		Presences: []*rtapi.UserPresence{presence},
 	}}}
 	_ = session.Send(out, true)
