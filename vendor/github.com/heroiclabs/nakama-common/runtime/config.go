@@ -93,7 +93,6 @@ type IAPConfig interface {
 	GetGoogle() IAPGoogleConfig
 	GetHuawei() IAPHuaweiConfig
 	GetFacebookInstant() IAPFacebookInstantConfig
-	GetXbox() IAPXboxConfig
 }
 
 type IAPAppleConfig interface {
@@ -124,10 +123,6 @@ type IAPHuaweiConfig interface {
 
 type IAPFacebookInstantConfig interface {
 	GetAppSecret() string
-}
-
-type IAPXboxConfig interface {
-	GetToken() string
 }
 
 type GoogleAuthConfig interface {
