@@ -90,6 +90,7 @@ const (
 	Nakama_ListLeaderboardRecords_FullMethodName            = "/nakama.api.Nakama/ListLeaderboardRecords"
 	Nakama_ListLeaderboardRecordsAroundOwner_FullMethodName = "/nakama.api.Nakama/ListLeaderboardRecordsAroundOwner"
 	Nakama_ListMatches_FullMethodName                       = "/nakama.api.Nakama/ListMatches"
+	Nakama_ListParties_FullMethodName                       = "/nakama.api.Nakama/ListParties"
 	Nakama_ListNotifications_FullMethodName                 = "/nakama.api.Nakama/ListNotifications"
 	Nakama_ListStorageObjects_FullMethodName                = "/nakama.api.Nakama/ListStorageObjects"
 	Nakama_ListSubscriptions_FullMethodName                 = "/nakama.api.Nakama/ListSubscriptions"
@@ -229,8 +230,10 @@ type NakamaClient interface {
 	ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
 	// List leaderboard records around the target ownerId.
 	ListLeaderboardRecordsAroundOwner(ctx context.Context, in *api.ListLeaderboardRecordsAroundOwnerRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
-	// Fetch list of running matches.
+	// List running matches and optionally filter by matching criteria.
 	ListMatches(ctx context.Context, in *api.ListMatchesRequest, opts ...grpc.CallOption) (*api.MatchList, error)
+	// List parties and optionally filter by matching criteria.
+	ListParties(ctx context.Context, in *api.ListPartiesRequest, opts ...grpc.CallOption) (*api.PartyList, error)
 	// Fetch list of notifications.
 	ListNotifications(ctx context.Context, in *api.ListNotificationsRequest, opts ...grpc.CallOption) (*api.NotificationList, error)
 	// List publicly readable storage objects in a given collection.
@@ -771,6 +774,15 @@ func (c *nakamaClient) ListMatches(ctx context.Context, in *api.ListMatchesReque
 	return out, nil
 }
 
+func (c *nakamaClient) ListParties(ctx context.Context, in *api.ListPartiesRequest, opts ...grpc.CallOption) (*api.PartyList, error) {
+	out := new(api.PartyList)
+	err := c.cc.Invoke(ctx, Nakama_ListParties_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nakamaClient) ListNotifications(ctx context.Context, in *api.ListNotificationsRequest, opts ...grpc.CallOption) (*api.NotificationList, error) {
 	out := new(api.NotificationList)
 	err := c.cc.Invoke(ctx, Nakama_ListNotifications_FullMethodName, in, out, opts...)
@@ -1156,8 +1168,10 @@ type NakamaServer interface {
 	ListLeaderboardRecords(context.Context, *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error)
 	// List leaderboard records around the target ownerId.
 	ListLeaderboardRecordsAroundOwner(context.Context, *api.ListLeaderboardRecordsAroundOwnerRequest) (*api.LeaderboardRecordList, error)
-	// Fetch list of running matches.
+	// List running matches and optionally filter by matching criteria.
 	ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error)
+	// List parties and optionally filter by matching criteria.
+	ListParties(context.Context, *api.ListPartiesRequest) (*api.PartyList, error)
 	// Fetch list of notifications.
 	ListNotifications(context.Context, *api.ListNotificationsRequest) (*api.NotificationList, error)
 	// List publicly readable storage objects in a given collection.
@@ -1382,6 +1396,9 @@ func (UnimplementedNakamaServer) ListLeaderboardRecordsAroundOwner(context.Conte
 }
 func (UnimplementedNakamaServer) ListMatches(context.Context, *api.ListMatchesRequest) (*api.MatchList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListMatches not implemented")
+}
+func (UnimplementedNakamaServer) ListParties(context.Context, *api.ListPartiesRequest) (*api.PartyList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListParties not implemented")
 }
 func (UnimplementedNakamaServer) ListNotifications(context.Context, *api.ListNotificationsRequest) (*api.NotificationList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListNotifications not implemented")
@@ -2425,6 +2442,24 @@ func _Nakama_ListMatches_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Nakama_ListParties_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.ListPartiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).ListParties(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Nakama_ListParties_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).ListParties(ctx, req.(*api.ListPartiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Nakama_ListNotifications_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.ListNotificationsRequest)
 	if err := dec(in); err != nil {
@@ -3197,6 +3232,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListMatches",
 			Handler:    _Nakama_ListMatches_Handler,
+		},
+		{
+			MethodName: "ListParties",
+			Handler:    _Nakama_ListParties_Handler,
 		},
 		{
 			MethodName: "ListNotifications",

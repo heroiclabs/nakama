@@ -2658,6 +2658,37 @@ func (ri *RuntimeGoInitializer) RegisterAfterGetMatchmakerStats(fn func(ctx cont
 	return nil
 }
 
+func (ri *RuntimeGoInitializer) RegisterBeforeListParties(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ListPartiesRequest) (*api.ListPartiesRequest, error)) error {
+	ri.beforeReq.beforeListPartiesFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListPartiesRequest) (*api.ListPartiesRequest, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "listparties", "mode": RuntimeExecutionModeBefore.String()}
+		result, fnErr := fn(ctx, ri.logger.WithFields(loggerFields), ri.db, ri.nk, in)
+		if fnErr != nil {
+			var runtimeErr *runtime.Error
+			if errors.As(fnErr, &runtimeErr) {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterAfterListParties(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.PartyList, in *api.ListPartiesRequest) error) error {
+	ri.afterReq.afterListPartiesFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.PartyList, in *api.ListPartiesRequest) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "listparties", "mode": RuntimeExecutionModeAfter.String()}
+		return fn(ctx, ri.logger.WithFields(loggerFields), ri.db, ri.nk, out, in)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitializer) RegisterMatchmakerMatched(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, entries []runtime.MatchmakerEntry) (string, error)) error {
 	ri.matchmakerMatched = func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeMatchmaker, nil, nil, 0, "", "", nil, "", "", "", "")
@@ -2821,12 +2852,12 @@ func (ri *RuntimeGoInitializer) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider, fmCallbackHandler runtime.FmCallbackHandler) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, runtime.FleetManager, []*RuntimeHttpHandler, *RuntimeEventFunctions, func() []string, error) {
+func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider, fmCallbackHandler runtime.FmCallbackHandler) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, runtime.FleetManager, []*RuntimeHttpHandler, *RuntimeEventFunctions, func() []string, error) {
 	runtimeLogger := NewRuntimeGoLogger(logger)
 	node := config.GetName()
 	env := config.GetRuntime().Environment
 
-	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient)
+	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient)
 
 	match := make(map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error))
 

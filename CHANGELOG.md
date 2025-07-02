@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add party listing API and party labeling support.
+
 ### Fixed
 - Fix an issue where a purchased Google Subscription would not be looked up by the LinkedPurchaseToken field contained in a notification.
 

@@ -499,9 +499,14 @@ service Nakama {
     option (google.api.http).get = "/v2/leaderboard/{leaderboard_id}/owner/{owner_id}";
   }
 
-  // Fetch list of running matches.
+  // List running matches and optionally filter by matching criteria.
   rpc ListMatches (api.ListMatchesRequest) returns (api.MatchList) {
     option (google.api.http).get = "/v2/match";
+  }
+
+  // List parties and optionally filter by matching criteria.
+  rpc ListParties (api.ListPartiesRequest) returns (api.PartyList) {
+    option (google.api.http).get = "/v2/party";
   }
 
   // Fetch list of notifications.

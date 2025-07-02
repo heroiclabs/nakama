@@ -132,6 +132,8 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 		pipelineFn = p.partyMatchmakerRemove
 	case *rtapi.Envelope_PartyDataSend:
 		pipelineFn = p.partyDataSend
+	case *rtapi.Envelope_PartyUpdate:
+		pipelineFn = p.partyUpdate
 	default:
 		// If we reached this point the envelope was valid but the contents are missing or unknown.
 		// Usually caused by a version mismatch, and should cause the session making this pipeline request to close.
