@@ -3751,7 +3751,7 @@ func (n *RuntimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(g
 		contentValue := string(contentBytes)
 
 		code := getJsInt(r, f.Argument(3))
-		if code <= 0 {
+		if code <= 0 && !(-2000 <= code && code <= -1000) {
 			panic(r.NewGoError(errors.New("expects code number to be a positive integer")))
 		}
 
@@ -3912,6 +3912,9 @@ func (n *RuntimeJavascriptNakamaModule) notificationsSend(r *goja.Runtime) func(
 				code, ok := notificationObj["code"].(int64)
 				if !ok {
 					panic(r.NewTypeError("expects 'code' value to be a number"))
+				}
+				if code <= 0 && !(-2000 <= code && code <= -1000) {
+					panic(r.NewTypeError("expects 'code' value to be a positive integer."))
 				}
 				notification.Code = int32(code)
 			}
