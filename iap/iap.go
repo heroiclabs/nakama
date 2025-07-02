@@ -59,6 +59,35 @@ var cachedTokensGoogle = &googleTokenCache{
 }
 var cachedTokenHuawei accessTokenHuawei
 
+type Platform int
+
+const (
+	Unknown Platform = iota
+	Apple
+	Google
+	Facebook
+	Huawei
+	Xbox
+	Playstation
+	Steam
+	Epic
+	Discord
+)
+
+func (enum Platform) String() string {
+	return [...]string{"apple", "google", "facebook", "huawei"}[enum]
+}
+
+func FromString(s string) Platform {
+	return map[string]Platform{
+		"apple":    Apple,
+		"google":   Google,
+		"facebook": Facebook,
+		"huawei":   Huawei,
+		"xbox":     Xbox,
+	}[s]
+}
+
 type googleTokenCache struct {
 	sync.RWMutex
 	tokenMap map[string]*accessTokenGoogle
