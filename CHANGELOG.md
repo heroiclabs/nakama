@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Fix an issue where a purchased Google Subscription would not be looked up by the LinkedPurchaseToken field contained in a notification.
 - Improve Satori caching to prevent incorrect hits.
+- Update tournament size record deletion if it has a maximum size set.
 
 ## [3.27.1] - 2025-05-22
 ### Changed
