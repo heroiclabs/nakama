@@ -42,29 +42,30 @@ import (
 
 type RuntimeGoNakamaModule struct {
 	sync.RWMutex
-	logger               *zap.Logger
-	db                   *sql.DB
-	protojsonMarshaler   *protojson.MarshalOptions
-	config               Config
-	socialClient         *social.Client
-	leaderboardCache     LeaderboardCache
-	leaderboardRankCache LeaderboardRankCache
-	leaderboardScheduler LeaderboardScheduler
-	sessionRegistry      SessionRegistry
-	sessionCache         SessionCache
-	statusRegistry       StatusRegistry
-	matchRegistry        MatchRegistry
-	tracker              Tracker
-	metrics              Metrics
-	streamManager        StreamManager
-	router               MessageRouter
-	eventFn              RuntimeEventCustomFunction
-	node                 string
-	matchCreateFn        RuntimeMatchCreateFunction
-	satori               runtime.Satori
-	fleetManager         runtime.FleetManager
-	storageIndex         StorageIndex
-	IAPXboxManager       runtime.IAPManager
+	logger                *zap.Logger
+	db                    *sql.DB
+	protojsonMarshaler    *protojson.MarshalOptions
+	config                Config
+	socialClient          *social.Client
+	leaderboardCache      LeaderboardCache
+	leaderboardRankCache  LeaderboardRankCache
+	leaderboardScheduler  LeaderboardScheduler
+	sessionRegistry       SessionRegistry
+	sessionCache          SessionCache
+	statusRegistry        StatusRegistry
+	matchRegistry         MatchRegistry
+	tracker               Tracker
+	metrics               Metrics
+	streamManager         StreamManager
+	router                MessageRouter
+	eventFn               RuntimeEventCustomFunction
+	node                  string
+	matchCreateFn         RuntimeMatchCreateFunction
+	satori                runtime.Satori
+	fleetManager          runtime.FleetManager
+	storageIndex          StorageIndex
+	IAPXboxManager        runtime.IAPManager
+	IAPPlaystationManager runtime.IAPManager
 }
 
 func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori) *RuntimeGoNakamaModule {

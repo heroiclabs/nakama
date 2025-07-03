@@ -1339,6 +1339,7 @@ type IAPConfig struct {
 	Huawei          *IAPHuaweiConfig          `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
 	Xbox            *IAPXboxConfig            `yaml:"xbox" json:"xbox" usage:"Xbox Configuration."`
+	Playstation     *IAPPlaystationConfig     `yaml:"playstation" json:"playstation" usage:"Playstation Configuration."`
 }
 
 func (cfg *IAPConfig) GetApple() runtime.IAPAppleConfig {
@@ -1358,6 +1359,8 @@ func (cfg *IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
 }
 
 func (cfg *IAPConfig) GetXbox() runtime.IAPXboxConfig { return cfg.Xbox }
+
+func (cfg *IAPConfig) GetPlaystation() runtime.IAPPlaystationConfig { return cfg.Playstation }
 
 func (cfg *IAPConfig) Clone() *IAPConfig {
 	if cfg == nil {
@@ -1543,6 +1546,13 @@ type IAPXboxConfig struct {
 }
 
 func (i IAPXboxConfig) GetToken() string { return i.Token }
+
+type IAPPlaystationConfig struct {
+	Token       string `yaml:"token" json:"token" usage:"Playstation credentials token"`
+	Environment string `yaml:"environment" json:"environment" usage:"IAP Playstation environment"`
+}
+
+func (i IAPPlaystationConfig) GetToken() string { return i.Token }
 
 var _ runtime.GoogleAuthConfig = &GoogleAuthConfig{}
 

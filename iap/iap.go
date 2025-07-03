@@ -80,11 +80,12 @@ func (enum Platform) String() string {
 
 func FromString(s string) Platform {
 	return map[string]Platform{
-		"apple":    Apple,
-		"google":   Google,
-		"facebook": Facebook,
-		"huawei":   Huawei,
-		"xbox":     Xbox,
+		"apple":       Apple,
+		"google":      Google,
+		"facebook":    Facebook,
+		"huawei":      Huawei,
+		"xbox":        Xbox,
+		"playstation": Playstation,
 	}[s]
 }
 
