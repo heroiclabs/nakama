@@ -114,6 +114,11 @@ var restrictedMethods = map[string]console.UserRole{
 	// Runtime
 	"/nakama.console.Console/GetRuntime": console.UserRole_USER_ROLE_DEVELOPER,
 
+	// Setting
+	"/nakama.console.Console/GetSetting":    console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/UpdateSetting": console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/ListSettings":  console.UserRole_USER_ROLE_READONLY,
+
 	// Status
 	"/nakama.console.Console/GetStatus": console.UserRole_USER_ROLE_READONLY,
 

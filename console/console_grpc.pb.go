@@ -72,6 +72,7 @@ const (
 	Console_GetLeaderboard_FullMethodName            = "/nakama.console.Console/GetLeaderboard"
 	Console_GetMatchState_FullMethodName             = "/nakama.console.Console/GetMatchState"
 	Console_GetRuntime_FullMethodName                = "/nakama.console.Console/GetRuntime"
+	Console_GetSetting_FullMethodName                = "/nakama.console.Console/GetSetting"
 	Console_GetStatus_FullMethodName                 = "/nakama.console.Console/GetStatus"
 	Console_GetStorage_FullMethodName                = "/nakama.console.Console/GetStorage"
 	Console_GetWalletLedger_FullMethodName           = "/nakama.console.Console/GetWalletLedger"
@@ -81,6 +82,7 @@ const (
 	Console_ListApiEndpoints_FullMethodName          = "/nakama.console.Console/ListApiEndpoints"
 	Console_ListLeaderboardRecords_FullMethodName    = "/nakama.console.Console/ListLeaderboardRecords"
 	Console_ListLeaderboards_FullMethodName          = "/nakama.console.Console/ListLeaderboards"
+	Console_ListSettings_FullMethodName              = "/nakama.console.Console/ListSettings"
 	Console_ListStorage_FullMethodName               = "/nakama.console.Console/ListStorage"
 	Console_ListStorageCollections_FullMethodName    = "/nakama.console.Console/ListStorageCollections"
 	Console_ListAccounts_FullMethodName              = "/nakama.console.Console/ListAccounts"
@@ -106,6 +108,7 @@ const (
 	Console_UnlinkSteam_FullMethodName               = "/nakama.console.Console/UnlinkSteam"
 	Console_UpdateAccount_FullMethodName             = "/nakama.console.Console/UpdateAccount"
 	Console_UpdateGroup_FullMethodName               = "/nakama.console.Console/UpdateGroup"
+	Console_UpdateSetting_FullMethodName             = "/nakama.console.Console/UpdateSetting"
 	Console_WriteStorageObject_FullMethodName        = "/nakama.console.Console/WriteStorageObject"
 )
 
@@ -184,6 +187,8 @@ type ConsoleClient interface {
 	GetMatchState(ctx context.Context, in *MatchStateRequest, opts ...grpc.CallOption) (*MatchState, error)
 	// Get runtime info
 	GetRuntime(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RuntimeInfo, error)
+	// Get console settings.
+	GetSetting(ctx context.Context, in *SettingRequest, opts ...grpc.CallOption) (*Setting, error)
 	// Get current status data for all nodes.
 	GetStatus(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StatusList, error)
 	// Get a storage object.
@@ -202,6 +207,8 @@ type ConsoleClient interface {
 	ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest, opts ...grpc.CallOption) (*api.LeaderboardRecordList, error)
 	// List leaderboards
 	ListLeaderboards(ctx context.Context, in *LeaderboardListRequest, opts ...grpc.CallOption) (*LeaderboardList, error)
+	// List settings
+	ListSettings(ctx context.Context, in *ListSettingsRequest, opts ...grpc.CallOption) (*SettingList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
 	// List storage collections
@@ -252,6 +259,8 @@ type ConsoleClient interface {
 	UpdateAccount(ctx context.Context, in *UpdateAccountRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Update one or more fields on a group.
 	UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Update an existing setting.
+	UpdateSetting(ctx context.Context, in *UpdateSettingRequest, opts ...grpc.CallOption) (*Setting, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error)
 }
@@ -604,6 +613,16 @@ func (c *consoleClient) GetRuntime(ctx context.Context, in *emptypb.Empty, opts 
 	return out, nil
 }
 
+func (c *consoleClient) GetSetting(ctx context.Context, in *SettingRequest, opts ...grpc.CallOption) (*Setting, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Setting)
+	err := c.cc.Invoke(ctx, Console_GetSetting_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) GetStatus(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StatusList, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StatusList)
@@ -688,6 +707,16 @@ func (c *consoleClient) ListLeaderboards(ctx context.Context, in *LeaderboardLis
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LeaderboardList)
 	err := c.cc.Invoke(ctx, Console_ListLeaderboards_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ListSettings(ctx context.Context, in *ListSettingsRequest, opts ...grpc.CallOption) (*SettingList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SettingList)
+	err := c.cc.Invoke(ctx, Console_ListSettings_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -944,6 +973,16 @@ func (c *consoleClient) UpdateGroup(ctx context.Context, in *UpdateGroupRequest,
 	return out, nil
 }
 
+func (c *consoleClient) UpdateSetting(ctx context.Context, in *UpdateSettingRequest, opts ...grpc.CallOption) (*Setting, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Setting)
+	err := c.cc.Invoke(ctx, Console_UpdateSetting_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.StorageObjectAck)
@@ -1029,6 +1068,8 @@ type ConsoleServer interface {
 	GetMatchState(context.Context, *MatchStateRequest) (*MatchState, error)
 	// Get runtime info
 	GetRuntime(context.Context, *emptypb.Empty) (*RuntimeInfo, error)
+	// Get console settings.
+	GetSetting(context.Context, *SettingRequest) (*Setting, error)
 	// Get current status data for all nodes.
 	GetStatus(context.Context, *emptypb.Empty) (*StatusList, error)
 	// Get a storage object.
@@ -1047,6 +1088,8 @@ type ConsoleServer interface {
 	ListLeaderboardRecords(context.Context, *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error)
 	// List leaderboards
 	ListLeaderboards(context.Context, *LeaderboardListRequest) (*LeaderboardList, error)
+	// List settings
+	ListSettings(context.Context, *ListSettingsRequest) (*SettingList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
 	// List storage collections
@@ -1097,6 +1140,8 @@ type ConsoleServer interface {
 	UpdateAccount(context.Context, *UpdateAccountRequest) (*emptypb.Empty, error)
 	// Update one or more fields on a group.
 	UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error)
+	// Update an existing setting.
+	UpdateSetting(context.Context, *UpdateSettingRequest) (*Setting, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error)
 	mustEmbedUnimplementedConsoleServer()
@@ -1211,6 +1256,9 @@ func (UnimplementedConsoleServer) GetMatchState(context.Context, *MatchStateRequ
 func (UnimplementedConsoleServer) GetRuntime(context.Context, *emptypb.Empty) (*RuntimeInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRuntime not implemented")
 }
+func (UnimplementedConsoleServer) GetSetting(context.Context, *SettingRequest) (*Setting, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSetting not implemented")
+}
 func (UnimplementedConsoleServer) GetStatus(context.Context, *emptypb.Empty) (*StatusList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
 }
@@ -1237,6 +1285,9 @@ func (UnimplementedConsoleServer) ListLeaderboardRecords(context.Context, *api.L
 }
 func (UnimplementedConsoleServer) ListLeaderboards(context.Context, *LeaderboardListRequest) (*LeaderboardList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListLeaderboards not implemented")
+}
+func (UnimplementedConsoleServer) ListSettings(context.Context, *ListSettingsRequest) (*SettingList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSettings not implemented")
 }
 func (UnimplementedConsoleServer) ListStorage(context.Context, *ListStorageRequest) (*StorageList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListStorage not implemented")
@@ -1312,6 +1363,9 @@ func (UnimplementedConsoleServer) UpdateAccount(context.Context, *UpdateAccountR
 }
 func (UnimplementedConsoleServer) UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
+}
+func (UnimplementedConsoleServer) UpdateSetting(context.Context, *UpdateSettingRequest) (*Setting, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateSetting not implemented")
 }
 func (UnimplementedConsoleServer) WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteStorageObject not implemented")
@@ -1949,6 +2003,24 @@ func _Console_GetRuntime_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_GetSetting_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SettingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetSetting(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_GetSetting_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetSetting(ctx, req.(*SettingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -2107,6 +2179,24 @@ func _Console_ListLeaderboards_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).ListLeaderboards(ctx, req.(*LeaderboardListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ListSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_ListSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListSettings(ctx, req.(*ListSettingsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2561,6 +2651,24 @@ func _Console_UpdateGroup_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_UpdateSetting_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateSettingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UpdateSetting(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_UpdateSetting_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UpdateSetting(ctx, req.(*UpdateSettingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_WriteStorageObject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WriteStorageObjectRequest)
 	if err := dec(in); err != nil {
@@ -2723,6 +2831,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_GetRuntime_Handler,
 		},
 		{
+			MethodName: "GetSetting",
+			Handler:    _Console_GetSetting_Handler,
+		},
+		{
 			MethodName: "GetStatus",
 			Handler:    _Console_GetStatus_Handler,
 		},
@@ -2757,6 +2869,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLeaderboards",
 			Handler:    _Console_ListLeaderboards_Handler,
+		},
+		{
+			MethodName: "ListSettings",
+			Handler:    _Console_ListSettings_Handler,
 		},
 		{
 			MethodName: "ListStorage",
@@ -2857,6 +2973,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateGroup",
 			Handler:    _Console_UpdateGroup_Handler,
+		},
+		{
+			MethodName: "UpdateSetting",
+			Handler:    _Console_UpdateSetting_Handler,
 		},
 		{
 			MethodName: "WriteStorageObject",
