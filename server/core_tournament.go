@@ -647,12 +647,31 @@ func TournamentRecordDelete(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	now := time.Now().UTC()
 	_, _, expiryUnix := calculateTournamentDeadlines(tournament.StartTime, tournament.EndTime, int64(tournament.Duration), tournament.ResetSchedule, now)
 
-	query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
+	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		query := "DELETE FROM leaderboard_record WHERE leaderboard_id = $1 AND owner_id = $2 AND expiry_time = $3"
+		result, err := tx.ExecContext(
+			ctx, query, tournamentID, ownerID, time.Unix(expiryUnix, 0).UTC())
+		if err != nil {
+			logger.Error("Error deleting tournament record", zap.Error(err))
+			return err
+		}
 
-	_, err := db.ExecContext(
-		ctx, query, tournamentID, ownerID, time.Unix(expiryUnix, 0).UTC())
+		delRowCount, err := result.RowsAffected()
+		if err != nil {
+			logger.Error("Error getting rows affected by tournament record delete", zap.Error(err))
+			return err
+		}
+
+		if tournament.HasMaxSize() && delRowCount > 0 {
+			if _, err = tx.ExecContext(ctx, "UPDATE leaderboard SET size = size - 1 WHERE id = $1", tournamentID); err != nil {
+				logger.Error("Error updating tournament size", zap.Error(err))
+				return err
+			}
+		}
+
+		return nil
+	})
 	if err != nil {
-		logger.Error("Error deleting tournament record", zap.Error(err))
 		return err
 	}
 
