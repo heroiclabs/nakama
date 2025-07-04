@@ -1119,7 +1119,9 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			uid = uuid.Must(uuid.FromString(sub.UserId))
+			if sub.UserId != "" {
+				uid = uuid.Must(uuid.FromString(sub.UserId))
+			}
 		}
 
 		env := api.StoreEnvironment_PRODUCTION
