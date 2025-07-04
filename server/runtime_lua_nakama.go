@@ -5040,7 +5040,7 @@ func (n *RuntimeLuaNakamaModule) notificationSend(l *lua.LState) int {
 	content := string(contentBytes)
 
 	code := l.CheckInt(4)
-	if code <= 0 {
+	if code <= 0 && !(-2000 <= code && code <= -1000) {
 		l.ArgError(4, "expects code number to be a positive integer")
 		return 0
 	}

@@ -1635,7 +1635,7 @@ func (n *RuntimeGoNakamaModule) NotificationSend(ctx context.Context, userID, su
 	}
 	contentString := string(contentBytes)
 
-	if code <= 0 {
+	if code <= 0 && !(-2000 <= code && code <= -1000) {
 		return errors.New("expects code to number above 0")
 	}
 
@@ -1688,7 +1688,7 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 		}
 		contentString := string(contentBytes)
 
-		if notification.Code <= 0 {
+		if notification.Code <= 0 && !(-2000 <= notification.Code && notification.Code <= -1000) {
 			return errors.New("expects code to number above 0")
 		}
 
