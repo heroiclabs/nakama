@@ -313,7 +313,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_add":                               n.friendsAdd,
 		"friends_delete":                            n.friendsDelete,
 		"friends_block":                             n.friendsBlock,
-		"parties_list":                              n.partiesList,
+		"party_list":                                n.partyList,
 		"file_read":                                 n.fileRead,
 		"channel_message_send":                      n.channelMessageSend,
 		"channel_message_update":                    n.channelMessageUpdate,
@@ -10344,9 +10344,13 @@ func (n *RuntimeLuaNakamaModule) friendsBlock(l *lua.LState) int {
 // @return parties(table) A list of parties matching the filtering criteria.
 // @return cursor(string) A cursor to fetch the next page of results.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeLuaNakamaModule) partiesList(l *lua.LState) int {
+func (n *RuntimeLuaNakamaModule) partyList(l *lua.LState) int {
 	// Parse limit.
 	limit := l.OptInt(1, 10)
+	if limit < 1 || limit > 100 {
+		l.ArgError(1, "expects limit to be 1-100")
+		return 0
+	}
 
 	var open *bool
 	if openIn := l.CheckAny(2); openIn.Type() != lua.LTNil {

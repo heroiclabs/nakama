@@ -310,7 +310,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"binaryToString":                       n.binaryToString(r),
 		"stringToBinary":                       n.stringToBinary(r),
 		"storageIndexList":                     n.storageIndexList(r),
-		"partiesList":                          n.partiesList(r),
+		"partyList":                            n.partyList(r),
 	}
 }
 
@@ -457,11 +457,14 @@ func (n *RuntimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 // @param cursor(type=string, optional=true) A cursor to fetch the next page of results.
 // @return parties(nkruntime.Party[]) A list of parties matching the filtering criteria.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeJavascriptNakamaModule) partiesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *RuntimeJavascriptNakamaModule) partyList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		limit := 10
 		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
 			limit = int(getJsInt(r, f.Argument(0)))
+		}
+		if limit < 1 || limit > 100 {
+			panic(r.NewTypeError("limit must be 1-100"))
 		}
 
 		var open *bool
