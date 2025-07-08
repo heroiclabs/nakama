@@ -10366,7 +10366,7 @@ func (n *RuntimeLuaNakamaModule) partyList(l *lua.LState) int {
 
 	cursor := l.OptString(4, "")
 
-	results, cursor, err := n.partyRegistry.PartiesList(l.Context(), limit, open, query, cursor)
+	results, cursor, err := n.partyRegistry.PartyList(l.Context(), limit, open, query, cursor)
 	if err != nil {
 		l.RaiseError("failed to list parties: %s", err.Error())
 		return 0

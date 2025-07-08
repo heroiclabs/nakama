@@ -4470,7 +4470,7 @@ func (n *RuntimeGoNakamaModule) PartyList(ctx context.Context, limit int, open *
 		return nil, "", errors.New("limit must be 1-100")
 	}
 
-	return n.partyRegistry.PartiesList(ctx, limit, open, query, cursor)
+	return n.partyRegistry.PartyList(ctx, limit, open, query, cursor)
 }
 
 // @group satori

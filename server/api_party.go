@@ -61,7 +61,7 @@ func (s *ApiServer) ListParties(ctx context.Context, in *api.ListPartiesRequest)
 		*open = in.Open.GetValue()
 	}
 
-	results, cursor, err := s.partyRegistry.PartiesList(ctx, limit, open, in.Query.GetValue(), in.Cursor.GetValue())
+	results, cursor, err := s.partyRegistry.PartyList(ctx, limit, open, in.Query.GetValue(), in.Cursor.GetValue())
 	if err != nil {
 		s.logger.Error("Error listing matches", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error listing matches.")

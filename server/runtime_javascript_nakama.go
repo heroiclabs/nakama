@@ -483,7 +483,7 @@ func (n *RuntimeJavascriptNakamaModule) partyList(r *goja.Runtime) func(goja.Fun
 			cursor = getJsString(r, f.Argument(3))
 		}
 
-		results, cursor, err := n.partyRegistry.PartiesList(n.ctx, limit, open, query, cursor)
+		results, cursor, err := n.partyRegistry.PartyList(n.ctx, limit, open, query, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list parties: %s", err.Error())))
 		}

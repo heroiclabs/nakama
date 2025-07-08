@@ -61,7 +61,7 @@ type PartyRegistry interface {
 	PartyMatchmakerRemove(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, ticket string) error
 	PartyDataSend(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, opCode int64, data []byte) error
 	PartyUpdate(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, label string, open bool) error
-	PartiesList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error)
+	PartyList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error)
 	LabelUpdate(id uuid.UUID, node, label string, open bool, maxSize int, createTime time.Time) error
 }
 
@@ -409,7 +409,7 @@ type partyListCursor struct {
 	Limit  int
 }
 
-func (p *LocalPartyRegistry) PartiesList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error) {
+func (p *LocalPartyRegistry) PartyList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error) {
 	if !p.initialized.Load() {
 		// This check is only needed here as only this call should be possible during module initialization.
 		return nil, "", fmt.Errorf("party registry not initialized: listing cannot be performed in InitModule")
