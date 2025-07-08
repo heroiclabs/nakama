@@ -19,11 +19,18 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/jackc/pgx/v5/pgtype"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"net/http"
 	"net/url"
@@ -54,10 +61,94 @@ const (
 
 const accessTokenExpiresGracePeriod = 300 // 5 min grace period
 
+const AppleRootPEM = `
+-----BEGIN CERTIFICATE-----
+MIICQzCCAcmgAwIBAgIILcX8iNLFS5UwCgYIKoZIzj0EAwMwZzEbMBkGA1UEAwwS
+QXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9u
+IEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcN
+MTQwNDMwMTgxOTA2WhcNMzkwNDMwMTgxOTA2WjBnMRswGQYDVQQDDBJBcHBsZSBS
+b290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9y
+aXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49
+AgEGBSuBBAAiA2IABJjpLz1AcqTtkyJygRMc3RCV8cWjTnHcFBbZDuWmBSp3ZHtf
+TjjTuxxEtX/1H7YyYl3J6YRbTzBPEVoA/VhYDKX1DyxNB0cTddqXl5dvMVztK517
+IDvYuVTZXpmkOlEKMaNCMEAwHQYDVR0OBBYEFLuw3qFYM4iapIqZ3r6966/ayySr
+MA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMDA2gA
+MGUCMQCD6cHEFl4aXTQY2e3v9GwOAEZLuN+yRhHFD/3meoyhpmvOwgPUnPWTxnS4
+at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
+6BgD56KyKA==
+-----END CERTIFICATE-----
+`
+
 var cachedTokensGoogle = &googleTokenCache{
 	tokenMap: make(map[string]*accessTokenGoogle),
 }
 var cachedTokenHuawei accessTokenHuawei
+
+var Httpc = &http.Client{Timeout: 20 * time.Second}
+
+type AppleNotificationSignedPayload struct {
+	SignedPayload string `json:"signedPayload"`
+}
+
+type AppleNotificationPayload struct {
+	NotificationType string                `json:"notificationType"`
+	Subtype          string                `json:"subtype"`
+	Version          string                `json:"version"`
+	Data             AppleNotificationData `json:"data"`
+	SignedDate       int64                 `json:"signedDate"`
+}
+
+type AppleNotificationData struct {
+	Environment           string `json:"string"`
+	BundleId              string `json:"bundleId"`
+	BundleVersion         string `json:"bundleVersion"`
+	SignedTransactionInfo string `json:"signedTransactionInfo"`
+	SignedRenewalInfo     string `json:"signedRenewalInfo"`
+}
+
+type AppleNotificationTransactionInfo struct {
+	AppAccountToken        string `json:"appAccountToken"`
+	BundleId               string `json:"bundleId"`
+	Environment            string `json:"environment"`
+	TransactionId          string `json:"transactionId"`
+	OriginalTransactionId  string `json:"originalTransactionId"`
+	ProductId              string `json:"productId"`
+	ExpiresDateMs          int64  `json:"expiresDate"`
+	RevocationDateMs       int64  `json:"revocationDate"`
+	OriginalPurchaseDateMs int64  `json:"originalPurchaseDate"`
+	PurchaseDateMs         int64  `json:"purchaseDate"`
+}
+
+const AppleNotificationTypeRefund = "REFUND"
+
+type StoragePurchase struct {
+	UserID        uuid.UUID
+	Store         api.StoreProvider
+	ProductId     string
+	TransactionId string
+	RawResponse   string
+	PurchaseTime  time.Time
+	CreateTime    time.Time // Set by upsertPurchases
+	UpdateTime    time.Time // Set by upsertPurchases
+	RefundTime    time.Time
+	Environment   api.StoreEnvironment
+	SeenBefore    bool // Set by upsertPurchases
+}
+
+type StorageSubscription struct {
+	OriginalTransactionId string
+	UserID                uuid.UUID
+	Store                 api.StoreProvider
+	ProductId             string
+	PurchaseTime          time.Time
+	CreateTime            time.Time // Set by upsertSubscription
+	UpdateTime            time.Time // Set by upsertSubscription
+	RefundTime            time.Time
+	Environment           api.StoreEnvironment
+	ExpireTime            time.Time
+	RawResponse           string
+	RawNotification       string
+}
 
 type Platform int
 
@@ -78,6 +169,8 @@ func (enum Platform) String() string {
 	return [...]string{"apple", "google", "facebook", "huawei"}[enum]
 }
 
+var AllPlatforms = []Platform{Apple, Google, Facebook, Huawei, Xbox, Playstation, Steam, Epic, Discord}
+
 func FromString(s string) Platform {
 	return map[string]Platform{
 		"apple":       Apple,
@@ -86,7 +179,28 @@ func FromString(s string) Platform {
 		"huawei":      Huawei,
 		"xbox":        Xbox,
 		"playstation": Playstation,
+		"epic":        Epic,
+		"steam":       Steam,
+		"discord":     Discord,
 	}[s]
+}
+
+func GetPurchaseProvider(platform string, purchaseProviders map[string]runtime.PurchaseProvider) (runtime.PurchaseProvider, error) {
+	purchaseProvider, exists := purchaseProviders[platform]
+	if !exists || purchaseProvider == nil {
+		return nil, errors.New("purchase provider doesn't exist")
+	}
+
+	return purchaseProvider, nil
+}
+
+func GetRefundFn(platform string, refundFns map[string]runtime.RefundFns) (runtime.RefundFns, error) {
+	refundFn, exists := refundFns[platform]
+	if !exists || refundFn == nil {
+		return nil, errors.New("refund fn doesn't exist")
+	}
+
+	return refundFn, nil
 }
 
 type googleTokenCache struct {
@@ -977,4 +1091,291 @@ func ValidateReceiptFacebookInstant(appSecret, signedRequest string) (*FacebookI
 	}
 
 	return payment, string(payload), nil
+}
+
+func UpsertPurchases(ctx context.Context, db *sql.DB, purchases []*StoragePurchase) ([]*StoragePurchase, error) {
+	if len(purchases) < 1 {
+		return nil, errors.New("expects at least one receipt")
+	}
+
+	transactionIDsToPurchase := make(map[string]*StoragePurchase)
+
+	userIdParams := make([]uuid.UUID, 0, len(purchases))
+	storeParams := make([]api.StoreProvider, 0, len(purchases))
+	transactionIdParams := make([]string, 0, len(purchases))
+	productIdParams := make([]string, 0, len(purchases))
+	purchaseTimeParams := make([]time.Time, 0, len(purchases))
+	rawResponseParams := make([]string, 0, len(purchases))
+	environmentParams := make([]api.StoreEnvironment, 0, len(purchases))
+	refundTimeParams := make([]time.Time, 0, len(purchases))
+
+	for _, purchase := range purchases {
+		if purchase.RefundTime.IsZero() {
+			purchase.RefundTime = time.Unix(0, 0)
+		}
+		if purchase.RawResponse == "" {
+			purchase.RawResponse = "{}"
+		}
+		transactionIDsToPurchase[purchase.TransactionId] = purchase
+
+		userIdParams = append(userIdParams, purchase.UserID)
+		storeParams = append(storeParams, purchase.Store)
+		transactionIdParams = append(transactionIdParams, purchase.TransactionId)
+		productIdParams = append(productIdParams, purchase.ProductId)
+		purchaseTimeParams = append(purchaseTimeParams, purchase.PurchaseTime)
+		rawResponseParams = append(rawResponseParams, purchase.RawResponse)
+		environmentParams = append(environmentParams, purchase.Environment)
+		refundTimeParams = append(refundTimeParams, purchase.RefundTime)
+	}
+
+	query := `
+INSERT INTO purchase
+	(
+		user_id,
+		store,
+		transaction_id,
+		product_id,
+		purchase_time,
+		raw_response,
+		environment,
+		refund_time
+	)
+SELECT unnest($1::uuid[]), unnest($2::smallint[]), unnest($3::text[]), unnest($4::text[]), unnest($5::timestamptz[]), unnest($6::jsonb[]), unnest($7::smallint[]), unnest($8::timestamptz[])
+ON CONFLICT
+	(transaction_id)
+DO UPDATE SET
+	refund_time = EXCLUDED.refund_time,
+	update_time = now()
+RETURNING
+	user_id,
+	transaction_id,
+	create_time,
+	update_time,
+	refund_time
+`
+
+	rows, err := db.QueryContext(ctx, query, userIdParams, storeParams, transactionIdParams, productIdParams, purchaseTimeParams, rawResponseParams, environmentParams, refundTimeParams)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		// Newly inserted purchases
+		var dbUserID uuid.UUID
+		var transactionId string
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
+		var refundTime pgtype.Timestamptz
+		if err = rows.Scan(&dbUserID, &transactionId, &createTime, &updateTime, &refundTime); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		storedPurchase := transactionIDsToPurchase[transactionId]
+		storedPurchase.CreateTime = createTime.Time
+		storedPurchase.UpdateTime = updateTime.Time
+		storedPurchase.SeenBefore = updateTime.Time.After(createTime.Time)
+		if refundTime.Time.Unix() != 0 {
+			storedPurchase.RefundTime = refundTime.Time
+		}
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	storedPurchases := make([]*StoragePurchase, 0, len(transactionIDsToPurchase))
+	for _, purchase := range transactionIDsToPurchase {
+		storedPurchases = append(storedPurchases, purchase)
+	}
+
+	return storedPurchases, nil
+}
+
+func ParseMillisecondUnixTimestamp(t int64) time.Time {
+	return time.Unix(0, 0).Add(time.Duration(t) * time.Millisecond)
+}
+
+func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (*api.ValidatedPurchase, error) {
+	var (
+		dbTransactionId string
+		dbUserId        uuid.UUID
+		dbStore         api.StoreProvider
+		dbCreateTime    pgtype.Timestamptz
+		dbUpdateTime    pgtype.Timestamptz
+		dbPurchaseTime  pgtype.Timestamptz
+		dbRefundTime    pgtype.Timestamptz
+		dbProductId     string
+		dbEnvironment   api.StoreEnvironment
+		dbRawResponse   string
+	)
+
+	err := db.QueryRowContext(ctx, `
+		SELECT
+			user_id,
+			store,
+			transaction_id,
+			create_time,
+			update_time,
+			purchase_time,
+			refund_time,
+			product_id,
+			environment,
+			raw_response
+		FROM purchase
+		WHERE transaction_id = $1
+`, transactionID).Scan(&dbUserId, &dbStore, &dbTransactionId, &dbCreateTime, &dbUpdateTime, &dbPurchaseTime, &dbRefundTime, &dbProductId, &dbEnvironment, &dbRawResponse)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Not found
+			return nil, nil
+		}
+		logger.Error("Error getting purchase", zap.Error(err))
+		return nil, err
+	}
+
+	suid := dbUserId.String()
+	if dbUserId.IsNil() {
+		suid = ""
+	}
+
+	return &api.ValidatedPurchase{
+		UserId:           suid,
+		ProductId:        dbProductId,
+		TransactionId:    dbTransactionId,
+		Store:            dbStore,
+		PurchaseTime:     timestamppb.New(dbPurchaseTime.Time),
+		CreateTime:       timestamppb.New(dbCreateTime.Time),
+		UpdateTime:       timestamppb.New(dbUpdateTime.Time),
+		Environment:      dbEnvironment,
+		RefundTime:       timestamppb.New(dbRefundTime.Time),
+		ProviderResponse: dbRawResponse,
+	}, nil
+}
+
+func UpsertSubscription(ctx context.Context, db *sql.DB, sub *StorageSubscription) error {
+	if sub.RefundTime.IsZero() {
+		// Refund time not set, init as default value.
+		sub.RefundTime = time.Unix(0, 0)
+	}
+
+	query := `
+INSERT
+INTO
+    subscription
+        (
+						user_id,
+						store,
+						original_transaction_id,
+						product_id,
+						purchase_time,
+						environment,
+						expire_time,
+						raw_response,
+						raw_notification,
+						refund_time
+        )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, to_jsonb(coalesce(nullif($8, ''), '{}')), to_jsonb(coalesce(nullif($9, ''), '{}')), $10)
+ON CONFLICT
+    (original_transaction_id)
+DO
+	UPDATE SET
+		expire_time = $7,
+		update_time = now(),
+		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
+		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
+		refund_time = coalesce($10, subscription.refund_time)
+RETURNING
+    user_id, create_time, update_time, expire_time, refund_time, raw_response, raw_notification
+`
+	var (
+		userID          uuid.UUID
+		createTime      pgtype.Timestamptz
+		updateTime      pgtype.Timestamptz
+		expireTime      pgtype.Timestamptz
+		refundTime      pgtype.Timestamptz
+		rawResponse     string
+		rawNotification string
+	)
+	if err := db.QueryRowContext(ctx, query, sub.UserID, sub.Store, sub.OriginalTransactionId, sub.ProductId, sub.PurchaseTime, sub.Environment, sub.ExpireTime, sub.RawResponse, sub.RawNotification, sub.RefundTime).Scan(&userID, &createTime, &updateTime, &expireTime, &refundTime, &rawResponse, &rawNotification); err != nil {
+		return err
+	}
+
+	sub.UserID = userID
+	sub.CreateTime = createTime.Time
+	sub.UpdateTime = updateTime.Time
+	sub.ExpireTime = expireTime.Time
+	sub.RefundTime = refundTime.Time
+	sub.RawResponse = rawResponse
+	sub.RawNotification = rawNotification
+
+	return nil
+}
+
+func GetSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, originalTransactionId string) (*api.ValidatedSubscription, error) {
+	var (
+		dbUserId                uuid.UUID
+		dbStore                 api.StoreProvider
+		dbOriginalTransactionId string
+		dbCreateTime            pgtype.Timestamptz
+		dbUpdateTime            pgtype.Timestamptz
+		dbExpireTime            pgtype.Timestamptz
+		dbPurchaseTime          pgtype.Timestamptz
+		dbRefundTime            pgtype.Timestamptz
+		dbProductId             string
+		dbEnvironment           api.StoreEnvironment
+		dbRawResponse           string
+		dbRawNotification       string
+	)
+
+	err := db.QueryRowContext(ctx, `
+		SELECT
+		    user_id,
+				store,
+				original_transaction_id,
+				create_time,
+				update_time,
+				expire_time,
+				purchase_time,
+				refund_time,
+				product_id,
+				environment,
+				raw_response,
+				raw_notification
+		FROM subscription
+		WHERE original_transaction_id = $1
+`, originalTransactionId).Scan(&dbUserId, &dbStore, &dbOriginalTransactionId, &dbCreateTime, &dbUpdateTime, &dbExpireTime, &dbPurchaseTime, &dbRefundTime, &dbProductId, &dbEnvironment, &dbRawResponse, &dbRawNotification)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Not found
+			return nil, nil
+		}
+		logger.Error("Failed to get subscription", zap.Error(err))
+		return nil, err
+	}
+
+	active := false
+	if dbExpireTime.Time.After(time.Now()) && dbRefundTime.Time.Unix() == 0 {
+		active = true
+	}
+
+	suid := dbUserId.String()
+	if dbUserId.IsNil() {
+		suid = ""
+	}
+
+	return &api.ValidatedSubscription{
+		UserId:                suid,
+		ProductId:             dbProductId,
+		OriginalTransactionId: dbOriginalTransactionId,
+		Store:                 dbStore,
+		PurchaseTime:          timestamppb.New(dbPurchaseTime.Time),
+		CreateTime:            timestamppb.New(dbCreateTime.Time),
+		UpdateTime:            timestamppb.New(dbUpdateTime.Time),
+		Environment:           dbEnvironment,
+		ExpiryTime:            timestamppb.New(dbExpireTime.Time),
+		RefundTime:            timestamppb.New(dbRefundTime.Time),
+		ProviderResponse:      dbRawResponse,
+		ProviderNotification:  dbRawNotification,
+		Active:                active,
+	}, nil
 }

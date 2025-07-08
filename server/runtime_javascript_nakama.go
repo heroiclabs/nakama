@@ -35,6 +35,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/iap"
 	"io"
 	"net/http"
 	"strings"
@@ -6125,7 +6126,7 @@ func (n *RuntimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		purchase, err := GetPurchaseByTransactionId(n.ctx, n.logger, n.db, transactionID)
+		purchase, err := iap.GetPurchaseByTransactionId(n.ctx, n.logger, n.db, transactionID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}

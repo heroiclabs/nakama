@@ -1187,6 +1187,12 @@ message Users {
   repeated User users = 1;
 }
 
+message ValidatePurchaseRequest {
+  string receipt = 1;
+  string platform = 2;
+  google.protobuf.BoolValue persist = 3;
+}
+
 // Apple IAP Purchases validation request
 message ValidatePurchaseAppleRequest {
   // Base64 encoded Apple receipt data payload.
@@ -1237,6 +1243,33 @@ message ValidatePurchaseFacebookInstantRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
+// Xbox Purchase validation request
+message ValidatePurchaseXboxRequest {
+  string productId = 1;
+  google.protobuf.BoolValue persist = 2;
+  string platform = 3;
+}
+
+// Playstation validation request
+message ValidatePurchasePlaystationRequest {
+  string entitlementLabel = 1;
+  google.protobuf.BoolValue persist = 2;
+}
+
+message ValidatePurchaseEpicRequest {
+  string nsCatalogItemId = 1;
+  google.protobuf.BoolValue persist = 2;
+}
+
+message ValidatePurchaseSteamRequest {
+  google.protobuf.BoolValue persist = 1;
+}
+
+message ValidatePurchaseDiscordRequest {
+  string entitlementId = 1;
+  google.protobuf.BoolValue persist = 2;
+}
+
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.
@@ -1284,6 +1317,16 @@ enum StoreProvider {
   HUAWEI_APP_GALLERY = 2;
   // Facebook Instant Store
   FACEBOOK_INSTANT_STORE = 3;
+  // Xbox Store
+  XBOX_STORE = 4;
+  // Playstation Store
+  PLAYSTATION_STORE = 5;
+  // Epic Store
+  EPIC_STORE = 6;
+  // Steam Store
+  STEAM_STORE = 7;
+  // Discord Store
+  DISCORD_STORE = 8;
 }
 
 // Environment where a purchase/subscription took place,

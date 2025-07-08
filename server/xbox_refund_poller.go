@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"time"
@@ -50,7 +51,11 @@ func (x *LocalXboxRefundPoller) Start(runtime *Runtime) {
 					case <-x.ctx.Done():
 						return
 					case <-ticker.C:
-						err := runtime.iapXboxManager.HandleRefund(x.ctx, x.logger, x.db)
+						provider, err := iap.GetPurchaseProvider("xbox", runtime.purchaseProviders)
+						if err != nil {
+							x.logger.Error("failed to get purchase provider on xbox refund poller", zap.Error(err))
+						}
+						_, err = provider.HandleRefund(x.ctx, x.logger, x.db)
 						if err != nil {
 							x.logger.Error("xbox refund poller failed", zap.Error(err))
 							continue

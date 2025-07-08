@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama/v3/iap"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -51,7 +52,7 @@ func (s *ConsoleServer) GetPurchase(ctx context.Context, in *console.GetPurchase
 		return nil, status.Error(codes.InvalidArgument, "transaction id is required")
 	}
 
-	purchase, err := GetPurchaseByTransactionId(ctx, s.logger, s.db, in.TransactionId)
+	purchase, err := iap.GetPurchaseByTransactionId(ctx, s.logger, s.db, in.TransactionId)
 	if err != nil || purchase == nil {
 		return nil, status.Error(codes.NotFound, "Purchase not found")
 	}

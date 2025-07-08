@@ -1,0 +1,579 @@
+package iap
+
+import (
+	"context"
+	"crypto/x509"
+	"database/sql"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type ApplePurchaseProvider struct {
+	nk             runtime.NakamaModule
+	logger         *zap.Logger
+	purchaseFn     runtime.PurchaseRefundFn
+	subscriptionFn runtime.SubscriptionRefundFn
+}
+
+func (a ApplePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn, subscriptionRefundFn runtime.SubscriptionRefundFn) {
+	a.logger.Info("Initializing internal apple purchase provider")
+	a.purchaseFn = purchaseRefundFn
+	a.subscriptionFn = subscriptionRefundFn
+}
+
+func (a ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, receipt string, userID uuid.UUID, persist bool, config runtime.IAPConfig) (*api.ValidatePurchaseResponse, error) {
+	a.logger.Info("purcahse validate on apple internal purchase provider hit")
+	validation, raw, err := ValidateReceiptApple(ctx, Httpc, receipt, config.GetApple().GetSharedPassword())
+	if err != nil {
+		if err != context.Canceled {
+			var vErr *ValidationError
+			if errors.As(err, &vErr) {
+				logger.Debug("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				return nil, vErr
+			} else {
+				logger.Error("Error validating Apple receipt", zap.Error(err))
+			}
+		}
+		return nil, err
+	}
+
+	if validation.Status != AppleReceiptIsValid {
+		if validation.IsRetryable {
+			return nil, status.Error(codes.Unavailable, "Apple IAP verification is currently unavailable. Try again later.")
+		}
+		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. Status: %d", validation.Status))
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if validation.Environment == AppleSandboxEnvironment {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	seenTransactionIDs := make(map[string]struct{}, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
+	storagePurchases := make([]*StoragePurchase, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
+	for _, purchase := range validation.Receipt.InApp {
+		if purchase.ExpiresDateMs != "" {
+			continue
+		}
+		if _, seen := seenTransactionIDs[purchase.TransactionId]; seen {
+			continue
+		}
+
+		purchaseTime, err := strconv.ParseInt(purchase.PurchaseDateMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		seenTransactionIDs[purchase.TransactionId] = struct{}{}
+		storagePurchases = append(storagePurchases, &StoragePurchase{
+			UserID:        userID,
+			Store:         api.StoreProvider_APPLE_APP_STORE,
+			ProductId:     purchase.ProductID,
+			TransactionId: purchase.TransactionId,
+			RawResponse:   string(raw),
+			PurchaseTime:  ParseMillisecondUnixTimestamp(purchaseTime),
+			Environment:   env,
+		})
+	}
+	// latest_receipt_info can also contaion purchases.
+	// https://developer.apple.com/forums/thread/63092
+	for _, purchase := range validation.LatestReceiptInfo {
+		if purchase.ExpiresDateMs != "" {
+			continue
+		}
+		if _, seen := seenTransactionIDs[purchase.TransactionId]; seen {
+			continue
+		}
+
+		purchaseTime, err := strconv.ParseInt(purchase.PurchaseDateMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		seenTransactionIDs[purchase.TransactionId] = struct{}{}
+		storagePurchases = append(storagePurchases, &StoragePurchase{
+			UserID:        userID,
+			Store:         api.StoreProvider_APPLE_APP_STORE,
+			ProductId:     purchase.ProductId,
+			TransactionId: purchase.TransactionId,
+			RawResponse:   string(raw),
+			PurchaseTime:  ParseMillisecondUnixTimestamp(purchaseTime),
+			Environment:   env,
+		})
+	}
+
+	if len(storagePurchases) == 0 && len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo) > 0 {
+		// All purchases in this receipt are subscriptions.
+		return nil, status.Error(codes.FailedPrecondition, "Subscription Receipt. Use the appropriate function instead.")
+	}
+
+	if !persist {
+		// Skip storing the receipts
+		validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storagePurchases))
+		for _, p := range storagePurchases {
+			validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+				UserId:           p.UserID.String(),
+				ProductId:        p.ProductId,
+				TransactionId:    p.TransactionId,
+				Store:            p.Store,
+				PurchaseTime:     timestamppb.New(p.PurchaseTime),
+				ProviderResponse: string(raw),
+				Environment:      p.Environment,
+			})
+		}
+
+		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
+	}
+
+	purchases, err := UpsertPurchases(ctx, db, storagePurchases)
+	if err != nil {
+		return nil, err
+	}
+
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
+		suid := p.UserID.String()
+		if p.UserID.IsNil() {
+			suid = ""
+		}
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           suid,
+			ProductId:        p.ProductId,
+			TransactionId:    p.TransactionId,
+			Store:            p.Store,
+			PurchaseTime:     timestamppb.New(p.PurchaseTime),
+			CreateTime:       timestamppb.New(p.CreateTime),
+			UpdateTime:       timestamppb.New(p.UpdateTime),
+			ProviderResponse: string(raw),
+			SeenBefore:       p.SeenBefore,
+			Environment:      p.Environment,
+		})
+	}
+
+	return &api.ValidatePurchaseResponse{
+		ValidatedPurchases: validatedPurchases,
+	}, nil
+}
+
+func (a ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+	validation, rawResponse, err := ValidateReceiptApple(ctx, Httpc, receipt, password)
+	if err != nil {
+		if err != context.Canceled {
+			var vErr *ValidationError
+			if errors.As(err, &vErr) {
+				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				return nil, vErr
+			} else {
+				logger.Error("Error validating Apple receipt", zap.Error(err))
+			}
+		}
+		return nil, err
+	}
+
+	if validation.Status != AppleReceiptIsValid {
+		if validation.IsRetryable {
+			return nil, status.Error(codes.Unavailable, "Apple IAP verification is currently unavailable. Try again later.")
+		}
+		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. Status: %d", validation.Status))
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if validation.Environment == AppleSandboxEnvironment {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	var found bool
+	var receiptInfo ValidateReceiptAppleResponseLatestReceiptInfo
+	for _, latestReceiptInfo := range validation.LatestReceiptInfo {
+		if latestReceiptInfo.ExpiresDateMs == "" {
+			// Not a subscription, skip.
+			continue
+		}
+		receiptInfo = latestReceiptInfo
+		found = true
+	}
+	if !found {
+		// Receipt is for a purchase (or otherwise has no subscriptions for any reason) so ValidatePurchaseApple should be used instead.
+		return nil, status.Error(codes.FailedPrecondition, "Purchase Receipt. Use the appropriate function instead.")
+	}
+
+	purchaseTime, err := strconv.ParseInt(receiptInfo.OriginalPurchaseDateMs, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	expireTimeInt, err := strconv.ParseInt(receiptInfo.ExpiresDateMs, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	expireTime := ParseMillisecondUnixTimestamp(expireTimeInt)
+
+	active := false
+	if expireTime.After(time.Now()) {
+		active = true
+	}
+
+	storageSub := &StorageSubscription{
+		UserID:                userID,
+		Store:                 api.StoreProvider_APPLE_APP_STORE,
+		ProductId:             receiptInfo.ProductId,
+		OriginalTransactionId: receiptInfo.OriginalTransactionId,
+		PurchaseTime:          ParseMillisecondUnixTimestamp(purchaseTime),
+		Environment:           env,
+		ExpireTime:            expireTime,
+		RawResponse:           string(rawResponse),
+	}
+
+	validatedSub := &api.ValidatedSubscription{
+		UserId:                storageSub.UserID.String(),
+		ProductId:             storageSub.ProductId,
+		OriginalTransactionId: storageSub.OriginalTransactionId,
+		Store:                 api.StoreProvider_APPLE_APP_STORE,
+		PurchaseTime:          timestamppb.New(storageSub.PurchaseTime),
+		Environment:           env,
+		Active:                active,
+		ExpiryTime:            timestamppb.New(storageSub.ExpireTime),
+		ProviderResponse:      storageSub.RawResponse,
+		ProviderNotification:  storageSub.RawNotification,
+	}
+
+	if !persist {
+		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	}
+
+	if err = UpsertSubscription(ctx, db, storageSub); err != nil {
+		return nil, err
+	}
+
+	suid := storageSub.UserID.String()
+	if storageSub.UserID.IsNil() {
+		suid = ""
+	}
+
+	validatedSub.UserId = suid
+	validatedSub.CreateTime = timestamppb.New(storageSub.CreateTime)
+	validatedSub.UpdateTime = timestamppb.New(storageSub.UpdateTime)
+	validatedSub.ProviderResponse = storageSub.RawResponse
+	validatedSub.ProviderNotification = storageSub.RawNotification
+
+	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+}
+
+func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Logger, db *sql.DB) (http.HandlerFunc, error) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to decode App Store notification body", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close()
+
+		var applePayload *AppleNotificationSignedPayload
+		if err := json.Unmarshal(body, &applePayload); err != nil {
+			logger.Error("Failed to unmarshal App Store notification", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		tokens := strings.Split(applePayload.SignedPayload, ".")
+		if len(tokens) < 3 {
+			logger.Error("Unexpected App Store notification JWS token length")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		seg := tokens[0]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		headerByte, err := base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			logger.Error("Failed to decode Apple notification JWS header", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		type Header struct {
+			Alg string   `json:"alg"`
+			X5c []string `json:"x5c"`
+		}
+		var header Header
+
+		if err = json.Unmarshal(headerByte, &header); err != nil {
+			logger.Error("Failed to unmarshal Apple notification JWS header", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		certs := make([][]byte, 0)
+		for _, encodedCert := range header.X5c {
+			cert, err := base64.StdEncoding.DecodeString(encodedCert)
+			if err != nil {
+				logger.Error("Failed to decode Apple notification JWS header certificate", zap.Error(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			certs = append(certs, cert)
+		}
+
+		rootCert := x509.NewCertPool()
+		ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
+		if !ok {
+			logger.Error("Failed to parse Apple root certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		interCert, err := x509.ParseCertificate(certs[1])
+		if err != nil {
+			logger.Error("Failed to parse Apple notification intermediate certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		intermedia := x509.NewCertPool()
+		intermedia.AddCert(interCert)
+
+		cert, err := x509.ParseCertificate(certs[2])
+		if err != nil {
+			logger.Error("Failed to parse Apple notification certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		opts := x509.VerifyOptions{
+			Roots:         rootCert,
+			Intermediates: intermedia,
+		}
+
+		_, err = cert.Verify(opts)
+		if err != nil {
+			logger.Error("Failed to validate Apple notification signature", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		seg = tokens[1]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		jsonPayload, err := base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var notificationPayload *AppleNotificationPayload
+		if err = json.Unmarshal(jsonPayload, &notificationPayload); err != nil {
+			logger.Error("Failed to json unmarshal App Store notification payload", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
+		if len(tokens) < 3 {
+			logger.Error("Unexpected App Store notification SignedTransactionInfo JWS token length")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		seg = tokens[1]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		jsonPayload, err = base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var signedTransactionInfo *AppleNotificationTransactionInfo
+		if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
+			logger.Error("Failed to json unmarshal App Store notification SignedTransactionInfo JWS token", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedTransactionInfo))
+
+		uid := uuid.Nil
+		if signedTransactionInfo.AppAccountToken != "" {
+			tokenUID, err := uuid.FromString(signedTransactionInfo.AppAccountToken)
+			if err != nil {
+				logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
+			} else {
+				uid = tokenUID
+			}
+		}
+
+		env := api.StoreEnvironment_PRODUCTION
+		if notificationPayload.Data.Environment == AppleSandboxEnvironment {
+			env = api.StoreEnvironment_SANDBOX
+		}
+
+		if signedTransactionInfo.ExpiresDateMs != 0 {
+			// Notification regarding a subscription.
+			if uid.IsNil() {
+				// No user ID was found in receipt, lookup a validated subscription.
+				s, err := GetSubscriptionByOriginalTransactionId(r.Context(), logger, db, signedTransactionInfo.OriginalTransactionId)
+				if err != nil || s == nil {
+					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+					return
+				}
+				uid = uuid.Must(uuid.FromString(s.UserId))
+			}
+
+			sub := &StorageSubscription{
+				UserID:                uid,
+				OriginalTransactionId: signedTransactionInfo.OriginalTransactionId,
+				Store:                 api.StoreProvider_APPLE_APP_STORE,
+				ProductId:             signedTransactionInfo.ProductId,
+				PurchaseTime:          ParseMillisecondUnixTimestamp(signedTransactionInfo.OriginalPurchaseDateMs),
+				Environment:           env,
+				ExpireTime:            ParseMillisecondUnixTimestamp(signedTransactionInfo.ExpiresDateMs),
+				RawNotification:       string(body),
+				RefundTime:            ParseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
+			}
+
+			if err = UpsertSubscription(r.Context(), db, sub); err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+					// User id was not found, ignore this notification
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				logger.Error("Failed to store App Store notification subscription data", zap.Error(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			active := false
+			if sub.ExpireTime.After(time.Now()) && sub.RefundTime.Unix() == 0 {
+				active = true
+			}
+
+			var suid string
+			if !sub.UserID.IsNil() {
+				suid = sub.UserID.String()
+			}
+
+			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
+				validatedSub := &api.ValidatedSubscription{
+					UserId:                suid,
+					ProductId:             sub.ProductId,
+					OriginalTransactionId: sub.OriginalTransactionId,
+					Store:                 api.StoreProvider_APPLE_APP_STORE,
+					PurchaseTime:          timestamppb.New(sub.PurchaseTime),
+					CreateTime:            timestamppb.New(sub.CreateTime),
+					UpdateTime:            timestamppb.New(sub.UpdateTime),
+					Environment:           env,
+					ExpiryTime:            timestamppb.New(sub.ExpireTime),
+					RefundTime:            timestamppb.New(sub.RefundTime),
+					ProviderResponse:      sub.RawResponse,
+					ProviderNotification:  sub.RawNotification,
+					Active:                active,
+				}
+
+				if a.subscriptionFn != nil {
+					if err = a.subscriptionFn(r.Context(), logger, db, a.nk, validatedSub, string(body)); err != nil {
+						logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
+						w.WriteHeader(http.StatusOK)
+						return
+					}
+				}
+			}
+
+		} else {
+			// Notification regarding a purchase.
+			if uid.IsNil() {
+				// No user ID was found in receipt, lookup a validated subscription.
+				p, err := GetPurchaseByTransactionId(r.Context(), logger, db, signedTransactionInfo.TransactionId)
+				if err != nil || p == nil {
+					// User validated purchase not found.
+					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+					return
+				}
+				uid = uuid.Must(uuid.FromString(p.UserId))
+			}
+
+			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
+				purchase := &StoragePurchase{
+					UserID:        uid,
+					Store:         api.StoreProvider_APPLE_APP_STORE,
+					ProductId:     signedTransactionInfo.ProductId,
+					TransactionId: signedTransactionInfo.TransactionId,
+					PurchaseTime:  ParseMillisecondUnixTimestamp(signedTransactionInfo.PurchaseDateMs),
+					RefundTime:    ParseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
+					Environment:   env,
+				}
+
+				dbPurchases, err := UpsertPurchases(r.Context(), db, []*StoragePurchase{purchase})
+				if err != nil {
+					logger.Error("Failed to store App Store notification purchase data")
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
+				if a.purchaseFn != nil {
+					dbPurchase := dbPurchases[0]
+					suid := dbPurchase.UserID.String()
+					if dbPurchase.UserID.IsNil() {
+						suid = ""
+					}
+					validatedPurchase := &api.ValidatedPurchase{
+						UserId:           suid,
+						ProductId:        signedTransactionInfo.ProductId,
+						TransactionId:    signedTransactionInfo.TransactionId,
+						Store:            api.StoreProvider_APPLE_APP_STORE,
+						CreateTime:       timestamppb.New(dbPurchase.CreateTime),
+						UpdateTime:       timestamppb.New(dbPurchase.UpdateTime),
+						PurchaseTime:     timestamppb.New(dbPurchase.PurchaseTime),
+						RefundTime:       timestamppb.New(dbPurchase.RefundTime),
+						ProviderResponse: string(body),
+						Environment:      env,
+						SeenBefore:       dbPurchase.SeenBefore,
+					}
+
+					if err = a.purchaseFn(r.Context(), logger, db, a.nk, validatedPurchase, string(body)); err != nil {
+						logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
+						w.WriteHeader(http.StatusOK)
+						return
+					}
+				}
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}, nil
+}
+
+func NewApplePurchaseProvider(nk runtime.NakamaModule, logger *zap.Logger) runtime.PurchaseProvider {
+	purchaseProvider := &ApplePurchaseProvider{
+		nk:     nk,
+		logger: logger,
+	}
+
+	return purchaseProvider
+}

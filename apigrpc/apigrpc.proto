@@ -677,6 +677,14 @@ service Nakama {
     };
   }
 
+  // Validate Purchase
+  rpc ValidatePurchase (api.ValidatePurchaseRequest) returns (api.ValidatePurchaseResponse) {
+    option (google.api.http) = {
+      put: "/v2/iap/purchase",
+      body: "*"
+    };
+  }
+
   // Validate Apple IAP Receipt
   rpc ValidatePurchaseApple (api.ValidatePurchaseAppleRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {

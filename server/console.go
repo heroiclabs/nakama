@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/iap"
 	"io"
 	"math"
 	"net"
@@ -281,7 +282,18 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	// Register public subscription callback endpoints
 	if config.GetIAP().Apple.NotificationsEndpointId != "" {
 		endpoint := fmt.Sprintf("/v2/console/apple/subscriptions/%s", config.GetIAP().Apple.NotificationsEndpointId)
-		grpcGatewayRouter.HandleFunc(endpoint, appleNotificationHandler(logger, db, runtime.PurchaseNotificationApple(), runtime.SubscriptionNotificationApple()))
+		provider, err := iap.GetPurchaseProvider("apple", runtime.purchaseProviders)
+		if err != nil && provider == nil {
+			startupLogger.Error("Console registration failed", zap.Error(err))
+		} else {
+			handler, err := provider.HandleRefund(ctx, logger, db)
+			if err != nil {
+				startupLogger.Error("Console registration failed", zap.Error(err))
+			}
+			grpcGatewayRouter.HandleFunc(endpoint, handler)
+		}
+
+		//grpcGatewayRouter.HandleFunc(endpoint, appleNotificationHandler(logger, db, runtime.PurchaseNotificationApple(), runtime.SubscriptionNotificationApple()))
 		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
 	}
 
@@ -291,7 +303,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
 	}
 
-	runtime.iapXboxManager.Init(runtime.PurchaseNotificationXbox())
+	initPurchaseProviderRefundHooks(logger, config, runtime)
 
 	// TODO: Register Huawei callbacks
 
@@ -408,6 +420,48 @@ SELECT collection FROM t WHERE collection IS NOT NULL`
 	}()
 
 	return s
+}
+
+func initPurchaseProviderRefundHooks(logger *zap.Logger, config Config, runtime *Runtime) error {
+	if runtime.refundFns == nil {
+		logger.Error("refundsFn map is nil")
+		return nil
+	}
+
+	for _, platform := range iap.AllPlatforms {
+		refundFn, err := iap.GetRefundFn(platform.String(), runtime.refundFns)
+		if err != nil {
+			return err
+		}
+
+		provider, err := iap.GetPurchaseProvider(platform.String(), runtime.purchaseProviders)
+		if err != nil {
+			logger.Error("Error getting Xbox provider", zap.Error(err))
+			return err
+		}
+
+		provider.Init(refundFn.Purchase, refundFn.Subscription)
+	}
+
+	return nil
+
+	//if config.GetIAP().Xbox.RefundCheckPeriodMin > 0 {
+	//	provider, err := iap.GetPurchaseProvider("xbox", runtime.purchaseProviders)
+	//	if err != nil {
+	//		logger.Error("Error getting Xbox provider", zap.Error(err))
+	//	}
+	//
+	//	provider.Init(runtime.purchaseNotificationXboxFunction, nil, nil)
+	//}
+	//
+	//if config.GetIAP().Apple.NotificationsEndpointId != "" {
+	//	provider, err := iap.GetPurchaseProvider("apple", runtime.purchaseProviders)
+	//	if err != nil {
+	//		logger.Error("Error getting Apple provider", zap.Error(err))
+	//	}
+	//
+	//	provider.Init(nil, runtime.purchaseNotificationAppleFunction, runtime.subscriptionNotificationAppleFunction)
+	//}
 }
 
 func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {

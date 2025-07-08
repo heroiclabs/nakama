@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"github.com/heroiclabs/nakama/v3/iap"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -51,7 +52,7 @@ func (s *ConsoleServer) GetSubscription(ctx context.Context, in *console.GetSubs
 		return nil, status.Error(codes.InvalidArgument, "original transaction id is required")
 	}
 
-	subscription, err := getSubscriptionByOriginalTransactionId(ctx, s.logger, s.db, in.GetOriginalTransactionId())
+	subscription, err := iap.GetSubscriptionByOriginalTransactionId(ctx, s.logger, s.db, in.GetOriginalTransactionId())
 	if err != nil || subscription == nil {
 		return nil, status.Error(codes.NotFound, "subscription not found")
 	}

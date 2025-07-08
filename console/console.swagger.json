@@ -3289,10 +3289,13 @@
         "HUAWEI_APP_GALLERY",
         "FACEBOOK_INSTANT_STORE",
         "XBOX_STORE",
-        "PLAYSTATION_STORE"
+        "PLAYSTATION_STORE",
+        "EPIC_STORE",
+        "STEAM_STORE",
+        "DISCORD_STORE"
       ],
       "default": "APPLE_APP_STORE",
-      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store\n - XBOX_STORE: Xbox Store\n - PLAYSTATION_STORE: Playstation Store",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store\n - XBOX_STORE: Xbox Store\n - PLAYSTATION_STORE: Playstation Store\n - EPIC_STORE: Epic Store\n - STEAM_STORE: Steam Store\n - DISCORD_STORE: Discord Store",
       "title": "Validation Provider,"
     },
     "apiSubscriptionList": {

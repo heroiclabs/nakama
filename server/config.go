@@ -1340,6 +1340,9 @@ type IAPConfig struct {
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
 	Xbox            *IAPXboxConfig            `yaml:"xbox" json:"xbox" usage:"Xbox Configuration."`
 	Playstation     *IAPPlaystationConfig     `yaml:"playstation" json:"playstation" usage:"Playstation Configuration."`
+	//Epic            *IAPEpicConfig            `yaml:"epic" json:"epic" usage:"Epic Configuration."`
+	//Steam           *IAPSteamConfig           `yaml:"steam" json:"steam" usage:"Steam Configuration."`
+	//Discord         *IAPDiscord               `yaml:"discord" json:"discord" usage:"Discord Configuration."`
 }
 
 func (cfg *IAPConfig) GetApple() runtime.IAPAppleConfig {
@@ -1361,6 +1364,12 @@ func (cfg *IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
 func (cfg *IAPConfig) GetXbox() runtime.IAPXboxConfig { return cfg.Xbox }
 
 func (cfg *IAPConfig) GetPlaystation() runtime.IAPPlaystationConfig { return cfg.Playstation }
+
+//func (cfg *IAPConfig) GetEpic() runtime.IAPEpicConfig { return cfg.Epic }
+//
+//func (cfg *IAPConfig) GetSteam() runtime.IAPSteamConfig { return cfg.Steam }
+//
+//func (cfg *IAPConfig) GetDiscord() runtime.IAPDiscordConfig { return cfg.Discord }
 
 func (cfg *IAPConfig) Clone() *IAPConfig {
 	if cfg == nil {
