@@ -1222,7 +1222,7 @@ type NakamaModule interface {
 	ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
 
-	PartyList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error)
+	PartyList(ctx context.Context, limit int, open *bool, showHidden bool, query, cursor string) ([]*api.Party, string, error)
 
 	StatusFollow(sessionID string, userIDs []string) error
 	StatusUnfollow(sessionID string, userIDs []string) error

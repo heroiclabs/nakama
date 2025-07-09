@@ -669,7 +669,7 @@ func (p *PartyHandler) DataSend(sessionID, node string, opCode int64, data []byt
 	return nil
 }
 
-func (p *PartyHandler) Update(sessionID, node, label string, open bool) error {
+func (p *PartyHandler) Update(sessionID, node, label string, open, hidden bool) error {
 	p.Lock()
 	if p.stopped {
 		p.Unlock()
@@ -682,7 +682,7 @@ func (p *PartyHandler) Update(sessionID, node, label string, open bool) error {
 		return runtime.ErrPartyNotLeader
 	}
 
-	if err := p.partyRegistry.LabelUpdate(p.ID, p.Node, label, open, p.MaxSize, p.CreateTime); err != nil {
+	if err := p.partyRegistry.LabelUpdate(p.ID, p.Node, label, open, hidden, p.MaxSize, p.CreateTime); err != nil {
 		p.Unlock()
 		return err
 	}
@@ -695,8 +695,9 @@ func (p *PartyHandler) Update(sessionID, node, label string, open bool) error {
 		Message: &rtapi.Envelope_PartyUpdate{
 			PartyUpdate: &rtapi.PartyUpdate{
 				PartyId: p.IDStr,
-				Label:   label,
 				Open:    open,
+				Hidden:  hidden,
+				Label:   label,
 			},
 		},
 	}

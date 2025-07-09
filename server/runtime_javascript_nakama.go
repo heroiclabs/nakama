@@ -473,17 +473,19 @@ func (n *RuntimeJavascriptNakamaModule) partyList(r *goja.Runtime) func(goja.Fun
 			*open = getJsBool(r, f.Argument(1))
 		}
 
+		showHidden := getJsBool(r, f.Argument(2))
+
 		var query string
-		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-			query = getJsString(r, f.Argument(2))
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			query = getJsString(r, f.Argument(3))
 		}
 
 		var cursor string
-		if !goja.IsUndefined(f.Argument(3)) && !goja.IsNull(f.Argument(3)) {
-			cursor = getJsString(r, f.Argument(3))
+		if !goja.IsUndefined(f.Argument(4)) && !goja.IsNull(f.Argument(4)) {
+			cursor = getJsString(r, f.Argument(4))
 		}
 
-		results, cursor, err := n.partyRegistry.PartyList(n.ctx, limit, open, query, cursor)
+		results, cursor, err := n.partyRegistry.PartyList(n.ctx, limit, open, showHidden, query, cursor)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list parties: %s", err.Error())))
 		}

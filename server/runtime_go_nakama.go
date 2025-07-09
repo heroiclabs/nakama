@@ -4465,12 +4465,12 @@ func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, ta
 // @return parties([]*api.Party) A list of parties matching the filtering criteria.
 // @return cursor(string) A cursor to fetch the next page of results.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PartyList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error) {
+func (n *RuntimeGoNakamaModule) PartyList(ctx context.Context, limit int, open *bool, hidden bool, query, cursor string) ([]*api.Party, string, error) {
 	if limit < 1 || limit > 100 {
 		return nil, "", errors.New("limit must be 1-100")
 	}
 
-	return n.partyRegistry.PartyList(ctx, limit, open, query, cursor)
+	return n.partyRegistry.PartyList(ctx, limit, open, hidden, query, cursor)
 }
 
 // @group satori

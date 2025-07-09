@@ -432,16 +432,18 @@ message Party {
   string party_id = 1;
   // Open flag.
   bool open = 2;
+  // Hidden flag.
+  bool hidden = 3;
   // Maximum number of party members.
-  int32 max_size = 3;
+  int32 max_size = 4;
   // Self.
-  UserPresence self = 4;
+  UserPresence self = 5;
   // Leader.
-  UserPresence leader = 5;
+  UserPresence leader = 6;
   // All current party members.
-  repeated UserPresence presences = 6;
+  repeated UserPresence presences = 7;
   // Label for party listing.
-  string label = 7;
+  string label = 8;
 }
 
 // Create a party.
@@ -452,6 +454,8 @@ message PartyCreate {
   int32 max_size = 2;
   // Label
   string label = 3;
+  // Whether the party is visible in party listings.
+  bool hidden = 4;
 }
 
 // Update a party label.
@@ -462,6 +466,8 @@ message PartyUpdate {
   string label = 2;
   // Change the party to open or closed.
   bool open = 3;
+  // Whether the party is visible in party listings.
+  bool hidden = 4;
 }
 
 // Join a party, or request to join if the party is not open.

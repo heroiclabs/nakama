@@ -44,7 +44,7 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 	}
 
 	// Handle through the party registry.
-	ph, err := p.partyRegistry.Create(incoming.Open, int(incoming.MaxSize), presence, incoming.Label)
+	ph, err := p.partyRegistry.Create(incoming.Open, incoming.Hidden, int(incoming.MaxSize), presence, incoming.Label)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -82,6 +82,7 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Party{Party: &rtapi.Party{
 		PartyId:   ph.IDStr,
 		Open:      incoming.Open,
+		Hidden:    incoming.Hidden,
 		MaxSize:   incoming.MaxSize,
 		Self:      presence,
 		Leader:    presence,
@@ -630,7 +631,7 @@ func (p *Pipeline) partyUpdate(logger *zap.Logger, session Session, envelope *rt
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	err = p.partyRegistry.PartyUpdate(session.Context(), partyID, node, session.ID().String(), p.node, incoming.Label, incoming.Open)
+	err = p.partyRegistry.PartyUpdate(session.Context(), partyID, node, session.ID().String(), p.node, incoming.Label, incoming.Open, incoming.Hidden)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),

@@ -36,7 +36,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrPartyNotFound = errors.New("party not found")
+var (
+	ErrPartyNotFound            = errors.New("party not found")
+	ErrPartyHiddenNonEmptyLabel = errors.New("party is hidden and label is not empty, invalid operation")
+)
 
 const (
 	PartyLabelMaxBytes = 2048
@@ -45,7 +48,7 @@ const (
 type PartyRegistry interface {
 	Init(matchmaker Matchmaker, tracker Tracker, streamManager StreamManager, router MessageRouter)
 
-	Create(open bool, maxSize int, leader *rtapi.UserPresence, label string) (*PartyHandler, error)
+	Create(open, hidden bool, maxSize int, leader *rtapi.UserPresence, label string) (*PartyHandler, error)
 	Delete(id uuid.UUID)
 
 	Join(id uuid.UUID, presences []*Presence)
@@ -60,9 +63,9 @@ type PartyRegistry interface {
 	PartyMatchmakerAdd(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, query string, minCount, maxCount, countMultiple int, stringProperties map[string]string, numericProperties map[string]float64) (string, []*PresenceID, error)
 	PartyMatchmakerRemove(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, ticket string) error
 	PartyDataSend(ctx context.Context, id uuid.UUID, node, sessionID, fromNode string, opCode int64, data []byte) error
-	PartyUpdate(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, label string, open bool) error
-	PartyList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error)
-	LabelUpdate(id uuid.UUID, node, label string, open bool, maxSize int, createTime time.Time) error
+	PartyUpdate(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, label string, open, hidden bool) error
+	PartyList(ctx context.Context, limit int, open *bool, showHidden bool, query, cursor string) ([]*api.Party, string, error)
+	LabelUpdate(id uuid.UUID, node, label string, open, hidden bool, maxSize int, createTime time.Time) error
 }
 
 type LocalPartyRegistry struct {
@@ -89,6 +92,7 @@ type PartyIndexEntry struct {
 	Id          string
 	Node        string
 	Open        bool
+	Hidden      bool
 	MaxSize     int
 	Label       map[string]any
 	LabelString string
@@ -170,39 +174,39 @@ func (p *LocalPartyRegistry) processUpdates(batch *index.Batch) {
 	batch.Reset()
 }
 
-func (p *LocalPartyRegistry) Create(open bool, maxSize int, presence *rtapi.UserPresence, label string) (*PartyHandler, error) {
+func (p *LocalPartyRegistry) Create(open, hidden bool, maxSize int, presence *rtapi.UserPresence, label string) (*PartyHandler, error) {
 	id := uuid.Must(uuid.NewV4())
 
 	var labelMap map[string]any
-	if label != "" {
-		if len(label) > PartyLabelMaxBytes {
-			return nil, runtime.ErrPartyLabelTooLong
-		}
-		if err := json.Unmarshal([]byte(label), &labelMap); err != nil {
-			p.logger.Error("Failed to unmarshal party label", zap.Error(err))
-			return nil, fmt.Errorf("failed to unmarshal party label: %s", err.Error())
-		}
+	if label == "" {
+		label = "{}"
+	}
+	if len(label) > PartyLabelMaxBytes {
+		return nil, runtime.ErrPartyLabelTooLong
+	}
+	if err := json.Unmarshal([]byte(label), &labelMap); err != nil {
+		p.logger.Error("Failed to unmarshal party label", zap.Error(err))
+		return nil, fmt.Errorf("failed to unmarshal party label: %s", err.Error())
 	}
 
 	partyHandler := NewPartyHandler(p.logger, p, p.matchmaker, p.tracker, p.streamManager, p.router, id, p.node, open, maxSize, presence)
 
 	p.parties.Store(id, partyHandler)
 
-	if labelMap != nil {
-		idStr := fmt.Sprintf("%v.%v", id.String(), p.node)
-		entry := &PartyIndexEntry{
-			Id:          idStr,
-			Node:        p.node,
-			Open:        open,
-			MaxSize:     maxSize,
-			Label:       labelMap,
-			LabelString: label,
-			CreateTime:  partyHandler.CreateTime,
-		}
-		p.pendingUpdatesMutex.Lock()
-		p.pendingUpdates[idStr] = entry
-		p.pendingUpdatesMutex.Unlock()
+	idStr := fmt.Sprintf("%v.%v", id.String(), p.node)
+	entry := &PartyIndexEntry{
+		Id:          idStr,
+		Node:        p.node,
+		Open:        open,
+		Hidden:      hidden,
+		MaxSize:     maxSize,
+		Label:       labelMap,
+		LabelString: label,
+		CreateTime:  partyHandler.CreateTime,
 	}
+	p.pendingUpdatesMutex.Lock()
+	p.pendingUpdates[idStr] = entry
+	p.pendingUpdatesMutex.Unlock()
 
 	return partyHandler, nil
 }
@@ -354,7 +358,10 @@ func (p *LocalPartyRegistry) PartyDataSend(ctx context.Context, id uuid.UUID, no
 	return ph.DataSend(sessionID, fromNode, opCode, data)
 }
 
-func (p *LocalPartyRegistry) PartyUpdate(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, label string, open bool) error {
+func (p *LocalPartyRegistry) PartyUpdate(ctx context.Context, id uuid.UUID, node, sessionID, fromNode, label string, open, hidden bool) error {
+	if !(label == "" || label == "{}") && hidden {
+		return ErrPartyHiddenNonEmptyLabel
+	}
 	if node != p.node {
 		return ErrPartyNotFound
 	}
@@ -363,42 +370,45 @@ func (p *LocalPartyRegistry) PartyUpdate(ctx context.Context, id uuid.UUID, node
 	if !found {
 		return ErrPartyNotFound
 	}
-	if err := ph.Update(sessionID, fromNode, label, open); err != nil {
+	if err := ph.Update(sessionID, fromNode, label, open, hidden); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (p *LocalPartyRegistry) LabelUpdate(id uuid.UUID, node, label string, open bool, maxSize int, createTime time.Time) error {
+func (p *LocalPartyRegistry) LabelUpdate(id uuid.UUID, node, label string, open, hidden bool, maxSize int, createTime time.Time) error {
+	if !(label == "" || label == "{}") && hidden {
+		return ErrPartyHiddenNonEmptyLabel
+	}
+
 	idStr := fmt.Sprintf("%v.%v", id.String(), node)
 	if label == "" {
-		// If the label is empty we remove it from the index.
-		p.pendingUpdatesMutex.Lock()
-		p.pendingUpdates[idStr] = nil
-		p.pendingUpdatesMutex.Unlock()
-	} else {
-		if len(label) > PartyLabelMaxBytes {
-			return runtime.ErrPartyLabelTooLong
-		}
-		var labelMap map[string]any
-		if err := json.Unmarshal([]byte(label), &labelMap); err != nil {
-			p.logger.Error("Failed to unmarshal party label", zap.Error(err))
-			return fmt.Errorf("failed to unmarshal party label: %s", err.Error())
-		}
-		entry := &PartyIndexEntry{
-			Id:          idStr,
-			Node:        node,
-			Open:        open,
-			Label:       labelMap,
-			MaxSize:     maxSize,
-			LabelString: label,
-			CreateTime:  createTime,
-		}
-		p.pendingUpdatesMutex.Lock()
-		p.pendingUpdates[idStr] = entry
-		p.pendingUpdatesMutex.Unlock()
+		label = "{}"
 	}
+
+	if len(label) > PartyLabelMaxBytes {
+		return runtime.ErrPartyLabelTooLong
+	}
+	var labelMap map[string]any
+	if err := json.Unmarshal([]byte(label), &labelMap); err != nil {
+		p.logger.Error("Failed to unmarshal party label", zap.Error(err))
+		return fmt.Errorf("failed to unmarshal party label: %s", err.Error())
+	}
+	entry := &PartyIndexEntry{
+		Id:          idStr,
+		Node:        node,
+		Open:        open,
+		Hidden:      hidden,
+		Label:       labelMap,
+		MaxSize:     maxSize,
+		LabelString: label,
+		CreateTime:  createTime,
+	}
+	p.pendingUpdatesMutex.Lock()
+	p.pendingUpdates[idStr] = entry
+	p.pendingUpdatesMutex.Unlock()
+
 	return nil
 }
 
@@ -409,7 +419,7 @@ type partyListCursor struct {
 	Limit  int
 }
 
-func (p *LocalPartyRegistry) PartyList(ctx context.Context, limit int, open *bool, query, cursor string) ([]*api.Party, string, error) {
+func (p *LocalPartyRegistry) PartyList(ctx context.Context, limit int, open *bool, showHidden bool, query, cursor string) ([]*api.Party, string, error) {
 	if !p.initialized.Load() {
 		// This check is only needed here as only this call should be possible during module initialization.
 		return nil, "", fmt.Errorf("party registry not initialized: listing cannot be performed in InitModule")
@@ -462,6 +472,17 @@ func (p *LocalPartyRegistry) PartyList(ctx context.Context, limit int, open *boo
 		openQuery := bluge.NewTermQuery(openField)
 		openQuery.SetField("open")
 		multiQuery.AddMust(openQuery)
+		parsedQuery = multiQuery
+	}
+
+	if !showHidden {
+		// Only show parties that are not hidden.
+		multiQuery := bluge.NewBooleanQuery()
+		multiQuery.AddMust(parsedQuery)
+		hiddenField := "F"
+		hiddenQuery := bluge.NewTermQuery(hiddenField)
+		hiddenQuery.SetField("hidden")
+		multiQuery.AddMust(hiddenQuery)
 		parsedQuery = multiQuery
 	}
 
@@ -521,6 +542,7 @@ func (p *LocalPartyRegistry) PartyList(ctx context.Context, limit int, open *boo
 		party := &api.Party{
 			PartyId: idxResult.Id,
 			Open:    idxResult.Open,
+			Hidden:  idxResult.Hidden,
 			MaxSize: int32(idxResult.MaxSize),
 			Label:   idxResult.LabelString,
 		}
@@ -553,11 +575,16 @@ func (p *LocalPartyRegistry) queryMatchesToEntries(dmi search.DocumentMatchItera
 				idxResult.Node = string(value)
 			case "open":
 				o := false
-				openString := string(value)
-				if openString == "T" {
+				if string(value) == "T" {
 					o = true
 				}
 				idxResult.Open = o
+			case "hidden":
+				h := false
+				if string(value) == "T" {
+					h = true
+				}
+				idxResult.Hidden = h
 			case "max_size":
 				read, vErr := bluge.DecodeNumericFloat64(value)
 				if vErr != nil {
@@ -597,8 +624,14 @@ func MapPartyIndexEntry(id string, in *PartyIndexEntry) (*bluge.Document, error)
 		openField = "T"
 	}
 
+	hiddenField := "F"
+	if in.Hidden {
+		hiddenField = "T"
+	}
+
 	rv.AddField(bluge.NewKeywordField("node", in.Node).StoreValue())
 	rv.AddField(bluge.NewKeywordField("open", openField).StoreValue())
+	rv.AddField(bluge.NewKeywordField("hidden", hiddenField).StoreValue())
 	rv.AddField(bluge.NewNumericField("max_size", float64(in.MaxSize)).StoreValue())
 	rv.AddField(bluge.NewDateTimeField("create_time", in.CreateTime).StoreValue().Sortable())
 	rv.AddField(bluge.NewStoredOnlyField("label_string", []byte(in.LabelString)))

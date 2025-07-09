@@ -1439,10 +1439,12 @@ message Party {
   string party_id = 1;
   // Open flag.
   bool open = 2;
+  // Hidden flag.
+  bool hidden = 3;
   // Maximum number of party members.
-  int32 max_size = 3;
+  int32 max_size = 4;
   // The party label, if any.
-  string label = 4;
+  string label = 5;
 }
 
 // A list of realtime matches.
