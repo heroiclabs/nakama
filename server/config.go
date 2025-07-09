@@ -1338,6 +1338,7 @@ type IAPConfig struct {
 	Google          *IAPGoogleConfig          `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
 	Huawei          *IAPHuaweiConfig          `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
+	Xbox            *IAPXboxConfig            `yaml:"xbox" json:"xbox" usage:"Xbox Configuration."`
 }
 
 func (cfg *IAPConfig) GetApple() runtime.IAPAppleConfig {
@@ -1355,6 +1356,8 @@ func (cfg *IAPConfig) GetHuawei() runtime.IAPHuaweiConfig {
 func (cfg *IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
 	return cfg.FacebookInstant
 }
+
+func (cfg *IAPConfig) GetXbox() runtime.IAPXboxConfig { return cfg.Xbox }
 
 func (cfg *IAPConfig) Clone() *IAPConfig {
 	if cfg == nil {
@@ -1535,6 +1538,13 @@ type IAPFacebookInstantConfig struct {
 func (i IAPFacebookInstantConfig) GetAppSecret() string {
 	return i.AppSecret
 }
+
+type IAPXboxConfig struct {
+	Token                string `yaml:"token" json:"token" usage:"Xbox credentials token"`
+	RefundCheckPeriodMin int    `yaml:"refund_check_period_min" json:"refund_check_period_min" usage:"Defines the polling interval in minutes of the azure queue that the microsoft clawback service uses."`
+}
+
+func (i IAPXboxConfig) GetToken() string { return i.Token }
 
 var _ runtime.GoogleAuthConfig = &GoogleAuthConfig{}
 

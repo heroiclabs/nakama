@@ -291,6 +291,8 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
 	}
 
+	runtime.iapXboxManager.Init(runtime.PurchaseNotificationXbox())
+
 	// TODO: Register Huawei callbacks
 
 	// pprof routes
