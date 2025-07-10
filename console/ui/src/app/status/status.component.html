@@ -41,18 +41,20 @@
   </tbody>
 </table>
 
-<form [formGroup]="rangeForm">
-  <div class="row no-gutters justify-content-end">
-    <div class="col-12 text-right">
-      <span>View:</span>
+<div class="row no-gutters align-items-center justify-content-end col-12 text-right">
+    <form [formGroup]="utcForm">
+      <span>UTC:</span>
+      <input type="checkbox" class="ml-1" id="isUTC" formControlName="isUTC" (change)=setIsUTC($event) value="true">
+    </form>
+    <form [formGroup]="rangeForm">
+      <span class="ml-3">View:</span>
       <div class="btn-group" ngbDropdown role="group">
         <select formControlName="rangeMinutes" class="custom-select custom-select-sm ml-3" (change)=setRange($event)>
           <option *ngFor="let key of rangesKeys | sortNumbers" value="{{key}}">{{ranges[key]}}</option>
         </select>
       </div>
-    </div>
-  </div>
-</form>
+    </form>
+</div>
 
 <div class="row">
   <div class="col-6 d-inline-flex justify-content-between align-items-center">
@@ -78,6 +80,7 @@
         [yAxis]="true"
         xAxisLabel="Time"
         yAxisLabel="Latency (ms)"
+        [xAxisTickFormatting]="xAxisFormatFn"
         [yScaleMin]="0"
         [roundDomains]="true"
         [results]="latencyGraphData">
@@ -108,6 +111,7 @@
         [yAxis]="true"
         xAxisLabel="Time"
         yAxisLabel="Request Count"
+        [xAxisTickFormatting]="xAxisFormatFn"
         [yScaleMin]="0"
         [roundDomains]="true"
         [results]="rateGraphData">
@@ -151,6 +155,7 @@
         [yAxis]="true"
         xAxisLabel="Time"
         yAxisLabel="Input (kb/s)"
+        [xAxisTickFormatting]="xAxisFormatFn"
         [yScaleMin]="0"
         [roundDomains]="true"
         [results]="inputGraphData">
@@ -181,6 +186,7 @@
         [yAxis]="true"
         xAxisLabel="Time"
         yAxisLabel="Output (kb/s)"
+        [xAxisTickFormatting]="xAxisFormatFn"
         [yScaleMin]="0"
         [roundDomains]="true"
         [results]="outputGraphData">
