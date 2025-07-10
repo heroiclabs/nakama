@@ -74,6 +74,7 @@ type RuntimeLuaNakamaModule struct {
 	sessionCache         SessionCache
 	statusRegistry       StatusRegistry
 	matchRegistry        MatchRegistry
+	partyRegistry        PartyRegistry
 	tracker              Tracker
 	metrics              Metrics
 	storageIndex         StorageIndex
@@ -93,7 +94,7 @@ type RuntimeLuaNakamaModule struct {
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -109,6 +110,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		sessionCache:         sessionCache,
 		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
+		partyRegistry:        partyRegistry,
 		tracker:              tracker,
 		metrics:              metrics,
 		streamManager:        streamManager,
@@ -311,6 +313,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_add":                               n.friendsAdd,
 		"friends_delete":                            n.friendsDelete,
 		"friends_block":                             n.friendsBlock,
+		"party_list":                                n.partyList,
 		"file_read":                                 n.fileRead,
 		"channel_message_send":                      n.channelMessageSend,
 		"channel_message_update":                    n.channelMessageUpdate,
@@ -10330,6 +10333,67 @@ func (n *RuntimeLuaNakamaModule) friendsBlock(l *lua.LState) int {
 	}
 
 	return 0
+}
+
+// @group parties
+// @summary List existing realtime parties and filter them by open or a query based on the set label.
+// @param limit(type=number, optional=true, default=10) The maximum number of parties to list.
+// @param open(type=bool, optional=true, default=null) Filter open or closed parties. If null, both open and closed parties are returned.
+// @param query(type=string, optional=true) Additional query parameters to shortlist parties.
+// @param cursor(type=string, optional=true) A cursor to fetch the next page of results.
+// @return parties(table) A list of parties matching the filtering criteria.
+// @return cursor(string) A cursor to fetch the next page of results.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) partyList(l *lua.LState) int {
+	// Parse limit.
+	limit := l.OptInt(1, 10)
+	if limit < 1 || limit > 100 {
+		l.ArgError(1, "expects limit to be 1-100")
+		return 0
+	}
+
+	var open *bool
+	if openIn := l.CheckAny(2); openIn.Type() != lua.LTNil {
+		if openIn.Type() != lua.LTBool {
+			l.ArgError(2, "expects open true/false or nil")
+			return 0
+		}
+		open = new(bool)
+		*open = lua.LVAsBool(openIn)
+	}
+
+	showHidden := l.CheckBool(3)
+
+	query := l.OptString(4, "")
+
+	cursor := l.OptString(5, "")
+
+	results, cursor, err := n.partyRegistry.PartyList(l.Context(), limit, open, showHidden, query, cursor)
+	if err != nil {
+		l.RaiseError("failed to list parties: %s", err.Error())
+		return 0
+	}
+
+	parties := l.CreateTable(len(results), 0)
+	for i, result := range results {
+		party := l.CreateTable(0, 4)
+		party.RawSetString("match_id", lua.LString(result.PartyId))
+		party.RawSetString("open", lua.LBool(result.Open))
+		party.RawSetString("maxSize", lua.LNumber(result.MaxSize))
+		party.RawSetString("label", lua.LString(result.Label))
+
+		parties.RawSetInt(i+1, party)
+	}
+
+	l.Push(parties)
+
+	if cursor != "" {
+		l.Push(lua.LString(cursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 2
 }
 
 // @group friends

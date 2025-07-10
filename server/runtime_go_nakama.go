@@ -54,6 +54,7 @@ type RuntimeGoNakamaModule struct {
 	sessionCache         SessionCache
 	statusRegistry       StatusRegistry
 	matchRegistry        MatchRegistry
+	partyRegistry        PartyRegistry
 	tracker              Tracker
 	metrics              Metrics
 	streamManager        StreamManager
@@ -66,7 +67,7 @@ type RuntimeGoNakamaModule struct {
 	storageIndex         StorageIndex
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -80,6 +81,7 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 		sessionCache:         sessionCache,
 		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
+		partyRegistry:        partyRegistry,
 		tracker:              tracker,
 		metrics:              metrics,
 		streamManager:        streamManager,
@@ -4452,6 +4454,23 @@ func (n *RuntimeGoNakamaModule) ChannelIdBuild(ctx context.Context, senderId, ta
 	}
 
 	return channelId, nil
+}
+
+// @group parties
+// @summary List existing realtime parties and filter them by open or a query based on the set label.
+// @param limit(type=number) The maximum number of parties to list.
+// @param open(type=*bool, default=null) Filter open or closed parties. If null, both open and closed parties are returned.
+// @param query(type=string) Additional query parameters to shortlist parties.
+// @param cursor(type=string) A cursor to fetch the next page of results.
+// @return parties([]*api.Party) A list of parties matching the filtering criteria.
+// @return cursor(string) A cursor to fetch the next page of results.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) PartyList(ctx context.Context, limit int, open *bool, hidden bool, query, cursor string) ([]*api.Party, string, error) {
+	if limit < 1 || limit > 100 {
+		return nil, "", errors.New("limit must be 1-100")
+	}
+
+	return n.partyRegistry.PartyList(ctx, limit, open, hidden, query, cursor)
 }
 
 // @group satori

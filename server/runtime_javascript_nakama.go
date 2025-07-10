@@ -76,6 +76,7 @@ type RuntimeJavascriptNakamaModule struct {
 	sessionCache         SessionCache
 	statusRegistry       StatusRegistry
 	matchRegistry        MatchRegistry
+	partyRegistry        PartyRegistry
 	streamManager        StreamManager
 	router               MessageRouter
 	storageIndex         StorageIndex
@@ -87,7 +88,7 @@ type RuntimeJavascriptNakamaModule struct {
 	satori runtime.Satori
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *RuntimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *RuntimeJavascriptNakamaModule {
 	return &RuntimeJavascriptNakamaModule{
 		ctx:                  context.Background(),
 		logger:               logger,
@@ -100,6 +101,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		sessionCache:         sessionCache,
 		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
+		partyRegistry:        partyRegistry,
 		router:               router,
 		tracker:              tracker,
 		metrics:              metrics,
@@ -308,6 +310,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"binaryToString":                       n.binaryToString(r),
 		"stringToBinary":                       n.stringToBinary(r),
 		"storageIndexList":                     n.storageIndexList(r),
+		"partyList":                            n.partyList(r),
 	}
 }
 
@@ -443,6 +446,69 @@ func (n *RuntimeJavascriptNakamaModule) storageIndexList(r *goja.Runtime) func(g
 		}
 
 		return r.ToValue(outObj)
+	}
+}
+
+// @group parties
+// @summary List existing realtime parties and filter them by open or a query based on the set label.
+// @param limit(type=number, optional=true, default=10) The maximum number of parties to list.
+// @param open(type=bool, optional=true, default=null) Filter open or closed parties. If null, both open and closed parties are returned.
+// @param query(type=string, optional=true) Additional query parameters to shortlist parties.
+// @param cursor(type=string, optional=true) A cursor to fetch the next page of results.
+// @return parties(nkruntime.Party[]) A list of parties matching the filtering criteria.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) partyList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		limit := 10
+		if f.Argument(0) != goja.Undefined() && f.Argument(0) != goja.Null() {
+			limit = int(getJsInt(r, f.Argument(0)))
+		}
+		if limit < 1 || limit > 100 {
+			panic(r.NewTypeError("limit must be 1-100"))
+		}
+
+		var open *bool
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			open = new(bool)
+			*open = getJsBool(r, f.Argument(1))
+		}
+
+		showHidden := getJsBool(r, f.Argument(2))
+
+		var query string
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			query = getJsString(r, f.Argument(3))
+		}
+
+		var cursor string
+		if !goja.IsUndefined(f.Argument(4)) && !goja.IsNull(f.Argument(4)) {
+			cursor = getJsString(r, f.Argument(4))
+		}
+
+		results, cursor, err := n.partyRegistry.PartyList(n.ctx, limit, open, showHidden, query, cursor)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to list parties: %s", err.Error())))
+		}
+
+		parties := make([]any, 0, len(results))
+		for _, party := range results {
+			partyData := map[string]any{
+				"partyId": party.PartyId,
+				"open":    party.Open,
+				"maxSize": party.MaxSize,
+				"label":   party.Label,
+			}
+
+			parties = append(parties, partyData)
+		}
+
+		partyList := r.NewObject()
+		_ = partyList.Set("parties", r.NewArray(parties...))
+		if cursor != "" {
+			_ = partyList.Set("cursor", cursor)
+		}
+
+		return r.ToValue(partyList)
 	}
 }
 

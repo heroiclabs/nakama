@@ -200,6 +200,7 @@ var (
 	ErrPartyAcceptRequest            = errors.New("party could not accept request")
 	ErrPartyRemove                   = errors.New("party could not remove")
 	ErrPartyRemoveSelf               = errors.New("party cannot remove self")
+	ErrPartyLabelTooLong             = errors.New("party label too long")
 
 	ErrGracePeriodExpired = errors.New("grace period expired")
 
@@ -858,6 +859,12 @@ type Initializer interface {
 	// RegisterAfterGetUsers can be used to perform additional logic after retrieving users.
 	RegisterAfterGetUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Users, in *api.GetUsersRequest) error) error
 
+	// RegisterBeforeListParties can be used to perform additional logic before retrieving parties.
+	RegisterBeforeListParties(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListPartiesRequest) (*api.ListPartiesRequest, error)) error
+
+	// RegisterAfterListParties can be used to perform additiona logic after retrieving parties.
+	RegisterAfterListParties(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.PartyList, in *api.ListPartiesRequest) error) error
+
 	// RegisterEvent can be used to define a function handler that triggers when custom events are received or generated.
 	RegisterEvent(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 
@@ -1214,6 +1221,8 @@ type NakamaModule interface {
 	ChannelMessageUpdate(ctx context.Context, channelID, messageID string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
+
+	PartyList(ctx context.Context, limit int, open *bool, showHidden bool, query, cursor string) ([]*api.Party, string, error)
 
 	StatusFollow(sessionID string, userIDs []string) error
 	StatusUnfollow(sessionID string, userIDs []string) error

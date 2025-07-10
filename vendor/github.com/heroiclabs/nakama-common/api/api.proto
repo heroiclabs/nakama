@@ -1420,3 +1420,37 @@ enum Operator {
   // Override the leaderboard operator with DECREMENT.
   DECREMENT = 4;
 }
+
+// A request to list parties.
+message ListPartiesRequest {
+  // Limit the number of returned parties.
+  google.protobuf.Int32Value limit = 1;
+  // Optionally filter by open/closed parties.
+  google.protobuf.BoolValue open = 2;
+  // Arbitrary label query.
+  google.protobuf.StringValue query = 3;
+  // Cursor for the next page of results, if any.
+  google.protobuf.StringValue cursor = 4;
+}
+
+// Incoming information about a party.
+message Party {
+  // Unique party identifier.
+  string party_id = 1;
+  // Open flag.
+  bool open = 2;
+  // Hidden flag.
+  bool hidden = 3;
+  // Maximum number of party members.
+  int32 max_size = 4;
+  // The party label, if any.
+  string label = 5;
+}
+
+// A list of realtime matches.
+message PartyList {
+  // A number of parties corresponding to a list operation.
+  repeated Party parties = 1;
+  // A cursor to send when retrieving the next page, if any.
+  string cursor = 2;
+}
