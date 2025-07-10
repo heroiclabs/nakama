@@ -298,11 +298,6 @@ func (p *LocalPartyRegistry) PartyClose(ctx context.Context, id uuid.UUID, node,
 		return ErrPartyNotFound
 	}
 
-	idStr := fmt.Sprintf("%v.%v", id.String(), p.node)
-	p.pendingUpdatesMutex.Lock()
-	p.pendingUpdates[idStr] = nil
-	p.pendingUpdatesMutex.Unlock()
-
 	return ph.Close(sessionID, fromNode)
 }
 
@@ -383,6 +378,7 @@ func (p *LocalPartyRegistry) LabelUpdate(id uuid.UUID, node, label string, open,
 	}
 
 	idStr := fmt.Sprintf("%v.%v", id.String(), node)
+
 	if label == "" {
 		label = "{}"
 	}
@@ -412,7 +408,7 @@ func (p *LocalPartyRegistry) LabelUpdate(id uuid.UUID, node, label string, open,
 	return nil
 }
 
-type partyListCursor struct {
+type PartyListCursor struct {
 	Query  string
 	Open   *bool
 	Offset int
@@ -433,9 +429,9 @@ func (p *LocalPartyRegistry) PartyList(ctx context.Context, limit int, open *boo
 		query = "*"
 	}
 
-	var idxCursor *partyListCursor
+	var idxCursor *PartyListCursor
 	if cursor != "" {
-		idxCursor = &partyListCursor{}
+		idxCursor = &PartyListCursor{}
 		cb, err := base64.RawURLEncoding.DecodeString(cursor)
 		if err != nil {
 			p.logger.Error("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
@@ -523,7 +519,7 @@ func (p *LocalPartyRegistry) PartyList(ctx context.Context, limit int, open *boo
 		if idxCursor != nil {
 			offset = idxCursor.Offset
 		}
-		newIdxCursor := &partyListCursor{
+		newIdxCursor := &PartyListCursor{
 			Open:   open,
 			Query:  query,
 			Offset: offset + limit,
