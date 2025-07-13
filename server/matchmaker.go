@@ -87,6 +87,9 @@ func (m *MatchmakerEntry) GetProperties() map[string]interface{} {
 func (m *MatchmakerEntry) GetPartyId() string {
 	return m.PartyId
 }
+func (m *MatchmakerEntry) GetCreateTime() int64 {
+	return m.CreateTime
+}
 
 type MatchmakerIndex struct {
 	Ticket     string                 `json:"ticket"`

@@ -6,9 +6,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add party listing API and party labeling support.
+- Matchmaker entry create time is now available for custom runtime processing functions.
 
 ### Changed
 - New Satori cache flag configuration parameter to require disabling by default.
+- Satori operations no longer carry an unnecessary session identifier.
+- Build with Go 1.24.5.
 
 ### Fixed
 - Fix an issue where a purchased Google Subscription would not be looked up by the LinkedPurchaseToken field contained in a notification.
