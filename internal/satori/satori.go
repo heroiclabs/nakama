@@ -158,21 +158,24 @@ func (s *sessionTokenClaims) GetSubject() (string, error) {
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
 	// Ensure we only log warnings when context is expected to contain values.
-	mode, ok := ctx.Value(runtime.RUNTIME_CTX_MODE).(string)
-	contextExpected := ok && s.strictContextModes[mode]
+	//mode, ok := ctx.Value(runtime.RUNTIME_CTX_MODE).(string)
+	//contextExpected := ok && s.strictContextModes[mode]
 
-	tid, ok := ctx.Value(ctxkeys.TokenIDKey{}).(string)
-	if !ok && contextExpected {
-		s.logger.Warn("satori request token id was not found in ctx")
-	}
-	tIssuedAt, ok := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
-	if !ok && contextExpected {
-		s.logger.Warn("satori request token issued at was not found in ctx")
-	}
-	tExpirySec, ok := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
-	if !ok && contextExpected {
-		s.logger.Warn("satori request token expires at was not found in ctx")
-	}
+	//tid, ok := ctx.Value(ctxkeys.TokenIDKey{}).(string)
+	//if !ok && contextExpected {
+	//	s.logger.Warn("satori request token id was not found in ctx")
+	//}
+	var tid string
+	tIssuedAt, _ := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
+	//tIssuedAt, ok := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
+	//if !ok && contextExpected {
+	//	s.logger.Warn("satori request token issued at was not found in ctx")
+	//}
+	tExpirySec, _ := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
+	//tExpirySec, ok := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
+	//if !ok && contextExpected {
+	//	s.logger.Warn("satori request token expires at was not found in ctx")
+	//}
 
 	timestamp := time.Now().UTC()
 	if tIssuedAt == 0 && tExpirySec > s.nakamaTokenExpirySec {

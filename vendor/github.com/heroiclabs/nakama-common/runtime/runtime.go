@@ -921,6 +921,7 @@ type MatchmakerEntry interface {
 	GetTicket() string
 	GetProperties() map[string]interface{}
 	GetPartyId() string
+	GetCreateTime() int64
 }
 
 type MatchData interface {
