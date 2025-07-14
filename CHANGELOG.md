@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.28.0] - 2025-07-14
 ### Added
 - Add party listing API and party labeling support.
 - Matchmaker entry create time is now available for custom runtime processing functions.
