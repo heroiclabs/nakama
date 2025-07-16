@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Fix an issue where the leaderboard ranks were sometimes incorrectly calculated when fetching a previous page of records.
 
 ## [3.28.0] - 2025-07-14
 ### Added
