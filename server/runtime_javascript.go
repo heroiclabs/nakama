@@ -657,7 +657,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	jsprotojsonMarshaler := &protojson.MarshalOptions{
 		UseProtoNames:   false,
 		UseEnumNumbers:  protojsonMarshaler.UseEnumNumbers,
-		EmitUnpopulated: protojsonMarshaler.EmitUnpopulated,
+		EmitUnpopulated: true, // Set to true not to omit default values from the values passed to the JS runtime. Does not affect API output.
 		Indent:          protojsonMarshaler.Indent,
 	}
 
