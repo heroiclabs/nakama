@@ -758,6 +758,12 @@ type Initializer interface {
 	// RegisterAfterListTournamentRecordsAroundOwner can be used to perform additional logic after listing tournament records.
 	RegisterAfterListTournamentRecordsAroundOwner(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.TournamentRecordList, in *api.ListTournamentRecordsAroundOwnerRequest) error) error
 
+	// RegisterBeforeValidatePurchase can be used to perform additional logic before generic validate purchase call
+	RegisterBeforeValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseRequest, error)) error
+
+	// RegisterAfterValidatePurchase can be used to perform additional logic after generic validate purchase call
+	RegisterAfterValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseRequest) error) error
+
 	// RegisterBeforeValidatePurchaseApple can be used to perform additional logic before validating an Apple Store IAP receipt.
 	RegisterBeforeValidatePurchaseApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseAppleRequest, error)) error
 

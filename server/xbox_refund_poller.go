@@ -41,11 +41,9 @@ func NewXboxRefundPoller(logger *zap.Logger, db *sql.DB, config Config) *LocalXb
 func (x *LocalXboxRefundPoller) Start(runtime *Runtime) {
 	period := x.config.GetIAP().Xbox.RefundCheckPeriodMin
 	if period != 0 {
-		if runtime.purchaseNotificationXboxFunction != nil && period != 0 {
 			go func() {
 				ticker := time.NewTicker(1 * time.Minute)
 				defer ticker.Stop()
-
 				for {
 					select {
 					case <-x.ctx.Done():

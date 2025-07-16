@@ -25,42 +25,44 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// // hit from validatepurchase rpc - should i just include the paramters for each platform in the validate purchase request struct
 func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	platform := iap.FromString(in.Platform)
+	purchaseProvider, err := iap.GetPurchaseProvider(in.Platform, s.runtime.purchaseProviders)
+	if err != nil {
+		s.logger.Warn("Purchase provider not found", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to get purchase provider")
+	}
 
-	// Before hook.
-	// should i just use one before hook for all the validate purchase calls
-	//if fn := s.runtime.BeforeValidatePurchase(); fn != nil {
-	//	beforeFn := func(clientIP, clientPort string) error {
-	//		result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
-	//		if err != nil {
-	//			return status.Error(code, err.Error())
-	//		}
-	//		if result == nil {
-	//			// If result is nil, requested resource is disabled.
-	//			s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
-	//			return status.Error(codes.NotFound, "Requested resource was not found.")
-	//		}
-	//		in = result
-	//		return nil
-	//	}
-	//
-	//	// Execute the before function lambda wrapped in a trace for stats measurement.
-	//	err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//}
+	err = validatePurchaseRequest(ctx, in, platform, s.config.GetIAP())
+	if err != nil {
+		s.logger.Warn("Purchase request validation failed", zap.Error(err))
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 
-	// still need to handle this for every platform
-	// create a validate inputs based on platform func
-	//if s.config.GetIAP().Apple.SharedPassword == "" {
-	//	return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
-	//}
+	if fn := s.runtime.BeforeValidatePurchase(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
 
-	// receipt can be empty for steam
-	if len(in.Receipt) < 1 {
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if iap.FromString(in.Platform) != iap.Steam && len(in.Receipt) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
 	}
 
@@ -69,29 +71,40 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 		persist = in.Persist.GetValue()
 	}
 
-	purchaseProvider, err := iap.GetPurchaseProvider(in.Platform, s.runtime.purchaseProviders)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to get purchase provider")
-	}
-
 	validation, err := purchaseProvider.PurchaseValidate(ctx, s.logger, s.db, in.Receipt, userID, persist, s.config.GetIAP())
 	if err != nil {
 		return nil, err
 	}
 
-	// After hook.
-	// should i just use one after hook for all the validate purchase calls
-	//
-	//if fn := s.runtime.AfterValidatePurchaseApple(); fn != nil {
-	//	afterFn := func(clientIP, clientPort string) error {
-	//		return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
-	//	}
-	//
-	//	// Execute the after function lambda wrapped in a trace for stats measurement.
-	//	traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
-	//}
+	if fn := s.runtime.AfterValidatePurchase(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, nil, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
 
 	return validation, err
+}
+
+func validatePurchaseRequest(ctx context.Context, in *api.ValidatePurchaseRequest, platform iap.Platform, config *IAPConfig) error {
+	switch platform {
+	case iap.Apple:
+		if config.Apple.SharedPassword == "" {
+			return status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
+		}
+	case iap.Xbox:
+		if config.Xbox.Token == "" {
+			return status.Error(codes.FailedPrecondition, "Xbox IAP is not configured.")
+		}
+	}
+
+	if iap.FromString(in.Platform) != iap.Steam && len(in.Receipt) < 1 {
+		return status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
+	}
+
+	return nil
 }
 
 func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error) {

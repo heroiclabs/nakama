@@ -26,19 +26,17 @@ import (
 
 type ApplePurchaseProvider struct {
 	nk             runtime.NakamaModule
-	logger         *zap.Logger
+	logger         runtime.Logger
 	purchaseFn     runtime.PurchaseRefundFn
 	subscriptionFn runtime.SubscriptionRefundFn
 }
 
-func (a ApplePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn, subscriptionRefundFn runtime.SubscriptionRefundFn) {
-	a.logger.Info("Initializing internal apple purchase provider")
+func (a *ApplePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn, subscriptionRefundFn runtime.SubscriptionRefundFn) {
 	a.purchaseFn = purchaseRefundFn
 	a.subscriptionFn = subscriptionRefundFn
 }
 
-func (a ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, receipt string, userID uuid.UUID, persist bool, config runtime.IAPConfig) (*api.ValidatePurchaseResponse, error) {
-	a.logger.Info("purcahse validate on apple internal purchase provider hit")
+func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, receipt string, userID uuid.UUID, persist bool, config runtime.IAPConfig) (*api.ValidatePurchaseResponse, error) {
 	validation, raw, err := ValidateReceiptApple(ctx, Httpc, receipt, config.GetApple().GetSharedPassword())
 	if err != nil {
 		if err != context.Canceled {
@@ -171,7 +169,7 @@ func (a ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *zap
 	}, nil
 }
 
-func (a ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	validation, rawResponse, err := ValidateReceiptApple(ctx, Httpc, receipt, password)
 	if err != nil {
 		if err != context.Canceled {
@@ -276,11 +274,11 @@ func (a ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, logger 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
 
-func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Logger, db *sql.DB) (http.HandlerFunc, error) {
+func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Logger, db *sql.DB) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			logger.Error("Failed to decode App Store notification body", zap.Error(err))
+			a.logger.Error("Failed to decode App Store notification body", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -288,14 +286,14 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 
 		var applePayload *AppleNotificationSignedPayload
 		if err := json.Unmarshal(body, &applePayload); err != nil {
-			logger.Error("Failed to unmarshal App Store notification", zap.Error(err))
+			a.logger.Error("Failed to unmarshal App Store notification", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		tokens := strings.Split(applePayload.SignedPayload, ".")
 		if len(tokens) < 3 {
-			logger.Error("Unexpected App Store notification JWS token length")
+			a.logger.Error("Unexpected App Store notification JWS token length")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -307,7 +305,7 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 
 		headerByte, err := base64.StdEncoding.DecodeString(seg)
 		if err != nil {
-			logger.Error("Failed to decode Apple notification JWS header", zap.Error(err))
+			a.logger.Error("Failed to decode Apple notification JWS header", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -319,7 +317,7 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 		var header Header
 
 		if err = json.Unmarshal(headerByte, &header); err != nil {
-			logger.Error("Failed to unmarshal Apple notification JWS header", zap.Error(err))
+			a.logger.Error("Failed to unmarshal Apple notification JWS header", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -328,7 +326,7 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 		for _, encodedCert := range header.X5c {
 			cert, err := base64.StdEncoding.DecodeString(encodedCert)
 			if err != nil {
-				logger.Error("Failed to decode Apple notification JWS header certificate", zap.Error(err))
+				a.logger.Error("Failed to decode Apple notification JWS header certificate", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -338,14 +336,14 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 		rootCert := x509.NewCertPool()
 		ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
 		if !ok {
-			logger.Error("Failed to parse Apple root certificate", zap.Error(err))
+			a.logger.Error("Failed to parse Apple root certificate", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		interCert, err := x509.ParseCertificate(certs[1])
 		if err != nil {
-			logger.Error("Failed to parse Apple notification intermediate certificate", zap.Error(err))
+			a.logger.Error("Failed to parse Apple notification intermediate certificate", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -354,7 +352,7 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 
 		cert, err := x509.ParseCertificate(certs[2])
 		if err != nil {
-			logger.Error("Failed to parse Apple notification certificate", zap.Error(err))
+			a.logger.Error("Failed to parse Apple notification certificate", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -366,7 +364,7 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 
 		_, err = cert.Verify(opts)
 		if err != nil {
-			logger.Error("Failed to validate Apple notification signature", zap.Error(err))
+			a.logger.Error("Failed to validate Apple notification signature", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -378,21 +376,21 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 
 		jsonPayload, err := base64.StdEncoding.DecodeString(seg)
 		if err != nil {
-			logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+			a.logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		var notificationPayload *AppleNotificationPayload
 		if err = json.Unmarshal(jsonPayload, &notificationPayload); err != nil {
-			logger.Error("Failed to json unmarshal App Store notification payload", zap.Error(err))
+			a.logger.Error("Failed to json unmarshal App Store notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
 		if len(tokens) < 3 {
-			logger.Error("Unexpected App Store notification SignedTransactionInfo JWS token length")
+			a.logger.Error("Unexpected App Store notification SignedTransactionInfo JWS token length")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -404,25 +402,25 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 
 		jsonPayload, err = base64.StdEncoding.DecodeString(seg)
 		if err != nil {
-			logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+			a.logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		var signedTransactionInfo *AppleNotificationTransactionInfo
 		if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
-			logger.Error("Failed to json unmarshal App Store notification SignedTransactionInfo JWS token", zap.Error(err))
+			a.logger.Error("Failed to json unmarshal App Store notification SignedTransactionInfo JWS token", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedTransactionInfo))
+		a.logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedTransactionInfo))
 
 		uid := uuid.Nil
 		if signedTransactionInfo.AppAccountToken != "" {
 			tokenUID, err := uuid.FromString(signedTransactionInfo.AppAccountToken)
 			if err != nil {
-				logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
+				a.logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
 			} else {
 				uid = tokenUID
 			}
@@ -464,7 +462,7 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 					w.WriteHeader(http.StatusOK)
 					return
 				}
-				logger.Error("Failed to store App Store notification subscription data", zap.Error(err))
+				a.logger.Error("Failed to store App Store notification subscription data", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -497,8 +495,8 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 				}
 
 				if a.subscriptionFn != nil {
-					if err = a.subscriptionFn(r.Context(), logger, db, a.nk, validatedSub, string(body)); err != nil {
-						logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
+					if err = a.subscriptionFn(r.Context(), a.logger, db, a.nk, validatedSub, string(body)); err != nil {
+						a.logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
 					}
@@ -531,7 +529,7 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 
 				dbPurchases, err := UpsertPurchases(r.Context(), db, []*StoragePurchase{purchase})
 				if err != nil {
-					logger.Error("Failed to store App Store notification purchase data")
+					a.logger.Error("Failed to store App Store notification purchase data")
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -556,8 +554,8 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 						SeenBefore:       dbPurchase.SeenBefore,
 					}
 
-					if err = a.purchaseFn(r.Context(), logger, db, a.nk, validatedPurchase, string(body)); err != nil {
-						logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
+					if err = a.purchaseFn(r.Context(), a.logger, db, a.nk, validatedPurchase, string(body)); err != nil {
+						a.logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
 					}
@@ -569,7 +567,7 @@ func (a ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Log
 	}, nil
 }
 
-func NewApplePurchaseProvider(nk runtime.NakamaModule, logger *zap.Logger) runtime.PurchaseProvider {
+func NewApplePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger) runtime.PurchaseProvider {
 	purchaseProvider := &ApplePurchaseProvider{
 		nk:     nk,
 		logger: logger,

@@ -166,13 +166,14 @@ const (
 )
 
 func (enum Platform) String() string {
-	return [...]string{"apple", "google", "facebook", "huawei"}[enum]
+	return [...]string{"unknown", "apple", "google", "facebook", "huawei", "xbox", "playstation", "steam", "epic", "discord"}[enum]
 }
 
-var AllPlatforms = []Platform{Apple, Google, Facebook, Huawei, Xbox, Playstation, Steam, Epic, Discord}
+var AllPlatforms = []Platform{Unknown, Apple, Google, Facebook, Huawei, Xbox, Playstation, Steam, Epic, Discord}
 
 func FromString(s string) Platform {
 	return map[string]Platform{
+		"unknown":     Unknown,
 		"apple":       Apple,
 		"google":      Google,
 		"facebook":    Facebook,
@@ -188,19 +189,19 @@ func FromString(s string) Platform {
 func GetPurchaseProvider(platform string, purchaseProviders map[string]runtime.PurchaseProvider) (runtime.PurchaseProvider, error) {
 	purchaseProvider, exists := purchaseProviders[platform]
 	if !exists || purchaseProvider == nil {
-		return nil, errors.New("purchase provider doesn't exist")
+		return nil, errors.New(fmt.Sprintf("purchase provider not set for platform %s", platform))
 	}
 
 	return purchaseProvider, nil
 }
 
-func GetRefundFn(platform string, refundFns map[string]runtime.RefundFns) (runtime.RefundFns, error) {
+func GetRefundFn(platform string, refundFns map[string]runtime.RefundFns) (*runtime.RefundFns, error) {
 	refundFn, exists := refundFns[platform]
-	if !exists || refundFn == nil {
-		return nil, errors.New("refund fn doesn't exist")
+	if !exists || &refundFn == nil {
+		return &refundFn, errors.New(fmt.Sprintf("refund fn not set for platform %s ", platform))
 	}
 
-	return refundFn, nil
+	return &refundFn, nil
 }
 
 type googleTokenCache struct {

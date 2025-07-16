@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/iap"
 	"net/http"
 	"path/filepath"
 	"plugin"
@@ -2352,6 +2353,37 @@ func (ri *RuntimeGoInitializer) RegisterAfterGetUsers(fn func(ctx context.Contex
 	return nil
 }
 
+func (ri *RuntimeGoInitializer) RegisterBeforeValidatePurchase(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseRequest, error)) error {
+	ri.beforeReq.beforeValidatePurchaseFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseRequest, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "validatepurchase", "mode": RuntimeExecutionModeBefore.String()}
+		result, fnErr := fn(ctx, ri.logger.WithFields(loggerFields), ri.db, ri.nk, in)
+		if fnErr != nil {
+			var runtimeErr *runtime.Error
+			if errors.As(fnErr, &runtimeErr) {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+func (ri *RuntimeGoInitializer) RegisterAfterValidatePurchase(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseRequest) error) error {
+	ri.afterReq.afterValidatePurchaseFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseRequest) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "validatepurchase", "mode": RuntimeExecutionModeAfter.String()}
+		return fn(ctx, ri.logger.WithFields(loggerFields), ri.db, ri.nk, out, in)
+	}
+	return nil
+}
+
 func (ri *RuntimeGoInitializer) RegisterBeforeValidatePurchaseApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseAppleRequest, error)) error {
 	ri.beforeReq.beforeValidatePurchaseAppleFunction = func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseAppleRequest, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, expiry, userID, username, vars, "", clientIP, clientPort, "")
@@ -3116,12 +3148,35 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		}
 	}
 
-	//provider := iap.NewApplePurchaseProvider(nk, logger)
-	//if provider != nil {
-	//	initializer.RegisterPurchaseProvider("apple", provider)
-	//}
+	RegisterBuiltInIAPPurchaseProviders(nk, runtimeLogger, initializer)
 
 	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, initializer.matchmakerOverride, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, initializer.shutdownFunction, initializer.purchaseNotificationApple, initializer.subscriptionNotificationApple, initializer.purchaseNotificationGoogle, initializer.subscriptionNotificationGoogle, initializer.purchaseNotificationXbox, initializer.storageIndexFunctions, initializer.fleetManager, initializer.purchaseProviders, initializer.refundFns, initializer.httpHandlers, events, matchNamesListFn, nil
+}
+
+func RegisterBuiltInIAPPurchaseProviders(nk runtime.NakamaModule, logger runtime.Logger, initializer runtime.Initializer) {
+	// Apple
+	provider := iap.NewApplePurchaseProvider(nk, logger)
+	if provider != nil {
+		initializer.RegisterPurchaseProvider("apple", provider)
+	}
+
+	//// Google
+	//provider = iap.NewGooglePurchaseProvider(nk, logger)
+	//if provider != nil {
+	//	initializer.RegisterPurchaseProvider("google", provider)
+	//}
+	//
+	//// Facebook
+	//provider = iap.NewFacebookPurchaseProvider(nk, logger)
+	//if provider != nil {
+	//	initializer.RegisterPurchaseProvider("facebook", provider)
+	//}
+	//
+	//// Huawei
+	//provider = iap.NewHuaweiPurchaseProvider(nk, logger)
+	//if provider != nil {
+	//	initializer.RegisterPurchaseProvider("huawei", provider)
+	//}
 }
 
 func CheckRuntimeProviderGo(logger *zap.Logger, rootPath string, paths []string) error {
