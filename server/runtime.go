@@ -211,10 +211,6 @@ type (
 	RuntimeAfterValidatePurchaseHuaweiFunction             func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseHuaweiRequest) error
 	RuntimeBeforeValidatePurchaseFacebookInstantFunction   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseFacebookInstantRequest) (*api.ValidatePurchaseFacebookInstantRequest, error, codes.Code)
 	RuntimeAfterValidatePurchaseFacebookInstantFunction    func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseFacebookInstantRequest) error
-	RuntimeBeforeValidatePurchaseXboxFunction              func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseXboxRequest) (*api.ValidatePurchaseXboxRequest, error, codes.Code)
-	RuntimeAfterValidatePurchaseXboxFunction               func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseXboxRequest) error
-	RuntimeBeforeValidatePurchasePlaystationFunction       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchasePlaystationRequest) (*api.ValidatePurchasePlaystationRequest, error, codes.Code)
-	RuntimeAfterValidatePurchasePlaystationFunction        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchasePlaystationRequest) error
 	RuntimeBeforeListSubscriptionsFunction                 func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error, codes.Code)
 	RuntimeAfterListSubscriptionsFunction                  func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.SubscriptionList, in *api.ListSubscriptionsRequest) error
 	RuntimeBeforeGetSubscriptionFunction                   func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetSubscriptionRequest) (*api.GetSubscriptionRequest, error, codes.Code)
@@ -233,11 +229,10 @@ type (
 
 	RuntimeLeaderboardResetFunction func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error
 
-	RuntimePurchaseNotificationAppleFunction      runtime.ApplePurchaseHookFn
-	RuntimeSubscriptionNotificationAppleFunction  runtime.AppleSubscriptionFn
+	RuntimePurchaseNotificationAppleFunction      func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error
+	RuntimeSubscriptionNotificationAppleFunction  func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
 	RuntimePurchaseNotificationGoogleFunction     func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error
 	RuntimeSubscriptionNotificationGoogleFunction func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
-	RuntimePurchaseNotificationXboxFunction       runtime.XboxRefundHookFn
 
 	RuntimeStorageIndexFilterFunction func(ctx context.Context, write *StorageOpWrite) (bool, error)
 
@@ -441,8 +436,6 @@ type RuntimeBeforeReqFunctions struct {
 	beforeValidateSubscriptionGoogleFunction        RuntimeBeforeValidateSubscriptionGoogleFunction
 	beforeValidatePurchaseHuaweiFunction            RuntimeBeforeValidatePurchaseHuaweiFunction
 	beforeValidatePurchaseFacebookInstantFunction   RuntimeBeforeValidatePurchaseFacebookInstantFunction
-	beforeValidatePurchaseXboxFunction              RuntimeBeforeValidatePurchaseXboxFunction
-	beforeValidatePurchasePlaystationFunction       RuntimeBeforeValidatePurchasePlaystationFunction
 	beforeListSubscriptionsFunction                 RuntimeBeforeListSubscriptionsFunction
 	beforeGetSubscriptionFunction                   RuntimeBeforeGetSubscriptionFunction
 	beforeGetMatchmakerStatsFunction                RuntimeBeforeGetMatchmakerStatsFunction
@@ -528,8 +521,6 @@ type RuntimeAfterReqFunctions struct {
 	afterValidateSubscriptionGoogleFunction        RuntimeAfterValidateSubscriptionGoogleFunction
 	afterValidatePurchaseHuaweiFunction            RuntimeAfterValidatePurchaseHuaweiFunction
 	afterValidatePurchaseFacebookInstantFunction   RuntimeAfterValidatePurchaseFacebookInstantFunction
-	afterValidatePurchaseXboxFunction              RuntimeAfterValidatePurchaseXboxFunction
-	afterValidatePurchasePlaystationFunction       RuntimeAfterValidatePurchasePlaystationFunction
 	afterListSubscriptionsFunction                 RuntimeAfterListSubscriptionsFunction
 	afterGetSubscriptionFunction                   RuntimeAfterGetSubscriptionFunction
 	afterGetMatchmakerStatsFunction                RuntimeAfterGetMatchmakerStatsFunction
@@ -551,11 +542,10 @@ type Runtime struct {
 
 	tournamentEndFunction                  RuntimeTournamentEndFunction
 	tournamentResetFunction                RuntimeTournamentResetFunction
-	purchaseNotificationAppleFunction      runtime.ApplePurchaseHookFn
-	subscriptionNotificationAppleFunction  runtime.AppleSubscriptionFn
+	purchaseNotificationAppleFunction      RuntimePurchaseNotificationAppleFunction
+	subscriptionNotificationAppleFunction  RuntimeSubscriptionNotificationAppleFunction
 	purchaseNotificationGoogleFunction     RuntimePurchaseNotificationGoogleFunction
 	subscriptionNotificationGoogleFunction RuntimeSubscriptionNotificationGoogleFunction
-	purchaseNotificationXboxFunction       runtime.XboxRefundHookFn
 
 	storageIndexFilterFunctions map[string]RuntimeStorageIndexFilterFunction
 
@@ -697,7 +687,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		config.GetSatori().CacheEnabled,
 	)
 
-	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goPurchaseNotificationXboxFn, goIndexFilterFns, fleetManager, purchaseProviders, refundFns, httpHandlers, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
+	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, fleetManager, purchaseProviders, refundFns, httpHandlers, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -1014,12 +1004,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if allBeforeReqFunctions.beforeValidatePurchaseFacebookInstantFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatepurchasefacebookinstant"))
-	}
-	if allBeforeReqFunctions.beforeValidatePurchaseXboxFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatepurchasexbox"))
-	}
-	if allBeforeReqFunctions.beforeValidatePurchasePlaystationFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatepurchaseplaystation"))
 	}
 	if allBeforeReqFunctions.beforeValidateSubscriptionAppleFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
@@ -1341,14 +1325,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaBeforeReqFns.beforeValidatePurchaseFacebookInstantFunction != nil {
 		allBeforeReqFunctions.beforeValidatePurchaseFacebookInstantFunction = luaBeforeReqFns.beforeValidatePurchaseFacebookInstantFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatepurchasefacebookinstant"))
-	}
-	if luaBeforeReqFns.beforeValidatePurchaseXboxFunction != nil {
-		allBeforeReqFunctions.beforeValidatePurchaseXboxFunction = luaBeforeReqFns.beforeValidatePurchaseXboxFunction
-		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatepurchasexbox"))
-	}
-	if luaBeforeReqFns.beforeValidatePurchasePlaystationFunction != nil {
-		allBeforeReqFunctions.beforeValidatePurchasePlaystationFunction = luaBeforeReqFns.beforeValidatePurchasePlaystationFunction
-		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatepurchaseplaystation"))
 	}
 	if luaBeforeReqFns.beforeValidateSubscriptionAppleFunction != nil {
 		allBeforeReqFunctions.beforeValidateSubscriptionAppleFunction = luaBeforeReqFns.beforeValidateSubscriptionAppleFunction
@@ -1676,14 +1652,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeValidatePurchaseFacebookInstantFunction = goBeforeReqFns.beforeValidatePurchaseFacebookInstantFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatepurchasefacebookinstant"))
 	}
-	if goBeforeReqFns.beforeValidatePurchaseXboxFunction != nil {
-		allBeforeReqFunctions.beforeValidatePurchaseXboxFunction = goBeforeReqFns.beforeValidatePurchaseXboxFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatepurchasexbox"))
-	}
-	if goBeforeReqFns.beforeValidatePurchasePlaystationFunction != nil {
-		allBeforeReqFunctions.beforeValidatePurchasePlaystationFunction = goBeforeReqFns.beforeValidatePurchasePlaystationFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatepurchaseplaystation"))
-	}
 	if goBeforeReqFns.beforeValidateSubscriptionAppleFunction != nil {
 		allBeforeReqFunctions.beforeValidateSubscriptionAppleFunction = goBeforeReqFns.beforeValidateSubscriptionAppleFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
@@ -1934,12 +1902,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if allAfterReqFunctions.afterValidatePurchaseFacebookInstantFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchasefacebookinstant"))
-	}
-	if allAfterReqFunctions.afterValidatePurchaseXboxFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchasexbox"))
-	}
-	if allAfterReqFunctions.afterValidatePurchasePlaystationFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchaseplaystation"))
 	}
 	if allAfterReqFunctions.afterValidateSubscriptionAppleFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
@@ -2257,14 +2219,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFns.afterValidatePurchaseFacebookInstantFunction != nil {
 		allAfterReqFunctions.afterValidatePurchaseFacebookInstantFunction = luaAfterReqFns.afterValidatePurchaseFacebookInstantFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatepurchasefacebookinstant"))
-	}
-	if luaAfterReqFns.afterValidatePurchaseXboxFunction != nil {
-		allAfterReqFunctions.afterValidatePurchaseXboxFunction = luaAfterReqFns.afterValidatePurchaseXboxFunction
-		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatepurchasexbox"))
-	}
-	if luaAfterReqFns.afterValidatePurchasePlaystationFunction != nil {
-		allAfterReqFunctions.afterValidatePurchasePlaystationFunction = luaAfterReqFns.afterValidatePurchasePlaystationFunction
-		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatepurchaseplaystation"))
 	}
 	if luaAfterReqFns.afterValidateSubscriptionAppleFunction != nil {
 		allAfterReqFunctions.afterValidateSubscriptionAppleFunction = luaAfterReqFns.afterValidateSubscriptionAppleFunction
@@ -2592,14 +2546,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allAfterReqFunctions.afterValidatePurchaseFacebookInstantFunction = goAfterReqFns.afterValidatePurchaseFacebookInstantFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatepurchasefacebookinstant"))
 	}
-	if goAfterReqFns.afterValidatePurchaseXboxFunction != nil {
-		allAfterReqFunctions.afterValidatePurchaseXboxFunction = goAfterReqFns.afterValidatePurchaseXboxFunction
-		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatepurchasexbox"))
-	}
-	if goAfterReqFns.afterValidatePurchasePlaystationFunction != nil {
-		allAfterReqFunctions.afterValidatePurchasePlaystationFunction = goAfterReqFns.afterValidatePurchasePlaystationFunction
-		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatepurchaseplaystation"))
-	}
 	if goAfterReqFns.afterValidateSubscriptionAppleFunction != nil {
 		allAfterReqFunctions.afterValidateSubscriptionAppleFunction = goAfterReqFns.afterValidateSubscriptionAppleFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
@@ -2680,7 +2626,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered JavaScript runtime Leaderboard Reset function invocation")
 	}
 
-	var allPurchaseNotificationAppleFunction runtime.ApplePurchaseHookFn
+	var allPurchaseNotificationAppleFunction RuntimePurchaseNotificationAppleFunction
 	switch {
 	case goPurchaseNotificationAppleFn != nil:
 		allPurchaseNotificationAppleFunction = goPurchaseNotificationAppleFn
@@ -2693,14 +2639,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered JavaScript runtime Purchase Notification Apple function invocation")
 	}
 
-	var allPurchaseNotificationXboxFunction runtime.XboxRefundHookFn
-	switch {
-	case goPurchaseNotificationXboxFn != nil:
-		allPurchaseNotificationXboxFunction = goPurchaseNotificationXboxFn
-		startupLogger.Info("Registered Go runtime Purchase Notification Xbox function invocation")
-	}
-
-	var allSubscriptionNotificationAppleFunction runtime.AppleSubscriptionFn
+	var allSubscriptionNotificationAppleFunction RuntimeSubscriptionNotificationAppleFunction
 	switch {
 	case goSubscriptionNotificationAppleFn != nil:
 		allSubscriptionNotificationAppleFunction = goSubscriptionNotificationAppleFn
@@ -2802,7 +2741,6 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		subscriptionNotificationAppleFunction:  allSubscriptionNotificationAppleFunction,
 		purchaseNotificationGoogleFunction:     allPurchaseNotificationGoogleFunction,
 		subscriptionNotificationGoogleFunction: allSubscriptionNotificationGoogleFunction,
-		purchaseNotificationXboxFunction:       allPurchaseNotificationXboxFunction,
 		storageIndexFilterFunctions:            allStorageIndexFilterFunctions,
 
 		httpHandlers: httpHandlers,
@@ -3548,21 +3486,6 @@ func (r *Runtime) AfterValidatePurchaseFacebookInstant() RuntimeAfterValidatePur
 	return r.afterReqFunctions.afterValidatePurchaseFacebookInstantFunction
 }
 
-func (r *Runtime) BeforeValidatePurchaseXbox() RuntimeBeforeValidatePurchaseXboxFunction {
-	return r.beforeReqFunctions.beforeValidatePurchaseXboxFunction
-}
-
-func (r *Runtime) AfterValidatePurchaseXbox() RuntimeAfterValidatePurchaseXboxFunction {
-	return r.afterReqFunctions.afterValidatePurchaseXboxFunction
-}
-
-func (r *Runtime) BeforeValidatePurchasePlaystation() RuntimeBeforeValidatePurchasePlaystationFunction {
-	return r.beforeReqFunctions.beforeValidatePurchasePlaystationFunction
-}
-
-func (r *Runtime) AfterValidatePurchasePlaystation() RuntimeAfterValidatePurchasePlaystationFunction {
-	return r.afterReqFunctions.afterValidatePurchasePlaystationFunction
-}
 func (r *Runtime) BeforeEvent() RuntimeBeforeEventFunction {
 	return r.beforeReqFunctions.beforeEventFunction
 }
@@ -3587,11 +3510,11 @@ func (r *Runtime) Shutdown() RuntimeShutdownFunction {
 	return r.shutdownFunction
 }
 
-func (r *Runtime) PurchaseNotificationApple() runtime.ApplePurchaseHookFn {
+func (r *Runtime) PurchaseNotificationApple() RuntimePurchaseNotificationAppleFunction {
 	return r.purchaseNotificationAppleFunction
 }
 
-func (r *Runtime) SubscriptionNotificationApple() runtime.AppleSubscriptionFn {
+func (r *Runtime) SubscriptionNotificationApple() RuntimeSubscriptionNotificationAppleFunction {
 	return r.subscriptionNotificationAppleFunction
 }
 
@@ -3605,10 +3528,6 @@ func (r *Runtime) StorageIndexFilterFunction(indexName string) RuntimeStorageInd
 
 func (r *Runtime) SubscriptionNotificationGoogle() RuntimeSubscriptionNotificationGoogleFunction {
 	return r.subscriptionNotificationGoogleFunction
-}
-
-func (r *Runtime) PurchaseNotificationXbox() runtime.XboxRefundHookFn {
-	return r.purchaseNotificationXboxFunction
 }
 
 func (r *Runtime) LeaderboardReset() RuntimeLeaderboardResetFunction {

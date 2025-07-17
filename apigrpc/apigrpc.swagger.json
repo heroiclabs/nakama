@@ -2381,39 +2381,6 @@
         ]
       }
     },
-    "/v2/iap/purchase/xbox": {
-      "post": {
-        "summary": "Validate Xbox Receipt",
-        "operationId": "Nakama_ValidatePurchaseXbox",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiValidatePurchaseResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/apiValidatePurchaseXboxRequest"
-            }
-          }
-        ],
-        "tags": [
-          "Nakama"
-        ]
-      }
-    },
     "/v2/iap/subscription": {
       "post": {
         "summary": "List user's subscriptions.",
@@ -5285,21 +5252,6 @@
         }
       },
       "description": "Validate IAP response."
-    },
-    "apiValidatePurchaseXboxRequest": {
-      "type": "object",
-      "properties": {
-        "productId": {
-          "type": "string"
-        },
-        "persist": {
-          "type": "boolean"
-        },
-        "platform": {
-          "type": "string"
-        }
-      },
-      "title": "Xbox Purchase validation request"
     },
     "apiValidateSubscriptionAppleRequest": {
       "type": "object",

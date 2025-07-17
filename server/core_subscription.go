@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
@@ -497,7 +496,7 @@ WHERE
 }
 
 // Store providers notification callback handler functions
-func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificationCallback runtime.ApplePurchaseHookFn, subscriptionNotificationCallback runtime.AppleSubscriptionFn) http.HandlerFunc {
+func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificationCallback RuntimePurchaseNotificationAppleFunction, subscriptionNotificationCallback RuntimeSubscriptionNotificationAppleFunction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {

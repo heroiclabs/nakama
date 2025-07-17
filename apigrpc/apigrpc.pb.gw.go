@@ -2870,30 +2870,6 @@ func local_request_Nakama_ValidatePurchaseFacebookInstant_0(ctx context.Context,
 	return msg, metadata, err
 }
 
-func request_Nakama_ValidatePurchaseXbox_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var (
-		protoReq api.ValidatePurchaseXboxRequest
-		metadata runtime.ServerMetadata
-	)
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	msg, err := client.ValidatePurchaseXbox(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
-	return msg, metadata, err
-}
-
-func local_request_Nakama_ValidatePurchaseXbox_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var (
-		protoReq api.ValidatePurchaseXboxRequest
-		metadata runtime.ServerMetadata
-	)
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	msg, err := server.ValidatePurchaseXbox(ctx, &protoReq)
-	return msg, metadata, err
-}
-
 func request_Nakama_WriteLeaderboardRecord_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq api.WriteLeaderboardRecordRequest
@@ -4710,26 +4686,6 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 		forward_Nakama_ValidatePurchaseFacebookInstant_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
-	mux.Handle(http.MethodPost, pattern_Nakama_ValidatePurchaseXbox_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		var stream runtime.ServerTransportStream
-		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.api.Nakama/ValidatePurchaseXbox", runtime.WithHTTPPathPattern("/v2/iap/purchase/xbox"))
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := local_request_Nakama_ValidatePurchaseXbox_0(annotatedContext, inboundMarshaler, server, req, pathParams)
-		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
-		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
-		if err != nil {
-			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		forward_Nakama_ValidatePurchaseXbox_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-	})
 	mux.Handle(http.MethodPost, pattern_Nakama_WriteLeaderboardRecord_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -6261,23 +6217,6 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 		forward_Nakama_ValidatePurchaseFacebookInstant_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
-	mux.Handle(http.MethodPost, pattern_Nakama_ValidatePurchaseXbox_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/nakama.api.Nakama/ValidatePurchaseXbox", runtime.WithHTTPPathPattern("/v2/iap/purchase/xbox"))
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := request_Nakama_ValidatePurchaseXbox_0(annotatedContext, inboundMarshaler, client, req, pathParams)
-		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
-		if err != nil {
-			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		forward_Nakama_ValidatePurchaseXbox_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-	})
 	mux.Handle(http.MethodPost, pattern_Nakama_WriteLeaderboardRecord_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -6433,7 +6372,6 @@ var (
 	pattern_Nakama_ValidateSubscriptionGoogle_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "iap", "subscription", "google"}, ""))
 	pattern_Nakama_ValidatePurchaseHuawei_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "iap", "purchase", "huawei"}, ""))
 	pattern_Nakama_ValidatePurchaseFacebookInstant_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "iap", "purchase", "facebookinstant"}, ""))
-	pattern_Nakama_ValidatePurchaseXbox_0              = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "iap", "purchase", "xbox"}, ""))
 	pattern_Nakama_WriteLeaderboardRecord_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v2", "leaderboard", "leaderboard_id"}, ""))
 	pattern_Nakama_WriteStorageObjects_0               = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v2", "storage"}, ""))
 	pattern_Nakama_WriteTournamentRecord_0             = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v2", "tournament", "tournament_id"}, ""))
@@ -6524,7 +6462,6 @@ var (
 	forward_Nakama_ValidateSubscriptionGoogle_0        = runtime.ForwardResponseMessage
 	forward_Nakama_ValidatePurchaseHuawei_0            = runtime.ForwardResponseMessage
 	forward_Nakama_ValidatePurchaseFacebookInstant_0   = runtime.ForwardResponseMessage
-	forward_Nakama_ValidatePurchaseXbox_0              = runtime.ForwardResponseMessage
 	forward_Nakama_WriteLeaderboardRecord_0            = runtime.ForwardResponseMessage
 	forward_Nakama_WriteStorageObjects_0               = runtime.ForwardResponseMessage
 	forward_Nakama_WriteTournamentRecord_0             = runtime.ForwardResponseMessage

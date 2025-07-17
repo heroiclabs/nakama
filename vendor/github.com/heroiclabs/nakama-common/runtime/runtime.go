@@ -800,18 +800,6 @@ type Initializer interface {
 	// RegisterAfterValidatePurchaseFacebookInstant can be used to perform additional logic after validating an Facebook Instant IAP receipt.
 	RegisterAfterValidatePurchaseFacebookInstant(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseFacebookInstantRequest) error) error
 
-	// RegisterBeforeValidatePurchaseXbox can be used to perform additional logic before validating a Xbox Store receipt
-	RegisterBeforeValidatePurchaseXbox(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseXboxRequest) (*api.ValidatePurchaseXboxRequest, error)) error
-
-	// RegisterAfterValidatePurchaseXbox can be used to perform additional logic after validating a Xbox Store receipt
-	RegisterAfterValidatePurchaseXbox(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseXboxRequest) error) error
-
-	// RegisterBeforeValidatePurchasePlaystation can be used to perform additonal logic before validating a Playstation Store receipt
-	RegisterBeforeValidatePurchasePlaystation(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchasePlaystationRequest) (*api.ValidatePurchasePlaystationRequest, error)) error
-
-	// RegisterAfterValidatePurchasePlaystation can be used to perform additional logic after validating a Playstation Store receipt
-	RegisterAfterValidatePurchasePlaystation(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchasePlaystationRequest) error) error
-	//
 	//// RegisterBeforeValidatePurchaseEpic can be used to perform additonal logic before validating a Epic Store receipt
 	//RegisterBeforeValidatePurchaseEpic(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseEpicRequest) (*api.ValidatePurchaseEpicRequest, error)) error
 	//
@@ -1375,10 +1363,6 @@ type FleetManagerInitializer interface {
 	Update(ctx context.Context, id string, playerCount int, metadata map[string]any) error
 	Delete(ctx context.Context, id string) error
 }
-
-type XboxRefundHookFn func(ctx context.Context, logger *zap.Logger, db *sql.DB, nk NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error
-type ApplePurchaseHookFn func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error
-type AppleSubscriptionFn func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
 
 type PurchaseProvider interface {
 	Init(purchaseRefundFn PurchaseRefundFn, subscriptionRefundFn SubscriptionRefundFn)
