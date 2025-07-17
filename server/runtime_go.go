@@ -2837,17 +2837,12 @@ func (ri *RuntimeGoInitializer) RegisterPurchaseProvider(platform string, purcha
 		return errors.New("platform already registered")
 	}
 
-	ri.logger.Info("platform not registered")
-
 	if nk, ok := ri.nk.(*RuntimeGoNakamaModule); ok {
-		ri.logger.Info("platform registered")
 		if ri.purchaseProviders == nil {
-			ri.logger.Info("ri purchase providers created")
 			ri.purchaseProviders = make(map[string]runtime.PurchaseProvider)
 		}
 
 		if nk.purchaseProviders == nil {
-			ri.logger.Info("nk purchase providers created")
 			nk.purchaseProviders = make(map[string]runtime.PurchaseProvider)
 		}
 
