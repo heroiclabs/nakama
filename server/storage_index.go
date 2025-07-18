@@ -26,10 +26,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/blugelabs/bluge"
-	"github.com/blugelabs/bluge/index"
-	"github.com/blugelabs/bluge/search"
 	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/bluge"
+	"github.com/heroiclabs/bluge/index"
+	"github.com/heroiclabs/bluge/search"
 	"github.com/heroiclabs/nakama-common/api"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"

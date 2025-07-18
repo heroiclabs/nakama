@@ -43,10 +43,7 @@ func (o SortOrder) Reverse() {
 
 func (o SortOrder) Compute(match *DocumentMatch) {
 	for _, sort := range o {
-		sortVal := sort.Value(match)
-		sortValCopy := make([]byte, len(sortVal))
-		copy(sortValCopy, sortVal)
-		match.SortValue = append(match.SortValue, sortValCopy)
+		match.SortValue = append(match.SortValue, sort.Value(match))
 	}
 }
 

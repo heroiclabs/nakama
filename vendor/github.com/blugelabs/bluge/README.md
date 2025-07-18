@@ -80,10 +80,6 @@ modern text indexing in go - [blugelabs.com](https://www.blugelabs.com/)
     }
 ```
 
-## Repobeats
-
-![Alt](https://repobeats.axiom.co/api/embed/0d7f8bc7927e15b07f1ae592eeff01811c5a2f80.svg "Repobeats analytics image")
-
 ## License
 
 Apache License Version 2.0

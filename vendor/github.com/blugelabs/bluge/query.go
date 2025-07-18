@@ -208,10 +208,9 @@ func (q *BooleanQuery) Searcher(i search.Reader, options search.SearcherOptions)
 	if mustSearcher == nil && shouldSearcher == nil && mustNotSearcher == nil {
 		// if all 3 are nil, return MatchNone
 		return searcher.NewMatchNoneSearcher(i, options)
-		// } else if mustSearcher == nil && shouldSearcher != nil && mustNotSearcher == nil {
-		//	DISABLED optimization, if only should searcher, just return it instead
-		//  While logically correct, returning the shouldSearcher looses the desired boost.
-		//	return shouldSearcher, nil
+	} else if mustSearcher == nil && shouldSearcher != nil && mustNotSearcher == nil {
+		// optimization, if only should searcher, just return it instead
+		return shouldSearcher, nil
 	} else if mustSearcher == nil && shouldSearcher == nil && mustNotSearcher != nil {
 		// if only mustNotSearcher, start with MatchAll
 		var err error
@@ -222,7 +221,7 @@ func (q *BooleanQuery) Searcher(i search.Reader, options search.SearcherOptions)
 	}
 
 	if q.scorer == nil {
-		q.scorer = similarity.NewCompositeSumScorerWithBoost(q.boost.Value())
+		q.scorer = similarity.NewCompositeSumScorer()
 	}
 
 	return searcher.NewBooleanSearcher(mustSearcher, shouldSearcher, mustNotSearcher, q.scorer, options)
@@ -285,7 +284,9 @@ type DateRangeQuery struct {
 // NewDateRangeQuery creates a new Query for ranges
 // of date values.
 // Date strings are parsed using the DateTimeParser configured in the
-//  top-level config.QueryDateTimeParser
+//
+//	top-level config.QueryDateTimeParser
+//
 // Either, but not both endpoints can be nil.
 func NewDateRangeQuery(start, end time.Time) *DateRangeQuery {
 	return NewDateRangeInclusiveQuery(start, end, true, false)
@@ -294,7 +295,9 @@ func NewDateRangeQuery(start, end time.Time) *DateRangeQuery {
 // NewDateRangeInclusiveQuery creates a new Query for ranges
 // of date values.
 // Date strings are parsed using the DateTimeParser configured in the
-//  top-level config.QueryDateTimeParser
+//
+//	top-level config.QueryDateTimeParser
+//
 // Either, but not both endpoints can be nil.
 // startInclusive and endInclusive control inclusion of the endpoints.
 func NewDateRangeInclusiveQuery(start, end time.Time, startInclusive, endInclusive bool) *DateRangeQuery {
@@ -519,11 +522,6 @@ func (q *GeoBoundingBoxQuery) Field() string {
 	return q.field
 }
 
-const (
-	minLon = -180
-	maxLon = 180
-)
-
 func (q *GeoBoundingBoxQuery) Searcher(i search.Reader, options search.SearcherOptions) (search.Searcher, error) {
 	field := q.field
 	if q.field == "" {
@@ -538,14 +536,14 @@ func (q *GeoBoundingBoxQuery) Searcher(i search.Reader, options search.SearcherO
 		// cross date line, rewrite as two parts
 
 		leftSearcher, err := searcher.NewGeoBoundingBoxSearcher(i,
-			minLon, q.bottomRight[1], q.bottomRight[0], q.topLeft[1],
+			-180, q.bottomRight[1], q.bottomRight[0], q.topLeft[1],
 			field, q.boost.Value(), q.scorer, similarity.NewCompositeSumScorer(),
 			options, true, geoPrecisionStep)
 		if err != nil {
 			return nil, err
 		}
 		rightSearcher, err := searcher.NewGeoBoundingBoxSearcher(i,
-			q.topLeft[0], q.bottomRight[1], maxLon, q.topLeft[1],
+			q.topLeft[0], q.bottomRight[1], 180, q.topLeft[1],
 			field, q.boost.Value(), q.scorer, similarity.NewCompositeSumScorer(),
 			options, true, geoPrecisionStep)
 		if err != nil {
@@ -1149,7 +1147,7 @@ func (q *NumericRangeQuery) Searcher(i search.Reader, options search.SearcherOpt
 		field = options.DefaultSearchField
 	}
 	if q.scorer == nil {
-		q.scorer = similarity.ConstantScorer(q.boost.Value())
+		q.scorer = similarity.ConstantScorer(1)
 	}
 	return searcher.NewNumericRangeSearcher(i, q.min, q.max, q.inclusiveMin, q.inclusiveMax, field,
 		q.boost.Value(), q.scorer, similarity.NewCompositeSumScorer(), options)

@@ -361,9 +361,6 @@ type builderNode struct {
 func (n *builderNode) reset() {
 	n.final = false
 	n.finalOutput = 0
-	for i := range n.trans {
-		n.trans[i] = emptyTransition
-	}
 	n.trans = n.trans[:0]
 	n.next = nil
 }
@@ -393,8 +390,6 @@ func (n *builderNode) equiv(o *builderNode) bool {
 	return true
 }
 
-var emptyTransition = transition{}
-
 type transition struct {
 	out  uint64
 	addr int
@@ -423,12 +418,13 @@ func outputCat(l, r uint64) uint64 {
 // |    Unfinished Nodes    |      Transfer once         |        Registry      |
 // |(not frozen builderNode)|-----builderNode is ------->| (frozen builderNode) |
 // +------------------------+      marked frozen         +----------------------+
-//              ^                                                     |
-//              |                                                     |
-//              |                                                   Put()
-//              | Get() on        +-------------------+             when
-//              +-new char--------| builderNode Pool  |<-----------evicted
-//                                +-------------------+
+//
+//	^                                                     |
+//	|                                                     |
+//	|                                                   Put()
+//	| Get() on        +-------------------+             when
+//	+-new char--------| builderNode Pool  |<-----------evicted
+//	                  +-------------------+
 type builderNodePool struct {
 	head *builderNode
 }

@@ -1,18 +1,18 @@
 # cloud.google.com/go/compute/metadata v0.6.0
 ## explicit; go 1.21
 cloud.google.com/go/compute/metadata
-# github.com/RoaringBitmap/roaring v0.9.4
+# github.com/RoaringBitmap/roaring v1.9.4
 ## explicit; go 1.14
 github.com/RoaringBitmap/roaring
 github.com/RoaringBitmap/roaring/internal
-# github.com/axiomhq/hyperloglog v0.0.0-20191112132149-a4c4c47bc57f
-## explicit; go 1.12
+# github.com/axiomhq/hyperloglog v0.2.5
+## explicit; go 1.23
 github.com/axiomhq/hyperloglog
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
-# github.com/bits-and-blooms/bitset v1.2.0
-## explicit; go 1.14
+# github.com/bits-and-blooms/bitset v1.22.0
+## explicit; go 1.16
 github.com/bits-and-blooms/bitset
 # github.com/blevesearch/go-porterstemmer v1.0.3
 ## explicit; go 1.13
@@ -20,20 +20,20 @@ github.com/blevesearch/go-porterstemmer
 # github.com/blevesearch/mmap-go v1.0.4
 ## explicit; go 1.13
 github.com/blevesearch/mmap-go
-# github.com/blevesearch/segment v0.9.0
-## explicit; go 1.13
+# github.com/blevesearch/segment v0.9.1
+## explicit; go 1.18
 github.com/blevesearch/segment
 # github.com/blevesearch/snowballstem v0.9.0
 ## explicit; go 1.13
 github.com/blevesearch/snowballstem
 github.com/blevesearch/snowballstem/english
-# github.com/blevesearch/vellum v1.0.7
-## explicit; go 1.13
+# github.com/blevesearch/vellum v1.1.0
+## explicit; go 1.21
 github.com/blevesearch/vellum
 github.com/blevesearch/vellum/levenshtein
 github.com/blevesearch/vellum/regexp
 github.com/blevesearch/vellum/utf8
-# github.com/blugelabs/bluge v0.2.2
+# github.com/blugelabs/bluge v0.1.7
 ## explicit; go 1.13
 github.com/blugelabs/bluge
 github.com/blugelabs/bluge/analysis
@@ -75,7 +75,7 @@ github.com/davecgh/go-spew/spew
 # github.com/dgryski/dgoogauth v0.0.0-20190221195224-5a805980a5f3
 ## explicit
 github.com/dgryski/dgoogauth
-# github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc
+# github.com/dgryski/go-metro v0.0.0-20250106013310-edb8663e5e33
 ## explicit
 github.com/dgryski/go-metro
 # github.com/dlclark/regexp2 v1.11.4
@@ -108,7 +108,7 @@ github.com/golang-jwt/jwt/v5
 # github.com/golang/mock v1.6.0
 ## explicit; go 1.11
 github.com/golang/mock/mockgen/model
-# github.com/golang/snappy v0.0.1
+# github.com/golang/snappy v1.0.0
 ## explicit
 github.com/golang/snappy
 # github.com/google/pprof v0.0.0-20230207041349-798e818bf904
@@ -139,7 +139,29 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
+<<<<<<< HEAD
 # github.com/heroiclabs/nakama-common v1.38.1-0.20250726152046-c5444522c76e
+=======
+# github.com/heroiclabs/bluge v0.2.3-0.20250718110331-4b1d3a1803b7
+## explicit; go 1.24.5
+github.com/heroiclabs/bluge
+github.com/heroiclabs/bluge/analysis
+github.com/heroiclabs/bluge/analysis/analyzer
+github.com/heroiclabs/bluge/analysis/lang/en
+github.com/heroiclabs/bluge/analysis/token
+github.com/heroiclabs/bluge/analysis/tokenizer
+github.com/heroiclabs/bluge/index
+github.com/heroiclabs/bluge/index/lock
+github.com/heroiclabs/bluge/index/mergeplan
+github.com/heroiclabs/bluge/numeric
+github.com/heroiclabs/bluge/numeric/geo
+github.com/heroiclabs/bluge/search
+github.com/heroiclabs/bluge/search/aggregations
+github.com/heroiclabs/bluge/search/collector
+github.com/heroiclabs/bluge/search/searcher
+github.com/heroiclabs/bluge/search/similarity
+# github.com/heroiclabs/nakama-common v1.38.0
+>>>>>>> a69df96b (Use forked bluge)
 ## explicit; go 1.24.5
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
@@ -175,6 +197,9 @@ github.com/jackc/pgx/v5/stdlib
 ## explicit; go 1.19
 github.com/jackc/puddle/v2
 github.com/jackc/puddle/v2/internal/genstack
+# github.com/kamstrup/intmap v0.5.1
+## explicit; go 1.23
+github.com/kamstrup/intmap
 # github.com/klauspost/compress v1.18.0
 ## explicit; go 1.22
 github.com/klauspost/compress
@@ -274,15 +299,15 @@ golang.org/x/oauth2/google/internal/stsexchange
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sync v0.13.0
+# golang.org/x/sync v0.16.0
 ## explicit; go 1.23.0
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.32.0
+# golang.org/x/sys v0.34.0
 ## explicit; go 1.23.0
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/text v0.24.0
+# golang.org/x/text v0.27.0
 ## explicit; go 1.23.0
 golang.org/x/text/cases
 golang.org/x/text/collate

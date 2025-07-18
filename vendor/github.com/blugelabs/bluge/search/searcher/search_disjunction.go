@@ -96,7 +96,12 @@ func optimizeCompositeSearcher(optimizationKind string,
 		return nil, err
 	}
 
-	return newTermSearcherFromReader(indexReader, optimized,
+	tfr, ok := optimized.(segment.PostingsIterator)
+	if !ok {
+		return nil, nil
+	}
+
+	return newTermSearcherFromReader(indexReader, tfr,
 		[]byte(optimizationKind), "*", 1.0, similarity.ConstantScorer(1), options)
 }
 

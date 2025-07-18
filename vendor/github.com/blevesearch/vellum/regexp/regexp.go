@@ -117,3 +117,14 @@ func (r *Regexp) Accept(s int, b byte) int {
 	}
 	return 0
 }
+
+func (r *Regexp) MatchesRegex(input string) bool {
+	currentState := r.Start()
+	index := 0
+	// Traverse the DFA while characters can still match
+	for r.CanMatch(currentState) && index < len(input) {
+		currentState = r.Accept(currentState, input[index])
+		index++
+	}
+	return index == len(input) && r.IsMatch(currentState)
+}

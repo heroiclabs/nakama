@@ -1,5 +1,7 @@
 # segment
 
+[![Tests](https://github.com/blevesearch/segment/workflows/Tests/badge.svg?branch=master&event=push)](https://github.com/blevesearch/segment/actions?query=workflow%3ATests+event%3Apush+branch%3Amaster)
+
 A Go library for performing Unicode Text Segmentation
 as described in [Unicode Standard Annex #29](http://www.unicode.org/reports/tr29/)
 

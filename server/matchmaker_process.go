@@ -20,7 +20,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/blugelabs/bluge"
+	"github.com/heroiclabs/bluge"
 	"go.uber.org/zap"
 )
 

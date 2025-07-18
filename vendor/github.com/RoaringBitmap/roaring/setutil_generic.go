@@ -1,3 +1,4 @@
+//go:build !arm64 || gccgo || appengine
 // +build !arm64 gccgo appengine
 
 package roaring

@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/heroiclabs/bluge"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
