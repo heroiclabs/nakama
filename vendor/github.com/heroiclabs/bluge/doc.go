@@ -34,36 +34,37 @@ Example Opening New Index, Indexing Data
 
 Example Getting Index Reader, Searching Data
 
-	    reader, err := writer.Reader()
-		if err != nil {
-			log.Fatalf("error getting index reader: %v", err)
-		}
-		defer reader.Close()
+    reader, err := writer.Reader()
+	if err != nil {
+		log.Fatalf("error getting index reader: %v", err)
+	}
+	defer reader.Close()
 
-		query := bluge.NewMatchQuery("bluge").SetField("name")
-		request := bluge.NewTopNSearch(10, query).
-			WithStandardAggregations()
-		documentMatchIterator, err := reader.Search(context.Background(), request)
-		if err != nil {
-			log.Fatalf("error executing search: %v", err)
-		}
-		match, err := documentMatchIterator.Next()
-		for err == nil && match != nil {
+	query := bluge.NewMatchQuery("bluge").SetField("name")
+	request := bluge.NewTopNSearch(10, query).
+		WithStandardAggregations()
+	documentMatchIterator, err := reader.Search(context.Background(), request)
+	if err != nil {
+		log.Fatalf("error executing search: %v", err)
+	}
+	match, err := documentMatchIterator.Next()
+	for err == nil && match != nil {
 
-			// load the identifier for this match
-			err = match.VisitStoredFields(func(field string, value []byte) bool {
-				if field == "_id" {
-					fmt.Printf("match: %s\n", string(value))
-				}
-				return true
-			})
-			if err != nil {
-				log.Fatalf("error loading stored fields: %v", err)
+		// load the identifier for this match
+		err = match.VisitStoredFields(func(field string, value []byte) bool {
+			if field == "_id" {
+				fmt.Printf("match: %s\n", string(value))
 			}
-			match, err = documentMatchIterator.Next()
-		}
+			return true
+		})
 		if err != nil {
-			log.Fatalf("error iterator document matches: %v", err)
+			log.Fatalf("error loading stored fields: %v", err)
 		}
+		match, err = documentMatchIterator.Next()
+	}
+	if err != nil {
+		log.Fatalf("error iterator document matches: %v", err)
+	}
+
 */
 package bluge

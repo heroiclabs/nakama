@@ -24,7 +24,7 @@ import (
 	"strconv"
 
 	"github.com/blevesearch/mmap-go"
-	segment "github.com/blugelabs/bluge_segment_api"
+	segment "github.com/heroiclabs/bluge/bluge_segment_api"
 	"github.com/heroiclabs/bluge/index/lock"
 )
 

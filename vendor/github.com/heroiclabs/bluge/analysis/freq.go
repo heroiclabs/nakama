@@ -15,9 +15,8 @@
 package analysis
 
 import (
+	segment "github.com/heroiclabs/bluge/bluge_segment_api"
 	"reflect"
-
-	segment "github.com/blugelabs/bluge_segment_api"
 )
 
 var reflectStaticSizeTokenLocation int

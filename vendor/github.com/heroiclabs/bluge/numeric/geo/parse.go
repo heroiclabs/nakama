@@ -26,24 +26,15 @@ const lonLatSliceLen = 2
 // interpret it is as geo point.  Supported formats:
 // Container:
 // slice length 2 (GeoJSON)
-//
-//	first element lon, second element lat
-//
+//  first element lon, second element lat
 // string (coordinates separated by comma, or a geohash)
-//
-//	first element lat, second element lon
-//
+//  first element lat, second element lon
 // map[string]interface{}
-//
-//	exact keys lat and lon or lng
-//
+//  exact keys lat and lon or lng
 // struct
-//
-//	w/exported fields case-insensitive match on lat and lon or lng
-//
+//  w/exported fields case-insensitive match on lat and lon or lng
 // struct
-//
-//	satisfying Later and Loner or Lnger interfaces
+//  satisfying Later and Loner or Lnger interfaces
 //
 // in all cases values must be some sort of numeric-like thing: int/uint/float
 func ExtractGeoPoint(thing interface{}) (lon, lat float64, success bool) {

@@ -33,36 +33,6 @@ github.com/blevesearch/vellum
 github.com/blevesearch/vellum/levenshtein
 github.com/blevesearch/vellum/regexp
 github.com/blevesearch/vellum/utf8
-# github.com/blugelabs/bluge v0.1.7
-## explicit; go 1.13
-github.com/blugelabs/bluge
-github.com/blugelabs/bluge/analysis
-github.com/blugelabs/bluge/analysis/analyzer
-github.com/blugelabs/bluge/analysis/lang/en
-github.com/blugelabs/bluge/analysis/token
-github.com/blugelabs/bluge/analysis/tokenizer
-github.com/blugelabs/bluge/index
-github.com/blugelabs/bluge/index/lock
-github.com/blugelabs/bluge/index/mergeplan
-github.com/blugelabs/bluge/numeric
-github.com/blugelabs/bluge/numeric/geo
-github.com/blugelabs/bluge/search
-github.com/blugelabs/bluge/search/aggregations
-github.com/blugelabs/bluge/search/collector
-github.com/blugelabs/bluge/search/searcher
-github.com/blugelabs/bluge/search/similarity
-# github.com/blugelabs/bluge_segment_api v0.2.0
-## explicit; go 1.14
-github.com/blugelabs/bluge_segment_api
-# github.com/blugelabs/ice v1.0.0
-## explicit; go 1.12
-github.com/blugelabs/ice
-# github.com/blugelabs/ice/v2 v2.0.1
-## explicit; go 1.16
-github.com/blugelabs/ice/v2
-# github.com/blugelabs/query_string v0.3.0
-## explicit; go 1.14
-github.com/blugelabs/query_string
 # github.com/caio/go-tdigest v3.1.0+incompatible
 ## explicit
 github.com/caio/go-tdigest
@@ -139,10 +109,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-<<<<<<< HEAD
-# github.com/heroiclabs/nakama-common v1.38.1-0.20250726152046-c5444522c76e
-=======
-# github.com/heroiclabs/bluge v0.2.3-0.20250718110331-4b1d3a1803b7
+# github.com/heroiclabs/bluge v0.2.3-0.20250726165527-cdd8babb8cd4
 ## explicit; go 1.24.5
 github.com/heroiclabs/bluge
 github.com/heroiclabs/bluge/analysis
@@ -150,18 +117,20 @@ github.com/heroiclabs/bluge/analysis/analyzer
 github.com/heroiclabs/bluge/analysis/lang/en
 github.com/heroiclabs/bluge/analysis/token
 github.com/heroiclabs/bluge/analysis/tokenizer
+github.com/heroiclabs/bluge/bluge_segment_api
+github.com/heroiclabs/bluge/ice
 github.com/heroiclabs/bluge/index
 github.com/heroiclabs/bluge/index/lock
 github.com/heroiclabs/bluge/index/mergeplan
 github.com/heroiclabs/bluge/numeric
 github.com/heroiclabs/bluge/numeric/geo
+github.com/heroiclabs/bluge/query_string
 github.com/heroiclabs/bluge/search
 github.com/heroiclabs/bluge/search/aggregations
 github.com/heroiclabs/bluge/search/collector
 github.com/heroiclabs/bluge/search/searcher
 github.com/heroiclabs/bluge/search/similarity
-# github.com/heroiclabs/nakama-common v1.38.0
->>>>>>> a69df96b (Use forked bluge)
+# github.com/heroiclabs/nakama-common v1.38.1-0.20250726152046-c5444522c76e
 ## explicit; go 1.24.5
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
@@ -203,13 +172,6 @@ github.com/kamstrup/intmap
 # github.com/klauspost/compress v1.18.0
 ## explicit; go 1.22
 github.com/klauspost/compress
-github.com/klauspost/compress/fse
-github.com/klauspost/compress/huff0
-github.com/klauspost/compress/internal/cpuinfo
-github.com/klauspost/compress/internal/le
-github.com/klauspost/compress/internal/snapref
-github.com/klauspost/compress/zstd
-github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/mschoch/smat v0.2.0
 ## explicit; go 1.13
 github.com/mschoch/smat

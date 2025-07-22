@@ -20,7 +20,7 @@ import (
 
 	"github.com/heroiclabs/bluge/index"
 
-	segment "github.com/blugelabs/bluge_segment_api"
+	segment "github.com/heroiclabs/bluge/bluge_segment_api"
 
 	"github.com/heroiclabs/bluge/search"
 )

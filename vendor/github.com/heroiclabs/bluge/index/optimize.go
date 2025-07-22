@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 
 	"github.com/RoaringBitmap/roaring"
-	segment "github.com/blugelabs/bluge_segment_api"
+	segment "github.com/heroiclabs/bluge/bluge_segment_api"
 )
 
 func (i *postingsIterator) Optimize(kind string,

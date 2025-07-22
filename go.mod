@@ -3,8 +3,6 @@ module github.com/heroiclabs/nakama/v3
 go 1.24.5
 
 require (
-	github.com/blugelabs/bluge_segment_api v0.2.0
-	github.com/blugelabs/query_string v0.3.0
 	github.com/dgryski/dgoogauth v0.0.0-20190221195224-5a805980a5f3
 	github.com/dop251/goja v0.0.0-20250309171923-bcd7cc6bf64c
 	github.com/felixge/httpsnoop v1.0.4
@@ -14,8 +12,8 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3
+	github.com/heroiclabs/bluge v0.2.3-0.20250726165527-cdd8babb8cd4
 	github.com/heroiclabs/nakama-common v1.38.1-0.20250726152046-c5444522c76e
-	github.com/heroiclabs/bluge v0.2.3-0.20250718110331-4b1d3a1803b7
 	github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/jackc/pgx/v5 v5.7.4
@@ -47,9 +45,6 @@ require (
 	github.com/blevesearch/segment v0.9.1 // indirect
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/blevesearch/vellum v1.1.0 // indirect
-	github.com/blugelabs/bluge v0.1.7 // indirect
-	github.com/blugelabs/ice v1.0.0 // indirect
-	github.com/blugelabs/ice/v2 v2.0.1 // indirect
 	github.com/caio/go-tdigest v3.1.0+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

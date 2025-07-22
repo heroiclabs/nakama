@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"math"
 
-	segment "github.com/blugelabs/bluge_segment_api"
+	segment "github.com/heroiclabs/bluge/bluge_segment_api"
 
 	"github.com/heroiclabs/bluge/numeric"
 	"github.com/heroiclabs/bluge/search"

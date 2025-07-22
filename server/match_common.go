@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	segment "github.com/blugelabs/bluge_segment_api"
-	queryStr "github.com/blugelabs/query_string"
 	"github.com/heroiclabs/bluge"
 	"github.com/heroiclabs/bluge/analysis/analyzer"
+	segment "github.com/heroiclabs/bluge/bluge_segment_api"
+	queryStr "github.com/heroiclabs/bluge/query_string"
 	"github.com/heroiclabs/bluge/search"
 	"github.com/heroiclabs/bluge/search/similarity"
 	"go.uber.org/zap"

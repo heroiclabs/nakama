@@ -18,7 +18,7 @@ import (
 	"math"
 
 	"github.com/RoaringBitmap/roaring"
-	segment "github.com/blugelabs/bluge_segment_api"
+	segment "github.com/heroiclabs/bluge/bluge_segment_api"
 )
 
 type unadornedPostingsIteratorBitmap struct {
