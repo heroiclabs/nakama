@@ -218,8 +218,9 @@ type (
 	RuntimeBeforeListPartiesFunction                       func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListPartiesRequest) (*api.ListPartiesRequest, error, codes.Code)
 	RuntimeAfterListPartiesFunction                        func(ctx context.Context, logger *zap.Logger, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.PartyList, in *api.ListPartiesRequest) error
 
-	RuntimeMatchmakerMatchedFunction  func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
-	RuntimeMatchmakerOverrideFunction func(ctx context.Context, candidateMatches [][]*MatchmakerEntry) (matches [][]*MatchmakerEntry)
+	RuntimeMatchmakerMatchedFunction   func(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error)
+	RuntimeMatchmakerProcessorFunction func(ctx context.Context, entries []*MatchmakerEntry) (matches [][]*MatchmakerEntry)
+	RuntimeMatchmakerOverrideFunction  func(ctx context.Context, candidateMatches [][]*MatchmakerEntry) (matches [][]*MatchmakerEntry)
 
 	RuntimeMatchCreateFunction       func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error)
 	RuntimeMatchDeferMessageFunction func(msg *DeferredMessage) error
@@ -261,6 +262,7 @@ const (
 	RuntimeExecutionModeMatch
 	RuntimeExecutionModeMatchmaker
 	RuntimeExecutionModeMatchmakerOverride
+	RuntimeExecutionModeMatchmakerProcessor
 	RuntimeExecutionModeMatchCreate
 	RuntimeExecutionModeTournamentEnd
 	RuntimeExecutionModeTournamentReset
@@ -291,6 +293,8 @@ func (e RuntimeExecutionMode) String() string {
 		return "matchmaker"
 	case RuntimeExecutionModeMatchmakerOverride:
 		return "matchmaker_override"
+	case RuntimeExecutionModeMatchmakerProcessor:
+		return "matchmaker_processor"
 	case RuntimeExecutionModeMatchCreate:
 		return "match_create"
 	case RuntimeExecutionModeTournamentEnd:
@@ -534,8 +538,9 @@ type Runtime struct {
 	beforeReqFunctions *RuntimeBeforeReqFunctions
 	afterReqFunctions  *RuntimeAfterReqFunctions
 
-	matchmakerMatchedFunction  RuntimeMatchmakerMatchedFunction
-	matchmakerOverrideFunction RuntimeMatchmakerOverrideFunction
+	matchmakerMatchedFunction   RuntimeMatchmakerMatchedFunction
+	matchmakerProcessorFunction RuntimeMatchmakerProcessorFunction
+	matchmakerOverrideFunction  RuntimeMatchmakerOverrideFunction
 
 	tournamentEndFunction                  RuntimeTournamentEndFunction
 	tournamentResetFunction                RuntimeTournamentResetFunction
@@ -682,7 +687,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		[]string{RuntimeExecutionModeRPC.String(), RuntimeExecutionModeBefore.String(), RuntimeExecutionModeAfter.String()},
 	)
 
-	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, fleetManager, httpHandlers, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
+	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goMatchmakerProcessorFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, fleetManager, httpHandlers, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -2582,6 +2587,13 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered Go runtime Matchmaker Override function invocation")
 	}
 
+	var allMatchmakerProcessorFunction RuntimeMatchmakerProcessorFunction
+	switch {
+	case goMatchmakerProcessorFn != nil:
+		allMatchmakerProcessorFunction = goMatchmakerProcessorFn
+		startupLogger.Info("Registered Go runtime Matchmaker Processor function invocation")
+	}
+
 	var allTournamentEndFunction RuntimeTournamentEndFunction
 	switch {
 	case goTournamentEndFn != nil:
@@ -2729,6 +2741,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		afterReqFunctions:                      allAfterReqFunctions,
 		matchmakerMatchedFunction:              allMatchmakerMatchedFunction,
 		matchmakerOverrideFunction:             allMatchmakerOverrideFunction,
+		matchmakerProcessorFunction:            allMatchmakerProcessorFunction,
 		tournamentEndFunction:                  allTournamentEndFunction,
 		tournamentResetFunction:                allTournamentResetFunction,
 		leaderboardResetFunction:               allLeaderboardResetFunction,

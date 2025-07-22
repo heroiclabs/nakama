@@ -353,6 +353,9 @@ type Initializer interface {
 	// RegisterMatchmakerOverride
 	RegisterMatchmakerOverride(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, candidateMatches [][]MatchmakerEntry) (matches [][]MatchmakerEntry)) error
 
+	// RegisterMatchmakerProcessor
+	RegisterMatchmakerProcessor(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, entries []MatchmakerEntry) (matches [][]MatchmakerEntry)) error
+
 	// RegisterMatch
 	RegisterMatch(name string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) (Match, error)) error
 
