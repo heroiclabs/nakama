@@ -26,14 +26,18 @@ import (
 
 func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	platform := iap.FromString(in.Platform)
 	purchaseProvider, err := iap.GetPurchaseProvider(in.Platform, s.runtime.purchaseProviders)
 	if err != nil {
 		s.logger.Warn("Purchase provider not found", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to get purchase provider")
 	}
 
-	err = validatePurchaseRequest(ctx, in, platform, s.config.GetIAP())
+	purchaseProvider.ValidateRequest(in)
+
+	if iap.FromString(in.Platform) != iap.Steam && len(in.Receipt) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
+	}
+
 	if err != nil {
 		s.logger.Warn("Purchase request validation failed", zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
@@ -85,25 +89,6 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 	}
 
 	return validation, err
-}
-
-func validatePurchaseRequest(ctx context.Context, in *api.ValidatePurchaseRequest, platform iap.Platform, config *IAPConfig) error {
-	switch platform {
-	case iap.Apple:
-		if config.Apple.SharedPassword == "" {
-			return status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
-		}
-	case iap.Xbox:
-		if config.Xbox.Token == "" {
-			return status.Error(codes.FailedPrecondition, "Xbox IAP is not configured.")
-		}
-	}
-
-	if iap.FromString(in.Platform) != iap.Steam && len(in.Receipt) < 1 {
-		return status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
-	}
-
-	return nil
 }
 
 func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error) {

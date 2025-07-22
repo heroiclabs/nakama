@@ -1355,6 +1355,7 @@ type PurchaseProvider interface {
 	PurchaseValidate(ctx context.Context, receipt, userID string, persist bool) (*api.ValidatePurchaseResponse, error)
 	SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error)
 	HandleRefund(ctx context.Context) (http.HandlerFunc, error)
+	ValidateRequest(in *api.ValidatePurchaseRequest) error
 }
 
 /*

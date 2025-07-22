@@ -580,6 +580,14 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerF
 	}, nil
 }
 
+func (a *ApplePurchaseProvider) ValidateRequest(in *api.ValidatePurchaseRequest) error {
+	if a.config.GetApple().GetSharedPassword() == "" {
+		return status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
+	}
+
+	return nil
+}
+
 func NewApplePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {
 	purchaseProvider := &ApplePurchaseProvider{
 		nk:        nk,
