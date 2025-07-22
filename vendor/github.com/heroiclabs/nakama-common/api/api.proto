@@ -1243,33 +1243,6 @@ message ValidatePurchaseFacebookInstantRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
-// Xbox Purchase validation request
-message ValidatePurchaseXboxRequest {
-  string productId = 1;
-  google.protobuf.BoolValue persist = 2;
-  string platform = 3;
-}
-
-// Playstation validation request
-message ValidatePurchasePlaystationRequest {
-  string entitlementLabel = 1;
-  google.protobuf.BoolValue persist = 2;
-}
-
-message ValidatePurchaseEpicRequest {
-  string nsCatalogItemId = 1;
-  google.protobuf.BoolValue persist = 2;
-}
-
-message ValidatePurchaseSteamRequest {
-  google.protobuf.BoolValue persist = 1;
-}
-
-message ValidatePurchaseDiscordRequest {
-  string entitlementId = 1;
-  google.protobuf.BoolValue persist = 2;
-}
-
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.

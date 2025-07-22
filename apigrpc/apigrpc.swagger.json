@@ -2217,7 +2217,7 @@
       }
     },
     "/v2/iap/purchase": {
-      "put": {
+      "post": {
         "summary": "Validate Purchase",
         "operationId": "Nakama_ValidatePurchase",
         "responses": {

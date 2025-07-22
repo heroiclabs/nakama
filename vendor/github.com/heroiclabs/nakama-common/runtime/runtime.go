@@ -90,14 +90,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid/v5"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -331,6 +329,12 @@ type Initializer interface {
 	*/
 	GetConfig() (Config, error)
 
+	/*
+		RegisterRpc registers a function with the given ID. This ID can be used within client code to send an RPC message to
+		execute the function and return the result. Results are always returned as a JSON string (or optionally empty string).
+
+		If there is an issue with the RPC call, return an empty string and the associated error which will be returned to the client.
+	*/
 	RegisterRpc(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload string) (string, error)) error
 
 	/*
@@ -381,7 +385,7 @@ type Initializer interface {
 	// RegisterSubscriptionNotificationGoogle
 	RegisterSubscriptionNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, subscription *api.ValidatedSubscription, providerPayload string) error) error
 
-	// RegisterPurchaseNotification
+	// RegisterRefundHandler
 	RegisterRefundHandler(platform string, purchaseRefundFn PurchaseRefundFn, subscriptionRefundFn SubscriptionRefundFn) error
 
 	// RegisterBeforeGetAccount is used to register a function invoked when the server receives the relevant request.
@@ -799,24 +803,6 @@ type Initializer interface {
 
 	// RegisterAfterValidatePurchaseFacebookInstant can be used to perform additional logic after validating an Facebook Instant IAP receipt.
 	RegisterAfterValidatePurchaseFacebookInstant(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseFacebookInstantRequest) error) error
-
-	//// RegisterBeforeValidatePurchaseEpic can be used to perform additonal logic before validating a Epic Store receipt
-	//RegisterBeforeValidatePurchaseEpic(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseEpicRequest) (*api.ValidatePurchaseEpicRequest, error)) error
-	//
-	//// RegisterAfterValidatePurchaseEpic can be used to perform additional logic after validating a Epic Store receipt
-	//RegisterAfterValidatePurchaseEpic(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseEpicRequest) error) error
-	//
-	//// RegisterBeforeValidatePurchaseSteam can be used to perform additonal logic before validating a Steam Store receipt
-	//RegisterBeforeValidatePurchaseSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseSteamRequest) (*api.ValidatePurchaseSteamRequest, error)) error
-	//
-	//// RegisterAfterValidatePurchaseSteam can be used to perform additional logic after validating a Steam Store receipt
-	//RegisterAfterValidatePurchaseSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseSteamRequest) error) error
-	//
-	//// RegisterBeforeValidatePurchaseDiscord can be used to perform additonal logic before validating a Discord Store receipt
-	//RegisterBeforeValidatePurchaseDiscord(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseDiscordRequest) (*api.ValidatePurchaseDiscordRequest, error)) error
-	//
-	//// RegisterAfterValidatePurchaseDiscord can be used to perform additional logic after validating a Discord Store receipt
-	//RegisterAfterValidatePurchaseDiscord(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseDiscordRequest) error) error
 
 	// RegisterBeforeListSubscriptions can be used to perform additional logic before listing subscriptions.
 	RegisterBeforeListSubscriptions(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error)) error
@@ -1366,10 +1352,9 @@ type FleetManagerInitializer interface {
 
 type PurchaseProvider interface {
 	Init(purchaseRefundFn PurchaseRefundFn, subscriptionRefundFn SubscriptionRefundFn)
-	// token and environment is config
-	PurchaseValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, receipt string, userID uuid.UUID, persist bool, config IAPConfig) (*api.ValidatePurchaseResponse, error)
-	SubscriptionValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error)
-	HandleRefund(ctx context.Context, logger *zap.Logger, db *sql.DB) (http.HandlerFunc, error)
+	PurchaseValidate(ctx context.Context, receipt, userID string, persist bool) (*api.ValidatePurchaseResponse, error)
+	SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error)
+	HandleRefund(ctx context.Context) (http.HandlerFunc, error)
 }
 
 /*

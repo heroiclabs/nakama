@@ -29,6 +29,9 @@ type ApplePurchaseProvider struct {
 	logger         runtime.Logger
 	purchaseFn     runtime.PurchaseRefundFn
 	subscriptionFn runtime.SubscriptionRefundFn
+	config         runtime.IAPConfig
+	db             *sql.DB
+	zapLogger      *zap.Logger
 }
 
 func (a *ApplePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn, subscriptionRefundFn runtime.SubscriptionRefundFn) {
@@ -36,16 +39,21 @@ func (a *ApplePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn, 
 	a.subscriptionFn = subscriptionRefundFn
 }
 
-func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, receipt string, userID uuid.UUID, persist bool, config runtime.IAPConfig) (*api.ValidatePurchaseResponse, error) {
-	validation, raw, err := ValidateReceiptApple(ctx, Httpc, receipt, config.GetApple().GetSharedPassword())
+func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, receipt, userID string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	uuidUserID, err := uuid.FromString(userID)
+	if err != nil {
+		a.logger.Error("Error parsing user ID, error: %v", err)
+	}
+
+	validation, raw, err := ValidateReceiptApple(ctx, Httpc, receipt, a.config.GetApple().GetSharedPassword())
 	if err != nil {
 		if err != context.Canceled {
 			var vErr *ValidationError
 			if errors.As(err, &vErr) {
-				logger.Debug("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				a.logger.Debug("Error validating Apple receipt, error: &v, status_code: %v, payload: %v", vErr.Err, vErr.StatusCode, vErr.Payload)
 				return nil, vErr
 			} else {
-				logger.Error("Error validating Apple receipt", zap.Error(err))
+				a.logger.Error("Error validating Apple receipt, error: %v", err)
 			}
 		}
 		return nil, err
@@ -80,7 +88,7 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *za
 
 		seenTransactionIDs[purchase.TransactionId] = struct{}{}
 		storagePurchases = append(storagePurchases, &StoragePurchase{
-			UserID:        userID,
+			UserID:        uuidUserID,
 			Store:         api.StoreProvider_APPLE_APP_STORE,
 			ProductId:     purchase.ProductID,
 			TransactionId: purchase.TransactionId,
@@ -106,7 +114,7 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *za
 
 		seenTransactionIDs[purchase.TransactionId] = struct{}{}
 		storagePurchases = append(storagePurchases, &StoragePurchase{
-			UserID:        userID,
+			UserID:        uuidUserID,
 			Store:         api.StoreProvider_APPLE_APP_STORE,
 			ProductId:     purchase.ProductId,
 			TransactionId: purchase.TransactionId,
@@ -139,7 +147,7 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *za
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := UpsertPurchases(ctx, db, storagePurchases)
+	purchases, err := UpsertPurchases(ctx, a.db, storagePurchases)
 	if err != nil {
 		return nil, err
 	}
@@ -169,16 +177,21 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, logger *za
 	}, nil
 }
 
-func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+	uuidUserID, err := uuid.FromString(userID)
+	if err != nil {
+		a.logger.Error("Error parsing user ID, error: %v", err)
+	}
+
 	validation, rawResponse, err := ValidateReceiptApple(ctx, Httpc, receipt, password)
 	if err != nil {
 		if err != context.Canceled {
 			var vErr *ValidationError
 			if errors.As(err, &vErr) {
-				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				a.logger.Error("Error validating Apple receipt, error: &v, status_code: %v, payload: %v", vErr.Err, vErr.StatusCode, vErr.Payload)
 				return nil, vErr
 			} else {
-				logger.Error("Error validating Apple receipt", zap.Error(err))
+				a.logger.Error("Error validating Apple receipt", zap.Error(err))
 			}
 		}
 		return nil, err
@@ -229,7 +242,7 @@ func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, logger
 	}
 
 	storageSub := &StorageSubscription{
-		UserID:                userID,
+		UserID:                uuidUserID,
 		Store:                 api.StoreProvider_APPLE_APP_STORE,
 		ProductId:             receiptInfo.ProductId,
 		OriginalTransactionId: receiptInfo.OriginalTransactionId,
@@ -256,7 +269,7 @@ func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, logger
 		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 	}
 
-	if err = UpsertSubscription(ctx, db, storageSub); err != nil {
+	if err = UpsertSubscription(ctx, a.db, storageSub); err != nil {
 		return nil, err
 	}
 
@@ -274,7 +287,7 @@ func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, logger
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
 
-func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Logger, db *sql.DB) (http.HandlerFunc, error) {
+func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -435,7 +448,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Lo
 			// Notification regarding a subscription.
 			if uid.IsNil() {
 				// No user ID was found in receipt, lookup a validated subscription.
-				s, err := GetSubscriptionByOriginalTransactionId(r.Context(), logger, db, signedTransactionInfo.OriginalTransactionId)
+				s, err := GetSubscriptionByOriginalTransactionId(r.Context(), a.zapLogger, a.db, signedTransactionInfo.OriginalTransactionId)
 				if err != nil || s == nil {
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
@@ -455,7 +468,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Lo
 				RefundTime:            ParseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
 			}
 
-			if err = UpsertSubscription(r.Context(), db, sub); err != nil {
+			if err = UpsertSubscription(r.Context(), a.db, sub); err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 					// User id was not found, ignore this notification
@@ -495,7 +508,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Lo
 				}
 
 				if a.subscriptionFn != nil {
-					if err = a.subscriptionFn(r.Context(), a.logger, db, a.nk, validatedSub, string(body)); err != nil {
+					if err = a.subscriptionFn(r.Context(), a.logger, a.db, a.nk, validatedSub, string(body)); err != nil {
 						a.logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
@@ -507,7 +520,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Lo
 			// Notification regarding a purchase.
 			if uid.IsNil() {
 				// No user ID was found in receipt, lookup a validated subscription.
-				p, err := GetPurchaseByTransactionId(r.Context(), logger, db, signedTransactionInfo.TransactionId)
+				p, err := GetPurchaseByTransactionId(r.Context(), a.zapLogger, a.db, signedTransactionInfo.TransactionId)
 				if err != nil || p == nil {
 					// User validated purchase not found.
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
@@ -527,7 +540,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Lo
 					Environment:   env,
 				}
 
-				dbPurchases, err := UpsertPurchases(r.Context(), db, []*StoragePurchase{purchase})
+				dbPurchases, err := UpsertPurchases(r.Context(), a.db, []*StoragePurchase{purchase})
 				if err != nil {
 					a.logger.Error("Failed to store App Store notification purchase data")
 					w.WriteHeader(http.StatusInternalServerError)
@@ -554,7 +567,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Lo
 						SeenBefore:       dbPurchase.SeenBefore,
 					}
 
-					if err = a.purchaseFn(r.Context(), a.logger, db, a.nk, validatedPurchase, string(body)); err != nil {
+					if err = a.purchaseFn(r.Context(), a.logger, a.db, a.nk, validatedPurchase, string(body)); err != nil {
 						a.logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
 						w.WriteHeader(http.StatusOK)
 						return
@@ -567,10 +580,13 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context, logger *zap.Lo
 	}, nil
 }
 
-func NewApplePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger) runtime.PurchaseProvider {
+func NewApplePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {
 	purchaseProvider := &ApplePurchaseProvider{
-		nk:     nk,
-		logger: logger,
+		nk:        nk,
+		logger:    logger,
+		db:        db,
+		config:    config,
+		zapLogger: zapLogger,
 	}
 
 	return purchaseProvider

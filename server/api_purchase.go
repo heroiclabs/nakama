@@ -70,7 +70,7 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := purchaseProvider.PurchaseValidate(ctx, s.logger, s.db, in.Receipt, userID, persist, s.config.GetIAP())
+	validation, err := purchaseProvider.PurchaseValidate(ctx, in.Receipt, userID.String(), persist)
 	if err != nil {
 		return nil, err
 	}

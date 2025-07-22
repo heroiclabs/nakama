@@ -94,6 +94,10 @@ type IAPConfig interface {
 	GetHuawei() IAPHuaweiConfig
 	GetFacebookInstant() IAPFacebookInstantConfig
 	GetXbox() IAPXboxConfig
+	GetPlaystation() IAPPlaystationConfig
+	GetSteam() IAPSteamConfig
+	GetEpic() IAPEpicConfig
+	GetDiscord() IAPDiscordConfig
 }
 
 type IAPAppleConfig interface {
@@ -128,22 +132,30 @@ type IAPFacebookInstantConfig interface {
 
 type IAPXboxConfig interface {
 	GetToken() string
+	GetRefundCheckPeriodMin() int
 }
 
 type IAPPlaystationConfig interface {
 	GetToken() string
+	GetEnvironment() string
+	GetPartnerName() string
+	GetStreamName() string
 }
 
 type IAPEpicConfig interface {
 	GetToken() string
+	GetAccountId() string
 }
 
 type IAPSteamConfig interface {
 	GetAppId() string
+	GetToken() string
+	GetPublisherKey() string
 }
 
 type IAPDiscordConfig interface {
 	GetToken() string
+	GetAppId() string
 }
 
 type GoogleAuthConfig interface {

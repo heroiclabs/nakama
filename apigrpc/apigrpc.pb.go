@@ -157,7 +157,7 @@ const file_apigrpc_proto_rawDesc = "" +
 	"\vUnlinkSteam\x12\x18.nakama.api.AccountSteam\x1a\x16.google.protobuf.Empty\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/account/unlink/steam\x12a\n" +
 	"\rUpdateAccount\x12 .nakama.api.UpdateAccountRequest\x1a\x16.google.protobuf.Empty\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\x1a\v/v2/account\x12f\n" +
 	"\vUpdateGroup\x12\x1e.nakama.api.UpdateGroupRequest\x1a\x16.google.protobuf.Empty\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\x1a\x14/v2/group/{group_id}\x12z\n" +
-	"\x10ValidatePurchase\x12#.nakama.api.ValidatePurchaseRequest\x1a$.nakama.api.ValidatePurchaseResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\x1a\x10/v2/iap/purchase\x12\x8a\x01\n" +
+	"\x10ValidatePurchase\x12#.nakama.api.ValidatePurchaseRequest\x1a$.nakama.api.ValidatePurchaseResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v2/iap/purchase\x12\x8a\x01\n" +
 	"\x15ValidatePurchaseApple\x12(.nakama.api.ValidatePurchaseAppleRequest\x1a$.nakama.api.ValidatePurchaseResponse\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v2/iap/purchase/apple\x12\x9a\x01\n" +
 	"\x19ValidateSubscriptionApple\x12,.nakama.api.ValidateSubscriptionAppleRequest\x1a(.nakama.api.ValidateSubscriptionResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v2/iap/subscription/apple\x12\x8d\x01\n" +
 	"\x16ValidatePurchaseGoogle\x12).nakama.api.ValidatePurchaseGoogleRequest\x1a$.nakama.api.ValidatePurchaseResponse\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v2/iap/purchase/google\x12\x9d\x01\n" +

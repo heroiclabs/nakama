@@ -3053,14 +3053,14 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		}
 	}
 
-	RegisterBuiltInIAPPurchaseProviders(nk, runtimeLogger, initializer)
+	RegisterBuiltInIAPPurchaseProviders(nk, runtimeLogger, initializer, db, config.GetIAP(), logger)
 
 	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, initializer.matchmakerOverride, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, initializer.shutdownFunction, initializer.purchaseNotificationApple, initializer.subscriptionNotificationApple, initializer.purchaseNotificationGoogle, initializer.subscriptionNotificationGoogle, initializer.storageIndexFunctions, initializer.fleetManager, initializer.purchaseProviders, initializer.refundFns, initializer.httpHandlers, events, matchNamesListFn, nil
 }
 
-func RegisterBuiltInIAPPurchaseProviders(nk runtime.NakamaModule, logger runtime.Logger, initializer runtime.Initializer) {
+func RegisterBuiltInIAPPurchaseProviders(nk runtime.NakamaModule, logger runtime.Logger, initializer runtime.Initializer, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) {
 	// Apple
-	provider := iap.NewApplePurchaseProvider(nk, logger)
+	provider := iap.NewApplePurchaseProvider(nk, logger, db, config, zapLogger)
 	if provider != nil {
 		initializer.RegisterPurchaseProvider("apple", provider)
 	}
