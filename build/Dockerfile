@@ -52,7 +52,7 @@ RUN mkdir -p /nakama/data/modules && \
     apt-get -y upgrade && \
     apt-get install -y --no-install-recommends ca-certificates tzdata iproute2 tini && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /nakama/
 COPY --from=builder "/go/build-out/nakama" /nakama/
