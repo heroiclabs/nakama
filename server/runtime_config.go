@@ -18,6 +18,7 @@ import "github.com/heroiclabs/nakama-common/runtime"
 
 type RuntimeConfigClone struct {
 	Name          string
+	FilePaths     []string
 	ShutdownGrace int
 	Logger        runtime.LoggerConfig
 	Session       runtime.SessionConfig
@@ -31,6 +32,10 @@ type RuntimeConfigClone struct {
 
 func (c *RuntimeConfigClone) GetName() string {
 	return c.Name
+}
+
+func (c *RuntimeConfigClone) GetConfigFilePath() []string {
+	return c.FilePaths
 }
 
 func (c *RuntimeConfigClone) GetShutdownGraceSec() int {

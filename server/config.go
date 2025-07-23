@@ -34,6 +34,7 @@ import (
 // Config interface is the Nakama core configuration.
 type Config interface {
 	GetName() string
+	GetConfigFilePath() []string
 	GetDataDir() string
 	GetShutdownGraceSec() int
 	GetLogger() *LoggerConfig
@@ -521,6 +522,7 @@ func (c *config) Clone() (Config, error) {
 
 	nc := &config{
 		Name:             c.Name,
+		Config:           c.Config,
 		Datadir:          c.Datadir,
 		ShutdownGraceSec: c.ShutdownGraceSec,
 		Logger:           c.Logger.Clone(),
@@ -548,6 +550,10 @@ func (c *config) Clone() (Config, error) {
 
 func (c *config) GetName() string {
 	return c.Name
+}
+
+func (c *config) GetConfigFilePath() []string {
+	return c.Config
 }
 
 func (c *config) GetDataDir() string {
@@ -643,6 +649,7 @@ func (c *config) GetRuntimeConfig() (runtime.Config, error) {
 
 	cn := &RuntimeConfigClone{
 		Name:          clone.GetName(),
+		FilePaths:     clone.GetConfigFilePath(),
 		ShutdownGrace: clone.GetShutdownGraceSec(),
 		Logger:        lc,
 		Session:       sc,
@@ -1338,11 +1345,6 @@ type IAPConfig struct {
 	Google          *IAPGoogleConfig          `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
 	Huawei          *IAPHuaweiConfig          `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
-	Xbox            *IAPXboxConfig            `yaml:"xbox" json:"xbox" usage:"Xbox Configuration."`
-	Playstation     *IAPPlaystationConfig     `yaml:"playstation" json:"playstation" usage:"Playstation Configuration."`
-	//Epic            *IAPEpicConfig            `yaml:"epic" json:"epic" usage:"Epic Configuration."`
-	//Steam           *IAPSteamConfig           `yaml:"steam" json:"steam" usage:"Steam Configuration."`
-	//Discord         *IAPDiscord               `yaml:"discord" json:"discord" usage:"Discord Configuration."`
 }
 
 func (cfg *IAPConfig) GetApple() runtime.IAPAppleConfig {
@@ -1360,16 +1362,6 @@ func (cfg *IAPConfig) GetHuawei() runtime.IAPHuaweiConfig {
 func (cfg *IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
 	return cfg.FacebookInstant
 }
-
-func (cfg *IAPConfig) GetXbox() runtime.IAPXboxConfig { return cfg.Xbox }
-
-func (cfg *IAPConfig) GetPlaystation() runtime.IAPPlaystationConfig { return cfg.Playstation }
-
-//func (cfg *IAPConfig) GetEpic() runtime.IAPEpicConfig { return cfg.Epic }
-//
-//func (cfg *IAPConfig) GetSteam() runtime.IAPSteamConfig { return cfg.Steam }
-//
-//func (cfg *IAPConfig) GetDiscord() runtime.IAPDiscordConfig { return cfg.Discord }
 
 func (cfg *IAPConfig) Clone() *IAPConfig {
 	if cfg == nil {
@@ -1548,20 +1540,6 @@ type IAPFacebookInstantConfig struct {
 func (i IAPFacebookInstantConfig) GetAppSecret() string {
 	return i.AppSecret
 }
-
-type IAPXboxConfig struct {
-	Token                string `yaml:"token" json:"token" usage:"Xbox credentials token"`
-	RefundCheckPeriodMin int    `yaml:"refund_check_period_min" json:"refund_check_period_min" usage:"Defines the polling interval in minutes of the azure queue that the microsoft clawback service uses."`
-}
-
-func (i IAPXboxConfig) GetToken() string { return i.Token }
-
-type IAPPlaystationConfig struct {
-	Token       string `yaml:"token" json:"token" usage:"Playstation credentials token"`
-	Environment string `yaml:"environment" json:"environment" usage:"IAP Playstation environment"`
-}
-
-func (i IAPPlaystationConfig) GetToken() string { return i.Token }
 
 var _ runtime.GoogleAuthConfig = &GoogleAuthConfig{}
 
