@@ -1352,7 +1352,7 @@ type FleetManagerInitializer interface {
 
 type PurchaseProvider interface {
 	Init(purchaseRefundFn PurchaseRefundFn, subscriptionRefundFn SubscriptionRefundFn)
-	PurchaseValidate(ctx context.Context, receipt, userID string, persist bool) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, persist bool) (*api.ValidatePurchaseResponse, error)
 	SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error)
 	HandleRefund(ctx context.Context) (http.HandlerFunc, error)
 	ValidateRequest(in *api.ValidatePurchaseRequest) error

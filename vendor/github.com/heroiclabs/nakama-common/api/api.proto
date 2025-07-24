@@ -1189,8 +1189,11 @@ message Users {
 
 message ValidatePurchaseRequest {
   string receipt = 1;
-  string platform = 2;
-  google.protobuf.BoolValue persist = 3;
+  string purchase = 2;
+  string signed_request = 3;
+  string signature = 4;
+  string platform = 5;
+  google.protobuf.BoolValue persist = 6;
 }
 
 // Apple IAP Purchases validation request

@@ -32,7 +32,10 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 		return nil, status.Error(codes.Internal, "failed to get purchase provider")
 	}
 
-	purchaseProvider.ValidateRequest(in)
+	err = purchaseProvider.ValidateRequest(in)
+	if err != nil {
+		return nil, err
+	}
 
 	if iap.FromString(in.Platform) != iap.Steam && len(in.Receipt) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
@@ -74,7 +77,7 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := purchaseProvider.PurchaseValidate(ctx, in.Receipt, userID.String(), persist)
+	validation, err := purchaseProvider.PurchaseValidate(ctx, in, userID.String(), persist)
 	if err != nil {
 		return nil, err
 	}

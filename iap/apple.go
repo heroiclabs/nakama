@@ -39,13 +39,13 @@ func (a *ApplePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn, 
 	a.subscriptionFn = subscriptionRefundFn
 }
 
-func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, receipt, userID string, persist bool) (*api.ValidatePurchaseResponse, error) {
+func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	uuidUserID, err := uuid.FromString(userID)
 	if err != nil {
 		a.logger.Error("Error parsing user ID, error: %v", err)
 	}
 
-	validation, raw, err := ValidateReceiptApple(ctx, Httpc, receipt, a.config.GetApple().GetSharedPassword())
+	validation, raw, err := ValidateReceiptApple(ctx, Httpc, in.Receipt, a.config.GetApple().GetSharedPassword())
 	if err != nil {
 		if err != context.Canceled {
 			var vErr *ValidationError

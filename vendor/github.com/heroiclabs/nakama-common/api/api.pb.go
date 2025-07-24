@@ -7201,8 +7201,11 @@ func (x *Users) GetUsers() []*User {
 type ValidatePurchaseRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Receipt       string                 `protobuf:"bytes,1,opt,name=receipt,proto3" json:"receipt,omitempty"`
-	Platform      string                 `protobuf:"bytes,2,opt,name=platform,proto3" json:"platform,omitempty"`
-	Persist       *wrapperspb.BoolValue  `protobuf:"bytes,3,opt,name=persist,proto3" json:"persist,omitempty"`
+	Purchase      string                 `protobuf:"bytes,2,opt,name=purchase,proto3" json:"purchase,omitempty"`
+	SignedRequest string                 `protobuf:"bytes,3,opt,name=signed_request,json=signedRequest,proto3" json:"signed_request,omitempty"`
+	Signature     string                 `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
+	Platform      string                 `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`
+	Persist       *wrapperspb.BoolValue  `protobuf:"bytes,6,opt,name=persist,proto3" json:"persist,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7240,6 +7243,27 @@ func (*ValidatePurchaseRequest) Descriptor() ([]byte, []int) {
 func (x *ValidatePurchaseRequest) GetReceipt() string {
 	if x != nil {
 		return x.Receipt
+	}
+	return ""
+}
+
+func (x *ValidatePurchaseRequest) GetPurchase() string {
+	if x != nil {
+		return x.Purchase
+	}
+	return ""
+}
+
+func (x *ValidatePurchaseRequest) GetSignedRequest() string {
+	if x != nil {
+		return x.SignedRequest
+	}
+	return ""
+}
+
+func (x *ValidatePurchaseRequest) GetSignature() string {
+	if x != nil {
+		return x.Signature
 	}
 	return ""
 }
@@ -9263,11 +9287,14 @@ const file_api_proto_rawDesc = "" +
 	"\x06MEMBER\x10\x02\x12\x10\n" +
 	"\fJOIN_REQUEST\x10\x03\"/\n" +
 	"\x05Users\x12&\n" +
-	"\x05users\x18\x01 \x03(\v2\x10.nakama.api.UserR\x05users\"\x85\x01\n" +
+	"\x05users\x18\x01 \x03(\v2\x10.nakama.api.UserR\x05users\"\xe6\x01\n" +
 	"\x17ValidatePurchaseRequest\x12\x18\n" +
 	"\areceipt\x18\x01 \x01(\tR\areceipt\x12\x1a\n" +
-	"\bplatform\x18\x02 \x01(\tR\bplatform\x124\n" +
-	"\apersist\x18\x03 \x01(\v2\x1a.google.protobuf.BoolValueR\apersist\"n\n" +
+	"\bpurchase\x18\x02 \x01(\tR\bpurchase\x12%\n" +
+	"\x0esigned_request\x18\x03 \x01(\tR\rsignedRequest\x12\x1c\n" +
+	"\tsignature\x18\x04 \x01(\tR\tsignature\x12\x1a\n" +
+	"\bplatform\x18\x05 \x01(\tR\bplatform\x124\n" +
+	"\apersist\x18\x06 \x01(\v2\x1a.google.protobuf.BoolValueR\apersist\"n\n" +
 	"\x1cValidatePurchaseAppleRequest\x12\x18\n" +
 	"\areceipt\x18\x01 \x01(\tR\areceipt\x124\n" +
 	"\apersist\x18\x02 \x01(\v2\x1a.google.protobuf.BoolValueR\apersist\"r\n" +
