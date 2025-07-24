@@ -3065,23 +3065,23 @@ func RegisterBuiltInIAPPurchaseProviders(nk runtime.NakamaModule, logger runtime
 		initializer.RegisterPurchaseProvider("apple", provider)
 	}
 
-	//// Google
-	//provider = iap.NewGooglePurchaseProvider(nk, logger)
-	//if provider != nil {
-	//	initializer.RegisterPurchaseProvider("google", provider)
-	//}
-	//
-	//// Facebook
-	//provider = iap.NewFacebookPurchaseProvider(nk, logger)
-	//if provider != nil {
-	//	initializer.RegisterPurchaseProvider("facebook", provider)
-	//}
-	//
-	//// Huawei
-	//provider = iap.NewHuaweiPurchaseProvider(nk, logger)
-	//if provider != nil {
-	//	initializer.RegisterPurchaseProvider("huawei", provider)
-	//}
+	// Google
+	provider = iap.NewGooglePurchaseProvider(nk, logger, db, config, zapLogger)
+	if provider != nil {
+		initializer.RegisterPurchaseProvider("google", provider)
+	}
+
+	// Facebook
+	provider = iap.NewFacebookPurchaseProvider(nk, logger, db, config, zapLogger)
+	if provider != nil {
+		initializer.RegisterPurchaseProvider("facebook", provider)
+	}
+
+	// Huawei
+	provider = iap.NewHuaweiPurchaseProvider(nk, logger, db, config, zapLogger)
+	if provider != nil {
+		initializer.RegisterPurchaseProvider("huawei", provider)
+	}
 }
 
 func CheckRuntimeProviderGo(logger *zap.Logger, rootPath string, paths []string) error {

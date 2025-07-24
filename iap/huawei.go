@@ -126,6 +126,20 @@ func (h *HuaweiPurchaseProvider) HandleRefund(ctx context.Context) (http.Handler
 }
 
 func (h *HuaweiPurchaseProvider) ValidateRequest(in *api.ValidatePurchaseRequest) error {
+	if h.config.GetHuawei().GetPublicKey() == "" ||
+		h.config.GetHuawei().GetClientID() == "" ||
+		h.config.GetHuawei().GetClientSecret() == "" {
+		return status.Error(codes.FailedPrecondition, "Huawei IAP is not configured.")
+	}
+
+	if len(in.Purchase) < 1 {
+		return status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
+	}
+
+	if len(in.Signature) < 1 {
+		return status.Error(codes.InvalidArgument, "Signature cannot be empty.")
+	}
+
 	return nil
 }
 
