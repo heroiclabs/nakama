@@ -439,6 +439,32 @@ type accessTokenGoogle struct {
 	fetchedAt    time.Time // Set when token is received
 }
 
+type GoogleStoreNotification struct {
+	Message      GoogleStoreNotificationMessage `json:"message"`
+	Subscription string                         `json:"subscription"`
+}
+
+type GoogleStoreNotificationMessage struct {
+	Attributes map[string]string `json:"attributes"`
+	Data       string            `json:"data"`
+	MessageId  string            `json:"messageId"`
+}
+
+type GoogleDeveloperNotification struct {
+	Version                  string                          `json:"version"`
+	PackageName              string                          `json:"packageName"`
+	EventTimeMillis          string                          `json:"eventTimeMillis"`
+	SubscriptionNotification *GoogleSubscriptionNotification `json:"subscriptionNotification"`
+	TestNotification         map[string]string               `json:"testNotification"`
+}
+
+type GoogleSubscriptionNotification struct {
+	Version          string `json:"version"`
+	NotificationType int    `json:"notificationType"`
+	PurchaseToken    string `json:"purchaseToken"`
+	SubscriptionId   string `json:"subscriptionId"`
+}
+
 func (at *accessTokenGoogle) Expired() bool {
 	return at.fetchedAt.Add(time.Duration(at.ExpiresIn)*time.Second - accessTokenExpiresGracePeriod*time.Second).Before(time.Now())
 }

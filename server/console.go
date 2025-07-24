@@ -284,16 +284,16 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	if config.GetIAP().Apple.NotificationsEndpointId != "" {
 		endpoint := fmt.Sprintf("/v2/console/apple/subscriptions/%s", config.GetIAP().Apple.NotificationsEndpointId)
 		// uncomment when built in iap are switched to new purchaseprovider flow
-		//provider, err := iap.GetPurchaseProvider("apple", runtime.purchaseProviders)
-		//if err != nil && provider == nil {
-		//	startupLogger.Error("Console registration failed", zap.Error(err))
-		//} else {
-		//	handler, err := provider.HandleRefund(ctx, logger, db)
-		//	if err != nil {
-		//		startupLogger.Error("Console registration failed", zap.Error(err))
-		//	}
-		//	grpcGatewayRouter.HandleFunc(endpoint, handler)
-		//}
+		provider, err := iap.GetPurchaseProvider("apple", runtime.purchaseProviders)
+		if err != nil && provider == nil {
+			startupLogger.Error("Console registration failed", zap.Error(err))
+		} else {
+			handler, err := provider.HandleRefund(ctx)
+			if err != nil {
+				startupLogger.Error("Console registration failed", zap.Error(err))
+			}
+			grpcGatewayRouter.HandleFunc(endpoint, handler)
+		}
 
 		grpcGatewayRouter.HandleFunc(endpoint, appleNotificationHandler(logger, db, runtime.PurchaseNotificationApple(), runtime.SubscriptionNotificationApple()))
 		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
@@ -301,6 +301,18 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	if config.GetIAP().Google.NotificationsEndpointId != "" {
 		endpoint := fmt.Sprintf("/v2/console/google/subscriptions/%s", config.GetIAP().Google.NotificationsEndpointId)
+		//uncomment when built in iap are switched to new purchaseprovider flow
+		//provider, err := iap.GetPurchaseProvider("google", runtime.purchaseProviders)
+		//if err != nil && provider == nil {
+		//	startupLogger.Error("Console registration failed", zap.Error(err))
+		//} else {
+		//	handler, err := provider.HandleRefund(ctx)
+		//	if err != nil {
+		//		startupLogger.Error("Console registration failed", zap.Error(err))
+		//	}
+		//	grpcGatewayRouter.HandleFunc(endpoint, handler)
+		//}
+
 		grpcGatewayRouter.HandleFunc(endpoint, googleNotificationHandler(logger, db, config.GetIAP().Google))
 		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
 	}
@@ -446,7 +458,7 @@ func initPurchaseProviderRefundHooks(logger *zap.Logger, config Config, refundFn
 
 		provider.Init(refundFn.Purchase, refundFn.Subscription)
 	}
-	
+
 	return nil
 }
 

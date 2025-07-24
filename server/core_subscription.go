@@ -242,6 +242,10 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 	return &api.SubscriptionList{ValidatedSubscriptions: subscriptions, Cursor: nextCursorStr, PrevCursor: prevCursorStr}, nil
 }
 
+func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) {
+
+}
+
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, iap.Httpc, receipt, password)
 	if err != nil {
@@ -789,32 +793,6 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 	}
 }
 
-type googleStoreNotification struct {
-	Message      googleStoreNotificationMessage `json:"message"`
-	Subscription string                         `json:"subscription"`
-}
-
-type googleStoreNotificationMessage struct {
-	Attributes map[string]string `json:"attributes"`
-	Data       string            `json:"data"`
-	MessageId  string            `json:"messageId"`
-}
-
-type googleDeveloperNotification struct {
-	Version                  string                          `json:"version"`
-	PackageName              string                          `json:"packageName"`
-	EventTimeMillis          string                          `json:"eventTimeMillis"`
-	SubscriptionNotification *googleSubscriptionNotification `json:"subscriptionNotification"`
-	TestNotification         map[string]string               `json:"testNotification"`
-}
-
-type googleSubscriptionNotification struct {
-	Version          string `json:"version"`
-	NotificationType int    `json:"notificationType"`
-	PurchaseToken    string `json:"purchaseToken"`
-	SubscriptionId   string `json:"subscriptionId"`
-}
-
 func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogleConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -827,7 +805,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 		logger = logger.With(zap.String("notification_body", string(body)))
 
-		var notification *googleStoreNotification
+		var notification *iap.GoogleStoreNotification
 		if err := json.Unmarshal(body, &notification); err != nil {
 			logger.Error("Failed to unmarshal Google Play Billing notification", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
@@ -841,7 +819,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
-		var googleNotification *googleDeveloperNotification
+		var googleNotification *iap.GoogleDeveloperNotification
 		if err = json.Unmarshal(jsonData, &googleNotification); err != nil {
 			logger.Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)

@@ -122,6 +122,8 @@ func (h *HuaweiPurchaseProvider) SubscriptionValidate(ctx context.Context, userI
 }
 
 func (h *HuaweiPurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
+	h.logger.Info("Handling refund not implemented yet")
+
 	return nil, nil
 }
 

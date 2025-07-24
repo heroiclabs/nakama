@@ -107,6 +107,8 @@ func (f *FacebookPurchaseProvider) SubscriptionValidate(ctx context.Context, use
 }
 
 func (f *FacebookPurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
+	f.logger.Info("Handling refund not implemented yet")
+
 	return nil, nil
 }
 
