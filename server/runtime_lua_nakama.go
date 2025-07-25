@@ -10975,17 +10975,18 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 	satoriFunctions := map[string]lua.LGFunction{
-		"authenticate":         n.satoriAuthenticate,
-		"properties_get":       n.satoriPropertiesGet,
-		"properties_update":    n.satoriPropertiesUpdate,
-		"events_publish":       n.satoriEventsPublish,
-		"experiments_list":     n.satoriExperimentsList,
-		"flags_list":           n.satoriFlagsList,
-		"flags_overrides_list": n.satoriFlagsOverridesList,
-		"live_events_list":     n.satoriLiveEventsList,
-		"messages_list":        n.satoriMessagesList,
-		"message_update":       n.satoriMessageUpdate,
-		"message_delete":       n.satoriMessageDelete,
+		"authenticate":          n.satoriAuthenticate,
+		"properties_get":        n.satoriPropertiesGet,
+		"properties_update":     n.satoriPropertiesUpdate,
+		"events_publish":        n.satoriEventsPublish,
+		"server_events_publish": n.satoriServerEventsPublish,
+		"experiments_list":      n.satoriExperimentsList,
+		"flags_list":            n.satoriFlagsList,
+		"flags_overrides_list":  n.satoriFlagsOverridesList,
+		"live_events_list":      n.satoriLiveEventsList,
+		"messages_list":         n.satoriMessagesList,
+		"message_update":        n.satoriMessageUpdate,
+		"message_delete":        n.satoriMessageDelete,
 	}
 
 	satoriMod := l.SetFuncs(l.CreateTable(0, len(satoriFunctions)), satoriFunctions)
@@ -11140,7 +11141,7 @@ func (n *RuntimeLuaNakamaModule) satoriPropertiesUpdate(l *lua.LState) int {
 }
 
 // @group satori
-// @summary Publish an event.
+// @summary Publish events.
 // @param identifier(type=string) The identifier of the identity.
 // @param events(type=table) An array of events to publish.
 // @param ip(type=string) Ip address.
@@ -11149,6 +11150,139 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
 	events := l.CheckTable(2)
+	size := events.Len()
+	eventsArray := make([]*runtime.Event, 0, size)
+	conversionError := false
+	events.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		eventTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of events")
+			return
+		}
+
+		event := &runtime.Event{}
+		eventTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "name":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects name to be string")
+					return
+				}
+
+				event.Name = v.String()
+			case "id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects id to be string")
+					return
+				}
+
+				event.Id = v.String()
+			case "value":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects value to be string")
+					return
+				}
+
+				event.Value = v.String()
+			case "metadata":
+				if v.Type() != lua.LTTable {
+					conversionError = true
+					l.ArgError(2, "expects metadata to be table")
+					return
+				}
+				metadataMap, err := RuntimeLuaConvertLuaTableString(v.(*lua.LTable))
+				if err != nil {
+					conversionError = true
+					l.ArgError(2, fmt.Sprintf("expects custom values to be a table of key values and strings: %s", err.Error()))
+					return
+				}
+
+				event.Metadata = metadataMap
+			case "timestamp":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(2, "expects timestamp to be a number")
+					return
+				}
+
+				event.Timestamp = int64(v.(lua.LNumber))
+
+			case "identity_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects identity_id to be string")
+					return
+				}
+
+				event.IdentityId = v.String()
+
+			case "session_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects session_id to be string")
+					return
+				}
+
+				event.SessionId = v.String()
+
+			case "session_issued_at":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(2, "expects session_issued_at to be a number")
+					return
+				}
+
+				event.SessionIssuedAt = int64(v.(lua.LNumber))
+
+			case "session_expires_at":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(2, "expects session_expires_at to be a number")
+					return
+				}
+
+				event.SessionIssuedAt = int64(v.(lua.LNumber))
+			}
+		})
+		if conversionError {
+			return
+		}
+
+		eventsArray = append(eventsArray, event)
+	})
+	if conversionError {
+		return 0
+	}
+
+	ip := l.OptString(3, "")
+
+	if err := n.satori.EventsPublish(l.Context(), identifier, eventsArray, ip); err != nil {
+		l.RaiseError("failed to satori publish event: %v", err.Error())
+		return 0
+	}
+
+	return 0
+}
+
+// @group satori
+// @summary Publish server events.
+// @param events(type=table) An array of events to publish.
+// @param ip(type=string) Ip address.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriServerEventsPublish(l *lua.LState) int {
+	events := l.CheckTable(1)
 	size := events.Len()
 	eventsArray := make([]*runtime.Event, 0, size)
 	conversionError := false
@@ -11204,7 +11338,7 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 				metadataMap, err := RuntimeLuaConvertLuaTableString(v.(*lua.LTable))
 				if err != nil {
 					conversionError = true
-					l.ArgError(2, fmt.Sprintf("expects custom values to be a table of key values and strings: %s", err.Error()))
+					l.ArgError(1, fmt.Sprintf("expects custom values to be a table of key values and strings: %s", err.Error()))
 					return
 				}
 
@@ -11217,6 +11351,42 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 				}
 
 				event.Timestamp = int64(v.(lua.LNumber))
+
+			case "identity_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects identity_id to be string")
+					return
+				}
+
+				event.IdentityId = v.String()
+
+			case "session_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects session_id to be string")
+					return
+				}
+
+				event.SessionId = v.String()
+
+			case "session_issued_at":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects session_issued_at to be a number")
+					return
+				}
+
+				event.SessionIssuedAt = int64(v.(lua.LNumber))
+
+			case "session_expires_at":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects session_expires_at to be a number")
+					return
+				}
+
+				event.SessionIssuedAt = int64(v.(lua.LNumber))
 			}
 		})
 		if conversionError {
@@ -11229,9 +11399,9 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 		return 0
 	}
 
-	ip := l.OptString(3, "")
+	ip := l.OptString(2, "")
 
-	if err := n.satori.EventsPublish(l.Context(), identifier, eventsArray, ip); err != nil {
+	if err := n.satori.ServerEventsPublish(l.Context(), eventsArray, ip); err != nil {
 		l.RaiseError("failed to satori publish event: %v", err.Error())
 		return 0
 	}
@@ -11296,7 +11466,7 @@ func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
 // @return flags(table) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
-	identifier := l.CheckString(1)
+	identifier := l.OptString(1, "")
 
 	names := l.OptTable(2, nil)
 	namesArray := make([]string, 0)
@@ -11347,7 +11517,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 // @return flagsOverrides(table) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
-	identifier := l.CheckString(1)
+	identifier := l.OptString(1, "")
 
 	names := l.OptTable(2, nil)
 	namesArray := make([]string, 0)

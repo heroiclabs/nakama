@@ -8944,17 +8944,18 @@ func (n *RuntimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 
 func (n *RuntimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goja.Object, error) {
 	mappings := map[string]func(goja.FunctionCall) goja.Value{
-		"authenticate":       n.satoriAuthenticate(r),
-		"propertiesGet":      n.satoriPropertiesGet(r),
-		"propertiesUpdate":   n.satoriPropertiesUpdate(r),
-		"eventsPublish":      n.satoriPublishEvents(r),
-		"experimentsList":    n.satoriExperimentsList(r),
-		"flagsList":          n.satoriFlagsList(r),
-		"flagsOverridesList": n.satoriFlagsOverridesList(r),
-		"liveEventsList":     n.satoriLiveEventsList(r),
-		"messagesList":       n.satoriMessagesList(r),
-		"messageUpdate":      n.satoriMessageUpdate(r),
-		"messageDelete":      n.satoriMessageDelete(r),
+		"authenticate":        n.satoriAuthenticate(r),
+		"propertiesGet":       n.satoriPropertiesGet(r),
+		"propertiesUpdate":    n.satoriPropertiesUpdate(r),
+		"eventsPublish":       n.satoriPublishEvents(r),
+		"serverEventsPublish": n.satoriServerEventsPublish(r),
+		"experimentsList":     n.satoriExperimentsList(r),
+		"flagsList":           n.satoriFlagsList(r),
+		"flagsOverridesList":  n.satoriFlagsOverridesList(r),
+		"liveEventsList":      n.satoriLiveEventsList(r),
+		"messagesList":        n.satoriMessagesList(r),
+		"messageUpdate":       n.satoriMessageUpdate(r),
+		"messageDelete":       n.satoriMessageDelete(r),
 	}
 
 	constructor := func(call goja.ConstructorCall) *goja.Object {
@@ -9099,7 +9100,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriPropertiesUpdate(r *goja.Runtime) 
 }
 
 // @group satori
-// @summary Publish an event.
+// @summary Publish events.
 // @param identifier(type=string) The identifier of the identity.
 // @param events(type=nkruntime.Event[]) An array of events to publish.
 // @param ip(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
@@ -9180,6 +9181,120 @@ func (n *RuntimeJavascriptNakamaModule) satoriPublishEvents(r *goja.Runtime) fun
 }
 
 // @group satori
+// @summary Publish server events.
+// @param events(type=nkruntime.Event[]) An array of events to publish.
+// @param ip(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) satoriServerEventsPublish(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		events := f.Argument(0)
+		eventsArray, err := exportToSlice[[]map[string]any](events)
+		if err != nil {
+			panic(r.NewTypeError("expects array of event objects"))
+		}
+
+		evts := make([]*runtime.Event, 0, len(eventsArray))
+		for _, eMap := range eventsArray {
+			evt := &runtime.Event{}
+
+			name, ok := eMap["name"]
+			if ok {
+				nameStr, ok := name.(string)
+				if !ok {
+					panic(r.NewTypeError("expects event name to be a string"))
+				}
+				evt.Name = nameStr
+			}
+
+			id, ok := eMap["id"]
+			if ok {
+				idStr, ok := id.(string)
+				if !ok {
+					panic(r.NewTypeError("expects event id to be a string"))
+				}
+				evt.Id = idStr
+			}
+
+			metadata, ok := eMap["metadata"]
+			if ok {
+				metadataMap := getJsStringMap(r, r.ToValue(metadata))
+				if !ok {
+					panic(r.NewTypeError("expects event metadata to be an object with string keys and values"))
+				}
+				evt.Metadata = metadataMap
+			}
+
+			value, ok := eMap["value"]
+			if ok {
+				valueStr, ok := value.(string)
+				if !ok {
+					panic(r.NewTypeError("expects event value to be a string"))
+				}
+				evt.Value = valueStr
+			}
+
+			ts, ok := eMap["timestamp"]
+			if ok {
+				tsInt, ok := ts.(int64)
+				if !ok {
+					panic(r.NewTypeError("expects event timestamp to be a number"))
+				}
+				evt.Timestamp = tsInt
+			}
+
+			identityId, ok := eMap["identityId"]
+			if ok {
+				identityIdStr, ok := identityId.(string)
+				if !ok {
+					panic(r.NewTypeError("expects event identityId to be a string"))
+				}
+				evt.IdentityId = identityIdStr
+			}
+
+			sessionId, ok := eMap["sessionId"]
+			if ok {
+				sessionIdStr, ok := sessionId.(string)
+				if !ok {
+					panic(r.NewTypeError("expects event sessionId to be a string"))
+				}
+				evt.SessionId = sessionIdStr
+			}
+
+			sessionIssuedAt, ok := eMap["sessionIssuedAt"]
+			if ok {
+				sessionIssuedAtInt, ok := sessionIssuedAt.(int64)
+				if !ok {
+					panic(r.NewTypeError("expects event sessionIssuedAt to be a number"))
+				}
+				evt.SessionIssuedAt = sessionIssuedAtInt
+			}
+
+			sessionExpiresAt, ok := eMap["sessionExpiresAt"]
+			if ok {
+				sessionExpiresAtInt, ok := sessionExpiresAt.(int64)
+				if !ok {
+					panic(r.NewTypeError("expects event sessionExpiresAt to be a number"))
+				}
+				evt.SessionExpiresAt = sessionExpiresAtInt
+			}
+
+			evts = append(evts, evt)
+		}
+
+		var ip string
+		if f.Argument(1) != goja.Undefined() && f.Argument(1) != goja.Null() {
+			ip = getJsString(r, f.Argument(1))
+		}
+
+		if err := n.satori.ServerEventsPublish(n.ctx, evts, ip); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to publish satori events: %s", err.Error())))
+		}
+
+		return nil
+	}
+}
+
+// @group satori
 // @summary List experiments.
 // @param identifier(type=string) The identifier of the identity.
 // @param nameFilters(type=string[], optional=true, default=[]) Optional list of experiment names to filter.
@@ -9226,7 +9341,10 @@ func (n *RuntimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) f
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		identifier := getJsString(r, f.Argument(0))
+		var identifier string
+		if !goja.IsUndefined(f.Argument(0)) && !goja.IsNull(f.Argument(0)) {
+			identifier = getJsString(r, f.Argument(0))
+		}
 
 		nameFiltersArray := make([]string, 0)
 		nameFilters := f.Argument(1)
@@ -9266,7 +9384,10 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriFlagsOverridesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		identifier := getJsString(r, f.Argument(0))
+		var identifier string
+		if !goja.IsUndefined(f.Argument(0)) && !goja.IsNull(f.Argument(0)) {
+			identifier = getJsString(r, f.Argument(0))
+		}
 
 		nameFiltersArray := make([]string, 0)
 		nameFilters := f.Argument(1)
