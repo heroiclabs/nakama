@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Component, OnInit, OnDestroy, Injectable, Pipe, PipeTransform} from '@angular/core';
-import {ConsoleService, StatusList, StatusListStatus} from '../console.service';
+import {ConsoleService, StatusList} from '../console.service';
 import {Observable, of, Subscription, timer} from 'rxjs';
 import {UntypedFormBuilder, UntypedFormGroup} from '@angular/forms';
 import {ActivatedRoute, ActivatedRouteSnapshot, Resolve, RouterStateSnapshot} from '@angular/router';
@@ -33,6 +33,7 @@ export class StatusComponent implements OnInit, OnDestroy {
   public latencyGraphData = [];
   public inputGraphData = [];
   public outputGraphData = [];
+  public utcForm: UntypedFormGroup;
   public rangeForm: UntypedFormGroup;
   public readonly ranges = {
     1: 'last 1 minute',
@@ -56,6 +57,9 @@ export class StatusComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.utcForm = this.formBuilder.group({
+      isUTC: false, // Default show in local timezone
+    });
     this.rangeForm = this.formBuilder.group({
       rangeMinutes: [10], // Default range to 10 min window
     });
@@ -163,8 +167,18 @@ export class StatusComponent implements OnInit, OnDestroy {
 
   public setRange(event): void {
     this.rangeForm.reset({rangeMinutes: +event.target.value});
+  }
+
+  public setIsUTC(event): void {
+    this.utcForm.reset({isUTC: event.target.checked});
     this.reset();
   }
+
+  private formatDateLocal = new Intl.DateTimeFormat(navigator.languages.slice(), { hour: "2-digit", minute: "2-digit" });
+  private formatDateUTC = new Intl.DateTimeFormat(navigator.languages.slice(), { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+
+  // Declared as fat arrow to avoid having to bind it in xAxisTickFormatting (see https://github.com/swimlane/ngx-charts/issues/261)
+  xAxisFormatFn = (value) => this.utcForm?.value.isUTC ? this.formatDateUTC.format(value) : this.formatDateLocal.format(value);
 
   private reset(): void {
     this.consoleService.getStatus('').subscribe(data => {
