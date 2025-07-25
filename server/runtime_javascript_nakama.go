@@ -9375,7 +9375,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 					"type":        flag.ValueChangeReason.Type,
 				}
 			}
-			flags = append(flags)
+			flags = append(flags, outFlag)
 		}
 
 		return r.ToValue(map[string]any{
