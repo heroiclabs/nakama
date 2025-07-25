@@ -11561,7 +11561,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
 		for j, o := range fl.Overrides {
 			flagTable := l.CreateTable(0, 5)
 			flagTable.RawSetString("name", lua.LString(o.Name))
-			flagTable.RawSetString("type", lua.LString(o.Type))
+			flagTable.RawSetString("type", lua.LNumber(o.Type))
 			flagTable.RawSetString("variant_name", lua.LString(o.VariantName))
 			flagTable.RawSetString("value", lua.LString(o.Value))
 			flagTable.RawSetString("create_time_sec", lua.LNumber(o.CreateTimeSec))
