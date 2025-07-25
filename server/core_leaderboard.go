@@ -256,7 +256,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		if incomingCursor != nil && !incomingCursor.IsNext {
 			// If this was a previous page listing, flip the results to their normal order and swap the cursors.
 			if nextCursor != nil && prevCursor != nil {
-				nextCursor, nextCursor.IsNext, nextCursor.Rank, prevCursor, prevCursor.IsNext, prevCursor.Rank = prevCursor, prevCursor.IsNext, prevCursor.Rank, nextCursor, nextCursor.IsNext, nextCursor.Rank
+				nextCursor, nextCursor.IsNext, prevCursor, prevCursor.IsNext = prevCursor, prevCursor.IsNext, nextCursor, nextCursor.IsNext
 			} else if nextCursor != nil {
 				nextCursor, prevCursor = nil, nextCursor
 				prevCursor.IsNext = !prevCursor.IsNext
@@ -266,7 +266,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			}
 
 			for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
-				records[i], records[i].Rank, records[j], records[j].Rank = records[j], records[j].Rank, records[i], records[i].Rank
+				records[i], records[j] = records[j], records[i]
 			}
 		}
 
