@@ -9363,11 +9363,19 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 
 		flags := make([]any, 0, len(flagsList.Flags))
 		for _, flag := range flagsList.Flags {
-			flags = append(flags, map[string]any{
+			outFlag := map[string]any{
 				"name":             flag.Name,
 				"value":            flag.Value,
 				"conditionChanged": flag.ConditionChanged,
-			})
+			}
+			if flag.ValueChangeReason != nil {
+				outFlag["changeReason"] = map[string]any{
+					"name":        flag.ValueChangeReason.Name,
+					"variantName": flag.ValueChangeReason.VariantName,
+					"type":        flag.ValueChangeReason.Type,
+				}
+			}
+			flags = append(flags)
 		}
 
 		return r.ToValue(map[string]any{

@@ -11502,6 +11502,14 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 		flagTable.RawSetString("name", lua.LString(f.Name))
 		flagTable.RawSetString("value", lua.LString(f.Value))
 		flagTable.RawSetString("condition_changed", lua.LBool(f.ConditionChanged))
+		if f.ValueChangeReason != nil {
+			changeReasonTable := l.CreateTable(0, 3)
+			changeReasonTable.RawSetString("name", lua.LString(f.ValueChangeReason.Name))
+			changeReasonTable.RawSetString("variant_name", lua.LString(f.ValueChangeReason.VariantName))
+			changeReasonTable.RawSetString("type", lua.LNumber(f.ValueChangeReason.Type))
+
+			flagTable.RawSetString("change_reason", changeReasonTable)
+		}
 
 		flagsTable.RawSetInt(i+1, flagTable)
 	}
