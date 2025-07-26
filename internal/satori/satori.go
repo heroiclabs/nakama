@@ -411,7 +411,7 @@ func (e *event) setTimestamp() {
 }
 
 // @group satori
-// @summary Publish an event.
+// @summary Publish events.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
 // @param events(type=[]*runtime.Event) An array of events to publish.
@@ -448,6 +448,67 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+	if len(ipAddress) > 0 && ipAddress[0] != "" {
+		if ipAddr := net.ParseIP(ipAddress[0]); ipAddr != nil {
+			req.Header.Set("X-Forwarded-For", ipAddr.String())
+		}
+	} else if ipAddr, ok := ctx.Value(runtime.RUNTIME_CTX_CLIENT_IP).(string); ok {
+		req.Header.Set("X-Forwarded-For", ipAddr)
+	}
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		return nil
+	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
+		return fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+// @group satori
+// @summary Publish server events.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param events(type=[]*runtime.Event) An array of events to publish.
+// @param ipAddress(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtime.Event, ipAddress ...string) error {
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.String() + "/v1/server-event"
+
+	evts := make([]*event, 0, len(events))
+	for i, e := range events {
+		evts = append(evts, &event{
+			Event: e,
+		})
+		evts[i].setTimestamp()
+	}
+
+	json, err := json.Marshal(&eventsBody{Events: evts})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(json))
+	if err != nil {
+		return err
+	}
+
+	req.SetBasicAuth(s.apiKey, "")
+	req.Header.Set("Content-Type", "application/json")
+
 	if len(ipAddress) > 0 && ipAddress[0] != "" {
 		if ipAddr := net.ParseIP(ipAddress[0]); ipAddr != nil {
 			req.Header.Set("X-Forwarded-For", ipAddr.String())
