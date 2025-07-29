@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Update Satori client to latest API spec.
+- Process all Apple subscriptions in receipt latest_receipt_info and return the one with higher expiry time.
 
 ### Fixed
 - Fix an issue where the leaderboard ranks were sometimes incorrectly calculated when fetching a previous page of records.
