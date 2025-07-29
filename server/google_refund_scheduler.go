@@ -213,8 +213,9 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								expireTime:            subscription.ExpiryTime.AsTime(),
 							}
 
-							err = upsertSubscription(g.ctx, g.db, sSubscription)
-							if err != nil {
+							if err = ExecuteInTx(g.ctx, g.db, func(tx *sql.Tx) error {
+								return upsertSubscription(g.ctx, tx, sSubscription)
+							}); err != nil {
 								g.logger.Error("Failed to upsert Google voided subscription", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 								continue
 							}

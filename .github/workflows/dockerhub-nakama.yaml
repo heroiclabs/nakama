@@ -2,8 +2,7 @@ name: dockerhub-nakama
 
 on:
   release:
-    types:
-      - created
+    types: [created]
 
 jobs:
   nakama_build_publish:

@@ -18,10 +18,12 @@
 FROM golang:1.24.5-bookworm AS builder
 
 ARG VERSION
+ARG TARGETOS
+ARG TARGETARCH
 
 LABEL maintainer="Heroic Labs"
 LABEL contact="support@heroiclabs.com"
-LABEL version=$version
+LABEL version=$VERSION
 LABEL variant=nakama-pluginbuilder
 LABEL description="A support container to build Go code for Nakama server's runtime."
 
