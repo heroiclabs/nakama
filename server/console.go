@@ -446,7 +446,7 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 		path := r.URL.Path
 		isAsset := false
 
-		if strings.HasPrefix(path, "/assets/") {
+		if strings.HasPrefix(path, "/static/") {
 			isAsset = true
 
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
