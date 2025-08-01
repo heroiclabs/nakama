@@ -325,7 +325,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		// Allow GRPC Gateway to handle the request.
 		handlerWithMaxBody.ServeHTTP(w, r)
 	})
-	registerDashboardHandlers(logger, grpcGatewayRouter)
+	if err := registerDashboardHandlers(logger, grpcGatewayRouter); err != nil {
+		startupLogger.Fatal("Console dashboard registration failed", zap.Error(err))
+	}
 
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
@@ -414,27 +416,24 @@ SELECT collection FROM t WHERE collection IS NOT NULL`
 	return s
 }
 
-func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
+func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) error {
+	indexFile, err := console.UIFS.Open("index.html")
+	if err != nil {
+		logger.Error("Failed to open index file.", zap.Error(err))
+		return err
+	}
+	// inject variables into the index.html file
+	indexBytes, err := io.ReadAll(indexFile)
+	if err != nil {
+		logger.Error("Failed to read index file.", zap.Error(err))
+		return err
+	}
+	_ = indexFile.Close()
+	indexHTMLStr := string(indexBytes)
+	indexHTMLStr = strings.ReplaceAll(indexHTMLStr, "{{nt}}", strconv.FormatBool(console.UIFS.Nt))
+	indexBytes = []byte(indexHTMLStr)
+
 	indexFn := func(w http.ResponseWriter, r *http.Request) {
-		indexFile, err := console.UIFS.Open("index.html")
-		if err != nil {
-			logger.Error("Failed to open index file.", zap.Error(err))
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		// inject variables into the index.html file
-		indexBytes, err := io.ReadAll(indexFile)
-		if err != nil {
-			logger.Error("Failed to read index file.", zap.Error(err))
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		indexFile.Close()
-		indexHTMLStr := string(indexBytes)
-		indexHTMLStr = strings.ReplaceAll(indexHTMLStr, "{{nt}}", strconv.FormatBool(console.UIFS.Nt))
-		indexBytes = []byte(indexHTMLStr)
-
 		w.Header().Add("Cache-Control", "no-cache")
 		w.Header().Set("X-Frame-Options", "deny")
 		_, _ = w.Write(indexBytes)
@@ -482,6 +481,8 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 			indexFn(w, r)
 		}
 	})
+
+	return nil
 }
 
 func (s *ConsoleServer) Stop() {
