@@ -94,6 +94,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -157,6 +158,17 @@ const (
 
 	// Tick rate defined for this match. Only applicable to server authoritative multiplayer.
 	RUNTIME_CTX_MATCH_TICK_RATE = "match_tick_rate"
+
+	UNKNOWN_PLATFORM_STRING     = "unknown"
+	APPLE_PLATFORM_STRING       = "apple"
+	GOOGLE_PLATFORM_STRING      = "google"
+	FACEBOOK_PLATFORM_STRING    = "facebook"
+	HUAWEI_PLATFORM_STRING      = "huawei"
+	XBOX_PLATFORM_STRING        = "xbox"
+	PLAYSTATION_PLATFORM_STRING = "playstation"
+	STEAM_PLATFORM_STRING       = "steam"
+	EPIC_PLATFORM_STRING        = "epic"
+	DISCORD_PLATFORM_STRING     = "discord"
 )
 
 var (
@@ -227,6 +239,8 @@ var (
 	ErrDeferredBroadcastFull = errors.New("too many deferred message broadcasts per tick")
 
 	ErrSatoriConfigurationInvalid = errors.New("satori configuration is invalid")
+
+	ErrPurchaseProviderFunctionalityNotSupported = errors.New("purchase provider functionality not supported")
 )
 
 const (
@@ -766,7 +780,13 @@ type Initializer interface {
 	RegisterBeforeValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseRequest, error)) error
 
 	// RegisterAfterValidatePurchase can be used to perform additional logic after generic validate purchase call
-	RegisterAfterValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseRequest) error) error
+	RegisterAfterValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseProviderResponse, in *api.ValidatePurchaseRequest) error) error
+
+	// RegisterBeforeValidateSubscription can be used to perform additional logic before generic validate subscription call
+	RegisterBeforeValidateSubscription(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidateSubscriptionRequest) (*api.ValidateSubscriptionRequest, error)) error
+
+	// RegisterAfterValidateSubscription can be used to perform additional logic after generic validate subscription call
+	RegisterAfterValidateSubscription(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseProviderSubscriptionResponse, in *api.ValidateSubscriptionRequest) error) error
 
 	// RegisterBeforeValidatePurchaseApple can be used to perform additional logic before validating an Apple Store IAP receipt.
 	RegisterBeforeValidatePurchaseApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseAppleRequest, error)) error
@@ -1352,13 +1372,14 @@ type FleetManagerInitializer interface {
 
 type PurchaseProvider interface {
 	Init(purchaseRefundFn PurchaseRefundFn, subscriptionRefundFn SubscriptionRefundFn)
-	PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, persist bool) (*api.ValidatePurchaseResponse, error)
-	SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error)
+	PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*StoragePurchase, error)
+	SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*StorageSubscription, error)
 	HandleRefund(ctx context.Context) (http.HandlerFunc, error)
-	ValidateRequest(in *api.ValidatePurchaseRequest) error
+	GetProviderString() string
 }
 
 /*
+Satori runtime integration definitions.
 Satori runtime integration definitions.
 */
 type Satori interface {
@@ -1477,4 +1498,34 @@ type Message struct {
 type MessageUpdate struct {
 	ReadTime    int64 `json:"read_time,omitempty"`
 	ConsumeTime int64 `json:"consume_time,omitempty"`
+}
+
+type StoragePurchase struct {
+	UserID        uuid.UUID
+	Store         api.StoreProvider
+	ProductId     string
+	TransactionId string
+	RawResponse   string
+	PurchaseTime  time.Time
+	CreateTime    time.Time // Set by upsertPurchases
+	UpdateTime    time.Time // Set by upsertPurchases
+	RefundTime    time.Time
+	Environment   api.StoreEnvironment
+	SeenBefore    bool // Set by upsertPurchases
+}
+
+type StorageSubscription struct {
+	OriginalTransactionId string
+	UserID                uuid.UUID
+	Store                 api.StoreProvider
+	ProductId             string
+	PurchaseTime          time.Time
+	CreateTime            time.Time // Set by upsertSubscription
+	UpdateTime            time.Time // Set by upsertSubscription
+	RefundTime            time.Time
+	Environment           api.StoreEnvironment
+	ExpireTime            time.Time
+	RawResponse           string
+	RawNotification       string
+	Active                bool
 }

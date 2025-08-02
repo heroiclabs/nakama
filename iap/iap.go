@@ -121,35 +121,6 @@ type AppleNotificationTransactionInfo struct {
 
 const AppleNotificationTypeRefund = "REFUND"
 
-type StoragePurchase struct {
-	UserID        uuid.UUID
-	Store         api.StoreProvider
-	ProductId     string
-	TransactionId string
-	RawResponse   string
-	PurchaseTime  time.Time
-	CreateTime    time.Time // Set by upsertPurchases
-	UpdateTime    time.Time // Set by upsertPurchases
-	RefundTime    time.Time
-	Environment   api.StoreEnvironment
-	SeenBefore    bool // Set by upsertPurchases
-}
-
-type StorageSubscription struct {
-	OriginalTransactionId string
-	UserID                uuid.UUID
-	Store                 api.StoreProvider
-	ProductId             string
-	PurchaseTime          time.Time
-	CreateTime            time.Time // Set by upsertSubscription
-	UpdateTime            time.Time // Set by upsertSubscription
-	RefundTime            time.Time
-	Environment           api.StoreEnvironment
-	ExpireTime            time.Time
-	RawResponse           string
-	RawNotification       string
-}
-
 type Platform int
 
 const (
@@ -166,23 +137,23 @@ const (
 )
 
 func (enum Platform) String() string {
-	return [...]string{"unknown", "apple", "google", "facebook", "huawei", "xbox", "playstation", "steam", "epic", "discord"}[enum]
+	return [...]string{runtime.UNKNOWN_PLATFORM_STRING, runtime.APPLE_PLATFORM_STRING, runtime.GOOGLE_PLATFORM_STRING, runtime.FACEBOOK_PLATFORM_STRING, runtime.HUAWEI_PLATFORM_STRING, runtime.XBOX_PLATFORM_STRING, runtime.PLAYSTATION_PLATFORM_STRING, runtime.STEAM_PLATFORM_STRING, runtime.EPIC_PLATFORM_STRING, runtime.DISCORD_PLATFORM_STRING}[enum]
 }
 
 var AllPlatforms = []Platform{Unknown, Apple, Google, Facebook, Huawei, Xbox, Playstation, Steam, Epic, Discord}
 
 func FromString(s string) Platform {
 	return map[string]Platform{
-		"unknown":     Unknown,
-		"apple":       Apple,
-		"google":      Google,
-		"facebook":    Facebook,
-		"huawei":      Huawei,
-		"xbox":        Xbox,
-		"playstation": Playstation,
-		"epic":        Epic,
-		"steam":       Steam,
-		"discord":     Discord,
+		runtime.UNKNOWN_PLATFORM_STRING:     Unknown,
+		runtime.APPLE_PLATFORM_STRING:       Apple,
+		runtime.GOOGLE_PLATFORM_STRING:      Google,
+		runtime.FACEBOOK_PLATFORM_STRING:    Facebook,
+		runtime.HUAWEI_PLATFORM_STRING:      Huawei,
+		runtime.XBOX_PLATFORM_STRING:        Xbox,
+		runtime.PLAYSTATION_PLATFORM_STRING: Playstation,
+		runtime.EPIC_PLATFORM_STRING:        Epic,
+		runtime.STEAM_PLATFORM_STRING:       Steam,
+		runtime.DISCORD_PLATFORM_STRING:     Discord,
 	}[s]
 }
 
@@ -1120,12 +1091,12 @@ func ValidateReceiptFacebookInstant(appSecret, signedRequest string) (*FacebookI
 	return payment, string(payload), nil
 }
 
-func UpsertPurchases(ctx context.Context, db *sql.DB, purchases []*StoragePurchase) ([]*StoragePurchase, error) {
+func UpsertPurchases(ctx context.Context, db *sql.DB, purchases []*runtime.StoragePurchase) ([]*runtime.StoragePurchase, error) {
 	if len(purchases) < 1 {
 		return nil, errors.New("expects at least one receipt")
 	}
 
-	transactionIDsToPurchase := make(map[string]*StoragePurchase)
+	transactionIDsToPurchase := make(map[string]*runtime.StoragePurchase)
 
 	userIdParams := make([]uuid.UUID, 0, len(purchases))
 	storeParams := make([]api.StoreProvider, 0, len(purchases))
@@ -1209,7 +1180,7 @@ RETURNING
 		return nil, err
 	}
 
-	storedPurchases := make([]*StoragePurchase, 0, len(transactionIDsToPurchase))
+	storedPurchases := make([]*runtime.StoragePurchase, 0, len(transactionIDsToPurchase))
 	for _, purchase := range transactionIDsToPurchase {
 		storedPurchases = append(storedPurchases, purchase)
 	}
@@ -1278,7 +1249,20 @@ func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql
 	}, nil
 }
 
-func UpsertSubscription(ctx context.Context, db *sql.DB, sub *StorageSubscription) error {
+func UpsertSubscriptions(ctx context.Context, db *sql.DB, subs []*runtime.StorageSubscription) error {
+	var err error
+	for _, sub := range subs {
+		err = UpsertSubscription(ctx, db, sub)
+	}
+
+	if err != nil {
+		return fmt.Errorf("UpsertSubscriptions failed: %w", err)
+	}
+
+	return nil
+}
+
+func UpsertSubscription(ctx context.Context, db *sql.DB, sub *runtime.StorageSubscription) error {
 	if sub.RefundTime.IsZero() {
 		// Refund time not set, init as default value.
 		sub.RefundTime = time.Unix(0, 0)

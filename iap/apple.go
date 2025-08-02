@@ -39,7 +39,21 @@ func (a *ApplePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn, 
 	a.subscriptionFn = subscriptionRefundFn
 }
 
-func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, persist bool) (*api.ValidatePurchaseResponse, error) {
+func (a *ApplePurchaseProvider) GetProviderString() string {
+	platform := Apple
+
+	return platform.String()
+}
+
+func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
+	if a.config.GetApple().GetSharedPassword() == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
+	}
+
+	if len(in.Receipt) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
+	}
+
 	uuidUserID, err := uuid.FromString(userID)
 	if err != nil {
 		a.logger.Error("Error parsing user ID, error: %v", err)
@@ -72,7 +86,7 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.Va
 	}
 
 	seenTransactionIDs := make(map[string]struct{}, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
-	storagePurchases := make([]*StoragePurchase, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
+	storagePurchases := make([]*runtime.StoragePurchase, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
 	for _, purchase := range validation.Receipt.InApp {
 		if purchase.ExpiresDateMs != "" {
 			continue
@@ -87,7 +101,7 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.Va
 		}
 
 		seenTransactionIDs[purchase.TransactionId] = struct{}{}
-		storagePurchases = append(storagePurchases, &StoragePurchase{
+		storagePurchases = append(storagePurchases, &runtime.StoragePurchase{
 			UserID:        uuidUserID,
 			Store:         api.StoreProvider_APPLE_APP_STORE,
 			ProductId:     purchase.ProductID,
@@ -113,7 +127,7 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.Va
 		}
 
 		seenTransactionIDs[purchase.TransactionId] = struct{}{}
-		storagePurchases = append(storagePurchases, &StoragePurchase{
+		storagePurchases = append(storagePurchases, &runtime.StoragePurchase{
 			UserID:        uuidUserID,
 			Store:         api.StoreProvider_APPLE_APP_STORE,
 			ProductId:     purchase.ProductId,
@@ -129,61 +143,25 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.Va
 		return nil, status.Error(codes.FailedPrecondition, "Subscription Receipt. Use the appropriate function instead.")
 	}
 
-	if !persist {
-		// Skip storing the receipts
-		validatedPurchases := make([]*api.ValidatedPurchase, 0, len(storagePurchases))
-		for _, p := range storagePurchases {
-			validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
-				UserId:           p.UserID.String(),
-				ProductId:        p.ProductId,
-				TransactionId:    p.TransactionId,
-				Store:            p.Store,
-				PurchaseTime:     timestamppb.New(p.PurchaseTime),
-				ProviderResponse: string(raw),
-				Environment:      p.Environment,
-			})
-		}
+	return storagePurchases, nil
 
-		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
-	}
-
-	purchases, err := UpsertPurchases(ctx, a.db, storagePurchases)
-	if err != nil {
-		return nil, err
-	}
-
-	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
-	for _, p := range purchases {
-		suid := p.UserID.String()
-		if p.UserID.IsNil() {
-			suid = ""
-		}
-		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
-			UserId:           suid,
-			ProductId:        p.ProductId,
-			TransactionId:    p.TransactionId,
-			Store:            p.Store,
-			PurchaseTime:     timestamppb.New(p.PurchaseTime),
-			CreateTime:       timestamppb.New(p.CreateTime),
-			UpdateTime:       timestamppb.New(p.UpdateTime),
-			ProviderResponse: string(raw),
-			SeenBefore:       p.SeenBefore,
-			Environment:      p.Environment,
-		})
-	}
-
-	return &api.ValidatePurchaseResponse{
-		ValidatedPurchases: validatedPurchases,
-	}, nil
 }
 
-func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
 	uuidUserID, err := uuid.FromString(userID)
 	if err != nil {
 		a.logger.Error("Error parsing user ID, error: %v", err)
 	}
 
-	validation, rawResponse, err := ValidateReceiptApple(ctx, Httpc, receipt, password)
+	if a.config.GetApple().GetSharedPassword() == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
+	}
+
+	if len(in.Receipt) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
+	}
+
+	validation, rawResponse, err := ValidateReceiptApple(ctx, Httpc, in.Receipt, a.config.GetApple().GetSharedPassword())
 	if err != nil {
 		if err != context.Canceled {
 			var vErr *ValidationError
@@ -211,6 +189,8 @@ func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, userID
 
 	var found bool
 	var receiptInfo ValidateReceiptAppleResponseLatestReceiptInfo
+	storageSubscriptions := make([]*runtime.StorageSubscription, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
+
 	for _, latestReceiptInfo := range validation.LatestReceiptInfo {
 		if latestReceiptInfo.ExpiresDateMs == "" {
 			// Not a subscription, skip.
@@ -218,73 +198,44 @@ func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, userID
 		}
 		receiptInfo = latestReceiptInfo
 		found = true
+
+		purchaseTime, err := strconv.ParseInt(receiptInfo.OriginalPurchaseDateMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		expireTimeInt, err := strconv.ParseInt(receiptInfo.ExpiresDateMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		expireTime := ParseMillisecondUnixTimestamp(expireTimeInt)
+
+		active := false
+		if expireTime.After(time.Now()) {
+			active = true
+		}
+
+		// change this to an array of storage subscriptions
+		storageSubscriptions = append(storageSubscriptions, &runtime.StorageSubscription{
+			UserID:                uuidUserID,
+			Store:                 api.StoreProvider_APPLE_APP_STORE,
+			ProductId:             receiptInfo.ProductId,
+			OriginalTransactionId: receiptInfo.OriginalTransactionId,
+			PurchaseTime:          ParseMillisecondUnixTimestamp(purchaseTime),
+			Environment:           env,
+			ExpireTime:            expireTime,
+			RawResponse:           string(rawResponse),
+			Active:                active,
+		})
+
 	}
 	if !found {
 		// Receipt is for a purchase (or otherwise has no subscriptions for any reason) so ValidatePurchaseApple should be used instead.
 		return nil, status.Error(codes.FailedPrecondition, "Purchase Receipt. Use the appropriate function instead.")
 	}
 
-	purchaseTime, err := strconv.ParseInt(receiptInfo.OriginalPurchaseDateMs, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	expireTimeInt, err := strconv.ParseInt(receiptInfo.ExpiresDateMs, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	expireTime := ParseMillisecondUnixTimestamp(expireTimeInt)
-
-	active := false
-	if expireTime.After(time.Now()) {
-		active = true
-	}
-
-	storageSub := &StorageSubscription{
-		UserID:                uuidUserID,
-		Store:                 api.StoreProvider_APPLE_APP_STORE,
-		ProductId:             receiptInfo.ProductId,
-		OriginalTransactionId: receiptInfo.OriginalTransactionId,
-		PurchaseTime:          ParseMillisecondUnixTimestamp(purchaseTime),
-		Environment:           env,
-		ExpireTime:            expireTime,
-		RawResponse:           string(rawResponse),
-	}
-
-	validatedSub := &api.ValidatedSubscription{
-		UserId:                storageSub.UserID.String(),
-		ProductId:             storageSub.ProductId,
-		OriginalTransactionId: storageSub.OriginalTransactionId,
-		Store:                 api.StoreProvider_APPLE_APP_STORE,
-		PurchaseTime:          timestamppb.New(storageSub.PurchaseTime),
-		Environment:           env,
-		Active:                active,
-		ExpiryTime:            timestamppb.New(storageSub.ExpireTime),
-		ProviderResponse:      storageSub.RawResponse,
-		ProviderNotification:  storageSub.RawNotification,
-	}
-
-	if !persist {
-		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
-	}
-
-	if err = UpsertSubscription(ctx, a.db, storageSub); err != nil {
-		return nil, err
-	}
-
-	suid := storageSub.UserID.String()
-	if storageSub.UserID.IsNil() {
-		suid = ""
-	}
-
-	validatedSub.UserId = suid
-	validatedSub.CreateTime = timestamppb.New(storageSub.CreateTime)
-	validatedSub.UpdateTime = timestamppb.New(storageSub.UpdateTime)
-	validatedSub.ProviderResponse = storageSub.RawResponse
-	validatedSub.ProviderNotification = storageSub.RawNotification
-
-	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	return storageSubscriptions, nil
 }
 
 func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
@@ -456,7 +407,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerF
 				uid = uuid.Must(uuid.FromString(s.UserId))
 			}
 
-			sub := &StorageSubscription{
+			sub := &runtime.StorageSubscription{
 				UserID:                uid,
 				OriginalTransactionId: signedTransactionInfo.OriginalTransactionId,
 				Store:                 api.StoreProvider_APPLE_APP_STORE,
@@ -530,7 +481,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerF
 			}
 
 			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
-				purchase := &StoragePurchase{
+				purchase := &runtime.StoragePurchase{
 					UserID:        uid,
 					Store:         api.StoreProvider_APPLE_APP_STORE,
 					ProductId:     signedTransactionInfo.ProductId,
@@ -540,7 +491,7 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerF
 					Environment:   env,
 				}
 
-				dbPurchases, err := UpsertPurchases(r.Context(), a.db, []*StoragePurchase{purchase})
+				dbPurchases, err := UpsertPurchases(r.Context(), a.db, []*runtime.StoragePurchase{purchase})
 				if err != nil {
 					a.logger.Error("Failed to store App Store notification purchase data")
 					w.WriteHeader(http.StatusInternalServerError)
@@ -578,14 +529,6 @@ func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerF
 
 		w.WriteHeader(http.StatusOK)
 	}, nil
-}
-
-func (a *ApplePurchaseProvider) ValidateRequest(in *api.ValidatePurchaseRequest) error {
-	if a.config.GetApple().GetSharedPassword() == "" {
-		return status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
-	}
-
-	return nil
 }
 
 func NewApplePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {

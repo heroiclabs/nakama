@@ -16,6 +16,10 @@ package server
 
 import (
 	"context"
+	"database/sql"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/iap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -23,6 +27,114 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscriptions []*runtime.StorageSubscription, persist bool) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
+
+	if !persist {
+		validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))
+		for _, s := range storageSubscriptions {
+			validatedSubs = append(validatedSubs, &api.ValidatedSubscription{
+				UserId:                s.UserID.String(),
+				ProductId:             s.ProductId,
+				OriginalTransactionId: s.OriginalTransactionId,
+				Store:                 api.StoreProvider_APPLE_APP_STORE,
+				PurchaseTime:          timestamppb.New(s.PurchaseTime),
+				Environment:           s.Environment,
+				Active:                s.Active,
+				ExpiryTime:            timestamppb.New(s.ExpireTime),
+				ProviderResponse:      s.RawResponse,
+				ProviderNotification:  s.RawNotification,
+			})
+		}
+
+		return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs, Persist: persist}, nil
+	}
+
+	if err := iap.UpsertSubscriptions(ctx, db, storageSubscriptions); err != nil {
+		return nil, err
+	}
+
+	validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))
+
+	for _, sub := range storageSubscriptions {
+		var validatedSub *api.ValidatedSubscription
+		suid := sub.UserID.String()
+		if sub.UserID.IsNil() {
+			suid = ""
+		}
+
+		validatedSub.UserId = suid
+		validatedSub.CreateTime = timestamppb.New(sub.CreateTime)
+		validatedSub.UpdateTime = timestamppb.New(sub.UpdateTime)
+		validatedSub.ProviderResponse = sub.RawResponse
+		validatedSub.ProviderNotification = sub.RawNotification
+
+		validatedSubs = append(validatedSubs, &api.ValidatedSubscription{})
+	}
+
+	return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs, Persist: persist}, nil
+}
+
+func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateSubscriptionRequest) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+
+	purchaseProvider, err := iap.GetPurchaseProvider(in.Platform, s.runtime.purchaseProviders)
+	if err != nil {
+		s.logger.Warn("Purchase provider not found", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to get purchase provider")
+	}
+
+	// Before hook.
+	if fn := s.runtime.BeforeValidateSubscription(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	persist := true
+	if in.Persist != nil {
+		persist = in.Persist.GetValue()
+	}
+
+	validation, err := purchaseProvider.SubscriptionValidate(ctx, in, userID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// handle upsert and persist here
+	response, err := handleValidatedSubscriptions(ctx, s.db, validation, persist)
+	if err != nil {
+		return nil, err
+	}
+
+	// After hook.
+	if fn := s.runtime.AfterValidateSubscription(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, response, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return response, nil
+}
 
 func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.ValidateSubscriptionAppleRequest) (*api.ValidateSubscriptionResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)

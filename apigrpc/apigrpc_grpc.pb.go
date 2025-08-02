@@ -280,7 +280,7 @@ type NakamaClient interface {
 	// Update fields in a given group.
 	UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Validate Purchase
-	ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error)
+	ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseProviderResponse, error)
 	// Validate Apple IAP Receipt
 	ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error)
 	// Validate Apple Subscription Receipt
@@ -1049,9 +1049,9 @@ func (c *nakamaClient) UpdateGroup(ctx context.Context, in *api.UpdateGroupReque
 	return out, nil
 }
 
-func (c *nakamaClient) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error) {
+func (c *nakamaClient) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseProviderResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(api.ValidatePurchaseResponse)
+	out := new(api.ValidatePurchaseProviderResponse)
 	err := c.cc.Invoke(ctx, Nakama_ValidatePurchase_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -1305,7 +1305,7 @@ type NakamaServer interface {
 	// Update fields in a given group.
 	UpdateGroup(context.Context, *api.UpdateGroupRequest) (*emptypb.Empty, error)
 	// Validate Purchase
-	ValidatePurchase(context.Context, *api.ValidatePurchaseRequest) (*api.ValidatePurchaseResponse, error)
+	ValidatePurchase(context.Context, *api.ValidatePurchaseRequest) (*api.ValidatePurchaseProviderResponse, error)
 	// Validate Apple IAP Receipt
 	ValidatePurchaseApple(context.Context, *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error)
 	// Validate Apple Subscription Receipt
@@ -1556,7 +1556,7 @@ func (UnimplementedNakamaServer) UpdateAccount(context.Context, *api.UpdateAccou
 func (UnimplementedNakamaServer) UpdateGroup(context.Context, *api.UpdateGroupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
 }
-func (UnimplementedNakamaServer) ValidatePurchase(context.Context, *api.ValidatePurchaseRequest) (*api.ValidatePurchaseResponse, error) {
+func (UnimplementedNakamaServer) ValidatePurchase(context.Context, *api.ValidatePurchaseRequest) (*api.ValidatePurchaseProviderResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidatePurchase not implemented")
 }
 func (UnimplementedNakamaServer) ValidatePurchaseApple(context.Context, *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error) {

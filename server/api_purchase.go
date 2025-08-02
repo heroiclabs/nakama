@@ -16,34 +16,73 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseResponse, error) {
+func handleValidatedPurchases(ctx context.Context, db *sql.DB, storagePurchases []*runtime.StoragePurchase, persist bool) (*api.ValidatePurchaseProviderResponse, error) {
+
+	if !persist {
+		//Skip storing the receipts
+		validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(storagePurchases))
+		for _, p := range storagePurchases {
+			validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
+				UserId:           p.UserID.String(),
+				ProductId:        p.ProductId,
+				TransactionId:    p.TransactionId,
+				Store:            p.Store,
+				PurchaseTime:     timestamppb.New(p.PurchaseTime),
+				ProviderResponse: p.RawResponse,
+				Environment:      p.Environment,
+			})
+		}
+
+		return &api.ValidatePurchaseProviderResponse{ValidatedPurchases: validatedPurchases}, nil
+	}
+
+	purchases, err := iap.UpsertPurchases(ctx, db, storagePurchases)
+	if err != nil {
+		return nil, err
+	}
+
+	validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
+		suid := p.UserID.String()
+		if p.UserID.IsNil() {
+			suid = ""
+		}
+		validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
+			UserId:           suid,
+			ProductId:        p.ProductId,
+			TransactionId:    p.TransactionId,
+			Store:            p.Store,
+			PurchaseTime:     timestamppb.New(p.PurchaseTime),
+			CreateTime:       timestamppb.New(p.CreateTime),
+			UpdateTime:       timestamppb.New(p.UpdateTime),
+			ProviderResponse: p.RawResponse,
+			Environment:      p.Environment,
+		})
+	}
+
+	return &api.ValidatePurchaseProviderResponse{
+		ValidatedPurchases: validatedPurchases,
+		Persist:            persist,
+	}, nil
+}
+
+func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseProviderResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	purchaseProvider, err := iap.GetPurchaseProvider(in.Platform, s.runtime.purchaseProviders)
 	if err != nil {
 		s.logger.Warn("Purchase provider not found", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to get purchase provider")
-	}
-
-	err = purchaseProvider.ValidateRequest(in)
-	if err != nil {
-		return nil, err
-	}
-
-	if iap.FromString(in.Platform) != iap.Steam && len(in.Receipt) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
-	}
-
-	if err != nil {
-		s.logger.Warn("Purchase request validation failed", zap.Error(err))
-		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if fn := s.runtime.BeforeValidatePurchase(); fn != nil {
@@ -68,16 +107,17 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 		}
 	}
 
-	if iap.FromString(in.Platform) != iap.Steam && len(in.Receipt) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
-	}
-
 	persist := true
 	if in.Persist != nil {
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := purchaseProvider.PurchaseValidate(ctx, in, userID.String(), persist)
+	validationPurchases, err := purchaseProvider.PurchaseValidate(ctx, in, userID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	validatedPurchasesResponse, err := handleValidatedPurchases(ctx, s.db, validationPurchases, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +131,7 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
-	return validation, err
+	return validatedPurchasesResponse, err
 }
 
 func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error) {

@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"net/http"
 	"time"
 )
@@ -29,7 +28,20 @@ func (f *FacebookPurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundF
 	f.subscriptionFn = subscriptionRefundFn
 }
 
-func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, persist bool) (*api.ValidatePurchaseResponse, error) {
+func (f *FacebookPurchaseProvider) GetProviderString() string {
+	platform := Facebook
+	return platform.String()
+}
+
+func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
+	if f.config.GetFacebookInstant().GetAppSecret() == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Facebook Instant IAP is not configured.")
+	}
+
+	if len(in.SignedRequest) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "SignedRequest cannot be empty.")
+	}
+
 	uuidUserID, err := uuid.FromString(userID)
 	if err != nil {
 		f.logger.Error("Error parsing user ID, error: %v", err)
@@ -43,7 +55,7 @@ func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api
 		return nil, err
 	}
 
-	sPurchase := &StoragePurchase{
+	sPurchase := &runtime.StoragePurchase{
 		UserID:        uuidUserID,
 		Store:         api.StoreProvider_FACEBOOK_INSTANT_STORE,
 		ProductId:     payment.ProductId,
@@ -53,75 +65,67 @@ func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api
 		Environment:   api.StoreEnvironment_PRODUCTION,
 	}
 
-	if !persist {
-		validatedPurchases := []*api.ValidatedPurchase{
-			{
-				UserId:           userID,
-				ProductId:        sPurchase.ProductId,
-				TransactionId:    sPurchase.TransactionId,
-				Store:            sPurchase.Store,
-				PurchaseTime:     timestamppb.New(sPurchase.PurchaseTime),
-				ProviderResponse: rawResponse,
-				Environment:      sPurchase.Environment,
-			},
-		}
+	return []*runtime.StoragePurchase{sPurchase}, nil
 
-		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
-	}
+	//if !persist {
+	//	validatedPurchases := []*api.PurchaseProviderValidatedPurchase{
+	//		{
+	//			UserId:           userID,
+	//			ProductId:        sPurchase.ProductId,
+	//			TransactionId:    sPurchase.TransactionId,
+	//			Store:            sPurchase.Store,
+	//			PurchaseTime:     timestamppb.New(sPurchase.PurchaseTime),
+	//			ProviderResponse: rawResponse,
+	//			Environment:      sPurchase.Environment,
+	//		},
+	//	}
+	//
+	//	return &api.ValidatePurchaseProviderResponse{ValidatedPurchases: validatedPurchases}, nil
+	//}
 
-	purchases, err := UpsertPurchases(ctx, f.db, []*StoragePurchase{sPurchase})
-	if err != nil {
-		if err != context.Canceled {
-			f.logger.Error("Error storing Facebook Instant receipt, error: %v", err)
-		}
-		return nil, err
-	}
-
-	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
-	for _, p := range purchases {
-		suid := p.UserID.String()
-		if p.UserID.IsNil() {
-			suid = ""
-		}
-		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
-			UserId:           suid,
-			ProductId:        p.ProductId,
-			TransactionId:    p.TransactionId,
-			Store:            p.Store,
-			PurchaseTime:     timestamppb.New(p.PurchaseTime),
-			CreateTime:       timestamppb.New(p.CreateTime),
-			UpdateTime:       timestamppb.New(p.UpdateTime),
-			ProviderResponse: rawResponse,
-			SeenBefore:       p.SeenBefore,
-			Environment:      p.Environment,
-		})
-	}
-
-	return &api.ValidatePurchaseResponse{
-		ValidatedPurchases: validatedPurchases,
-	}, nil
+	//purchases, err := UpsertPurchases(ctx, f.db, []*runtime.StoragePurchase{sPurchase})
+	//if err != nil {
+	//	if err != context.Canceled {
+	//		f.logger.Error("Error storing Facebook Instant receipt, error: %v", err)
+	//	}
+	//	return nil, err
+	//}
+	//
+	//validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(purchases))
+	//for _, p := range purchases {
+	//	suid := p.UserID.String()
+	//	if p.UserID.IsNil() {
+	//		suid = ""
+	//	}
+	//	validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
+	//		UserId:           suid,
+	//		ProductId:        p.ProductId,
+	//		TransactionId:    p.TransactionId,
+	//		Store:            p.Store,
+	//		PurchaseTime:     timestamppb.New(p.PurchaseTime),
+	//		CreateTime:       timestamppb.New(p.CreateTime),
+	//		UpdateTime:       timestamppb.New(p.UpdateTime),
+	//		ProviderResponse: rawResponse,
+	//		Environment:      p.Environment,
+	//	})
+	//}
+	//
+	//return &api.ValidatePurchaseProviderResponse{
+	//	ValidatedPurchases: validatedPurchases,
+	//	Persist:            persist,
+	//}, nil
 }
 
-func (f *FacebookPurchaseProvider) SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	return nil, nil
+func (f *FacebookPurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
+	f.logger.Info("Handling refund not supported")
+
+	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
 }
 
 func (f *FacebookPurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
-	f.logger.Info("Handling refund not implemented yet")
+	f.logger.Info("Handling refund not supported")
 
-	return nil, nil
-}
-
-func (f *FacebookPurchaseProvider) ValidateRequest(in *api.ValidatePurchaseRequest) error {
-	if f.config.GetFacebookInstant().GetAppSecret() == "" {
-		return status.Error(codes.FailedPrecondition, "Facebook Instant IAP is not configured.")
-	}
-
-	if len(in.SignedRequest) < 1 {
-		return status.Error(codes.InvalidArgument, "SignedRequest cannot be empty.")
-	}
-
-	return nil
+	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
 }
 
 func NewFacebookPurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {

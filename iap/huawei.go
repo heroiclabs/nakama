@@ -11,7 +11,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"net/http"
 	"strconv"
 )
@@ -31,7 +30,26 @@ func (h *HuaweiPurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn,
 	h.subscriptionFn = subscriptionRefundFn
 }
 
-func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, persist bool) (*api.ValidatePurchaseResponse, error) {
+func (h *HuaweiPurchaseProvider) GetProviderString() string {
+	platform := Huawei
+	return platform.String()
+}
+
+func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
+	if h.config.GetHuawei().GetPublicKey() == "" ||
+		h.config.GetHuawei().GetClientID() == "" ||
+		h.config.GetHuawei().GetClientSecret() == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Huawei IAP is not configured.")
+	}
+
+	if len(in.Purchase) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
+	}
+
+	if len(in.Signature) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Signature cannot be empty.")
+	}
+
 	uuidUserID, err := uuid.FromString(userID)
 	if err != nil {
 		h.logger.Error("Error parsing user ID, error: %v", err)
@@ -60,7 +78,7 @@ func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	sPurchase := &StoragePurchase{
+	sPurchase := &runtime.StoragePurchase{
 		UserID:        uuidUserID,
 		Store:         api.StoreProvider_HUAWEI_APP_GALLERY,
 		ProductId:     validation.PurchaseTokenData.ProductId,
@@ -70,79 +88,65 @@ func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		Environment:   env,
 	}
 
-	if !persist {
-		validatedPurchases := []*api.ValidatedPurchase{
-			{
-				ProductId:        sPurchase.ProductId,
-				TransactionId:    sPurchase.TransactionId,
-				Store:            sPurchase.Store,
-				PurchaseTime:     timestamppb.New(sPurchase.PurchaseTime),
-				ProviderResponse: string(raw),
-				Environment:      sPurchase.Environment,
-			},
-		}
-		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
-	}
+	//if !persist {
+	//	validatedPurchases := []*api.PurchaseProviderValidatedPurchase{
+	//		{
+	//			ProductId:        sPurchase.ProductId,
+	//			TransactionId:    sPurchase.TransactionId,
+	//			Store:            sPurchase.Store,
+	//			PurchaseTime:     timestamppb.New(sPurchase.PurchaseTime),
+	//			ProviderResponse: string(raw),
+	//			Environment:      sPurchase.Environment,
+	//		},
+	//	}
+	//	return &api.ValidatePurchaseProviderResponse{ValidatedPurchases: validatedPurchases}, nil
+	//}
+	//
+	//purchases, err := UpsertPurchases(ctx, h.db, []*StoragePurchase{sPurchase})
+	//if err != nil {
+	//	if err != context.Canceled {
+	//		h.logger.Error("Error storing Huawei receipt, error: %v", err)
+	//	}
+	//	return nil, err
+	//}
+	//
+	//validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(purchases))
+	//for _, p := range purchases {
+	//	suid := p.UserID.String()
+	//	if p.UserID.IsNil() {
+	//		suid = ""
+	//	}
+	//	validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
+	//		UserId:           suid,
+	//		ProductId:        p.ProductId,
+	//		TransactionId:    p.TransactionId,
+	//		Store:            p.Store,
+	//		PurchaseTime:     timestamppb.New(p.PurchaseTime),
+	//		CreateTime:       timestamppb.New(p.CreateTime),
+	//		UpdateTime:       timestamppb.New(p.UpdateTime),
+	//		ProviderResponse: string(raw),
+	//		Environment:      p.Environment,
+	//	})
+	//}
+	//
+	//return &api.ValidatePurchaseProviderResponse{
+	//	ValidatedPurchases: validatedPurchases,
+	//	Persist:            persist,
+	//}, nil
 
-	purchases, err := UpsertPurchases(ctx, h.db, []*StoragePurchase{sPurchase})
-	if err != nil {
-		if err != context.Canceled {
-			h.logger.Error("Error storing Huawei receipt, error: %v", err)
-		}
-		return nil, err
-	}
-
-	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
-	for _, p := range purchases {
-		suid := p.UserID.String()
-		if p.UserID.IsNil() {
-			suid = ""
-		}
-		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
-			UserId:           suid,
-			ProductId:        p.ProductId,
-			TransactionId:    p.TransactionId,
-			Store:            p.Store,
-			PurchaseTime:     timestamppb.New(p.PurchaseTime),
-			CreateTime:       timestamppb.New(p.CreateTime),
-			UpdateTime:       timestamppb.New(p.UpdateTime),
-			ProviderResponse: string(raw),
-			SeenBefore:       p.SeenBefore,
-			Environment:      p.Environment,
-		})
-	}
-
-	return &api.ValidatePurchaseResponse{
-		ValidatedPurchases: validatedPurchases,
-	}, nil
+	return []*runtime.StoragePurchase{sPurchase}, nil
 }
 
-func (h *HuaweiPurchaseProvider) SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	return nil, nil
+func (h *HuaweiPurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
+	h.logger.Info("Handling refund not supported")
+
+	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
 }
 
 func (h *HuaweiPurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
-	h.logger.Info("Handling refund not implemented yet")
+	h.logger.Info("Handling refund not supported")
 
-	return nil, nil
-}
-
-func (h *HuaweiPurchaseProvider) ValidateRequest(in *api.ValidatePurchaseRequest) error {
-	if h.config.GetHuawei().GetPublicKey() == "" ||
-		h.config.GetHuawei().GetClientID() == "" ||
-		h.config.GetHuawei().GetClientSecret() == "" {
-		return status.Error(codes.FailedPrecondition, "Huawei IAP is not configured.")
-	}
-
-	if len(in.Purchase) < 1 {
-		return status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
-	}
-
-	if len(in.Signature) < 1 {
-		return status.Error(codes.InvalidArgument, "Signature cannot be empty.")
-	}
-
-	return nil
+	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
 }
 
 func NewHuaweiPurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {

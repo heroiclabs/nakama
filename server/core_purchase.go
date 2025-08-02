@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"slices"
 	"strconv"
 	"time"
@@ -66,7 +67,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	seenTransactionIDs := make(map[string]struct{}, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
-	storagePurchases := make([]*iap.StoragePurchase, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
+	storagePurchases := make([]*runtime.StoragePurchase, 0, len(validation.Receipt.InApp)+len(validation.LatestReceiptInfo))
 	for _, purchase := range validation.Receipt.InApp {
 		if purchase.ExpiresDateMs != "" {
 			continue
@@ -81,7 +82,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		}
 
 		seenTransactionIDs[purchase.TransactionId] = struct{}{}
-		storagePurchases = append(storagePurchases, &iap.StoragePurchase{
+		storagePurchases = append(storagePurchases, &runtime.StoragePurchase{
 			UserID:        userID,
 			Store:         api.StoreProvider_APPLE_APP_STORE,
 			ProductId:     purchase.ProductID,
@@ -107,7 +108,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		}
 
 		seenTransactionIDs[purchase.TransactionId] = struct{}{}
-		storagePurchases = append(storagePurchases, &iap.StoragePurchase{
+		storagePurchases = append(storagePurchases, &runtime.StoragePurchase{
 			UserID:        userID,
 			Store:         api.StoreProvider_APPLE_APP_STORE,
 			ProductId:     purchase.ProductId,
@@ -196,7 +197,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. State: %d", gReceipt.PurchaseState))
 	}
 
-	sPurchase := &iap.StoragePurchase{
+	sPurchase := &runtime.StoragePurchase{
 		UserID:        userID,
 		Store:         api.StoreProvider_GOOGLE_PLAY_STORE,
 		ProductId:     gReceipt.ProductID,
@@ -222,7 +223,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := iap.UpsertPurchases(ctx, db, []*iap.StoragePurchase{sPurchase})
+	purchases, err := iap.UpsertPurchases(ctx, db, []*runtime.StoragePurchase{sPurchase})
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Google receipt", zap.Error(err))
@@ -279,7 +280,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	sPurchase := &iap.StoragePurchase{
+	sPurchase := &runtime.StoragePurchase{
 		UserID:        userID,
 		Store:         api.StoreProvider_HUAWEI_APP_GALLERY,
 		ProductId:     validation.PurchaseTokenData.ProductId,
@@ -304,7 +305,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := iap.UpsertPurchases(ctx, db, []*iap.StoragePurchase{sPurchase})
+	purchases, err := iap.UpsertPurchases(ctx, db, []*runtime.StoragePurchase{sPurchase})
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Huawei receipt", zap.Error(err))
@@ -346,7 +347,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 		return nil, err
 	}
 
-	sPurchase := &iap.StoragePurchase{
+	sPurchase := &runtime.StoragePurchase{
 		UserID:        userID,
 		Store:         api.StoreProvider_FACEBOOK_INSTANT_STORE,
 		ProductId:     payment.ProductId,
@@ -372,7 +373,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := iap.UpsertPurchases(ctx, db, []*iap.StoragePurchase{sPurchase})
+	purchases, err := iap.UpsertPurchases(ctx, db, []*runtime.StoragePurchase{sPurchase})
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Facebook Instant receipt", zap.Error(err))

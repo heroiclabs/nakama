@@ -2224,7 +2224,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiValidatePurchaseResponse"
+              "$ref": "#/definitions/apiValidatePurchaseProviderResponse"
             }
           },
           "default": {
@@ -4597,6 +4597,55 @@
       "default": "NO_OVERRIDE",
       "description": "Operator that can be used to override the one set in the leaderboard.\n\n - NO_OVERRIDE: Do not override the leaderboard operator.\n - BEST: Override the leaderboard operator with BEST.\n - SET: Override the leaderboard operator with SET.\n - INCREMENT: Override the leaderboard operator with INCREMENT.\n - DECREMENT: Override the leaderboard operator with DECREMENT."
     },
+    "apiPurchaseProviderValidatedPurchase": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Purchase User ID."
+        },
+        "productId": {
+          "type": "string",
+          "description": "Purchase Product ID."
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "Purchase Transaction ID."
+        },
+        "store": {
+          "$ref": "#/definitions/apiStoreProvider",
+          "title": "Store identifier"
+        },
+        "purchaseTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the purchase was done."
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the receipt validation was stored in DB."
+        },
+        "updateTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the receipt validation was updated in DB."
+        },
+        "refundTime": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp when the purchase was refunded. Set to UNIX"
+        },
+        "providerResponse": {
+          "type": "string",
+          "description": "Raw provider validation response."
+        },
+        "environment": {
+          "$ref": "#/definitions/apiStoreEnvironment",
+          "description": "Whether the purchase was done in production or sandbox environment."
+        }
+      }
+    },
     "apiReadStorageObjectId": {
       "type": "object",
       "properties": {
@@ -5225,10 +5274,34 @@
       },
       "title": "Huawei IAP Purchase validation request"
     },
+    "apiValidatePurchaseProviderResponse": {
+      "type": "object",
+      "properties": {
+        "validatedPurchases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/apiPurchaseProviderValidatedPurchase"
+          }
+        },
+        "persist": {
+          "type": "boolean"
+        }
+      }
+    },
     "apiValidatePurchaseRequest": {
       "type": "object",
       "properties": {
         "receipt": {
+          "type": "string"
+        },
+        "purchase": {
+          "type": "string"
+        },
+        "signedRequest": {
+          "type": "string"
+        },
+        "signature": {
           "type": "string"
         },
         "platform": {

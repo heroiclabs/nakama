@@ -15,7 +15,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"net/http"
 	"strconv"
@@ -37,7 +36,20 @@ func (g *GooglePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn,
 	g.subscriptionFn = subscriptionRefundFn
 }
 
-func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, persist bool) (*api.ValidatePurchaseResponse, error) {
+func (g *GooglePurchaseProvider) GetProviderString() string {
+	platform := Google
+	return platform.String()
+}
+
+func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
+	if g.config.GetGoogle().GetClientEmail() == "" || g.config.GetGoogle().GetPrivateKey() == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
+	}
+
+	if len(in.Purchase) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
+	}
+
 	uuidUserID, err := uuid.FromString(userID)
 	if err != nil {
 		g.logger.Error("Error parsing user ID, error: %v", err)
@@ -67,7 +79,7 @@ func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Invalid Receipt. State: %d", gReceipt.PurchaseState))
 	}
 
-	sPurchase := &StoragePurchase{
+	sPurchase := &runtime.StoragePurchase{
 		UserID:        uuidUserID,
 		Store:         api.StoreProvider_GOOGLE_PLAY_STORE,
 		ProductId:     gReceipt.ProductID,
@@ -77,56 +89,10 @@ func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		Environment:   purchaseEnv,
 	}
 
-	if !persist {
-		validatedPurchases := []*api.ValidatedPurchase{
-			{
-				UserId:           userID,
-				ProductId:        sPurchase.ProductId,
-				TransactionId:    sPurchase.TransactionId,
-				Store:            sPurchase.Store,
-				PurchaseTime:     timestamppb.New(sPurchase.PurchaseTime),
-				ProviderResponse: string(raw),
-				Environment:      sPurchase.Environment,
-			},
-		}
-
-		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
-	}
-
-	purchases, err := UpsertPurchases(ctx, g.db, []*StoragePurchase{sPurchase})
-	if err != nil {
-		if err != context.Canceled {
-			g.logger.Error("Error storing Google receipt", err)
-		}
-		return nil, err
-	}
-
-	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
-	for _, p := range purchases {
-		suid := p.UserID.String()
-		if p.UserID.IsNil() {
-			suid = ""
-		}
-		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
-			UserId:           suid,
-			ProductId:        p.ProductId,
-			TransactionId:    p.TransactionId,
-			Store:            p.Store,
-			PurchaseTime:     timestamppb.New(p.PurchaseTime),
-			CreateTime:       timestamppb.New(p.CreateTime),
-			UpdateTime:       timestamppb.New(p.UpdateTime),
-			ProviderResponse: string(raw),
-			SeenBefore:       p.SeenBefore,
-			Environment:      p.Environment,
-		})
-	}
-
-	return &api.ValidatePurchaseResponse{
-		ValidatedPurchases: validatedPurchases,
-	}, nil
+	return []*runtime.StoragePurchase{sPurchase}, nil
 }
 
-func (g *GooglePurchaseProvider) SubscriptionValidate(ctx context.Context, userID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+func (g *GooglePurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
 	return nil, nil
 }
 
@@ -257,7 +223,7 @@ func (g *GooglePurchaseProvider) HandleRefund(ctx context.Context) (http.Handler
 			return
 		}
 
-		storageSub := &StorageSubscription{
+		storageSub := &runtime.StorageSubscription{
 			OriginalTransactionId: googleNotification.SubscriptionNotification.PurchaseToken,
 			UserID:                uid,
 			Store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
@@ -290,17 +256,17 @@ func (g *GooglePurchaseProvider) HandleRefund(ctx context.Context) (http.Handler
 	}, nil
 }
 
-func (g *GooglePurchaseProvider) ValidateRequest(in *api.ValidatePurchaseRequest) error {
-	if g.config.GetGoogle().GetClientEmail() == "" || g.config.GetGoogle().GetPrivateKey() == "" {
-		return status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
-	}
-
-	if len(in.Purchase) < 1 {
-		return status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
-	}
-
-	return nil
-}
+//func (g *GooglePurchaseProvider) ValidateRequest(in *api.ValidatePurchaseRequest) error {
+//	if g.config.GetGoogle().GetClientEmail() == "" || g.config.GetGoogle().GetPrivateKey() == "" {
+//		return status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
+//	}
+//
+//	if len(in.Purchase) < 1 {
+//		return status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
+//	}
+//
+//	return nil
+//}
 
 func NewGooglePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {
 	purchaseProvider := &GooglePurchaseProvider{

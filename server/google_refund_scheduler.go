@@ -24,6 +24,8 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	ncRuntime "github.com/heroiclabs/nakama-common/runtime"
+
 	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -123,7 +125,7 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 
 							refundTime := iap.ParseMillisecondUnixTimestamp(refundTimeInt)
 
-							sPurchase := &iap.StoragePurchase{
+							sPurchase := &ncRuntime.StoragePurchase{
 								UserID:        uuid.Must(uuid.FromString(purchase.UserId)),
 								Store:         purchase.Store,
 								ProductId:     purchase.ProductId,
@@ -135,7 +137,7 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								Environment:   purchase.Environment,
 							}
 
-							dbPurchases, err := iap.UpsertPurchases(g.ctx, g.db, []*iap.StoragePurchase{sPurchase})
+							dbPurchases, err := iap.UpsertPurchases(g.ctx, g.db, []*ncRuntime.StoragePurchase{sPurchase})
 							if err != nil {
 								g.logger.Error("Failed to upsert Google voided purchase", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 								continue
@@ -200,7 +202,7 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 
 							refundTime := iap.ParseMillisecondUnixTimestamp(refundTimeInt)
 
-							sSubscription := &iap.StorageSubscription{
+							sSubscription := &ncRuntime.StorageSubscription{
 								OriginalTransactionId: subscription.OriginalTransactionId,
 								UserID:                uuid.Must(uuid.FromString(subscription.UserId)),
 								Store:                 subscription.Store,

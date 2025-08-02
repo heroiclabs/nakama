@@ -1196,6 +1196,12 @@ message ValidatePurchaseRequest {
   google.protobuf.BoolValue persist = 6;
 }
 
+message ValidateSubscriptionRequest {
+  string platform = 1;
+  string receipt = 2;
+  google.protobuf.BoolValue persist = 3;
+}
+
 // Apple IAP Purchases validation request
 message ValidatePurchaseAppleRequest {
   // Base64 encoded Apple receipt data payload.
@@ -1272,15 +1278,48 @@ message ValidatedPurchase {
   bool seen_before = 11;
 }
 
+message PurchaseProviderValidatedPurchase {
+  // Purchase User ID.
+  string user_id = 1;
+  // Purchase Product ID.
+  string product_id = 2;
+  // Purchase Transaction ID.
+  string transaction_id = 3;
+  // Store identifier
+  StoreProvider store = 4;
+  // Timestamp when the purchase was done.
+  google.protobuf.Timestamp purchase_time = 5;
+  // Timestamp when the receipt validation was stored in DB.
+  google.protobuf.Timestamp create_time = 6;
+  // Timestamp when the receipt validation was updated in DB.
+  google.protobuf.Timestamp update_time = 7;
+  // Timestamp when the purchase was refunded. Set to UNIX
+  google.protobuf.Timestamp refund_time = 8;
+  // Raw provider validation response.
+  string provider_response = 9;
+  // Whether the purchase was done in production or sandbox environment.
+  StoreEnvironment environment = 10;
+}
+
 // Validate IAP response.
 message ValidatePurchaseResponse {
   // Newly seen validated purchases.
   repeated ValidatedPurchase validated_purchases = 1;
 }
 
+message ValidatePurchaseProviderResponse {
+  repeated PurchaseProviderValidatedPurchase validated_purchases = 1;
+  bool persist = 2;
+}
+
 // Validate Subscription response.
 message ValidateSubscriptionResponse {
   ValidatedSubscription validated_subscription = 1;
+}
+
+message ValidatePurchaseProviderSubscriptionResponse {
+  repeated ValidatedSubscription validated_subscription = 1;
+  bool persist = 2;
 }
 
 // Validation Provider,

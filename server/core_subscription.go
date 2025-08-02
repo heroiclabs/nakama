@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
@@ -305,7 +306,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		active = true
 	}
 
-	storageSub := &iap.StorageSubscription{
+	storageSub := &runtime.StorageSubscription{
 		UserID:                userID,
 		Store:                 api.StoreProvider_APPLE_APP_STORE,
 		ProductId:             receiptInfo.ProductId,
@@ -383,7 +384,7 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		active = true
 	}
 
-	storageSub := &iap.StorageSubscription{
+	storageSub := &runtime.StorageSubscription{
 		OriginalTransactionId: gReceipt.PurchaseToken,
 		UserID:                userID,
 		Store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
@@ -669,7 +670,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				uid = uuid.Must(uuid.FromString(s.UserId))
 			}
 
-			sub := &iap.StorageSubscription{
+			sub := &runtime.StorageSubscription{
 				UserID:                uid,
 				OriginalTransactionId: signedTransactionInfo.OriginalTransactionId,
 				Store:                 api.StoreProvider_APPLE_APP_STORE,
@@ -743,7 +744,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			}
 
 			if strings.ToUpper(notificationPayload.NotificationType) == iap.AppleNotificationTypeRefund {
-				purchase := &iap.StoragePurchase{
+				purchase := &runtime.StoragePurchase{
 					UserID:        uid,
 					Store:         api.StoreProvider_APPLE_APP_STORE,
 					ProductId:     signedTransactionInfo.ProductId,
@@ -753,7 +754,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					Environment:   env,
 				}
 
-				dbPurchases, err := iap.UpsertPurchases(r.Context(), db, []*iap.StoragePurchase{purchase})
+				dbPurchases, err := iap.UpsertPurchases(r.Context(), db, []*runtime.StoragePurchase{purchase})
 				if err != nil {
 					logger.Error("Failed to store App Store notification purchase data")
 					w.WriteHeader(http.StatusInternalServerError)
@@ -920,7 +921,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			return
 		}
 
-		storageSub := &iap.StorageSubscription{
+		storageSub := &runtime.StorageSubscription{
 			OriginalTransactionId: googleNotification.SubscriptionNotification.PurchaseToken,
 			UserID:                uid,
 			Store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
