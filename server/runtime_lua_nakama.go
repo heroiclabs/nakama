@@ -10226,7 +10226,7 @@ func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 	allIDs = append(allIDs, uids...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = DeleteFriends(l.Context(), n.logger, n.db, userID, allIDs)
+	err = DeleteFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs)
 	if err != nil {
 		l.RaiseError("error deleting friends: %s", err.Error())
 		return 0
