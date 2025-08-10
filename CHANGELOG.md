@@ -5,11 +5,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.30.0] - 2025-08-10
 ### Added
 - Send In-App Notification for friend removal or friend request rejection.
 
 ### Changed
-- Rebuilt devconsole UI on Vue.js and the new Heroic UI components.
+- Rebuilt console UI on Vue.js and the new Heroic UI components.
 
 ## [3.29.0] - 2025-07-29
 ### Added
