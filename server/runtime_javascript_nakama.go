@@ -7977,7 +7977,7 @@ func (n *RuntimeJavascriptNakamaModule) friendsDelete(r *goja.Runtime) func(goja
 		allIDs = append(allIDs, userIDsArray...)
 		allIDs = append(allIDs, fetchIDs...)
 
-		err = DeleteFriends(n.ctx, n.logger, n.db, userIDValue, allIDs)
+		err = DeleteFriends(n.ctx, n.logger, n.db, n.tracker, n.router, userIDValue, username, allIDs)
 		if err != nil {
 			panic(r.NewTypeError(err.Error()))
 		}

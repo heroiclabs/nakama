@@ -289,7 +289,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 	allIDs = append(allIDs, in.GetIds()...)
 	allIDs = append(allIDs, userIDs...)
 
-	if err := DeleteFriends(ctx, s.logger, s.db, userID, allIDs); err != nil {
+	if err := DeleteFriends(ctx, s.logger, s.db, s.tracker, s.router, userID, username, allIDs); err != nil {
 		return nil, status.Error(codes.Internal, "Error while trying to delete friends.")
 	}
 

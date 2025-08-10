@@ -5,6 +5,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Added
+- Send In-App Notification for friend removal or friend request rejection.
+
 ## [3.29.0] - 2025-07-29
 ### Added
 - New "MatchmakerProcessor" hook to set custom matching behaviour tapping into the complete ticket pool.
