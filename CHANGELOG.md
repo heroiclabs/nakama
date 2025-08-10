@@ -5,7 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
-## [3.30.3] - 2025-08-10
+## [3.30.0] - 2025-08-10
 ### Added
 - Send In-App Notification for friend removal or friend request rejection.
 
