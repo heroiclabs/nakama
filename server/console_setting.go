@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"errors"
+	"go.uber.org/zap"
 	"slices"
 
 	"github.com/heroiclabs/nakama/v3/console"
@@ -101,7 +102,14 @@ func (s *ConsoleServer) ListSettings(ctx context.Context, in *console.ListSettin
 		params = append(params, in.Names)
 	}
 
-	rows, _ := s.db.QueryContext(ctx, query, params...)
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, status.Error(codes.Canceled, "Request was canceled.")
+		}
+		s.logger.Error("Error listing settings.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list settings.")
+	}
 	defer rows.Close()
 
 	settings := make([]*console.Setting, 0, 1)

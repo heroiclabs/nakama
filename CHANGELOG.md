@@ -8,6 +8,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Send In-App Notification for friend removal or friend request rejection.
 
+### Changed
+- Rebuilt devconsole UI on Vue.js and the new Heroic UI components.
+
 ## [3.29.0] - 2025-07-29
 ### Added
 - New "MatchmakerProcessor" hook to set custom matching behaviour tapping into the complete ticket pool.
