@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,6 +113,11 @@ var restrictedMethods = map[string]console.UserRole{
 
 	// Runtime
 	"/nakama.console.Console/GetRuntime": console.UserRole_USER_ROLE_DEVELOPER,
+
+	// Setting
+	"/nakama.console.Console/GetSetting":    console.UserRole_USER_ROLE_READONLY,
+	"/nakama.console.Console/UpdateSetting": console.UserRole_USER_ROLE_DEVELOPER,
+	"/nakama.console.Console/ListSettings":  console.UserRole_USER_ROLE_READONLY,
 
 	// Status
 	"/nakama.console.Console/GetStatus": console.UserRole_USER_ROLE_READONLY,
@@ -319,7 +325,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		// Allow GRPC Gateway to handle the request.
 		handlerWithMaxBody.ServeHTTP(w, r)
 	})
-	registerDashboardHandlers(logger, grpcGatewayRouter)
+	if err := registerDashboardHandlers(logger, grpcGatewayRouter); err != nil {
+		startupLogger.Fatal("Console dashboard registration failed", zap.Error(err))
+	}
 
 	// Enable CORS on all requests.
 	CORSHeaders := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "User-Agent"})
@@ -408,22 +416,24 @@ SELECT collection FROM t WHERE collection IS NOT NULL`
 	return s
 }
 
-func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
+func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) error {
+	indexFile, err := console.UIFS.Open("index.html")
+	if err != nil {
+		logger.Error("Failed to open index file.", zap.Error(err))
+		return err
+	}
+	// inject variables into the index.html file
+	indexBytes, err := io.ReadAll(indexFile)
+	if err != nil {
+		logger.Error("Failed to read index file.", zap.Error(err))
+		return err
+	}
+	_ = indexFile.Close()
+	indexHTMLStr := string(indexBytes)
+	indexHTMLStr = strings.ReplaceAll(indexHTMLStr, "{{nt}}", strconv.FormatBool(console.UIFS.Nt))
+	indexBytes = []byte(indexHTMLStr)
+
 	indexFn := func(w http.ResponseWriter, r *http.Request) {
-		indexFile, err := console.UIFS.Open("index.html")
-		if err != nil {
-			logger.Error("Failed to open index file.", zap.Error(err))
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		indexBytes, err := io.ReadAll(indexFile)
-		if err != nil {
-			logger.Error("Failed to read index file.", zap.Error(err))
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
 		w.Header().Add("Cache-Control", "no-cache")
 		w.Header().Set("X-Frame-Options", "deny")
 		_, _ = w.Write(indexBytes)
@@ -433,18 +443,46 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) {
 	router.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// get the absolute path to prevent directory traversal
 		path := r.URL.Path
-		logger = logger.With(zap.String("path", path))
+		isAsset := false
+
+		if strings.HasPrefix(path, "/static/") {
+			isAsset = true
+
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+
+			if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+				if strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".js") {
+					w.Header().Set("Content-Encoding", "gzip")
+
+					if strings.HasSuffix(path, ".css") {
+						w.Header().Set("Content-Type", "text/css")
+					} else {
+						w.Header().Set("Content-Type", "application/javascript")
+					}
+
+					path = path + ".gz"
+				}
+			}
+		}
 
 		// check whether a file exists at the given path
 		if _, err := console.UIFS.Open(path); err == nil {
 			// otherwise, use http.FileServer to serve the static dir
 			r.URL.Path = path // override the path with the prefixed path
 			console.UI.ServeHTTP(w, r)
+
 			return
 		} else {
+			if isAsset {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
 			indexFn(w, r)
 		}
 	})
+
+	return nil
 }
 
 func (s *ConsoleServer) Stop() {
