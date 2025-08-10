@@ -1412,11 +1412,38 @@ type FlagOverrides struct {
 }
 
 type FlagOverride struct {
-	Type          int    `json:"type,omitempty"`
-	Name          string `json:"name,omitempty"`
-	VariantName   string `json:"variant_name,omitempty"`
-	Value         string `json:"value,omitempty"`
-	CreateTimeSec int64  `json:"create_time_sec,omitempty"`
+	Type          OverrideType `json:"type,omitempty"`
+	Name          string       `json:"name,omitempty"`
+	VariantName   string       `json:"variant_name,omitempty"`
+	Value         string       `json:"value,omitempty"`
+	CreateTimeSec int64        `json:"create_time_sec,string,omitempty"`
+}
+
+type OverrideType int
+
+const (
+	FLAG                          OverrideType = 0
+	FLAG_VARIANT                  OverrideType = 1
+	LIVE_EVENT_FLAG               OverrideType = 2
+	LIVE_EVENT_FLAG_VARIANT       OverrideType = 3
+	EXPERIMENT_PHASE_VARIANT_FLAG OverrideType = 4
+)
+
+func (ot OverrideType) String() string {
+	switch ot {
+	case FLAG:
+		return "FLAG"
+	case FLAG_VARIANT:
+		return "FLAG_VARIANT"
+	case LIVE_EVENT_FLAG:
+		return "LIVE_EVENT_FLAG"
+	case LIVE_EVENT_FLAG_VARIANT:
+		return "LIVE_EVENT_FLAG_VARIANT"
+	case EXPERIMENT_PHASE_VARIANT_FLAG:
+		return "EXPERIMENT_PHASE_VARIANT_FLAG"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 type Flag struct {
