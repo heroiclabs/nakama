@@ -668,7 +668,7 @@ func DeleteFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 
 	notifications := make(map[uuid.UUID][]*api.Notification)
 	content, _ := json.Marshal(map[string]interface{}{"username": username})
-	for id, _ := range notificationToSend {
+	for id := range notificationToSend {
 		uid := uuid.FromStringOrNil(id)
 		notifications[uid] = []*api.Notification{{
 			Id:         uuid.Must(uuid.NewV4()).String(),
