@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type GooglePurchaseProvider struct {
@@ -93,7 +94,68 @@ func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 }
 
 func (g *GooglePurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
-	return nil, nil
+	uuidUserID, err := uuid.FromString(userID)
+	if err != nil {
+		g.logger.Error("Error parsing user ID, error: %v", err)
+	}
+
+	if g.config.GetGoogle().GetClientEmail() == "" || g.config.GetGoogle().GetPrivateKey() == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
+	}
+
+	if len(in.Receipt) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
+	}
+
+	gResponse, gReceipt, rawResponse, err := ValidateSubscriptionReceiptGoogle(ctx, Httpc, g.config.GetGoogle().GetClientEmail(), g.config.GetGoogle().GetPrivateKey(), in.Receipt)
+	if err != nil {
+		if err != context.Canceled {
+			var vErr *ValidationError
+			if errors.As(err, &vErr) {
+				g.logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				return nil, vErr
+			} else {
+				g.logger.Error("Error validating Google receipt", zap.Error(err))
+			}
+		}
+		return nil, err
+	}
+
+	purchaseEnv := api.StoreEnvironment_PRODUCTION
+	if gResponse.PurchaseType == 0 {
+		purchaseEnv = api.StoreEnvironment_SANDBOX
+	}
+
+	expireTimeInt, err := strconv.ParseInt(gResponse.ExpiryTimeMillis, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	expireTime := ParseMillisecondUnixTimestamp(expireTimeInt)
+
+	active := false
+	if expireTime.After(time.Now()) {
+		active = true
+	}
+
+	storageSub := &runtime.StorageSubscription{
+		OriginalTransactionId: gReceipt.PurchaseToken,
+		UserID:                uuidUserID,
+		Store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
+		ProductId:             gReceipt.ProductID,
+		PurchaseTime:          ParseMillisecondUnixTimestamp(gReceipt.PurchaseTime),
+		Environment:           purchaseEnv,
+		ExpireTime:            expireTime,
+		RawResponse:           string(rawResponse),
+		Active:                active,
+	}
+
+	if gResponse.LinkedPurchaseToken != "" {
+		// https://medium.com/androiddevelopers/implementing-linkedpurchasetoken-correctly-to-prevent-duplicate-subscriptions-82dfbf7167da
+		storageSub.OriginalTransactionId = gResponse.LinkedPurchaseToken
+	}
+
+	return []*runtime.StorageSubscription{storageSub}, nil
 }
 
 func (g *GooglePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {

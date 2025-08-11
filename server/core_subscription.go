@@ -243,10 +243,6 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 	return &api.SubscriptionList{ValidatedSubscriptions: subscriptions, Cursor: nextCursorStr, PrevCursor: prevCursorStr}, nil
 }
 
-func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) {
-
-}
-
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, iap.Httpc, receipt, password)
 	if err != nil {

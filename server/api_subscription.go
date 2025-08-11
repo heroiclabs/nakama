@@ -28,8 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscriptions []*runtime.StorageSubscription, persist bool) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
-
+func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscriptions []*runtime.StorageSubscription, persist bool, logger *zap.Logger) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
 	if !persist {
 		validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))
 		for _, s := range storageSubscriptions {
@@ -57,7 +56,7 @@ func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscr
 	validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))
 
 	for _, sub := range storageSubscriptions {
-		var validatedSub *api.ValidatedSubscription
+		var validatedSub api.ValidatedSubscription
 		suid := sub.UserID.String()
 		if sub.UserID.IsNil() {
 			suid = ""
@@ -69,7 +68,7 @@ func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscr
 		validatedSub.ProviderResponse = sub.RawResponse
 		validatedSub.ProviderNotification = sub.RawNotification
 
-		validatedSubs = append(validatedSubs, &api.ValidatedSubscription{})
+		validatedSubs = append(validatedSubs, &validatedSub)
 	}
 
 	return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs, Persist: persist}, nil
@@ -112,13 +111,13 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateSu
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := purchaseProvider.SubscriptionValidate(ctx, in, userID.String())
+	storageSubs, err := purchaseProvider.SubscriptionValidate(ctx, in, userID.String())
 	if err != nil {
 		return nil, err
 	}
 
 	// handle upsert and persist here
-	response, err := handleValidatedSubscriptions(ctx, s.db, validation, persist)
+	response, err := handleValidatedSubscriptions(ctx, s.db, storageSubs, persist, s.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +131,7 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateSu
 		// Execute the after function lambda wrapped in a trace for stats measurement.
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
-
+	
 	return response, nil
 }
 
