@@ -1,11 +1,16 @@
-![Nakama](.github/logo.png?raw=true "Nakama logo")
-======
-
-[![GitHub release](https://img.shields.io/github/release/heroiclabs/nakama.svg)](https://heroiclabs.com/docs/nakama/getting-started/install/)
-[![Forum](https://img.shields.io/badge/forum-online-success.svg)](https://forum.heroiclabs.com)
-[![License](https://img.shields.io/github/license/heroiclabs/nakama.svg)](https://github.com/heroiclabs/nakama/blob/master/LICENSE)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./.github/logo_dark.svg">
+  <img alt="Nakama logo" src="./.github/logo.svg">
+</picture>
 
 > Distributed server for social and realtime games and apps.
+
+<p>
+  <a href="https://heroiclabs.com/docs/nakama/getting-started/install/"><img src="https://img.shields.io/github/release/heroiclabs/nakama.svg?colorA=18181B&colorB=825df2" alt="Version"></a>
+  <a href="https://hub.docker.com/r/heroiclabs/nakama"><img src="https://img.shields.io/docker/pulls/heroiclabs/nakama?colorA=18181B&colorB=825df2&label=downloads" alt="Downloads"></a>
+  <a href="https://github.com/heroiclabs/nakama/blob/master/LICENSE"><img src="https://img.shields.io/github/license/heroiclabs/nakama.svg?colorA=18181B&colorB=825df2" alt="License"></a>
+  <a href="https://forum.heroiclabs.com"><img src="https://img.shields.io/badge/Nakama%20Forum-18181B?logo=discourse" alt="Forum"></a>
+</p>
 
 ## Features
 
@@ -151,20 +156,13 @@ To build the codebase and generate all sources follow these steps.
        "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2"
    ```
 
-2. If you've made changes to the embedded Console.
-
-    ```shell
-    cd console/ui
-    ng serve
-    ```
-
-3. Re-generate the protocol buffers, gateway code and console UI.
+2. Re-generate the protocol buffers and gateway code.
 
    ```shell
    env PATH="$HOME/go/bin:$PATH" go generate -x ./...
    ```
 
-4. Build the codebase.
+3. Build the codebase.
 
    ```shell
    go build -trimpath -mod=vendor
