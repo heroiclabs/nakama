@@ -188,6 +188,8 @@ func (s *sessionWS) Consume() {
 		s.maybeResetPingTimer()
 		return nil
 	})
+	// Disable the close handler so that the server can handle the close message itself.
+	s.conn.SetCloseHandler(func(code int, text string) error { return nil })
 
 	// Start a routine to process outbound messages.
 	go s.processOutgoing()
@@ -210,6 +212,7 @@ IncomingLoop:
 			}
 			break
 		}
+
 		if messageType != s.wsMessageType {
 			// Expected text but received binary, or expected binary but received text.
 			// Disconnect client if it attempts to use this kind of mixed protocol mode.
@@ -514,12 +517,31 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 		// This may not be possible if the socket was already fully closed by an error.
 		s.logger.Debug("Could not send close message", zap.Error(err))
 	}
+	if msg != "" {
+		// Server initiated close, await for client close response.
+		if err := s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration)); err != nil {
+			s.logger.Warn("Failed to set read deadline", zap.Error(err))
+		} else {
+			for {
+				msgType, _, readErr := s.conn.ReadMessage()
+				if readErr != nil {
+					// If any error occurs, close message likely won't be delivered, just close the socket.
+					break
+				}
+				if msgType == websocket.CloseMessage {
+					// We only care about the close message at this point, if the server initiated a close then something went wrong.
+					break
+				}
+			}
+		}
+	}
+
 	// Close WebSocket.
 	if err := s.conn.Close(); err != nil {
 		s.logger.Debug("Could not close", zap.Error(err))
 	}
 
-	s.logger.Info("Closed client connection")
+	s.logger.Debug("Closed client connection")
 
 	// Fire an event for session end.
 	if fn := s.runtime.EventSessionEnd(); fn != nil {
