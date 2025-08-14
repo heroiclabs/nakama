@@ -8,7 +8,8 @@
   <a href="https://heroiclabs.com/docs/nakama/getting-started/install/"><img src="https://img.shields.io/github/release/heroiclabs/nakama.svg?colorA=18181B&colorB=825df2" alt="Version"></a>
   <a href="https://hub.docker.com/r/heroiclabs/nakama"><img src="https://img.shields.io/docker/pulls/heroiclabs/nakama?colorA=18181B&colorB=825df2&label=downloads" alt="Downloads"></a>
   <a href="https://github.com/heroiclabs/nakama/blob/master/LICENSE"><img src="https://img.shields.io/github/license/heroiclabs/nakama.svg?colorA=18181B&colorB=825df2" alt="License"></a>
-  <a href="https://forum.heroiclabs.com"><img src="https://img.shields.io/badge/Nakama%20Forum-18181B?logo=discourse" alt="Forum"></a>
+  <a href="https://forum.heroiclabs.com"><img src="https://img.shields.io/badge/Nakama%20Forum-18181B?logo=discourse" alt="Nakama Forum"></a>
+  <a href="https://heroiclabs.com/docs"><img src="https://img.shields.io/badge/Nakama%20Docs-18181B?logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzU3IiBoZWlnaHQ9IjU3OSIgdmlld0JveD0iMCAwIDM1NyA1NzkiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMTI3Ljc1NyAzMzYuNDQ2QzExNC4yMjUgMzM2Ljc0MyAxMDcuNzA1IDMxOS45MDYgMTAzLjk1MiAzMDguNzE0QzEwNy4yMTIgMzA4LjgxMyAxMTAuNDcxIDMwOS4wMTEgMTEzLjYzMiAzMDkuMzA4QzEyMC44NDMgMzEwLjEwMSAxMjguMDU0IDMxMi4xODEgMTMyLjY5NiAzMTguMjIyQzEzOS4xMTcgMzI2LjQ0MyAxMzMuODgyIDMzNi4zNDcgMTI3Ljg1NiAzMzYuNDQ2TTIyOS43OTYgMzM2LjQ0NkMyNDMuMzI4IDMzNi43NDMgMjQ5Ljg0OCAzMTkuOTA2IDI1My42MDEgMzA4LjcxNEMyNTAuMzQxIDMwOC44MTMgMjQ3LjA4MiAzMDkuMDExIDI0My45MjEgMzA5LjMwOEMyMzYuNzEgMzEwLjEwMSAyMjkuNDk5IDMxMi4xODEgMjI0Ljg1NyAzMTguMjIyQzIxOC40MzYgMzI2LjQ0MyAyMjMuNjcxIDMzNi4zNDcgMjI5LjY5NyAzMzYuNDQ2SDIyOS43OTZaTTE3OC4xMzQgNTMzLjQ0MUwxNzguNzI3IDUzNC4xMzRMMTc5LjQxOSA1MzMuNDQxQzE5NC42MyA1MTMuMDM4IDE5Ny42OTMgNDc0LjExNCAxNzguNzI3IDQ1NS41OTRDMTYwLjA1OCA0NzUuMjA0IDE2Mi41MjcgNTEyLjU0MyAxNzguMTM0IDUzMy40NDFaTTE3Ny45MzcgMC41OTQyNTJMMTc4LjcyNyAwTDE3OS41MTcgMC41OTQyNTJDMTk4Ljk3NyAxNC4xNjMgMjEzLjIwMSAyOC4zMjYgMjI3LjEyOSA0Ny44MzczQzI3MS44NzUgMTEwLjIzNCAzMDAuOTE2IDIxMC41NjMgMjkxLjczIDI4NC45NDRDMzEyLjk2NyAyOTQuMTU1IDMyOS41NjIgMzA5LjQwNyAzNDAuNzI0IDMyOC4yMjVDMzU4LjcwMSAzNTguNjMxIDM2Ni4wMTEgNDIwLjAzNyAzNDAuMzI5IDQ1MS45MjlDMzA3LjgzMSA0MzQuMDAyIDI2MC44MTIgNDE5Ljc0IDIxNC4xODkgNDMyLjkxM0wyMDQuODA1IDQzNi45NzRDMjI5Ljc5NiA0NzAuNTQ5IDIyOS45OTMgNTE1LjUxNCAyMDcuMDc3IDU0OS4wODlDMTk3LjI5NyA1NjMuNDUgMTg5Ljk4OCA1NjcuODA4IDE3OC40MzEgNTc5QzE2Ni42NzYgNTY4LjcgMTU4Ljg3MyA1NjIuMzYxIDE0OS43ODUgNTQ5LjA4OUMxMjYuOTY3IDUxNS41MTQgMTI3LjA2NiA0NzAuNTQ5IDE1Mi4wNTcgNDM2Ljk3NEwxNDIuNzcyIDQzMi45MTNDOTYuMTQ4NCA0MTkuNzQgNDkuMTI5OCA0MzQuMDAyIDE2LjYzMTcgNDUxLjkyOUMtOC45NTE4OCA0MjAuMDM3IC0xLjc0MTA1IDM1OC42MzEgMTYuMjM2NiAzMjguMjI1QzI3LjM5ODYgMzA5LjMwOCA0NC4wOTIxIDI5NC4wNTYgNjUuMjMwNyAyODQuOTQ0QzU2LjA0NDMgMjEwLjU2MyA4NS4wODUyIDExMC4yMzQgMTI5LjgzMiA0Ny44MzczQzE0My44NTggMjguMzI2IDE1Ny45ODQgMTQuMTYzIDE3Ny40NDMgMC41OTQyNTJIMTc3LjkzN1pNMzIyLjg0NSA0MDkuMjQyQzMyNy4wOTIgMzg3LjA1NiAzMjMuNzM0IDM2My4zODUgMzEyLjg2OCAzNDQuOTY0QzMwNi4xNTEgMzMzLjY3MyAyOTYuNjY5IDMyNC4zNjMgMjg0LjcxNiAzMTcuOTI1QzI4MS41NTUgMzI3LjgyOSAyNzcuNTA2IDMzNi44NDIgMjcyLjQ2OCAzNDQuODY1QzI1Ny4zNTUgMzY5LjEzIDIyMy41NzMgMzc4LjQ0IDIwMi4zMzUgMzU3LjY0MUMxNzIuOTk4IDMyOC44MiAxOTQuNTMyIDI3NC4wNDkgMjUzLjEwNyAyNzUuOTMxTDI2MC4xMjEgMjc2LjYyNUMyNjcuNTI5IDIwMi4zNDMgMjMzLjU0OSA5Mi40MDYzIDE3OC42MjggNDIuMjkxQzEyMy43MDggOTIuNTA1MyA4OS44MjY1IDIwMi4zNDMgOTcuMTM2MiAyNzYuNjI1TDEwNC4xNDkgMjc1LjkzMUMxNjIuNzI1IDI3NC4wNDkgMTg0LjM1NyAzMjguNzIxIDE1NC45MjIgMzU3LjY0MUMxMzMuNzgzIDM3OC40NCA5OS45MDE5IDM2OS4xMyA4NC43ODg4IDM0NC44NjVDNzkuNzUxMiAzMzYuODQyIDc1LjcwMTIgMzI3LjczIDcyLjU0MDMgMzE3LjkyNUM2MC41ODgxIDMyNC4zNjMgNTEuMTA1NCAzMzMuNzcyIDQ0LjM4ODUgMzQ0Ljk2NEMzMy41MjI4IDM2My4zODUgMzAuMTY0NCAzODcuMDU2IDM0LjQxMTggNDA5LjI0MkM4Ni4yNzA1IDM5MC4yMjYgMTI4LjM1IDM5MC43MjEgMTc4LjUzIDQxMi4zMTJDMjI4LjgwOCAzOTAuNjIyIDI3MC43ODkgMzkwLjIyNiAzMjIuNjQ3IDQwOS4yNDJIMzIyLjg0NVoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo=" alt="Nakama Documentation"></a>
 </p>
 
 ## Features
@@ -34,7 +35,7 @@ The server is simple to setup and run for local development and can be deployed 
 
 ### Docker
 
-<a href="https://heroiclabs.com/docs/install-docker-quickstart/"><img src="https://upload.wikimedia.org/wikipedia/commons/7/79/Docker_%28container_engine%29_logo.png" width="170"></a>
+<a href="https://heroiclabs.com/docs/install-docker-quickstart/"><img src="https://upload.wikimedia.org/wikipedia/en/f/f4/Docker_logo.svg" width="170"></a>
 
 The fastest way to run the server and the database is with Docker. Setup Docker and start the daemon.
 
@@ -98,12 +99,15 @@ The server provides a web UI which teams can use to inspect various data stored 
 
 You can navigate to it on your browser on [http://127.0.0.1:7351](http://127.0.0.1:7351).
 
-<img src=".github/accounts.jpg?raw=true" title="Account listing" width="1024" align="center">
-<img src=".github/status.jpg?raw=true" title="Status view" width="125" align="left">
-<img src=".github/storage.jpg?raw=true" title="Storage record view" width="125" align="left">
-<img src=".github/match.jpg?raw=true" title="Running matches view" width="125" align="left">
-<img src=".github/users.jpg?raw=true" title="Console users view" width="125" align="left">
-<img src=".github/modules.jpg?raw=true" title="Loaded modules view" width="125">
+
+<details open>
+<summary>View Screenshots</summary>
+  <img src=".github/dashboard.png" alt="Nakama Console dashboard view" title="Dashboard view">
+  <img src=".github/players.png" alt="Nakama Console players view" title="Players view">
+  <img src=".github/api-explorer.png" alt="Nakama Console API explorer view" title="API explorer view">
+  <img src=".github/storage.png" alt="Nakama Console storage view" title="Storage object view">
+  <img src=".github/modules.png" alt="Nakama Console modules view" title="Runtime modules view">
+</details>
 
 ## Deployment
 
