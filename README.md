@@ -1,11 +1,10 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./.github/logo_dark.svg">
-  <img alt="Nakama logo" src="./.github/logo.svg">
-</picture>
+<p align="center">
+  <a href="https://heroiclabs.com" target="_blank" rel="noopener">
+    <img src="./.github/nakama.png" alt="Nakama - Distributed server for social and realtime games and apps" />
+  </a>
+</p>
 
-> Distributed server for social and realtime games and apps.
-
-<p>
+<p align="center">
   <a href="https://heroiclabs.com/docs/nakama/getting-started/install/"><img src="https://img.shields.io/github/release/heroiclabs/nakama.svg?colorA=18181B&colorB=825df2" alt="Version"></a>
   <a href="https://hub.docker.com/r/heroiclabs/nakama"><img src="https://img.shields.io/docker/pulls/heroiclabs/nakama?colorA=18181B&colorB=825df2&label=downloads" alt="Downloads"></a>
   <a href="https://github.com/heroiclabs/nakama/blob/master/LICENSE"><img src="https://img.shields.io/github/license/heroiclabs/nakama.svg?colorA=18181B&colorB=825df2" alt="License"></a>
