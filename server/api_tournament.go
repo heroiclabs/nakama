@@ -353,7 +353,13 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 		return nil, status.Error(codes.NotFound, "Tournament not found or has ended.")
 	}
 
-	record, err := TournamentRecordWrite(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.GetTournamentId(), userID, username, in.GetRecord().GetScore(), in.GetRecord().GetSubscore(), in.GetRecord().GetMetadata(), in.GetRecord().GetOperator())
+	// Get the numScoreIncrement from the request, default to 1 if not provided or <= 0
+	numScoreIncrement := int32(1)
+	if in.GetRecord().GetNumScoreIncrement() > 0 {
+		numScoreIncrement = in.GetRecord().GetNumScoreIncrement()
+	}
+
+	record, err := TournamentRecordWrite(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.GetTournamentId(), userID, username, in.GetRecord().GetScore(), in.GetRecord().GetSubscore(), in.GetRecord().GetMetadata(), in.GetRecord().GetOperator(), numScoreIncrement)
 	if err != nil {
 		switch err {
 		case runtime.ErrTournamentMaxSizeReached:

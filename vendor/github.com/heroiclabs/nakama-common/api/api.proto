@@ -1399,6 +1399,8 @@ message WriteTournamentRecordRequest {
     string metadata = 3;
     // Operator override.
     Operator operator = 4;
+    // Optional increment for num_score field (default 1 if not set).
+    int32 num_score_increment = 5;
   }
 
   // The tournament ID to write the record for.
