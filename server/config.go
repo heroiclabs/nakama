@@ -521,7 +521,6 @@ func (c *config) Clone() (Config, error) {
 
 	nc := &config{
 		Name:             c.Name,
-		Config:           c.Config,
 		Datadir:          c.Datadir,
 		ShutdownGraceSec: c.ShutdownGraceSec,
 		Logger:           c.Logger.Clone(),
