@@ -17,7 +17,6 @@ package runtime
 // Config interface is the Nakama core configuration.
 type Config interface {
 	GetName() string
-	GetConfigFilePath() []string
 	GetShutdownGraceSec() int
 	GetLogger() LoggerConfig
 	GetSession() SessionConfig

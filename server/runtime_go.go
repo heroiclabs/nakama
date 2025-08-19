@@ -2862,8 +2862,8 @@ func (ri *RuntimeGoInitializer) RegisterFleetManager(fleetManager runtime.FleetM
 }
 
 func (ri *RuntimeGoInitializer) RegisterPurchaseProvider(platform string, purchaseProvider runtime.PurchaseProvider) error {
-	platformEnum := iap.FromString(platform)
-	if platformEnum == iap.Unknown {
+	platformEnum := runtime.PlatformFromString(platform)
+	if platformEnum == runtime.Unknown {
 		ri.logger.Error("platform %v is not valid", platform)
 
 		return errors.New("platform unknown")
@@ -2894,8 +2894,8 @@ func (ri *RuntimeGoInitializer) RegisterPurchaseProvider(platform string, purcha
 }
 
 func (ri *RuntimeGoInitializer) RegisterRefundHandler(platform string, purchaseRefundFn runtime.PurchaseRefundFn, subscriptionRefundFn runtime.SubscriptionRefundFn) error {
-	platformEnum := iap.FromString(platform)
-	if platformEnum == iap.Unknown {
+	platformEnum := runtime.PlatformFromString(platform)
+	if platformEnum == runtime.Unknown {
 		ri.logger.Error("platform %v is not valid", platform)
 
 		return errors.New("platform unknown")

@@ -90,11 +90,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/gofrs/uuid/v5"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -158,17 +158,6 @@ const (
 
 	// Tick rate defined for this match. Only applicable to server authoritative multiplayer.
 	RUNTIME_CTX_MATCH_TICK_RATE = "match_tick_rate"
-
-	UNKNOWN_PLATFORM_STRING     = "unknown"
-	APPLE_PLATFORM_STRING       = "apple"
-	GOOGLE_PLATFORM_STRING      = "google"
-	FACEBOOK_PLATFORM_STRING    = "facebook"
-	HUAWEI_PLATFORM_STRING      = "huawei"
-	XBOX_PLATFORM_STRING        = "xbox"
-	PLAYSTATION_PLATFORM_STRING = "playstation"
-	STEAM_PLATFORM_STRING       = "steam"
-	EPIC_PLATFORM_STRING        = "epic"
-	DISCORD_PLATFORM_STRING     = "discord"
 )
 
 var (
@@ -241,6 +230,17 @@ var (
 	ErrSatoriConfigurationInvalid = errors.New("satori configuration is invalid")
 
 	ErrPurchaseProviderFunctionalityNotSupported = errors.New("purchase provider functionality not supported")
+
+	UnknownPlatformString     = "unknown"
+	ApplePlatformString       = "apple"
+	GooglePlatformString      = "google"
+	FacebookPlatformString    = "facebook"
+	HuaweiPlatformString      = "huawei"
+	XboxPlatformString        = "xbox"
+	PlaystationPlatformString = "playstation"
+	SteamPlatformString       = "steam"
+	EpicPlatformString        = "epic"
+	DiscordPlatformString     = "discord"
 )
 
 const (
@@ -273,6 +273,42 @@ For more information, please have a look at the following:
 type Error struct {
 	Message string
 	Code    int
+}
+
+type Platform int
+
+const (
+	Unknown Platform = iota
+	Apple
+	Google
+	Facebook
+	Huawei
+	Xbox
+	Playstation
+	Steam
+	Epic
+	Discord
+)
+
+func (enum Platform) String() string {
+	return [...]string{UnknownPlatformString, ApplePlatformString, GooglePlatformString, FacebookPlatformString, HuaweiPlatformString, XboxPlatformString, PlaystationPlatformString, SteamPlatformString, EpicPlatformString, DiscordPlatformString}[enum]
+}
+
+var AllPlatforms = []Platform{Unknown, Apple, Google, Facebook, Huawei, Xbox, Playstation, Steam, Epic, Discord}
+
+func PlatformFromString(s string) Platform {
+	return map[string]Platform{
+		UnknownPlatformString:     Unknown,
+		ApplePlatformString:       Apple,
+		GooglePlatformString:      Google,
+		FacebookPlatformString:    Facebook,
+		HuaweiPlatformString:      Huawei,
+		XboxPlatformString:        Xbox,
+		PlaystationPlatformString: Playstation,
+		EpicPlatformString:        Epic,
+		SteamPlatformString:       Steam,
+		DiscordPlatformString:     Discord,
+	}[s]
 }
 
 // Error returns the encapsulated error message.
@@ -1379,7 +1415,6 @@ type PurchaseProvider interface {
 }
 
 /*
-Satori runtime integration definitions.
 Satori runtime integration definitions.
 */
 type Satori interface {

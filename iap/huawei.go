@@ -31,8 +31,7 @@ func (h *HuaweiPurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn,
 }
 
 func (h *HuaweiPurchaseProvider) GetProviderString() string {
-	platform := Huawei
-	return platform.String()
+	return runtime.Huawei.String()
 }
 
 func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
@@ -42,8 +41,8 @@ func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		return nil, status.Error(codes.FailedPrecondition, "Huawei IAP is not configured.")
 	}
 
-	if len(in.Purchase) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
+	if len(in.Receipt) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
 	}
 
 	if len(in.Signature) < 1 {
@@ -55,7 +54,7 @@ func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		h.logger.Error("Error parsing user ID, error: %v", err)
 	}
 
-	validation, data, raw, err := ValidateReceiptHuawei(ctx, Httpc, h.config.GetHuawei().GetPublicKey(), h.config.GetHuawei().GetClientID(), h.config.GetHuawei().GetClientSecret(), in.Purchase, in.Signature)
+	validation, data, raw, err := ValidateReceiptHuawei(ctx, Httpc, h.config.GetHuawei().GetPublicKey(), h.config.GetHuawei().GetClientID(), h.config.GetHuawei().GetClientSecret(), in.Receipt, in.Signature)
 	if err != nil {
 		if err != context.Canceled {
 			var vErr *ValidationError
@@ -87,52 +86,6 @@ func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		PurchaseTime:  ParseMillisecondUnixTimestamp(data.PurchaseTime),
 		Environment:   env,
 	}
-
-	//if !persist {
-	//	validatedPurchases := []*api.PurchaseProviderValidatedPurchase{
-	//		{
-	//			ProductId:        sPurchase.ProductId,
-	//			TransactionId:    sPurchase.TransactionId,
-	//			Store:            sPurchase.Store,
-	//			PurchaseTime:     timestamppb.New(sPurchase.PurchaseTime),
-	//			ProviderResponse: string(raw),
-	//			Environment:      sPurchase.Environment,
-	//		},
-	//	}
-	//	return &api.ValidatePurchaseProviderResponse{ValidatedPurchases: validatedPurchases}, nil
-	//}
-	//
-	//purchases, err := UpsertPurchases(ctx, h.db, []*StoragePurchase{sPurchase})
-	//if err != nil {
-	//	if err != context.Canceled {
-	//		h.logger.Error("Error storing Huawei receipt, error: %v", err)
-	//	}
-	//	return nil, err
-	//}
-	//
-	//validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(purchases))
-	//for _, p := range purchases {
-	//	suid := p.UserID.String()
-	//	if p.UserID.IsNil() {
-	//		suid = ""
-	//	}
-	//	validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
-	//		UserId:           suid,
-	//		ProductId:        p.ProductId,
-	//		TransactionId:    p.TransactionId,
-	//		Store:            p.Store,
-	//		PurchaseTime:     timestamppb.New(p.PurchaseTime),
-	//		CreateTime:       timestamppb.New(p.CreateTime),
-	//		UpdateTime:       timestamppb.New(p.UpdateTime),
-	//		ProviderResponse: string(raw),
-	//		Environment:      p.Environment,
-	//	})
-	//}
-	//
-	//return &api.ValidatePurchaseProviderResponse{
-	//	ValidatedPurchases: validatedPurchases,
-	//	Persist:            persist,
-	//}, nil
 
 	return []*runtime.StoragePurchase{sPurchase}, nil
 }

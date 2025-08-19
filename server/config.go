@@ -34,7 +34,6 @@ import (
 // Config interface is the Nakama core configuration.
 type Config interface {
 	GetName() string
-	GetConfigFilePath() []string
 	GetDataDir() string
 	GetShutdownGraceSec() int
 	GetLogger() *LoggerConfig
@@ -552,10 +551,6 @@ func (c *config) GetName() string {
 	return c.Name
 }
 
-func (c *config) GetConfigFilePath() []string {
-	return c.Config
-}
-
 func (c *config) GetDataDir() string {
 	return c.Datadir
 }
@@ -649,7 +644,6 @@ func (c *config) GetRuntimeConfig() (runtime.Config, error) {
 
 	cn := &RuntimeConfigClone{
 		Name:          clone.GetName(),
-		FilePaths:     clone.GetConfigFilePath(),
 		ShutdownGrace: clone.GetShutdownGraceSec(),
 		Logger:        lc,
 		Session:       sc,

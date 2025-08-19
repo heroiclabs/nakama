@@ -29,8 +29,7 @@ func (f *FacebookPurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundF
 }
 
 func (f *FacebookPurchaseProvider) GetProviderString() string {
-	platform := Facebook
-	return platform.String()
+	return runtime.Facebook.String()
 }
 
 func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
@@ -38,7 +37,9 @@ func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api
 		return nil, status.Error(codes.FailedPrecondition, "Facebook Instant IAP is not configured.")
 	}
 
-	if len(in.SignedRequest) < 1 {
+	signedRequest := in.Receipt
+
+	if len(signedRequest) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "SignedRequest cannot be empty.")
 	}
 
@@ -47,7 +48,7 @@ func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api
 		f.logger.Error("Error parsing user ID, error: %v", err)
 	}
 
-	payment, rawResponse, err := ValidateReceiptFacebookInstant(f.config.GetFacebookInstant().GetAppSecret(), in.SignedRequest)
+	payment, rawResponse, err := ValidateReceiptFacebookInstant(f.config.GetFacebookInstant().GetAppSecret(), signedRequest)
 	if err != nil {
 		if err != context.Canceled {
 			f.logger.Error("Error validating Facebook Instant receipt", zap.Error(err))
@@ -66,54 +67,6 @@ func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api
 	}
 
 	return []*runtime.StoragePurchase{sPurchase}, nil
-
-	//if !persist {
-	//	validatedPurchases := []*api.PurchaseProviderValidatedPurchase{
-	//		{
-	//			UserId:           userID,
-	//			ProductId:        sPurchase.ProductId,
-	//			TransactionId:    sPurchase.TransactionId,
-	//			Store:            sPurchase.Store,
-	//			PurchaseTime:     timestamppb.New(sPurchase.PurchaseTime),
-	//			ProviderResponse: rawResponse,
-	//			Environment:      sPurchase.Environment,
-	//		},
-	//	}
-	//
-	//	return &api.ValidatePurchaseProviderResponse{ValidatedPurchases: validatedPurchases}, nil
-	//}
-
-	//purchases, err := UpsertPurchases(ctx, f.db, []*runtime.StoragePurchase{sPurchase})
-	//if err != nil {
-	//	if err != context.Canceled {
-	//		f.logger.Error("Error storing Facebook Instant receipt, error: %v", err)
-	//	}
-	//	return nil, err
-	//}
-	//
-	//validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(purchases))
-	//for _, p := range purchases {
-	//	suid := p.UserID.String()
-	//	if p.UserID.IsNil() {
-	//		suid = ""
-	//	}
-	//	validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
-	//		UserId:           suid,
-	//		ProductId:        p.ProductId,
-	//		TransactionId:    p.TransactionId,
-	//		Store:            p.Store,
-	//		PurchaseTime:     timestamppb.New(p.PurchaseTime),
-	//		CreateTime:       timestamppb.New(p.CreateTime),
-	//		UpdateTime:       timestamppb.New(p.UpdateTime),
-	//		ProviderResponse: rawResponse,
-	//		Environment:      p.Environment,
-	//	})
-	//}
-	//
-	//return &api.ValidatePurchaseProviderResponse{
-	//	ValidatedPurchases: validatedPurchases,
-	//	Persist:            persist,
-	//}, nil
 }
 
 func (f *FacebookPurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {

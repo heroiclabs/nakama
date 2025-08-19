@@ -38,8 +38,7 @@ func (g *GooglePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn,
 }
 
 func (g *GooglePurchaseProvider) GetProviderString() string {
-	platform := Google
-	return platform.String()
+	return runtime.Google.String()
 }
 
 func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
@@ -47,8 +46,8 @@ func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		return nil, status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
 	}
 
-	if len(in.Purchase) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
+	if len(in.Receipt) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
 	}
 
 	uuidUserID, err := uuid.FromString(userID)
@@ -317,18 +316,6 @@ func (g *GooglePurchaseProvider) HandleRefund(ctx context.Context) (http.Handler
 		w.WriteHeader(http.StatusOK)
 	}, nil
 }
-
-//func (g *GooglePurchaseProvider) ValidateRequest(in *api.ValidatePurchaseRequest) error {
-//	if g.config.GetGoogle().GetClientEmail() == "" || g.config.GetGoogle().GetPrivateKey() == "" {
-//		return status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
-//	}
-//
-//	if len(in.Purchase) < 1 {
-//		return status.Error(codes.InvalidArgument, "Purchase cannot be empty.")
-//	}
-//
-//	return nil
-//}
 
 func NewGooglePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {
 	purchaseProvider := &GooglePurchaseProvider{

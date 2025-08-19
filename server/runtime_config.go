@@ -34,10 +34,6 @@ func (c *RuntimeConfigClone) GetName() string {
 	return c.Name
 }
 
-func (c *RuntimeConfigClone) GetConfigFilePath() []string {
-	return c.FilePaths
-}
-
 func (c *RuntimeConfigClone) GetShutdownGraceSec() int {
 	return c.ShutdownGrace
 }

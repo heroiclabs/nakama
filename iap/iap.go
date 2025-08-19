@@ -121,42 +121,6 @@ type AppleNotificationTransactionInfo struct {
 
 const AppleNotificationTypeRefund = "REFUND"
 
-type Platform int
-
-const (
-	Unknown Platform = iota
-	Apple
-	Google
-	Facebook
-	Huawei
-	Xbox
-	Playstation
-	Steam
-	Epic
-	Discord
-)
-
-func (enum Platform) String() string {
-	return [...]string{runtime.UNKNOWN_PLATFORM_STRING, runtime.APPLE_PLATFORM_STRING, runtime.GOOGLE_PLATFORM_STRING, runtime.FACEBOOK_PLATFORM_STRING, runtime.HUAWEI_PLATFORM_STRING, runtime.XBOX_PLATFORM_STRING, runtime.PLAYSTATION_PLATFORM_STRING, runtime.STEAM_PLATFORM_STRING, runtime.EPIC_PLATFORM_STRING, runtime.DISCORD_PLATFORM_STRING}[enum]
-}
-
-var AllPlatforms = []Platform{Unknown, Apple, Google, Facebook, Huawei, Xbox, Playstation, Steam, Epic, Discord}
-
-func FromString(s string) Platform {
-	return map[string]Platform{
-		runtime.UNKNOWN_PLATFORM_STRING:     Unknown,
-		runtime.APPLE_PLATFORM_STRING:       Apple,
-		runtime.GOOGLE_PLATFORM_STRING:      Google,
-		runtime.FACEBOOK_PLATFORM_STRING:    Facebook,
-		runtime.HUAWEI_PLATFORM_STRING:      Huawei,
-		runtime.XBOX_PLATFORM_STRING:        Xbox,
-		runtime.PLAYSTATION_PLATFORM_STRING: Playstation,
-		runtime.EPIC_PLATFORM_STRING:        Epic,
-		runtime.STEAM_PLATFORM_STRING:       Steam,
-		runtime.DISCORD_PLATFORM_STRING:     Discord,
-	}[s]
-}
-
 func GetPurchaseProvider(platform string, purchaseProviders map[string]runtime.PurchaseProvider) (runtime.PurchaseProvider, error) {
 	purchaseProvider, exists := purchaseProviders[platform]
 	if !exists || purchaseProvider == nil {

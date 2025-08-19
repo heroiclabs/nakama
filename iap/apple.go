@@ -40,9 +40,7 @@ func (a *ApplePurchaseProvider) Init(purchaseRefundFn runtime.PurchaseRefundFn, 
 }
 
 func (a *ApplePurchaseProvider) GetProviderString() string {
-	platform := Apple
-
-	return platform.String()
+	return runtime.Apple.String()
 }
 
 func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
