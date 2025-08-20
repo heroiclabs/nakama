@@ -2876,14 +2876,6 @@ func (ri *RuntimeGoInitializer) RegisterPurchaseProvider(platform string, purcha
 	}
 
 	if nk, ok := ri.nk.(*RuntimeGoNakamaModule); ok {
-		if ri.purchaseProviders == nil {
-			ri.purchaseProviders = make(map[string]runtime.PurchaseProvider)
-		}
-
-		if nk.purchaseProviders == nil {
-			nk.purchaseProviders = make(map[string]runtime.PurchaseProvider)
-		}
-
 		ri.purchaseProviders[platform] = purchaseProvider
 		nk.purchaseProviders[platform] = purchaseProvider
 
@@ -2908,14 +2900,6 @@ func (ri *RuntimeGoInitializer) RegisterRefundHandler(platform string, purchaseR
 	}
 
 	if nk, ok := ri.nk.(*RuntimeGoNakamaModule); ok {
-		if ri.refundFns == nil {
-			ri.refundFns = make(map[string]runtime.RefundFns)
-		}
-
-		if nk.refundFns == nil {
-			nk.refundFns = make(map[string]runtime.RefundFns)
-		}
-
 		purchasefuncWrapper := func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error {
 			ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModePurchaseNotification, nil, nil, 0, "", "", nil, "", "", "", "")
 			return purchaseRefundFn(ctx, ri.logger.WithField("mode", RuntimeExecutionModePurchaseNotification.String()+platform), ri.db, ri.nk, purchase, providerPayload)
@@ -3034,6 +3018,9 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		matchLock: matchLock,
 
 		fmCallbackHandler: fmCallbackHandler,
+
+		purchaseProviders: make(map[string]runtime.PurchaseProvider),
+		refundFns:         make(map[string]runtime.RefundFns),
 	}
 
 	// The baseline context that will be passed to all InitModule calls.

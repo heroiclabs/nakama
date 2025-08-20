@@ -92,6 +92,9 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 		node: config.GetName(),
 
 		satori: satoriClient,
+
+		purchaseProviders: make(map[string]runtime.PurchaseProvider),
+		refundFns:         make(map[string]runtime.RefundFns),
 	}
 }
 
