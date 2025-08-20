@@ -541,7 +541,11 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 		s.logger.Debug("Could not close", zap.Error(err))
 	}
 
-	s.logger.Debug("Closed client connection")
+	if msg != "" {
+		s.logger.Debug("Closed client connection", zap.String("reason", msg))
+	} else {
+		s.logger.Debug("Closed client connection")
+	}
 
 	// Fire an event for session end.
 	if fn := s.runtime.EventSessionEnd(); fn != nil {
