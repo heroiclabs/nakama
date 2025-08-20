@@ -7976,7 +7976,6 @@ func (x *ValidatePurchaseResponse) GetValidatedPurchases() []*ValidatedPurchase 
 type ValidatePurchaseProviderResponse struct {
 	state              protoimpl.MessageState               `protogen:"open.v1"`
 	ValidatedPurchases []*PurchaseProviderValidatedPurchase `protobuf:"bytes,1,rep,name=validated_purchases,json=validatedPurchases,proto3" json:"validated_purchases,omitempty"`
-	Persist            bool                                 `protobuf:"varint,2,opt,name=persist,proto3" json:"persist,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -8016,13 +8015,6 @@ func (x *ValidatePurchaseProviderResponse) GetValidatedPurchases() []*PurchasePr
 		return x.ValidatedPurchases
 	}
 	return nil
-}
-
-func (x *ValidatePurchaseProviderResponse) GetPersist() bool {
-	if x != nil {
-		return x.Persist
-	}
-	return false
 }
 
 // Validate Subscription response.
@@ -8073,7 +8065,6 @@ func (x *ValidateSubscriptionResponse) GetValidatedSubscription() *ValidatedSubs
 type ValidatePurchaseProviderSubscriptionResponse struct {
 	state                 protoimpl.MessageState   `protogen:"open.v1"`
 	ValidatedSubscription []*ValidatedSubscription `protobuf:"bytes,1,rep,name=validated_subscription,json=validatedSubscription,proto3" json:"validated_subscription,omitempty"`
-	Persist               bool                     `protobuf:"varint,2,opt,name=persist,proto3" json:"persist,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -8113,13 +8104,6 @@ func (x *ValidatePurchaseProviderSubscriptionResponse) GetValidatedSubscription(
 		return x.ValidatedSubscription
 	}
 	return nil
-}
-
-func (x *ValidatePurchaseProviderSubscriptionResponse) GetPersist() bool {
-	if x != nil {
-		return x.Persist
-	}
-	return false
 }
 
 type ValidatedSubscription struct {
@@ -9625,15 +9609,13 @@ const file_api_proto_rawDesc = "" +
 	"\venvironment\x18\n" +
 	" \x01(\x0e2\x1c.nakama.api.StoreEnvironmentR\venvironment\"j\n" +
 	"\x18ValidatePurchaseResponse\x12N\n" +
-	"\x13validated_purchases\x18\x01 \x03(\v2\x1d.nakama.api.ValidatedPurchaseR\x12validatedPurchases\"\x9c\x01\n" +
+	"\x13validated_purchases\x18\x01 \x03(\v2\x1d.nakama.api.ValidatedPurchaseR\x12validatedPurchases\"\x82\x01\n" +
 	" ValidatePurchaseProviderResponse\x12^\n" +
-	"\x13validated_purchases\x18\x01 \x03(\v2-.nakama.api.PurchaseProviderValidatedPurchaseR\x12validatedPurchases\x12\x18\n" +
-	"\apersist\x18\x02 \x01(\bR\apersist\"x\n" +
+	"\x13validated_purchases\x18\x01 \x03(\v2-.nakama.api.PurchaseProviderValidatedPurchaseR\x12validatedPurchases\"x\n" +
 	"\x1cValidateSubscriptionResponse\x12X\n" +
-	"\x16validated_subscription\x18\x01 \x01(\v2!.nakama.api.ValidatedSubscriptionR\x15validatedSubscription\"\xa2\x01\n" +
+	"\x16validated_subscription\x18\x01 \x01(\v2!.nakama.api.ValidatedSubscriptionR\x15validatedSubscription\"\x88\x01\n" +
 	",ValidatePurchaseProviderSubscriptionResponse\x12X\n" +
-	"\x16validated_subscription\x18\x01 \x03(\v2!.nakama.api.ValidatedSubscriptionR\x15validatedSubscription\x12\x18\n" +
-	"\apersist\x18\x02 \x01(\bR\apersist\"\xa7\x05\n" +
+	"\x16validated_subscription\x18\x01 \x03(\v2!.nakama.api.ValidatedSubscriptionR\x15validatedSubscription\"\xa7\x05\n" +
 	"\x15ValidatedSubscription\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +

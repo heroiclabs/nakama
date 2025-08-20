@@ -73,7 +73,6 @@ func handleValidatedPurchases(ctx context.Context, db *sql.DB, storagePurchases 
 
 	return &api.ValidatePurchaseProviderResponse{
 		ValidatedPurchases: validatedPurchases,
-		Persist:            persist,
 	}, nil
 }
 

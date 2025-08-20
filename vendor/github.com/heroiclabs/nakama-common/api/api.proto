@@ -1307,7 +1307,6 @@ message ValidatePurchaseResponse {
 
 message ValidatePurchaseProviderResponse {
   repeated PurchaseProviderValidatedPurchase validated_purchases = 1;
-  bool persist = 2;
 }
 
 // Validate Subscription response.
@@ -1317,7 +1316,6 @@ message ValidateSubscriptionResponse {
 
 message ValidatePurchaseProviderSubscriptionResponse {
   repeated ValidatedSubscription validated_subscription = 1;
-  bool persist = 2;
 }
 
 // Validation Provider,

@@ -46,7 +46,7 @@ func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscr
 			})
 		}
 
-		return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs, Persist: persist}, nil
+		return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs}, nil
 	}
 
 	if err := iap.UpsertSubscriptions(ctx, db, storageSubscriptions); err != nil {
@@ -71,7 +71,7 @@ func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscr
 		validatedSubs = append(validatedSubs, &validatedSub)
 	}
 
-	return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs, Persist: persist}, nil
+	return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs}, nil
 }
 
 func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateSubscriptionRequest) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
@@ -131,7 +131,7 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateSu
 		// Execute the after function lambda wrapped in a trace for stats measurement.
 		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
-	
+
 	return response, nil
 }
 
