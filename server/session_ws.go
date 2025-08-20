@@ -519,19 +519,23 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 	}
 	if msg != "" {
 		// Server initiated close, await for client close response.
-		if err := s.conn.SetReadDeadline(time.Now().Add(s.pongWaitDuration)); err != nil {
-			s.logger.Warn("Failed to set read deadline", zap.Error(err))
-		} else {
-			for {
-				msgType, _, readErr := s.conn.ReadMessage()
-				if readErr != nil {
-					// If any error occurs, close message likely won't be delivered, just close the socket.
-					break
-				}
-				if msgType == websocket.CloseMessage {
-					// We only care about the close message at this point, if the server initiated a close then something went wrong.
-					break
-				}
+		t := time.NewTimer(10 * time.Second)
+		defer t.Stop()
+	closeMessageWait:
+		for {
+			msgType, _, readErr := s.conn.ReadMessage()
+			if readErr != nil || msgType == websocket.CloseMessage {
+				// The server initiated close, so something went wrong. Thus, we only care about the close message at this point.
+				// If any error occurs, close message likely won't be delivered, just close the socket.
+				break
+			}
+
+			select {
+			case <-t.C:
+				// If the client doesn't respond within 10 seconds, close the connection anyway.
+				break closeMessageWait
+			default:
+				// Otherwise, continue reading messages until we get a close message or timeout.
 			}
 		}
 	}
