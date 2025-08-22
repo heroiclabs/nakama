@@ -236,297 +236,314 @@ func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, in *ap
 	return storageSubscriptions, nil
 }
 
-func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
+func (a *ApplePurchaseProvider) HandleRefundWrapper(ctx context.Context) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			a.logger.Error("Failed to decode App Store notification body", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		defer r.Body.Close()
-
-		var applePayload *AppleNotificationSignedPayload
-		if err := json.Unmarshal(body, &applePayload); err != nil {
-			a.logger.Error("Failed to unmarshal App Store notification", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		tokens := strings.Split(applePayload.SignedPayload, ".")
-		if len(tokens) < 3 {
-			a.logger.Error("Unexpected App Store notification JWS token length")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		seg := tokens[0]
-		if l := len(seg) % 4; l > 0 {
-			seg += strings.Repeat("=", 4-l)
-		}
-
-		headerByte, err := base64.StdEncoding.DecodeString(seg)
-		if err != nil {
-			a.logger.Error("Failed to decode Apple notification JWS header", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		type Header struct {
-			Alg string   `json:"alg"`
-			X5c []string `json:"x5c"`
-		}
-		var header Header
-
-		if err = json.Unmarshal(headerByte, &header); err != nil {
-			a.logger.Error("Failed to unmarshal Apple notification JWS header", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		certs := make([][]byte, 0)
-		for _, encodedCert := range header.X5c {
-			cert, err := base64.StdEncoding.DecodeString(encodedCert)
-			if err != nil {
-				a.logger.Error("Failed to decode Apple notification JWS header certificate", zap.Error(err))
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			certs = append(certs, cert)
-		}
-
-		rootCert := x509.NewCertPool()
-		ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
-		if !ok {
-			a.logger.Error("Failed to parse Apple root certificate", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		interCert, err := x509.ParseCertificate(certs[1])
-		if err != nil {
-			a.logger.Error("Failed to parse Apple notification intermediate certificate", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		intermedia := x509.NewCertPool()
-		intermedia.AddCert(interCert)
-
-		cert, err := x509.ParseCertificate(certs[2])
-		if err != nil {
-			a.logger.Error("Failed to parse Apple notification certificate", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		opts := x509.VerifyOptions{
-			Roots:         rootCert,
-			Intermediates: intermedia,
-		}
-
-		_, err = cert.Verify(opts)
-		if err != nil {
-			a.logger.Error("Failed to validate Apple notification signature", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		seg = tokens[1]
-		if l := len(seg) % 4; l > 0 {
-			seg += strings.Repeat("=", 4-l)
-		}
-
-		jsonPayload, err := base64.StdEncoding.DecodeString(seg)
-		if err != nil {
-			a.logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		var notificationPayload *AppleNotificationPayload
-		if err = json.Unmarshal(jsonPayload, &notificationPayload); err != nil {
-			a.logger.Error("Failed to json unmarshal App Store notification payload", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
-		if len(tokens) < 3 {
-			a.logger.Error("Unexpected App Store notification SignedTransactionInfo JWS token length")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		seg = tokens[1]
-		if l := len(seg) % 4; l > 0 {
-			seg += strings.Repeat("=", 4-l)
-		}
-
-		jsonPayload, err = base64.StdEncoding.DecodeString(seg)
-		if err != nil {
-			a.logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		var signedTransactionInfo *AppleNotificationTransactionInfo
-		if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
-			a.logger.Error("Failed to json unmarshal App Store notification SignedTransactionInfo JWS token", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		a.logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedTransactionInfo))
-
-		uid := uuid.Nil
-		if signedTransactionInfo.AppAccountToken != "" {
-			tokenUID, err := uuid.FromString(signedTransactionInfo.AppAccountToken)
-			if err != nil {
-				a.logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
-			} else {
-				uid = tokenUID
-			}
-		}
-
-		env := api.StoreEnvironment_PRODUCTION
-		if notificationPayload.Data.Environment == AppleSandboxEnvironment {
-			env = api.StoreEnvironment_SANDBOX
-		}
-
-		if signedTransactionInfo.ExpiresDateMs != 0 {
-			// Notification regarding a subscription.
-			if uid.IsNil() {
-				// No user ID was found in receipt, lookup a validated subscription.
-				s, err := GetSubscriptionByOriginalTransactionId(r.Context(), a.zapLogger, a.db, signedTransactionInfo.OriginalTransactionId)
-				if err != nil || s == nil {
-					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
-					return
-				}
-				uid = uuid.Must(uuid.FromString(s.UserId))
-			}
-
-			sub := &runtime.StorageSubscription{
-				UserID:                uid,
-				OriginalTransactionId: signedTransactionInfo.OriginalTransactionId,
-				Store:                 api.StoreProvider_APPLE_APP_STORE,
-				ProductId:             signedTransactionInfo.ProductId,
-				PurchaseTime:          ParseMillisecondUnixTimestamp(signedTransactionInfo.OriginalPurchaseDateMs),
-				Environment:           env,
-				ExpireTime:            ParseMillisecondUnixTimestamp(signedTransactionInfo.ExpiresDateMs),
-				RawNotification:       string(body),
-				RefundTime:            ParseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
-			}
-
-			if err = UpsertSubscription(r.Context(), a.db, sub); err != nil {
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-					// User id was not found, ignore this notification
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				a.logger.Error("Failed to store App Store notification subscription data", zap.Error(err))
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			active := false
-			if sub.ExpireTime.After(time.Now()) && sub.RefundTime.Unix() == 0 {
-				active = true
-			}
-
-			var suid string
-			if !sub.UserID.IsNil() {
-				suid = sub.UserID.String()
-			}
-
-			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
-				validatedSub := &api.ValidatedSubscription{
-					UserId:                suid,
-					ProductId:             sub.ProductId,
-					OriginalTransactionId: sub.OriginalTransactionId,
-					Store:                 api.StoreProvider_APPLE_APP_STORE,
-					PurchaseTime:          timestamppb.New(sub.PurchaseTime),
-					CreateTime:            timestamppb.New(sub.CreateTime),
-					UpdateTime:            timestamppb.New(sub.UpdateTime),
-					Environment:           env,
-					ExpiryTime:            timestamppb.New(sub.ExpireTime),
-					RefundTime:            timestamppb.New(sub.RefundTime),
-					ProviderResponse:      sub.RawResponse,
-					ProviderNotification:  sub.RawNotification,
-					Active:                active,
-				}
-
-				if a.subscriptionFn != nil {
-					if err = a.subscriptionFn(r.Context(), a.logger, a.db, a.nk, validatedSub, string(body)); err != nil {
-						a.logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
-						w.WriteHeader(http.StatusOK)
-						return
-					}
-				}
-			}
-
-		} else {
-			// Notification regarding a purchase.
-			if uid.IsNil() {
-				// No user ID was found in receipt, lookup a validated subscription.
-				p, err := GetPurchaseByTransactionId(r.Context(), a.zapLogger, a.db, signedTransactionInfo.TransactionId)
-				if err != nil || p == nil {
-					// User validated purchase not found.
-					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
-					return
-				}
-				uid = uuid.Must(uuid.FromString(p.UserId))
-			}
-
-			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
-				purchase := &runtime.StoragePurchase{
-					UserID:        uid,
-					Store:         api.StoreProvider_APPLE_APP_STORE,
-					ProductId:     signedTransactionInfo.ProductId,
-					TransactionId: signedTransactionInfo.TransactionId,
-					PurchaseTime:  ParseMillisecondUnixTimestamp(signedTransactionInfo.PurchaseDateMs),
-					RefundTime:    ParseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
-					Environment:   env,
-				}
-
-				dbPurchases, err := UpsertPurchases(r.Context(), a.db, []*runtime.StoragePurchase{purchase})
-				if err != nil {
-					a.logger.Error("Failed to store App Store notification purchase data")
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-
-				if a.purchaseFn != nil {
-					dbPurchase := dbPurchases[0]
-					suid := dbPurchase.UserID.String()
-					if dbPurchase.UserID.IsNil() {
-						suid = ""
-					}
-					validatedPurchase := &api.ValidatedPurchase{
-						UserId:           suid,
-						ProductId:        signedTransactionInfo.ProductId,
-						TransactionId:    signedTransactionInfo.TransactionId,
-						Store:            api.StoreProvider_APPLE_APP_STORE,
-						CreateTime:       timestamppb.New(dbPurchase.CreateTime),
-						UpdateTime:       timestamppb.New(dbPurchase.UpdateTime),
-						PurchaseTime:     timestamppb.New(dbPurchase.PurchaseTime),
-						RefundTime:       timestamppb.New(dbPurchase.RefundTime),
-						ProviderResponse: string(body),
-						Environment:      env,
-						SeenBefore:       dbPurchase.SeenBefore,
-					}
-
-					if err = a.purchaseFn(r.Context(), a.logger, a.db, a.nk, validatedPurchase, string(body)); err != nil {
-						a.logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
-						w.WriteHeader(http.StatusOK)
-						return
-					}
-				}
-			}
-		}
-
-		w.WriteHeader(http.StatusOK)
+		ctx = context.WithValue(ctx, "w", w)
+		ctx = context.WithValue(ctx, "r", r)
+		a.HandleRefund(ctx)
 	}, nil
+}
+
+func (a *ApplePurchaseProvider) HandleRefund(ctx context.Context) error {
+	var w http.ResponseWriter
+	if v := ctx.Value("w"); v != nil {
+		w = v.(http.ResponseWriter)
+	}
+
+	var r *http.Request
+	if v := ctx.Value("w"); v != nil {
+		r = v.(*http.Request)
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		a.logger.Error("Failed to decode App Store notification body", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+	defer r.Body.Close()
+
+	var applePayload *AppleNotificationSignedPayload
+	if err := json.Unmarshal(body, &applePayload); err != nil {
+		a.logger.Error("Failed to unmarshal App Store notification", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	tokens := strings.Split(applePayload.SignedPayload, ".")
+	if len(tokens) < 3 {
+		a.logger.Error("Unexpected App Store notification JWS token length")
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	seg := tokens[0]
+	if l := len(seg) % 4; l > 0 {
+		seg += strings.Repeat("=", 4-l)
+	}
+
+	headerByte, err := base64.StdEncoding.DecodeString(seg)
+	if err != nil {
+		a.logger.Error("Failed to decode Apple notification JWS header", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	type Header struct {
+		Alg string   `json:"alg"`
+		X5c []string `json:"x5c"`
+	}
+	var header Header
+
+	if err = json.Unmarshal(headerByte, &header); err != nil {
+		a.logger.Error("Failed to unmarshal Apple notification JWS header", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	certs := make([][]byte, 0)
+	for _, encodedCert := range header.X5c {
+		cert, err := base64.StdEncoding.DecodeString(encodedCert)
+		if err != nil {
+			a.logger.Error("Failed to decode Apple notification JWS header certificate", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return nil
+		}
+		certs = append(certs, cert)
+	}
+
+	rootCert := x509.NewCertPool()
+	ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
+	if !ok {
+		a.logger.Error("Failed to parse Apple root certificate", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	interCert, err := x509.ParseCertificate(certs[1])
+	if err != nil {
+		a.logger.Error("Failed to parse Apple notification intermediate certificate", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+	intermedia := x509.NewCertPool()
+	intermedia.AddCert(interCert)
+
+	cert, err := x509.ParseCertificate(certs[2])
+	if err != nil {
+		a.logger.Error("Failed to parse Apple notification certificate", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	opts := x509.VerifyOptions{
+		Roots:         rootCert,
+		Intermediates: intermedia,
+	}
+
+	_, err = cert.Verify(opts)
+	if err != nil {
+		a.logger.Error("Failed to validate Apple notification signature", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	seg = tokens[1]
+	if l := len(seg) % 4; l > 0 {
+		seg += strings.Repeat("=", 4-l)
+	}
+
+	jsonPayload, err := base64.StdEncoding.DecodeString(seg)
+	if err != nil {
+		a.logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	var notificationPayload *AppleNotificationPayload
+	if err = json.Unmarshal(jsonPayload, &notificationPayload); err != nil {
+		a.logger.Error("Failed to json unmarshal App Store notification payload", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
+	if len(tokens) < 3 {
+		a.logger.Error("Unexpected App Store notification SignedTransactionInfo JWS token length")
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	seg = tokens[1]
+	if l := len(seg) % 4; l > 0 {
+		seg += strings.Repeat("=", 4-l)
+	}
+
+	jsonPayload, err = base64.StdEncoding.DecodeString(seg)
+	if err != nil {
+		a.logger.Error("Failed to base64 decode App Store notification payload", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	var signedTransactionInfo *AppleNotificationTransactionInfo
+	if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
+		a.logger.Error("Failed to json unmarshal App Store notification SignedTransactionInfo JWS token", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	a.logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedTransactionInfo))
+
+	uid := uuid.Nil
+	if signedTransactionInfo.AppAccountToken != "" {
+		tokenUID, err := uuid.FromString(signedTransactionInfo.AppAccountToken)
+		if err != nil {
+			a.logger.Warn("App Store subscription notification AppAccountToken is an invalid uuid", zap.String("app_account_token", signedTransactionInfo.AppAccountToken), zap.Error(err), zap.String("payload", string(body)))
+		} else {
+			uid = tokenUID
+		}
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if notificationPayload.Data.Environment == AppleSandboxEnvironment {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	if signedTransactionInfo.ExpiresDateMs != 0 {
+		// Notification regarding a subscription.
+		if uid.IsNil() {
+			// No user ID was found in receipt, lookup a validated subscription.
+			s, err := GetSubscriptionByOriginalTransactionId(r.Context(), a.zapLogger, a.db, signedTransactionInfo.OriginalTransactionId)
+			if err != nil || s == nil {
+				w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+				return nil
+			}
+			uid = uuid.Must(uuid.FromString(s.UserId))
+		}
+
+		sub := &runtime.StorageSubscription{
+			UserID:                uid,
+			OriginalTransactionId: signedTransactionInfo.OriginalTransactionId,
+			Store:                 api.StoreProvider_APPLE_APP_STORE,
+			ProductId:             signedTransactionInfo.ProductId,
+			PurchaseTime:          ParseMillisecondUnixTimestamp(signedTransactionInfo.OriginalPurchaseDateMs),
+			Environment:           env,
+			ExpireTime:            ParseMillisecondUnixTimestamp(signedTransactionInfo.ExpiresDateMs),
+			RawNotification:       string(body),
+			RefundTime:            ParseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
+		}
+
+		if err = UpsertSubscription(r.Context(), a.db, sub); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+				// User id was not found, ignore this notification
+				w.WriteHeader(http.StatusOK)
+				return nil
+			}
+			a.logger.Error("Failed to store App Store notification subscription data", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return nil
+		}
+
+		active := false
+		if sub.ExpireTime.After(time.Now()) && sub.RefundTime.Unix() == 0 {
+			active = true
+		}
+
+		var suid string
+		if !sub.UserID.IsNil() {
+			suid = sub.UserID.String()
+		}
+
+		if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
+			validatedSub := &api.ValidatedSubscription{
+				UserId:                suid,
+				ProductId:             sub.ProductId,
+				OriginalTransactionId: sub.OriginalTransactionId,
+				Store:                 api.StoreProvider_APPLE_APP_STORE,
+				PurchaseTime:          timestamppb.New(sub.PurchaseTime),
+				CreateTime:            timestamppb.New(sub.CreateTime),
+				UpdateTime:            timestamppb.New(sub.UpdateTime),
+				Environment:           env,
+				ExpiryTime:            timestamppb.New(sub.ExpireTime),
+				RefundTime:            timestamppb.New(sub.RefundTime),
+				ProviderResponse:      sub.RawResponse,
+				ProviderNotification:  sub.RawNotification,
+				Active:                active,
+			}
+
+			if a.subscriptionFn != nil {
+				if err = a.subscriptionFn(r.Context(), a.logger, a.db, a.nk, validatedSub, string(body)); err != nil {
+					a.logger.Error("Error invoking Apple subscription refund runtime function", zap.Error(err))
+					w.WriteHeader(http.StatusOK)
+					return nil
+				}
+			}
+		}
+
+	} else {
+		// Notification regarding a purchase.
+		if uid.IsNil() {
+			// No user ID was found in receipt, lookup a validated subscription.
+			p, err := GetPurchaseByTransactionId(r.Context(), a.zapLogger, a.db, signedTransactionInfo.TransactionId)
+			if err != nil || p == nil {
+				// User validated purchase not found.
+				w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+				return nil
+			}
+			uid = uuid.Must(uuid.FromString(p.UserId))
+		}
+
+		if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
+			purchase := &runtime.StoragePurchase{
+				UserID:        uid,
+				Store:         api.StoreProvider_APPLE_APP_STORE,
+				ProductId:     signedTransactionInfo.ProductId,
+				TransactionId: signedTransactionInfo.TransactionId,
+				PurchaseTime:  ParseMillisecondUnixTimestamp(signedTransactionInfo.PurchaseDateMs),
+				RefundTime:    ParseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
+				Environment:   env,
+			}
+
+			dbPurchases, err := UpsertPurchases(r.Context(), a.db, []*runtime.StoragePurchase{purchase})
+			if err != nil {
+				a.logger.Error("Failed to store App Store notification purchase data")
+				w.WriteHeader(http.StatusInternalServerError)
+				return nil
+			}
+
+			if a.purchaseFn != nil {
+				dbPurchase := dbPurchases[0]
+				suid := dbPurchase.UserID.String()
+				if dbPurchase.UserID.IsNil() {
+					suid = ""
+				}
+				validatedPurchase := &api.ValidatedPurchase{
+					UserId:           suid,
+					ProductId:        signedTransactionInfo.ProductId,
+					TransactionId:    signedTransactionInfo.TransactionId,
+					Store:            api.StoreProvider_APPLE_APP_STORE,
+					CreateTime:       timestamppb.New(dbPurchase.CreateTime),
+					UpdateTime:       timestamppb.New(dbPurchase.UpdateTime),
+					PurchaseTime:     timestamppb.New(dbPurchase.PurchaseTime),
+					RefundTime:       timestamppb.New(dbPurchase.RefundTime),
+					ProviderResponse: string(body),
+					Environment:      env,
+					SeenBefore:       dbPurchase.SeenBefore,
+				}
+
+				if err = a.purchaseFn(r.Context(), a.logger, a.db, a.nk, validatedPurchase, string(body)); err != nil {
+					a.logger.Error("Error invoking Apple purchase refund runtime function", zap.Error(err))
+					w.WriteHeader(http.StatusOK)
+					return nil
+				}
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	return nil
 }
 
 func NewApplePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {

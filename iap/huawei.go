@@ -96,10 +96,16 @@ func (h *HuaweiPurchaseProvider) SubscriptionValidate(ctx context.Context, in *a
 	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
 }
 
-func (h *HuaweiPurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
+func (h *HuaweiPurchaseProvider) HandleRefundWrapper(ctx context.Context) (http.HandlerFunc, error) {
 	h.logger.Info("Handling refund not supported")
 
 	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
+}
+
+func (h *HuaweiPurchaseProvider) HandleRefund(ctx context.Context) error {
+	h.logger.Info("Handling refund not supported")
+
+	return runtime.ErrPurchaseProviderFunctionalityNotSupported
 }
 
 func NewHuaweiPurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {

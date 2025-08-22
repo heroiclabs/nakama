@@ -157,164 +157,181 @@ func (g *GooglePurchaseProvider) SubscriptionValidate(ctx context.Context, in *a
 	return []*runtime.StorageSubscription{storageSub}, nil
 }
 
-func (g *GooglePurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
+func (g *GooglePurchaseProvider) HandleRefundWrapper(ctx context.Context) (http.HandlerFunc, error) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			g.logger.Error("Failed to decode App Store notification body, error: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		defer r.Body.Close()
+		ctx = context.WithValue(ctx, "w", w)
+		ctx = context.WithValue(ctx, "r", r)
+		g.HandleRefund(ctx)
+	}, nil
+}
 
-		g.zapLogger = g.zapLogger.With(zap.String("notification_body", string(body)))
+func (g *GooglePurchaseProvider) HandleRefund(ctx context.Context) error {
+	var w http.ResponseWriter
+	if v := ctx.Value("w"); v != nil {
+		w = v.(http.ResponseWriter)
+	}
 
-		var notification *GoogleStoreNotification
-		if err := json.Unmarshal(body, &notification); err != nil {
-			g.zapLogger.Error("Failed to unmarshal Google Play Billing notification", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	var r *http.Request
+	if v := ctx.Value("w"); v != nil {
+		r = v.(*http.Request)
+	}
 
-		jsonData, err := base64.URLEncoding.DecodeString(notification.Message.Data)
-		if err != nil {
-			g.zapLogger.Error("Failed to base64 decode Google Play Billing notification data")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		g.logger.Error("Failed to decode App Store notification body, error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+	defer r.Body.Close()
 
-		var googleNotification *GoogleDeveloperNotification
-		if err = json.Unmarshal(jsonData, &googleNotification); err != nil {
-			g.zapLogger.Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	g.zapLogger = g.zapLogger.With(zap.String("notification_body", string(body)))
 
-		if googleNotification.SubscriptionNotification == nil {
-			// Notification is not for subscription, ack and return. https://developer.android.com/google/play/billing/rtdn-reference#one-time
-			w.WriteHeader(http.StatusOK)
-			return
-		}
+	var notification *GoogleStoreNotification
+	if err := json.Unmarshal(body, &notification); err != nil {
+		g.zapLogger.Error("Failed to unmarshal Google Play Billing notification", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
 
-		receipt := &ReceiptGoogle{
-			PurchaseToken: googleNotification.SubscriptionNotification.PurchaseToken,
-			ProductID:     googleNotification.SubscriptionNotification.SubscriptionId,
-			PackageName:   googleNotification.PackageName,
-		}
+	jsonData, err := base64.URLEncoding.DecodeString(notification.Message.Data)
+	if err != nil {
+		g.zapLogger.Error("Failed to base64 decode Google Play Billing notification data")
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
 
-		encodedReceipt, err := json.Marshal(receipt)
-		if err != nil {
-			g.zapLogger.Error("Failed to marshal Google receipt.", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	var googleNotification *GoogleDeveloperNotification
+	if err = json.Unmarshal(jsonData, &googleNotification); err != nil {
+		g.zapLogger.Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
 
-		gResponse, _, _, err := ValidateSubscriptionReceiptGoogle(r.Context(), Httpc, g.config.GetGoogle().GetClientEmail(), g.config.GetGoogle().GetPrivateKey(), string(encodedReceipt))
-		if err != nil {
-			var vErr *ValidationError
-			if errors.As(err, &vErr) {
-				g.zapLogger.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
-			} else {
-				g.zapLogger.Error("Error validating Google receipt in notification callback", zap.Error(err))
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	if googleNotification.SubscriptionNotification == nil {
+		// Notification is not for subscription, ack and return. https://developer.android.com/google/play/billing/rtdn-reference#one-time
+		w.WriteHeader(http.StatusOK)
+		return nil
+	}
 
-		g.zapLogger.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gResponse))
+	receipt := &ReceiptGoogle{
+		PurchaseToken: googleNotification.SubscriptionNotification.PurchaseToken,
+		ProductID:     googleNotification.SubscriptionNotification.SubscriptionId,
+		PackageName:   googleNotification.PackageName,
+	}
 
-		var uid uuid.UUID
-		if gResponse.ObfuscatedExternalAccountId != "" {
-			extUID, err := uuid.FromString(gResponse.ObfuscatedExternalAccountId)
-			if err != nil {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			uid = extUID
-		} else if gResponse.ObfuscatedExternalProfileId != "" {
-			extUID, err := uuid.FromString(gResponse.ObfuscatedExternalProfileId)
-			if err != nil {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			uid = extUID
-		} else if gResponse.ProfileId != "" {
-			var dbUID uuid.UUID
-			if err = g.db.QueryRowContext(r.Context(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&dbUID); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					g.zapLogger.Warn("Google Play Billing subscription notification user not found", zap.String("profile_id", gResponse.ProfileId), zap.String("payload", string(body)))
-					w.WriteHeader(http.StatusOK) // Subscription could not be assigned to a user ID, ack and ignore it.
-					return
-				}
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			uid = dbUID
+	encodedReceipt, err := json.Marshal(receipt)
+	if err != nil {
+		g.zapLogger.Error("Failed to marshal Google receipt.", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	gResponse, _, _, err := ValidateSubscriptionReceiptGoogle(r.Context(), Httpc, g.config.GetGoogle().GetClientEmail(), g.config.GetGoogle().GetPrivateKey(), string(encodedReceipt))
+	if err != nil {
+		var vErr *ValidationError
+		if errors.As(err, &vErr) {
+			g.zapLogger.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 		} else {
-			// Get user id by existing validated subscription.
-			purchaseToken := googleNotification.SubscriptionNotification.PurchaseToken
-			if gResponse.LinkedPurchaseToken != "" {
-				// https://medium.com/androiddevelopers/implementing-linkedpurchasetoken-correctly-to-prevent-duplicate-subscriptions-82dfbf7167da
-				purchaseToken = gResponse.LinkedPurchaseToken
-			}
-			sub, err := GetSubscriptionByOriginalTransactionId(r.Context(), g.zapLogger, g.db, purchaseToken)
-			if err != nil || sub == nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			uid = uuid.Must(uuid.FromString(sub.UserId))
+			g.zapLogger.Error("Error validating Google receipt in notification callback", zap.Error(err))
 		}
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
 
-		env := api.StoreEnvironment_PRODUCTION
-		if gResponse.PurchaseType == 0 {
-			env = api.StoreEnvironment_SANDBOX
-		}
+	g.zapLogger.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gResponse))
 
-		expireTimeInt, err := strconv.ParseInt(gResponse.ExpiryTimeMillis, 10, 64)
+	var uid uuid.UUID
+	if gResponse.ObfuscatedExternalAccountId != "" {
+		extUID, err := uuid.FromString(gResponse.ObfuscatedExternalAccountId)
 		if err != nil {
-			g.zapLogger.Error("Failed to convert Google Play Billing notification 'ExpiryTimeMillis' string to int", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+			w.WriteHeader(http.StatusOK)
+			return nil
 		}
-
-		purchaseTime, err := strconv.ParseInt(gResponse.StartTimeMillis, 10, 64)
+		uid = extUID
+	} else if gResponse.ObfuscatedExternalProfileId != "" {
+		extUID, err := uuid.FromString(gResponse.ObfuscatedExternalProfileId)
 		if err != nil {
-			g.zapLogger.Error("Failed to convert Google Play Billing notification 'StartTimeMillis' string to int", zap.Error(err))
+			w.WriteHeader(http.StatusOK)
+			return nil
+		}
+		uid = extUID
+	} else if gResponse.ProfileId != "" {
+		var dbUID uuid.UUID
+		if err = g.db.QueryRowContext(r.Context(), "SELECT id FROM users WHERE google_id = $1", gResponse.ProfileId).Scan(&dbUID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				g.zapLogger.Warn("Google Play Billing subscription notification user not found", zap.String("profile_id", gResponse.ProfileId), zap.String("payload", string(body)))
+				w.WriteHeader(http.StatusOK) // Subscription could not be assigned to a user ID, ack and ignore it.
+				return nil
+			}
 			w.WriteHeader(http.StatusInternalServerError)
-			return
+			return nil
 		}
-
-		storageSub := &runtime.StorageSubscription{
-			OriginalTransactionId: googleNotification.SubscriptionNotification.PurchaseToken,
-			UserID:                uid,
-			Store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
-			ProductId:             googleNotification.SubscriptionNotification.SubscriptionId,
-			PurchaseTime:          ParseMillisecondUnixTimestamp(purchaseTime),
-			Environment:           env,
-			ExpireTime:            ParseMillisecondUnixTimestamp(expireTimeInt),
-			RawNotification:       string(body),
-		}
-
+		uid = dbUID
+	} else {
+		// Get user id by existing validated subscription.
+		purchaseToken := googleNotification.SubscriptionNotification.PurchaseToken
 		if gResponse.LinkedPurchaseToken != "" {
 			// https://medium.com/androiddevelopers/implementing-linkedpurchasetoken-correctly-to-prevent-duplicate-subscriptions-82dfbf7167da
-			storageSub.OriginalTransactionId = gResponse.LinkedPurchaseToken
+			purchaseToken = gResponse.LinkedPurchaseToken
 		}
-
-		if err = UpsertSubscription(r.Context(), g.db, storageSub); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-				// Record was inserted and the user id was not found, ignore this notification
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-
-			g.zapLogger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+		sub, err := GetSubscriptionByOriginalTransactionId(r.Context(), g.zapLogger, g.db, purchaseToken)
+		if err != nil || sub == nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			return
+			return nil
+		}
+		uid = uuid.Must(uuid.FromString(sub.UserId))
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if gResponse.PurchaseType == 0 {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	expireTimeInt, err := strconv.ParseInt(gResponse.ExpiryTimeMillis, 10, 64)
+	if err != nil {
+		g.zapLogger.Error("Failed to convert Google Play Billing notification 'ExpiryTimeMillis' string to int", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	purchaseTime, err := strconv.ParseInt(gResponse.StartTimeMillis, 10, 64)
+	if err != nil {
+		g.zapLogger.Error("Failed to convert Google Play Billing notification 'StartTimeMillis' string to int", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	storageSub := &runtime.StorageSubscription{
+		OriginalTransactionId: googleNotification.SubscriptionNotification.PurchaseToken,
+		UserID:                uid,
+		Store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
+		ProductId:             googleNotification.SubscriptionNotification.SubscriptionId,
+		PurchaseTime:          ParseMillisecondUnixTimestamp(purchaseTime),
+		Environment:           env,
+		ExpireTime:            ParseMillisecondUnixTimestamp(expireTimeInt),
+		RawNotification:       string(body),
+	}
+
+	if gResponse.LinkedPurchaseToken != "" {
+		// https://medium.com/androiddevelopers/implementing-linkedpurchasetoken-correctly-to-prevent-duplicate-subscriptions-82dfbf7167da
+		storageSub.OriginalTransactionId = gResponse.LinkedPurchaseToken
+	}
+
+	if err = UpsertSubscription(r.Context(), g.db, storageSub); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+			// Record was inserted and the user id was not found, ignore this notification
+			w.WriteHeader(http.StatusOK)
+			return nil
 		}
 
-		w.WriteHeader(http.StatusOK)
-	}, nil
+		g.zapLogger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	w.WriteHeader(http.StatusOK)
+	return nil
 }
 
 func NewGooglePurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {

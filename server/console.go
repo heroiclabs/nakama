@@ -288,7 +288,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		//if err != nil && provider == nil {
 		//	startupLogger.Error("Console registration failed", zap.Error(err))
 		//} else {
-		//	handler, err := provider.HandleRefund(ctx)
+		//	handler, err := provider.HandleRefundWrapper(ctx)
 		//	if err != nil {
 		//		startupLogger.Error("Console registration failed", zap.Error(err))
 		//	}
@@ -306,7 +306,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		//if err != nil && provider == nil {
 		//	startupLogger.Error("Console registration failed", zap.Error(err))
 		//} else {
-		//	handler, err := provider.HandleRefund(ctx)
+		//	handler, err := provider.HandleRefundWrapper(ctx)
 		//	if err != nil {
 		//		startupLogger.Error("Console registration failed", zap.Error(err))
 		//	}

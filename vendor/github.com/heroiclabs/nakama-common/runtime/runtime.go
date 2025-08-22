@@ -1410,7 +1410,8 @@ type PurchaseProvider interface {
 	Init(purchaseRefundFn PurchaseRefundFn, subscriptionRefundFn SubscriptionRefundFn)
 	PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*StoragePurchase, error)
 	SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*StorageSubscription, error)
-	HandleRefund(ctx context.Context) (http.HandlerFunc, error)
+	HandleRefund(ctx context.Context) error
+	HandleRefundWrapper(ctx context.Context) (http.HandlerFunc, error)
 	GetProviderString() string
 }
 

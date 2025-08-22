@@ -70,15 +70,21 @@ func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api
 }
 
 func (f *FacebookPurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
+	f.logger.Info("sub validate not supported")
+
+	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
+}
+
+func (f *FacebookPurchaseProvider) HandleRefundWrapper(ctx context.Context) (http.HandlerFunc, error) {
 	f.logger.Info("Handling refund not supported")
 
 	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
 }
 
-func (f *FacebookPurchaseProvider) HandleRefund(ctx context.Context) (http.HandlerFunc, error) {
+func (f *FacebookPurchaseProvider) HandleRefund(ctx context.Context) error {
 	f.logger.Info("Handling refund not supported")
 
-	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported
+	return runtime.ErrPurchaseProviderFunctionalityNotSupported
 }
 
 func NewFacebookPurchaseProvider(nk runtime.NakamaModule, logger runtime.Logger, db *sql.DB, config runtime.IAPConfig, zapLogger *zap.Logger) runtime.PurchaseProvider {
