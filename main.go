@@ -41,6 +41,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	_ "github.com/felixge/httpsnoop"
+	_ "github.com/golang/snappy"
 	_ "github.com/klauspost/compress"
 	_ "github.com/prometheus/client_golang/prometheus"
 	_ "github.com/prometheus/common/model"
