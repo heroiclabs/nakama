@@ -39,6 +39,69 @@ import (
 
 var ErrPurchasesListInvalidCursor = errors.New("purchases list cursor invalid")
 
+func handleValidatedPurchases(ctx context.Context, db *sql.DB, storagePurchases []*runtime.StoragePurchase, persist bool) (*api.ValidatePurchaseProviderResponse, error) {
+
+	if !persist {
+		//Skip storing the receipts
+		validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(storagePurchases))
+		for _, p := range storagePurchases {
+			validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
+				UserId:           p.UserID.String(),
+				ProductId:        p.ProductId,
+				TransactionId:    p.TransactionId,
+				Store:            p.Store,
+				PurchaseTime:     timestamppb.New(p.PurchaseTime),
+				ProviderResponse: p.RawResponse,
+				Environment:      p.Environment,
+			})
+		}
+
+		return &api.ValidatePurchaseProviderResponse{ValidatedPurchases: validatedPurchases}, nil
+	}
+
+	purchases, err := iap.UpsertPurchases(ctx, db, storagePurchases)
+	if err != nil {
+		return nil, err
+	}
+
+	validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
+		suid := p.UserID.String()
+		if p.UserID.IsNil() {
+			suid = ""
+		}
+		validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
+			UserId:           suid,
+			ProductId:        p.ProductId,
+			TransactionId:    p.TransactionId,
+			Store:            p.Store,
+			PurchaseTime:     timestamppb.New(p.PurchaseTime),
+			CreateTime:       timestamppb.New(p.CreateTime),
+			UpdateTime:       timestamppb.New(p.UpdateTime),
+			ProviderResponse: p.RawResponse,
+			Environment:      p.Environment,
+		})
+	}
+
+	return &api.ValidatePurchaseProviderResponse{
+		ValidatedPurchases: validatedPurchases,
+	}, nil
+}
+
+func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, purchaseProvider runtime.PurchaseProvider, in *api.ValidatePurchaseRequest, userID uuid.UUID, persist bool) (*api.ValidatePurchaseProviderResponse, error) {
+	validationPurchases, err := purchaseProvider.PurchaseValidate(ctx, in, userID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	validatedPurchasesResponse, err := handleValidatedPurchases(ctx, db, validationPurchases, persist)
+	if err != nil {
+		return nil, err
+	}
+
+	return validatedPurchasesResponse, nil
+}
+
 func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	validation, raw, err := iap.ValidateReceiptApple(ctx, iap.Httpc, receipt, password)
 	if err != nil {

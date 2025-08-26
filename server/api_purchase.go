@@ -16,65 +16,13 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-func handleValidatedPurchases(ctx context.Context, db *sql.DB, storagePurchases []*runtime.StoragePurchase, persist bool) (*api.ValidatePurchaseProviderResponse, error) {
-
-	if !persist {
-		//Skip storing the receipts
-		validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(storagePurchases))
-		for _, p := range storagePurchases {
-			validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
-				UserId:           p.UserID.String(),
-				ProductId:        p.ProductId,
-				TransactionId:    p.TransactionId,
-				Store:            p.Store,
-				PurchaseTime:     timestamppb.New(p.PurchaseTime),
-				ProviderResponse: p.RawResponse,
-				Environment:      p.Environment,
-			})
-		}
-
-		return &api.ValidatePurchaseProviderResponse{ValidatedPurchases: validatedPurchases}, nil
-	}
-
-	purchases, err := iap.UpsertPurchases(ctx, db, storagePurchases)
-	if err != nil {
-		return nil, err
-	}
-
-	validatedPurchases := make([]*api.PurchaseProviderValidatedPurchase, 0, len(purchases))
-	for _, p := range purchases {
-		suid := p.UserID.String()
-		if p.UserID.IsNil() {
-			suid = ""
-		}
-		validatedPurchases = append(validatedPurchases, &api.PurchaseProviderValidatedPurchase{
-			UserId:           suid,
-			ProductId:        p.ProductId,
-			TransactionId:    p.TransactionId,
-			Store:            p.Store,
-			PurchaseTime:     timestamppb.New(p.PurchaseTime),
-			CreateTime:       timestamppb.New(p.CreateTime),
-			UpdateTime:       timestamppb.New(p.UpdateTime),
-			ProviderResponse: p.RawResponse,
-			Environment:      p.Environment,
-		})
-	}
-
-	return &api.ValidatePurchaseProviderResponse{
-		ValidatedPurchases: validatedPurchases,
-	}, nil
-}
 
 func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseProviderResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
@@ -111,15 +59,7 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 		persist = in.Persist.GetValue()
 	}
 
-	validationPurchases, err := purchaseProvider.PurchaseValidate(ctx, in, userID.String())
-	if err != nil {
-		return nil, err
-	}
-
-	validatedPurchasesResponse, err := handleValidatedPurchases(ctx, s.db, validationPurchases, persist)
-	if err != nil {
-		return nil, err
-	}
+	validatedPurchasesResponse, err := ValidatePurchase(ctx, s.logger, s.db, purchaseProvider, in, userID, persist)
 
 	if fn := s.runtime.AfterValidatePurchase(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {

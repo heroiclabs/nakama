@@ -2951,7 +2951,7 @@ func (ri *RuntimeGoInitializer) RegisterRefundHandler(platform string, purchaseR
 	_, exists := ri.refundFns[platform]
 
 	if exists {
-		return errors.New("platform already registered")
+		return fmt.Errorf("refund handler for platform %q already registered", platform)
 	}
 
 	if nk, ok := ri.nk.(*RuntimeGoNakamaModule); ok {

@@ -244,6 +244,75 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 	return &api.SubscriptionList{ValidatedSubscriptions: subscriptions, Cursor: nextCursorStr, PrevCursor: prevCursorStr}, nil
 }
 
+func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscriptions []*runtime.StorageSubscription, persist bool, logger *zap.Logger) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
+	if !persist {
+		validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))
+		for _, s := range storageSubscriptions {
+			validatedSubs = append(validatedSubs, &api.ValidatedSubscription{
+				UserId:                s.UserID.String(),
+				ProductId:             s.ProductId,
+				OriginalTransactionId: s.OriginalTransactionId,
+				Store:                 api.StoreProvider_APPLE_APP_STORE,
+				PurchaseTime:          timestamppb.New(s.PurchaseTime),
+				Environment:           s.Environment,
+				Active:                s.Active,
+				ExpiryTime:            timestamppb.New(s.ExpireTime),
+				ProviderResponse:      s.RawResponse,
+				ProviderNotification:  s.RawNotification,
+			})
+		}
+
+		return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs}, nil
+	}
+
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		if err := iap.UpsertSubscriptions(ctx, tx, storageSubscriptions); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		if errors.Is(err, ErrSkipNotification) {
+			logger.Error("Failed to store provider subscription data", zap.Error(err))
+			return nil, err
+		}
+	}
+
+	validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))
+
+	for _, sub := range storageSubscriptions {
+		var validatedSub api.ValidatedSubscription
+		suid := sub.UserID.String()
+		if sub.UserID.IsNil() {
+			suid = ""
+		}
+
+		validatedSub.UserId = suid
+		validatedSub.CreateTime = timestamppb.New(sub.CreateTime)
+		validatedSub.UpdateTime = timestamppb.New(sub.UpdateTime)
+		validatedSub.ProviderResponse = sub.RawResponse
+		validatedSub.ProviderNotification = sub.RawNotification
+
+		validatedSubs = append(validatedSubs, &validatedSub)
+	}
+
+	return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs}, nil
+}
+
+func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, purchaseProvider runtime.PurchaseProvider, in *api.ValidateSubscriptionRequest, userID uuid.UUID, persist bool) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
+	storageSubs, err := purchaseProvider.SubscriptionValidate(ctx, in, userID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// handle upsert and persist here
+	response, err := handleValidatedSubscriptions(ctx, db, storageSubs, persist, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, iap.Httpc, receipt, password)
 	if err != nil {

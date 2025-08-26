@@ -16,91 +16,13 @@ package server
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscriptions []*runtime.StorageSubscription, persist bool, logger *zap.Logger) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
-	if !persist {
-		validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))
-		for _, s := range storageSubscriptions {
-			validatedSubs = append(validatedSubs, &api.ValidatedSubscription{
-				UserId:                s.UserID.String(),
-				ProductId:             s.ProductId,
-				OriginalTransactionId: s.OriginalTransactionId,
-				Store:                 api.StoreProvider_APPLE_APP_STORE,
-				PurchaseTime:          timestamppb.New(s.PurchaseTime),
-				Environment:           s.Environment,
-				Active:                s.Active,
-				ExpiryTime:            timestamppb.New(s.ExpireTime),
-				ProviderResponse:      s.RawResponse,
-				ProviderNotification:  s.RawNotification,
-			})
-		}
-
-		return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs}, nil
-	}
-
-	//if err = ExecuteInTx(context.Background(), db, func(tx *sql.Tx) error {
-	//	if err = iap.UpsertSubscription(r.Context(), tx, storageSub); err != nil {
-	//		var pgErr *pgconn.PgError
-	//		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-	//			// User id was not found, ignore this notification
-	//			return ErrSkipNotification
-	//		}
-	//		return err
-	//	}
-	//	return nil
-	//}); err != nil {
-	//	if errors.Is(err, ErrSkipNotification) {
-	//		w.WriteHeader(http.StatusOK)
-	//		return
-	//	}
-	//	logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
-	//	w.WriteHeader(http.StatusInternalServerError)
-	//	return
-	//}
-
-	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
-		if err := iap.UpsertSubscriptions(ctx, tx, storageSubscriptions); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		if errors.Is(err, ErrSkipNotification) {
-			logger.Error("Failed to store provider subscription data", zap.Error(err))
-			return nil, err
-		}
-	}
-
-	validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))
-
-	for _, sub := range storageSubscriptions {
-		var validatedSub api.ValidatedSubscription
-		suid := sub.UserID.String()
-		if sub.UserID.IsNil() {
-			suid = ""
-		}
-
-		validatedSub.UserId = suid
-		validatedSub.CreateTime = timestamppb.New(sub.CreateTime)
-		validatedSub.UpdateTime = timestamppb.New(sub.UpdateTime)
-		validatedSub.ProviderResponse = sub.RawResponse
-		validatedSub.ProviderNotification = sub.RawNotification
-
-		validatedSubs = append(validatedSubs, &validatedSub)
-	}
-
-	return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs}, nil
-}
 
 func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateSubscriptionRequest) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
@@ -139,13 +61,8 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateSu
 		persist = in.Persist.GetValue()
 	}
 
-	storageSubs, err := purchaseProvider.SubscriptionValidate(ctx, in, userID.String())
-	if err != nil {
-		return nil, err
-	}
-
 	// handle upsert and persist here
-	response, err := handleValidatedSubscriptions(ctx, s.db, storageSubs, persist, s.logger)
+	response, err := ValidateSubscription(ctx, s.logger, s.db, purchaseProvider, in, userID, persist)
 	if err != nil {
 		return nil, err
 	}
