@@ -2713,7 +2713,7 @@
     },
     "/v2/match": {
       "get": {
-        "summary": "Fetch list of running matches.",
+        "summary": "List running matches and optionally filter by matching criteria.",
         "operationId": "Nakama_ListMatches",
         "responses": {
           "200": {
@@ -2872,6 +2872,60 @@
               "type": "string"
             },
             "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/party": {
+      "get": {
+        "summary": "List parties and optionally filter by matching criteria.",
+        "operationId": "Nakama_ListParties",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiPartyList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "description": "Limit the number of returned parties.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "open",
+            "description": "Optionally filter by open/closed parties.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "query",
+            "description": "Arbitrary label query.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor for the next page of results, if any.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -4597,6 +4651,51 @@
       "default": "NO_OVERRIDE",
       "description": "Operator that can be used to override the one set in the leaderboard.\n\n - NO_OVERRIDE: Do not override the leaderboard operator.\n - BEST: Override the leaderboard operator with BEST.\n - SET: Override the leaderboard operator with SET.\n - INCREMENT: Override the leaderboard operator with INCREMENT.\n - DECREMENT: Override the leaderboard operator with DECREMENT."
     },
+    "apiParty": {
+      "type": "object",
+      "properties": {
+        "partyId": {
+          "type": "string",
+          "description": "Unique party identifier."
+        },
+        "open": {
+          "type": "boolean",
+          "description": "Open flag."
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "Hidden flag."
+        },
+        "maxSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of party members."
+        },
+        "label": {
+          "type": "string",
+          "description": "The party label, if any."
+        }
+      },
+      "description": "Incoming information about a party."
+    },
+    "apiPartyList": {
+      "type": "object",
+      "properties": {
+        "parties": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/apiParty"
+          },
+          "description": "A number of parties corresponding to a list operation."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "A cursor to send when retrieving the next page, if any."
+        }
+      },
+      "description": "A list of realtime matches."
+    },
     "apiPurchaseProviderValidatedPurchase": {
       "type": "object",
       "properties": {
@@ -5283,9 +5382,6 @@
             "type": "object",
             "$ref": "#/definitions/apiPurchaseProviderValidatedPurchase"
           }
-        },
-        "persist": {
-          "type": "boolean"
         }
       }
     },
@@ -5293,12 +5389,6 @@
       "type": "object",
       "properties": {
         "receipt": {
-          "type": "string"
-        },
-        "purchase": {
-          "type": "string"
-        },
-        "signedRequest": {
           "type": "string"
         },
         "signature": {

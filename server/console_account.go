@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -112,8 +113,17 @@ func (s *ConsoleServer) DeleteFriend(ctx context.Context, in *console.DeleteFrie
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid friend ID.")
 	}
 
-	if err = DeleteFriends(ctx, s.logger, s.db, userID, []string{in.FriendId}); err != nil {
-		// Error already logged in function above.
+	users, err := GetUsers(ctx, s.logger, s.db, s.statusRegistry, []string{in.Id}, nil, nil)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "An error occurred while trying to read user.")
+	}
+	if users == nil || len(users.Users) < 1 {
+		// The user does not exist, so cannot have any friends to delete anyway.
+		return &emptypb.Empty{}, nil
+	}
+
+	if err = DeleteFriends(ctx, s.logger, s.db, s.tracker, s.router, userID, users.Users[0].Username, []string{in.FriendId}); err != nil {
+		// Error already logged in the function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the friend relationship.")
 	}
 
@@ -131,8 +141,8 @@ func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteG
 	}
 
 	if err = KickGroupUsers(ctx, s.logger, s.db, s.tracker, s.router, s.streamManager, uuid.Nil, groupID, []uuid.UUID{userID}, true); err != nil {
-		// Error already logged in function above.
-		if err == ErrEmptyMemberKick {
+		// Error already logged in the function above.
+		if errors.Is(err, ErrEmptyMemberKick) {
 			return nil, status.Error(codes.FailedPrecondition, "Cannot kick user from group.")
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to remove the user from the group.")
@@ -185,7 +195,7 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (
 	account, err := GetAccount(ctx, s.logger, s.db, s.statusRegistry, userID)
 	if err != nil {
 		// Error already logged in function above.
-		if err == ErrAccountNotFound {
+		if errors.Is(err, ErrAccountNotFound) {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to retrieve user account.")
@@ -292,7 +302,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			var createTime pgtype.Timestamptz
 			err := s.db.QueryRowContext(ctx, "SELECT create_time FROM user_tombstone WHERE user_id = $1", *userID).Scan(&createTime)
 			if err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return &console.AccountList{
 						TotalCount: 0,
 					}, nil
@@ -814,9 +824,10 @@ AND ((facebook_id IS NOT NULL
 
 		return nil
 	}); err != nil {
-		if e, ok := err.(*statusError); ok {
+		var se *statusError
+		if errors.As(err, &se) {
 			// Errors such as unlinking the last profile or username in use.
-			return nil, e.Status()
+			return nil, se.Status()
 		}
 		s.logger.Error("Error updating user.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")

@@ -17,15 +17,15 @@ package server
 import (
 	"context"
 	"database/sql"
-	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/iap"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
+	"errors"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscriptions []*runtime.StorageSubscription, persist bool, logger *zap.Logger) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
@@ -49,8 +49,36 @@ func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscr
 		return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs}, nil
 	}
 
-	if err := iap.UpsertSubscriptions(ctx, db, storageSubscriptions); err != nil {
-		return nil, err
+	//if err = ExecuteInTx(context.Background(), db, func(tx *sql.Tx) error {
+	//	if err = iap.UpsertSubscription(r.Context(), tx, storageSub); err != nil {
+	//		var pgErr *pgconn.PgError
+	//		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+	//			// User id was not found, ignore this notification
+	//			return ErrSkipNotification
+	//		}
+	//		return err
+	//	}
+	//	return nil
+	//}); err != nil {
+	//	if errors.Is(err, ErrSkipNotification) {
+	//		w.WriteHeader(http.StatusOK)
+	//		return
+	//	}
+	//	logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+	//	w.WriteHeader(http.StatusInternalServerError)
+	//	return
+	//}
+
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		if err := iap.UpsertSubscriptions(ctx, tx, storageSubscriptions); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		if errors.Is(err, ErrSkipNotification) {
+			logger.Error("Failed to store provider subscription data", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	validatedSubs := make([]*api.ValidatedSubscription, 0, len(storageSubscriptions))

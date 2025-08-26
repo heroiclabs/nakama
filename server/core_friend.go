@@ -478,20 +478,20 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	var notificationToSend map[string]bool
 
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
-		// If the transaction is retried ensure we wipe any notifications that may have been prepared by previous attempts.
+		// If the transaction is retried, ensure we wipe any notifications that may have been prepared by previous attempts.
 		notificationToSend = make(map[string]bool)
 
 		for id := range uniqueFriendIDs {
-			// Check to see if user has already blocked friend, if so, don't add friend or send notification.
+			// Check to see if the user has already blocked the friend, if so, don't add the friend or send notification.
 			var blockState int
 			err := tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, id).Scan(&blockState)
 			// ignore if the error is sql.ErrNoRows as means block was not found - continue as intended.
-			if err != nil && err != sql.ErrNoRows {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				// genuine DB error was found.
 				logger.Debug("Failed to check edge state.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", id))
 				return err
 			} else if err == nil {
-				// the block was found, don't add friend or send notification.
+				// A block was found, don't add friend or send notification.
 				logger.Info("Ignoring previously blocked friend. Delete friend first before attempting to add.", zap.String("user", userID.String()), zap.String("friend", id))
 				continue
 			}
@@ -499,7 +499,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 			isFriendAccept, addFriendErr := addFriend(ctx, logger, tx, userID, id, metadata)
 			if addFriendErr == nil {
 				notificationToSend[id] = isFriendAccept
-			} else if addFriendErr != sql.ErrNoRows { // Check to see if friend had blocked user.
+			} else if !errors.Is(addFriendErr, sql.ErrNoRows) { // Check to see if the friend had blocked this user.
 				return addFriendErr
 			}
 		}
@@ -639,16 +639,25 @@ AND EXISTS
 	return false, nil
 }
 
-func DeleteFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentUser uuid.UUID, ids []string) error {
+func DeleteFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendIDs []string) error {
 	uniqueFriendIDs := make(map[string]struct{})
-	for _, fid := range ids {
+	for _, fid := range friendIDs {
 		uniqueFriendIDs[fid] = struct{}{}
 	}
 
+	var notificationToSend map[string]bool
+
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		// If the transaction is retried, ensure we wipe any notifications that may have been prepared by previous attempts.
+		notificationToSend = make(map[string]bool)
+
 		for id := range uniqueFriendIDs {
-			if deleteFriendErr := deleteFriend(ctx, logger, tx, currentUser, id); deleteFriendErr != nil {
+			notificationRequired, deleteFriendErr := deleteFriend(ctx, logger, tx, userID, id)
+			if deleteFriendErr != nil {
 				return deleteFriendErr
+			}
+			if notificationRequired {
+				notificationToSend[id] = true
 			}
 		}
 		return nil
@@ -657,35 +666,56 @@ func DeleteFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, currentU
 		return err
 	}
 
+	notifications := make(map[uuid.UUID][]*api.Notification)
+	content, _ := json.Marshal(map[string]interface{}{"username": username})
+	for id := range notificationToSend {
+		uid := uuid.FromStringOrNil(id)
+		notifications[uid] = []*api.Notification{{
+			Id:         uuid.Must(uuid.NewV4()).String(),
+			Subject:    fmt.Sprintf("%v removed you as a friend", username),
+			Content:    string(content),
+			SenderId:   userID.String(),
+			Code:       NotificationCodeFriendRemove,
+			Persistent: true,
+			CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
+		}}
+	}
+
+	// Any error is already logged before it's returned here.
+	_ = NotificationSend(ctx, logger, db, tracker, messageRouter, notifications)
+
 	return nil
 }
 
-func deleteFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) error {
+func deleteFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uuid.UUID, friendID string) (bool, error) {
 	res, err := tx.ExecContext(ctx, "DELETE FROM user_edge WHERE (source_id = $1 AND destination_id = $2) OR (source_id = $2 AND destination_id = $1 AND state <> 3)", userID, friendID)
 	if err != nil {
 		logger.Debug("Failed to delete user edge relationships.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-		return err
+		return false, err
 	}
 
-	if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
 		logger.Debug("Could not delete user relationships as prior relationship did not exist.", zap.String("user", userID.String()), zap.String("friend", friendID))
-		return nil
+		return false, nil
 	} else if rowsAffected == 1 {
+		// Unblocking a blocked user.
 		if _, err = tx.ExecContext(ctx, "UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID", userID); err != nil {
 			logger.Debug("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-			return err
+			return false, err
 		}
 	} else if rowsAffected == 2 {
+		// Removing a full friend, cancelling an outgoing friend request, or rejecting an incoming friend request.
 		if _, err = tx.ExecContext(ctx, "UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id IN ($1, $2)", userID, friendID); err != nil {
 			logger.Debug("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
-			return err
+			return false, err
 		}
 	} else {
 		logger.Debug("Unexpected number of edges were deleted.", zap.String("user", userID.String()), zap.String("friend", friendID), zap.Int64("rows_affected", rowsAffected))
-		return errors.New("unexpected number of edges were deleted")
+		return false, errors.New("unexpected number of edges were deleted")
 	}
 
-	return nil
+	return rowsAffected == 2, nil
 }
 
 func BlockFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, currentUser uuid.UUID, ids []string) error {

@@ -226,6 +226,7 @@ type Envelope struct {
 	//	*Envelope_PartyData
 	//	*Envelope_PartyDataSend
 	//	*Envelope_PartyPresenceEvent
+	//	*Envelope_PartyUpdate
 	Message       isEnvelope_Message `protobuf_oneof:"message"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -716,6 +717,15 @@ func (x *Envelope) GetPartyPresenceEvent() *PartyPresenceEvent {
 	return nil
 }
 
+func (x *Envelope) GetPartyUpdate() *PartyUpdate {
+	if x != nil {
+		if x, ok := x.Message.(*Envelope_PartyUpdate); ok {
+			return x.PartyUpdate
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Message interface {
 	isEnvelope_Message()
 }
@@ -965,6 +975,11 @@ type Envelope_PartyPresenceEvent struct {
 	PartyPresenceEvent *PartyPresenceEvent `protobuf:"bytes,50,opt,name=party_presence_event,json=partyPresenceEvent,proto3,oneof"`
 }
 
+type Envelope_PartyUpdate struct {
+	// Update Party label and whether it's open or closed.
+	PartyUpdate *PartyUpdate `protobuf:"bytes,51,opt,name=party_update,json=partyUpdate,proto3,oneof"`
+}
+
 func (*Envelope_Channel) isEnvelope_Message() {}
 
 func (*Envelope_ChannelJoin) isEnvelope_Message() {}
@@ -1062,6 +1077,8 @@ func (*Envelope_PartyData) isEnvelope_Message() {}
 func (*Envelope_PartyDataSend) isEnvelope_Message() {}
 
 func (*Envelope_PartyPresenceEvent) isEnvelope_Message() {}
+
+func (*Envelope_PartyUpdate) isEnvelope_Message() {}
 
 // A realtime chat channel.
 type Channel struct {
@@ -2611,14 +2628,18 @@ type Party struct {
 	PartyId string `protobuf:"bytes,1,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
 	// Open flag.
 	Open bool `protobuf:"varint,2,opt,name=open,proto3" json:"open,omitempty"`
+	// Hidden flag.
+	Hidden bool `protobuf:"varint,3,opt,name=hidden,proto3" json:"hidden,omitempty"`
 	// Maximum number of party members.
-	MaxSize int32 `protobuf:"varint,3,opt,name=max_size,json=maxSize,proto3" json:"max_size,omitempty"`
+	MaxSize int32 `protobuf:"varint,4,opt,name=max_size,json=maxSize,proto3" json:"max_size,omitempty"`
 	// Self.
-	Self *UserPresence `protobuf:"bytes,4,opt,name=self,proto3" json:"self,omitempty"`
+	Self *UserPresence `protobuf:"bytes,5,opt,name=self,proto3" json:"self,omitempty"`
 	// Leader.
-	Leader *UserPresence `protobuf:"bytes,5,opt,name=leader,proto3" json:"leader,omitempty"`
+	Leader *UserPresence `protobuf:"bytes,6,opt,name=leader,proto3" json:"leader,omitempty"`
 	// All current party members.
-	Presences     []*UserPresence `protobuf:"bytes,6,rep,name=presences,proto3" json:"presences,omitempty"`
+	Presences []*UserPresence `protobuf:"bytes,7,rep,name=presences,proto3" json:"presences,omitempty"`
+	// Label for party listing.
+	Label         string `protobuf:"bytes,8,opt,name=label,proto3" json:"label,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2667,6 +2688,13 @@ func (x *Party) GetOpen() bool {
 	return false
 }
 
+func (x *Party) GetHidden() bool {
+	if x != nil {
+		return x.Hidden
+	}
+	return false
+}
+
 func (x *Party) GetMaxSize() int32 {
 	if x != nil {
 		return x.MaxSize
@@ -2695,13 +2723,24 @@ func (x *Party) GetPresences() []*UserPresence {
 	return nil
 }
 
+func (x *Party) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
 // Create a party.
 type PartyCreate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Whether or not the party will require join requests to be approved by the party leader.
 	Open bool `protobuf:"varint,1,opt,name=open,proto3" json:"open,omitempty"`
 	// Maximum number of party members.
-	MaxSize       int32 `protobuf:"varint,2,opt,name=max_size,json=maxSize,proto3" json:"max_size,omitempty"`
+	MaxSize int32 `protobuf:"varint,2,opt,name=max_size,json=maxSize,proto3" json:"max_size,omitempty"`
+	// Label
+	Label string `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
+	// Whether the party is visible in party listings.
+	Hidden        bool `protobuf:"varint,4,opt,name=hidden,proto3" json:"hidden,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2750,6 +2789,93 @@ func (x *PartyCreate) GetMaxSize() int32 {
 	return 0
 }
 
+func (x *PartyCreate) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *PartyCreate) GetHidden() bool {
+	if x != nil {
+		return x.Hidden
+	}
+	return false
+}
+
+// Update a party label.
+type PartyUpdate struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Party ID.
+	PartyId string `protobuf:"bytes,1,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
+	// Label to set.
+	Label string `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	// Change the party to open or closed.
+	Open bool `protobuf:"varint,3,opt,name=open,proto3" json:"open,omitempty"`
+	// Whether the party is visible in party listings.
+	Hidden        bool `protobuf:"varint,4,opt,name=hidden,proto3" json:"hidden,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartyUpdate) Reset() {
+	*x = PartyUpdate{}
+	mi := &file_realtime_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartyUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartyUpdate) ProtoMessage() {}
+
+func (x *PartyUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_realtime_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartyUpdate.ProtoReflect.Descriptor instead.
+func (*PartyUpdate) Descriptor() ([]byte, []int) {
+	return file_realtime_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *PartyUpdate) GetPartyId() string {
+	if x != nil {
+		return x.PartyId
+	}
+	return ""
+}
+
+func (x *PartyUpdate) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *PartyUpdate) GetOpen() bool {
+	if x != nil {
+		return x.Open
+	}
+	return false
+}
+
+func (x *PartyUpdate) GetHidden() bool {
+	if x != nil {
+		return x.Hidden
+	}
+	return false
+}
+
 // Join a party, or request to join if the party is not open.
 type PartyJoin struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2761,7 +2887,7 @@ type PartyJoin struct {
 
 func (x *PartyJoin) Reset() {
 	*x = PartyJoin{}
-	mi := &file_realtime_proto_msgTypes[24]
+	mi := &file_realtime_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2773,7 +2899,7 @@ func (x *PartyJoin) String() string {
 func (*PartyJoin) ProtoMessage() {}
 
 func (x *PartyJoin) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[24]
+	mi := &file_realtime_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2786,7 +2912,7 @@ func (x *PartyJoin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyJoin.ProtoReflect.Descriptor instead.
 func (*PartyJoin) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{24}
+	return file_realtime_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *PartyJoin) GetPartyId() string {
@@ -2807,7 +2933,7 @@ type PartyLeave struct {
 
 func (x *PartyLeave) Reset() {
 	*x = PartyLeave{}
-	mi := &file_realtime_proto_msgTypes[25]
+	mi := &file_realtime_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2819,7 +2945,7 @@ func (x *PartyLeave) String() string {
 func (*PartyLeave) ProtoMessage() {}
 
 func (x *PartyLeave) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[25]
+	mi := &file_realtime_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2832,7 +2958,7 @@ func (x *PartyLeave) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyLeave.ProtoReflect.Descriptor instead.
 func (*PartyLeave) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{25}
+	return file_realtime_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *PartyLeave) GetPartyId() string {
@@ -2855,7 +2981,7 @@ type PartyPromote struct {
 
 func (x *PartyPromote) Reset() {
 	*x = PartyPromote{}
-	mi := &file_realtime_proto_msgTypes[26]
+	mi := &file_realtime_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2867,7 +2993,7 @@ func (x *PartyPromote) String() string {
 func (*PartyPromote) ProtoMessage() {}
 
 func (x *PartyPromote) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[26]
+	mi := &file_realtime_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2880,7 +3006,7 @@ func (x *PartyPromote) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyPromote.ProtoReflect.Descriptor instead.
 func (*PartyPromote) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{26}
+	return file_realtime_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *PartyPromote) GetPartyId() string {
@@ -2910,7 +3036,7 @@ type PartyLeader struct {
 
 func (x *PartyLeader) Reset() {
 	*x = PartyLeader{}
-	mi := &file_realtime_proto_msgTypes[27]
+	mi := &file_realtime_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2922,7 +3048,7 @@ func (x *PartyLeader) String() string {
 func (*PartyLeader) ProtoMessage() {}
 
 func (x *PartyLeader) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[27]
+	mi := &file_realtime_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2935,7 +3061,7 @@ func (x *PartyLeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyLeader.ProtoReflect.Descriptor instead.
 func (*PartyLeader) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{27}
+	return file_realtime_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *PartyLeader) GetPartyId() string {
@@ -2965,7 +3091,7 @@ type PartyAccept struct {
 
 func (x *PartyAccept) Reset() {
 	*x = PartyAccept{}
-	mi := &file_realtime_proto_msgTypes[28]
+	mi := &file_realtime_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2977,7 +3103,7 @@ func (x *PartyAccept) String() string {
 func (*PartyAccept) ProtoMessage() {}
 
 func (x *PartyAccept) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[28]
+	mi := &file_realtime_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2990,7 +3116,7 @@ func (x *PartyAccept) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyAccept.ProtoReflect.Descriptor instead.
 func (*PartyAccept) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{28}
+	return file_realtime_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PartyAccept) GetPartyId() string {
@@ -3020,7 +3146,7 @@ type PartyRemove struct {
 
 func (x *PartyRemove) Reset() {
 	*x = PartyRemove{}
-	mi := &file_realtime_proto_msgTypes[29]
+	mi := &file_realtime_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3032,7 +3158,7 @@ func (x *PartyRemove) String() string {
 func (*PartyRemove) ProtoMessage() {}
 
 func (x *PartyRemove) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[29]
+	mi := &file_realtime_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3045,7 +3171,7 @@ func (x *PartyRemove) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyRemove.ProtoReflect.Descriptor instead.
 func (*PartyRemove) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{29}
+	return file_realtime_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *PartyRemove) GetPartyId() string {
@@ -3073,7 +3199,7 @@ type PartyClose struct {
 
 func (x *PartyClose) Reset() {
 	*x = PartyClose{}
-	mi := &file_realtime_proto_msgTypes[30]
+	mi := &file_realtime_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3085,7 +3211,7 @@ func (x *PartyClose) String() string {
 func (*PartyClose) ProtoMessage() {}
 
 func (x *PartyClose) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[30]
+	mi := &file_realtime_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3098,7 +3224,7 @@ func (x *PartyClose) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyClose.ProtoReflect.Descriptor instead.
 func (*PartyClose) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{30}
+	return file_realtime_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *PartyClose) GetPartyId() string {
@@ -3119,7 +3245,7 @@ type PartyJoinRequestList struct {
 
 func (x *PartyJoinRequestList) Reset() {
 	*x = PartyJoinRequestList{}
-	mi := &file_realtime_proto_msgTypes[31]
+	mi := &file_realtime_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3131,7 +3257,7 @@ func (x *PartyJoinRequestList) String() string {
 func (*PartyJoinRequestList) ProtoMessage() {}
 
 func (x *PartyJoinRequestList) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[31]
+	mi := &file_realtime_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3144,7 +3270,7 @@ func (x *PartyJoinRequestList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyJoinRequestList.ProtoReflect.Descriptor instead.
 func (*PartyJoinRequestList) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{31}
+	return file_realtime_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *PartyJoinRequestList) GetPartyId() string {
@@ -3167,7 +3293,7 @@ type PartyJoinRequest struct {
 
 func (x *PartyJoinRequest) Reset() {
 	*x = PartyJoinRequest{}
-	mi := &file_realtime_proto_msgTypes[32]
+	mi := &file_realtime_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3179,7 +3305,7 @@ func (x *PartyJoinRequest) String() string {
 func (*PartyJoinRequest) ProtoMessage() {}
 
 func (x *PartyJoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[32]
+	mi := &file_realtime_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3192,7 +3318,7 @@ func (x *PartyJoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyJoinRequest.ProtoReflect.Descriptor instead.
 func (*PartyJoinRequest) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{32}
+	return file_realtime_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *PartyJoinRequest) GetPartyId() string {
@@ -3232,7 +3358,7 @@ type PartyMatchmakerAdd struct {
 
 func (x *PartyMatchmakerAdd) Reset() {
 	*x = PartyMatchmakerAdd{}
-	mi := &file_realtime_proto_msgTypes[33]
+	mi := &file_realtime_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3244,7 +3370,7 @@ func (x *PartyMatchmakerAdd) String() string {
 func (*PartyMatchmakerAdd) ProtoMessage() {}
 
 func (x *PartyMatchmakerAdd) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[33]
+	mi := &file_realtime_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3257,7 +3383,7 @@ func (x *PartyMatchmakerAdd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyMatchmakerAdd.ProtoReflect.Descriptor instead.
 func (*PartyMatchmakerAdd) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{33}
+	return file_realtime_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *PartyMatchmakerAdd) GetPartyId() string {
@@ -3322,7 +3448,7 @@ type PartyMatchmakerRemove struct {
 
 func (x *PartyMatchmakerRemove) Reset() {
 	*x = PartyMatchmakerRemove{}
-	mi := &file_realtime_proto_msgTypes[34]
+	mi := &file_realtime_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3334,7 +3460,7 @@ func (x *PartyMatchmakerRemove) String() string {
 func (*PartyMatchmakerRemove) ProtoMessage() {}
 
 func (x *PartyMatchmakerRemove) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[34]
+	mi := &file_realtime_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3347,7 +3473,7 @@ func (x *PartyMatchmakerRemove) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyMatchmakerRemove.ProtoReflect.Descriptor instead.
 func (*PartyMatchmakerRemove) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{34}
+	return file_realtime_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *PartyMatchmakerRemove) GetPartyId() string {
@@ -3377,7 +3503,7 @@ type PartyMatchmakerTicket struct {
 
 func (x *PartyMatchmakerTicket) Reset() {
 	*x = PartyMatchmakerTicket{}
-	mi := &file_realtime_proto_msgTypes[35]
+	mi := &file_realtime_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3389,7 +3515,7 @@ func (x *PartyMatchmakerTicket) String() string {
 func (*PartyMatchmakerTicket) ProtoMessage() {}
 
 func (x *PartyMatchmakerTicket) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[35]
+	mi := &file_realtime_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3402,7 +3528,7 @@ func (x *PartyMatchmakerTicket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyMatchmakerTicket.ProtoReflect.Descriptor instead.
 func (*PartyMatchmakerTicket) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{35}
+	return file_realtime_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *PartyMatchmakerTicket) GetPartyId() string {
@@ -3436,7 +3562,7 @@ type PartyData struct {
 
 func (x *PartyData) Reset() {
 	*x = PartyData{}
-	mi := &file_realtime_proto_msgTypes[36]
+	mi := &file_realtime_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3448,7 +3574,7 @@ func (x *PartyData) String() string {
 func (*PartyData) ProtoMessage() {}
 
 func (x *PartyData) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[36]
+	mi := &file_realtime_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3461,7 +3587,7 @@ func (x *PartyData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyData.ProtoReflect.Descriptor instead.
 func (*PartyData) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{36}
+	return file_realtime_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *PartyData) GetPartyId() string {
@@ -3507,7 +3633,7 @@ type PartyDataSend struct {
 
 func (x *PartyDataSend) Reset() {
 	*x = PartyDataSend{}
-	mi := &file_realtime_proto_msgTypes[37]
+	mi := &file_realtime_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3519,7 +3645,7 @@ func (x *PartyDataSend) String() string {
 func (*PartyDataSend) ProtoMessage() {}
 
 func (x *PartyDataSend) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[37]
+	mi := &file_realtime_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3532,7 +3658,7 @@ func (x *PartyDataSend) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyDataSend.ProtoReflect.Descriptor instead.
 func (*PartyDataSend) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{37}
+	return file_realtime_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *PartyDataSend) GetPartyId() string {
@@ -3571,7 +3697,7 @@ type PartyPresenceEvent struct {
 
 func (x *PartyPresenceEvent) Reset() {
 	*x = PartyPresenceEvent{}
-	mi := &file_realtime_proto_msgTypes[38]
+	mi := &file_realtime_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3583,7 +3709,7 @@ func (x *PartyPresenceEvent) String() string {
 func (*PartyPresenceEvent) ProtoMessage() {}
 
 func (x *PartyPresenceEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[38]
+	mi := &file_realtime_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3596,7 +3722,7 @@ func (x *PartyPresenceEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyPresenceEvent.ProtoReflect.Descriptor instead.
 func (*PartyPresenceEvent) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{38}
+	return file_realtime_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *PartyPresenceEvent) GetPartyId() string {
@@ -3629,7 +3755,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_realtime_proto_msgTypes[39]
+	mi := &file_realtime_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3641,7 +3767,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[39]
+	mi := &file_realtime_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3654,7 +3780,7 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ping.ProtoReflect.Descriptor instead.
 func (*Ping) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{39}
+	return file_realtime_proto_rawDescGZIP(), []int{40}
 }
 
 // Application-level heartbeat and connection check response.
@@ -3666,7 +3792,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_realtime_proto_msgTypes[40]
+	mi := &file_realtime_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3678,7 +3804,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[40]
+	mi := &file_realtime_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3691,7 +3817,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{40}
+	return file_realtime_proto_rawDescGZIP(), []int{41}
 }
 
 // A snapshot of statuses for some set of users.
@@ -3705,7 +3831,7 @@ type Status struct {
 
 func (x *Status) Reset() {
 	*x = Status{}
-	mi := &file_realtime_proto_msgTypes[41]
+	mi := &file_realtime_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3717,7 +3843,7 @@ func (x *Status) String() string {
 func (*Status) ProtoMessage() {}
 
 func (x *Status) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[41]
+	mi := &file_realtime_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3730,7 +3856,7 @@ func (x *Status) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Status.ProtoReflect.Descriptor instead.
 func (*Status) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{41}
+	return file_realtime_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *Status) GetPresences() []*UserPresence {
@@ -3753,7 +3879,7 @@ type StatusFollow struct {
 
 func (x *StatusFollow) Reset() {
 	*x = StatusFollow{}
-	mi := &file_realtime_proto_msgTypes[42]
+	mi := &file_realtime_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3765,7 +3891,7 @@ func (x *StatusFollow) String() string {
 func (*StatusFollow) ProtoMessage() {}
 
 func (x *StatusFollow) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[42]
+	mi := &file_realtime_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3778,7 +3904,7 @@ func (x *StatusFollow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusFollow.ProtoReflect.Descriptor instead.
 func (*StatusFollow) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{42}
+	return file_realtime_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *StatusFollow) GetUserIds() []string {
@@ -3808,7 +3934,7 @@ type StatusPresenceEvent struct {
 
 func (x *StatusPresenceEvent) Reset() {
 	*x = StatusPresenceEvent{}
-	mi := &file_realtime_proto_msgTypes[43]
+	mi := &file_realtime_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3820,7 +3946,7 @@ func (x *StatusPresenceEvent) String() string {
 func (*StatusPresenceEvent) ProtoMessage() {}
 
 func (x *StatusPresenceEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[43]
+	mi := &file_realtime_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3833,7 +3959,7 @@ func (x *StatusPresenceEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusPresenceEvent.ProtoReflect.Descriptor instead.
 func (*StatusPresenceEvent) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{43}
+	return file_realtime_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *StatusPresenceEvent) GetJoins() []*UserPresence {
@@ -3861,7 +3987,7 @@ type StatusUnfollow struct {
 
 func (x *StatusUnfollow) Reset() {
 	*x = StatusUnfollow{}
-	mi := &file_realtime_proto_msgTypes[44]
+	mi := &file_realtime_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3873,7 +3999,7 @@ func (x *StatusUnfollow) String() string {
 func (*StatusUnfollow) ProtoMessage() {}
 
 func (x *StatusUnfollow) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[44]
+	mi := &file_realtime_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3886,7 +4012,7 @@ func (x *StatusUnfollow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusUnfollow.ProtoReflect.Descriptor instead.
 func (*StatusUnfollow) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{44}
+	return file_realtime_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *StatusUnfollow) GetUserIds() []string {
@@ -3907,7 +4033,7 @@ type StatusUpdate struct {
 
 func (x *StatusUpdate) Reset() {
 	*x = StatusUpdate{}
-	mi := &file_realtime_proto_msgTypes[45]
+	mi := &file_realtime_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3919,7 +4045,7 @@ func (x *StatusUpdate) String() string {
 func (*StatusUpdate) ProtoMessage() {}
 
 func (x *StatusUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[45]
+	mi := &file_realtime_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3932,7 +4058,7 @@ func (x *StatusUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusUpdate.ProtoReflect.Descriptor instead.
 func (*StatusUpdate) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{45}
+	return file_realtime_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *StatusUpdate) GetStatus() *wrapperspb.StringValue {
@@ -3959,7 +4085,7 @@ type Stream struct {
 
 func (x *Stream) Reset() {
 	*x = Stream{}
-	mi := &file_realtime_proto_msgTypes[46]
+	mi := &file_realtime_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3971,7 +4097,7 @@ func (x *Stream) String() string {
 func (*Stream) ProtoMessage() {}
 
 func (x *Stream) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[46]
+	mi := &file_realtime_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3984,7 +4110,7 @@ func (x *Stream) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Stream.ProtoReflect.Descriptor instead.
 func (*Stream) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{46}
+	return file_realtime_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *Stream) GetMode() int32 {
@@ -4032,7 +4158,7 @@ type StreamData struct {
 
 func (x *StreamData) Reset() {
 	*x = StreamData{}
-	mi := &file_realtime_proto_msgTypes[47]
+	mi := &file_realtime_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4044,7 +4170,7 @@ func (x *StreamData) String() string {
 func (*StreamData) ProtoMessage() {}
 
 func (x *StreamData) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[47]
+	mi := &file_realtime_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4057,7 +4183,7 @@ func (x *StreamData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamData.ProtoReflect.Descriptor instead.
 func (*StreamData) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{47}
+	return file_realtime_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *StreamData) GetStream() *Stream {
@@ -4103,7 +4229,7 @@ type StreamPresenceEvent struct {
 
 func (x *StreamPresenceEvent) Reset() {
 	*x = StreamPresenceEvent{}
-	mi := &file_realtime_proto_msgTypes[48]
+	mi := &file_realtime_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4115,7 +4241,7 @@ func (x *StreamPresenceEvent) String() string {
 func (*StreamPresenceEvent) ProtoMessage() {}
 
 func (x *StreamPresenceEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[48]
+	mi := &file_realtime_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4128,7 +4254,7 @@ func (x *StreamPresenceEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamPresenceEvent.ProtoReflect.Descriptor instead.
 func (*StreamPresenceEvent) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{48}
+	return file_realtime_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *StreamPresenceEvent) GetStream() *Stream {
@@ -4171,7 +4297,7 @@ type UserPresence struct {
 
 func (x *UserPresence) Reset() {
 	*x = UserPresence{}
-	mi := &file_realtime_proto_msgTypes[49]
+	mi := &file_realtime_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4183,7 +4309,7 @@ func (x *UserPresence) String() string {
 func (*UserPresence) ProtoMessage() {}
 
 func (x *UserPresence) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[49]
+	mi := &file_realtime_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4196,7 +4322,7 @@ func (x *UserPresence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserPresence.ProtoReflect.Descriptor instead.
 func (*UserPresence) Descriptor() ([]byte, []int) {
-	return file_realtime_proto_rawDescGZIP(), []int{49}
+	return file_realtime_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *UserPresence) GetUserId() string {
@@ -4250,7 +4376,7 @@ type MatchmakerMatched_MatchmakerUser struct {
 
 func (x *MatchmakerMatched_MatchmakerUser) Reset() {
 	*x = MatchmakerMatched_MatchmakerUser{}
-	mi := &file_realtime_proto_msgTypes[54]
+	mi := &file_realtime_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4262,7 +4388,7 @@ func (x *MatchmakerMatched_MatchmakerUser) String() string {
 func (*MatchmakerMatched_MatchmakerUser) ProtoMessage() {}
 
 func (x *MatchmakerMatched_MatchmakerUser) ProtoReflect() protoreflect.Message {
-	mi := &file_realtime_proto_msgTypes[54]
+	mi := &file_realtime_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4310,7 +4436,7 @@ var File_realtime_proto protoreflect.FileDescriptor
 
 const file_realtime_proto_rawDesc = "" +
 	"\n" +
-	"\x0erealtime.proto\x12\x0fnakama.realtime\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a\rapi/api.proto\"\xf4\x1b\n" +
+	"\x0erealtime.proto\x12\x0fnakama.realtime\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a\rapi/api.proto\"\xb7\x1c\n" +
 	"\bEnvelope\x12\x10\n" +
 	"\x03cid\x18\x01 \x01(\tR\x03cid\x124\n" +
 	"\achannel\x18\x02 \x01(\v2\x18.nakama.realtime.ChannelH\x00R\achannel\x12A\n" +
@@ -4370,7 +4496,8 @@ const file_realtime_proto_rawDesc = "" +
 	"\n" +
 	"party_data\x180 \x01(\v2\x1a.nakama.realtime.PartyDataH\x00R\tpartyData\x12H\n" +
 	"\x0fparty_data_send\x181 \x01(\v2\x1e.nakama.realtime.PartyDataSendH\x00R\rpartyDataSend\x12W\n" +
-	"\x14party_presence_event\x182 \x01(\v2#.nakama.realtime.PartyPresenceEventH\x00R\x12partyPresenceEventB\t\n" +
+	"\x14party_presence_event\x182 \x01(\v2#.nakama.realtime.PartyPresenceEventH\x00R\x12partyPresenceEvent\x12A\n" +
+	"\fparty_update\x183 \x01(\v2\x1c.nakama.realtime.PartyUpdateH\x00R\vpartyUpdateB\t\n" +
 	"\amessage\"\x81\x02\n" +
 	"\aChannel\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12;\n" +
@@ -4524,17 +4651,26 @@ const file_realtime_proto_rawDesc = "" +
 	"\x10MatchmakerTicket\x12\x16\n" +
 	"\x06ticket\x18\x01 \x01(\tR\x06ticket\"O\n" +
 	"\rNotifications\x12>\n" +
-	"\rnotifications\x18\x01 \x03(\v2\x18.nakama.api.NotificationR\rnotifications\"\xf8\x01\n" +
+	"\rnotifications\x18\x01 \x03(\v2\x18.nakama.api.NotificationR\rnotifications\"\xa6\x02\n" +
 	"\x05Party\x12\x19\n" +
 	"\bparty_id\x18\x01 \x01(\tR\apartyId\x12\x12\n" +
-	"\x04open\x18\x02 \x01(\bR\x04open\x12\x19\n" +
-	"\bmax_size\x18\x03 \x01(\x05R\amaxSize\x121\n" +
-	"\x04self\x18\x04 \x01(\v2\x1d.nakama.realtime.UserPresenceR\x04self\x125\n" +
-	"\x06leader\x18\x05 \x01(\v2\x1d.nakama.realtime.UserPresenceR\x06leader\x12;\n" +
-	"\tpresences\x18\x06 \x03(\v2\x1d.nakama.realtime.UserPresenceR\tpresences\"<\n" +
+	"\x04open\x18\x02 \x01(\bR\x04open\x12\x16\n" +
+	"\x06hidden\x18\x03 \x01(\bR\x06hidden\x12\x19\n" +
+	"\bmax_size\x18\x04 \x01(\x05R\amaxSize\x121\n" +
+	"\x04self\x18\x05 \x01(\v2\x1d.nakama.realtime.UserPresenceR\x04self\x125\n" +
+	"\x06leader\x18\x06 \x01(\v2\x1d.nakama.realtime.UserPresenceR\x06leader\x12;\n" +
+	"\tpresences\x18\a \x03(\v2\x1d.nakama.realtime.UserPresenceR\tpresences\x12\x14\n" +
+	"\x05label\x18\b \x01(\tR\x05label\"j\n" +
 	"\vPartyCreate\x12\x12\n" +
 	"\x04open\x18\x01 \x01(\bR\x04open\x12\x19\n" +
-	"\bmax_size\x18\x02 \x01(\x05R\amaxSize\"&\n" +
+	"\bmax_size\x18\x02 \x01(\x05R\amaxSize\x12\x14\n" +
+	"\x05label\x18\x03 \x01(\tR\x05label\x12\x16\n" +
+	"\x06hidden\x18\x04 \x01(\bR\x06hidden\"j\n" +
+	"\vPartyUpdate\x12\x19\n" +
+	"\bparty_id\x18\x01 \x01(\tR\apartyId\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
+	"\x04open\x18\x03 \x01(\bR\x04open\x12\x16\n" +
+	"\x06hidden\x18\x04 \x01(\bR\x06hidden\"&\n" +
 	"\tPartyJoin\x12\x19\n" +
 	"\bparty_id\x18\x01 \x01(\tR\apartyId\"'\n" +
 	"\n" +
@@ -4646,7 +4782,7 @@ func file_realtime_proto_rawDescGZIP() []byte {
 }
 
 var file_realtime_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_realtime_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
+var file_realtime_proto_msgTypes = make([]protoimpl.MessageInfo, 60)
 var file_realtime_proto_goTypes = []any{
 	(ChannelJoin_Type)(0),                    // 0: nakama.realtime.ChannelJoin.Type
 	(Error_Code)(0),                          // 1: nakama.realtime.Error.Code
@@ -4674,54 +4810,55 @@ var file_realtime_proto_goTypes = []any{
 	(*Notifications)(nil),                    // 23: nakama.realtime.Notifications
 	(*Party)(nil),                            // 24: nakama.realtime.Party
 	(*PartyCreate)(nil),                      // 25: nakama.realtime.PartyCreate
-	(*PartyJoin)(nil),                        // 26: nakama.realtime.PartyJoin
-	(*PartyLeave)(nil),                       // 27: nakama.realtime.PartyLeave
-	(*PartyPromote)(nil),                     // 28: nakama.realtime.PartyPromote
-	(*PartyLeader)(nil),                      // 29: nakama.realtime.PartyLeader
-	(*PartyAccept)(nil),                      // 30: nakama.realtime.PartyAccept
-	(*PartyRemove)(nil),                      // 31: nakama.realtime.PartyRemove
-	(*PartyClose)(nil),                       // 32: nakama.realtime.PartyClose
-	(*PartyJoinRequestList)(nil),             // 33: nakama.realtime.PartyJoinRequestList
-	(*PartyJoinRequest)(nil),                 // 34: nakama.realtime.PartyJoinRequest
-	(*PartyMatchmakerAdd)(nil),               // 35: nakama.realtime.PartyMatchmakerAdd
-	(*PartyMatchmakerRemove)(nil),            // 36: nakama.realtime.PartyMatchmakerRemove
-	(*PartyMatchmakerTicket)(nil),            // 37: nakama.realtime.PartyMatchmakerTicket
-	(*PartyData)(nil),                        // 38: nakama.realtime.PartyData
-	(*PartyDataSend)(nil),                    // 39: nakama.realtime.PartyDataSend
-	(*PartyPresenceEvent)(nil),               // 40: nakama.realtime.PartyPresenceEvent
-	(*Ping)(nil),                             // 41: nakama.realtime.Ping
-	(*Pong)(nil),                             // 42: nakama.realtime.Pong
-	(*Status)(nil),                           // 43: nakama.realtime.Status
-	(*StatusFollow)(nil),                     // 44: nakama.realtime.StatusFollow
-	(*StatusPresenceEvent)(nil),              // 45: nakama.realtime.StatusPresenceEvent
-	(*StatusUnfollow)(nil),                   // 46: nakama.realtime.StatusUnfollow
-	(*StatusUpdate)(nil),                     // 47: nakama.realtime.StatusUpdate
-	(*Stream)(nil),                           // 48: nakama.realtime.Stream
-	(*StreamData)(nil),                       // 49: nakama.realtime.StreamData
-	(*StreamPresenceEvent)(nil),              // 50: nakama.realtime.StreamPresenceEvent
-	(*UserPresence)(nil),                     // 51: nakama.realtime.UserPresence
-	nil,                                      // 52: nakama.realtime.Error.ContextEntry
-	nil,                                      // 53: nakama.realtime.MatchJoin.MetadataEntry
-	nil,                                      // 54: nakama.realtime.MatchmakerAdd.StringPropertiesEntry
-	nil,                                      // 55: nakama.realtime.MatchmakerAdd.NumericPropertiesEntry
-	(*MatchmakerMatched_MatchmakerUser)(nil), // 56: nakama.realtime.MatchmakerMatched.MatchmakerUser
-	nil,                                      // 57: nakama.realtime.MatchmakerMatched.MatchmakerUser.StringPropertiesEntry
-	nil,                                      // 58: nakama.realtime.MatchmakerMatched.MatchmakerUser.NumericPropertiesEntry
-	nil,                                      // 59: nakama.realtime.PartyMatchmakerAdd.StringPropertiesEntry
-	nil,                                      // 60: nakama.realtime.PartyMatchmakerAdd.NumericPropertiesEntry
-	(*api.ChannelMessage)(nil),               // 61: nakama.api.ChannelMessage
-	(*api.Rpc)(nil),                          // 62: nakama.api.Rpc
-	(*wrapperspb.BoolValue)(nil),             // 63: google.protobuf.BoolValue
-	(*wrapperspb.Int32Value)(nil),            // 64: google.protobuf.Int32Value
-	(*timestamppb.Timestamp)(nil),            // 65: google.protobuf.Timestamp
-	(*wrapperspb.StringValue)(nil),           // 66: google.protobuf.StringValue
-	(*api.Notification)(nil),                 // 67: nakama.api.Notification
+	(*PartyUpdate)(nil),                      // 26: nakama.realtime.PartyUpdate
+	(*PartyJoin)(nil),                        // 27: nakama.realtime.PartyJoin
+	(*PartyLeave)(nil),                       // 28: nakama.realtime.PartyLeave
+	(*PartyPromote)(nil),                     // 29: nakama.realtime.PartyPromote
+	(*PartyLeader)(nil),                      // 30: nakama.realtime.PartyLeader
+	(*PartyAccept)(nil),                      // 31: nakama.realtime.PartyAccept
+	(*PartyRemove)(nil),                      // 32: nakama.realtime.PartyRemove
+	(*PartyClose)(nil),                       // 33: nakama.realtime.PartyClose
+	(*PartyJoinRequestList)(nil),             // 34: nakama.realtime.PartyJoinRequestList
+	(*PartyJoinRequest)(nil),                 // 35: nakama.realtime.PartyJoinRequest
+	(*PartyMatchmakerAdd)(nil),               // 36: nakama.realtime.PartyMatchmakerAdd
+	(*PartyMatchmakerRemove)(nil),            // 37: nakama.realtime.PartyMatchmakerRemove
+	(*PartyMatchmakerTicket)(nil),            // 38: nakama.realtime.PartyMatchmakerTicket
+	(*PartyData)(nil),                        // 39: nakama.realtime.PartyData
+	(*PartyDataSend)(nil),                    // 40: nakama.realtime.PartyDataSend
+	(*PartyPresenceEvent)(nil),               // 41: nakama.realtime.PartyPresenceEvent
+	(*Ping)(nil),                             // 42: nakama.realtime.Ping
+	(*Pong)(nil),                             // 43: nakama.realtime.Pong
+	(*Status)(nil),                           // 44: nakama.realtime.Status
+	(*StatusFollow)(nil),                     // 45: nakama.realtime.StatusFollow
+	(*StatusPresenceEvent)(nil),              // 46: nakama.realtime.StatusPresenceEvent
+	(*StatusUnfollow)(nil),                   // 47: nakama.realtime.StatusUnfollow
+	(*StatusUpdate)(nil),                     // 48: nakama.realtime.StatusUpdate
+	(*Stream)(nil),                           // 49: nakama.realtime.Stream
+	(*StreamData)(nil),                       // 50: nakama.realtime.StreamData
+	(*StreamPresenceEvent)(nil),              // 51: nakama.realtime.StreamPresenceEvent
+	(*UserPresence)(nil),                     // 52: nakama.realtime.UserPresence
+	nil,                                      // 53: nakama.realtime.Error.ContextEntry
+	nil,                                      // 54: nakama.realtime.MatchJoin.MetadataEntry
+	nil,                                      // 55: nakama.realtime.MatchmakerAdd.StringPropertiesEntry
+	nil,                                      // 56: nakama.realtime.MatchmakerAdd.NumericPropertiesEntry
+	(*MatchmakerMatched_MatchmakerUser)(nil), // 57: nakama.realtime.MatchmakerMatched.MatchmakerUser
+	nil,                                      // 58: nakama.realtime.MatchmakerMatched.MatchmakerUser.StringPropertiesEntry
+	nil,                                      // 59: nakama.realtime.MatchmakerMatched.MatchmakerUser.NumericPropertiesEntry
+	nil,                                      // 60: nakama.realtime.PartyMatchmakerAdd.StringPropertiesEntry
+	nil,                                      // 61: nakama.realtime.PartyMatchmakerAdd.NumericPropertiesEntry
+	(*api.ChannelMessage)(nil),               // 62: nakama.api.ChannelMessage
+	(*api.Rpc)(nil),                          // 63: nakama.api.Rpc
+	(*wrapperspb.BoolValue)(nil),             // 64: google.protobuf.BoolValue
+	(*wrapperspb.Int32Value)(nil),            // 65: google.protobuf.Int32Value
+	(*timestamppb.Timestamp)(nil),            // 66: google.protobuf.Timestamp
+	(*wrapperspb.StringValue)(nil),           // 67: google.protobuf.StringValue
+	(*api.Notification)(nil),                 // 68: nakama.api.Notification
 }
 var file_realtime_proto_depIdxs = []int32{
 	3,   // 0: nakama.realtime.Envelope.channel:type_name -> nakama.realtime.Channel
 	4,   // 1: nakama.realtime.Envelope.channel_join:type_name -> nakama.realtime.ChannelJoin
 	5,   // 2: nakama.realtime.Envelope.channel_leave:type_name -> nakama.realtime.ChannelLeave
-	61,  // 3: nakama.realtime.Envelope.channel_message:type_name -> nakama.api.ChannelMessage
+	62,  // 3: nakama.realtime.Envelope.channel_message:type_name -> nakama.api.ChannelMessage
 	6,   // 4: nakama.realtime.Envelope.channel_message_ack:type_name -> nakama.realtime.ChannelMessageAck
 	7,   // 5: nakama.realtime.Envelope.channel_message_send:type_name -> nakama.realtime.ChannelMessageSend
 	8,   // 6: nakama.realtime.Envelope.channel_message_update:type_name -> nakama.realtime.ChannelMessageUpdate
@@ -4740,90 +4877,91 @@ var file_realtime_proto_depIdxs = []int32{
 	21,  // 19: nakama.realtime.Envelope.matchmaker_remove:type_name -> nakama.realtime.MatchmakerRemove
 	22,  // 20: nakama.realtime.Envelope.matchmaker_ticket:type_name -> nakama.realtime.MatchmakerTicket
 	23,  // 21: nakama.realtime.Envelope.notifications:type_name -> nakama.realtime.Notifications
-	62,  // 22: nakama.realtime.Envelope.rpc:type_name -> nakama.api.Rpc
-	43,  // 23: nakama.realtime.Envelope.status:type_name -> nakama.realtime.Status
-	44,  // 24: nakama.realtime.Envelope.status_follow:type_name -> nakama.realtime.StatusFollow
-	45,  // 25: nakama.realtime.Envelope.status_presence_event:type_name -> nakama.realtime.StatusPresenceEvent
-	46,  // 26: nakama.realtime.Envelope.status_unfollow:type_name -> nakama.realtime.StatusUnfollow
-	47,  // 27: nakama.realtime.Envelope.status_update:type_name -> nakama.realtime.StatusUpdate
-	49,  // 28: nakama.realtime.Envelope.stream_data:type_name -> nakama.realtime.StreamData
-	50,  // 29: nakama.realtime.Envelope.stream_presence_event:type_name -> nakama.realtime.StreamPresenceEvent
-	41,  // 30: nakama.realtime.Envelope.ping:type_name -> nakama.realtime.Ping
-	42,  // 31: nakama.realtime.Envelope.pong:type_name -> nakama.realtime.Pong
+	63,  // 22: nakama.realtime.Envelope.rpc:type_name -> nakama.api.Rpc
+	44,  // 23: nakama.realtime.Envelope.status:type_name -> nakama.realtime.Status
+	45,  // 24: nakama.realtime.Envelope.status_follow:type_name -> nakama.realtime.StatusFollow
+	46,  // 25: nakama.realtime.Envelope.status_presence_event:type_name -> nakama.realtime.StatusPresenceEvent
+	47,  // 26: nakama.realtime.Envelope.status_unfollow:type_name -> nakama.realtime.StatusUnfollow
+	48,  // 27: nakama.realtime.Envelope.status_update:type_name -> nakama.realtime.StatusUpdate
+	50,  // 28: nakama.realtime.Envelope.stream_data:type_name -> nakama.realtime.StreamData
+	51,  // 29: nakama.realtime.Envelope.stream_presence_event:type_name -> nakama.realtime.StreamPresenceEvent
+	42,  // 30: nakama.realtime.Envelope.ping:type_name -> nakama.realtime.Ping
+	43,  // 31: nakama.realtime.Envelope.pong:type_name -> nakama.realtime.Pong
 	24,  // 32: nakama.realtime.Envelope.party:type_name -> nakama.realtime.Party
 	25,  // 33: nakama.realtime.Envelope.party_create:type_name -> nakama.realtime.PartyCreate
-	26,  // 34: nakama.realtime.Envelope.party_join:type_name -> nakama.realtime.PartyJoin
-	27,  // 35: nakama.realtime.Envelope.party_leave:type_name -> nakama.realtime.PartyLeave
-	28,  // 36: nakama.realtime.Envelope.party_promote:type_name -> nakama.realtime.PartyPromote
-	29,  // 37: nakama.realtime.Envelope.party_leader:type_name -> nakama.realtime.PartyLeader
-	30,  // 38: nakama.realtime.Envelope.party_accept:type_name -> nakama.realtime.PartyAccept
-	31,  // 39: nakama.realtime.Envelope.party_remove:type_name -> nakama.realtime.PartyRemove
-	32,  // 40: nakama.realtime.Envelope.party_close:type_name -> nakama.realtime.PartyClose
-	33,  // 41: nakama.realtime.Envelope.party_join_request_list:type_name -> nakama.realtime.PartyJoinRequestList
-	34,  // 42: nakama.realtime.Envelope.party_join_request:type_name -> nakama.realtime.PartyJoinRequest
-	35,  // 43: nakama.realtime.Envelope.party_matchmaker_add:type_name -> nakama.realtime.PartyMatchmakerAdd
-	36,  // 44: nakama.realtime.Envelope.party_matchmaker_remove:type_name -> nakama.realtime.PartyMatchmakerRemove
-	37,  // 45: nakama.realtime.Envelope.party_matchmaker_ticket:type_name -> nakama.realtime.PartyMatchmakerTicket
-	38,  // 46: nakama.realtime.Envelope.party_data:type_name -> nakama.realtime.PartyData
-	39,  // 47: nakama.realtime.Envelope.party_data_send:type_name -> nakama.realtime.PartyDataSend
-	40,  // 48: nakama.realtime.Envelope.party_presence_event:type_name -> nakama.realtime.PartyPresenceEvent
-	51,  // 49: nakama.realtime.Channel.presences:type_name -> nakama.realtime.UserPresence
-	51,  // 50: nakama.realtime.Channel.self:type_name -> nakama.realtime.UserPresence
-	63,  // 51: nakama.realtime.ChannelJoin.persistence:type_name -> google.protobuf.BoolValue
-	63,  // 52: nakama.realtime.ChannelJoin.hidden:type_name -> google.protobuf.BoolValue
-	64,  // 53: nakama.realtime.ChannelMessageAck.code:type_name -> google.protobuf.Int32Value
-	65,  // 54: nakama.realtime.ChannelMessageAck.create_time:type_name -> google.protobuf.Timestamp
-	65,  // 55: nakama.realtime.ChannelMessageAck.update_time:type_name -> google.protobuf.Timestamp
-	63,  // 56: nakama.realtime.ChannelMessageAck.persistent:type_name -> google.protobuf.BoolValue
-	51,  // 57: nakama.realtime.ChannelPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
-	51,  // 58: nakama.realtime.ChannelPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
-	52,  // 59: nakama.realtime.Error.context:type_name -> nakama.realtime.Error.ContextEntry
-	66,  // 60: nakama.realtime.Match.label:type_name -> google.protobuf.StringValue
-	51,  // 61: nakama.realtime.Match.presences:type_name -> nakama.realtime.UserPresence
-	51,  // 62: nakama.realtime.Match.self:type_name -> nakama.realtime.UserPresence
-	51,  // 63: nakama.realtime.MatchData.presence:type_name -> nakama.realtime.UserPresence
-	51,  // 64: nakama.realtime.MatchDataSend.presences:type_name -> nakama.realtime.UserPresence
-	53,  // 65: nakama.realtime.MatchJoin.metadata:type_name -> nakama.realtime.MatchJoin.MetadataEntry
-	51,  // 66: nakama.realtime.MatchPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
-	51,  // 67: nakama.realtime.MatchPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
-	54,  // 68: nakama.realtime.MatchmakerAdd.string_properties:type_name -> nakama.realtime.MatchmakerAdd.StringPropertiesEntry
-	55,  // 69: nakama.realtime.MatchmakerAdd.numeric_properties:type_name -> nakama.realtime.MatchmakerAdd.NumericPropertiesEntry
-	64,  // 70: nakama.realtime.MatchmakerAdd.count_multiple:type_name -> google.protobuf.Int32Value
-	56,  // 71: nakama.realtime.MatchmakerMatched.users:type_name -> nakama.realtime.MatchmakerMatched.MatchmakerUser
-	56,  // 72: nakama.realtime.MatchmakerMatched.self:type_name -> nakama.realtime.MatchmakerMatched.MatchmakerUser
-	67,  // 73: nakama.realtime.Notifications.notifications:type_name -> nakama.api.Notification
-	51,  // 74: nakama.realtime.Party.self:type_name -> nakama.realtime.UserPresence
-	51,  // 75: nakama.realtime.Party.leader:type_name -> nakama.realtime.UserPresence
-	51,  // 76: nakama.realtime.Party.presences:type_name -> nakama.realtime.UserPresence
-	51,  // 77: nakama.realtime.PartyPromote.presence:type_name -> nakama.realtime.UserPresence
-	51,  // 78: nakama.realtime.PartyLeader.presence:type_name -> nakama.realtime.UserPresence
-	51,  // 79: nakama.realtime.PartyAccept.presence:type_name -> nakama.realtime.UserPresence
-	51,  // 80: nakama.realtime.PartyRemove.presence:type_name -> nakama.realtime.UserPresence
-	51,  // 81: nakama.realtime.PartyJoinRequest.presences:type_name -> nakama.realtime.UserPresence
-	59,  // 82: nakama.realtime.PartyMatchmakerAdd.string_properties:type_name -> nakama.realtime.PartyMatchmakerAdd.StringPropertiesEntry
-	60,  // 83: nakama.realtime.PartyMatchmakerAdd.numeric_properties:type_name -> nakama.realtime.PartyMatchmakerAdd.NumericPropertiesEntry
-	64,  // 84: nakama.realtime.PartyMatchmakerAdd.count_multiple:type_name -> google.protobuf.Int32Value
-	51,  // 85: nakama.realtime.PartyData.presence:type_name -> nakama.realtime.UserPresence
-	51,  // 86: nakama.realtime.PartyPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
-	51,  // 87: nakama.realtime.PartyPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
-	51,  // 88: nakama.realtime.Status.presences:type_name -> nakama.realtime.UserPresence
-	51,  // 89: nakama.realtime.StatusPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
-	51,  // 90: nakama.realtime.StatusPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
-	66,  // 91: nakama.realtime.StatusUpdate.status:type_name -> google.protobuf.StringValue
-	48,  // 92: nakama.realtime.StreamData.stream:type_name -> nakama.realtime.Stream
-	51,  // 93: nakama.realtime.StreamData.sender:type_name -> nakama.realtime.UserPresence
-	48,  // 94: nakama.realtime.StreamPresenceEvent.stream:type_name -> nakama.realtime.Stream
-	51,  // 95: nakama.realtime.StreamPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
-	51,  // 96: nakama.realtime.StreamPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
-	66,  // 97: nakama.realtime.UserPresence.status:type_name -> google.protobuf.StringValue
-	51,  // 98: nakama.realtime.MatchmakerMatched.MatchmakerUser.presence:type_name -> nakama.realtime.UserPresence
-	57,  // 99: nakama.realtime.MatchmakerMatched.MatchmakerUser.string_properties:type_name -> nakama.realtime.MatchmakerMatched.MatchmakerUser.StringPropertiesEntry
-	58,  // 100: nakama.realtime.MatchmakerMatched.MatchmakerUser.numeric_properties:type_name -> nakama.realtime.MatchmakerMatched.MatchmakerUser.NumericPropertiesEntry
-	101, // [101:101] is the sub-list for method output_type
-	101, // [101:101] is the sub-list for method input_type
-	101, // [101:101] is the sub-list for extension type_name
-	101, // [101:101] is the sub-list for extension extendee
-	0,   // [0:101] is the sub-list for field type_name
+	27,  // 34: nakama.realtime.Envelope.party_join:type_name -> nakama.realtime.PartyJoin
+	28,  // 35: nakama.realtime.Envelope.party_leave:type_name -> nakama.realtime.PartyLeave
+	29,  // 36: nakama.realtime.Envelope.party_promote:type_name -> nakama.realtime.PartyPromote
+	30,  // 37: nakama.realtime.Envelope.party_leader:type_name -> nakama.realtime.PartyLeader
+	31,  // 38: nakama.realtime.Envelope.party_accept:type_name -> nakama.realtime.PartyAccept
+	32,  // 39: nakama.realtime.Envelope.party_remove:type_name -> nakama.realtime.PartyRemove
+	33,  // 40: nakama.realtime.Envelope.party_close:type_name -> nakama.realtime.PartyClose
+	34,  // 41: nakama.realtime.Envelope.party_join_request_list:type_name -> nakama.realtime.PartyJoinRequestList
+	35,  // 42: nakama.realtime.Envelope.party_join_request:type_name -> nakama.realtime.PartyJoinRequest
+	36,  // 43: nakama.realtime.Envelope.party_matchmaker_add:type_name -> nakama.realtime.PartyMatchmakerAdd
+	37,  // 44: nakama.realtime.Envelope.party_matchmaker_remove:type_name -> nakama.realtime.PartyMatchmakerRemove
+	38,  // 45: nakama.realtime.Envelope.party_matchmaker_ticket:type_name -> nakama.realtime.PartyMatchmakerTicket
+	39,  // 46: nakama.realtime.Envelope.party_data:type_name -> nakama.realtime.PartyData
+	40,  // 47: nakama.realtime.Envelope.party_data_send:type_name -> nakama.realtime.PartyDataSend
+	41,  // 48: nakama.realtime.Envelope.party_presence_event:type_name -> nakama.realtime.PartyPresenceEvent
+	26,  // 49: nakama.realtime.Envelope.party_update:type_name -> nakama.realtime.PartyUpdate
+	52,  // 50: nakama.realtime.Channel.presences:type_name -> nakama.realtime.UserPresence
+	52,  // 51: nakama.realtime.Channel.self:type_name -> nakama.realtime.UserPresence
+	64,  // 52: nakama.realtime.ChannelJoin.persistence:type_name -> google.protobuf.BoolValue
+	64,  // 53: nakama.realtime.ChannelJoin.hidden:type_name -> google.protobuf.BoolValue
+	65,  // 54: nakama.realtime.ChannelMessageAck.code:type_name -> google.protobuf.Int32Value
+	66,  // 55: nakama.realtime.ChannelMessageAck.create_time:type_name -> google.protobuf.Timestamp
+	66,  // 56: nakama.realtime.ChannelMessageAck.update_time:type_name -> google.protobuf.Timestamp
+	64,  // 57: nakama.realtime.ChannelMessageAck.persistent:type_name -> google.protobuf.BoolValue
+	52,  // 58: nakama.realtime.ChannelPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
+	52,  // 59: nakama.realtime.ChannelPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
+	53,  // 60: nakama.realtime.Error.context:type_name -> nakama.realtime.Error.ContextEntry
+	67,  // 61: nakama.realtime.Match.label:type_name -> google.protobuf.StringValue
+	52,  // 62: nakama.realtime.Match.presences:type_name -> nakama.realtime.UserPresence
+	52,  // 63: nakama.realtime.Match.self:type_name -> nakama.realtime.UserPresence
+	52,  // 64: nakama.realtime.MatchData.presence:type_name -> nakama.realtime.UserPresence
+	52,  // 65: nakama.realtime.MatchDataSend.presences:type_name -> nakama.realtime.UserPresence
+	54,  // 66: nakama.realtime.MatchJoin.metadata:type_name -> nakama.realtime.MatchJoin.MetadataEntry
+	52,  // 67: nakama.realtime.MatchPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
+	52,  // 68: nakama.realtime.MatchPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
+	55,  // 69: nakama.realtime.MatchmakerAdd.string_properties:type_name -> nakama.realtime.MatchmakerAdd.StringPropertiesEntry
+	56,  // 70: nakama.realtime.MatchmakerAdd.numeric_properties:type_name -> nakama.realtime.MatchmakerAdd.NumericPropertiesEntry
+	65,  // 71: nakama.realtime.MatchmakerAdd.count_multiple:type_name -> google.protobuf.Int32Value
+	57,  // 72: nakama.realtime.MatchmakerMatched.users:type_name -> nakama.realtime.MatchmakerMatched.MatchmakerUser
+	57,  // 73: nakama.realtime.MatchmakerMatched.self:type_name -> nakama.realtime.MatchmakerMatched.MatchmakerUser
+	68,  // 74: nakama.realtime.Notifications.notifications:type_name -> nakama.api.Notification
+	52,  // 75: nakama.realtime.Party.self:type_name -> nakama.realtime.UserPresence
+	52,  // 76: nakama.realtime.Party.leader:type_name -> nakama.realtime.UserPresence
+	52,  // 77: nakama.realtime.Party.presences:type_name -> nakama.realtime.UserPresence
+	52,  // 78: nakama.realtime.PartyPromote.presence:type_name -> nakama.realtime.UserPresence
+	52,  // 79: nakama.realtime.PartyLeader.presence:type_name -> nakama.realtime.UserPresence
+	52,  // 80: nakama.realtime.PartyAccept.presence:type_name -> nakama.realtime.UserPresence
+	52,  // 81: nakama.realtime.PartyRemove.presence:type_name -> nakama.realtime.UserPresence
+	52,  // 82: nakama.realtime.PartyJoinRequest.presences:type_name -> nakama.realtime.UserPresence
+	60,  // 83: nakama.realtime.PartyMatchmakerAdd.string_properties:type_name -> nakama.realtime.PartyMatchmakerAdd.StringPropertiesEntry
+	61,  // 84: nakama.realtime.PartyMatchmakerAdd.numeric_properties:type_name -> nakama.realtime.PartyMatchmakerAdd.NumericPropertiesEntry
+	65,  // 85: nakama.realtime.PartyMatchmakerAdd.count_multiple:type_name -> google.protobuf.Int32Value
+	52,  // 86: nakama.realtime.PartyData.presence:type_name -> nakama.realtime.UserPresence
+	52,  // 87: nakama.realtime.PartyPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
+	52,  // 88: nakama.realtime.PartyPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
+	52,  // 89: nakama.realtime.Status.presences:type_name -> nakama.realtime.UserPresence
+	52,  // 90: nakama.realtime.StatusPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
+	52,  // 91: nakama.realtime.StatusPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
+	67,  // 92: nakama.realtime.StatusUpdate.status:type_name -> google.protobuf.StringValue
+	49,  // 93: nakama.realtime.StreamData.stream:type_name -> nakama.realtime.Stream
+	52,  // 94: nakama.realtime.StreamData.sender:type_name -> nakama.realtime.UserPresence
+	49,  // 95: nakama.realtime.StreamPresenceEvent.stream:type_name -> nakama.realtime.Stream
+	52,  // 96: nakama.realtime.StreamPresenceEvent.joins:type_name -> nakama.realtime.UserPresence
+	52,  // 97: nakama.realtime.StreamPresenceEvent.leaves:type_name -> nakama.realtime.UserPresence
+	67,  // 98: nakama.realtime.UserPresence.status:type_name -> google.protobuf.StringValue
+	52,  // 99: nakama.realtime.MatchmakerMatched.MatchmakerUser.presence:type_name -> nakama.realtime.UserPresence
+	58,  // 100: nakama.realtime.MatchmakerMatched.MatchmakerUser.string_properties:type_name -> nakama.realtime.MatchmakerMatched.MatchmakerUser.StringPropertiesEntry
+	59,  // 101: nakama.realtime.MatchmakerMatched.MatchmakerUser.numeric_properties:type_name -> nakama.realtime.MatchmakerMatched.MatchmakerUser.NumericPropertiesEntry
+	102, // [102:102] is the sub-list for method output_type
+	102, // [102:102] is the sub-list for method input_type
+	102, // [102:102] is the sub-list for extension type_name
+	102, // [102:102] is the sub-list for extension extendee
+	0,   // [0:102] is the sub-list for field type_name
 }
 
 func init() { file_realtime_proto_init() }
@@ -4881,6 +5019,7 @@ func file_realtime_proto_init() {
 		(*Envelope_PartyData)(nil),
 		(*Envelope_PartyDataSend)(nil),
 		(*Envelope_PartyPresenceEvent)(nil),
+		(*Envelope_PartyUpdate)(nil),
 	}
 	file_realtime_proto_msgTypes[14].OneofWrappers = []any{
 		(*MatchJoin_MatchId)(nil),
@@ -4896,7 +5035,7 @@ func file_realtime_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_realtime_proto_rawDesc), len(file_realtime_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   59,
+			NumMessages:   60,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

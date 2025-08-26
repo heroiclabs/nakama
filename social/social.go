@@ -321,7 +321,12 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 		}
 	}
 
-	err = signingMethod.Verify(payloadBase64, []byte(signatureBase64), []byte(appSecret))
+	signatureBytes, err := base64.RawURLEncoding.DecodeString(signatureBase64)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode signature: %s", err.Error())
+	}
+
+	err = signingMethod.Verify(payloadBase64, signatureBytes, []byte(appSecret))
 	if err != nil {
 		return "", err
 	}
@@ -331,7 +336,7 @@ func (c *Client) ExtractFacebookInstantGameID(signedPlayerInfo string, appSecret
 
 func (c *Client) exchangeGoogleAuthCode(ctx context.Context, authCode string) (*oauth2.Token, error) {
 	if c.config == nil {
-		return nil, fmt.Errorf("failed to exchange authorization code due to due misconfiguration")
+		return nil, fmt.Errorf("failed to exchange authorization code: google credentials_json not configured")
 	}
 
 	token, err := c.config.Exchange(ctx, authCode)

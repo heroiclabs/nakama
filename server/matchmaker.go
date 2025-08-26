@@ -87,6 +87,9 @@ func (m *MatchmakerEntry) GetProperties() map[string]interface{} {
 func (m *MatchmakerEntry) GetPartyId() string {
 	return m.PartyId
 }
+func (m *MatchmakerEntry) GetCreateTime() int64 {
+	return m.CreateTime
+}
 
 type MatchmakerIndex struct {
 	Ticket     string                 `json:"ticket"`
@@ -404,8 +407,10 @@ func (m *LocalMatchmaker) Process() {
 	// Run the custom matching function if one is registered in the runtime, otherwise use the default process function.
 	var matchedEntries [][]*MatchmakerEntry
 	var expiredActiveIndexes []string
-	if m.runtime.matchmakerOverrideFunction != nil {
-		matchedEntries, expiredActiveIndexes = m.processCustom(activeIndexesCopy, indexCount, indexesCopy)
+	if m.runtime.matchmakerProcessorFunction != nil {
+		matchedEntries = m.processCustom(indexesCopy)
+	} else if m.runtime.matchmakerOverrideFunction != nil {
+		matchedEntries, expiredActiveIndexes = m.processOverride(activeIndexesCopy, indexCount, indexesCopy)
 	} else {
 		matchedEntries, expiredActiveIndexes = m.processDefault(activeIndexCount, activeIndexesCopy, indexCount, indexesCopy)
 	}

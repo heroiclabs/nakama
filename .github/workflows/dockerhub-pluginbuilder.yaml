@@ -2,8 +2,7 @@ name: dockerhub-pluginbuilder
 
 on:
   release:
-    types:
-      - created
+    types: [created]
 
 jobs:
   pluginbuilder_build_publish:

@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -44,12 +45,13 @@ type PartyHandler struct {
 	streamManager StreamManager
 	router        MessageRouter
 
-	ID      uuid.UUID
-	Node    string
-	IDStr   string
-	Open    bool
-	MaxSize int
-	Stream  PresenceStream
+	ID         uuid.UUID
+	Node       string
+	IDStr      string
+	Open       bool
+	CreateTime time.Time
+	MaxSize    int
+	Stream     PresenceStream
 
 	stopped               bool
 	ctx                   context.Context
@@ -72,12 +74,13 @@ func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker
 		streamManager: streamManager,
 		router:        router,
 
-		ID:      id,
-		Node:    node,
-		IDStr:   idStr,
-		Open:    open,
-		MaxSize: maxSize,
-		Stream:  PresenceStream{Mode: StreamModeParty, Subject: id, Label: node},
+		ID:         id,
+		Node:       node,
+		IDStr:      idStr,
+		Open:       open,
+		CreateTime: time.Now(),
+		MaxSize:    maxSize,
+		Stream:     PresenceStream{Mode: StreamModeParty, Subject: id, Label: node},
 
 		stopped:               false,
 		ctx:                   ctx,
@@ -662,6 +665,45 @@ func (p *PartyHandler) DataSend(sessionID, node string, opCode int64, data []byt
 		},
 	}
 	p.router.SendToPresenceIDs(p.logger, recipients, envelope, true)
+
+	return nil
+}
+
+func (p *PartyHandler) Update(sessionID, node, label string, open, hidden bool) error {
+	p.Lock()
+	if p.stopped {
+		p.Unlock()
+		return runtime.ErrPartyClosed
+	}
+
+	// Only the party leader may update the label.
+	if p.leader == nil || p.leader.PresenceID.SessionID.String() != sessionID || p.leader.PresenceID.Node != node {
+		p.Unlock()
+		return runtime.ErrPartyNotLeader
+	}
+
+	if err := p.partyRegistry.LabelUpdate(p.ID, p.Node, label, open, hidden, p.MaxSize, p.CreateTime); err != nil {
+		p.Unlock()
+		return err
+	}
+
+	p.Open = open
+
+	p.Unlock()
+
+	envelope := &rtapi.Envelope{
+		Message: &rtapi.Envelope_PartyUpdate{
+			PartyUpdate: &rtapi.PartyUpdate{
+				PartyId: p.IDStr,
+				Open:    open,
+				Hidden:  hidden,
+				Label:   label,
+			},
+		},
+	}
+
+	// Send updated label and open status to all party members.
+	p.router.SendToStream(p.logger, p.Stream, envelope, true)
 
 	return nil
 }

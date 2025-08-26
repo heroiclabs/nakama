@@ -201,6 +201,7 @@ var (
 	ErrPartyAcceptRequest            = errors.New("party could not accept request")
 	ErrPartyRemove                   = errors.New("party could not remove")
 	ErrPartyRemoveSelf               = errors.New("party cannot remove self")
+	ErrPartyLabelTooLong             = errors.New("party label too long")
 
 	ErrGracePeriodExpired = errors.New("grace period expired")
 
@@ -410,6 +411,9 @@ type Initializer interface {
 
 	// RegisterMatchmakerOverride
 	RegisterMatchmakerOverride(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, candidateMatches [][]MatchmakerEntry) (matches [][]MatchmakerEntry)) error
+
+	// RegisterMatchmakerProcessor
+	RegisterMatchmakerProcessor(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, entries []MatchmakerEntry) (matches [][]MatchmakerEntry)) error
 
 	// RegisterMatch
 	RegisterMatch(name string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) (Match, error)) error
@@ -932,6 +936,12 @@ type Initializer interface {
 	// RegisterAfterGetUsers can be used to perform additional logic after retrieving users.
 	RegisterAfterGetUsers(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Users, in *api.GetUsersRequest) error) error
 
+	// RegisterBeforeListParties can be used to perform additional logic before retrieving parties.
+	RegisterBeforeListParties(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListPartiesRequest) (*api.ListPartiesRequest, error)) error
+
+	// RegisterAfterListParties can be used to perform additiona logic after retrieving parties.
+	RegisterAfterListParties(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.PartyList, in *api.ListPartiesRequest) error) error
+
 	// RegisterEvent can be used to define a function handler that triggers when custom events are received or generated.
 	RegisterEvent(fn func(ctx context.Context, logger Logger, evt *api.Event)) error
 
@@ -991,6 +1001,7 @@ type MatchmakerEntry interface {
 	GetTicket() string
 	GetProperties() map[string]interface{}
 	GetPartyId() string
+	GetCreateTime() int64
 }
 
 type MatchData interface {
@@ -1292,6 +1303,8 @@ type NakamaModule interface {
 	ChannelMessageRemove(ctx context.Context, channelId, messageId string, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error)
 	ChannelMessagesList(ctx context.Context, channelId string, limit int, forward bool, cursor string) (messages []*api.ChannelMessage, nextCursor string, prevCursor string, err error)
 
+	PartyList(ctx context.Context, limit int, open *bool, showHidden bool, query, cursor string) ([]*api.Party, string, error)
+
 	StatusFollow(sessionID string, userIDs []string) error
 	StatusUnfollow(sessionID string, userIDs []string) error
 
@@ -1423,6 +1436,7 @@ type Satori interface {
 	PropertiesGet(ctx context.Context, id string) (*Properties, error)
 	PropertiesUpdate(ctx context.Context, id string, properties *PropertiesUpdate) error
 	EventsPublish(ctx context.Context, id string, events []*Event, ipAddress ...string) error
+	ServerEventsPublish(ctx context.Context, events []*Event, ipAddress ...string) error
 	ExperimentsList(ctx context.Context, id string, names ...string) (*ExperimentList, error)
 	FlagsList(ctx context.Context, id string, names ...string) (*FlagList, error)
 	FlagsOverridesList(ctx context.Context, id string, names ...string) (*FlagOverridesList, error)
@@ -1449,11 +1463,15 @@ type Events struct {
 }
 
 type Event struct {
-	Name      string            `json:"name,omitempty"`
-	Id        string            `json:"id,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
-	Value     string            `json:"value,omitempty"`
-	Timestamp int64             `json:"-"`
+	Name             string            `json:"name,omitempty"`
+	Id               string            `json:"id,omitempty"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+	Value            string            `json:"value,omitempty"`
+	IdentityId       string            `json:"identity_id,omitempty"`
+	SessionId        string            `json:"session_id,omitempty"`
+	SessionIssuedAt  int64             `json:"session_issued_at,omitempty"`
+	SessionExpiresAt int64             `json:"session_expires_at,omitempty"`
+	Timestamp        int64             `json:"-"`
 }
 
 type ExperimentList struct {
@@ -1480,17 +1498,49 @@ type FlagOverrides struct {
 }
 
 type FlagOverride struct {
-	Type          string `json:"type,omitempty"`
-	Name          string `json:"name,omitempty"`
-	VariantName   string `json:"variant_name,omitempty"`
-	Value         string `json:"value,omitempty"`
-	CreateTimeSec int64  `json:"create_time_sec,omitempty"`
+	Type          OverrideType `json:"type,omitempty"`
+	Name          string       `json:"name,omitempty"`
+	VariantName   string       `json:"variant_name,omitempty"`
+	Value         string       `json:"value,omitempty"`
+	CreateTimeSec int64        `json:"create_time_sec,string,omitempty"`
+}
+
+type OverrideType int
+
+const (
+	FLAG                          OverrideType = 0
+	FLAG_VARIANT                  OverrideType = 1
+	LIVE_EVENT_FLAG               OverrideType = 2
+	LIVE_EVENT_FLAG_VARIANT       OverrideType = 3
+	EXPERIMENT_PHASE_VARIANT_FLAG OverrideType = 4
+)
+
+func (ot OverrideType) String() string {
+	switch ot {
+	case FLAG:
+		return "FLAG"
+	case FLAG_VARIANT:
+		return "FLAG_VARIANT"
+	case LIVE_EVENT_FLAG:
+		return "LIVE_EVENT_FLAG"
+	case LIVE_EVENT_FLAG_VARIANT:
+		return "LIVE_EVENT_FLAG_VARIANT"
+	case EXPERIMENT_PHASE_VARIANT_FLAG:
+		return "EXPERIMENT_PHASE_VARIANT_FLAG"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 type Flag struct {
-	Name             string `json:"name,omitempty"`
-	Value            string `json:"value,omitempty"`
-	ConditionChanged bool   `json:"condition_changed,omitempty"`
+	Name              string `json:"name,omitempty"`
+	Value             string `json:"value,omitempty"`
+	ConditionChanged  bool   `json:"condition_changed,omitempty"`
+	ValueChangeReason *struct {
+		Type        int    `json:"type,omitempty"`
+		Name        string `json:"name,omitempty"`
+		VariantName string `json:"variant_name,omitempty"`
+	} `json:"change_reason,omitempty"`
 }
 
 type LiveEventList struct {

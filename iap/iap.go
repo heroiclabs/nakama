@@ -1213,7 +1213,7 @@ func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql
 	}, nil
 }
 
-func UpsertSubscriptions(ctx context.Context, db *sql.DB, subs []*runtime.StorageSubscription) error {
+func UpsertSubscriptions(ctx context.Context, db *sql.Tx, subs []*runtime.StorageSubscription) error {
 	var err error
 	for _, sub := range subs {
 		err = UpsertSubscription(ctx, db, sub)
@@ -1226,7 +1226,7 @@ func UpsertSubscriptions(ctx context.Context, db *sql.DB, subs []*runtime.Storag
 	return nil
 }
 
-func UpsertSubscription(ctx context.Context, db *sql.DB, sub *runtime.StorageSubscription) error {
+func UpsertSubscription(ctx context.Context, db *sql.Tx, sub *runtime.StorageSubscription) error {
 	if sub.RefundTime.IsZero() {
 		// Refund time not set, init as default value.
 		sub.RefundTime = time.Unix(0, 0)

@@ -46,6 +46,7 @@ import (
 
 var ErrSubscriptionsListInvalidCursor = errors.New("subscriptions list cursor invalid")
 var ErrSubscriptionNotFound = errors.New("subscription not found")
+var ErrSkipNotification = errors.New("skip notification")
 
 type subscriptionsListCursor struct {
 	OriginalTransactionId string
@@ -246,7 +247,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, iap.Httpc, receipt, password)
 	if err != nil {
-		if err != context.Canceled {
+		if !errors.Is(err, context.Canceled) {
 			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
@@ -270,82 +271,93 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	var found bool
-	var receiptInfo iap.ValidateReceiptAppleResponseLatestReceiptInfo
+	validatedSubs := make([]*api.ValidatedSubscription, 0)
 	for _, latestReceiptInfo := range validation.LatestReceiptInfo {
 		if latestReceiptInfo.ExpiresDateMs == "" {
 			// Not a subscription, skip.
 			continue
 		}
-		receiptInfo = latestReceiptInfo
-		found = true
+
+		purchaseTimeUnix, err := strconv.ParseInt(latestReceiptInfo.OriginalPurchaseDateMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		expireTimeIntUnix, err := strconv.ParseInt(latestReceiptInfo.ExpiresDateMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		expireTime := iap.ParseMillisecondUnixTimestamp(expireTimeIntUnix)
+		purchaseTime := iap.ParseMillisecondUnixTimestamp(purchaseTimeUnix)
+
+		active := false
+		if expireTime.After(time.Now()) {
+			active = true
+		}
+
+		validatedSub := &api.ValidatedSubscription{
+			UserId:                userID.String(),
+			ProductId:             latestReceiptInfo.ProductId,
+			OriginalTransactionId: latestReceiptInfo.OriginalTransactionId,
+			Store:                 api.StoreProvider_APPLE_APP_STORE,
+			PurchaseTime:          timestamppb.New(purchaseTime),
+			Environment:           env,
+			Active:                active,
+			ExpiryTime:            timestamppb.New(expireTime),
+			ProviderResponse:      string(rawResponse),
+		}
+
+		validatedSubs = append(validatedSubs, validatedSub)
 	}
-	if !found {
+	if len(validatedSubs) == 0 {
 		// Receipt is for a purchase (or otherwise has no subscriptions for any reason) so ValidatePurchaseApple should be used instead.
 		return nil, status.Error(codes.FailedPrecondition, "Purchase Receipt. Use the appropriate function instead.")
 	}
 
-	purchaseTime, err := strconv.ParseInt(receiptInfo.OriginalPurchaseDateMs, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	expireTimeInt, err := strconv.ParseInt(receiptInfo.ExpiresDateMs, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	expireTime := iap.ParseMillisecondUnixTimestamp(expireTimeInt)
-
-	active := false
-	if expireTime.After(time.Now()) {
-		active = true
-	}
-
-	storageSub := &runtime.StorageSubscription{
-		UserID:                userID,
-		Store:                 api.StoreProvider_APPLE_APP_STORE,
-		ProductId:             receiptInfo.ProductId,
-		OriginalTransactionId: receiptInfo.OriginalTransactionId,
-		PurchaseTime:          iap.ParseMillisecondUnixTimestamp(purchaseTime),
-		Environment:           env,
-		ExpireTime:            expireTime,
-		RawResponse:           string(rawResponse),
-	}
-
-	validatedSub := &api.ValidatedSubscription{
-		UserId:                storageSub.UserID.String(),
-		ProductId:             storageSub.ProductId,
-		OriginalTransactionId: storageSub.OriginalTransactionId,
-		Store:                 api.StoreProvider_APPLE_APP_STORE,
-		PurchaseTime:          timestamppb.New(storageSub.PurchaseTime),
-		Environment:           env,
-		Active:                active,
-		ExpiryTime:            timestamppb.New(storageSub.ExpireTime),
-		ProviderResponse:      storageSub.RawResponse,
-		ProviderNotification:  storageSub.RawNotification,
-	}
-
 	if !persist {
-		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+		// First validated sub is the one with the highest expiry time.
+		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSubs[0]}, nil
 	}
 
-	if err = iap.UpsertSubscription(ctx, db, storageSub); err != nil {
+	err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		for _, sub := range validatedSubs {
+			storageSub := &runtime.StorageSubscription{
+				UserID:                userID,
+				Store:                 api.StoreProvider_APPLE_APP_STORE,
+				ProductId:             sub.ProductId,
+				OriginalTransactionId: sub.OriginalTransactionId,
+				PurchaseTime:          sub.PurchaseTime.AsTime(),
+				Environment:           env,
+				ExpireTime:            sub.ExpiryTime.AsTime(),
+				RawResponse:           string(rawResponse),
+			}
+
+			if err = iap.UpsertSubscription(ctx, tx, storageSub); err != nil {
+				return err
+			}
+
+			suid := storageSub.UserID.String()
+			if storageSub.UserID.IsNil() {
+				suid = ""
+			}
+
+			sub.UserId = suid
+			sub.CreateTime = timestamppb.New(storageSub.CreateTime)
+			sub.UpdateTime = timestamppb.New(storageSub.UpdateTime)
+			sub.ProviderResponse = storageSub.RawResponse
+			sub.ProviderNotification = storageSub.RawNotification
+		}
+
+		return nil
+	})
+	if err != nil {
+		logger.Error("Failed to upsert Apple subscription receipt", zap.Error(err))
 		return nil, err
 	}
 
-	suid := storageSub.UserID.String()
-	if storageSub.UserID.IsNil() {
-		suid = ""
-	}
-
-	validatedSub.UserId = suid
-	validatedSub.CreateTime = timestamppb.New(storageSub.CreateTime)
-	validatedSub.UpdateTime = timestamppb.New(storageSub.UpdateTime)
-	validatedSub.ProviderResponse = storageSub.RawResponse
-	validatedSub.ProviderNotification = storageSub.RawNotification
-
-	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	// First validated sub is the one with the highest expiry time.
+	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSubs[0]}, nil
 }
 
 func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
@@ -413,7 +425,10 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 	}
 
-	if err = iap.UpsertSubscription(ctx, db, storageSub); err != nil {
+	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		return iap.UpsertSubscription(ctx, tx, storageSub)
+	}); err != nil {
+		logger.Error("Failed to upsert Google subscription receipt", zap.Error(err))
 		return nil, err
 	}
 
@@ -663,7 +678,9 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
 				}
-				uid = uuid.Must(uuid.FromString(s.UserId))
+				if s.UserId != "" {
+					uid = uuid.Must(uuid.FromString(s.UserId))
+				}
 			}
 
 			sub := &runtime.StorageSubscription{
@@ -678,10 +695,18 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				RefundTime:            iap.ParseMillisecondUnixTimestamp(signedTransactionInfo.RevocationDateMs),
 			}
 
-			if err = iap.UpsertSubscription(r.Context(), db, sub); err != nil {
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-					// User id was not found, ignore this notification
+			if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
+				if err = iap.UpsertSubscription(r.Context(), tx, sub); err != nil {
+					var pgErr *pgconn.PgError
+					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+						// User id was not found, ignore this notification
+						return ErrSkipNotification
+					}
+					return err
+				}
+				return nil
+			}); err != nil {
+				if errors.Is(err, ErrSkipNotification) {
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -895,7 +920,9 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			uid = uuid.Must(uuid.FromString(sub.UserId))
+			if sub.UserId != "" {
+				uid = uuid.Must(uuid.FromString(sub.UserId))
+			}
 		}
 
 		env := api.StoreEnvironment_PRODUCTION
@@ -933,14 +960,21 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			storageSub.OriginalTransactionId = gResponse.LinkedPurchaseToken
 		}
 
-		if err = iap.UpsertSubscription(r.Context(), db, storageSub); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-				// Record was inserted and the user id was not found, ignore this notification
+		if err = ExecuteInTx(context.Background(), db, func(tx *sql.Tx) error {
+			if err = iap.UpsertSubscription(r.Context(), tx, storageSub); err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+					// User id was not found, ignore this notification
+					return ErrSkipNotification
+				}
+				return err
+			}
+			return nil
+		}); err != nil {
+			if errors.Is(err, ErrSkipNotification) {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-
 			logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return

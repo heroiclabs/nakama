@@ -75,6 +75,7 @@ type RuntimeLuaNakamaModule struct {
 	sessionCache         SessionCache
 	statusRegistry       StatusRegistry
 	matchRegistry        MatchRegistry
+	partyRegistry        PartyRegistry
 	tracker              Tracker
 	metrics              Metrics
 	storageIndex         StorageIndex
@@ -94,7 +95,7 @@ type RuntimeLuaNakamaModule struct {
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -110,6 +111,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		sessionCache:         sessionCache,
 		statusRegistry:       statusRegistry,
 		matchRegistry:        matchRegistry,
+		partyRegistry:        partyRegistry,
 		tracker:              tracker,
 		metrics:              metrics,
 		streamManager:        streamManager,
@@ -312,6 +314,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_add":                               n.friendsAdd,
 		"friends_delete":                            n.friendsDelete,
 		"friends_block":                             n.friendsBlock,
+		"party_list":                                n.partyList,
 		"file_read":                                 n.fileRead,
 		"channel_message_send":                      n.channelMessageSend,
 		"channel_message_update":                    n.channelMessageUpdate,
@@ -5041,7 +5044,7 @@ func (n *RuntimeLuaNakamaModule) notificationSend(l *lua.LState) int {
 	content := string(contentBytes)
 
 	code := l.CheckInt(4)
-	if code <= 0 {
+	if code <= 0 && !(-2000 <= code && code <= -1000) {
 		l.ArgError(4, "expects code number to be a positive integer")
 		return 0
 	}
@@ -10224,7 +10227,7 @@ func (n *RuntimeLuaNakamaModule) friendsDelete(l *lua.LState) int {
 	allIDs = append(allIDs, uids...)
 	allIDs = append(allIDs, fetchIDs...)
 
-	err = DeleteFriends(l.Context(), n.logger, n.db, userID, allIDs)
+	err = DeleteFriends(l.Context(), n.logger, n.db, n.tracker, n.router, userID, username, allIDs)
 	if err != nil {
 		l.RaiseError("error deleting friends: %s", err.Error())
 		return 0
@@ -10331,6 +10334,67 @@ func (n *RuntimeLuaNakamaModule) friendsBlock(l *lua.LState) int {
 	}
 
 	return 0
+}
+
+// @group parties
+// @summary List existing realtime parties and filter them by open or a query based on the set label.
+// @param limit(type=number, optional=true, default=10) The maximum number of parties to list.
+// @param open(type=bool, optional=true, default=null) Filter open or closed parties. If null, both open and closed parties are returned.
+// @param query(type=string, optional=true) Additional query parameters to shortlist parties.
+// @param cursor(type=string, optional=true) A cursor to fetch the next page of results.
+// @return parties(table) A list of parties matching the filtering criteria.
+// @return cursor(string) A cursor to fetch the next page of results.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) partyList(l *lua.LState) int {
+	// Parse limit.
+	limit := l.OptInt(1, 10)
+	if limit < 1 || limit > 100 {
+		l.ArgError(1, "expects limit to be 1-100")
+		return 0
+	}
+
+	var open *bool
+	if openIn := l.CheckAny(2); openIn.Type() != lua.LTNil {
+		if openIn.Type() != lua.LTBool {
+			l.ArgError(2, "expects open true/false or nil")
+			return 0
+		}
+		open = new(bool)
+		*open = lua.LVAsBool(openIn)
+	}
+
+	showHidden := l.CheckBool(3)
+
+	query := l.OptString(4, "")
+
+	cursor := l.OptString(5, "")
+
+	results, cursor, err := n.partyRegistry.PartyList(l.Context(), limit, open, showHidden, query, cursor)
+	if err != nil {
+		l.RaiseError("failed to list parties: %s", err.Error())
+		return 0
+	}
+
+	parties := l.CreateTable(len(results), 0)
+	for i, result := range results {
+		party := l.CreateTable(0, 4)
+		party.RawSetString("match_id", lua.LString(result.PartyId))
+		party.RawSetString("open", lua.LBool(result.Open))
+		party.RawSetString("maxSize", lua.LNumber(result.MaxSize))
+		party.RawSetString("label", lua.LString(result.Label))
+
+		parties.RawSetInt(i+1, party)
+	}
+
+	l.Push(parties)
+
+	if cursor != "" {
+		l.Push(lua.LString(cursor))
+	} else {
+		l.Push(lua.LNil)
+	}
+
+	return 2
 }
 
 // @group friends
@@ -10912,17 +10976,18 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 	satoriFunctions := map[string]lua.LGFunction{
-		"authenticate":         n.satoriAuthenticate,
-		"properties_get":       n.satoriPropertiesGet,
-		"properties_update":    n.satoriPropertiesUpdate,
-		"events_publish":       n.satoriEventsPublish,
-		"experiments_list":     n.satoriExperimentsList,
-		"flags_list":           n.satoriFlagsList,
-		"flags_overrides_list": n.satoriFlagsOverridesList,
-		"live_events_list":     n.satoriLiveEventsList,
-		"messages_list":        n.satoriMessagesList,
-		"message_update":       n.satoriMessageUpdate,
-		"message_delete":       n.satoriMessageDelete,
+		"authenticate":          n.satoriAuthenticate,
+		"properties_get":        n.satoriPropertiesGet,
+		"properties_update":     n.satoriPropertiesUpdate,
+		"events_publish":        n.satoriEventsPublish,
+		"server_events_publish": n.satoriServerEventsPublish,
+		"experiments_list":      n.satoriExperimentsList,
+		"flags_list":            n.satoriFlagsList,
+		"flags_overrides_list":  n.satoriFlagsOverridesList,
+		"live_events_list":      n.satoriLiveEventsList,
+		"messages_list":         n.satoriMessagesList,
+		"message_update":        n.satoriMessageUpdate,
+		"message_delete":        n.satoriMessageDelete,
 	}
 
 	satoriMod := l.SetFuncs(l.CreateTable(0, len(satoriFunctions)), satoriFunctions)
@@ -11077,7 +11142,7 @@ func (n *RuntimeLuaNakamaModule) satoriPropertiesUpdate(l *lua.LState) int {
 }
 
 // @group satori
-// @summary Publish an event.
+// @summary Publish events.
 // @param identifier(type=string) The identifier of the identity.
 // @param events(type=table) An array of events to publish.
 // @param ip(type=string) Ip address.
@@ -11086,6 +11151,139 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 	identifier := l.CheckString(1)
 
 	events := l.CheckTable(2)
+	size := events.Len()
+	eventsArray := make([]*runtime.Event, 0, size)
+	conversionError := false
+	events.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		eventTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of events")
+			return
+		}
+
+		event := &runtime.Event{}
+		eventTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "name":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects name to be string")
+					return
+				}
+
+				event.Name = v.String()
+			case "id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects id to be string")
+					return
+				}
+
+				event.Id = v.String()
+			case "value":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects value to be string")
+					return
+				}
+
+				event.Value = v.String()
+			case "metadata":
+				if v.Type() != lua.LTTable {
+					conversionError = true
+					l.ArgError(2, "expects metadata to be table")
+					return
+				}
+				metadataMap, err := RuntimeLuaConvertLuaTableString(v.(*lua.LTable))
+				if err != nil {
+					conversionError = true
+					l.ArgError(2, fmt.Sprintf("expects custom values to be a table of key values and strings: %s", err.Error()))
+					return
+				}
+
+				event.Metadata = metadataMap
+			case "timestamp":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(2, "expects timestamp to be a number")
+					return
+				}
+
+				event.Timestamp = int64(v.(lua.LNumber))
+
+			case "identity_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects identity_id to be string")
+					return
+				}
+
+				event.IdentityId = v.String()
+
+			case "session_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(2, "expects session_id to be string")
+					return
+				}
+
+				event.SessionId = v.String()
+
+			case "session_issued_at":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(2, "expects session_issued_at to be a number")
+					return
+				}
+
+				event.SessionIssuedAt = int64(v.(lua.LNumber))
+
+			case "session_expires_at":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(2, "expects session_expires_at to be a number")
+					return
+				}
+
+				event.SessionIssuedAt = int64(v.(lua.LNumber))
+			}
+		})
+		if conversionError {
+			return
+		}
+
+		eventsArray = append(eventsArray, event)
+	})
+	if conversionError {
+		return 0
+	}
+
+	ip := l.OptString(3, "")
+
+	if err := n.satori.EventsPublish(l.Context(), identifier, eventsArray, ip); err != nil {
+		l.RaiseError("failed to satori publish event: %v", err.Error())
+		return 0
+	}
+
+	return 0
+}
+
+// @group satori
+// @summary Publish server events.
+// @param events(type=table) An array of events to publish.
+// @param ip(type=string) Ip address.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriServerEventsPublish(l *lua.LState) int {
+	events := l.CheckTable(1)
 	size := events.Len()
 	eventsArray := make([]*runtime.Event, 0, size)
 	conversionError := false
@@ -11141,7 +11339,7 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 				metadataMap, err := RuntimeLuaConvertLuaTableString(v.(*lua.LTable))
 				if err != nil {
 					conversionError = true
-					l.ArgError(2, fmt.Sprintf("expects custom values to be a table of key values and strings: %s", err.Error()))
+					l.ArgError(1, fmt.Sprintf("expects custom values to be a table of key values and strings: %s", err.Error()))
 					return
 				}
 
@@ -11154,6 +11352,42 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 				}
 
 				event.Timestamp = int64(v.(lua.LNumber))
+
+			case "identity_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects identity_id to be string")
+					return
+				}
+
+				event.IdentityId = v.String()
+
+			case "session_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects session_id to be string")
+					return
+				}
+
+				event.SessionId = v.String()
+
+			case "session_issued_at":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects session_issued_at to be a number")
+					return
+				}
+
+				event.SessionIssuedAt = int64(v.(lua.LNumber))
+
+			case "session_expires_at":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects session_expires_at to be a number")
+					return
+				}
+
+				event.SessionIssuedAt = int64(v.(lua.LNumber))
 			}
 		})
 		if conversionError {
@@ -11166,9 +11400,9 @@ func (n *RuntimeLuaNakamaModule) satoriEventsPublish(l *lua.LState) int {
 		return 0
 	}
 
-	ip := l.OptString(3, "")
+	ip := l.OptString(2, "")
 
-	if err := n.satori.EventsPublish(l.Context(), identifier, eventsArray, ip); err != nil {
+	if err := n.satori.ServerEventsPublish(l.Context(), eventsArray, ip); err != nil {
 		l.RaiseError("failed to satori publish event: %v", err.Error())
 		return 0
 	}
@@ -11233,7 +11467,7 @@ func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
 // @return flags(table) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
-	identifier := l.CheckString(1)
+	identifier := l.OptString(1, "")
 
 	names := l.OptTable(2, nil)
 	namesArray := make([]string, 0)
@@ -11269,6 +11503,14 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 		flagTable.RawSetString("name", lua.LString(f.Name))
 		flagTable.RawSetString("value", lua.LString(f.Value))
 		flagTable.RawSetString("condition_changed", lua.LBool(f.ConditionChanged))
+		if f.ValueChangeReason != nil {
+			changeReasonTable := l.CreateTable(0, 3)
+			changeReasonTable.RawSetString("name", lua.LString(f.ValueChangeReason.Name))
+			changeReasonTable.RawSetString("variant_name", lua.LString(f.ValueChangeReason.VariantName))
+			changeReasonTable.RawSetString("type", lua.LNumber(f.ValueChangeReason.Type))
+
+			flagTable.RawSetString("change_reason", changeReasonTable)
+		}
 
 		flagsTable.RawSetInt(i+1, flagTable)
 	}
@@ -11284,7 +11526,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 // @return flagsOverrides(table) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
-	identifier := l.CheckString(1)
+	identifier := l.OptString(1, "")
 
 	names := l.OptTable(2, nil)
 	namesArray := make([]string, 0)
@@ -11320,7 +11562,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
 		for j, o := range fl.Overrides {
 			flagTable := l.CreateTable(0, 5)
 			flagTable.RawSetString("name", lua.LString(o.Name))
-			flagTable.RawSetString("type", lua.LString(o.Type))
+			flagTable.RawSetString("type", lua.LNumber(o.Type))
 			flagTable.RawSetString("variant_name", lua.LString(o.VariantName))
 			flagTable.RawSetString("value", lua.LString(o.Value))
 			flagTable.RawSetString("create_time_sec", lua.LNumber(o.CreateTimeSec))

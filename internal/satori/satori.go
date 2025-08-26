@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -49,21 +50,20 @@ type SatoriClient struct {
 	tokenExpirySec       int
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
+	strictContextModes   map[string]bool
 
-	cacheEnabled             bool
-	flagsCacheMutex          sync.RWMutex
-	flagsOverridesCacheMutex sync.RWMutex
-	propertiesCacheMutex     sync.RWMutex
-	liveEventsCacheMutex     sync.RWMutex
-	experimentsCacheMutex    sync.RWMutex
-	flagsCache               map[context.Context]map[string]flagCacheEntry
-	flagsOverridesCache      map[context.Context]map[string][]flagOverridesCacheEntry
-	propertiesCache          map[context.Context]*runtime.Properties
-	liveEventsCache          map[context.Context]*runtime.LiveEventList
-	experimentsCache         map[context.Context]*runtime.ExperimentList
+	cacheEnabled         bool
+	propertiesCacheMutex sync.RWMutex
+	propertiesCache      map[context.Context]*runtime.Properties
+	flagsCache           *satoriCache[flagCacheEntry]
+	flagsOverridesCache  *satoriCache[[]flagOverridesCacheEntry]
+	liveEventsCache      *satoriCache[*runtime.LiveEvent]
+	experimentsCache     *satoriCache[*runtime.Experiment]
 }
 
-func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool, strictContextModes []string) *SatoriClient {
+	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
+	// the server.
 	parsedUrl, _ := url.Parse(satoriUrl)
 
 	sc := &SatoriClient{
@@ -76,18 +76,15 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		signingKey:           strings.TrimSpace(signingKey),
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
+		strictContextModes:   make(map[string]bool, len(strictContextModes)),
 
-		cacheEnabled:             cacheEnabled,
-		flagsCacheMutex:          sync.RWMutex{},
-		flagsOverridesCacheMutex: sync.RWMutex{},
-		propertiesCacheMutex:     sync.RWMutex{},
-		liveEventsCacheMutex:     sync.RWMutex{},
-		experimentsCacheMutex:    sync.RWMutex{},
-		flagsCache:               make(map[context.Context]map[string]flagCacheEntry),
-		flagsOverridesCache:      make(map[context.Context]map[string][]flagOverridesCacheEntry),
-		propertiesCache:          make(map[context.Context]*runtime.Properties),
-		liveEventsCache:          make(map[context.Context]*runtime.LiveEventList),
-		experimentsCache:         make(map[context.Context]*runtime.ExperimentList),
+		cacheEnabled:         cacheEnabled,
+		propertiesCacheMutex: sync.RWMutex{},
+		propertiesCache:      make(map[context.Context]*runtime.Properties),
+		flagsCache:           newSatoriCache[flagCacheEntry](ctx, cacheEnabled),
+		flagsOverridesCache:  newSatoriCache[[]flagOverridesCacheEntry](ctx, cacheEnabled),
+		liveEventsCache:      newSatoriCache[*runtime.LiveEvent](ctx, cacheEnabled),
+		experimentsCache:     newSatoriCache[*runtime.Experiment](ctx, cacheEnabled),
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -97,69 +94,8 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		logger.Warn(err.Error())
 	}
 
-	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
-	// the server.
-	if sc.cacheEnabled {
-		go func() {
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					go func() {
-						sc.flagsCacheMutex.Lock()
-						for cacheCtx := range sc.flagsCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.flagsCache, cacheCtx)
-							}
-						}
-						sc.flagsCacheMutex.Unlock()
-					}()
-
-					go func() {
-						sc.flagsOverridesCacheMutex.Lock()
-						for cacheCtx := range sc.flagsOverridesCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.flagsCache, cacheCtx)
-							}
-						}
-						sc.flagsOverridesCacheMutex.Unlock()
-					}()
-
-					go func() {
-						sc.propertiesCacheMutex.Lock()
-						for cacheCtx := range sc.propertiesCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.propertiesCache, cacheCtx)
-							}
-						}
-						sc.propertiesCacheMutex.Unlock()
-					}()
-
-					go func() {
-						sc.liveEventsCacheMutex.Lock()
-						for cacheCtx := range sc.liveEventsCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.liveEventsCache, cacheCtx)
-							}
-						}
-						sc.liveEventsCacheMutex.Unlock()
-					}()
-
-					go func() {
-						sc.experimentsCacheMutex.Lock()
-						for cacheCtx := range sc.experimentsCache {
-							if cacheCtx.Err() != nil {
-								delete(sc.experimentsCache, cacheCtx)
-							}
-						}
-						sc.experimentsCacheMutex.Unlock()
-					}()
-				}
-			}
-		}()
+	for _, strictContextMode := range strictContextModes {
+		sc.strictContextModes[strictContextMode] = true
 	}
 
 	return sc
@@ -172,7 +108,7 @@ func (s *SatoriClient) validateConfig() error {
 		errorStrings = append(errorStrings, fmt.Sprintf("Invalid URL: %s", err.Error()))
 	}
 
-	if satoriUrl.String() != "" {
+	if satoriUrl != nil && satoriUrl.String() != "" {
 		if s.apiKeyName == "" {
 			errorStrings = append(errorStrings, "api_key_name not set")
 		}
@@ -221,18 +157,25 @@ func (s *sessionTokenClaims) GetSubject() (string, error) {
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
-	tid, ok := ctx.Value(ctxkeys.TokenIDKey{}).(string)
-	if !ok {
-		s.logger.Warn("satori request token id was not found in ctx")
-	}
-	tIssuedAt, ok := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
-	if !ok {
-		s.logger.Warn("satori request token issued at was not found in ctx")
-	}
-	tExpirySec, ok := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
-	if !ok {
-		s.logger.Warn("satori request token expires at was not found in ctx")
-	}
+	// Ensure we only log warnings when context is expected to contain values.
+	//mode, ok := ctx.Value(runtime.RUNTIME_CTX_MODE).(string)
+	//contextExpected := ok && s.strictContextModes[mode]
+
+	//tid, ok := ctx.Value(ctxkeys.TokenIDKey{}).(string)
+	//if !ok && contextExpected {
+	//	s.logger.Warn("satori request token id was not found in ctx")
+	//}
+	var tid string
+	tIssuedAt, _ := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
+	//tIssuedAt, ok := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
+	//if !ok && contextExpected {
+	//	s.logger.Warn("satori request token issued at was not found in ctx")
+	//}
+	tExpirySec, _ := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
+	//tExpirySec, ok := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
+	//if !ok && contextExpected {
+	//	s.logger.Warn("satori request token expires at was not found in ctx")
+	//}
 
 	timestamp := time.Now().UTC()
 	if tIssuedAt == 0 && tExpirySec > s.nakamaTokenExpirySec {
@@ -353,11 +296,15 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.propertiesCacheMutex.RLock()
-	entry, found := s.propertiesCache[ctx]
-	s.propertiesCacheMutex.RUnlock()
+	var entry *runtime.Properties
+	var found bool
+	if s.cacheEnabled {
+		s.propertiesCacheMutex.RLock()
+		entry, found = s.propertiesCache[ctx]
+		s.propertiesCacheMutex.RUnlock()
+	}
 
-	if !found {
+	if !s.cacheEnabled || !found {
 		url := s.url.String() + "/v1/properties"
 
 		sessionToken, err := s.generateToken(ctx, id)
@@ -390,9 +337,11 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 				return nil, err
 			}
 
-			s.propertiesCacheMutex.Lock()
-			s.propertiesCache[ctx] = props
-			s.propertiesCacheMutex.Unlock()
+			if s.cacheEnabled {
+				s.propertiesCacheMutex.Lock()
+				s.propertiesCache[ctx] = props
+				s.propertiesCacheMutex.Unlock()
+			}
 
 			return props, nil
 		default:
@@ -462,7 +411,7 @@ func (e *event) setTimestamp() {
 }
 
 // @group satori
-// @summary Publish an event.
+// @summary Publish events.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
 // @param events(type=[]*runtime.Event) An array of events to publish.
@@ -527,6 +476,67 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 }
 
 // @group satori
+// @summary Publish server events.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param events(type=[]*runtime.Event) An array of events to publish.
+// @param ipAddress(type=string, optional=true, default="") An optional client IP address to pass on to Satori for geo-IP lookup.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtime.Event, ipAddress ...string) error {
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.String() + "/v1/server-event"
+
+	evts := make([]*event, 0, len(events))
+	for i, e := range events {
+		evts = append(evts, &event{
+			Event: e,
+		})
+		evts[i].setTimestamp()
+	}
+
+	json, err := json.Marshal(&eventsBody{Events: evts})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(json))
+	if err != nil {
+		return err
+	}
+
+	req.SetBasicAuth(s.apiKey, "")
+	req.Header.Set("Content-Type", "application/json")
+
+	if len(ipAddress) > 0 && ipAddress[0] != "" {
+		if ipAddr := net.ParseIP(ipAddress[0]); ipAddr != nil {
+			req.Header.Set("X-Forwarded-For", ipAddr.String())
+		}
+	} else if ipAddr, ok := ctx.Value(runtime.RUNTIME_CTX_CLIENT_IP).(string); ok {
+		req.Header.Set("X-Forwarded-For", ipAddr)
+	}
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		return nil
+	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
+		return fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+// @group satori
 // @summary List experiments.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
@@ -538,11 +548,9 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.experimentsCacheMutex.RLock()
-	entry, found := s.experimentsCache[ctx]
-	s.experimentsCacheMutex.RUnlock()
+	entry, missingKeys := s.experimentsCache.Get(ctx, names...)
 
-	if !found {
+	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
 		url := s.url.String() + "/v1/experiment"
 
 		sessionToken, err := s.generateToken(ctx, id)
@@ -555,6 +563,10 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 			return nil, err
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		if len(missingKeys) > 0 {
+			names = missingKeys
+		}
 
 		if len(names) > 0 {
 			q := req.URL.Query()
@@ -583,9 +595,17 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 				return nil, err
 			}
 
-			s.experimentsCacheMutex.Lock()
-			s.experimentsCache[ctx] = experiments
-			s.experimentsCacheMutex.Unlock()
+			newExperiments := make(map[string]*runtime.Experiment)
+			for _, exp := range experiments.Experiments {
+				entry = append(entry, exp)
+				newExperiments[exp.Name] = exp
+			}
+
+			if len(names) > 0 {
+				s.experimentsCache.Add(ctx, newExperiments)
+			} else {
+				s.experimentsCache.SetAll(ctx, newExperiments)
+			}
 
 			return experiments, nil
 		default:
@@ -597,10 +617,11 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 		}
 	}
 
-	return entry, nil
+	return &runtime.ExperimentList{Experiments: entry}, nil
 }
 
 type flagCacheEntry struct {
+	Name             string
 	Value            unique.Handle[string]
 	ConditionChanged bool
 }
@@ -622,11 +643,9 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.flagsCacheMutex.RLock()
-	entry, found := s.flagsCache[ctx]
-	s.flagsCacheMutex.RUnlock()
+	entry, missingKeys := s.flagsCache.Get(ctx, names...)
 
-	if !found {
+	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
 		url := s.url.String() + "/v1/flag"
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -642,6 +661,10 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
 		} else {
 			req.SetBasicAuth(s.apiKey, "")
+		}
+
+		if len(missingKeys) > 0 {
+			names = missingKeys
 		}
 
 		if len(names) > 0 {
@@ -673,17 +696,19 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 			entries := make(map[string]flagCacheEntry, len(flags.Flags))
 			for _, f := range flags.Flags {
 				cacheEntry := flagCacheEntry{
+					Name:             f.Name,
 					Value:            unique.Make(f.Value),
 					ConditionChanged: f.ConditionChanged,
 				}
+				entry = append(entry, cacheEntry)
 				entries[f.Name] = cacheEntry
 			}
 
-			s.flagsCacheMutex.Lock()
-			s.flagsCache[ctx] = entries
-			s.flagsCacheMutex.Unlock()
-
-			return flags, nil
+			if len(names) > 0 {
+				s.flagsCache.Add(ctx, entries)
+			} else {
+				s.flagsCache.SetAll(ctx, entries)
+			}
 		default:
 			if len(resBody) > 0 {
 				return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
@@ -694,9 +719,9 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	}
 
 	flagList := make([]*runtime.Flag, 0, len(entry))
-	for flName, flEntry := range entry {
+	for _, flEntry := range entry {
 		flagList = append(flagList, &runtime.Flag{
-			Name:             flName,
+			Name:             flEntry.Name,
 			Value:            flEntry.Value.Value(),
 			ConditionChanged: flEntry.ConditionChanged,
 		})
@@ -717,11 +742,9 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.flagsOverridesCacheMutex.RLock()
-	entry, found := s.flagsOverridesCache[ctx]
-	s.flagsOverridesCacheMutex.RUnlock()
+	entry, missingKeys := s.flagsOverridesCache.Get(ctx, names...)
 
-	if !found {
+	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
 		url := s.url.String() + "/v1/flag/override"
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -737,6 +760,10 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
 		} else {
 			req.SetBasicAuth(s.apiKey, "")
+		}
+
+		if len(missingKeys) > 0 {
+			names = missingKeys
 		}
 
 		if len(names) > 0 {
@@ -774,12 +801,15 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 						Value:        unique.Make(o.Value),
 					})
 				}
+				entry = append(entry, overrides)
 				entries[f.FlagName] = overrides
 			}
 
-			s.flagsOverridesCacheMutex.Lock()
-			s.flagsOverridesCache[ctx] = entries
-			s.flagsOverridesCacheMutex.Unlock()
+			if len(names) > 0 {
+				s.flagsOverridesCache.Add(ctx, entries)
+			} else {
+				s.flagsOverridesCache.SetAll(ctx, entries)
+			}
 
 			return flagOverrides, nil
 		default:
@@ -792,12 +822,14 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 	}
 
 	flagOverridesList := make([]*runtime.FlagOverrides, 0, len(entry))
-	for flagName, flagEntry := range entry {
+	for _, flagEntry := range entry {
 		flagOverrides := make([]*runtime.FlagOverride, 0, len(flagEntry))
+		var flagName string
 		for _, flagOverride := range flagEntry {
+			flagName = flagOverride.Name
 			flagOverrides = append(flagOverrides, &runtime.FlagOverride{
 				Type:          flagOverride.Type,
-				Name:          flagOverride.Name,
+				Name:          flagName,
 				VariantName:   flagOverride.VariantName,
 				Value:         flagOverride.Value.Value(),
 				CreateTimeSec: flagOverride.CreateTimeSec,
@@ -827,11 +859,9 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	s.liveEventsCacheMutex.RLock()
-	entry, found := s.liveEventsCache[ctx]
-	s.liveEventsCacheMutex.RUnlock()
+	entry, missingKeys := s.liveEventsCache.Get(ctx, names...)
 
-	if !found {
+	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
 		url := s.url.String() + "/v1/live-event"
 
 		sessionToken, err := s.generateToken(ctx, id)
@@ -844,6 +874,10 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 			return nil, err
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+		if len(missingKeys) > 0 {
+			names = missingKeys
+		}
 
 		if len(names) > 0 {
 			q := req.URL.Query()
@@ -871,9 +905,17 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 				return nil, err
 			}
 
-			s.liveEventsCacheMutex.Lock()
-			s.liveEventsCache[ctx] = liveEvents
-			s.liveEventsCacheMutex.Unlock()
+			entries := make(map[string]*runtime.LiveEvent)
+			for _, le := range liveEvents.LiveEvents {
+				entries[le.Name] = le
+				entry = append(entry, le)
+			}
+
+			if len(names) > 0 {
+				s.liveEventsCache.Add(ctx, entries)
+			} else {
+				s.liveEventsCache.SetAll(ctx, entries)
+			}
 
 			return liveEvents, nil
 		default:
@@ -884,7 +926,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 		}
 	}
 
-	return entry, nil
+	return &runtime.LiveEventList{LiveEvents: entry}, nil
 }
 
 // @group satori
@@ -1051,4 +1093,110 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 		}
 		return fmt.Errorf("%d status code", res.StatusCode)
 	}
+}
+
+type satoriCacheEntry[T any] struct {
+	containsAll bool
+	entryData   map[string]T
+}
+
+type satoriCache[T any] struct {
+	sync.RWMutex
+	enabled bool
+	entries map[context.Context]*satoriCacheEntry[T]
+}
+
+func newSatoriCache[T any](ctx context.Context, enabled bool) *satoriCache[T] {
+	if !enabled {
+		return &satoriCache[T]{
+			enabled: false,
+		}
+	}
+
+	sc := &satoriCache[T]{
+		enabled: true,
+		RWMutex: sync.RWMutex{},
+		entries: make(map[context.Context]*satoriCacheEntry[T]),
+	}
+
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				sc.Lock()
+				for cacheCtx := range sc.entries {
+					if cacheCtx.Err() != nil {
+						delete(sc.entries, cacheCtx)
+					}
+				}
+				sc.Unlock()
+			}
+		}
+	}()
+
+	return sc
+}
+
+func (s *satoriCache[T]) Get(ctx context.Context, keys ...string) (values []T, missingKeys []string) {
+	if !s.enabled {
+		return nil, nil
+	}
+	s.RLock()
+	entry, found := s.entries[ctx]
+	defer s.RUnlock()
+
+	switch {
+	case found && len(keys) > 0:
+		for _, name := range keys {
+			if e, ok := entry.entryData[name]; ok {
+				values = append(values, e)
+			} else {
+				missingKeys = append(missingKeys, name)
+			}
+		}
+		return values, missingKeys
+	case found && len(keys) == 0 && entry.containsAll:
+		values = make([]T, 0, len(entry.entryData))
+		for _, e := range entry.entryData {
+			values = append(values, e)
+		}
+		return values, nil
+	default:
+		// Asked for all keys, but they were never fetched, or no cache entries exist for the context.
+		return nil, nil
+	}
+}
+
+func (s *satoriCache[T]) Add(ctx context.Context, values map[string]T) {
+	if !s.enabled {
+		return
+	}
+	s.Lock()
+	entry, ok := s.entries[ctx]
+	if !ok {
+		entry = &satoriCacheEntry[T]{
+			containsAll: false,
+			entryData:   make(map[string]T, len(values)),
+		}
+		s.entries[ctx] = entry
+	}
+	maps.Copy(entry.entryData, values)
+	s.Unlock()
+}
+
+func (s *satoriCache[T]) SetAll(ctx context.Context, values map[string]T) {
+	if !s.enabled {
+		return
+	}
+
+	s.Lock()
+	s.entries[ctx] = &satoriCacheEntry[T]{
+		containsAll: true,
+		entryData:   values,
+	}
+	s.Unlock()
 }

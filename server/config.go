@@ -53,6 +53,7 @@ type Config interface {
 	GetSatori() *SatoriConfig
 	GetStorage() *StorageConfig
 	GetMFA() *MFAConfig
+	GetParty() *PartyConfig
 	GetLimit() int
 
 	Clone() (Config, error)
@@ -115,12 +116,16 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 	}
 	sort.Strings(mainConfig.GetRuntime().Env)
 
-	if mainConfig.GetGoogleAuth() != nil && mainConfig.GetGoogleAuth().CredentialsJSON != "" {
-		cnf, err := google.ConfigFromJSON([]byte(mainConfig.GetGoogleAuth().CredentialsJSON))
-		if err != nil {
-			logger.Fatal("Failed to parse Google's credentials JSON", zap.Error(err))
+	if mainConfig.GetGoogleAuth() != nil {
+		if mainConfig.GetGoogleAuth().CredentialsJSON != "" {
+			cnf, err := google.ConfigFromJSON([]byte(mainConfig.GetGoogleAuth().CredentialsJSON))
+			if err != nil {
+				logger.Fatal("Failed to parse Google's credentials JSON", zap.Error(err))
+			}
+			mainConfig.GetGoogleAuth().OAuthConfig = cnf
+		} else {
+			mainConfig.GetGoogleAuth().OAuthConfig = nil
 		}
-		mainConfig.GetGoogleAuth().OAuthConfig = cnf
 	}
 
 	return mainConfig
@@ -290,6 +295,9 @@ func ValidateConfig(logger *zap.Logger, c Config) map[string]string {
 	}
 	if c.GetMatchmaker().RevThreshold < 0 {
 		logger.Fatal("Matchmaker reverse matching threshold must be >= 0", zap.Int("matchmaker.rev_threshold", c.GetMatchmaker().RevThreshold))
+	}
+	if c.GetParty().LabelUpdateIntervalMs < 1 {
+		logger.Fatal("Party label update interval milliseconds must be > 0", zap.Int("party.label_update_interval_ms", c.GetParty().LabelUpdateIntervalMs))
 	}
 	if c.GetLimit() != -1 {
 		logger.Warn("WARNING: 'limit' is only valid if used with the migrate command", zap.String("param", "limit"))
@@ -479,6 +487,7 @@ type config struct {
 	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
 	Storage          *StorageConfig     `yaml:"storage" json:"storage" usage:"Storage settings."`
 	MFA              *MFAConfig         `yaml:"mfa" json:"mfa" usage:"MFA settings."`
+	Party            *PartyConfig       `yaml:"party" json:"party" usage:"Party settings."`
 	Limit            int                `json:"-"` // Only used for migrate command.
 }
 
@@ -508,8 +517,10 @@ func NewConfig(logger *zap.Logger) *config {
 		GoogleAuth:       NewGoogleAuthConfig(),
 		Satori:           NewSatoriConfig(),
 		Storage:          NewStorageConfig(),
+		Party:            NewPartyConfig(),
 		MFA:              NewMFAConfig(),
-		Limit:            -1,
+
+		Limit: -1,
 	}
 }
 
@@ -620,6 +631,10 @@ func (c *config) GetSatori() *SatoriConfig {
 
 func (c *config) GetStorage() *StorageConfig {
 	return c.Storage
+}
+
+func (c *config) GetParty() *PartyConfig {
+	return c.Party
 }
 
 func (c *config) GetMFA() *MFAConfig {
@@ -1447,11 +1462,13 @@ func (iapg *IAPGoogleConfig) Enabled() bool {
 var _ runtime.SatoriConfig = &SatoriConfig{}
 
 type SatoriConfig struct {
-	Url          string `yaml:"url" json:"url" usage:"Satori URL."`
-	ApiKeyName   string `yaml:"api_key_name" json:"api_key_name" usage:"Satori Api key name."`
-	ApiKey       string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
-	SigningKey   string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
-	CacheEnabled bool   `yaml:"cache_enabled" json:"cache_enabled" usage:"Enable caching of responses throughout the lifetime of a request."`
+	Url        string `yaml:"url" json:"url" usage:"Satori URL."`
+	ApiKeyName string `yaml:"api_key_name" json:"api_key_name" usage:"Satori Api key name."`
+	ApiKey     string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
+	SigningKey string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
+	// Deprecated: This is longer observed, use CacheDisabled instead.
+	CacheEnabled  bool `yaml:"cache_enabled" json:"cache_enabled" usage:"Enable caching of responses throughout the lifetime of a request. Deprecated, use 'cache_disabled' instead."`
+	CacheDisabled bool `yaml:"cache_disabled" json:"cache_disabled" usage:"Disable caching of responses throughout the lifetime of a request. Default is enabled."`
 }
 
 func (sc *SatoriConfig) GetUrl() string {
@@ -1606,5 +1623,24 @@ func NewMFAConfig() *MFAConfig {
 	return &MFAConfig{
 		StorageEncryptionKey: "the-key-has-to-be-32-bytes-long!", // Has to be 32 bit long.
 		AdminAccountOn:       false,
+	}
+}
+
+type PartyConfig struct {
+	LabelUpdateIntervalMs int `yaml:"label_update_interval_ms" json:"label_update_interval_ms" usage:"Time in milliseconds between party label update batch processes. Default 1000."`
+}
+
+func (cfg *PartyConfig) Clone() *PartyConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
+}
+
+func NewPartyConfig() *PartyConfig {
+	return &PartyConfig{
+		LabelUpdateIntervalMs: 1000,
 	}
 }

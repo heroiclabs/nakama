@@ -2096,6 +2096,112 @@
         ]
       }
     },
+    "/v2/console/setting": {
+      "get": {
+        "summary": "List settings",
+        "operationId": "Console_ListSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleSettingList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "names",
+            "description": "The list of setting names, if empty all settings are returned.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/setting/{name}": {
+      "get": {
+        "summary": "Get console settings.",
+        "operationId": "Console_GetSetting",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleSetting"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "description": "The name of the setting",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "post": {
+        "summary": "Update an existing setting.",
+        "operationId": "Console_UpdateSetting",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleSetting"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "description": "Name identifier.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ConsoleUpdateSettingBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/status": {
       "get": {
         "summary": "Get current status data for all nodes.",
@@ -2805,6 +2911,16 @@
         }
       },
       "description": "Update group information."
+    },
+    "ConsoleUpdateSettingBody": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "Setting value."
+        }
+      },
+      "description": "Request to update an existing setting."
     },
     "GroupUserListGroupUser": {
       "type": "object",
@@ -3856,6 +3972,39 @@
         }
       },
       "title": "Runtime information"
+    },
+    "consoleSetting": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name identifier."
+        },
+        "value": {
+          "type": "string",
+          "description": "Setting value."
+        },
+        "update_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "Update time."
+        }
+      },
+      "description": "A single setting."
+    },
+    "consoleSettingList": {
+      "type": "object",
+      "properties": {
+        "settings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/consoleSetting"
+          },
+          "description": "A list of settings."
+        }
+      },
+      "description": "A list of settings."
     },
     "consoleStatusHealth": {
       "type": "string",
