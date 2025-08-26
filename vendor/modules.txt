@@ -108,7 +108,7 @@ github.com/golang-jwt/jwt/v5
 # github.com/golang/mock v1.6.0
 ## explicit; go 1.11
 github.com/golang/mock/mockgen/model
-# github.com/golang/snappy v0.0.1
+# github.com/golang/snappy v1.0.0
 ## explicit
 github.com/golang/snappy
 # github.com/google/pprof v0.0.0-20230207041349-798e818bf904
