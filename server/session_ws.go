@@ -67,6 +67,8 @@ type sessionWS struct {
 	runtime         *Runtime
 
 	stopped                bool
+	closeSent              *atomic.Bool
+	closeWaitCh            chan struct{}
 	conn                   *websocket.Conn
 	receivedMessageCounter int
 	pingTimer              *time.Timer
@@ -188,8 +190,18 @@ func (s *sessionWS) Consume() {
 		s.maybeResetPingTimer()
 		return nil
 	})
+	s.closeSent = atomic.NewBool(false)
+	s.closeWaitCh = make(chan struct{}, 1)
 	// Disable the close handler so that the server can handle the close message itself.
-	s.conn.SetCloseHandler(func(code int, text string) error { return nil })
+	s.conn.SetCloseHandler(func(code int, text string) error {
+		if !s.closeSent.Load() {
+			message := websocket.FormatCloseMessage(code, "")
+			_ = s.conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(s.pongWaitDuration))
+		} else {
+			s.closeWaitCh <- struct{}{}
+		}
+		return nil
+	})
 
 	// Start a routine to process outbound messages.
 	go s.processOutgoing()
@@ -512,30 +524,21 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 		s.Unlock()
 	}
 
-	// Send close message.
-	if err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(s.writeWaitDuration)); err != nil {
-		// This may not be possible if the socket was already fully closed by an error.
-		s.logger.Debug("Could not send close message", zap.Error(err))
-	}
 	if msg != "" {
-		// Server initiated close, await for client close response.
-		t := time.NewTimer(10 * time.Second)
-		defer t.Stop()
-	closeMessageWait:
-		for {
-			msgType, _, readErr := s.conn.ReadMessage()
-			if readErr != nil || msgType == websocket.CloseMessage {
-				// The server initiated close, so something went wrong. Thus, we only care about the close message at this point.
-				// If any error occurs, close message likely won't be delivered, just close the socket.
-				break
-			}
-
+		// Server initiated close, attempt to send a close control message.
+		reasonMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, msg)
+		if err := s.conn.WriteControl(websocket.CloseMessage, reasonMsg, time.Now().Add(s.writeWaitDuration)); err != nil {
+			// This may not be possible if the socket was already fully closed by an error.
+			s.logger.Debug("Could not send close message", zap.Error(err))
+		} else {
+			s.closeSent.Store(true)
+			t := time.NewTimer(10 * time.Second)
+			defer t.Stop()
 			select {
+			case <-s.closeWaitCh:
+				s.logger.Debug("socket close ack received")
 			case <-t.C:
-				// If the client doesn't respond within 10 seconds, close the connection anyway.
-				break closeMessageWait
-			default:
-				// Otherwise, continue reading messages until we get a close message or timeout.
+				s.logger.Debug("socket close ack not received within 10 seconds")
 			}
 		}
 	}
