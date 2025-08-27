@@ -67,7 +67,7 @@ type sessionWS struct {
 	runtime         *Runtime
 
 	stopped                bool
-	closeSent              *atomic.Bool
+	closeSentCAS           *atomic.Uint32
 	closeWaitCh            chan struct{}
 	conn                   *websocket.Conn
 	receivedMessageCounter int
@@ -122,6 +122,8 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessi
 		runtime:         runtime,
 
 		stopped:                false,
+		closeSentCAS:           atomic.NewUint32(0),
+		closeWaitCh:            make(chan struct{}),
 		conn:                   conn,
 		receivedMessageCounter: config.GetSocket().PingBackoffThreshold,
 		pingTimer:              time.NewTimer(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
@@ -190,15 +192,12 @@ func (s *sessionWS) Consume() {
 		s.maybeResetPingTimer()
 		return nil
 	})
-	s.closeSent = atomic.NewBool(false)
-	s.closeWaitCh = make(chan struct{}, 1)
-	// Disable the close handler so that the server can handle the close message itself.
 	s.conn.SetCloseHandler(func(code int, text string) error {
-		if !s.closeSent.Load() {
+		if s.closeSentCAS.CompareAndSwap(0, 1) {
 			message := websocket.FormatCloseMessage(code, "")
 			_ = s.conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(s.pongWaitDuration))
 		} else {
-			s.closeWaitCh <- struct{}{}
+			close(s.closeWaitCh)
 		}
 		return nil
 	})
@@ -525,20 +524,21 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 	}
 
 	if msg != "" {
-		// Server initiated close, attempt to send a close control message.
-		reasonMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, msg)
-		if err := s.conn.WriteControl(websocket.CloseMessage, reasonMsg, time.Now().Add(s.writeWaitDuration)); err != nil {
-			// This may not be possible if the socket was already fully closed by an error.
-			s.logger.Debug("Could not send close message", zap.Error(err))
-		} else {
-			s.closeSent.Store(true)
-			t := time.NewTimer(10 * time.Second)
-			defer t.Stop()
-			select {
-			case <-s.closeWaitCh:
-				s.logger.Debug("socket close ack received")
-			case <-t.C:
-				s.logger.Debug("socket close ack not received within 10 seconds")
+		if s.closeSentCAS.CompareAndSwap(0, 1) {
+			// Server initiated close, attempt to send a close control message.
+			reasonMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, msg)
+			if err := s.conn.WriteControl(websocket.CloseMessage, reasonMsg, time.Now().Add(s.writeWaitDuration)); err != nil {
+				// This may not be possible if the socket was already fully closed by an error.
+				s.logger.Debug("Could not send close message", zap.Error(err))
+			} else {
+				t := time.NewTimer(10 * time.Second)
+				defer t.Stop()
+				select {
+				case <-s.closeWaitCh:
+					s.logger.Debug("socket close ack received")
+				case <-t.C:
+					s.logger.Debug("socket close ack not received within 10 seconds")
+				}
 			}
 		}
 	}
