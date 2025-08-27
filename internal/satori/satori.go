@@ -698,6 +698,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 					Flag:  f,
 					Value: unique.Make(f.Value),
 				}
+				f.Value = "" // Clear the value so it's not kept in memory by the reference kept by the cache.
 				entry = append(entry, cacheEntry)
 				entries[f.Name] = cacheEntry
 			}
@@ -796,6 +797,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 						FlagOverride: o,
 						Value:        unique.Make(o.Value),
 					})
+					o.Value = "" // Clear the value so it's not kept in memory by the reference kept by the cache.
 				}
 				entry = append(entry, overrides)
 				entries[f.FlagName] = overrides
