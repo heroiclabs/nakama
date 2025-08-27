@@ -2,7 +2,7 @@ name: dockerhub-nakama-dsym
 
 on:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   nakama_dsym_build_publish:
