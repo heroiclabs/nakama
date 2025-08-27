@@ -2371,17 +2371,17 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 		return false, errors.New("Could not run Storage Index Filter hook.")
 	}
 
-	objectMap := make(map[string]interface{}, 7)
-	objectMap["key"] = storageWrite.Object.Key
-	objectMap["collection"] = storageWrite.Object.Collection
+	object := r.vm.NewObject()
+	_ = object.Set("key", storageWrite.Object.Key)
+	_ = object.Set("collection", storageWrite.Object.Collection)
 	if storageWrite.OwnerID != "" {
-		objectMap["userId"] = storageWrite.OwnerID
+		_ = object.Set("userId", storageWrite.OwnerID)
 	} else {
-		objectMap["userId"] = nil
+		_ = object.Set("userId", goja.Null())
 	}
-	objectMap["version"] = storageWrite.Object.Version
-	objectMap["permissionRead"] = storageWrite.Object.PermissionRead
-	objectMap["permissionWrite"] = storageWrite.Object.PermissionWrite
+	_ = object.Set("version", storageWrite.Object.Version)
+	_ = object.Set("permissionRead", storageWrite.Object.PermissionRead)
+	_ = object.Set("permissionWrite", storageWrite.Object.PermissionWrite)
 
 	valueMap := make(map[string]interface{})
 	err = json.Unmarshal([]byte(storageWrite.Object.Value), &valueMap)
@@ -2389,11 +2389,11 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
 	}
 	pointerizeSlices(valueMap)
-	objectMap["value"] = valueMap
+	_ = object.Set("value", valueMap)
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeStorageIndexFilter, nil, nil, 0, "", "", nil, "", "", "", "")
 	r.SetContext(ctx)
-	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeStorageIndexFilter, "storageIndexFilter", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", r.vm.ToValue(objectMap))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeStorageIndexFilter, "storageIndexFilter", fn, jsLogger, nil, nil, "", "", nil, 0, "", "", "", "", object)
 	r.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {

@@ -197,21 +197,18 @@ func NewRuntimeJavascriptMatchCore(logger *zap.Logger, module string, db *sql.DB
 func (rm *RuntimeJavaScriptMatchCore) MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
 	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.vm.ToValue(params)}
 
-	retVal, err := rm.initFn(goja.Null(), args...)
+	retVal, err := rm.initFn(goja.Undefined(), args...)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	retMap, ok := retVal.Export().(map[string]interface{})
-	if !ok {
-		return nil, 0, errors.New("matchInit is expected to return an object with 'state', 'tickRate' and 'label' properties")
-	}
-	tickRateRet, ok := retMap["tickRate"]
-	if !ok {
+	retObj := retVal.ToObject(rm.vm)
+	tickRateRet := retObj.Get("tickRate")
+	if tickRateRet == nil {
 		return nil, 0, errors.New("matchInit return value has no 'tickRate' property")
 	}
-	rate, ok := tickRateRet.(int64)
-	if !ok {
+	rate := tickRateRet.ToInteger()
+	if rate == 0 {
 		return nil, 0, errors.New("matchInit 'tickRate' must be a number between 1 and 60")
 	}
 	if rate < 1 || rate > 60 {
@@ -220,20 +217,17 @@ func (rm *RuntimeJavaScriptMatchCore) MatchInit(presenceList *MatchPresenceList,
 	rm.tickRate = int(rate)
 
 	var label string
-	labelRet, ok := retMap["label"]
-	if ok {
-		label, ok = labelRet.(string)
-		if !ok {
-			return nil, 0, errors.New("matchInit 'label' value must be a string")
+	labelRet := retObj.Get("label")
+	if labelRet != nil {
+		label = labelRet.String()
+		if label == "" {
+			return nil, 0, errors.New("matchInit 'label' value must be a non-empty string")
 		}
 	}
 
-	state, ok := retMap["state"]
-	if !ok {
-		return nil, 0, errors.New("matchInit is expected to return an object with a 'state' property")
-	}
+	state := retObj.Get("state")
 	if state == nil {
-		return nil, 0, ErrMatchInitStateNil
+		return nil, 0, errors.New("matchInit is expected to return an object with a 'state' property")
 	}
 
 	if err := rm.matchRegistry.UpdateMatchLabel(rm.id, rm.tickRate, rm.module, label, rm.createTime); err != nil {
@@ -277,13 +271,9 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoinAttempt(tick int64, state interfa
 		_ = ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_CLIENT_PORT, clientPort)
 	}
 
-	pointerizeSlices(state)
-	stateObject := rm.vm.NewObject()
-	for k, v := range state.(map[string]any) {
-		_ = stateObject.Set(k, v)
-	}
-	args := []goja.Value{ctxObj, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), presenceObj, rm.vm.ToValue(metadata)}
-	retVal, err := rm.joinAttemptFn(goja.Null(), args...)
+	stateObj := state.(*goja.Object)
+	args := []goja.Value{ctxObj, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), stateObj, presenceObj, rm.vm.ToValue(metadata)}
+	retVal, err := rm.joinAttemptFn(goja.Undefined(), args...)
 	if err != nil {
 		return nil, false, "", err
 	}
@@ -292,36 +282,27 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoinAttempt(tick int64, state interfa
 		return nil, false, "", nil
 	}
 
-	retMap, ok := retVal.Export().(map[string]interface{})
-	if !ok {
+	retObj := retVal.ToObject(rm.vm)
+	if retObj == nil {
 		return nil, false, "", errors.New("matchJoinAttempt is expected to return an object with 'state' and 'accept' properties")
 	}
 
-	allowRet, ok := retMap["accept"]
-	if !ok {
+	acceptVal := retObj.Get("accept")
+	if acceptVal == nil {
 		return nil, false, "", errors.New("matchJoinAttempt return value has an 'accept' property")
-	}
-	allow, ok := allowRet.(bool)
-	if !ok {
-		return nil, false, "", errors.New("matchJoinAttempt 'accept' property must be a boolean")
 	}
 
 	var rejectMsg string
+	allow := acceptVal.ToBoolean()
 	if !allow {
-		rejectMsgRet, ok := retMap["rejectMessage"]
-		if ok {
-			rejectMsg, ok = rejectMsgRet.(string)
-			if !ok {
-				return nil, false, "", errors.New("matchJoinAttempt 'rejectMessage' property must be a string")
-			}
+		rejectMsgRet := retObj.Get("rejectMessage")
+		if rejectMsgRet != nil {
+			rejectMsg = rejectMsgRet.String()
 		}
 	}
 
-	newState, ok := retMap["state"]
-	if !ok {
-		return nil, false, "", errors.New("matchJoinAttempt is expected to return an object with 'state' object property")
-	}
-	if _, ok = newState.(map[string]any); !ok {
+	newState := retObj.Get("state")
+	if newState == nil {
 		return nil, false, "", errors.New("matchJoinAttempt is expected to return an object with 'state' object property")
 	}
 
@@ -329,25 +310,21 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoinAttempt(tick int64, state interfa
 }
 
 func (rm *RuntimeJavaScriptMatchCore) MatchJoin(tick int64, state interface{}, joins []*MatchPresence) (interface{}, error) {
-	presences := make([]interface{}, 0, len(joins))
+	presences := make([]any, 0, len(joins))
 	for _, p := range joins {
-		presenceMap := make(map[string]interface{}, 5)
-		presenceMap["userId"] = p.UserID.String()
-		presenceMap["sessionId"] = p.SessionID.String()
-		presenceMap["username"] = p.Username
-		presenceMap["node"] = p.Node
-		presenceMap["reason"] = p.Reason
+		presenceObj := rm.vm.NewObject()
+		_ = presenceObj.Set("userId", p.UserID.String())
+		_ = presenceObj.Set("sessionId", p.SessionID.String())
+		_ = presenceObj.Set("username", p.Username)
+		_ = presenceObj.Set("node", p.Node)
+		_ = presenceObj.Set("reason", p.Reason)
 
-		presences = append(presences, presenceMap)
+		presences = append(presences, presenceObj)
 	}
 
-	pointerizeSlices(state)
-	stateObject := rm.vm.NewObject()
-	for k, v := range state.(map[string]any) {
-		_ = stateObject.Set(k, v)
-	}
-	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), rm.vm.ToValue(presences)}
-	retVal, err := rm.joinFn(goja.Null(), args...)
+	stateObj := state.(*goja.Object)
+	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), stateObj, rm.vm.NewArray(presences...)}
+	retVal, err := rm.joinFn(goja.Undefined(), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -356,16 +333,13 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoin(tick int64, state interface{}, j
 		return nil, nil
 	}
 
-	retMap, ok := retVal.Export().(map[string]interface{})
-	if !ok {
+	retObj := retVal.ToObject(rm.vm)
+	if retObj == nil {
 		return nil, errors.New("matchJoin is expected to return an object with 'state' property")
 	}
 
-	newState, ok := retMap["state"]
-	if !ok {
-		return nil, errors.New("matchJoin is expected to return an object with 'state' object property")
-	}
-	if _, ok = newState.(map[string]any); !ok {
+	newState := retObj.Get("state")
+	if newState == nil {
 		return nil, errors.New("matchJoin is expected to return an object with 'state' object property")
 	}
 
@@ -375,24 +349,19 @@ func (rm *RuntimeJavaScriptMatchCore) MatchJoin(tick int64, state interface{}, j
 func (rm *RuntimeJavaScriptMatchCore) MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error) {
 	presences := make([]interface{}, 0, len(leaves))
 	for _, p := range leaves {
-		presenceMap := make(map[string]interface{}, 5)
-		presenceMap["userId"] = p.UserID.String()
-		presenceMap["sessionId"] = p.SessionID.String()
-		presenceMap["username"] = p.Username
-		presenceMap["node"] = p.Node
-		presenceMap["reason"] = p.Reason
+		presenceObj := rm.vm.NewObject()
+		_ = presenceObj.Set("userId", p.UserID.String())
+		_ = presenceObj.Set("sessionId", p.SessionID.String())
+		_ = presenceObj.Set("username", p.Username)
+		_ = presenceObj.Set("node", p.Node)
+		_ = presenceObj.Set("reason", p.Reason)
 
-		presences = append(presences, presenceMap)
+		presences = append(presences, presenceObj)
 	}
 
-	pointerizeSlices(state)
-	s := state.(map[string]any)
-	o := rm.vm.NewObject()
-	for k, v := range s {
-		_ = o.Set(k, v)
-	}
-	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(o), rm.vm.ToValue(presences)}
-	retVal, err := rm.leaveFn(goja.Null(), args...)
+	stateObj := state.(*goja.Object)
+	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), stateObj, rm.vm.NewArray(presences...)}
+	retVal, err := rm.leaveFn(goja.Undefined(), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -401,17 +370,14 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLeave(tick int64, state interface{}, 
 		return nil, nil
 	}
 
-	retMap, ok := retVal.Export().(map[string]interface{})
-	if !ok {
-		return nil, errors.New("matchLeave is expected to return an object with 'state' property")
+	retObj := retVal.ToObject(rm.vm)
+	if retObj == nil {
+		return nil, errors.New("matchLoop is expected to return an object with 'state' property")
 	}
 
-	newState, ok := retMap["state"]
-	if !ok {
-		return nil, errors.New("matchLeave is expected to return an object with 'state' object property")
-	}
-	if _, ok = newState.(map[string]any); !ok {
-		return nil, errors.New("matchLeave is expected to return an object with 'state' object property")
+	newState := retObj.Get("state")
+	if newState == nil {
+		return nil, errors.New("matchLoop is expected to return an object with 'state' object property")
 	}
 
 	return newState, nil
@@ -419,37 +385,33 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLeave(tick int64, state interface{}, 
 
 func (rm *RuntimeJavaScriptMatchCore) MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error) {
 	size := len(inputCh)
-	inputs := make([]interface{}, 0, size)
+	inputs := make([]any, 0, size)
 	for i := 0; i < size; i++ {
 		msg := <-inputCh
 
-		presenceMap := make(map[string]interface{}, 5)
-		presenceMap["userId"] = msg.UserID.String()
-		presenceMap["sessionId"] = msg.SessionID.String()
-		presenceMap["username"] = msg.Username
-		presenceMap["node"] = msg.Node
+		presenceObj := rm.vm.NewObject()
+		_ = presenceObj.Set("userId", msg.UserID.String())
+		_ = presenceObj.Set("sessionId", msg.SessionID.String())
+		_ = presenceObj.Set("username", msg.Username)
+		_ = presenceObj.Set("node", msg.Node)
 
-		msgMap := make(map[string]interface{}, 5)
-		msgMap["sender"] = presenceMap
-		msgMap["opCode"] = msg.OpCode
+		msgObj := rm.vm.NewObject()
+		_ = msgObj.Set("sender", presenceObj)
+		_ = msgObj.Set("opCode", msg.OpCode)
 		if msg.Data == nil {
-			msgMap["data"] = goja.Null()
+			_ = msgObj.Set("data", goja.Null())
 		} else {
-			msgMap["data"] = rm.vm.NewArrayBuffer(msg.Data)
+			_ = msgObj.Set("data", rm.vm.NewArrayBuffer(msg.Data))
 		}
-		msgMap["reliable"] = msg.Reliable
-		msgMap["receiveTimeMs"] = msg.ReceiveTime
+		_ = msgObj.Set("reliable", msg.Reliable)
+		_ = msgObj.Set("receiveTimeMs", msg.ReceiveTime)
 
-		inputs = append(inputs, msgMap)
+		inputs = append(inputs, msgObj)
 	}
 
-	pointerizeSlices(state)
-	stateObject := rm.vm.NewObject()
-	for k, v := range state.(map[string]any) {
-		_ = stateObject.Set(k, v)
-	}
-	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), rm.vm.ToValue(inputs)}
-	retVal, err := rm.loopFn(goja.Null(), args...)
+	stateObj := state.(*goja.Object)
+	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), stateObj, rm.vm.NewArray(inputs...)}
+	retVal, err := rm.loopFn(goja.Undefined(), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -458,48 +420,42 @@ func (rm *RuntimeJavaScriptMatchCore) MatchLoop(tick int64, state interface{}, i
 		return nil, nil
 	}
 
-	retMap, ok := retVal.Export().(map[string]interface{})
-	if !ok {
+	retObj := retVal.ToObject(rm.vm)
+	if retObj == nil {
 		return nil, errors.New("matchLoop is expected to return an object with 'state' property")
 	}
 
-	newState, ok := retMap["state"]
-	if !ok {
+	newState := retObj.Get("state")
+	if newState == nil {
 		return nil, errors.New("matchLoop is expected to return an object with 'state' object property")
-	}
-	if _, ok = newState.(map[string]any); !ok {
-		return nil, errors.New("matchLeave is expected to return an object with 'state' object property")
 	}
 
 	return newState, nil
 }
 
 func (rm *RuntimeJavaScriptMatchCore) MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error) {
-	pointerizeSlices(state)
-	stateObject := rm.vm.NewObject()
-	for k, v := range state.(map[string]any) {
-		_ = stateObject.Set(k, v)
-	}
-	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), rm.vm.ToValue(graceSeconds)}
-	retVal, err := rm.terminateFn(goja.Null(), args...)
-	if err != nil {
-		return nil, err
+	stateObj := state.(*goja.Object)
+	if stateObj == nil {
+		return nil, errors.New("matchTerminate is expected to return an object with 'state' object property")
 	}
 
-	retMap, ok := retVal.Export().(map[string]interface{})
-	if !ok {
-		return nil, errors.New("matchTerminate is expected to return an object with 'state' property")
+	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), stateObj, rm.vm.ToValue(graceSeconds)}
+	retVal, err := rm.terminateFn(goja.Undefined(), args...)
+	if err != nil {
+		return nil, err
 	}
 
 	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
 		return nil, nil
 	}
 
-	newState, ok := retMap["state"]
-	if !ok {
+	retObj := retVal.ToObject(rm.vm)
+	if retObj == nil {
 		return nil, errors.New("matchTerminate is expected to return an object with 'state' object property")
 	}
-	if _, ok = newState.(map[string]any); !ok {
+
+	newState := retObj.Get("state")
+	if newState == nil {
 		return nil, errors.New("matchTerminate is expected to return an object with 'state' object property")
 	}
 
@@ -507,41 +463,31 @@ func (rm *RuntimeJavaScriptMatchCore) MatchTerminate(tick int64, state interface
 }
 
 func (rm *RuntimeJavaScriptMatchCore) MatchSignal(tick int64, state interface{}, data string) (interface{}, string, error) {
-	pointerizeSlices(state)
-	stateObject := rm.vm.NewObject()
-	for k, v := range state.(map[string]any) {
-		_ = stateObject.Set(k, v)
-	}
-	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), rm.vm.ToValue(stateObject), rm.vm.ToValue(data)}
-	retVal, err := rm.signalFn(goja.Null(), args...)
+	stateObj := state.(*goja.Object)
+	args := []goja.Value{rm.ctx, rm.loggerModule, rm.nakamaModule, rm.dispatcher, rm.vm.ToValue(tick), stateObj, rm.vm.ToValue(data)}
+	retVal, err := rm.signalFn(goja.Undefined(), args...)
 	if err != nil {
 		return nil, "", err
-	}
-
-	retMap, ok := retVal.Export().(map[string]interface{})
-	if !ok {
-		return nil, "", errors.New("matchSignal is expected to return an object with 'state' property")
 	}
 
 	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
 		return nil, "", nil
 	}
 
-	newState, ok := retMap["state"]
-	if !ok {
+	retObj := retVal.ToObject(rm.vm)
+	if retObj == nil {
 		return nil, "", errors.New("matchSignal is expected to return an object with 'state' property")
 	}
-	if _, ok = newState.(map[string]any); !ok {
-		return nil, "", errors.New("matchSignal is expected to return an object with 'state' object property")
+
+	newState := retObj.Get("state")
+	if newState == nil {
+		return nil, "", errors.New("matchSignal is expected to return an object with 'state' property")
 	}
 
-	responseDataRet, ok := retMap["data"]
 	var responseData string
-	if ok {
-		responseData, ok = responseDataRet.(string)
-		if !ok {
-			return nil, "", errors.New("matchSignal 'data' property must be a string")
-		}
+	responseDataVal := retObj.Get("responseData")
+	if responseDataVal != nil {
+		responseData = responseDataVal.String()
 	}
 
 	return newState, responseData, nil
