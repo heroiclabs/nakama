@@ -16,7 +16,10 @@ package satori
 
 import (
 	"context"
+	"fmt"
 	"os"
+	goruntime "runtime"
+	metrics "runtime/metrics"
 	"testing"
 	"time"
 
@@ -56,6 +59,76 @@ func TestSatoriClient_EventsPublish(t *testing.T) {
 	if err := client.EventsPublish(ctx, identityID, []*runtime.Event{evt}); err != nil {
 		t.Fatalf("error in client.EventsPublish: %+v", err)
 	}
+}
+
+// To run this test, replace the placeholders with valid Satori credentials and identity ID.
+// This test is mostly exploratory to see if there are any memory leaks in the Satori client.
+// It helped corroborate a stdlib `unique` package memory leak that was fixed in Go 1.25.0
+// go test -vet=off -count=1 -v -run=TestSatoriClientMemory ./... | grep "memory"
+func TestSatoriClientMemory(t *testing.T) {
+	t.SkipNow()
+
+	identityID := "<identity_id>"
+
+	logger := NewConsoleLogger(os.Stdout, true)
+	ctx := context.Background()
+	client := NewSatoriClient(ctx, logger, "<SATORI_URL>", "<SATORI_API_KEY_NAME", "<SATORI_API_KEY>", "<SIGNING_KEY>", 3600, true, nil)
+
+	samples := []metrics.Sample{{
+		Name: "/memory/classes/heap/objects:bytes",
+	}}
+
+	flagCount := 0
+
+	metrics.Read(samples)
+	t.Logf("flagCount: %d, %s: %s", flagCount, samples[0].Name, byteCountSI(samples[0].Value.Uint64()))
+
+	timer := time.NewTimer(2 * time.Second)
+
+	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
+loop:
+	for {
+		select {
+		case <-timer.C:
+			break loop
+		default:
+		}
+
+		ctx = context.WithValue(ctx, "", struct{}{})
+		_, err := client.FlagsList(ctx, identityID, "BenchmarkTest")
+		if err != nil {
+			t.Fatalf("error in client.FlagsList: %s", err.Error())
+		}
+		flagCount++
+	}
+
+	goruntime.GC()
+	metrics.Read(samples)
+	t.Logf("flagCount: %d, %s: %s", flagCount, samples[0].Name, byteCountSI(samples[0].Value.Uint64()))
+
+	ctxCancelFn()
+
+	endTimer := time.NewTimer(6 * time.Second)
+	<-endTimer.C
+
+	goruntime.GC()
+	metrics.Read(samples)
+	t.Logf("flagCount: %d, %s: %s", flagCount, samples[0].Name, byteCountSI(samples[0].Value.Uint64()))
+}
+
+func byteCountSI(b uint64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 func NewConsoleLogger(output *os.File, verbose bool) *zap.Logger {

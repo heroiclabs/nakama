@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -254,12 +255,14 @@ func (s *ApiServer) JoinGroup(ctx context.Context, in *api.JoinGroupRequest) (*e
 
 	err = JoinGroup(ctx, s.logger, s.db, s.tracker, s.router, groupID, userID, username)
 	if err != nil {
-		if err == runtime.ErrGroupNotFound {
+		switch {
+		case errors.Is(err, runtime.ErrGroupNotFound):
 			return nil, status.Error(codes.NotFound, "Group not found.")
-		} else if err == runtime.ErrGroupFull {
+		case errors.Is(err, runtime.ErrGroupFull):
 			return nil, status.Error(codes.InvalidArgument, "Group is full.")
+		default:
+			return nil, status.Error(codes.Internal, "Error while trying to join group.")
 		}
-		return nil, status.Error(codes.Internal, "Error while trying to join group.")
 	}
 
 	// After hook.
@@ -382,14 +385,16 @@ func (s *ApiServer) AddGroupUsers(ctx context.Context, in *api.AddGroupUsersRequ
 
 	err = AddGroupUsers(ctx, s.logger, s.db, s.tracker, s.router, userID, groupID, userIDs)
 	if err != nil {
-		if err == runtime.ErrGroupPermissionDenied {
+		switch {
+		case errors.Is(err, runtime.ErrGroupPermissionDenied):
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
-		} else if err == runtime.ErrGroupFull {
+		case errors.Is(err, runtime.ErrGroupFull):
 			return nil, status.Error(codes.InvalidArgument, "Group is full.")
-		} else if err == runtime.ErrGroupUserNotFound {
+		case errors.Is(err, runtime.ErrGroupUserNotFound):
 			return nil, status.Error(codes.InvalidArgument, "One or more users not found.")
+		default:
+			return nil, status.Error(codes.Internal, "Error while trying to add users to a group.")
 		}
-		return nil, status.Error(codes.Internal, "Error while trying to add users to a group.")
 	}
 
 	// After hook.
@@ -591,12 +596,14 @@ func (s *ApiServer) PromoteGroupUsers(ctx context.Context, in *api.PromoteGroupU
 
 	err = PromoteGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs)
 	if err != nil {
-		if err == runtime.ErrGroupPermissionDenied {
+		switch {
+		case errors.Is(err, runtime.ErrGroupPermissionDenied):
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
-		} else if err == runtime.ErrGroupFull {
+		case errors.Is(err, runtime.ErrGroupFull):
 			return nil, status.Error(codes.InvalidArgument, "Group is full.")
+		default:
+			return nil, status.Error(codes.Internal, "Error while trying to promote users in a group.")
 		}
-		return nil, status.Error(codes.Internal, "Error while trying to promote users in a group.")
 	}
 
 	// After hook.
@@ -731,12 +738,14 @@ func (s *ApiServer) DemoteGroupUsers(ctx context.Context, in *api.DemoteGroupUse
 
 	err = DemoteGroupUsers(ctx, s.logger, s.db, s.router, userID, groupID, userIDs)
 	if err != nil {
-		if err == runtime.ErrGroupPermissionDenied {
+		switch {
+		case errors.Is(err, runtime.ErrGroupPermissionDenied):
 			return nil, status.Error(codes.NotFound, "Group not found or permission denied.")
-		} else if err == runtime.ErrGroupFull {
+		case errors.Is(err, runtime.ErrGroupFull):
 			return nil, status.Error(codes.InvalidArgument, "Group is full.")
+		default:
+			return nil, status.Error(codes.Internal, "Error while trying to demote users in a group.")
 		}
-		return nil, status.Error(codes.Internal, "Error while trying to demote users in a group.")
 	}
 
 	// After hook.

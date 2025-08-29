@@ -1,6 +1,3 @@
-//go:build go1.4
-// +build go1.4
-
 package jwt
 
 import (

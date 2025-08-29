@@ -44,6 +44,11 @@ type Iterator interface {
 	Close() error
 }
 
+type FuzzyIterator interface {
+	Iterator
+	EditDistance() uint8
+}
+
 // FSTIterator is a structure for iterating key/value pairs in this FST in
 // lexicographic order.  Iterators should be constructed with the FSTIterator
 // method on the parent FST structure.
@@ -61,6 +66,8 @@ type FSTIterator struct {
 	autStatesStack []int
 
 	nextStart []byte
+
+	editDistance uint8
 }
 
 func newIterator(f *FST, startKeyInclusive, endKeyExclusive []byte,
@@ -72,6 +79,10 @@ func newIterator(f *FST, startKeyInclusive, endKeyExclusive []byte,
 		return nil, err
 	}
 	return rv, nil
+}
+
+func (i *FSTIterator) EditDistance() uint8 {
+	return i.editDistance
 }
 
 // Reset resets the Iterator' internal state to allow for iterator
@@ -206,6 +217,9 @@ OUTER:
 
 			cmp := bytes.Compare(i.keysStack, i.nextStart)
 			if cmp > 0 {
+				if fa, ok := i.aut.(FuzzyAutomaton); ok {
+					i.editDistance = fa.EditDistance(autCurr)
+				}
 				// in final state greater than start key
 				return nil
 			}

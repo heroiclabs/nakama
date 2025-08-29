@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -116,14 +117,16 @@ func (s *ApiServer) JoinTournament(ctx context.Context, in *api.JoinTournamentRe
 	tournamentID := in.GetTournamentId()
 
 	if err := TournamentJoin(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, username, tournamentID); err != nil {
-		if err == runtime.ErrTournamentNotFound {
+		switch {
+		case errors.Is(err, runtime.ErrTournamentNotFound):
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
-		} else if err == runtime.ErrTournamentMaxSizeReached {
+		case errors.Is(err, runtime.ErrTournamentMaxSizeReached):
 			return nil, status.Error(codes.InvalidArgument, "Tournament cannot be joined as it has reached its max size.")
-		} else if err == runtime.ErrTournamentOutsideDuration {
+		case errors.Is(err, runtime.ErrTournamentOutsideDuration):
 			return nil, status.Error(codes.InvalidArgument, "Tournament is not active and cannot accept new joins.")
+		default:
+			return nil, status.Error(codes.Internal, "Error while trying to join tournament.")
 		}
-		return nil, status.Error(codes.Internal, "Error while trying to join tournament.")
 	}
 
 	// After hook.

@@ -621,13 +621,12 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 }
 
 type flagCacheEntry struct {
-	Name             string
-	Value            unique.Handle[string]
-	ConditionChanged bool
+	*runtime.Flag
+	Value unique.Handle[string]
 }
 
 type flagOverridesCacheEntry struct {
-	runtime.FlagOverride
+	*runtime.FlagOverride
 	Value unique.Handle[string]
 }
 
@@ -696,9 +695,8 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 			entries := make(map[string]flagCacheEntry, len(flags.Flags))
 			for _, f := range flags.Flags {
 				cacheEntry := flagCacheEntry{
-					Name:             f.Name,
-					Value:            unique.Make(f.Value),
-					ConditionChanged: f.ConditionChanged,
+					Flag:  f,
+					Value: unique.Make(f.Value),
 				}
 				entry = append(entry, cacheEntry)
 				entries[f.Name] = cacheEntry
@@ -720,11 +718,9 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 
 	flagList := make([]*runtime.Flag, 0, len(entry))
 	for _, flEntry := range entry {
-		flagList = append(flagList, &runtime.Flag{
-			Name:             flEntry.Name,
-			Value:            flEntry.Value.Value(),
-			ConditionChanged: flEntry.ConditionChanged,
-		})
+		f := flEntry.Flag
+		f.Value = flEntry.Value.Value()
+		flagList = append(flagList, f)
 	}
 
 	return &runtime.FlagList{Flags: flagList}, nil
@@ -797,7 +793,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 				overrides := make([]flagOverridesCacheEntry, 0, len(f.Overrides))
 				for _, o := range f.Overrides {
 					overrides = append(overrides, flagOverridesCacheEntry{
-						FlagOverride: *o,
+						FlagOverride: o,
 						Value:        unique.Make(o.Value),
 					})
 				}
@@ -827,13 +823,9 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 		var flagName string
 		for _, flagOverride := range flagEntry {
 			flagName = flagOverride.Name
-			flagOverrides = append(flagOverrides, &runtime.FlagOverride{
-				Type:          flagOverride.Type,
-				Name:          flagName,
-				VariantName:   flagOverride.VariantName,
-				Value:         flagOverride.Value.Value(),
-				CreateTimeSec: flagOverride.CreateTimeSec,
-			})
+			fo := flagOverride.FlagOverride
+			fo.Value = flagOverride.Value.Value()
+			flagOverrides = append(flagOverrides, fo)
 		}
 
 		flagOverridesList = append(flagOverridesList, &runtime.FlagOverrides{
@@ -1120,7 +1112,7 @@ func newSatoriCache[T any](ctx context.Context, enabled bool) *satoriCache[T] {
 	}
 
 	go func() {
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {

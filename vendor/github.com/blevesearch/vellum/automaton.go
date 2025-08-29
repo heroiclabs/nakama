@@ -83,3 +83,9 @@ func (m *AlwaysMatch) Accept(int, byte) int {
 
 // creating an alwaysMatchAutomaton to avoid unnecessary repeated allocations.
 var alwaysMatchAutomaton = &AlwaysMatch{}
+
+type FuzzyAutomaton interface {
+	Automaton
+	EditDistance(int) uint8
+	MatchAndDistance(input string) (bool, uint8)
+}

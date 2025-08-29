@@ -28,7 +28,7 @@ import (
 
 const INIT_MODULE_FN_NAME = "InitModule"
 
-var inlinedFunctionError = errors.New("function literal found: javascript functions cannot be inlined")
+var errInlinedFunction = errors.New("function literal found: javascript functions cannot be inlined")
 
 type RuntimeJavascriptMatchHandlers struct {
 	sync.RWMutex
@@ -490,7 +490,7 @@ func (im *RuntimeJavascriptInitModule) getRegisteredFnIdentifier(r *goja.Runtime
 						} else if modNameArg, ok := callExp.ArgumentList[1].(*ast.DotExpression); ok {
 							return string(modNameArg.Identifier.Name), nil
 						} else {
-							return "", inlinedFunctionError
+							return "", errInlinedFunction
 						}
 					}
 				}
@@ -1876,7 +1876,7 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 										} else if id, ok := propKeyed.Value.(*ast.Identifier); ok {
 											return id.Name.String(), nil
 										} else {
-											return "", inlinedFunctionError
+											return "", errInlinedFunction
 										}
 									}
 								}

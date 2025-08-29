@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Update Satori client types to match latest API spec.
 
 ## [3.30.0] - 2025-08-10
 ### Added

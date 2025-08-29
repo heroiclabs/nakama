@@ -695,22 +695,23 @@ func deleteFriend(ctx context.Context, logger *zap.Logger, tx *sql.Tx, userID uu
 	}
 
 	rowsAffected, _ := res.RowsAffected()
-	if rowsAffected == 0 {
+	switch rowsAffected {
+	case 0:
 		logger.Debug("Could not delete user relationships as prior relationship did not exist.", zap.String("user", userID.String()), zap.String("friend", friendID))
 		return false, nil
-	} else if rowsAffected == 1 {
+	case 1:
 		// Unblocking a blocked user.
 		if _, err = tx.ExecContext(ctx, "UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id = $1::UUID", userID); err != nil {
 			logger.Debug("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 			return false, err
 		}
-	} else if rowsAffected == 2 {
+	case 2:
 		// Removing a full friend, cancelling an outgoing friend request, or rejecting an incoming friend request.
 		if _, err = tx.ExecContext(ctx, "UPDATE users SET edge_count = edge_count - 1, update_time = now() WHERE id IN ($1, $2)", userID, friendID); err != nil {
 			logger.Debug("Failed to update user edge counts.", zap.Error(err), zap.String("user", userID.String()), zap.String("friend", friendID))
 			return false, err
 		}
-	} else {
+	default:
 		logger.Debug("Unexpected number of edges were deleted.", zap.String("user", userID.String()), zap.String("friend", friendID), zap.Int64("rows_affected", rowsAffected))
 		return false, errors.New("unexpected number of edges were deleted")
 	}

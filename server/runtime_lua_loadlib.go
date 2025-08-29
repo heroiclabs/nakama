@@ -39,13 +39,13 @@ func loGetPath(env string, defpath string) string {
 	if len(path) == 0 {
 		path = defpath
 	}
-	path = strings.Replace(path, ";;", ";"+defpath+";", -1)
+	path = strings.ReplaceAll(path, ";;", ";"+defpath+";")
 	if os.PathSeparator != '/' {
 		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 		if err != nil {
 			panic(err)
 		}
-		path = strings.Replace(path, "!", dir, -1)
+		path = strings.ReplaceAll(path, "!", dir)
 	}
 	return path
 }

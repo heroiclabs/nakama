@@ -1422,24 +1422,24 @@ type FlagOverride struct {
 type OverrideType int
 
 const (
-	FLAG                          OverrideType = 0
-	FLAG_VARIANT                  OverrideType = 1
-	LIVE_EVENT_FLAG               OverrideType = 2
-	LIVE_EVENT_FLAG_VARIANT       OverrideType = 3
-	EXPERIMENT_PHASE_VARIANT_FLAG OverrideType = 4
+	FlagOverrideTypeFlag                       OverrideType = 0
+	FlagOverrideTypeFlagVariant                OverrideType = 1
+	FlagOverrideTypeLiveEventFlag              OverrideType = 2
+	FlagOverrideTypeLiveEventFlagVariant       OverrideType = 3
+	FlagOverrideTypeExperimentPhaseVariantFlag OverrideType = 4
 )
 
 func (ot OverrideType) String() string {
 	switch ot {
-	case FLAG:
+	case FlagOverrideTypeFlag:
 		return "FLAG"
-	case FLAG_VARIANT:
+	case FlagOverrideTypeFlagVariant:
 		return "FLAG_VARIANT"
-	case LIVE_EVENT_FLAG:
+	case FlagOverrideTypeLiveEventFlag:
 		return "LIVE_EVENT_FLAG"
-	case LIVE_EVENT_FLAG_VARIANT:
+	case FlagOverrideTypeLiveEventFlagVariant:
 		return "LIVE_EVENT_FLAG_VARIANT"
-	case EXPERIMENT_PHASE_VARIANT_FLAG:
+	case FlagOverrideTypeExperimentPhaseVariantFlag:
 		return "EXPERIMENT_PHASE_VARIANT_FLAG"
 	default:
 		return "UNKNOWN"
@@ -1451,10 +1451,34 @@ type Flag struct {
 	Value             string `json:"value,omitempty"`
 	ConditionChanged  bool   `json:"condition_changed,omitempty"`
 	ValueChangeReason *struct {
-		Type        int    `json:"type,omitempty"`
-		Name        string `json:"name,omitempty"`
-		VariantName string `json:"variant_name,omitempty"`
+		Type        FlagType `json:"type,omitempty"`
+		Name        string   `json:"name,omitempty"`
+		VariantName string   `json:"variant_name,omitempty"`
 	} `json:"change_reason,omitempty"`
+}
+
+type FlagType int
+
+const (
+	FlagTypeUnknown       FlagType = 0
+	FlagTypeFlagVariant   FlagType = 1
+	FlagTypeLiveEventFlag FlagType = 2
+	FlagTypeExperiment    FlagType = 3
+)
+
+func (ft FlagType) String() string {
+	switch ft {
+	case FlagTypeUnknown:
+		return "UNKNOWN"
+	case FlagTypeFlagVariant:
+		return "FLAG_VARIANT"
+	case FlagTypeLiveEventFlag:
+		return "LIVE_EVENT"
+	case FlagTypeExperiment:
+		return "EXPERIMENT"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 type LiveEventList struct {

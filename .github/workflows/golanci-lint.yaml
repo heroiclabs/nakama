@@ -12,14 +12,12 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
         with:
           go-version: "stable"
           cache: false
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.64
           only-new-issues: true
-          args: --timeout=10m
