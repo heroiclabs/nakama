@@ -59,7 +59,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			// Attempt header based authentication.
 			const prefix = "Bearer "
 			if !strings.HasPrefix(auth[0], prefix) {
-				http.Error(w, "Missing or invalid token", 401)
+				http.Error(w, "Missing or invalid token", http.StatusUnauthorized)
 				return
 			}
 			token = auth[0][len(prefix):]
@@ -68,12 +68,12 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			token = r.URL.Query().Get("token")
 		}
 		if token == "" {
-			http.Error(w, "Missing or invalid token", 401)
+			http.Error(w, "Missing or invalid token", http.StatusUnauthorized)
 			return
 		}
 		userID, username, vars, expiry, tokenId, issuedAt, ok := parseToken([]byte(config.GetSession().EncryptionKey), token)
 		if !ok || !sessionCache.IsValidSession(userID, expiry, token) {
-			http.Error(w, "Missing or invalid token", 401)
+			http.Error(w, "Missing or invalid token", http.StatusUnauthorized)
 			return
 		}
 

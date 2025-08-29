@@ -153,37 +153,37 @@ func (m *testMatch) MatchSignal(ctx context.Context, logger runtime.Logger, db *
 // testMetrics implements the Metrics interface and does nothing
 type testMetrics struct{}
 
-func (s *testMetrics) Stop(logger *zap.Logger)    {}
-func (s *testMetrics) SnapshotLatencyMs() float64 { return 0 }
-func (s *testMetrics) SnapshotRateSec() float64   { return 0 }
-func (s *testMetrics) SnapshotRecvKbSec() float64 { return 0 }
-func (s *testMetrics) SnapshotSentKbSec() float64 { return 0 }
-func (s *testMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+func (m *testMetrics) Stop(logger *zap.Logger)    {}
+func (m *testMetrics) SnapshotLatencyMs() float64 { return 0 }
+func (m *testMetrics) SnapshotRateSec() float64   { return 0 }
+func (m *testMetrics) SnapshotRecvKbSec() float64 { return 0 }
+func (m *testMetrics) SnapshotSentKbSec() float64 { return 0 }
+func (m *testMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
 }
 
-func (s *testMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+func (m *testMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
 }
-func (s *testMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)             {}
-func (s *testMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool)              {}
-func (s *testMetrics) Message(recvBytes int64, isErr bool)                                  {}
-func (s *testMetrics) MessageBytesSent(sentBytes int64)                                     {}
-func (s *testMetrics) GaugeRuntimes(value float64)                                          {}
-func (s *testMetrics) GaugeLuaRuntimes(value float64)                                       {}
-func (s *testMetrics) GaugeJsRuntimes(value float64)                                        {}
-func (s *testMetrics) GaugeAuthoritativeMatches(value float64)                              {}
-func (s *testMetrics) GaugeStorageIndexEntries(indexName string, value float64)             {}
-func (s *testMetrics) CountDroppedEvents(delta int64)                                       {}
-func (s *testMetrics) CountWebsocketOpened(delta int64)                                     {}
-func (s *testMetrics) CountWebsocketClosed(delta int64)                                     {}
+func (m *testMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)             {}
+func (m *testMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool)              {}
+func (m *testMetrics) Message(recvBytes int64, isErr bool)                                  {}
+func (m *testMetrics) MessageBytesSent(sentBytes int64)                                     {}
+func (m *testMetrics) GaugeRuntimes(value float64)                                          {}
+func (m *testMetrics) GaugeLuaRuntimes(value float64)                                       {}
+func (m *testMetrics) GaugeJsRuntimes(value float64)                                        {}
+func (m *testMetrics) GaugeAuthoritativeMatches(value float64)                              {}
+func (m *testMetrics) GaugeStorageIndexEntries(indexName string, value float64)             {}
+func (m *testMetrics) CountDroppedEvents(delta int64)                                       {}
+func (m *testMetrics) CountWebsocketOpened(delta int64)                                     {}
+func (m *testMetrics) CountWebsocketClosed(delta int64)                                     {}
 func (m *testMetrics) CountUntaggedGrpcStatsCalls(delta int64)                              {}
-func (s *testMetrics) GaugeSessions(value float64)                                          {}
-func (s *testMetrics) GaugePresences(value float64)                                         {}
-func (s *testMetrics) Matchmaker(tickets, activeTickets float64, processTime time.Duration) {}
-func (s *testMetrics) PresenceEvent(dequeueElapsed, processElapsed time.Duration)           {}
-func (s *testMetrics) StorageWriteRejectCount(tags map[string]string, delta int64)          {}
-func (s *testMetrics) CustomCounter(name string, tags map[string]string, delta int64)       {}
-func (s *testMetrics) CustomGauge(name string, tags map[string]string, value float64)       {}
-func (s *testMetrics) CustomTimer(name string, tags map[string]string, value time.Duration) {}
+func (m *testMetrics) GaugeSessions(value float64)                                          {}
+func (m *testMetrics) GaugePresences(value float64)                                         {}
+func (m *testMetrics) Matchmaker(tickets, activeTickets float64, processTime time.Duration) {}
+func (m *testMetrics) PresenceEvent(dequeueElapsed, processElapsed time.Duration)           {}
+func (m *testMetrics) StorageWriteRejectCount(tags map[string]string, delta int64)          {}
+func (m *testMetrics) CustomCounter(name string, tags map[string]string, delta int64)       {}
+func (m *testMetrics) CustomGauge(name string, tags map[string]string, value float64)       {}
+func (m *testMetrics) CustomTimer(name string, tags map[string]string, value time.Duration) {}
 
 // testMessageRouter is used for testing, and can fire a callback
 // when the SendToPresenceIDs method is invoked

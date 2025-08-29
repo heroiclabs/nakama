@@ -1376,13 +1376,14 @@ func (n *RuntimeJavascriptNakamaModule) bcryptCompare(r *goja.Runtime) func(goja
 		}
 
 		err := bcrypt.CompareHashAndPassword([]byte(input), []byte(plaintext))
-		if err == nil {
+		switch {
+		case err == nil:
 			return r.ToValue(true)
-		} else if err == bcrypt.ErrHashTooShort || err == bcrypt.ErrMismatchedHashAndPassword {
+		case errors.Is(err, bcrypt.ErrHashTooShort), errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
 			return r.ToValue(false)
+		default:
+			panic(r.NewGoError(fmt.Errorf("error comparing hash and plaintext: %v", err.Error())))
 		}
-
-		panic(r.NewGoError(fmt.Errorf("error comparing hash and plaintext: %v", err.Error())))
 	}
 }
 

@@ -1321,7 +1321,7 @@ func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*Runti
 		relPath, _ := filepath.Rel(rootPath, path)
 		name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 		// Make paths Lua friendly.
-		name = strings.Replace(name, string(os.PathSeparator), ".", -1)
+		name = strings.ReplaceAll(name, string(os.PathSeparator), ".")
 
 		moduleCache.Add(&RuntimeLuaModule{
 			Name:    name,

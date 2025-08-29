@@ -20,8 +20,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"time"
+
+	"github.com/heroiclabs/nakama-common/runtime"
 
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid/v5"
@@ -32,7 +33,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-var matchStoppedError = errors.New("match stopped")
+var errMatchStopped = errors.New("match stopped")
 
 type RuntimeJavaScriptMatchCore struct {
 	logger        *zap.Logger
@@ -580,7 +581,7 @@ func (rm *RuntimeJavaScriptMatchCore) Cleanup() {}
 func (rm *RuntimeJavaScriptMatchCore) broadcastMessage(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if rm.stopped.Load() {
-			panic(r.NewGoError(matchStoppedError))
+			panic(r.NewGoError(errMatchStopped))
 		}
 
 		presenceIDs, msg, reliable := rm.validateBroadcast(r, f)
@@ -595,7 +596,7 @@ func (rm *RuntimeJavaScriptMatchCore) broadcastMessage(r *goja.Runtime) func(goj
 func (rm *RuntimeJavaScriptMatchCore) broadcastMessageDeferred(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if rm.stopped.Load() {
-			panic(r.NewGoError(matchStoppedError))
+			panic(r.NewGoError(errMatchStopped))
 		}
 
 		presenceIDs, msg, reliable := rm.validateBroadcast(r, f)
@@ -764,7 +765,7 @@ func (rm *RuntimeJavaScriptMatchCore) validateBroadcast(r *goja.Runtime, f goja.
 func (rm *RuntimeJavaScriptMatchCore) matchKick(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if rm.stopped.Load() {
-			panic(r.NewGoError(matchStoppedError))
+			panic(r.NewGoError(errMatchStopped))
 		}
 
 		input := f.Argument(0)
@@ -830,7 +831,7 @@ func (rm *RuntimeJavaScriptMatchCore) matchKick(r *goja.Runtime) func(goja.Funct
 func (rm *RuntimeJavaScriptMatchCore) matchLabelUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		if rm.stopped.Load() {
-			panic(r.NewGoError(matchStoppedError))
+			panic(r.NewGoError(errMatchStopped))
 		}
 
 		input := getJsString(r, f.Argument(0))

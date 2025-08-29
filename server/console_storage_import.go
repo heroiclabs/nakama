@@ -137,7 +137,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(400)
-		if _, err := w.Write([]byte(fmt.Sprintf("Error importing uploaded file - %s.", err))); err != nil {
+		if _, err := fmt.Fprintf(w, "Error importing uploaded file - %s.", err.Error()); err != nil {
 			s.logger.Error("Error writing storage import response", zap.Error(err))
 		}
 	} else {
