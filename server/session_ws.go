@@ -67,6 +67,8 @@ type sessionWS struct {
 	runtime         *Runtime
 
 	stopped                bool
+	closeSentCAS           *atomic.Uint32
+	closeWaitCh            chan struct{}
 	conn                   *websocket.Conn
 	receivedMessageCounter int
 	pingTimer              *time.Timer
@@ -120,6 +122,8 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessi
 		runtime:         runtime,
 
 		stopped:                false,
+		closeSentCAS:           atomic.NewUint32(0),
+		closeWaitCh:            make(chan struct{}),
 		conn:                   conn,
 		receivedMessageCounter: config.GetSocket().PingBackoffThreshold,
 		pingTimer:              time.NewTimer(time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond),
@@ -188,6 +192,15 @@ func (s *sessionWS) Consume() {
 		s.maybeResetPingTimer()
 		return nil
 	})
+	s.conn.SetCloseHandler(func(code int, text string) error {
+		if s.closeSentCAS.CompareAndSwap(0, 1) {
+			message := websocket.FormatCloseMessage(code, "")
+			_ = s.conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(s.pongWaitDuration))
+		} else {
+			close(s.closeWaitCh)
+		}
+		return nil
+	})
 
 	// Start a routine to process outbound messages.
 	go s.processOutgoing()
@@ -210,6 +223,7 @@ IncomingLoop:
 			}
 			break
 		}
+
 		if messageType != s.wsMessageType {
 			// Expected text but received binary, or expected binary but received text.
 			// Disconnect client if it attempts to use this kind of mixed protocol mode.
@@ -509,17 +523,36 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 		s.Unlock()
 	}
 
-	// Send close message.
-	if err := s.conn.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(s.writeWaitDuration)); err != nil {
-		// This may not be possible if the socket was already fully closed by an error.
-		s.logger.Debug("Could not send close message", zap.Error(err))
+	if msg != "" {
+		if s.closeSentCAS.CompareAndSwap(0, 1) {
+			// Server initiated close, attempt to send a close control message.
+			reasonMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, msg)
+			if err := s.conn.WriteControl(websocket.CloseMessage, reasonMsg, time.Now().Add(s.writeWaitDuration)); err != nil {
+				// This may not be possible if the socket was already fully closed by an error.
+				s.logger.Debug("Could not send close message", zap.Error(err))
+			} else {
+				t := time.NewTimer(10 * time.Second)
+				defer t.Stop()
+				select {
+				case <-s.closeWaitCh:
+					s.logger.Debug("socket close ack received")
+				case <-t.C:
+					s.logger.Debug("socket close ack not received within 10 seconds")
+				}
+			}
+		}
 	}
+
 	// Close WebSocket.
 	if err := s.conn.Close(); err != nil {
 		s.logger.Debug("Could not close", zap.Error(err))
 	}
 
-	s.logger.Info("Closed client connection")
+	if msg != "" {
+		s.logger.Debug("Closed client connection", zap.String("reason", msg))
+	} else {
+		s.logger.Debug("Closed client connection")
+	}
 
 	// Fire an event for session end.
 	if fn := s.runtime.EventSessionEnd(); fn != nil {
