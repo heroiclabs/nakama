@@ -1891,7 +1891,6 @@ type groupSqlStruct struct {
 }
 
 func sqlMapper(row *groupSqlStruct) (*api.Group, *time.Time) {
-
 	open := true
 	if row.state.Int64 == 1 {
 		open = false
