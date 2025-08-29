@@ -24,6 +24,8 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	ncRuntime "github.com/heroiclabs/nakama-common/runtime"
+
 	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -90,14 +92,14 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 						continue
 					}
 
-					voidedReceipts, err := iap.ListVoidedReceiptsGoogle(g.ctx, httpc, g.config.GetIAP().Google.ClientEmail, g.config.GetIAP().Google.PrivateKey, g.config.GetIAP().Google.PackageName)
+					voidedReceipts, err := iap.ListVoidedReceiptsGoogle(g.ctx, iap.Httpc, g.config.GetIAP().Google.ClientEmail, g.config.GetIAP().Google.PrivateKey, g.config.GetIAP().Google.PackageName)
 					if err != nil {
 						g.logger.Error("Failed to get IAP Google voided receipts", zap.Error(err))
 						continue
 					}
 
 					for _, vr := range voidedReceipts {
-						purchase, err := GetPurchaseByTransactionId(g.ctx, g.logger, g.db, vr.PurchaseToken)
+						purchase, err := iap.GetPurchaseByTransactionId(g.ctx, g.logger, g.db, vr.PurchaseToken)
 						if err != nil {
 							g.logger.Error("Failed to get purchase by transaction_id", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 							continue
@@ -121,41 +123,41 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								continue
 							}
 
-							refundTime := parseMillisecondUnixTimestamp(refundTimeInt)
+							refundTime := iap.ParseMillisecondUnixTimestamp(refundTimeInt)
 
-							sPurchase := &storagePurchase{
-								userID:        uuid.Must(uuid.FromString(purchase.UserId)),
-								store:         purchase.Store,
-								productId:     purchase.ProductId,
-								transactionId: purchase.TransactionId,
-								purchaseTime:  purchase.PurchaseTime.AsTime(),
-								createTime:    purchase.CreateTime.AsTime(),
-								updateTime:    purchase.UpdateTime.AsTime(),
-								refundTime:    refundTime,
-								environment:   purchase.Environment,
+							sPurchase := &ncRuntime.StoragePurchase{
+								UserID:        uuid.Must(uuid.FromString(purchase.UserId)),
+								Store:         purchase.Store,
+								ProductId:     purchase.ProductId,
+								TransactionId: purchase.TransactionId,
+								PurchaseTime:  purchase.PurchaseTime.AsTime(),
+								CreateTime:    purchase.CreateTime.AsTime(),
+								UpdateTime:    purchase.UpdateTime.AsTime(),
+								RefundTime:    refundTime,
+								Environment:   purchase.Environment,
 							}
 
-							dbPurchases, err := upsertPurchases(g.ctx, g.db, []*storagePurchase{sPurchase})
+							dbPurchases, err := iap.UpsertPurchases(g.ctx, g.db, []*ncRuntime.StoragePurchase{sPurchase})
 							if err != nil {
 								g.logger.Error("Failed to upsert Google voided purchase", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 								continue
 							}
 							dbPurchase := dbPurchases[0]
-							suid := dbPurchase.userID.String()
-							if dbPurchase.userID.IsNil() {
+							suid := dbPurchase.UserID.String()
+							if dbPurchase.UserID.IsNil() {
 								suid = ""
 							}
 							validatedPurchase := &api.ValidatedPurchase{
 								UserId:        suid,
-								ProductId:     dbPurchase.productId,
-								TransactionId: dbPurchase.transactionId,
-								Store:         dbPurchase.store,
-								PurchaseTime:  timestamppb.New(dbPurchase.purchaseTime),
-								CreateTime:    timestamppb.New(dbPurchase.createTime),
-								UpdateTime:    timestamppb.New(dbPurchase.updateTime),
-								RefundTime:    timestamppb.New(dbPurchase.refundTime),
+								ProductId:     dbPurchase.ProductId,
+								TransactionId: dbPurchase.TransactionId,
+								Store:         dbPurchase.Store,
+								PurchaseTime:  timestamppb.New(dbPurchase.PurchaseTime),
+								CreateTime:    timestamppb.New(dbPurchase.CreateTime),
+								UpdateTime:    timestamppb.New(dbPurchase.UpdateTime),
+								RefundTime:    timestamppb.New(dbPurchase.RefundTime),
 								Environment:   purchase.Environment,
-								SeenBefore:    dbPurchase.seenBefore,
+								SeenBefore:    dbPurchase.SeenBefore,
 							}
 
 							json, err := json.Marshal(vr)
@@ -170,7 +172,7 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								}
 							}
 						} else {
-							subscription, err := getSubscriptionByOriginalTransactionId(g.ctx, g.logger, g.db, vr.PurchaseToken)
+							subscription, err := iap.GetSubscriptionByOriginalTransactionId(g.ctx, g.logger, g.db, vr.PurchaseToken)
 							if err != nil && err != sql.ErrNoRows {
 								g.logger.Error("Failed to get subscription by original_transaction_id", zap.Error(err), zap.String("original_transaction_id", vr.PurchaseToken))
 								continue
@@ -198,48 +200,48 @@ func (g *LocalGoogleRefundScheduler) Start(runtime *Runtime) {
 								continue
 							}
 
-							refundTime := parseMillisecondUnixTimestamp(refundTimeInt)
+							refundTime := iap.ParseMillisecondUnixTimestamp(refundTimeInt)
 
-							sSubscription := &storageSubscription{
-								originalTransactionId: subscription.OriginalTransactionId,
-								userID:                uuid.Must(uuid.FromString(subscription.UserId)),
-								store:                 subscription.Store,
-								productId:             subscription.ProductId,
-								purchaseTime:          subscription.PurchaseTime.AsTime(),
-								createTime:            subscription.CreateTime.AsTime(),
-								updateTime:            subscription.UpdateTime.AsTime(),
-								refundTime:            refundTime,
-								environment:           subscription.Environment,
-								expireTime:            subscription.ExpiryTime.AsTime(),
+							sSubscription := &ncRuntime.StorageSubscription{
+								OriginalTransactionId: subscription.OriginalTransactionId,
+								UserID:                uuid.Must(uuid.FromString(subscription.UserId)),
+								Store:                 subscription.Store,
+								ProductId:             subscription.ProductId,
+								PurchaseTime:          subscription.PurchaseTime.AsTime(),
+								CreateTime:            subscription.CreateTime.AsTime(),
+								UpdateTime:            subscription.UpdateTime.AsTime(),
+								RefundTime:            refundTime,
+								Environment:           subscription.Environment,
+								ExpireTime:            subscription.ExpiryTime.AsTime(),
 							}
 
 							if err = ExecuteInTx(g.ctx, g.db, func(tx *sql.Tx) error {
-								return upsertSubscription(g.ctx, tx, sSubscription)
+								return iap.UpsertSubscription(g.ctx, tx, sSubscription)
 							}); err != nil {
 								g.logger.Error("Failed to upsert Google voided subscription", zap.Error(err), zap.String("purchase_token", vr.PurchaseToken))
 								continue
 							}
 
 							active := false
-							if sSubscription.expireTime.After(time.Now()) {
+							if sSubscription.ExpireTime.After(time.Now()) {
 								active = true
 							}
 
-							suid := sSubscription.userID.String()
-							if sSubscription.userID.IsNil() {
+							suid := sSubscription.UserID.String()
+							if sSubscription.UserID.IsNil() {
 								suid = ""
 							}
 
 							validatedSubscription := &api.ValidatedSubscription{
 								UserId:                suid,
-								ProductId:             sSubscription.productId,
-								OriginalTransactionId: sSubscription.originalTransactionId,
-								Store:                 sSubscription.store,
-								PurchaseTime:          timestamppb.New(sSubscription.purchaseTime),
-								CreateTime:            timestamppb.New(sSubscription.createTime),
-								UpdateTime:            timestamppb.New(sSubscription.updateTime),
-								Environment:           sSubscription.environment,
-								ExpiryTime:            timestamppb.New(sSubscription.expireTime),
+								ProductId:             sSubscription.ProductId,
+								OriginalTransactionId: sSubscription.OriginalTransactionId,
+								Store:                 sSubscription.Store,
+								PurchaseTime:          timestamppb.New(sSubscription.PurchaseTime),
+								CreateTime:            timestamppb.New(sSubscription.CreateTime),
+								UpdateTime:            timestamppb.New(sSubscription.UpdateTime),
+								Environment:           sSubscription.Environment,
+								ExpiryTime:            timestamppb.New(sSubscription.ExpireTime),
 								RefundTime:            timestamppb.New(refundTime),
 								Active:                active,
 							}

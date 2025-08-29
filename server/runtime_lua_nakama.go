@@ -35,6 +35,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/iap"
 	"io"
 	"net/http"
 	"strconv"
@@ -7871,7 +7872,7 @@ func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
 		return 0
 	}
 
-	purchase, err := GetPurchaseByTransactionId(l.Context(), n.logger, n.db, transactionID)
+	purchase, err := iap.GetPurchaseByTransactionId(l.Context(), n.logger, n.db, transactionID)
 	if err != nil {
 		l.RaiseError("error retrieving purchase: %v", err.Error())
 		return 0

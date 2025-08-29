@@ -16,13 +16,62 @@ package server
 
 import (
 	"context"
-
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama/v3/iap"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseProviderResponse, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	purchaseProvider, err := iap.GetPurchaseProvider(in.Platform, s.runtime.purchaseProviders)
+	if err != nil {
+		s.logger.Warn("Purchase provider not found", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to get purchase provider")
+	}
+
+	if fn := s.runtime.BeforeValidatePurchase(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	persist := true
+	if in.Persist != nil {
+		persist = in.Persist.GetValue()
+	}
+
+	validatedPurchasesResponse, err := ValidatePurchase(ctx, s.logger, s.db, purchaseProvider, in, userID, persist)
+
+	if fn := s.runtime.AfterValidatePurchase(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, nil, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return validatedPurchasesResponse, err
+}
 
 func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)

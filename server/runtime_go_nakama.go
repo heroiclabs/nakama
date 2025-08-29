@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/heroiclabs/nakama/v3/iap"
 	"os"
 	"strings"
 	"sync"
@@ -65,6 +66,8 @@ type RuntimeGoNakamaModule struct {
 	satori               runtime.Satori
 	fleetManager         runtime.FleetManager
 	storageIndex         StorageIndex
+	purchaseProviders    map[string]runtime.PurchaseProvider
+	refundFns            map[string]runtime.RefundFns
 }
 
 func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori) *RuntimeGoNakamaModule {
@@ -91,6 +94,9 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 		node: config.GetName(),
 
 		satori: satoriClient,
+
+		purchaseProviders: make(map[string]runtime.PurchaseProvider),
+		refundFns:         make(map[string]runtime.RefundFns),
 	}
 }
 
@@ -3323,7 +3329,7 @@ func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, 
 		return nil, errors.New("expects a transaction id string.")
 	}
 
-	return GetPurchaseByTransactionId(ctx, n.logger, n.db, transactionID)
+	return iap.GetPurchaseByTransactionId(ctx, n.logger, n.db, transactionID)
 }
 
 // @group subscriptions
