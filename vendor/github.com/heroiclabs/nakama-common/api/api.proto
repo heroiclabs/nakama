@@ -1057,6 +1057,8 @@ message Tournament {
   Operator operator = 19;
   // Whether the leaderboard was created authoritatively or not.
   bool authoritative = 20;
+  // Whether the user must join the tournament before being able to submit scores.
+  bool join_required = 21;
 }
 
 // A list of tournaments.
