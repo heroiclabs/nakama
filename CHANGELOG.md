@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Update Satori client types to match latest API spec.
 
+### Added
+- Add join required field to tournament payload.
+
 ## [3.30.0] - 2025-08-10
 ### Added
 - Send In-App Notification for friend removal or friend request rejection.

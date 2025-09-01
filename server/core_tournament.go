@@ -369,6 +369,7 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			Duration:      uint32(leaderboard.Duration),
 			StartActive:   uint32(startActive),
 			Authoritative: leaderboard.Authoritative,
+			JoinRequired:  leaderboard.JoinRequired,
 		}
 		if leaderboard.EndTime != 0 {
 			record.EndTime = &timestamppb.Timestamp{Seconds: leaderboard.EndTime}

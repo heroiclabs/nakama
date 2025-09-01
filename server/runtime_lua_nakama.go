@@ -8381,7 +8381,7 @@ func (n *RuntimeLuaNakamaModule) tournamentsGetId(l *lua.LState) int {
 }
 
 func tournamentToLuaTable(l *lua.LState, tournament *api.Tournament) (*lua.LTable, error) {
-	tt := l.CreateTable(0, 18)
+	tt := l.CreateTable(0, 19)
 
 	tt.RawSetString("id", lua.LString(tournament.Id))
 	tt.RawSetString("title", lua.LString(tournament.Title))
@@ -8420,6 +8420,7 @@ func tournamentToLuaTable(l *lua.LState, tournament *api.Tournament) (*lua.LTabl
 		tt.RawSetString("end_time", lua.LNumber(tournament.EndTime.Seconds))
 	}
 	tt.RawSetString("operator", lua.LString(strings.ToLower(tournament.Operator.String())))
+	tt.RawSetString("join_required", lua.LBool(tournament.JoinRequired))
 
 	return tt, err
 }
