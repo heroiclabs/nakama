@@ -4,8 +4,14 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+### Changed
+- Build with Go 1.25.0.
+
 ### Fixed
 - Update Satori client types to match latest API spec.
+- Ensure Console UI loads correctly when served over non-SSL connections.
+- Fix match detail view in Console UI.
 
 ### Added
 - Add join required field to tournament payload.
