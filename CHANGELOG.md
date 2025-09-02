@@ -5,6 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.31.0] - 2025-09-02
 ### Changed
 - Build with Go 1.25.0.
 
@@ -14,7 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix match detail view in Console UI.
 
 ### Added
-- Add join required field to tournament payload.
+- Add API response field indicating if join is required for tournaments.
 
 ## [3.30.0] - 2025-08-10
 ### Added
