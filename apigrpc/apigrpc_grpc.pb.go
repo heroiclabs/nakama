@@ -830,8 +830,9 @@ func (c *nakamaClient) ListMatches(ctx context.Context, in *api.ListMatchesReque
 }
 
 func (c *nakamaClient) ListParties(ctx context.Context, in *api.ListPartiesRequest, opts ...grpc.CallOption) (*api.PartyList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.PartyList)
-	err := c.cc.Invoke(ctx, Nakama_ListParties_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, Nakama_ListParties_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
