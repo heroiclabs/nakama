@@ -42,8 +42,19 @@ func (g *GooglePurchaseProvider) GetProviderString() string {
 	return runtime.Google.String()
 }
 
-func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
-	if g.config.GetGoogle().GetClientEmail() == "" || g.config.GetGoogle().GetPrivateKey() == "" {
+func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, overrides runtime.PurchaseProviderOverrides) ([]*runtime.StoragePurchase, error) {
+	clientEmail := g.config.GetGoogle().GetClientEmail()
+	privateKey := g.config.GetGoogle().GetPrivateKey()
+
+	if overrides.ClientEmail != "" {
+		clientEmail = overrides.ClientEmail
+	}
+
+	if overrides.PrivateKey != "" {
+		privateKey = overrides.PrivateKey
+	}
+
+	if clientEmail == "" || privateKey == "" {
 		return nil, status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
 	}
 
@@ -56,7 +67,7 @@ func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 		g.logger.Error("Error parsing user ID, error: %v", err)
 	}
 
-	gResponse, gReceipt, raw, err := iap.ValidateReceiptGoogle(ctx, iap.Httpc, g.config.GetGoogle().GetClientEmail(), g.config.GetGoogle().GetPrivateKey(), in.Receipt)
+	gResponse, gReceipt, raw, err := iap.ValidateReceiptGoogle(ctx, iap.Httpc, clientEmail, privateKey, in.Receipt)
 	if err != nil {
 		if err != context.Canceled {
 			var vErr *iap.ValidationError

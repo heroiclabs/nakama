@@ -35,7 +35,7 @@ func (h *HuaweiPurchaseProvider) GetProviderString() string {
 	return runtime.Huawei.String()
 }
 
-func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
+func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, overrides runtime.PurchaseProviderOverrides) ([]*runtime.StoragePurchase, error) {
 	if h.config.GetHuawei().GetPublicKey() == "" ||
 		h.config.GetHuawei().GetClientID() == "" ||
 		h.config.GetHuawei().GetClientSecret() == "" {

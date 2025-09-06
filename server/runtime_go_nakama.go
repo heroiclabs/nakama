@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/heroiclabs/nakama/v3/iap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"os"
 	"strings"
 	"sync"
@@ -3137,6 +3139,57 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 	}
 
 	return TournamentRecordsHaystack(ctx, n.logger, n.db, n.leaderboardCache, n.leaderboardRankCache, id, cursor, owner, limit, expiry)
+}
+
+// @group purchases
+// @summary Validates and stores the purchases present in an Apple App Store Receipt.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param signature(type=string) The receipt signature
+// @param platform(type=string) Platform the receipt is from
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, userID, receipt, signature, platform string, persist bool, overrides ...runtime.PurchaseProviderOverrides) (*api.ValidatePurchaseProviderResponse, error) {
+	purchaseProvider, err := iap.GetPurchaseProvider(platform, n.purchaseProviders)
+	if err != nil {
+		n.logger.Warn("Purchase provider not found", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to get purchase provider")
+	}
+
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(receipt) < 1 {
+		return nil, errors.New("receipt cannot be empty string")
+	}
+
+	in := &api.ValidatePurchaseRequest{
+		Platform:  platform,
+		Receipt:   receipt,
+		Signature: signature,
+	}
+
+	var oRides struct {
+		Password    string
+		ClientEmail string
+		PrivateKey  string
+	}
+
+	if len(overrides) > 0 {
+		oRides = overrides[0]
+	}
+
+	validation, err := ValidatePurchase(ctx, n.logger, n.db, purchaseProvider, in, uid, persist, oRides)
+	if err != nil {
+		return nil, err
+	}
+
+	return validation, nil
 }
 
 // @group purchases

@@ -44,8 +44,9 @@ func (a *ApplePurchaseProvider) GetProviderString() string {
 	return runtime.Apple.String()
 }
 
-func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
-	if a.config.GetApple().GetSharedPassword() == "" {
+func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, overrides runtime.PurchaseProviderOverrides) ([]*runtime.StoragePurchase, error) {
+
+	if a.config.GetApple().GetSharedPassword() == "" && overrides.Password == "" {
 		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
 	}
 
@@ -58,7 +59,12 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.Va
 		a.logger.Error("Error parsing user ID, error: %v", err)
 	}
 
-	validation, raw, err := iap.ValidateReceiptApple(ctx, iap.Httpc, in.Receipt, a.config.GetApple().GetSharedPassword())
+	password := a.config.GetApple().GetSharedPassword()
+	if overrides.Password != "" {
+		password = overrides.Password
+	}
+
+	validation, raw, err := iap.ValidateReceiptApple(ctx, iap.Httpc, in.Receipt, password)
 	if err != nil {
 		if err != context.Canceled {
 			var vErr *iap.ValidationError

@@ -87,9 +87,12 @@ type RuntimeJavascriptNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 
 	satori runtime.Satori
+
+	purchaseProviders map[string]runtime.PurchaseProvider
+	refundFns         map[string]runtime.RefundFns
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *RuntimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction, purchaseProviders map[string]runtime.PurchaseProvider, refundFns map[string]runtime.RefundFns) *RuntimeJavascriptNakamaModule {
 	return &RuntimeJavascriptNakamaModule{
 		ctx:                  context.Background(),
 		logger:               logger,
@@ -120,6 +123,9 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		matchCreateFn: matchCreateFn,
 
 		satori: satoriClient,
+
+		purchaseProviders: purchaseProviders,
+		refundFns:         refundFns,
 	}
 }
 
@@ -256,6 +262,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"leaderboardRecordDelete":              n.leaderboardRecordDelete(r),
 		"leaderboardsGetId":                    n.leaderboardsGetId(r),
 		"leaderboardRecordsHaystack":           n.leaderboardRecordsHaystack(r),
+		"purchaseValidate":                     n.purchaseValidate(r),
 		"purchaseValidateApple":                n.purchaseValidateApple(r),
 		"purchaseValidateGoogle":               n.purchaseValidateGoogle(r),
 		"purchaseValidateHuawei":               n.purchaseValidateHuawei(r),
@@ -5989,6 +5996,102 @@ func (n *RuntimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runti
 // @summary Validates and stores the purchases present in an Apple App Store Receipt.
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param platform(type=string) platform that the purchase will be validated for
+// @param signature(type=string, optional=true) The receipt signature
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param password(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @param clientEmail(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
+// @param privateKey(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
+// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) purchaseValidate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		password := n.config.GetIAP().Apple.SharedPassword
+		if f.Argument(5) != goja.Undefined() {
+			password = getJsString(r, f.Argument(5))
+		}
+
+		if password == "" {
+			panic(r.NewGoError(errors.New("apple IAP is not configured")))
+		}
+
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		receipt := getJsString(r, f.Argument(1))
+		if receipt == "" {
+			panic(r.NewTypeError("expects receipt"))
+		}
+
+		if f.Argument(2) == goja.Undefined() {
+			panic(r.NewGoError(errors.New("platform is required new")))
+		}
+
+		platform := getJsString(r, f.Argument(2))
+
+		signature := ""
+		if f.Argument(3) != goja.Undefined() {
+			signature = getJsString(r, f.Argument(3))
+		}
+
+		persist := true
+		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
+			persist = getJsBool(r, f.Argument(4))
+		}
+
+		clientEmail := n.config.GetIAP().Google.ClientEmail
+		privateKey := n.config.GetIAP().Google.PrivateKey
+
+		if f.Argument(6) != goja.Undefined() {
+			clientEmail = getJsString(r, f.Argument(6))
+		}
+		if f.Argument(7) != goja.Undefined() {
+			privateKey = getJsString(r, f.Argument(7))
+		}
+
+		if clientEmail == "" || privateKey == "" {
+			panic(r.NewGoError(errors.New("google IAP is not configured")))
+		}
+
+		purchaseProvider, err := iap.GetPurchaseProvider(platform, n.purchaseProviders)
+		if err != nil {
+			n.logger.Warn("Purchase provider not found", zap.Error(err))
+			panic(r.NewGoError(errors.New("purchase provider not found")))
+		}
+
+		in := &api.ValidatePurchaseRequest{
+			Platform:  platform,
+			Receipt:   receipt,
+			Signature: signature,
+		}
+
+		overrides := struct {
+			Password    string
+			ClientEmail string
+			PrivateKey  string
+		}{Password: password, ClientEmail: clientEmail, PrivateKey: privateKey}
+
+		validation, err := ValidatePurchase(n.ctx, n.logger, n.db, purchaseProvider, in, uid, persist, overrides)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
+		}
+
+		validationResult := purchaseProviderResponseToJsObject(validation)
+
+		return r.ToValue(validationResult)
+	}
+}
+
+// @group purchases
+// @summary Validates and stores the purchases present in an Apple App Store Receipt.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
 // @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @param password(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
@@ -9837,6 +9940,18 @@ func purchaseResponseToJsObject(validation *api.ValidatePurchaseResponse) map[st
 	return validationMap
 }
 
+func purchaseProviderResponseToJsObject(validation *api.ValidatePurchaseProviderResponse) map[string]interface{} {
+	validatedPurchases := make([]interface{}, 0, len(validation.ValidatedPurchases))
+	for _, v := range validation.ValidatedPurchases {
+		validatedPurchases = append(validatedPurchases, validatedPurchaseProviderToJsObject(v))
+	}
+
+	validationMap := make(map[string]interface{}, 1)
+	validationMap["validatedPurchases"] = validatedPurchases
+
+	return validationMap
+}
+
 func validatedPurchaseToJsObject(purchase *api.ValidatedPurchase) map[string]interface{} {
 	validatedPurchaseMap := make(map[string]interface{}, 11)
 	validatedPurchaseMap["userId"] = purchase.UserId
@@ -9858,6 +9973,30 @@ func validatedPurchaseToJsObject(purchase *api.ValidatedPurchase) map[string]int
 	}
 	validatedPurchaseMap["environment"] = purchase.Environment.String()
 	validatedPurchaseMap["seenBefore"] = purchase.SeenBefore
+
+	return validatedPurchaseMap
+}
+
+func validatedPurchaseProviderToJsObject(purchase *api.PurchaseProviderValidatedPurchase) map[string]interface{} {
+	validatedPurchaseMap := make(map[string]interface{}, 11)
+	validatedPurchaseMap["userId"] = purchase.UserId
+	validatedPurchaseMap["productId"] = purchase.ProductId
+	validatedPurchaseMap["transactionId"] = purchase.TransactionId
+	validatedPurchaseMap["store"] = purchase.Store.String()
+	validatedPurchaseMap["providerResponse"] = purchase.ProviderResponse
+	validatedPurchaseMap["purchaseTime"] = purchase.PurchaseTime.Seconds
+	if purchase.CreateTime != nil {
+		// Create time is empty for non-persisted purchases.
+		validatedPurchaseMap["createTime"] = purchase.CreateTime.Seconds
+	}
+	if purchase.UpdateTime != nil {
+		// Update time is empty for non-persisted purchases.
+		validatedPurchaseMap["updateTime"] = purchase.UpdateTime.Seconds
+	}
+	if purchase.RefundTime != nil {
+		validatedPurchaseMap["refundTime"] = purchase.RefundTime.Seconds
+	}
+	validatedPurchaseMap["environment"] = purchase.Environment.String()
 
 	return validatedPurchaseMap
 }

@@ -88,8 +88,18 @@ func handleValidatedPurchases(ctx context.Context, db *sql.DB, storagePurchases 
 	}, nil
 }
 
-func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, purchaseProvider runtime.PurchaseProvider, in *api.ValidatePurchaseRequest, userID uuid.UUID, persist bool) (*api.ValidatePurchaseProviderResponse, error) {
-	validationPurchases, err := purchaseProvider.PurchaseValidate(ctx, in, userID.String())
+func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, purchaseProvider runtime.PurchaseProvider, in *api.ValidatePurchaseRequest, userID uuid.UUID, persist bool, overrides ...runtime.PurchaseProviderOverrides) (*api.ValidatePurchaseProviderResponse, error) {
+	var oRides struct {
+		Password    string
+		ClientEmail string
+		PrivateKey  string
+	}
+
+	if len(overrides) > 0 {
+		oRides = overrides[0]
+	}
+
+	validationPurchases, err := purchaseProvider.PurchaseValidate(ctx, in, userID.String(), oRides)
 	if err != nil {
 		return nil, err
 	}

@@ -256,6 +256,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterUnlinkSteam":                        im.registerAfterUnlinkSteam(r),
 		"registerBeforeGetUsers":                          im.registerBeforeGetUsers(r),
 		"registerAfterGetUsers":                           im.registerAfterGetUsers(r),
+		"registerBeforeValidatePurchase":                  im.registerBeforeValidatePurchase(r),
+		"registerAfterValidatePurchase":                   im.registerAfterValidatePurchase(r),
 		"registerBeforeValidatePurchaseApple":             im.registerBeforeValidatePurchaseApple(r),
 		"registerAfterValidatePurchaseApple":              im.registerAfterValidatePurchaseApple(r),
 		"registerBeforeValidateSubscriptionApple":         im.registerBeforeValidateSubscriptionApple(r),
@@ -1069,6 +1071,14 @@ func (im *RuntimeJavascriptInitModule) registerAfterGetUsers(r *goja.Runtime) fu
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetUsers", "getusers")
 }
 
+func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchase(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchase", "validatepurchase")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchase(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchase", "validatepurchase")
+}
+
 func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseApple", "validatepurchaseapple")
 }
@@ -1241,7 +1251,7 @@ func (im *RuntimeJavascriptInitModule) registerHook(r *goja.Runtime, execMode Ru
 		}
 		im.registerCallbackFn(execMode, lKey, fnKey)
 		im.announceCallbackFn(execMode, lKey)
-
+		
 		if err = im.checkFnScope(r, fnKey); err != nil {
 			panic(r.NewGoError(err))
 		}

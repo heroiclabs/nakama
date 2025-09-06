@@ -33,7 +33,7 @@ func (f *FacebookPurchaseProvider) GetProviderString() string {
 	return runtime.Facebook.String()
 }
 
-func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string) ([]*runtime.StoragePurchase, error) {
+func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, overrides runtime.PurchaseProviderOverrides) ([]*runtime.StoragePurchase, error) {
 	if f.config.GetFacebookInstant().GetAppSecret() == "" {
 		return nil, status.Error(codes.FailedPrecondition, "Facebook Instant IAP is not configured.")
 	}

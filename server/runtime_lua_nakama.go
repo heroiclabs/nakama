@@ -93,9 +93,12 @@ type RuntimeLuaNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 
 	satori runtime.Satori
+
+	purchaseProviders map[string]runtime.PurchaseProvider
+	refundFns         map[string]runtime.RefundFns
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, purchaseProviders map[string]runtime.PurchaseProvider, refundFns map[string]runtime.RefundFns, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -129,6 +132,9 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		eventFn:       eventFn,
 
 		satori: satoriClient,
+
+		purchaseProviders: purchaseProviders,
+		refundFns:         refundFns,
 	}
 }
 
@@ -272,6 +278,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_records_haystack":              n.leaderboardRecordsHaystack,
 		"leaderboard_record_delete":                 n.leaderboardRecordDelete,
 		"leaderboards_get_id":                       n.leaderboardsGetId,
+		"purchase_validate":                         n.purchaseValidate,
 		"purchase_validate_apple":                   n.purchaseValidateApple,
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
@@ -2814,6 +2821,18 @@ func purchaseValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchas
 	return validationResponseTable
 }
 
+func purchaseProviderValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchaseProviderResponse) *lua.LTable {
+	validatedPurchasesTable := l.CreateTable(len(validation.ValidatedPurchases), 0)
+	for i, p := range validation.ValidatedPurchases {
+		validatedPurchasesTable.RawSetInt(i+1, purchaseProviderToLuaTable(l, p))
+	}
+
+	validationResponseTable := l.CreateTable(0, 1)
+	validationResponseTable.RawSetString("validated_purchases", validatedPurchasesTable)
+
+	return validationResponseTable
+}
+
 func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	validatedPurchaseTable := l.CreateTable(0, 11)
 
@@ -2836,6 +2855,31 @@ func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	}
 	validatedPurchaseTable.RawSetString("environment", lua.LString(p.Environment.String()))
 	validatedPurchaseTable.RawSetString("seen_before", lua.LBool(p.SeenBefore))
+
+	return validatedPurchaseTable
+}
+
+func purchaseProviderToLuaTable(l *lua.LState, p *api.PurchaseProviderValidatedPurchase) *lua.LTable {
+	validatedPurchaseTable := l.CreateTable(0, 11)
+
+	validatedPurchaseTable.RawSetString("user_id", lua.LString(p.UserId))
+	validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
+	validatedPurchaseTable.RawSetString("transaction_id", lua.LString(p.TransactionId))
+	validatedPurchaseTable.RawSetString("store", lua.LString(p.Store.String()))
+	validatedPurchaseTable.RawSetString("provider_response", lua.LString(p.ProviderResponse))
+	validatedPurchaseTable.RawSetString("purchase_time", lua.LNumber(p.PurchaseTime.Seconds))
+	if p.CreateTime != nil {
+		// Create time is empty for non-persisted purchases.
+		validatedPurchaseTable.RawSetString("create_time", lua.LNumber(p.CreateTime.Seconds))
+	}
+	if p.UpdateTime != nil {
+		// Update time is empty for non-persisted purchases.
+		validatedPurchaseTable.RawSetString("update_time", lua.LNumber(p.UpdateTime.Seconds))
+	}
+	if p.RefundTime != nil {
+		validatedPurchaseTable.RawSetString("refund_time", lua.LNumber(p.RefundTime.Seconds))
+	}
+	validatedPurchaseTable.RawSetString("environment", lua.LString(p.Environment.String()))
 
 	return validatedPurchaseTable
 }
@@ -7668,6 +7712,93 @@ func leaderboardToLuaTable(l *lua.LState, leaderboard *api.Leaderboard) (*lua.LT
 	}
 
 	return lt, nil
+}
+
+// @group purchases
+// @summary Validates and stores the purchases present in an Apple App Store Receipt.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param platform(type=string) The platform to validate a purchase for.
+// @param signature(type=string) The receipt signature
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @param clientEmailOverride(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
+// @param privateKeyOverride(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
+// @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) purchaseValidate(l *lua.LState) int {
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	receipt := l.CheckString(2)
+	if receipt == "" {
+		l.ArgError(2, "expects receipt")
+		return 0
+	}
+
+	platform := l.CheckString(3)
+	if platform == "" {
+		l.RaiseError("no platform passed")
+		return 0
+	}
+
+	signature := l.OptString(4, "")
+
+	persist := l.OptBool(5, true)
+
+	passwordOverride := l.OptString(6, n.config.GetIAP().Apple.SharedPassword)
+	if passwordOverride == "" {
+		l.RaiseError("Apple IAP is not configured.")
+		return 0
+	}
+
+	clientEmail := l.OptString(7, n.config.GetIAP().Google.ClientEmail)
+	if clientEmail == "" {
+		l.RaiseError("Google IAP is not configured.")
+		return 0
+	}
+
+	privateKey := l.OptString(8, n.config.GetIAP().Google.PrivateKey)
+	if privateKey == "" {
+		l.RaiseError("Google IAP is not configured.")
+		return 0
+	}
+
+	purchaseProvider, err := iap.GetPurchaseProvider(platform, n.purchaseProviders)
+	if err != nil {
+		n.logger.Warn("Purchase provider not found", zap.Error(err))
+		l.RaiseError("failed to get purchase provider")
+		return 0
+	}
+
+	in := &api.ValidatePurchaseRequest{
+		Platform:  platform,
+		Receipt:   receipt,
+		Signature: signature,
+	}
+
+	overrides := struct {
+		Password    string
+		ClientEmail string
+		PrivateKey  string
+	}{Password: passwordOverride, ClientEmail: clientEmail, PrivateKey: privateKey}
+
+	validation, err := ValidatePurchase(l.Context(), n.logger, n.db, purchaseProvider, in, uid, persist, overrides)
+	if err != nil {
+		l.RaiseError("error validating purchase receipt %v", err.Error())
+		return 0
+	}
+
+	l.Push(purchaseProviderValidationToLuaTable(l, validation))
+	return 1
 }
 
 // @group purchases
