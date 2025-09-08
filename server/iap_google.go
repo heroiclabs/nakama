@@ -104,13 +104,24 @@ func (g *GooglePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 	return []*runtime.StoragePurchase{sPurchase}, nil
 }
 
-func (g *GooglePurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
+func (g *GooglePurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string, overrides runtime.PurchaseProviderOverrides) ([]*runtime.StorageSubscription, error) {
 	uuidUserID, err := uuid.FromString(userID)
 	if err != nil {
 		g.logger.Error("Error parsing user ID, error: %v", err)
 	}
 
-	if g.config.GetGoogle().GetClientEmail() == "" || g.config.GetGoogle().GetPrivateKey() == "" {
+	clientEmail := g.config.GetGoogle().GetClientEmail()
+	privateKey := g.config.GetGoogle().GetPrivateKey()
+
+	if overrides.ClientEmail != "" {
+		clientEmail = overrides.ClientEmail
+	}
+
+	if overrides.PrivateKey != "" {
+		privateKey = overrides.PrivateKey
+	}
+
+	if clientEmail == "" || privateKey == "" {
 		return nil, status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
 	}
 

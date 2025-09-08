@@ -70,7 +70,7 @@ func (f *FacebookPurchaseProvider) PurchaseValidate(ctx context.Context, in *api
 	return []*runtime.StoragePurchase{sPurchase}, nil
 }
 
-func (f *FacebookPurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
+func (f *FacebookPurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string, overrides runtime.PurchaseProviderOverrides) ([]*runtime.StorageSubscription, error) {
 	f.logger.Info("sub validate not supported")
 
 	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported

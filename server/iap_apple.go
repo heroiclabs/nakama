@@ -152,13 +152,13 @@ func (a *ApplePurchaseProvider) PurchaseValidate(ctx context.Context, in *api.Va
 
 }
 
-func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
+func (a *ApplePurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string, overrides runtime.PurchaseProviderOverrides) ([]*runtime.StorageSubscription, error) {
 	uuidUserID, err := uuid.FromString(userID)
 	if err != nil {
 		a.logger.Error("Error parsing user ID, error: %v", err)
 	}
 
-	if a.config.GetApple().GetSharedPassword() == "" {
+	if a.config.GetApple().GetSharedPassword() == "" && overrides.Password == "" {
 		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
 	}
 

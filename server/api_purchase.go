@@ -63,7 +63,7 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurcha
 
 	if fn := s.runtime.AfterValidatePurchase(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, nil, in)
+			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validatedPurchasesResponse, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

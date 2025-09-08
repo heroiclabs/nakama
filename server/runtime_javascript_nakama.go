@@ -269,6 +269,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"purchaseValidateFacebookInstant":      n.purchaseValidateFacebookInstant(r),
 		"purchaseGetByTransactionId":           n.purchaseGetByTransactionId(r),
 		"purchasesList":                        n.purchasesList(r),
+		"subscriptionValidate":                 n.subscriptionValidate(r),
 		"subscriptionValidateApple":            n.subscriptionValidateApple(r),
 		"subscriptionValidateGoogle":           n.subscriptionValidateGoogle(r),
 		"subscriptionGetByProductId":           n.subscriptionGetByProductId(r),
@@ -6369,6 +6370,93 @@ func (n *RuntimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 // @summary Validates and stores the subscription present in an Apple App Store Receipt.
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param platform(type=string) The platform the subscription belongs to.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param password(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @param clientEmail(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
+// @param privateKey(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
+// @return validation(nkruntime.ValidateSubscriptionResponse) The resulting successfully validated subscription.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) subscriptionValidate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		receipt := getJsString(r, f.Argument(1))
+		if receipt == "" {
+			panic(r.NewTypeError("expects receipt"))
+		}
+
+		platform := getJsString(r, f.Argument(2))
+		if platform == "" {
+			panic(r.NewTypeError("expects platform"))
+		}
+
+		persist := true
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			persist = getJsBool(r, f.Argument(3))
+		}
+
+		password := n.config.GetIAP().Apple.SharedPassword
+		if f.Argument(4) != goja.Undefined() {
+			password = getJsString(r, f.Argument(4))
+		}
+		if password == "" {
+			panic(r.NewGoError(errors.New("apple IAP is not configured")))
+		}
+
+		clientEmail := n.config.GetIAP().Google.ClientEmail
+		privateKey := n.config.GetIAP().Google.PrivateKey
+
+		if f.Argument(5) != goja.Undefined() {
+			clientEmail = getJsString(r, f.Argument(5))
+		}
+		if f.Argument(6) != goja.Undefined() {
+			privateKey = getJsString(r, f.Argument(6))
+		}
+
+		if clientEmail == "" || privateKey == "" {
+			panic(r.NewGoError(errors.New("google IAP is not configured")))
+		}
+
+		purchaseProvider, err := iap.GetPurchaseProvider(platform, n.purchaseProviders)
+		if err != nil {
+			n.logger.Warn("Purchase provider not found", zap.Error(err))
+			panic(r.NewGoError(errors.New("purchase provider not found")))
+		}
+
+		in := &api.ValidateSubscriptionRequest{
+			Platform: platform,
+			Receipt:  receipt,
+		}
+
+		overrides := struct {
+			Password    string
+			ClientEmail string
+			PrivateKey  string
+		}{Password: password, ClientEmail: clientEmail, PrivateKey: privateKey}
+
+		validation, err := ValidateSubscription(n.ctx, n.logger, n.db, purchaseProvider, in, uid, persist, overrides)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
+		}
+
+		validationResult := purchaseProviderSubscriptionResponseToJsObject(validation)
+
+		return r.ToValue(validationResult)
+	}
+}
+
+// @group subscriptions
+// @summary Validates and stores the subscription present in an Apple App Store Receipt.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
 // @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @param password(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
 // @return validation(nkruntime.ValidateSubscriptionResponse) The resulting successfully validated subscription.
@@ -9999,6 +10087,19 @@ func validatedPurchaseProviderToJsObject(purchase *api.PurchaseProviderValidated
 	validatedPurchaseMap["environment"] = purchase.Environment.String()
 
 	return validatedPurchaseMap
+}
+
+func purchaseProviderSubscriptionResponseToJsObject(validation *api.ValidatePurchaseProviderSubscriptionResponse) map[string]interface{} {
+	validatedSubscriptions := make([]interface{}, 0, len(validation.ValidatedSubscription))
+
+	for _, s := range validation.ValidatedSubscription {
+		validatedSubscriptions = append(validatedSubscriptions, subscriptionToJsObject(s))
+	}
+
+	validationMap := make(map[string]interface{}, 1)
+	validationMap["validatedSubscription"] = validatedSubscriptions
+
+	return validationMap
 }
 
 func subscriptionResponseToJsObject(validation *api.ValidateSubscriptionResponse) map[string]interface{} {

@@ -1249,6 +1249,7 @@ type NakamaModule interface {
 	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
 	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (*api.ValidatedPurchase, error)
 
+	SubscriptionValidate(ctx context.Context, userID, receipt, platform string, persist bool, overrides ...PurchaseProviderOverrides) (*api.ValidatePurchaseProviderSubscriptionResponse, error)
 	SubscriptionValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidateSubscriptionResponse, error)
 	SubscriptionValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
 		ClientEmail string
@@ -1429,7 +1430,7 @@ type PurchaseProviderOverrides struct {
 type PurchaseProvider interface {
 	Init(purchaseRefundFn PurchaseRefundFn, subscriptionRefundFn SubscriptionRefundFn)
 	PurchaseValidate(ctx context.Context, in *api.ValidatePurchaseRequest, userID string, overrides PurchaseProviderOverrides) ([]*StoragePurchase, error)
-	SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*StorageSubscription, error)
+	SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string, overrides PurchaseProviderOverrides) ([]*StorageSubscription, error)
 	HandleRefund(ctx context.Context) error
 	HandleRefundWrapper(ctx context.Context) (http.HandlerFunc, error)
 	GetProviderString() string

@@ -91,7 +91,7 @@ func (h *HuaweiPurchaseProvider) PurchaseValidate(ctx context.Context, in *api.V
 	return []*runtime.StoragePurchase{sPurchase}, nil
 }
 
-func (h *HuaweiPurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string) ([]*runtime.StorageSubscription, error) {
+func (h *HuaweiPurchaseProvider) SubscriptionValidate(ctx context.Context, in *api.ValidateSubscriptionRequest, userID string, overrides runtime.PurchaseProviderOverrides) ([]*runtime.StorageSubscription, error) {
 	h.logger.Info("Handling refund not supported")
 
 	return nil, runtime.ErrPurchaseProviderFunctionalityNotSupported

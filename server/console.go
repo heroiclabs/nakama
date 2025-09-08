@@ -453,14 +453,12 @@ func initPurchaseProviderRefundHooks(logger *zap.Logger, config Config, refundFn
 	for _, platform := range runtime.AllPlatforms {
 		refundFn, err := iap.GetRefundFn(platform.String(), refundFns)
 		if err != nil {
-			logger.Error("error getting refund function", zap.Error(err))
 			continue
 		}
 
 		provider, err := iap.GetPurchaseProvider(platform.String(), purchaseProviders)
 
 		if err != nil {
-			logger.Error("Error getting provider", zap.Error(err))
 			continue
 		}
 

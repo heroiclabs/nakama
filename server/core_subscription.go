@@ -298,8 +298,18 @@ func handleValidatedSubscriptions(ctx context.Context, db *sql.DB, storageSubscr
 	return &api.ValidatePurchaseProviderSubscriptionResponse{ValidatedSubscription: validatedSubs}, nil
 }
 
-func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, purchaseProvider runtime.PurchaseProvider, in *api.ValidateSubscriptionRequest, userID uuid.UUID, persist bool) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
-	storageSubs, err := purchaseProvider.SubscriptionValidate(ctx, in, userID.String())
+func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, purchaseProvider runtime.PurchaseProvider, in *api.ValidateSubscriptionRequest, userID uuid.UUID, persist bool, overrides ...runtime.PurchaseProviderOverrides) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
+	var oRides struct {
+		Password    string
+		ClientEmail string
+		PrivateKey  string
+	}
+
+	if len(overrides) > 0 {
+		oRides = overrides[0]
+	}
+
+	storageSubs, err := purchaseProvider.SubscriptionValidate(ctx, in, userID.String(), oRides)
 	if err != nil {
 		return nil, err
 	}

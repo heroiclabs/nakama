@@ -3149,7 +3149,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 // @param signature(type=string) The receipt signature
 // @param platform(type=string) Platform the receipt is from
 // @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
-// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @param overrides(type=struct, optional=true) Override the iap.apple.password and iap.google.client_email and iap.google.private_key provided in your configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, userID, receipt, signature, platform string, persist bool, overrides ...runtime.PurchaseProviderOverrides) (*api.ValidatePurchaseProviderResponse, error) {
@@ -3383,6 +3383,54 @@ func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, 
 	}
 
 	return iap.GetPurchaseByTransactionId(ctx, n.logger, n.db, transactionID)
+}
+
+// @group subscriptions
+// @summary Validates and stores the subscription present in an Apple App Store Receipt.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
+// @param persist(type=bool) Persist the subscription.
+// @param overrides(type=struct, optional=true) Override the iap.apple.password and iap.google.client_email and iap.google.private_key provided in your configuration.
+// @return validation(*api.ValidateSubscriptionResponse) The resulting successfully validated subscription purchase.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) SubscriptionValidate(ctx context.Context, userID, receipt, platform string, persist bool, overrides ...runtime.PurchaseProviderOverrides) (*api.ValidatePurchaseProviderSubscriptionResponse, error) {
+	purchaseProvider, err := iap.GetPurchaseProvider(platform, n.purchaseProviders)
+	if err != nil {
+		n.logger.Warn("Purchase provider not found", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to get purchase provider")
+	}
+
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(receipt) < 1 {
+		return nil, errors.New("receipt cannot be empty string")
+	}
+
+	in := &api.ValidateSubscriptionRequest{
+		Receipt:  receipt,
+		Platform: platform,
+	}
+
+	var oRides struct {
+		Password    string
+		ClientEmail string
+		PrivateKey  string
+	}
+
+	if len(overrides) > 0 {
+		oRides = overrides[0]
+	}
+
+	validation, err := ValidateSubscription(ctx, n.logger, n.db, purchaseProvider, in, uid, persist, oRides)
+	if err != nil {
+		return nil, err
+	}
+
+	return validation, nil
 }
 
 // @group subscriptions

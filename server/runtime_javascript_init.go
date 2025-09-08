@@ -258,6 +258,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterGetUsers":                           im.registerAfterGetUsers(r),
 		"registerBeforeValidatePurchase":                  im.registerBeforeValidatePurchase(r),
 		"registerAfterValidatePurchase":                   im.registerAfterValidatePurchase(r),
+		"registerBeforeValidateSubscription":              im.registerBeforeValidateSubscription(r),
+		"registerAfterValidateSubscription":               im.registerAfterValidateSubscription(r),
 		"registerBeforeValidatePurchaseApple":             im.registerBeforeValidatePurchaseApple(r),
 		"registerAfterValidatePurchaseApple":              im.registerAfterValidatePurchaseApple(r),
 		"registerBeforeValidateSubscriptionApple":         im.registerBeforeValidateSubscriptionApple(r),
@@ -1079,6 +1081,14 @@ func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchase(r *goja.Run
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchase", "validatepurchase")
 }
 
+func (im *RuntimeJavascriptInitModule) registerBeforeValidateSubscription(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidateSubscription", "validatesubscription")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterValidateSubscription(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidateSubscription", "validatesubscription")
+}
+
 func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseApple", "validatepurchaseapple")
 }
@@ -1251,7 +1261,7 @@ func (im *RuntimeJavascriptInitModule) registerHook(r *goja.Runtime, execMode Ru
 		}
 		im.registerCallbackFn(execMode, lKey, fnKey)
 		im.announceCallbackFn(execMode, lKey)
-		
+
 		if err = im.checkFnScope(r, fnKey); err != nil {
 			panic(r.NewGoError(err))
 		}

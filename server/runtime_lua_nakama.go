@@ -285,6 +285,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_facebook_instant":        n.purchaseValidateFacebookInstant,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
+		"subscription_validate":                     n.subscriptionValidate,
 		"subscription_validate_apple":               n.subscriptionValidateApple,
 		"subscription_validate_google":              n.subscriptionValidateGoogle,
 		"subscription_get_by_product_id":            n.subscriptionGetByProductId,
@@ -2889,6 +2890,17 @@ func subscriptionValidationToLuaTable(l *lua.LState, validation *api.ValidateSub
 	validatedSubscriptionResTable.RawSetString("validated_subscription", subscriptionToLuaTable(l, validation.ValidatedSubscription))
 
 	return validatedSubscriptionResTable
+}
+
+func purchaseProviderSubscriptionValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchaseProviderSubscriptionResponse) *lua.LTable {
+	validatedSubscriptionResTable := l.CreateTable(len(validation.ValidatedSubscription), 0)
+	for i, s := range validation.ValidatedSubscription {
+		validatedSubscriptionResTable.RawSetInt(i+1, subscriptionToLuaTable(l, s))
+	}
+
+	validationResponseTable := l.CreateTable(0, 1)
+	validationResponseTable.RawSetString("validated_subscriptions", validatedSubscriptionResTable)
+	return validationResponseTable
 }
 
 func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LTable {
@@ -8063,6 +8075,88 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 	}
 
 	return 3
+}
+
+// @group subscriptions
+// @summary Validates and stores the subscription present in an Apple App Store Receipt.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receipt(type=string) Base-64 encoded receipt data returned by the subscription operation itself.
+// @param persist(type=bool, optional=true, default=true) Persist the subscription.
+// @param passwordOverride(type=string, optional=true) Override the iap.apple.shared_password provided in your configuration.
+// @param clientEmailOverride(type=string, optional=true) Override the iap.google.client_email provided in your configuration.
+// @param privateKeyOverride(type=string, optional=true) Override the iap.google.private_key provided in your configuration.
+// @return validation(table) The resulting successfully validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) subscriptionValidate(l *lua.LState) int {
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	receipt := l.CheckString(2)
+	if receipt == "" {
+		l.ArgError(2, "expects receipt")
+		return 0
+	}
+
+	platform := l.CheckString(3)
+	if platform == "" {
+		l.RaiseError("no platform passed")
+		return 0
+	}
+
+	persist := l.OptBool(4, true)
+
+	passwordOverride := l.OptString(5, n.config.GetIAP().Apple.SharedPassword)
+	if passwordOverride == "" {
+		l.RaiseError("Apple IAP is not configured.")
+		return 0
+	}
+
+	clientEmail := l.OptString(6, n.config.GetIAP().Google.ClientEmail)
+	if clientEmail == "" {
+		l.RaiseError("Google IAP is not configured.")
+		return 0
+	}
+
+	privateKey := l.OptString(7, n.config.GetIAP().Google.PrivateKey)
+	if privateKey == "" {
+		l.RaiseError("Google IAP is not configured.")
+		return 0
+	}
+
+	purchaseProvider, err := iap.GetPurchaseProvider(platform, n.purchaseProviders)
+	if err != nil {
+		n.logger.Warn("Purchase provider not found", zap.Error(err))
+		l.RaiseError("failed to get purchase provider")
+		return 0
+	}
+
+	in := &api.ValidateSubscriptionRequest{
+		Platform: platform,
+		Receipt:  receipt,
+	}
+
+	overrides := struct {
+		Password    string
+		ClientEmail string
+		PrivateKey  string
+	}{Password: passwordOverride, ClientEmail: clientEmail, PrivateKey: privateKey}
+
+	validation, err := ValidateSubscription(l.Context(), n.logger, n.db, purchaseProvider, in, uid, persist, overrides)
+	if err != nil {
+		l.RaiseError("error validating receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(purchaseProviderSubscriptionValidationToLuaTable(l, validation))
+	return 1
 }
 
 // @group subscriptions
