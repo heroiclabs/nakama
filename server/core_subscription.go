@@ -376,20 +376,8 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 	}
 
 	purchaseEnv := api.StoreEnvironment_PRODUCTION
-	if gResponse.PurchaseType == 0 {
+	if gResponse.TestPurchase != nil {
 		purchaseEnv = api.StoreEnvironment_SANDBOX
-	}
-
-	expireTimeInt, err := strconv.ParseInt(gResponse.ExpiryTimeMillis, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	expireTime := parseMillisecondUnixTimestamp(expireTimeInt)
-
-	active := false
-	if expireTime.After(time.Now()) {
-		active = true
 	}
 
 	storageSub := &storageSubscription{
@@ -399,7 +387,7 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		productId:             gReceipt.ProductID,
 		purchaseTime:          parseMillisecondUnixTimestamp(gReceipt.PurchaseTime),
 		environment:           purchaseEnv,
-		expireTime:            expireTime,
+		expireTime:            gResponse.LineItems[0].ExpiryTime,
 		rawResponse:           string(rawResponse),
 	}
 
@@ -415,7 +403,6 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		Store:                 storageSub.store,
 		PurchaseTime:          timestamppb.New(storageSub.purchaseTime),
 		Environment:           storageSub.environment,
-		Active:                active,
 		ExpiryTime:            timestamppb.New(storageSub.expireTime),
 		ProviderResponse:      storageSub.rawResponse,
 		ProviderNotification:  storageSub.rawNotification,
@@ -442,6 +429,7 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
 	validatedSub.ProviderResponse = storageSub.rawResponse
 	validatedSub.ProviderNotification = storageSub.rawNotification
+	validatedSub.Active = gResponse.LineItems[0].ExpiryTime.After(time.Now()) && validatedSub.RefundTime.AsTime().IsZero()
 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
@@ -1288,7 +1276,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 		switch {
 		case googleNotification.SubscriptionNotification != nil:
-			gSubscription, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.SubscriptionNotification.PurchaseToken)
+			gSubscription, _, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.SubscriptionNotification.PurchaseToken)
 			if err != nil {
 				var vErr *iap.ValidationError
 				if errors.As(err, &vErr) {
@@ -1418,7 +1406,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 		case googleNotification.VoidedPurchaseNotification != nil:
 			if googleNotification.VoidedPurchaseNotification.ProductType == runtime.GoogleProductTypeSubscription {
 				// This is a subscription related refund/voided notification.
-				gSubscription, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.SubscriptionNotification.PurchaseToken)
+				gSubscription, _, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.SubscriptionNotification.PurchaseToken)
 				if err != nil {
 					var vErr *iap.ValidationError
 					if errors.As(err, &vErr) {
