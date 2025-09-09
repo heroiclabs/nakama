@@ -369,16 +369,16 @@ type Initializer interface {
 	RegisterLeaderboardReset(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, leaderboard *api.Leaderboard, reset int64) error) error
 
 	// RegisterPurchaseNotificationApple
-	RegisterPurchaseNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error) error
+	RegisterPurchaseNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, purchase *api.ValidatedPurchase, payload *AppleNotificationData) error) error
 
 	// RegisterSubscriptionNotificationApple
-	RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, subscription *api.ValidatedSubscription, providerPayload string) error) error
+	RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, subscription *api.ValidatedSubscription, payload *AppleNotificationData) error) error
 
 	// RegisterPurchaseNotificationGoogle
-	RegisterPurchaseNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error) error
+	RegisterPurchaseNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, purchase *api.ValidatedPurchase, providerPayload *PurchaseV2GoogleResponse) error) error
 
 	// RegisterSubscriptionNotificationGoogle
-	RegisterSubscriptionNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, subscription *api.ValidatedSubscription, providerPayload string) error) error
+	RegisterSubscriptionNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, subscription *api.ValidatedSubscription, providerPayload *SubscriptionV2GoogleResponse) error) error
 
 	// RegisterBeforeGetAccount is used to register a function invoked when the server receives the relevant request.
 	RegisterBeforeGetAccount(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule) error) error
@@ -1522,4 +1522,484 @@ type Message struct {
 type MessageUpdate struct {
 	ReadTime    int64 `json:"read_time,omitempty"`
 	ConsumeTime int64 `json:"consume_time,omitempty"`
+}
+
+/*
+IAP Notifications.
+*/
+type AppleNotificationData struct {
+	AppAppleId               string                            `json:"appAppleId"`               // The unique identifier of the app that the notification applies to. This property is available for apps that users download from the App Store. It isn’t present in the sandbox environment.
+	BundleId                 string                            `json:"bundleId"`                 // The bundle identifier of the app.
+	BundleVersion            string                            `json:"bundleVersion"`            // The version of the build that identifies an iteration of the bundle.
+	ConsumptionRequestReason string                            `json:"consumptionRequestReason"` // The reason the customer requested the refund. This field appears only for CONSUMPTION_REQUEST notifications, which the server sends when a customer initiates a refund request for a consumable in-app purchase or auto-renewable subscription.
+	Environment              string                            `json:"string"`                   // The server environment that the notification applies to, either sandbox or production.
+	SignedRenewalInfo        string                            `json:"signedRenewalInfo"`        // Subscription renewal information signed by the App Store, in JSON Web Signature (JWS) format. This field appears only for notifications that apply to auto-renewable subscriptions.
+	SignedTransactionInfo    string                            `json:"signedTransactionInfo"`    // Transaction information signed by the App Store, in JSON Web Signature (JWS) format.
+	Status                   AppleSubscriptionStatus           `json:"status"`                   // The status of an auto-renewable subscription as of the signedDate in the responseBodyV2DecodedPayload. This field appears only for notifications sent for auto-renewable subscriptions. https://developer.apple.com/documentation/appstoreservernotifications/status
+	RenewalInfo              *AppleNotificationRenewalInfo     `json:"renewalInfo"`
+	TransactionInfo          *AppleNotificationTransactionInfo `json:"transactionInfo"`
+}
+
+type AppleSubscriptionStatus int32
+
+const (
+	AppleSubActive             AppleSubscriptionStatus = 1 // The auto-renewable subscription is active.
+	AppleSubExpired            AppleSubscriptionStatus = 2 // The auto-renewable subscription is expired.
+	AppleSubBillingRetryPeriod AppleSubscriptionStatus = 3 // The auto-renewable subscription is in a billing retry period.
+	AppleSubBillingGracePeriod AppleSubscriptionStatus = 4 // The auto-renewable subscription is in a Billing Grace Period.
+	AppleSubRevoked            AppleSubscriptionStatus = 5 // The auto-renewable subscription is revoked.
+)
+
+func (s AppleSubscriptionStatus) String() string {
+	switch s {
+	case AppleSubActive:
+		return "ACTIVE"
+	case AppleSubExpired:
+		return "EXPIRED"
+	case AppleSubBillingRetryPeriod:
+		return "BILLING_RETRY_PERIOD"
+	case AppleSubBillingGracePeriod:
+		return "BILLING_GRACE_PERIOD"
+	case AppleSubRevoked:
+		return "REVOKED"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// Reference: https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload
+type AppleNotificationTransactionInfo struct {
+	AppAccountToken             string                `json:"appAccountToken"`             // A UUID you create at the time of purchase that associates the transaction with a customer on your own service. If your app doesn’t provide an appAccountToken, this field is omitted.
+	AppTransactionId            string                `json:"appTransactionId"`            // The unique identifier of the app download transaction.
+	BundleId                    string                `json:"bundleId"`                    // The bundle identifier of the app.
+	Currency                    string                `json:"currency"`                    // The three-letter ISO 4217 currency code associated with the price parameter. This value is present only if price is present.
+	Environment                 string                `json:"environment"`                 // The server environment, either sandbox or production.
+	ExpiresDate                 int64                 `json:"expiresDate"`                 // The UNIX time, in milliseconds, that the subscription expires or renews.
+	InAppOwnershipType          string                `json:"inAppOwnershipType"`          // A string that describes whether the transaction was purchased by the customer, or is available to them through Family Sharing. Possible Values: FAMILY_SHARED | PURCHASED.
+	IsUpgraded                  bool                  `json:"isUpgraded"`                  // A Boolean value that indicates whether the customer upgraded to another subscription.
+	OfferDiscountType           string                `json:"offerDiscountType"`           // The payment mode you configure for the subscription offer, such as Free Trial, Pay As You Go, or Pay Up Front.
+	OfferIdentifier             string                `json:"offerIdentifier"`             // The identifier that contains the offer code or the promotional offer identifier.
+	OfferPeriod                 string                `json:"offerPeriod"`                 // The duration of the offer applied to the transaction.
+	OfferType                   AppleOfferType        `json:"offerType"`                   // A value that represents the promotional offer type.
+	OriginalPurchaseDate        int64                 `json:"originalPurchaseDate"`        // The UNIX time, in milliseconds, that represents the purchase date of the original transaction identifier.
+	OriginalTransactionId       string                `json:"originalTransactionId"`       // The transaction identifier of the original purchase.
+	Price                       int64                 `json:"price"`                       // An integer value that represents the price multiplied by 1000 of the in-app purchase or subscription offer you configured in App Store Connect and that the system records at the time of the purchase.
+	ProductId                   string                `json:"productId"`                   // The unique identifier of the product.
+	PurchaseDate                int64                 `json:"purchaseDate"`                // The UNIX time, in milliseconds, that the App Store charged the customer’s account for a purchase, restored product, subscription, or subscription renewal after a lapse.
+	Quantity                    int32                 `json:"quantity"`                    // The number of consumable products the customer purchased.
+	RevocationDate              int64                 `json:"revocationDate"`              // The UNIX time, in milliseconds, that the App Store refunded the transaction or revoked it from Family Sharing.
+	RevocationReason            AppleRevocationReason `json:"revocationReason"`            // The reason for a refunded transaction.
+	SignedDate                  int64                 `json:"signedDate"`                  // The UNIX time, in milliseconds, that the App Store signed the JSON Web Signature (JWS) data.
+	Storefront                  string                `json:"storefront"`                  // The three-letter code that represents the country or region associated with the App Store storefront for the purchase.
+	StorefrontId                string                `json:"storefrontId"`                //  An Apple-defined value that uniquely identifies the App Store storefront associated with the purchase.
+	SubscriptionGroupIdentifier string                `json:"subscriptionGroupIdentifier"` // The identifier of the subscription group to which the subscription belongs.
+	TransactionId               string                `json:"transactionId"`               // The unique identifier of the transaction.
+	TransactionReason           string                `json:"transactionReason"`           // The cause of a purchase transaction, which indicates whether it’s a customer’s purchase or a renewal for an auto-renewable subscription that the system initiates. Values: PURCHASE | RENEWAL.
+	Type                        string                `json:"type"`                        // The type of the in-app purchase. Values: Auto-Renewable Subscription | Non-Consumable | Consumable | Non-Renewing Subscription.
+	WebOrderLineItemId          string                `json:"webOrderLineItemId"`          // The unique identifier of subscription-purchase events across devices, including renewals.
+}
+
+// Reference: https://developer.apple.com/documentation/appstoreserverapi/jwsrenewalinfodecodedpayload
+type AppleNotificationRenewalInfo struct {
+	AppAccountToken             string                   `json:"appAccountToken"`             // A UUID you create at the time of purchase that associates the transaction with a customer on your own service. If your app doesn’t provide an appAccountToken, this field is omitted.
+	AppTransactionId            string                   `json:"appTransactionId"`            // The unique identifier of the app download transaction.
+	AutoRenewProductId          string                   `json:"autoRenewProductId"`          // The identifier of the product that renews at the next billing period.
+	AutoRenewStatus             AppleAutoRenewStatus     `json:"autoRenewStatus"`             // A value that indicates whether the subscription renews at the end of the current billing period. Possible Values: 1 (true) | 0 (false).
+	EligibleWinBackOfferIds     []string                 `json:"eligibleWinBackOfferIds"`     // The list of win-back offer IDs that the customer is eligible for.
+	Environment                 string                   `json:"environment"`                 // The server environment, either sandbox or production.
+	ExpirationIntent            AppleExpirationIntent    `json:"expirationIntent"`            // The reason the subscription expired.
+	GracePeriodExpiresDate      int64                    `json:"gracePeriodExpiresDate"`      // The time when the Billing Grace Period for subscription renewals expires.
+	IsInBillingRetryPeriod      bool                     `json:"isInBillingRetryPeriod"`      // A Boolean value that indicates whether the App Store is attempting to automatically renew the expired subscription.
+	OfferDiscountType           string                   `json:"offerDiscountType"`           // The payment mode for subscription offers on an auto-renewable subscription. Possible values: FREE_TRIAL | PAY_AS_YOU_GO | PAY_UP_FRONT.
+	OfferIdentifier             string                   `json:"offerIdentifier"`             // The identifier that contains the offer code or the promotional offer identifier.
+	OfferType                   AppleOfferType           `json:"offerType"`                   // A value that represents the promotional offer type.
+	OriginalTransactionId       string                   `json:"originalTransactionId"`       // The transaction identifier of the original purchase.
+	PriceIncreaseStatus         ApplePriceIncreaseStatus `json:"priceIncreaseStatus"`         // A value that indicates whether the customer has agreed to a recent price increase. Possible Values: 1 (true) | 0 (false).
+	ProductId                   string                   `json:"productId"`                   // The unique identifier of the product.
+	RecentSubscriptionStartDate int64                    `json:"recentSubscriptionStartDate"` // The UNIX time, in milliseconds, that the current subscription period for the customer’s most recent subscription purchase or renewal began.
+	RenewalDate                 int64                    `json:"renewalDate"`                 // The UNIX time, in milliseconds, that the subscription will renew or has renewed.
+	RenewalPrice                int64                    `json:"renewalPrice"`                // The renewal price, in milliunits, of the auto-renewable subscription that renews at the next billing period.
+	SignedDate                  int64                    `json:"signedDate"`                  // The UNIX time, in milliseconds, that the App Store signed the JSON Web Signature (JWS) data.
+	SubscriptionGroupId         string                   `json:"subscriptionGroupId"`         // The identifier of the subscription group to which the subscription belongs.
+}
+
+type ApplePriceIncreaseStatus int32
+
+const (
+	ApplePriceIncreaseStatusNotAgreed ApplePriceIncreaseStatus = 0 // The customer has not yet agreed to the price increase.
+	ApplePriceIncreaseStatusAgreed    ApplePriceIncreaseStatus = 1 // The customer has agreed to the price increase.
+)
+
+func (s ApplePriceIncreaseStatus) String() string {
+	switch s {
+	case ApplePriceIncreaseStatusNotAgreed:
+		return "NOT_AGREED"
+	case ApplePriceIncreaseStatusAgreed:
+		return "AGREED"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+type AppleExpirationIntent int32
+
+const (
+	AppleSubscriptionCancelled          AppleExpirationIntent = 1
+	AppleSubscriptionBillingError       AppleExpirationIntent = 2
+	AppleSubscriptionPriceIncrease      AppleExpirationIntent = 3
+	AppleSubscriptionProductUnavailable AppleExpirationIntent = 4
+	AppleSubscriptionUnknownError       AppleExpirationIntent = 5
+)
+
+func (s AppleExpirationIntent) String() string {
+	switch s {
+	case AppleSubscriptionCancelled:
+		return "CANCELLED"
+	case AppleSubscriptionBillingError:
+		return "BILLING_ERROR"
+	case AppleSubscriptionPriceIncrease:
+		return "PRICE_INCREASE"
+	case AppleSubscriptionProductUnavailable:
+		return "PRODUCT_UNAVAILABLE"
+	case AppleSubscriptionUnknownError:
+		return "UNKNOWN_ERROR"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+type AppleAutoRenewStatus int32
+
+const (
+	AppleAutoRenewStatusOff AppleAutoRenewStatus = 0 // The customer has turned off auto-renewal for their subscription.
+	AppleAutoRenewStatusOn  AppleAutoRenewStatus = 1 // The customer has turned on auto-renewal for their subscription.
+)
+
+func (s AppleAutoRenewStatus) String() string {
+	switch s {
+	case AppleAutoRenewStatusOff:
+		return "OFF"
+	case AppleAutoRenewStatusOn:
+		return "ON"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+type AppleOfferType int32
+
+const (
+	IntroductoryOffer     AppleOfferType = 1
+	PromotionalOffer      AppleOfferType = 2
+	SubscriptionOfferCode AppleOfferType = 3
+	WinBackOffer          AppleOfferType = 4
+)
+
+func (s AppleOfferType) String() string {
+	switch s {
+	case IntroductoryOffer:
+		return "INTRODUCTORY_OFFER"
+	case PromotionalOffer:
+		return "PROMOTIONAL_OFFER"
+	case SubscriptionOfferCode:
+		return "SubscriptionOfferCode"
+	case WinBackOffer:
+		return "WIN_BACK"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// Apple Notification types
+const (
+	AppleNotifConsumptionRequest   = "CONSUMPTION_REQUEST"
+	AppleNotifDidChangeRenewalPref = "DID_CHANGE_RENEWAL_PREF"
+)
+
+type AppleRevocationReason int32
+
+const (
+	OtherReasons      AppleRevocationReason = 0 // The App Store refunded the transaction on behalf of the customer for other reasons, for example, an accidental purchase.
+	AppPerceivedIssue AppleRevocationReason = 1 // The App Store refunded the transaction on behalf of the customer due to an actual or perceived issue within your app.
+)
+
+type NotificationType int
+
+const (
+	IAPNotificationSubscribed NotificationType = 1
+	IAPNotificationRenewed    NotificationType = 2
+	IAPNotificationExpired    NotificationType = 3
+	IAPNotificationCancelled  NotificationType = 4
+	IAPNotificationRefunded   NotificationType = 5
+)
+
+func (nt NotificationType) String() string {
+	switch nt {
+	case IAPNotificationSubscribed:
+		return "SUBSCRIBED"
+	case IAPNotificationRenewed:
+		return "RENEWED"
+	case IAPNotificationExpired:
+		return "EXPIRED"
+	case IAPNotificationCancelled:
+		return "CANCELLED"
+	case IAPNotificationRefunded:
+		return "REFUNDED"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// Reference: https://developer.android.com/google/play/billing/rtdn-reference
+type GoogleDeveloperNotificationData struct {
+	Version                    string                            `json:"version"`
+	PackageName                string                            `json:"packageName"`
+	EventTimeMillis            string                            `json:"eventTimeMillis"`
+	OneTimeProductNotification *GoogleOneTimeProductNotification `json:"oneTimeProductNotification"`
+	SubscriptionNotification   *GoogleSubscriptionNotification   `json:"subscriptionNotification"`
+	VoidedPurchaseNotification *GoogleVoidedPurchaseNotification `json:"voidedPurchaseNotification"`
+	TestNotification           map[string]string                 `json:"testNotification"`
+}
+
+type GoogleOneTimeProductNotification struct {
+	Version          string `json:"version"`
+	NotificationType int    `json:"notificationType"`
+	PurchaseToken    string `json:"purchaseToken"`
+	Sku              string `json:"sku"`
+}
+
+type GoogleSubscriptionNotification struct {
+	Version          string                             `json:"version"`
+	NotificationType GoogleSubscritpionNotificationType `json:"notificationType"`
+	PurchaseToken    string                             `json:"purchaseToken"`
+}
+
+type GoogleSubscritpionNotificationType int
+
+const (
+	GoogleSubscriptionRecovered               GoogleSubscritpionNotificationType = 1
+	GoogleSubscriptionRenewed                 GoogleSubscritpionNotificationType = 2
+	GoogleSubscriptionCanceled                GoogleSubscritpionNotificationType = 3
+	GoogleSubscriptionPurchased               GoogleSubscritpionNotificationType = 4
+	GoogleSubscriptionOnHold                  GoogleSubscritpionNotificationType = 5
+	GoogleSubscriptionInGracePeriod           GoogleSubscritpionNotificationType = 6
+	GoogleSubscriptionRestarted               GoogleSubscritpionNotificationType = 7
+	GoogleSubscriptionPriceChangeConfirmed    GoogleSubscritpionNotificationType = 8 // Deprecated
+	GoogleSubscriptionDeferred                GoogleSubscritpionNotificationType = 9
+	GoogleSubscriptionPaused                  GoogleSubscritpionNotificationType = 10
+	GoogleSubscriptionPauseScheduleChanged    GoogleSubscritpionNotificationType = 11
+	GoogleSubscriptionRevoked                 GoogleSubscritpionNotificationType = 12
+	GoogleSubscriptionExpired                 GoogleSubscritpionNotificationType = 13
+	GoogleSubscriptionPendingPurchaseCanceled GoogleSubscritpionNotificationType = 20
+	GoogleSubscriptionPriceChangeUpdated      GoogleSubscritpionNotificationType = 19
+)
+
+func (nt GoogleSubscritpionNotificationType) String() string {
+	switch nt {
+	case GoogleSubscriptionRecovered:
+		return "SUBSCRIBED"
+	case GoogleSubscriptionRenewed:
+		return "RENEWED"
+	case GoogleSubscriptionCanceled:
+		return "CANCELED"
+	case GoogleSubscriptionPurchased:
+		return "PURCHASED"
+	case GoogleSubscriptionOnHold:
+		return "ON_HOLD"
+	case GoogleSubscriptionInGracePeriod:
+		return "IN_GRACE_PERIOD"
+	case GoogleSubscriptionRestarted:
+		return "RESTARTED"
+	case GoogleSubscriptionPriceChangeConfirmed:
+		return "PRICE_CHANGE_CONFIRMED"
+	case GoogleSubscriptionDeferred:
+		return "DEFERRED"
+	case GoogleSubscriptionPaused:
+		return "PAUSED"
+	case GoogleSubscriptionPauseScheduleChanged:
+		return "PAUSE_SCHEDULE_CHANGED"
+	case GoogleSubscriptionRevoked:
+		return "REVOKED"
+	case GoogleSubscriptionExpired:
+		return "EXPIRED"
+	case GoogleSubscriptionPendingPurchaseCanceled:
+		return "PENDING_PURCHASE_CANCELED"
+	case GoogleSubscriptionPriceChangeUpdated:
+		return "PRICE_CHANGE_UPDATED"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+type GoogleVoidedPurchaseNotification struct {
+	PurchaseToken string            `json:"purchaseToken"`
+	OrderId       string            `json:"orderId"`
+	ProductType   GoogleProductType `json:"productType"`
+	RefundType    GoogleRefundType  `json:"refundType"`
+}
+
+type GoogleProductType int
+
+const (
+	GoogleProductTypeSubscription GoogleProductType = 1
+	GoogleProductTypeOneTime      GoogleProductType = 2
+)
+
+type GoogleRefundType int
+
+const (
+	GoogleRefundTypeFullRefund                 GoogleProductType = 1
+	GoogleRefundTypeQuantityBasedPartialRefund GoogleProductType = 2
+)
+
+type SubscriptionV2GoogleResponse struct {
+	Kind       string `json:"kind"`
+	RegionCode string `json:"regionCode"`
+	LineItems  []struct {
+		ProductId               string    `json:"productId"`
+		ExpiryTime              time.Time `json:"expiryTime"`
+		LatestSuccessfulOrderId string    `json:"latestSuccessfulOrderId"`
+		AutoRenewingPlan        struct {
+			AutoRenewEnabled bool `json:"autoRenewEnabled"`
+			RecurringPrice   struct {
+				Units        string `json:"units"`
+				Nanos        int64  `json:"nanos"`
+				CurrencyCode string `json:"currencyCode"`
+			} `json:"recurringPrice"`
+			PriceChangeDetails struct {
+				NewPrice struct {
+					Units        string `json:"units"`
+					Nanos        int64  `json:"nanos"`
+					CurrencyCode string `json:"currencyCode"`
+				} `json:"newPrice"`
+				PriceChangeMode            int       `json:"priceChangeMode"`
+				PriceChangeState           int       `json:"priceChangeState"`
+				ExpectedNewPriceChargeTime time.Time `json:"expectedNewPriceChargeTime"`
+			} `json:"priceChangeDetails"`
+			InstallmentDetails struct {
+				InitialCommittedPaymentsCount    int      `json:"initialCommittedPaymentsCount"`
+				SubsequentCommittedPaymentsCount int      `json:"subsequentCommittedPaymentsCount"`
+				RemainingCommittedPaymentsCount  int      `json:"remainingCommittedPaymentsCount"`
+				PendingCancellation              struct{} `json:"pendingCancellation"`
+			} `json:"installmentDetails"`
+			PriceStepUpConsentDetails struct {
+				State               int       `json:"state"`
+				ConsentDeadlineTime time.Time `json:"consentDeadlineTime"`
+				NewPrice            struct {
+					Units        string `json:"units"`
+					Nanos        int64  `json:"nanos"`
+					CurrencyCode string `json:"currencyCode"`
+				} `json:"newPrice"`
+			} `json:"priceStepUpConsentDetails"`
+		} `json:"autoRenewingPlan"`
+		PrepaidPlan struct {
+			AllowExtendAfterTime time.Time `json:"allowExtendAfterTime"`
+		} `json:"prepaidPlan"`
+		OfferDetails struct {
+			BasePlanId string   `json:"basePlanId"`
+			OfferId    string   `json:"offerId"`
+			OfferTags  []string `json:"offerTags"`
+		} `json:"offerDetails"`
+		DeferredItemReplacement struct {
+			ProductId string `json:"productId"`
+		} `json:"DeferredItemReplacement"`
+		DeferredItemRemoval struct{} `json:"deferredItemRemoval"`
+		SignupPromotion     struct {
+			OneTimeCode struct {
+				PromotionCode string `json:"promotionCode"`
+			} `json:"oneTimeCode"`
+			VanityCode struct {
+				PromotionType string `json:"promotionType"`
+			} `json:"promotionType"`
+		} `json:"signupPromotion"`
+	} `json:"lineItems"`
+	StartTime           time.Time `json:"startTime"`
+	SubscriptionState   string    `json:"subscriptionState"`
+	LatestOrderId       string    `json:"latestOrderId"` // Deprecated: use lineItems.latestSuccessfulOrderId
+	LinkedPurchaseToken string    `json:"linkedPurchaseToken"`
+	PausedStateContext  struct {
+		AutoResumeTime time.Time `json:"autoResumeTime"`
+	} `json:"pausedStateContext"`
+	CancelStateContext struct {
+		UserInitiatedCancellation struct {
+			CancelSurveyResult struct {
+				Reason          int    `json:"reason"`
+				ReasonUserInput string `json:"reasonUserInput"`
+			} `json:"cancelSurveyResult"`
+		} `json:"userInitiatedCancellation"`
+		SystemInitiatedCancellation    struct{} `json:"systemInitiatedCancellation"`
+		DeveloperInitiatedCancellation struct{} `json:"developerInitiatedCancellation"`
+		ReplacementCancellation        struct{} `json:"replacementCancellation"`
+	} `json:"cancelStateContext"`
+	TestPurchase               *struct{} `json:"testPurchase"`
+	AcknowledgementState       int       `json:"acknowledgementState"`
+	ExternalAccountIdentifiers struct {
+		ExternalAccountId           string `json:"externalAccountId"`
+		ObfuscatedExternalAccountId string `json:"obfuscatedExternalAccountId"`
+		ObfuscatedExternalProfileId string `json:"obfuscatedExternalProfileId"`
+	} `json:"externalAccountIdentifiers"`
+	SubscribeWithGoogleInfo struct {
+		ProfileId    string `json:"profileId"`
+		ProfileName  string `json:"profileName"`
+		EmailAddress string `json:"emailAddress"`
+		GivenName    string `json:"givenName"`
+		FamilyName   string `json:"familyName"`
+	} `json:"subscribeWithGoogleInfo"`
+}
+
+func (s *SubscriptionV2GoogleResponse) GetObfuscatedExternalAccountId() string {
+	return s.ExternalAccountIdentifiers.ObfuscatedExternalAccountId
+}
+
+func (s *SubscriptionV2GoogleResponse) GetObfuscatedExternalProfileId() string {
+	return s.ExternalAccountIdentifiers.ObfuscatedExternalProfileId
+}
+
+const (
+	SubscriptionGoogleStateUnspecified             = "SUBSCRIPTION_STATE_UNSPECIFIED"
+	SubscriptionGoogleStatePending                 = "SUBSCRIPTION_STATE_PENDING"
+	SubscriptionGoogleStateActive                  = "SUBSCRIPTION_STATE_ACTIVE"
+	SubscriptionGoogleStatePaused                  = "SUBSCRIPTION_STATE_PAUSED"
+	SubscriptionGoogleStateInGracePeriod           = "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"
+	SubscriptionGoogleStateOnHold                  = "SUBSCRIPTION_STATE_ON_HOLD"
+	SubscriptionGoogleStateCanceled                = "SUBSCRIPTION_STATE_CANCELED"
+	SubscriptionGoogleStateExpired                 = "SUBSCRIPTION_STATE_EXPIRED"
+	SubscriptionGoogleStatePendingPurchaseCanceled = "SUBSCRIPTION_STATE_PENDING_PURCHASE_CANCELED"
+)
+
+type PurchaseV2GoogleResponse struct {
+	ProductLineItem []struct {
+		ProductId           string `json:"productId"`
+		ProductOfferDetails struct {
+			OfferTags          []string `json:"offerTags"`
+			OfferId            string   `json:"offerId"`
+			PurchaseOptionId   string   `json:"purchaseOptionId"`
+			RentOfferDetails   struct{} `json:"rentOfferDetails"`
+			OfferToken         string   `json:"offerToken"`
+			Quantity           int      `json:"quantity"`
+			RefundableQuantity int      `json:"refundableQuantity"`
+			ConsumptionState   string   `json:"consumptionState"`
+		} `json:"productOfferDetails"`
+	} `json:"productLineItem"`
+	Kind                 string `json:"kind"`
+	PurchaseStateContext struct {
+		PurchaseState string `json:"purchaseState"`
+	} `json:"purchaseStateContext"`
+	TestPurchaseContext *struct {
+		FopType string `json:"fopType"`
+	} `json:"testPurchaseContext"`
+	OrderId                     string    `json:"orderId"`
+	ObfuscatedExternalAccountId string    `json:"obfuscatedExternalAccountId"`
+	ObfuscatedExternalProfileId string    `json:"obfuscatedExternalProfileId"`
+	RegionCode                  string    `json:"regionCode"`
+	PurchaseCompletionTime      time.Time `json:"purchaseCompletionTime"`
+	AcknowledgementState        string    `json:"acknowledgementState"`
+}
+
+func (p *PurchaseV2GoogleResponse) GetObfuscatedExternalAccountId() string {
+	return p.ObfuscatedExternalAccountId
+}
+
+func (p *PurchaseV2GoogleResponse) GetObfuscatedExternalProfileId() string {
+	return p.ObfuscatedExternalProfileId
 }

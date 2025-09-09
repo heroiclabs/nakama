@@ -361,8 +361,6 @@ func (im *RuntimeJavascriptInitModule) getConfig(r *goja.Runtime) func(goja.Func
 		_ = iapGoogleCfg.Set("client_email", rnc.GetIAP().GetGoogle().GetClientEmail())
 		_ = iapGoogleCfg.Set("private_key", rnc.GetIAP().GetGoogle().GetPrivateKey())
 		_ = iapGoogleCfg.Set("notifications_endpoint_id", rnc.GetIAP().GetGoogle().GetNotificationsEndpointId())
-		_ = iapGoogleCfg.Set("refund_check_period_min", rnc.GetIAP().GetGoogle().GetRefundCheckPeriodMin())
-		_ = iapGoogleCfg.Set("package_name", rnc.GetIAP().GetGoogle().GetPackageName())
 
 		iapHuaweiCfg := r.NewObject()
 		_ = iapHuaweiCfg.Set("public_key", rnc.GetIAP().GetHuawei().GetPublicKey())

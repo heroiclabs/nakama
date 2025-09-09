@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/heroiclabs/nakama-common/runtime"
 )
 
 const (
@@ -591,7 +592,6 @@ func requestVoidedTransactionsGoogle(ctx context.Context, httpc *http.Client, pa
 
 // https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions#get
 type ValidateSubscriptionReceiptGoogleResponse struct {
-	// TODO: add introductoryPriceInfo, cancelSurveyResult and priceChange fields
 	Kind                        string `json:"kind"`
 	StartTimeMillis             string `json:"startTimeMillis"`
 	ExpiryTimeMillis            string `json:"expiryTimeMillis"`
@@ -692,6 +692,126 @@ func ValidateSubscriptionReceiptGoogleWithIDs(ctx context.Context, httpc *http.C
 		return out, gr, buf, nil
 	default:
 		return nil, nil, nil, &ValidationError{
+			Err:        ErrNon200ServiceGoogle,
+			StatusCode: resp.StatusCode,
+			Payload:    string(buf),
+		}
+	}
+}
+
+func GetPurchaseV2Google(ctx context.Context, httpc *http.Client, clientEmail, privateKey, packageName, purchaseToken string) (*runtime.PurchaseV2GoogleResponse, error) {
+	if len(clientEmail) < 1 {
+		return nil, errors.New("'clientEmail' must not be empty")
+	}
+
+	if len(privateKey) < 1 {
+		return nil, errors.New("'privateKey' must not be empty")
+	}
+
+	if len(purchaseToken) < 1 {
+		return nil, errors.New("'purchaseToken' must not be empty")
+	}
+
+	token, err := getGoogleAccessToken(ctx, httpc, clientEmail, privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	u := &url.URL{
+		Host:     "androidpublisher.googleapis.com",
+		Path:     fmt.Sprintf("androidpublisher/v3/applications/%s/purchases/productsv2/tokens/%s", packageName, purchaseToken),
+		RawQuery: fmt.Sprintf("access_token=%s", token),
+		Scheme:   "https",
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.StatusCode {
+	case 200:
+		out := &runtime.PurchaseV2GoogleResponse{}
+		if err = json.Unmarshal(buf, &out); err != nil {
+			return nil, err
+		}
+
+		return out, nil
+	default:
+		return nil, &ValidationError{
+			Err:        ErrNon200ServiceGoogle,
+			StatusCode: resp.StatusCode,
+			Payload:    string(buf),
+		}
+	}
+}
+
+func GetSubscriptionV2Google(ctx context.Context, httpc *http.Client, clientEmail, privateKey, packageName, purchaseToken string) (*runtime.SubscriptionV2GoogleResponse, error) {
+	if len(clientEmail) < 1 {
+		return nil, errors.New("'clientEmail' must not be empty")
+	}
+
+	if len(privateKey) < 1 {
+		return nil, errors.New("'privateKey' must not be empty")
+	}
+
+	if len(purchaseToken) < 1 {
+		return nil, errors.New("'purchaseToken' must not be empty")
+	}
+
+	token, err := getGoogleAccessToken(ctx, httpc, clientEmail, privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	u := &url.URL{
+		Host:     "androidpublisher.googleapis.com",
+		Path:     fmt.Sprintf("androidpublisher/v3/applications/%s/purchases/subscriptionsv2/tokens/%s", packageName, purchaseToken),
+		RawQuery: fmt.Sprintf("access_token=%s", token),
+		Scheme:   "https",
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.StatusCode {
+	case 200:
+		out := &runtime.SubscriptionV2GoogleResponse{}
+		if err = json.Unmarshal(buf, &out); err != nil {
+			return nil, err
+		}
+
+		return out, nil
+	default:
+		return nil, &ValidationError{
 			Err:        ErrNon200ServiceGoogle,
 			StatusCode: resp.StatusCode,
 			Payload:    string(buf),

@@ -104,8 +104,6 @@ type IAPGoogleConfig interface {
 	GetClientEmail() string
 	GetPrivateKey() string
 	GetNotificationsEndpointId() string
-	GetRefundCheckPeriodMin() int
-	GetPackageName() string
 }
 
 type SatoriConfig interface {

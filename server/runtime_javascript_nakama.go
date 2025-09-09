@@ -6078,7 +6078,7 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 			panic(r.NewGoError(errors.New("google IAP is not configured")))
 		}
 
-		validation, err := ValidatePurchaseGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, "", 10, ""}, receipt, persist)
+		validation, err := ValidatePurchaseGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, ""}, receipt, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
