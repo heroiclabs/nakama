@@ -18,13 +18,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -230,10 +231,10 @@ type (
 
 	RuntimeLeaderboardResetFunction func(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error
 
-	RuntimePurchaseNotificationAppleFunction      func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error
-	RuntimeSubscriptionNotificationAppleFunction  func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
-	RuntimePurchaseNotificationGoogleFunction     func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error
-	RuntimeSubscriptionNotificationGoogleFunction func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error
+	RuntimePurchaseNotificationAppleFunction      func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.AppleNotificationData) error
+	RuntimeSubscriptionNotificationAppleFunction  func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.AppleNotificationData) error
+	RuntimePurchaseNotificationGoogleFunction     func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.PurchaseV2GoogleResponse) error
+	RuntimeSubscriptionNotificationGoogleFunction func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.SubscriptionV2GoogleResponse) error
 
 	RuntimeStorageIndexFilterFunction func(ctx context.Context, write *StorageOpWrite) (bool, error)
 

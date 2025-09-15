@@ -10937,8 +10937,6 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 	iapGoogleCfg.RawSetString("client_email", lua.LString(rnc.GetIAP().GetGoogle().GetClientEmail()))
 	iapGoogleCfg.RawSetString("private_key", lua.LString(rnc.GetIAP().GetGoogle().GetPrivateKey()))
 	iapGoogleCfg.RawSetString("notifications_endpoint_id", lua.LString(rnc.GetIAP().GetGoogle().GetNotificationsEndpointId()))
-	iapGoogleCfg.RawSetString("refund_check_period_min", lua.LNumber(rnc.GetIAP().GetGoogle().GetRefundCheckPeriodMin()))
-	iapGoogleCfg.RawSetString("package_name", lua.LString(rnc.GetIAP().GetGoogle().GetPackageName()))
 
 	iapHuaweiCfg := l.CreateTable(0, 3)
 	iapHuaweiCfg.RawSetString("public_key", lua.LString(rnc.GetIAP().GetHuawei().GetPublicKey()))

@@ -187,7 +187,6 @@ func main() {
 	leaderboardCache := server.NewLocalLeaderboardCache(ctx, logger, startupLogger, db)
 	leaderboardRankCache := server.NewLocalLeaderboardRankCache(ctx, startupLogger, db, config.GetLeaderboard(), leaderboardCache)
 	leaderboardScheduler := server.NewLocalLeaderboardScheduler(logger, db, config, leaderboardCache, leaderboardRankCache)
-	googleRefundScheduler := server.NewGoogleRefundScheduler(logger, db, config)
 	matchRegistry := server.NewLocalMatchRegistry(logger, startupLogger, config, sessionRegistry, tracker, router, metrics, config.GetName())
 	tracker.SetMatchJoinListener(matchRegistry.Join)
 	tracker.SetMatchLeaveListener(matchRegistry.Leave)
@@ -216,7 +215,6 @@ func main() {
 	}()
 
 	leaderboardScheduler.Start(runtime)
-	googleRefundScheduler.Start(runtime)
 
 	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, statusRegistry, matchRegistry, partyRegistry, matchmaker, tracker, router, runtime)
 	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, tracker, metrics, config.GetName())
@@ -255,7 +253,6 @@ func main() {
 	consoleServer.Stop()
 	matchmaker.Stop()
 	leaderboardScheduler.Stop()
-	googleRefundScheduler.Stop()
 	tracker.Stop()
 	statusRegistry.Stop()
 	sessionCache.Stop()

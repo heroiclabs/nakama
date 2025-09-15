@@ -21,13 +21,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/heroiclabs/nakama-common/runtime"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -1173,20 +1174,36 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 				runtimeProviderLua.Shutdown(ctx)
 			}
 		case RuntimeExecutionModePurchaseNotificationApple:
-			purchaseNotificationAppleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
-				return runtimeProviderLua.PurchaseNotificationApple(ctx, purchase, providerPayload)
+			purchaseNotificationAppleFunction = func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.AppleNotificationData) error {
+				providerJson, err := json.Marshal(providerPayload)
+				if err != nil {
+					return err
+				}
+				return runtimeProviderLua.PurchaseNotificationApple(ctx, purchase, string(providerJson))
 			}
 		case RuntimeExecutionModeSubscriptionNotificationApple:
-			subscriptionNotificationAppleFunction = func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
-				return runtimeProviderLua.SubscriptionNotificationApple(ctx, subscription, providerPayload)
+			subscriptionNotificationAppleFunction = func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.AppleNotificationData) error {
+				providerJson, err := json.Marshal(providerPayload)
+				if err != nil {
+					return err
+				}
+				return runtimeProviderLua.SubscriptionNotificationApple(ctx, subscription, string(providerJson))
 			}
 		case RuntimeExecutionModePurchaseNotificationGoogle:
-			purchaseNotificationGoogleFunction = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
-				return runtimeProviderLua.PurchaseNotificationGoogle(ctx, purchase, providerPayload)
+			purchaseNotificationGoogleFunction = func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.PurchaseV2GoogleResponse) error {
+				providerJson, err := json.Marshal(providerPayload)
+				if err != nil {
+					return err
+				}
+				return runtimeProviderLua.PurchaseNotificationGoogle(ctx, purchase, string(providerJson))
 			}
 		case RuntimeExecutionModeSubscriptionNotificationGoogle:
-			subscriptionNotificationGoogleFunction = func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
-				return runtimeProviderLua.SubscriptionNotificationGoogle(ctx, subscription, providerPayload)
+			subscriptionNotificationGoogleFunction = func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.SubscriptionV2GoogleResponse) error {
+				providerJson, err := json.Marshal(providerPayload)
+				if err != nil {
+					return err
+				}
+				return runtimeProviderLua.SubscriptionNotificationGoogle(ctx, subscription, string(providerJson))
 			}
 		case RuntimeExecutionModeStorageIndexFilter:
 			storageIndexFilterFunctions[id] = func(ctx context.Context, write *StorageOpWrite) (bool, error) {

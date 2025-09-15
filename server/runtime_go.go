@@ -2781,34 +2781,34 @@ func (ri *RuntimeGoInitializer) RegisterLeaderboardReset(fn func(ctx context.Con
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterPurchaseNotificationApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error) error {
-	ri.purchaseNotificationApple = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+func (ri *RuntimeGoInitializer) RegisterPurchaseNotificationApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.AppleNotificationData) error) error {
+	ri.purchaseNotificationApple = func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.AppleNotificationData) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModePurchaseNotificationApple, nil, nil, 0, "", "", nil, "", "", "", "")
-		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModePurchaseNotificationApple.String()), ri.db, ri.nk, purchase, providerPayload)
+		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModePurchaseNotificationApple.String()), ri.db, ri.nk, notificationType, purchase, providerPayload)
 	}
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, subscription *api.ValidatedSubscription, providerPayload string) error) error {
-	ri.subscriptionNotificationApple = func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.AppleNotificationData) error) error {
+	ri.subscriptionNotificationApple = func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.AppleNotificationData) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeSubscriptionNotificationApple, nil, nil, 0, "", "", nil, "", "", "", "")
-		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeSubscriptionNotificationApple.String()), ri.db, ri.nk, subscription, providerPayload)
+		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeSubscriptionNotificationApple.String()), ri.db, ri.nk, notificationType, subscription, providerPayload)
 	}
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterPurchaseNotificationGoogle(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, purchase *api.ValidatedPurchase, providerPayload string) error) error {
-	ri.purchaseNotificationGoogle = func(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+func (ri *RuntimeGoInitializer) RegisterPurchaseNotificationGoogle(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.PurchaseV2GoogleResponse) error) error {
+	ri.purchaseNotificationGoogle = func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.PurchaseV2GoogleResponse) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModePurchaseNotificationGoogle, nil, nil, 0, "", "", nil, "", "", "", "")
-		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModePurchaseNotificationGoogle.String()), ri.db, ri.nk, purchase, providerPayload)
+		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModePurchaseNotificationGoogle.String()), ri.db, ri.nk, notificationType, purchase, providerPayload)
 	}
 	return nil
 }
 
-func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationGoogle(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, subscription *api.ValidatedSubscription, providerPayload string) error) error {
-	ri.subscriptionNotificationGoogle = func(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationGoogle(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.SubscriptionV2GoogleResponse) error) error {
+	ri.subscriptionNotificationGoogle = func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.SubscriptionV2GoogleResponse) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeSubscriptionNotificationGoogle, nil, nil, 0, "", "", nil, "", "", "", "")
-		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeSubscriptionNotificationGoogle.String()), ri.db, ri.nk, subscription, providerPayload)
+		return fn(ctx, ri.logger.WithField("mode", RuntimeExecutionModeSubscriptionNotificationGoogle.String()), ri.db, ri.nk, notificationType, subscription, providerPayload)
 	}
 	return nil
 }
