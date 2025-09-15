@@ -18,17 +18,18 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/flags"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"gopkg.in/yaml.v3"
-	"net/url"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
 )
 
 // Config interface is the Nakama core configuration.
@@ -1422,6 +1423,8 @@ type IAPGoogleConfig struct {
 	ClientEmail             string `yaml:"client_email" json:"client_email" usage:"Google Service Account client email."`
 	PrivateKey              string `yaml:"private_key" json:"private_key" usage:"Google Service Account private key."`
 	NotificationsEndpointId string `yaml:"notifications_endpoint_id" json:"notifications_endpoint_id" usage:"The callback endpoint identifier for Android subscription notifications."`
+	RefundCheckPeriodMin    int    `yaml:"refund_check_period_min" json:"refund_check_period_min" usage:"[DEPRECATED] Defines the polling interval in minutes of the Google IAP refund API."`
+	PackageName             string `yaml:"package_name" json:"package_name" usage:"[DEPRECATED] Google Play Store App Package Name."`
 }
 
 func (iapg *IAPGoogleConfig) GetClientEmail() string {
