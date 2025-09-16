@@ -5,7 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
-## [3.32.0] - 2024-09-16
+## [3.32.0] - 2025-09-16
 ### Changed
 - IAP notifications callback functions now handle other status changes besides refunds.
 - Update In-App Purchase validation internals to use Google Subscriptions v2 API.
