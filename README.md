@@ -152,17 +152,13 @@ To build the codebase and generate all sources follow these steps.
 1. Install the toolchain.
 
    ```shell
-   go install \
-       "google.golang.org/protobuf/cmd/protoc-gen-go" \
-       "google.golang.org/grpc/cmd/protoc-gen-go-grpc" \
-       "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway" \
-       "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2"
+   go install tool
    ```
 
 2. Re-generate the protocol buffers and gateway code.
 
    ```shell
-   env PATH="$HOME/go/bin:$PATH" go generate -x ./...
+   go generate -x ./...
    ```
 
 3. Build the codebase.
