@@ -220,7 +220,61 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/UpdateAccountBody"
+              "type": "object",
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "description": "Username."
+                },
+                "display_name": {
+                  "type": "string",
+                  "description": "Display name."
+                },
+                "metadata": {
+                  "type": "string",
+                  "description": "Metadata."
+                },
+                "avatar_url": {
+                  "type": "string",
+                  "description": "Avatar URL."
+                },
+                "lang_tag": {
+                  "type": "string",
+                  "description": "Langtag."
+                },
+                "location": {
+                  "type": "string",
+                  "description": "Location."
+                },
+                "timezone": {
+                  "type": "string",
+                  "description": "Timezone."
+                },
+                "custom_id": {
+                  "type": "string",
+                  "description": "Custom ID."
+                },
+                "email": {
+                  "type": "string",
+                  "description": "Email."
+                },
+                "password": {
+                  "type": "string",
+                  "description": "Password."
+                },
+                "device_ids": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Device ID modifications."
+                },
+                "wallet": {
+                  "type": "string",
+                  "description": "Wallet."
+                }
+              },
+              "description": "Update user account information."
             }
           }
         ]
@@ -539,7 +593,14 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/UnlinkDeviceBody"
+              "type": "object",
+              "properties": {
+                "device_id": {
+                  "type": "string",
+                  "description": "Device ID to unlink."
+                }
+              },
+              "description": "Unlink a particular device ID from a user's account."
             }
           }
         ]
@@ -833,7 +894,22 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CallRpcEndpointBody"
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "user_id": {
+                  "type": "string"
+                },
+                "session_vars": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "title": "API Explorer request definition for CallApiEndpoint"
             }
           }
         ]
@@ -869,7 +945,22 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CallApiEndpointBody"
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "user_id": {
+                  "type": "string"
+                },
+                "session_vars": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "title": "API Explorer request definition for CallApiEndpoint"
             }
           }
         ]
@@ -1206,7 +1297,18 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/AddGroupUsersBody"
+              "type": "object",
+              "properties": {
+                "ids": {
+                  "type": "string",
+                  "description": "Users to add/join."
+                },
+                "join_request": {
+                  "type": "boolean",
+                  "description": "Whether it is a join request."
+                }
+              },
+              "description": "Add/join users to a group."
             }
           }
         ]
@@ -1299,7 +1401,39 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/UpdateGroupBody"
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Description."
+                },
+                "lang_tag": {
+                  "type": "string",
+                  "description": "Langtag."
+                },
+                "metadata": {
+                  "type": "string",
+                  "description": "Metadata."
+                },
+                "avatar_url": {
+                  "type": "string",
+                  "description": "Avatar URL."
+                },
+                "open": {
+                  "type": "boolean",
+                  "description": "Anyone can join open groups, otherwise only admins can accept members."
+                },
+                "max_count": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "The maximum number of members allowed."
+                }
+              },
+              "description": "Update group information."
             }
           }
         ]
@@ -2014,7 +2148,14 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/UpdateSettingBody"
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "description": "Setting value."
+                }
+              },
+              "description": "Request to update an existing setting."
             }
           }
         ]
@@ -2264,7 +2405,28 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/Console.WriteStorageObjectBody"
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "description": "Value."
+                },
+                "version": {
+                  "type": "string",
+                  "description": "Version for OCC."
+                },
+                "permission_read": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Read permission value."
+                },
+                "permission_write": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Write permission value."
+                }
+              },
+              "description": "Write a new storage object or update an existing one."
             }
           }
         ]
@@ -2474,7 +2636,14 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/RequireUserMfaBody"
+              "type": "object",
+              "properties": {
+                "required": {
+                  "type": "boolean",
+                  "description": "Required."
+                }
+              },
+              "description": "Make a user's mfa required or not."
             }
           }
         ]
@@ -2618,20 +2787,6 @@
       },
       "description": "A list of users."
     },
-    "AddGroupUsersBody": {
-      "type": "object",
-      "properties": {
-        "ids": {
-          "type": "string",
-          "description": "Users to add/join."
-        },
-        "join_request": {
-          "type": "boolean",
-          "description": "Whether it is a join request."
-        }
-      },
-      "description": "Add/join users to a group."
-    },
     "AddUserRequest": {
       "type": "object",
       "properties": {
@@ -2758,24 +2913,6 @@
       },
       "description": "Authenticate a console user with username and password."
     },
-    "CallApiEndpointBody": {
-      "type": "object",
-      "properties": {
-        "body": {
-          "type": "string"
-        },
-        "user_id": {
-          "type": "string"
-        },
-        "session_vars": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        }
-      },
-      "title": "API Explorer request definition for CallApiEndpoint"
-    },
     "CallApiEndpointResponse": {
       "type": "object",
       "properties": {
@@ -2787,24 +2924,6 @@
         }
       },
       "title": "API Explorer response definition for CallApiEndpoint"
-    },
-    "CallRpcEndpointBody": {
-      "type": "object",
-      "properties": {
-        "body": {
-          "type": "string"
-        },
-        "user_id": {
-          "type": "string"
-        },
-        "session_vars": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        }
-      },
-      "title": "API Explorer request definition for CallApiEndpoint"
     },
     "ChannelMessage": {
       "type": "object",
@@ -2914,30 +3033,6 @@
         }
       },
       "description": "The current server configuration and any associated warnings."
-    },
-    "Console.WriteStorageObjectBody": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "string",
-          "description": "Value."
-        },
-        "version": {
-          "type": "string",
-          "description": "Version for OCC."
-        },
-        "permission_read": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Read permission value."
-        },
-        "permission_write": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Write permission value."
-        }
-      },
-      "description": "Write a new storage object or update an existing one."
     },
     "ConsoleSession": {
       "type": "object",
@@ -3293,16 +3388,6 @@
         }
       },
       "description": "A list of validated purchases stored by Nakama."
-    },
-    "RequireUserMfaBody": {
-      "type": "object",
-      "properties": {
-        "required": {
-          "type": "boolean",
-          "description": "Required."
-        }
-      },
-      "description": "Make a user's mfa required or not."
     },
     "RuntimeInfo": {
       "type": "object",
@@ -3670,118 +3755,6 @@
         }
       },
       "description": "A list of validated subscriptions stored by Nakama."
-    },
-    "UnlinkDeviceBody": {
-      "type": "object",
-      "properties": {
-        "device_id": {
-          "type": "string",
-          "description": "Device ID to unlink."
-        }
-      },
-      "description": "Unlink a particular device ID from a user's account."
-    },
-    "UpdateAccountBody": {
-      "type": "object",
-      "properties": {
-        "username": {
-          "type": "string",
-          "description": "Username."
-        },
-        "display_name": {
-          "type": "string",
-          "description": "Display name."
-        },
-        "metadata": {
-          "type": "string",
-          "description": "Metadata."
-        },
-        "avatar_url": {
-          "type": "string",
-          "description": "Avatar URL."
-        },
-        "lang_tag": {
-          "type": "string",
-          "description": "Langtag."
-        },
-        "location": {
-          "type": "string",
-          "description": "Location."
-        },
-        "timezone": {
-          "type": "string",
-          "description": "Timezone."
-        },
-        "custom_id": {
-          "type": "string",
-          "description": "Custom ID."
-        },
-        "email": {
-          "type": "string",
-          "description": "Email."
-        },
-        "password": {
-          "type": "string",
-          "description": "Password."
-        },
-        "device_ids": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Device ID modifications."
-        },
-        "wallet": {
-          "type": "string",
-          "description": "Wallet."
-        }
-      },
-      "description": "Update user account information."
-    },
-    "UpdateGroupBody": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name."
-        },
-        "description": {
-          "type": "string",
-          "description": "Description."
-        },
-        "lang_tag": {
-          "type": "string",
-          "description": "Langtag."
-        },
-        "metadata": {
-          "type": "string",
-          "description": "Metadata."
-        },
-        "avatar_url": {
-          "type": "string",
-          "description": "Avatar URL."
-        },
-        "open": {
-          "type": "boolean",
-          "description": "Anyone can join open groups, otherwise only admins can accept members."
-        },
-        "max_count": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The maximum number of members allowed."
-        }
-      },
-      "description": "Update group information."
-    },
-    "UpdateSettingBody": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "string",
-          "description": "Setting value."
-        }
-      },
-      "description": "Request to update an existing setting."
     },
     "UserGroup": {
       "type": "object",

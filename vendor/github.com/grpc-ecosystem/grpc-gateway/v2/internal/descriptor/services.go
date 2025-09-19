@@ -65,7 +65,6 @@ func (r *Registry) loadServices(file *File) error {
 				return err
 			}
 			svc.Methods = append(svc.Methods, meth)
-			r.meths[meth.FQMN()] = meth
 		}
 		if len(svc.Methods) == 0 {
 			continue

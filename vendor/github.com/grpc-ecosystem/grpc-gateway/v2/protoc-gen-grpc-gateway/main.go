@@ -13,7 +13,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"runtime/debug"
 	"strings"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/codegenerator"
@@ -51,20 +50,6 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		if commit == "unknown" {
-			buildInfo, ok := debug.ReadBuildInfo()
-			if ok {
-				version = buildInfo.Main.Version
-				for _, setting := range buildInfo.Settings {
-					if setting.Key == "vcs.revision" {
-						commit = setting.Value
-					}
-					if setting.Key == "vcs.time" {
-						date = setting.Value
-					}
-				}
-			}
-		}
 		fmt.Printf("Version %v, commit %v, built at %v\n", version, commit, date)
 		os.Exit(0)
 	}

@@ -123,8 +123,8 @@ github.com/gorilla/mux
 # github.com/gorilla/websocket v1.5.3
 ## explicit; go 1.12
 github.com/gorilla/websocket
-# github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2
-## explicit; go 1.23.0
+# github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.2-0.20231220213037-30552a56c2c4
+## explicit; go 1.19
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/casing
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/codegenerator
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor
@@ -253,7 +253,6 @@ go.uber.org/zap/zapcore
 go.uber.org/zap/zaptest/observer
 # go.yaml.in/yaml/v3 v3.0.4
 ## explicit; go 1.16
-go.yaml.in/yaml/v3
 # golang.org/x/crypto v0.41.0
 ## explicit; go 1.23.0
 golang.org/x/crypto/bcrypt

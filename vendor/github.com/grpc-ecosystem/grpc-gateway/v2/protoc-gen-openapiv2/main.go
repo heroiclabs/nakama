@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"runtime/debug"
 	"strings"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/codegenerator"
@@ -29,7 +28,7 @@ var (
 	_                              = flag.Bool("allow_repeated_fields_in_body", true, "allows to use repeated field in `body` and `response_body` field of `google.api.http` annotation option. DEPRECATED: the value is ignored and always behaves as `true`.")
 	includePackageInTags           = flag.Bool("include_package_in_tags", false, "if unset, the gRPC service name is added to the `Tags` field of each operation. If set and the `package` directive is shown in the proto file, the package name will be prepended to the service name")
 	useFQNForOpenAPIName           = flag.Bool("fqn_for_openapi_name", false, "if set, the object's OpenAPI names will use the fully qualified names from the proto definition (ie my.package.MyMessage.MyInnerMessage). DEPRECATED: prefer `openapi_naming_strategy=fqn`")
-	openAPINamingStrategy          = flag.String("openapi_naming_strategy", "", "use the given OpenAPI naming strategy. Allowed values are `legacy`, `fqn`, `simple`, `package`. If unset, either `legacy` or `fqn` are selected, depending on the value of the `fqn_for_openapi_name` flag")
+	openAPINamingStrategy          = flag.String("openapi_naming_strategy", "", "use the given OpenAPI naming strategy. Allowed values are `legacy`, `fqn`, `simple`. If unset, either `legacy` or `fqn` are selected, depending on the value of the `fqn_for_openapi_name` flag")
 	useGoTemplate                  = flag.Bool("use_go_templates", false, "if set, you can use Go templates in protofile comments")
 	goTemplateArgs                 = utilities.StringArrayFlag(flag.CommandLine, "go_template_args", "provide a custom value that can override a key in the Go template. Requires the `use_go_templates` option to be set")
 	ignoreComments                 = flag.Bool("ignore_comments", false, "if set, all protofile comments are excluded from output")
@@ -49,10 +48,6 @@ var (
 	useAllOfForRefs                = flag.Bool("use_allof_for_refs", false, "if set, will use allOf as container for $ref to preserve same-level properties.")
 	allowPatchFeature              = flag.Bool("allow_patch_feature", true, "whether to hide update_mask fields in PATCH requests from the generated swagger file.")
 	preserveRPCOrder               = flag.Bool("preserve_rpc_order", false, "if true, will ensure the order of paths emitted in openapi swagger files mirror the order of RPC methods found in proto files. If false, emitted paths will be ordered alphabetically.")
-	enableRpcDeprecation           = flag.Bool("enable_rpc_deprecation", false, "whether to process grpc method's deprecated option.")
-	expandSlashedPathPatterns      = flag.Bool("expand_slashed_path_patterns", false, "if set, expands path parameters with URI sub-paths into the URI. For example, \"/v1/{name=projects/*}/resource\" becomes \"/v1/projects/{project}/resource\".")
-	useProto3FieldSemantics        = flag.Bool("use_proto3_field_semantics", false, "if set, uses proto3 field semantics for the OpenAPI schema. This means that fields are required by default.")
-	generateXGoType                = flag.Bool("generate_x_go_type", false, "if set, generates x-go-type extension using the go_package option from proto files")
 
 	_ = flag.Bool("logtostderr", false, "Legacy glog compatibility. This flag is a no-op, you can safely remove it")
 )
@@ -68,20 +63,6 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		if commit == "unknown" {
-			buildInfo, ok := debug.ReadBuildInfo()
-			if ok {
-				version = buildInfo.Main.Version
-				for _, setting := range buildInfo.Settings {
-					if setting.Key == "vcs.revision" {
-						commit = setting.Value
-					}
-					if setting.Key == "vcs.time" {
-						date = setting.Value
-					}
-				}
-			}
-		}
 		fmt.Printf("Version %v, commit %v, built at %v\n", version, commit, date)
 		os.Exit(0)
 	}
@@ -120,7 +101,6 @@ func main() {
 	reg.SetAllowMerge(*allowMerge)
 	reg.SetMergeFileName(*mergeFileName)
 	reg.SetUseJSONNamesForFields(*useJSONNamesForFields)
-	reg.SetUseProto3FieldSemantics(*useProto3FieldSemantics)
 
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "allow_repeated_fields_in_body" {
@@ -176,10 +156,6 @@ func main() {
 	reg.SetUseAllOfForRefs(*useAllOfForRefs)
 	reg.SetAllowPatchFeature(*allowPatchFeature)
 	reg.SetPreserveRPCOrder(*preserveRPCOrder)
-	reg.SetEnableRpcDeprecation(*enableRpcDeprecation)
-	reg.SetExpandSlashedPathPatterns(*expandSlashedPathPatterns)
-	reg.SetGenerateXGoType(*generateXGoType)
-
 	if err := reg.SetRepeatedPathParamSeparator(*repeatedPathParamSeparator); err != nil {
 		emitError(err)
 		return

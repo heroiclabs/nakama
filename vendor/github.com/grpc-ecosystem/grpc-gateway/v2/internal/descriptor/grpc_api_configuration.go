@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor/apiconfig"
-	"go.yaml.in/yaml/v3"
 	"google.golang.org/protobuf/encoding/protojson"
+	"gopkg.in/yaml.v3"
 )
 
 func loadGrpcAPIServiceFromYAML(yamlFileContents []byte, yamlSourceLogName string) (*apiconfig.GrpcAPIService, error) {
@@ -57,7 +57,7 @@ func registerHTTPRulesFromGrpcAPIService(registry *Registry, service *apiconfig.
 // and registers the HttpRule descriptions contained in it as externalHTTPRules in
 // the given registry. This must be done before loading the proto file.
 //
-// You can learn more about gRPC API Service descriptions from Google's documentation
+// You can learn more about gRPC API Service descriptions from google's documentation
 // at https://cloud.google.com/endpoints/docs/grpc/grpc-service-config
 //
 // Note that for the purposes of the gateway generator we only consider a subset of all

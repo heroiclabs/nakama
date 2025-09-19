@@ -1,6 +1,6 @@
 """Generated an open-api spec for a grpc api spec.
 
-Reads the api spec in protobuf format and generate an open-api spec.
+Reads the the api spec in protobuf format and generate an open-api spec.
 Optionally applies settings from the grpc-service configuration.
 """
 
@@ -37,7 +37,7 @@ def _direct_source_infos(proto_info, provided_sources = []):
         local_offset = offset
         if src.root.path and not source_root.startswith(src.root.path):
             # Before Bazel 1.0, `proto_source_root` wasn't guaranteed to be a
-            # prefix of `src.path`. This could happened, e.g., if `file` was
+            # prefix of `src.path`. This could happend, e.g., if `file` was
             # generated (https://github.com/bazelbuild/bazel/issues/9215).
             local_offset += len(src.root.path) + 1  # + '/'.
         infos.append(struct(file = src, import_path = src.path[local_offset:]))
@@ -73,12 +73,7 @@ def _run_proto_gen_openapi(
         openapi_configuration,
         generate_unbound_methods,
         visibility_restriction_selectors,
-        use_allof_for_refs,
-        disable_default_responses,
-        enable_rpc_deprecation,
-        expand_slashed_path_patterns,
-        preserve_rpc_order,
-        generate_x_go_type):
+        use_allof_for_refs):
     args = actions.args()
 
     args.add("--plugin", "protoc-gen-openapiv2=%s" % protoc_gen_openapiv2.path)
@@ -148,20 +143,6 @@ def _run_proto_gen_openapi(
 
     if use_allof_for_refs:
         args.add("--openapiv2_opt", "use_allof_for_refs=true")
-
-    if disable_default_responses:
-        args.add("--openapiv2_opt", "disable_default_responses=true")
-
-    if enable_rpc_deprecation:
-        args.add("--openapiv2_opt", "enable_rpc_deprecation=true")
-
-    if expand_slashed_path_patterns:
-        args.add("--openapiv2_opt", "expand_slashed_path_patterns=true")
-
-    if preserve_rpc_order:
-        args.add("--openapiv2_opt", "preserve_rpc_order=true")
-    if generate_x_go_type:
-        args.add("--openapiv2_opt", "generate_x_go_type=true")
 
     args.add("--openapiv2_opt", "repeated_path_param_separator=%s" % repeated_path_param_separator)
 
@@ -269,11 +250,6 @@ def _proto_gen_openapi_impl(ctx):
                     generate_unbound_methods = ctx.attr.generate_unbound_methods,
                     visibility_restriction_selectors = ctx.attr.visibility_restriction_selectors,
                     use_allof_for_refs = ctx.attr.use_allof_for_refs,
-                    disable_default_responses = ctx.attr.disable_default_responses,
-                    enable_rpc_deprecation = ctx.attr.enable_rpc_deprecation,
-                    expand_slashed_path_patterns = ctx.attr.expand_slashed_path_patterns,
-                    preserve_rpc_order = ctx.attr.preserve_rpc_order,
-                    generate_x_go_type = ctx.attr.generate_x_go_type,
                 ),
             ),
         ),
@@ -330,9 +306,9 @@ protoc_gen_openapiv2 = rule(
         "openapi_naming_strategy": attr.string(
             default = "",
             mandatory = False,
-            values = ["", "simple", "package", "legacy", "fqn"],
+            values = ["", "simple", "legacy", "fqn"],
             doc = "configures how OpenAPI names are determined." +
-                  " Allowed values are `` (empty), `simple`, `package`, `legacy` and `fqn`." +
+                  " Allowed values are `` (empty), `simple`, `legacy` and `fqn`." +
                   " If unset, either `legacy` or `fqn` are selected, depending" +
                   " on the value of the `fqn_for_openapi_name` setting",
         ),
@@ -421,43 +397,6 @@ protoc_gen_openapiv2 = rule(
             mandatory = False,
             doc = "if set, will use allOf as container for $ref to preserve" +
                   " same-level properties.",
-        ),
-        "disable_default_responses": attr.bool(
-            default = False,
-            mandatory = False,
-            doc = "if set, disables generation of default responses. Useful" +
-                  " if you have to support custom response codes that are" +
-                  " not 200.",
-        ),
-        "enable_rpc_deprecation": attr.bool(
-            default = False,
-            mandatory = False,
-            doc = "whether to process grpc method's deprecated option.",
-        ),
-        "expand_slashed_path_patterns": attr.bool(
-            default = False,
-            mandatory = False,
-            doc = "if set, expands path patterns containing slashes into URI." +
-                  " It also creates a new path parameter for each wildcard in " +
-                  " the path pattern.",
-        ),
-        "preserve_rpc_order": attr.bool(
-            default = False,
-            mandatory = False,
-            doc = "if set, ensures the order of paths emitted in OpenAPI files" +
-                  " mirrors the order of RPC methods found in proto files." +
-                  " If false, emitted paths will be ordered alphabetically.",
-        ),
-        "use_proto3_field_semantics": attr.bool(
-            default = False,
-            mandatory = False,
-            doc = "if set, uses proto3 field semantics for the OpenAPI schema." +
-                  "  This means that fields are required by default.",
-        ),
-        "generate_x_go_type": attr.bool(
-            default = False,
-            mandatory = False,
-            doc = "Generate x-go-type extension using the go_package option from proto files",
         ),
         "_protoc": attr.label(
             default = "@com_google_protobuf//:protoc",

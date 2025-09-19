@@ -28,9 +28,6 @@ type Registry struct {
 	// files is a mapping from file path to descriptor
 	files map[string]*File
 
-	// meths is a mapping from fully-qualified method name to descriptor
-	meths map[string]*Method
-
 	// prefix is a prefix to be inserted to golang package paths generated from proto package names.
 	prefix string
 
@@ -64,14 +61,11 @@ type Registry struct {
 	// with gRPC-Gateway response, if it uses json tags for marshaling.
 	useJSONNamesForFields bool
 
-	// useProto3FieldSemantics if true proto3 field semantics are used for generating fields in OpenAPI definitions.
-	useProto3FieldSemantics bool
-
 	// openAPINamingStrategy is the naming strategy to use for assigning OpenAPI field and parameter names. This can be one of the following:
 	// - `legacy`: use the legacy naming strategy from protoc-gen-swagger, that generates unique but not necessarily
 	//             maximally concise names. Components are concatenated directly, e.g., `MyOuterMessageMyNestedMessage`.
 	// - `simple`: use a simple heuristic for generating unique and concise names. Components are concatenated using
-	//             dots as a separator, e.g., `MyOuterMessage.MyNestedMessage` (if `MyNestedMessage` alone is unique,
+	//             dots as a separator, e.g., `MyOuterMesage.MyNestedMessage` (if `MyNestedMessage` alone is unique,
 	//             `MyNestedMessage` will be used as the OpenAPI name).
 	// - `fqn`:    always use the fully-qualified name of the proto message (leading dot removed) as the OpenAPI
 	//             name.
@@ -163,24 +157,6 @@ type Registry struct {
 	// preserveRPCOrder, if true, will ensure the order of paths emitted in openapi swagger files mirror
 	// the order of RPC methods found in proto files. If false, emitted paths will be ordered alphabetically.
 	preserveRPCOrder bool
-
-	// enableRpcDeprecation whether to process grpc method's deprecated option
-	enableRpcDeprecation bool
-
-	// expandSlashedPathPatterns, if true, for a path parameter carrying a sub-path, described via parameter pattern (i.e.
-	// the pattern contains forward slashes), this will expand the _pattern_ into the URI and will _replace_ the parameter
-	// with new path parameters inferred from patterns wildcards.
-	//
-	// Example: a Google AIP style path "/v1/{name=projects/*/locations/*}/datasets/{dataset}" with a "name" parameter
-	// containing sub-path will generate "/v1/projects/{project}/locations/{location}/datasets/{dataset}" path in OpenAPI.
-	// Note that the original "name" parameter is replaced with "project" and "location" parameters.
-	//
-	// This leads to more compliant and readable OpenAPI suitable for documentation, but may complicate client
-	// implementation if you want to pass the original "name" parameter.
-	expandSlashedPathPatterns bool
-
-	// generateXGoType is a global generator option for generating x-go-type annotations
-	generateXGoType bool
 }
 
 type repeatedFieldSeparator struct {
@@ -199,7 +175,6 @@ func NewRegistry() *Registry {
 	return &Registry{
 		msgs:                           make(map[string]*Message),
 		enums:                          make(map[string]*Enum),
-		meths:                          make(map[string]*Method),
 		files:                          make(map[string]*File),
 		pkgMap:                         make(map[string]string),
 		pkgAliases:                     make(map[string]string),
@@ -262,7 +237,7 @@ func (r *Registry) load(gen *protogen.Plugin) error {
 }
 
 // loadFile loads messages, enumerations and fields from "file".
-// It does not load services and methods in "file".  You need to call
+// It does not loads services and methods in "file".  You need to call
 // loadServices after loadFiles is called for all files to load services and methods.
 func (r *Registry) loadFile(filePath string, file *protogen.File) {
 	pkg := GoPackage{
@@ -368,7 +343,7 @@ func (r *Registry) LookupMsg(location, name string) (*Message, error) {
 	return nil, fmt.Errorf("no message found: %s", name)
 }
 
-// LookupEnum looks up an enum type by "name".
+// LookupEnum looks up a enum type by "name".
 // It tries to resolve "name" from "location" if "name" is a relative enum name.
 func (r *Registry) LookupEnum(location, name string) (*Enum, error) {
 	if grpclog.V(1) {
@@ -403,14 +378,6 @@ func (r *Registry) LookupFile(name string) (*File, error) {
 		return nil, fmt.Errorf("no such file given: %s", name)
 	}
 	return f, nil
-}
-
-func (r *Registry) GetUseProto3FieldSemantics() bool {
-	return r.useProto3FieldSemantics
-}
-
-func (r *Registry) SetUseProto3FieldSemantics(useProto3FieldSemantics bool) {
-	r.useProto3FieldSemantics = useProto3FieldSemantics
 }
 
 // LookupExternalHTTPRules looks up external http rules by fully qualified service method name
@@ -504,14 +471,6 @@ func (r *Registry) GetAllFQENs() []string {
 	return keys
 }
 
-func (r *Registry) GetAllFQMethNs() []string {
-	keys := make([]string, 0, len(r.meths))
-	for k := range r.meths {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 // SetAllowDeleteBody controls whether http delete methods may have a
 // body or fail loading if encountered.
 func (r *Registry) SetAllowDeleteBody(allow bool) {
@@ -545,7 +504,7 @@ func (r *Registry) IsIncludePackageInTags() bool {
 	return r.includePackageInTags
 }
 
-// GetRepeatedPathParamSeparator returns a rune specifying how
+// GetRepeatedPathParamSeparator returns a rune spcifying how
 // path parameter repeated fields are separated.
 func (r *Registry) GetRepeatedPathParamSeparator() rune {
 	return r.repeatedPathParamSeparator.sep
@@ -688,7 +647,7 @@ func (r *Registry) SetVisibilityRestrictionSelectors(selectors []string) {
 	}
 }
 
-// GetVisibilityRestrictionSelectors retrieves the visibility restriction selectors.
+// GetVisibilityRestrictionSelectors retrieves he visibility restriction selectors.
 func (r *Registry) GetVisibilityRestrictionSelectors() map[string]bool {
 	return r.visibilityRestrictionSelectors
 }
@@ -733,12 +692,12 @@ func (r *Registry) GetOmitPackageDoc() bool {
 	return r.omitPackageDoc
 }
 
-// SetProto3OptionalNullable set proto3OptionalNullable
-func (r *Registry) SetProto3OptionalNullable(proto3OptionalNullable bool) {
-	r.proto3OptionalNullable = proto3OptionalNullable
+// SetProto3OptionalNullable set proto3OtionalNullable
+func (r *Registry) SetProto3OptionalNullable(proto3OtionalNullable bool) {
+	r.proto3OptionalNullable = proto3OtionalNullable
 }
 
-// GetProto3OptionalNullable returns proto3OptionalNullable
+// GetProto3OptionalNullable returns proto3OtionalNullable
 func (r *Registry) GetProto3OptionalNullable() bool {
 	return r.proto3OptionalNullable
 }
@@ -865,7 +824,7 @@ func (r *Registry) GetDisableServiceTags() bool {
 	return r.disableServiceTags
 }
 
-// SetDisableDefaultResponses sets disableDefaultResponses
+// SetDisableDefaultResponses setsdisableDefaultResponses
 func (r *Registry) SetDisableDefaultResponses(use bool) {
 	r.disableDefaultResponses = use
 }
@@ -903,30 +862,4 @@ func (r *Registry) SetPreserveRPCOrder(preserve bool) {
 // IsPreserveRPCOrder returns preserveRPCOrder
 func (r *Registry) IsPreserveRPCOrder() bool {
 	return r.preserveRPCOrder
-}
-
-// SetEnableRpcDeprecation sets enableRpcDeprecation
-func (r *Registry) SetEnableRpcDeprecation(enable bool) {
-	r.enableRpcDeprecation = enable
-}
-
-// GetEnableRpcDeprecation returns enableRpcDeprecation
-func (r *Registry) GetEnableRpcDeprecation() bool {
-	return r.enableRpcDeprecation
-}
-
-func (r *Registry) SetExpandSlashedPathPatterns(expandSlashedPathPatterns bool) {
-	r.expandSlashedPathPatterns = expandSlashedPathPatterns
-}
-
-func (r *Registry) GetExpandSlashedPathPatterns() bool {
-	return r.expandSlashedPathPatterns
-}
-
-func (r *Registry) SetGenerateXGoType(generateXGoType bool) {
-	r.generateXGoType = generateXGoType
-}
-
-func (r *Registry) GetGenerateXGoType() bool {
-	return r.generateXGoType
 }

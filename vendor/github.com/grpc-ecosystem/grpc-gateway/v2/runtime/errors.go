@@ -71,7 +71,7 @@ func HTTPStatusFromCode(code codes.Code) int {
 	case codes.DataLoss:
 		return http.StatusInternalServerError
 	default:
-		grpclog.Warningf("Unknown gRPC error code: %v", code)
+		grpclog.Infof("Unknown gRPC error code: %v", code)
 		return http.StatusInternalServerError
 	}
 }
@@ -79,21 +79,6 @@ func HTTPStatusFromCode(code codes.Code) int {
 // HTTPError uses the mux-configured error handler.
 func HTTPError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, r *http.Request, err error) {
 	mux.errorHandler(ctx, mux, marshaler, w, r, err)
-}
-
-// HTTPStreamError uses the mux-configured stream error handler to notify error to the client without closing the connection.
-func HTTPStreamError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, r *http.Request, err error) {
-	st := mux.streamErrorHandler(ctx, err)
-	msg := errorChunk(st)
-	buf, err := marshaler.Marshal(msg)
-	if err != nil {
-		grpclog.Errorf("Failed to marshal an error: %v", err)
-		return
-	}
-	if _, err := w.Write(buf); err != nil {
-		grpclog.Errorf("Failed to notify error to client: %v", err)
-		return
-	}
 }
 
 // DefaultHTTPErrorHandler is the default error handler.
@@ -108,7 +93,6 @@ func HTTPStreamError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w 
 func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, r *http.Request, err error) {
 	// return Internal when Marshal failed
 	const fallback = `{"code": 13, "message": "failed to marshal error message"}`
-	const fallbackRewriter = `{"code": 13, "message": "failed to rewrite error message"}`
 
 	var customStatus *HTTPStatusError
 	if errors.As(err, &customStatus) {
@@ -116,52 +100,45 @@ func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marsh
 	}
 
 	s := status.Convert(err)
+	pb := s.Proto()
 
 	w.Header().Del("Trailer")
 	w.Header().Del("Transfer-Encoding")
 
-	respRw, err := mux.forwardResponseRewriter(ctx, s.Proto())
-	if err != nil {
-		grpclog.Errorf("Failed to rewrite error message %q: %v", s, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		if _, err := io.WriteString(w, fallbackRewriter); err != nil {
-			grpclog.Errorf("Failed to write response: %v", err)
-		}
-		return
-	}
-
-	contentType := marshaler.ContentType(respRw)
+	contentType := marshaler.ContentType(pb)
 	w.Header().Set("Content-Type", contentType)
 
 	if s.Code() == codes.Unauthenticated {
 		w.Header().Set("WWW-Authenticate", s.Message())
 	}
 
-	buf, merr := marshaler.Marshal(respRw)
+	buf, merr := marshaler.Marshal(pb)
 	if merr != nil {
-		grpclog.Errorf("Failed to marshal error message %q: %v", s, merr)
+		grpclog.Infof("Failed to marshal error message %q: %v", s, merr)
 		w.WriteHeader(http.StatusInternalServerError)
 		if _, err := io.WriteString(w, fallback); err != nil {
-			grpclog.Errorf("Failed to write response: %v", err)
+			grpclog.Infof("Failed to write response: %v", err)
 		}
 		return
 	}
 
 	md, ok := ServerMetadataFromContext(ctx)
-	if ok {
-		handleForwardResponseServerMetadata(w, mux, md)
+	if !ok {
+		grpclog.Infof("Failed to extract ServerMetadata from context")
+	}
 
-		// RFC 7230 https://tools.ietf.org/html/rfc7230#section-4.1.2
-		// Unless the request includes a TE header field indicating "trailers"
-		// is acceptable, as described in Section 4.3, a server SHOULD NOT
-		// generate trailer fields that it believes are necessary for the user
-		// agent to receive.
-		doForwardTrailers := requestAcceptsTrailers(r)
+	handleForwardResponseServerMetadata(w, mux, md)
 
-		if doForwardTrailers {
-			handleForwardResponseTrailerHeader(w, mux, md)
-			w.Header().Set("Transfer-Encoding", "chunked")
-		}
+	// RFC 7230 https://tools.ietf.org/html/rfc7230#section-4.1.2
+	// Unless the request includes a TE header field indicating "trailers"
+	// is acceptable, as described in Section 4.3, a server SHOULD NOT
+	// generate trailer fields that it believes are necessary for the user
+	// agent to receive.
+	doForwardTrailers := requestAcceptsTrailers(r)
+
+	if doForwardTrailers {
+		handleForwardResponseTrailerHeader(w, mux, md)
+		w.Header().Set("Transfer-Encoding", "chunked")
 	}
 
 	st := HTTPStatusFromCode(s.Code())
@@ -171,10 +148,10 @@ func DefaultHTTPErrorHandler(ctx context.Context, mux *ServeMux, marshaler Marsh
 
 	w.WriteHeader(st)
 	if _, err := w.Write(buf); err != nil {
-		grpclog.Errorf("Failed to write response: %v", err)
+		grpclog.Infof("Failed to write response: %v", err)
 	}
 
-	if ok && requestAcceptsTrailers(r) {
+	if doForwardTrailers {
 		handleForwardResponseTrailer(w, mux, md)
 	}
 }

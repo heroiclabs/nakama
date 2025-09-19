@@ -1,6 +1,6 @@
 package utilities
 
-// OpCode is an opcode of compiled path patterns.
+// An OpCode is a opcode of compiled path patterns.
 type OpCode int
 
 // These constants are the valid values of OpCode.
