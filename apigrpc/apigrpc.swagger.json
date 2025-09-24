@@ -4652,6 +4652,10 @@
           "type": "boolean",
           "description": "Open flag."
         },
+        "hidden": {
+          "type": "boolean",
+          "description": "Hidden flag."
+        },
         "maxSize": {
           "type": "integer",
           "format": "int32",
@@ -5045,6 +5049,10 @@
         "authoritative": {
           "type": "boolean",
           "description": "Whether the leaderboard was created authoritatively or not."
+        },
+        "joinRequired": {
+          "type": "boolean",
+          "description": "Whether the user must join the tournament before being able to submit scores."
         }
       },
       "description": "A tournament on the server."
