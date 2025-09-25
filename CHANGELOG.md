@@ -5,6 +5,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Fixed
+- Shorter processing for matchmaker custom function when inactive.
+
 ## [3.32.0] - 2025-09-16
 ### Changed
 - In-App Purchase runtime callback functions now handle other status changes besides refunds.

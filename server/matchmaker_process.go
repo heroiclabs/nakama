@@ -596,6 +596,14 @@ func (m *LocalMatchmaker) processOverride(activeIndexesCopy map[string]*Matchmak
 }
 
 func (m *LocalMatchmaker) processCustom(indexesCopy map[string]*MatchmakerIndex) [][]*MatchmakerEntry {
+	if m.active.Load() != 1 {
+		// Index intervals must be marked anyway.
+		for _, index := range indexesCopy {
+			index.Intervals++
+		}
+		return nil
+	}
+
 	entries := make([]*MatchmakerEntry, 0, len(indexesCopy))
 	for _, index := range indexesCopy {
 		index.Intervals++
