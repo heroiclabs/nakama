@@ -601,7 +601,7 @@ func (m *LocalMatchmaker) processCustom(indexesCopy map[string]*MatchmakerIndex)
 		for _, index := range indexesCopy {
 			index.Intervals++
 		}
-		return make([][]*MatchmakerEntry, 0)
+		return nil
 	}
 
 	entries := make([]*MatchmakerEntry, 0, len(indexesCopy))
