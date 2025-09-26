@@ -957,7 +957,9 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
 				}
-				uid = uuid.Must(uuid.FromString(p.UserId))
+				if p.UserId != "" {
+					uid = uuid.Must(uuid.FromString(p.UserId))
+				}
 			}
 
 			if strings.ToUpper(notificationPayload.NotificationType) == AppleNotificationTypeRefund {
