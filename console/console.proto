@@ -477,6 +477,14 @@ service Console {
     };
   }
 
+  // Update a console user.
+  rpc UpdateUser (UpdateUserRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/v2/console/user",
+      body: "*"
+    };
+  }
+
   // Write a new storage object or replace an existing one.
   rpc WriteStorageObject (WriteStorageObjectRequest) returns (api.StorageObjectAck) {
     option (google.api.http) = {
@@ -588,8 +596,8 @@ message AddUserRequest {
   string password = 2;
   // Email address of the user.
   string email = 3;
-  // Role of this user;
-  UserRole role = 4;
+  // ACL.
+  map<string,Permissions> acl = 4;
   // Require MFA
   bool mfa_required = 5;
   // Subscribe to newsletters
@@ -1075,8 +1083,8 @@ message UserList {
     string username = 1;
     // Email of the user
     string email = 2;
-    // Role of the user;
-    UserRole role = 3;
+    // ACL.
+    map<string,Permissions> acl = 3;
     // Whether the user is required to setup MFA.
     bool mfa_required = 4;
     // Whether the user has MFA enabled.
@@ -1085,14 +1093,6 @@ message UserList {
 
   // A list of users.
   repeated User users = 1;
-}
-
-enum UserRole {
-  USER_ROLE_UNKNOWN = 0;
-  USER_ROLE_ADMIN = 1; // All access
-  USER_ROLE_DEVELOPER = 2; // Best for developers, also enables APIs and API explorer
-  USER_ROLE_MAINTAINER = 3; // Best for users who regularly update player information.
-  USER_ROLE_READONLY = 4; // Read-only role for those only need to view data
 }
 
 enum StatusHealth {
@@ -1281,4 +1281,22 @@ message UpdateSettingRequest {
 message SettingList {
   // A list of settings.
   repeated Setting settings = 1;
+}
+
+// Request to update an existing user.
+message UpdateUserRequest {
+  // User identifier.
+  string id = 1;
+  // ACL.
+  map<string,Permissions> acl = 2;
+}
+
+// The possible actions that can done over a resource.
+message Permissions {
+  // Read a resource.
+  bool read = 1;
+  // Create and/or modify a resource.
+  bool write = 2;
+  // Delete a resource.
+  bool delete = 3;
 }

@@ -109,6 +109,7 @@ const (
 	Console_UpdateAccount_FullMethodName             = "/nakama.console.Console/UpdateAccount"
 	Console_UpdateGroup_FullMethodName               = "/nakama.console.Console/UpdateGroup"
 	Console_UpdateSetting_FullMethodName             = "/nakama.console.Console/UpdateSetting"
+	Console_UpdateUser_FullMethodName                = "/nakama.console.Console/UpdateUser"
 	Console_WriteStorageObject_FullMethodName        = "/nakama.console.Console/WriteStorageObject"
 )
 
@@ -261,6 +262,8 @@ type ConsoleClient interface {
 	UpdateGroup(ctx context.Context, in *UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Update an existing setting.
 	UpdateSetting(ctx context.Context, in *UpdateSettingRequest, opts ...grpc.CallOption) (*Setting, error)
+	// Update a console user.
+	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error)
 }
@@ -983,6 +986,16 @@ func (c *consoleClient) UpdateSetting(ctx context.Context, in *UpdateSettingRequ
 	return out, nil
 }
 
+func (c *consoleClient) UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Console_UpdateUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.StorageObjectAck)
@@ -1142,6 +1155,8 @@ type ConsoleServer interface {
 	UpdateGroup(context.Context, *UpdateGroupRequest) (*emptypb.Empty, error)
 	// Update an existing setting.
 	UpdateSetting(context.Context, *UpdateSettingRequest) (*Setting, error)
+	// Update a console user.
+	UpdateUser(context.Context, *UpdateUserRequest) (*emptypb.Empty, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error)
 	mustEmbedUnimplementedConsoleServer()
@@ -1366,6 +1381,9 @@ func (UnimplementedConsoleServer) UpdateGroup(context.Context, *UpdateGroupReque
 }
 func (UnimplementedConsoleServer) UpdateSetting(context.Context, *UpdateSettingRequest) (*Setting, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateSetting not implemented")
+}
+func (UnimplementedConsoleServer) UpdateUser(context.Context, *UpdateUserRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
 }
 func (UnimplementedConsoleServer) WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteStorageObject not implemented")
@@ -2669,6 +2687,24 @@ func _Console_UpdateSetting_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_UpdateUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UpdateUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_UpdateUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UpdateUser(ctx, req.(*UpdateUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_WriteStorageObject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WriteStorageObjectRequest)
 	if err := dec(in); err != nil {
@@ -2977,6 +3013,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateSetting",
 			Handler:    _Console_UpdateSetting_Handler,
+		},
+		{
+			MethodName: "UpdateUser",
+			Handler:    _Console_UpdateUser_Handler,
 		},
 		{
 			MethodName: "WriteStorageObject",

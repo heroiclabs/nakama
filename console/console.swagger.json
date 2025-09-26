@@ -2820,6 +2820,39 @@
         "tags": [
           "Console"
         ]
+      },
+      "put": {
+        "summary": "Update a console user.",
+        "operationId": "Console_UpdateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request to update an existing user.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/consoleUpdateUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/user/{username}/mfa/require": {
@@ -3666,9 +3699,12 @@
           "type": "string",
           "description": "Email address of the user."
         },
-        "role": {
-          "$ref": "#/definitions/consoleUserRole",
-          "title": "Role of this user;"
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/consolePermissions"
+          },
+          "description": "ACL."
         },
         "mfa_required": {
           "type": "boolean",
@@ -3889,6 +3925,24 @@
         }
       },
       "title": "Match state"
+    },
+    "consolePermissions": {
+      "type": "object",
+      "properties": {
+        "read": {
+          "type": "boolean",
+          "description": "Read a resource."
+        },
+        "write": {
+          "type": "boolean",
+          "description": "Create and/or modify a resource."
+        },
+        "delete": {
+          "type": "boolean",
+          "description": "Delete a resource."
+        }
+      },
+      "description": "The possible actions that can done over a resource."
     },
     "consoleRuntimeInfo": {
       "type": "object",
@@ -4134,6 +4188,23 @@
       },
       "description": "An object within the storage engine."
     },
+    "consoleUpdateUserRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User identifier."
+        },
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/consolePermissions"
+          },
+          "description": "ACL."
+        }
+      },
+      "description": "Request to update an existing user."
+    },
     "consoleUserList": {
       "type": "object",
       "properties": {
@@ -4159,9 +4230,12 @@
           "type": "string",
           "title": "Email of the user"
         },
-        "role": {
-          "$ref": "#/definitions/consoleUserRole",
-          "title": "Role of the user;"
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/consolePermissions"
+          },
+          "description": "ACL."
         },
         "mfa_required": {
           "type": "boolean",
@@ -4173,18 +4247,6 @@
         }
       },
       "title": "A console user"
-    },
-    "consoleUserRole": {
-      "type": "string",
-      "enum": [
-        "USER_ROLE_UNKNOWN",
-        "USER_ROLE_ADMIN",
-        "USER_ROLE_DEVELOPER",
-        "USER_ROLE_MAINTAINER",
-        "USER_ROLE_READONLY"
-      ],
-      "default": "USER_ROLE_UNKNOWN",
-      "title": "- USER_ROLE_ADMIN: All access\n - USER_ROLE_DEVELOPER: Best for developers, also enables APIs and API explorer\n - USER_ROLE_MAINTAINER: Best for users who regularly update player information.\n - USER_ROLE_READONLY: Read-only role for those only need to view data"
     },
     "consoleWalletLedger": {
       "type": "object",

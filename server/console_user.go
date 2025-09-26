@@ -20,7 +20,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"regexp"
 	"strings"
@@ -28,7 +27,10 @@ import (
 	"unicode"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/heroiclabs/nakama/v3/console/acl"
+	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -40,6 +42,11 @@ import (
 var usernameRegex = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9._].*[a-zA-Z0-9]$")
 
 func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*emptypb.Empty, error) {
+	uname := ctx.Value(ctxkeys.UserIDKey{}).(string)
+	if uname == in.Username {
+		return nil, status.Error(codes.FailedPrecondition, "Cannot change own configuration")
+	}
+
 	if in.Username == "" {
 		return nil, status.Error(codes.InvalidArgument, "Username is required")
 	} else if len(in.Username) < 3 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
@@ -108,10 +115,15 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 	if err != nil {
 		return false, err
 	}
-	query := `INSERT INTO console_user (id, username, email, password, role, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
+
+	userAcl := acl.New(in.Acl)
+
+	updated := false
+	query := `INSERT INTO console_user (id, username, email, password, acl, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
 						ON CONFLICT (id) DO
-						UPDATE SET username = $2, password = $4, role = $5, mfa_required = $6, update_time = now()`
-	_, err = s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role, in.MfaRequired)
+						UPDATE SET username = $2, password = $4, acl = $5, mfa_required = $6, update_time = now()
+						RETURNING id, create_time != update_time`
+	err = s.db.QueryRowContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, userAcl, in.MfaRequired).Scan(&id, &updated)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -120,6 +132,10 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 			}
 		}
 		return false, err
+	}
+
+	if updated {
+		s.sessionCache.Remove(id, 0, "", 0, "")
 	}
 	return true, nil
 }
@@ -148,15 +164,18 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*cons
 
 func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.UserList_User, error) {
 	result := make([]*console.UserList_User, 0, 10)
-	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role, mfa_required, mfa_secret is not null AS mfa_enabled  FROM console_user WHERE id != $1", uuid.Nil)
+	rows, err := s.db.QueryContext(ctx, "SELECT username, email, acl, mfa_required, mfa_secret is not null AS mfa_enabled  FROM console_user WHERE id != $1", uuid.Nil)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		user := &console.UserList_User{}
-		if err := rows.Scan(&user.Username, &user.Email, &user.Role, &user.MfaRequired, &user.MfaEnabled); err != nil {
+		var aclBytes []byte
+		if err := rows.Scan(&user.Username, &user.Email, &aclBytes, &user.MfaRequired, &user.MfaEnabled); err != nil {
 			return nil, err
 		}
+		userAcl := acl.NewFromBytes(aclBytes)
+		user.Acl = userAcl.ACL()
 		result = append(result, user)
 	}
 	return result, nil

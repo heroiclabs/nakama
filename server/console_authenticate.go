@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -28,6 +29,7 @@ import (
 	uuid "github.com/gofrs/uuid/v5"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/heroiclabs/nakama/v3/console/acl"
 	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -39,12 +41,12 @@ import (
 )
 
 type ConsoleTokenClaims struct {
-	ID        string           `json:"id,omitempty"`
-	Username  string           `json:"usn,omitempty"`
-	Email     string           `json:"ema,omitempty"`
-	Role      console.UserRole `json:"rol,omitempty"`
-	ExpiresAt int64            `json:"exp,omitempty"`
-	Cookie    string           `json:"cki,omitempty"`
+	ID        string `json:"id,omitempty"`
+	Username  string `json:"usn,omitempty"`
+	Email     string `json:"ema,omitempty"`
+	Acl       string `json:"acl,omitempty"`
+	ExpiresAt int64  `json:"exp,omitempty"`
+	Cookie    string `json:"cki,omitempty"`
 }
 
 func (s *ConsoleTokenClaims) GetExpirationTime() (*jwt.NumericDate, error) {
@@ -66,7 +68,7 @@ func (s *ConsoleTokenClaims) GetSubject() (string, error) {
 	return "", nil
 }
 
-func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username, email string, role console.UserRole, exp int64, ok bool) {
+func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username, email string, userAcl acl.Permission, exp int64, ok bool, err error) {
 	token, err := jwt.ParseWithClaims(tokenString, &ConsoleTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return hmacSecretByte, nil
 	}, jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"HS256"}))
@@ -77,7 +79,11 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username,
 	if !ok || !token.Valid {
 		return
 	}
-	return claims.ID, claims.Username, claims.Email, claims.Role, claims.ExpiresAt, true
+	aclBytes, err := base64.RawURLEncoding.DecodeString(claims.Acl)
+	if err != nil {
+		return "", "", "", acl.None, 0, false, fmt.Errorf("failed to base64 decode ACL: %w", err)
+	}
+	return claims.ID, claims.Username, claims.Email, acl.NewFromBytes(aclBytes), claims.ExpiresAt, true, nil
 }
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
@@ -87,7 +93,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	}
 
 	var email string
-	var role console.UserRole
+	var userAcl acl.Permission
 	var uname string
 	var userId uuid.UUID
 	var mfaCode *wrapperspb.StringValue
@@ -97,7 +103,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		switch in.Username {
 		case s.config.GetConsole().Username:
 			if in.Password == s.config.GetConsole().Password {
-				role = console.UserRole_USER_ROLE_ADMIN
+				userAcl = acl.Admin
 				uname = in.Username
 				userId = uuid.Nil
 
@@ -110,9 +116,9 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				// Create console root user to keep track of mfa configs.
 				query := `
 				WITH q AS (
-					INSERT INTO console_user (id, email, role, username, password, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
+					INSERT INTO console_user (id, email, acl, username, password, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
 					ON CONFLICT (id) DO
-					UPDATE SET update_time = now(), username = $4, password = $5, mfa_required = $6
+					UPDATE SET update_time = now(), acl = $3, username = $4, password = $5, mfa_required = $6
 					WHERE console_user.username <> $4 OR console_user.password <> $5 OR console_user.mfa_required <> $6
 					RETURNING mfa_secret, mfa_recovery_codes, mfa_required
 				)
@@ -121,7 +127,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				(SELECT mfa_secret, mfa_recovery_codes, mfa_required FROM console_user WHERE id = $1)
 				`
 
-				if err = tx.QueryRowContext(ctx, query, userId, "admin@nakama", role, uname, hashedPassword, s.config.GetMFA().AdminAccountOn).Scan(&mfaSecret, &mfaRecoveryCodes, &mfaRequired); err != nil {
+				if err = tx.QueryRowContext(ctx, query, userId, "admin@nakama", userAcl.Bitmap, uname, hashedPassword, s.config.GetMFA().AdminAccountOn).Scan(&mfaSecret, &mfaRecoveryCodes, &mfaRequired); err != nil {
 					s.logger.Error("failed to create admin console user", zap.Error(err))
 					return status.Error(codes.Internal, "Internal error")
 				}
@@ -138,13 +144,13 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 			}
 		default:
 			var err error
-			userId, uname, email, role, mfaRequired, mfaSecret, mfaRecoveryCodes, err = s.lookupConsoleUser(ctx, in.Username, in.Password, ip)
+			userId, uname, email, userAcl, mfaRequired, mfaSecret, mfaRecoveryCodes, err = s.lookupConsoleUser(ctx, in.Username, in.Password, ip)
 			if err != nil {
 				return err
 			}
 		}
 
-		if role == console.UserRole_USER_ROLE_UNKNOWN {
+		if userAcl.IsNone() {
 			return status.Error(codes.Unauthenticated, "Invalid credentials.")
 		}
 
@@ -262,7 +268,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		ID:        userId.String(),
 		Username:  uname,
 		Email:     email,
-		Role:      role,
+		Acl:       userAcl.String(),
 		Cookie:    s.cookie,
 	})
 	key := []byte(s.config.GetConsole().SigningKey)
@@ -283,7 +289,11 @@ func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.Auth
 	if err != nil {
 		s.logger.Error("Failed to parse the session token.", zap.Error(err))
 	}
-	id, _, _, _, exp, ok := parseConsoleToken([]byte(s.config.GetConsole().SigningKey), in.Token)
+	id, _, _, _, exp, ok, err := parseConsoleToken([]byte(s.config.GetConsole().SigningKey), in.Token)
+	if err != nil {
+		s.logger.Error("Failed to parse token console jwt token.", zap.Error(err))
+		return &emptypb.Empty{}, nil
+	}
 	if !ok || !token.Valid {
 		s.logger.Error("Invalid token.", zap.Error(err))
 	}
@@ -353,12 +363,13 @@ func (s *ConsoleServer) AuthenticateMFASetup(ctx context.Context, in *console.Au
 	return &console.AuthenticateMFASetupResponse{RecoveryCodes: recoveryCodes}, nil
 }
 
-func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password, ip string) (id uuid.UUID, uname string, email string, role console.UserRole, mfaRequired bool, mfaSecret, mfaRecoveryCodes []byte, err error) {
-	role = console.UserRole_USER_ROLE_UNKNOWN
-	query := "SELECT id, username, email, role, password, mfa_required, mfa_secret, mfa_recovery_codes, disable_time FROM console_user WHERE username = $1 OR email = $1"
+func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password, ip string) (id uuid.UUID, uname string, email string, role acl.Permission, mfaRequired bool, mfaSecret, mfaRecoveryCodes []byte, err error) {
+	role = acl.None
+	var permissionBytes []byte
+	query := "SELECT id, username, email, acl, password, mfa_required, mfa_secret, mfa_recovery_codes, disable_time FROM console_user WHERE username = $1 OR email = $1"
 	var dbPassword []byte
 	var dbDisableTime pgtype.Timestamptz
-	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&id, &uname, &email, &role, &dbPassword, &mfaRequired, &mfaSecret, &mfaRecoveryCodes, &dbDisableTime)
+	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&id, &uname, &email, &permissionBytes, &dbPassword, &mfaRequired, &mfaSecret, &mfaRecoveryCodes, &dbDisableTime)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			if lockout, until := s.loginAttemptCache.Add("", ip); lockout == LockoutTypeIp {
@@ -399,5 +410,8 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 		err = status.Error(codes.Unauthenticated, "Invalid credentials.")
 		return
 	}
+
+	role = acl.NewFromBytes(permissionBytes)
+
 	return
 }

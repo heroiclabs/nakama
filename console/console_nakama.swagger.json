@@ -2602,6 +2602,36 @@
             }
           }
         ]
+      },
+      "put": {
+        "summary": "Update a console user.",
+        "operationId": "UpdateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request to update an existing user.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateUserRequest"
+            }
+          }
+        ]
       }
     },
     "/v2/console/user/{username}/mfa/require": {
@@ -2802,9 +2832,12 @@
           "type": "string",
           "description": "Email address of the user."
         },
-        "role": {
-          "$ref": "#/definitions/UserRole",
-          "title": "Role of this user;"
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Permissions"
+          },
+          "description": "ACL."
         },
         "mfa_required": {
           "type": "boolean",
@@ -3367,6 +3400,24 @@
       },
       "title": "Module information"
     },
+    "Permissions": {
+      "type": "object",
+      "properties": {
+        "read": {
+          "type": "boolean",
+          "description": "Read a resource."
+        },
+        "write": {
+          "type": "boolean",
+          "description": "Create and/or modify a resource."
+        },
+        "delete": {
+          "type": "boolean",
+          "description": "Delete a resource."
+        }
+      },
+      "description": "The possible actions that can done over a resource."
+    },
     "PurchaseList": {
       "type": "object",
       "properties": {
@@ -3756,6 +3807,23 @@
       },
       "description": "A list of validated subscriptions stored by Nakama."
     },
+    "UpdateUserRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User identifier."
+        },
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Permissions"
+          },
+          "description": "ACL."
+        }
+      },
+      "description": "Request to update an existing user."
+    },
     "UserGroup": {
       "type": "object",
       "properties": {
@@ -3814,9 +3882,12 @@
           "type": "string",
           "title": "Email of the user"
         },
-        "role": {
-          "$ref": "#/definitions/UserRole",
-          "title": "Role of the user;"
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Permissions"
+          },
+          "description": "ACL."
         },
         "mfa_required": {
           "type": "boolean",
@@ -3854,18 +3925,6 @@
         }
       },
       "description": "A user session associated to a stream, usually through a list operation or a join/leave event."
-    },
-    "UserRole": {
-      "type": "string",
-      "enum": [
-        "USER_ROLE_UNKNOWN",
-        "USER_ROLE_ADMIN",
-        "USER_ROLE_DEVELOPER",
-        "USER_ROLE_MAINTAINER",
-        "USER_ROLE_READONLY"
-      ],
-      "default": "USER_ROLE_UNKNOWN",
-      "title": "- USER_ROLE_ADMIN: All access\n - USER_ROLE_DEVELOPER: Best for developers, also enables APIs and API explorer\n - USER_ROLE_MAINTAINER: Best for users who regularly update player information.\n - USER_ROLE_READONLY: Read-only role for those only need to view data"
     },
     "ValidatedPurchase": {
       "type": "object",
