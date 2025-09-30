@@ -63,9 +63,6 @@ var restrictedMethods = map[string]console.UserRole{
 	"/nakama.console.Console/ListAccounts":       console.UserRole_USER_ROLE_READONLY,
 	"/nakama.console.Console/UpdateAccount":      console.UserRole_USER_ROLE_MAINTAINER,
 
-	// Authenticate
-	"/nakama.console.Console/AuthenticateMFASetup": console.UserRole_USER_ROLE_READONLY,
-
 	// API Explorer
 	"/nakama.console.Console/CallRpcEndpoint":  console.UserRole_USER_ROLE_DEVELOPER,
 	"/nakama.console.Console/CallApiEndpoint":  console.UserRole_USER_ROLE_DEVELOPER,
@@ -505,6 +502,9 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache Sess
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if info.FullMethod == "/nakama.console.Console/Authenticate" {
 			// Skip authentication check for Login endpoint.
+			return handler(ctx, req)
+		}
+		if info.FullMethod == "/nakama.console.Console/AuthenticateMFASetup" {
 			return handler(ctx, req)
 		}
 		if info.FullMethod == "/nakama.console.Console/AuthenticateLogout" {

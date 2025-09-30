@@ -250,6 +250,10 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		return nil, err
 	}
 
+	if mfaRequired && !mfaEnabled {
+		return &console.ConsoleSession{MfaCode: mfaCode}, nil
+	}
+
 	// MFA not enabled, regular login
 	exp := time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix()
 
@@ -266,7 +270,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 
 	s.consoleSessionCache.Add(userId, exp, signedToken, 0, "")
 
-	return &console.ConsoleSession{Token: signedToken, MfaCode: mfaCode}, nil
+	return &console.ConsoleSession{Token: signedToken}, nil
 }
 
 func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.AuthenticateLogoutRequest) (*emptypb.Empty, error) {
@@ -292,15 +296,15 @@ func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.Auth
 }
 
 func (s *ConsoleServer) AuthenticateMFASetup(ctx context.Context, in *console.AuthenticateMFASetupRequest) (*console.AuthenticateMFASetupResponse, error) {
-	userId := ctx.Value(ctxConsoleIdKey{}).(uuid.UUID)
-
 	var claims UserMFASetupToken
 	if err := parseJWTToken(s.config.GetConsole().SigningKey, in.GetMfa(), &claims); err != nil {
 		s.logger.Warn("Failed to parse the JTW provided as code.", zap.Error(err))
 		return nil, status.Errorf(codes.Unauthenticated, "The code provided is invalid.")
 	}
 
-	logger := s.logger.With(zap.String("user_id", userId.String()))
+	userId := claims.UserID
+
+	logger := s.logger.With(zap.String("user_id", userId))
 
 	mfaConfig := &dgoogauth.OTPConfig{
 		Secret:     claims.MFASecret,
