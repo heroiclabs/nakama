@@ -106,7 +106,7 @@ type Permission struct {
 }
 
 func (p Permission) Compose(permission Permission) Permission {
-	for i, _ := range p.Bitmap {
+	for i := range p.Bitmap {
 		p.Bitmap[i] = p.Bitmap[i] | permission.Bitmap[i]
 	}
 	return p
@@ -140,7 +140,7 @@ func (p Permission) HasAccess(permission Permission) bool {
 		return true
 	}
 
-	for i, _ := range p.Bitmap {
+	for i := range p.Bitmap {
 		if (p.Bitmap[i] & permission.Bitmap[i]) != permission.Bitmap[i] {
 			return false
 		}
@@ -153,8 +153,12 @@ func (p Permission) HasAccess(permission Permission) bool {
 func (p Permission) bitmapString() string {
 	sb := strings.Builder{}
 
-	for _, b := range p.Bitmap {
-		sb.WriteString(fmt.Sprintf("%08b ", b))
+	for i, b := range p.Bitmap {
+		if i == len(p.Bitmap)-1 {
+			sb.WriteString(fmt.Sprintf("%08b", b))
+		} else {
+			sb.WriteString(fmt.Sprintf("%08b ", b))
+		}
 	}
 	return sb.String()
 }

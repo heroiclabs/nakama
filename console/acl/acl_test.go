@@ -12,24 +12,18 @@
 package acl
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_Permission(t *testing.T) {
-	p := NewPermission(Account, PermissionRead)
-	fmt.Printf("%08b%08b\n", p.Bitmap[0], p.Bitmap[1])
-	p = NewPermission(Account, PermissionWrite)
-	fmt.Printf("%08b%08b\n", p.Bitmap[0], p.Bitmap[1])
-	p = NewPermission(AccountWallet, PermissionRead)
-	fmt.Printf("%08b%08b\n", p.Bitmap[0], p.Bitmap[1])
-	p = NewPermission(AccountExport, PermissionDelete)
-	fmt.Printf("%08b%08b\n", p.Bitmap[0], p.Bitmap[1])
+	p := NewPermission(Account, PermissionRead).
+		Compose(NewPermission(Account, PermissionWrite)).
+		Compose(NewPermission(AccountWallet, PermissionRead)).
+		Compose(NewPermission(AccountExport, PermissionDelete))
 
-	p = NewPermission(Account, PermissionRead).Compose(NewPermission(Account, PermissionWrite)).Compose(NewPermission(AccountWallet, PermissionRead)).Compose(NewPermission(AccountExport, PermissionDelete))
-	fmt.Printf("%08b%08b\n", p.Bitmap[0], p.Bitmap[1])
+	println(p.bitmapString())
 
 	assert.True(t, p.HasAccess(NewPermission(Account, PermissionRead)))
 	assert.True(t, p.HasAccess(NewPermission(AccountWallet, PermissionRead)))
