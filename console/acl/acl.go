@@ -113,6 +113,21 @@ func (p Permission) Compose(permission Permission) Permission {
 }
 
 func (p Permission) String() string {
+	resourceBitCount := len(Resources) * 3
+	bitCount := 0
+	for _, b := range p.Bitmap {
+		for j := 0; j < 8; j++ {
+			if (b & (1 << (7 - j))) == 1 {
+				bitCount++
+			}
+		}
+	}
+
+	if bitCount == resourceBitCount {
+		// Admin equivalent. Return all bits set to 1 including padding.
+		p.Bitmap = Admin.Bitmap
+	}
+
 	return base64.RawURLEncoding.EncodeToString(p.Bitmap)
 }
 
@@ -344,6 +359,8 @@ func CheckACL(action string, userPermissions Permission) bool {
 func New(acl map[string]*console.Permissions) Permission {
 	acc := None
 
+	resourceBitCount := len(Resources) * 3
+	setBitCount := 0
 	for resource, permissions := range acl {
 		if permissions == nil {
 			continue
@@ -351,15 +368,22 @@ func New(acl map[string]*console.Permissions) Permission {
 
 		if permissions.Read {
 			acc = acc.Compose(NewPermissionFromString(resource, PermissionRead))
+			setBitCount++
 		}
 
 		if permissions.Write {
 			acc = acc.Compose(NewPermissionFromString(resource, PermissionWrite))
+			setBitCount++
 		}
 
 		if permissions.Delete {
 			acc = acc.Compose(NewPermissionFromString(resource, PermissionDelete))
+			setBitCount++
 		}
+	}
+
+	if setBitCount == resourceBitCount {
+		return Admin
 	}
 
 	return acc
@@ -375,12 +399,13 @@ func (p Permission) ACL() map[string]*console.Permissions {
 
 	for _, resource := range Resources {
 		p := &console.Permissions{}
-		switch {
-		case curr.HasAccess(NewPermission(resource.Resource, PermissionRead)):
+		if curr.HasAccess(NewPermission(resource.Resource, PermissionRead)) {
 			p.Read = true
-		case curr.HasAccess(NewPermission(resource.Resource, PermissionWrite)):
+		}
+		if curr.HasAccess(NewPermission(resource.Resource, PermissionWrite)) {
 			p.Write = true
-		case curr.HasAccess(NewPermission(resource.Resource, PermissionDelete)):
+		}
+		if curr.HasAccess(NewPermission(resource.Resource, PermissionDelete)) {
 			p.Delete = true
 		}
 

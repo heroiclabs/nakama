@@ -23,7 +23,6 @@ UPDATE console_user
         WHEN role = 1 THEN '\xFFFFFFFFFFFFFFFFFF'::bytea
         ELSE '\x000000000000000000'::bytea
     END;
-
 ALTER TABLE console_user DROP COLUMN IF EXISTS role;
 
 -- +migrate Down

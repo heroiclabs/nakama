@@ -25,9 +25,20 @@ func Test_Permission(t *testing.T) {
 
 	println(p.bitmapString())
 
+	acl := p.ACL()
+
 	assert.True(t, p.HasAccess(NewPermission(Account, PermissionRead)))
 	assert.True(t, p.HasAccess(NewPermission(AccountWallet, PermissionRead)))
 	assert.True(t, p.HasAccess(NewPermission(Account, PermissionWrite)))
 	assert.True(t, p.HasAccess(NewPermission(AccountExport, PermissionDelete)))
 	assert.False(t, p.HasAccess(NewPermission(Account, PermissionDelete)))
+	assert.True(t, acl["Account"].Read)
+	assert.True(t, acl["Account"].Write)
+	assert.False(t, acl["Account"].Delete)
+	assert.True(t, acl["AccountWallet"].Read)
+	assert.False(t, acl["AccountWallet"].Write)
+	assert.False(t, acl["AccountWallet"].Delete)
+	assert.False(t, acl["AccountExport"].Read)
+	assert.False(t, acl["AccountExport"].Write)
+	assert.True(t, acl["AccountExport"].Delete)
 }
