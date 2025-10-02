@@ -20,7 +20,8 @@ syntax = "proto3";
 package nakama.console;
 
 import "api/api.proto";
-import "github.com/heroiclabs/nakama-common/rtapi/realtime.proto";
+import "rtapi/realtime.proto";
+import "hiro.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -501,6 +502,43 @@ service Console {
       body: "*"
     };
   }
+
+  rpc HiroListInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
+    option (google.api.http).get = "/v2/console/hiro/inventory";
+  }
+
+  rpc HiroListUserInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
+    option (google.api.http).get = "/v2/console/hiro/inventory/{user_id}";
+  }
+
+  rpc HiroAddUserInventoryItems (HiroGrantUserInventoryRequest) returns (hiro.InventoryUpdateAck) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/inventory/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroDeleteUserInventoryItems (HiroDeleteUserInventoryItemsRequest) returns (hiro.InventoryUpdateAck) {
+    option (google.api.http) = {
+      put: "/v2/console/hiro/inventory/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroListProgressions (HiroProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http).get = "/v2/console/hiro/progression/{user_id}";
+  }
+
+  rpc HiroRegisteredSystems (google.protobuf.Empty) returns (RegisteredSystems) {
+    option (google.api.http).get = "/v2/console/hiro/systems";
+  }
+
+  rpc HiroResetProgressions (HiroResetProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/progression/{user_id}",
+      body: "*"
+    };
+  }
 }
 
 // API Explorer List of Endpoints response message
@@ -745,6 +783,12 @@ message UpdateGroupUserStateRequest {
   string group_id = 2;
 }
 
+// Request to reset a user's credentials, password or MFA.
+message ResetUserRequest {
+  // User identifier.
+  string id = 1;
+}
+
 // Reset a user's mfa setup.
 message ResetUserMfaRequest {
   // User username.
@@ -797,6 +841,57 @@ message DeleteWalletLedgerRequest {
   string id = 1;
   // ID of the wallet ledger item to remove.
   string wallet_id = 2;
+}
+
+// Request all inventory items in the economy.
+message HiroInventoryListRequest {
+  // The user ID to list inventory items for.
+  string user_id = 1;
+  // The category for the items to filter for, or empty for all.
+  string item_category = 2;
+}
+
+// Represents a request to grant items to the user.
+message HiroGrantUserInventoryRequest {
+  // The user ID to grant inventory items for.
+  string user_id = 1;
+  // The items to grant.
+  map<string, int64> items = 2;
+  // Whether to ignore limits when granting items.
+  bool ignore_limits = 3;
+}
+
+message HiroDeleteUserInventoryItemsRequest {
+  // The user ID to delete inventory items for.
+  string user_id = 1;
+  // list of instance ids
+  repeated string instance_ids = 2;
+}
+
+// Request user's progressions.
+message HiroProgressionsRequest {
+  // The user ID to list progressions for.
+  string user_id = 1;
+  // Optional last known progressions state, keyed by progression ID.
+  map<string, hiro.Progression> progressions = 2;
+}
+
+// Request to reset one or more progressions for a user.
+message HiroResetProgressionsRequest {
+  // The user ID to reset progressions for.
+  string user_id = 1;
+  // Progression ids to reset.
+  repeated string progression_ids = 2;
+}
+
+// Whether Hiro is registered and which systems are enabled.
+message RegisteredSystems {
+  // Is Hiro registered.
+  bool hiro = 1;
+  // Is Inventory system registered.
+  bool inventory_system = 2;
+  // Is Progression system registered.
+  bool progression_system = 3;
 }
 
 // A leaderboard.

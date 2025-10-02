@@ -892,6 +892,8 @@ type Initializer interface {
 
 	// RegisterHttp attaches a new HTTP handler to a specified path on the main client API server endpoint.
 	RegisterHttp(pathPattern string, handler func(http.ResponseWriter, *http.Request), methods ...string) error
+
+	RegisterHiro(module any) error
 }
 
 type PresenceReason uint8
@@ -1528,7 +1530,7 @@ type MessageUpdate struct {
 IAP Notifications.
 */
 type AppleNotificationData struct {
-	AppAppleId               string                            `json:"appAppleId"`               // The unique identifier of the app that the notification applies to. This property is available for apps that users download from the App Store. It isn’t present in the sandbox environment.
+	AppAppleId               int                               `json:"appAppleId"`               // The unique identifier of the app that the notification applies to. This property is available for apps that users download from the App Store. It isn’t present in the sandbox environment.
 	BundleId                 string                            `json:"bundleId"`                 // The bundle identifier of the app.
 	BundleVersion            string                            `json:"bundleVersion"`            // The version of the build that identifies an iteration of the bundle.
 	ConsumptionRequestReason string                            `json:"consumptionRequestReason"` // The reason the customer requested the refund. This field appears only for CONSUMPTION_REQUEST notifications, which the server sends when a customer initiates a refund request for a consumable in-app purchase or auto-renewable subscription.
@@ -1770,31 +1772,31 @@ type GoogleOneTimeProductNotification struct {
 
 type GoogleSubscriptionNotification struct {
 	Version          string                             `json:"version"`
-	NotificationType GoogleSubscritpionNotificationType `json:"notificationType"`
+	NotificationType GoogleSubscriptionNotificationType `json:"notificationType"`
 	PurchaseToken    string                             `json:"purchaseToken"`
 }
 
-type GoogleSubscritpionNotificationType int
+type GoogleSubscriptionNotificationType int
 
 const (
-	GoogleSubscriptionRecovered               GoogleSubscritpionNotificationType = 1
-	GoogleSubscriptionRenewed                 GoogleSubscritpionNotificationType = 2
-	GoogleSubscriptionCanceled                GoogleSubscritpionNotificationType = 3
-	GoogleSubscriptionPurchased               GoogleSubscritpionNotificationType = 4
-	GoogleSubscriptionOnHold                  GoogleSubscritpionNotificationType = 5
-	GoogleSubscriptionInGracePeriod           GoogleSubscritpionNotificationType = 6
-	GoogleSubscriptionRestarted               GoogleSubscritpionNotificationType = 7
-	GoogleSubscriptionPriceChangeConfirmed    GoogleSubscritpionNotificationType = 8 // Deprecated
-	GoogleSubscriptionDeferred                GoogleSubscritpionNotificationType = 9
-	GoogleSubscriptionPaused                  GoogleSubscritpionNotificationType = 10
-	GoogleSubscriptionPauseScheduleChanged    GoogleSubscritpionNotificationType = 11
-	GoogleSubscriptionRevoked                 GoogleSubscritpionNotificationType = 12
-	GoogleSubscriptionExpired                 GoogleSubscritpionNotificationType = 13
-	GoogleSubscriptionPendingPurchaseCanceled GoogleSubscritpionNotificationType = 20
-	GoogleSubscriptionPriceChangeUpdated      GoogleSubscritpionNotificationType = 19
+	GoogleSubscriptionRecovered               GoogleSubscriptionNotificationType = 1
+	GoogleSubscriptionRenewed                 GoogleSubscriptionNotificationType = 2
+	GoogleSubscriptionCanceled                GoogleSubscriptionNotificationType = 3
+	GoogleSubscriptionPurchased               GoogleSubscriptionNotificationType = 4
+	GoogleSubscriptionOnHold                  GoogleSubscriptionNotificationType = 5
+	GoogleSubscriptionInGracePeriod           GoogleSubscriptionNotificationType = 6
+	GoogleSubscriptionRestarted               GoogleSubscriptionNotificationType = 7
+	GoogleSubscriptionPriceChangeConfirmed    GoogleSubscriptionNotificationType = 8 // Deprecated
+	GoogleSubscriptionDeferred                GoogleSubscriptionNotificationType = 9
+	GoogleSubscriptionPaused                  GoogleSubscriptionNotificationType = 10
+	GoogleSubscriptionPauseScheduleChanged    GoogleSubscriptionNotificationType = 11
+	GoogleSubscriptionRevoked                 GoogleSubscriptionNotificationType = 12
+	GoogleSubscriptionExpired                 GoogleSubscriptionNotificationType = 13
+	GoogleSubscriptionPendingPurchaseCanceled GoogleSubscriptionNotificationType = 20
+	GoogleSubscriptionPriceChangeUpdated      GoogleSubscriptionNotificationType = 19
 )
 
-func (nt GoogleSubscritpionNotificationType) String() string {
+func (nt GoogleSubscriptionNotificationType) String() string {
 	switch nt {
 	case GoogleSubscriptionRecovered:
 		return "SUBSCRIBED"
@@ -1932,7 +1934,7 @@ type SubscriptionV2GoogleResponse struct {
 		ReplacementCancellation        struct{} `json:"replacementCancellation"`
 	} `json:"cancelStateContext"`
 	TestPurchase               *struct{} `json:"testPurchase"`
-	AcknowledgementState       int       `json:"acknowledgementState"`
+	AcknowledgementState       string    `json:"acknowledgementState"`
 	ExternalAccountIdentifiers struct {
 		ExternalAccountId           string `json:"externalAccountId"`
 		ObfuscatedExternalAccountId string `json:"obfuscatedExternalAccountId"`

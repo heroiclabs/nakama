@@ -9,6 +9,11 @@
       "email": "hello@heroiclabs.com"
     }
   },
+  "tags": [
+    {
+      "name": "Console"
+    }
+  ],
   "host": "127.0.0.1:7351",
   "schemes": [
     "http"
@@ -20,35 +25,6 @@
     "application/json"
   ],
   "paths": {
-    "/v1/console/user/{username}/reset/password": {
-      "post": {
-        "summary": "Reset a user's password.",
-        "operationId": "ResetUserPassword",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/ResetUserResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "username",
-            "description": "The unique username of the user account.",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ]
-      }
-    },
     "/v2/console/account": {
       "get": {
         "summary": "List (and optionally filter) accounts.",
@@ -89,6 +65,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "delete": {
@@ -108,7 +87,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/account/{account_id}/wallet": {
@@ -152,6 +134,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -181,6 +166,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "delete": {
@@ -216,6 +204,9 @@
             "required": false,
             "type": "boolean"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "post": {
@@ -249,63 +240,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "username": {
-                  "type": "string",
-                  "description": "Username."
-                },
-                "display_name": {
-                  "type": "string",
-                  "description": "Display name."
-                },
-                "metadata": {
-                  "type": "string",
-                  "description": "Metadata."
-                },
-                "avatar_url": {
-                  "type": "string",
-                  "description": "Avatar URL."
-                },
-                "lang_tag": {
-                  "type": "string",
-                  "description": "Langtag."
-                },
-                "location": {
-                  "type": "string",
-                  "description": "Location."
-                },
-                "timezone": {
-                  "type": "string",
-                  "description": "Timezone."
-                },
-                "custom_id": {
-                  "type": "string",
-                  "description": "Custom ID."
-                },
-                "email": {
-                  "type": "string",
-                  "description": "Email."
-                },
-                "password": {
-                  "type": "string",
-                  "description": "Password."
-                },
-                "device_ids": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "description": "Device ID modifications."
-                },
-                "wallet": {
-                  "type": "string",
-                  "description": "Wallet."
-                }
-              },
-              "description": "Update user account information."
+              "$ref": "#/definitions/UpdateAccountBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -336,6 +276,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -365,6 +308,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -394,6 +340,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -431,6 +380,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -460,6 +412,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -497,6 +452,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -527,6 +485,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -557,6 +518,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -587,6 +551,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -622,16 +589,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "device_id": {
-                  "type": "string",
-                  "description": "Device ID to unlink."
-                }
-              },
-              "description": "Unlink a particular device ID from a user's account."
+              "$ref": "#/definitions/UnlinkDeviceBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -662,6 +625,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -692,6 +658,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -722,6 +691,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -752,6 +724,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -782,6 +757,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -812,6 +790,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -849,6 +830,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -870,7 +854,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/api/endpoints": {
@@ -890,7 +877,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/api/endpoints/rpc/{method}": {
@@ -923,24 +913,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string"
-                },
-                "user_id": {
-                  "type": "string"
-                },
-                "session_vars": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  }
-                }
-              },
-              "title": "API Explorer request definition for CallApiEndpoint"
+              "$ref": "#/definitions/CallRpcEndpointBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -974,24 +952,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string"
-                },
-                "user_id": {
-                  "type": "string"
-                },
-                "session_vars": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
-                  }
-                }
-              },
-              "title": "API Explorer request definition for CallApiEndpoint"
+              "$ref": "#/definitions/CallApiEndpointBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1023,6 +989,9 @@
               "$ref": "#/definitions/AuthenticateRequest"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ],
         "security": [
           {
@@ -1060,6 +1029,9 @@
               "$ref": "#/definitions/AuthenticateLogoutRequest"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1091,6 +1063,9 @@
               "$ref": "#/definitions/AuthenticateMFASetupRequest"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1161,6 +1136,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1181,7 +1159,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/group": {
@@ -1217,6 +1198,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1254,6 +1238,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1291,6 +1278,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1326,20 +1316,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "ids": {
-                  "type": "string",
-                  "description": "Users to add/join."
-                },
-                "join_request": {
-                  "type": "boolean",
-                  "description": "Whether it is a join request."
-                }
-              },
-              "description": "Add/join users to a group."
+              "$ref": "#/definitions/AddGroupUsersBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1369,6 +1351,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "delete": {
@@ -1397,6 +1382,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "post": {
@@ -1430,41 +1418,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Name."
-                },
-                "description": {
-                  "type": "string",
-                  "description": "Description."
-                },
-                "lang_tag": {
-                  "type": "string",
-                  "description": "Langtag."
-                },
-                "metadata": {
-                  "type": "string",
-                  "description": "Metadata."
-                },
-                "avatar_url": {
-                  "type": "string",
-                  "description": "Avatar URL."
-                },
-                "open": {
-                  "type": "boolean",
-                  "description": "Anyone can join open groups, otherwise only admins can accept members."
-                },
-                "max_count": {
-                  "type": "integer",
-                  "format": "int32",
-                  "description": "The maximum number of members allowed."
-                }
-              },
-              "description": "Update group information."
+              "$ref": "#/definitions/UpdateGroupBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1494,6 +1453,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1523,6 +1485,159 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/hiro/inventory": {
+      "get": {
+        "operationId": "HiroListInventoryItems",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/InventoryList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "THe user ID to list inventory items for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "item_category",
+            "description": "The category for the items to filter for, or empty for all.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/hiro/inventory/{user_id}": {
+      "get": {
+        "operationId": "HiroListUserInventoryItems",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/InventoryList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "THe user ID to list inventory items for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "item_category",
+            "description": "The category for the items to filter for, or empty for all.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/hiro/progression/{user_id}": {
+      "get": {
+        "operationId": "HiroListProgressions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ProgressionList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to list progressions for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "progressions[string]",
+            "description": "Optional last known progressions state, keyed by progression ID.",
+            "in": "query",
+            "required": false
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "post": {
+        "operationId": "HiroResetProgressions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ProgressionList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to reset progressions for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HiroResetProgressionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1552,6 +1667,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1581,6 +1699,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1610,6 +1731,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1639,6 +1763,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "delete": {
@@ -1667,6 +1794,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1704,6 +1834,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1767,6 +1900,9 @@
             "type": "string",
             "format": "int64"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1848,6 +1984,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1877,6 +2016,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1918,6 +2060,9 @@
             },
             "collectionFormat": "multi"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1962,6 +2107,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -1991,6 +2139,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "delete": {
@@ -2019,6 +2170,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2063,6 +2217,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2083,7 +2240,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/setting": {
@@ -2116,6 +2276,9 @@
             },
             "collectionFormat": "multi"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2145,6 +2308,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "post": {
@@ -2177,16 +2343,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "value": {
-                  "type": "string",
-                  "description": "Setting value."
-                }
-              },
-              "description": "Request to update an existing setting."
+              "$ref": "#/definitions/UpdateSettingBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2207,7 +2369,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/storage": {
@@ -2257,6 +2422,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "delete": {
@@ -2276,7 +2444,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/storage/collections": {
@@ -2296,7 +2467,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/storage/{collection}/{key}/{user_id}": {
@@ -2339,6 +2513,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "delete": {
@@ -2388,6 +2565,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "put": {
@@ -2434,30 +2614,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "value": {
-                  "type": "string",
-                  "description": "Value."
-                },
-                "version": {
-                  "type": "string",
-                  "description": "Version for OCC."
-                },
-                "permission_read": {
-                  "type": "integer",
-                  "format": "int32",
-                  "description": "Read permission value."
-                },
-                "permission_write": {
-                  "type": "integer",
-                  "format": "int32",
-                  "description": "Write permission value."
-                }
-              },
-              "description": "Write a new storage object or update an existing one."
+              "$ref": "#/definitions/Console.WriteStorageObjectBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2509,6 +2671,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2553,6 +2718,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2573,7 +2741,10 @@
               "$ref": "#/definitions/rpc.Status"
             }
           }
-        }
+        },
+        "tags": [
+          "Console"
+        ]
       },
       "delete": {
         "summary": "Delete console user.",
@@ -2601,6 +2772,9 @@
             "required": false,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       },
       "post": {
@@ -2610,7 +2784,8 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/AddUserResponse"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -2629,79 +2804,9 @@
               "$ref": "#/definitions/AddUserRequest"
             }
           }
-        ]
-      }
-    },
-    "/v2/console/user/{username}": {
-      "get": {
-        "operationId": "GetUser",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/console.User"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "username",
-            "description": "The unique username of the user account.",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ]
-      },
-      "put": {
-        "summary": "Update a console user.",
-        "operationId": "UpdateUser",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/console.User"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "username",
-            "description": "User username.",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "acl": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/definitions/Permissions"
-                  },
-                  "description": "ACL."
-                }
-              },
-              "description": "Request to update an existing user."
-            }
-          }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2737,16 +2842,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "required": {
-                  "type": "boolean",
-                  "description": "Required."
-                }
-              },
-              "description": "Make a user's mfa required or not."
+              "$ref": "#/definitions/RequireUserMfaBody"
             }
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -2777,6 +2878,9 @@
             "required": true,
             "type": "string"
           }
+        ],
+        "tags": [
+          "Console"
         ]
       }
     }
@@ -2888,33 +2992,19 @@
       },
       "description": "A list of users."
     },
-    "AclResources": {
-      "type": "string",
-      "enum": [
-        "ACCOUNT",
-        "ACCOUNT_WALLET",
-        "ACCOUNT_EXPORT",
-        "ACCOUNT_FRIENDS",
-        "ACCOUNT_GROUPS",
-        "ALL_ACCOUNTS",
-        "ALL_DATA",
-        "ALL_STORAGE",
-        "API_EXPLORER",
-        "CONFIGURATION",
-        "CHANNEL_MESSAGE",
-        "USER",
-        "GROUP",
-        "IN_APP_PURCHASE",
-        "LEADERBOARD",
-        "LEADERBOARD_RECORD",
-        "MATCH",
-        "NOTIFICATION",
-        "SETTINGS",
-        "STORAGE_DATA",
-        "STORAGE_DATA_IMPORT"
-      ],
-      "default": "ACCOUNT",
-      "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
+    "AddGroupUsersBody": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "string",
+          "description": "Users to add/join."
+        },
+        "join_request": {
+          "type": "boolean",
+          "description": "Whether it is a join request."
+        }
+      },
+      "description": "Add/join users to a group."
     },
     "AddUserRequest": {
       "type": "object",
@@ -2931,12 +3021,9 @@
           "type": "string",
           "description": "Email address of the user."
         },
-        "acl": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/Permissions"
-          },
-          "description": "ACL."
+        "role": {
+          "$ref": "#/definitions/UserRole",
+          "title": "Role of this user;"
         },
         "mfa_required": {
           "type": "boolean",
@@ -2948,20 +3035,6 @@
         }
       },
       "title": "Add a new console user"
-    },
-    "AddUserResponse": {
-      "type": "object",
-      "properties": {
-        "user": {
-          "$ref": "#/definitions/console.User",
-          "description": "The user recently created."
-        },
-        "token": {
-          "type": "string",
-          "title": "A one-time token required to update the user for the first time"
-        }
-      },
-      "description": "Response to create/invite a new user."
     },
     "Any": {
       "type": "object",
@@ -3059,6 +3132,381 @@
       },
       "description": "Authenticate a console user with username and password."
     },
+    "AvailableRewards": {
+      "type": "object",
+      "properties": {
+        "guaranteed": {
+          "$ref": "#/definitions/AvailableRewardsContents",
+          "description": "The guaranteed contents to grant."
+        },
+        "weighted": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AvailableRewardsContents"
+          },
+          "description": "The weighted contents to grant."
+        },
+        "max_rolls": {
+          "type": "string",
+          "format": "int64",
+          "description": "The number of weighted reward contents to select from among the possibilities."
+        },
+        "total_weight": {
+          "type": "string",
+          "format": "int64",
+          "description": "The total weight that all weighted reward contents are calculated against. Auto calculated if set to 0 but can be\nset to a higher value to introduce a chance of a \"none\" reward."
+        },
+        "max_repeat_rolls": {
+          "type": "string",
+          "format": "int64",
+          "description": "The maximum number of repeats of any given weighted reward."
+        },
+        "to_mailbox_expiry_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "If rewards will be sent to the claimant's reward mailbox rather than applied directly, and what its expiry will be."
+        },
+        "team_reward": {
+          "$ref": "#/definitions/AvailableTeamRewards",
+          "description": "Rewards for the claimant's team, if any."
+        }
+      },
+      "description": "The available rewards and their probabilistic weights."
+    },
+    "AvailableRewardsContents": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/AvailableRewardsItem"
+          },
+          "description": "All possible items from this particular reward."
+        },
+        "item_sets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AvailableRewardsItemSet"
+          },
+          "description": "All possible item sets from this particular reward."
+        },
+        "currencies": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/AvailableRewardsCurrency"
+          },
+          "description": "All possible currencies from this particular reward."
+        },
+        "energies": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/AvailableRewardsEnergy"
+          },
+          "description": "All possible energies from this particular reward."
+        },
+        "energy_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AvailableRewardsEnergyModifier"
+          },
+          "description": "All possible energy reward modifiers from this particular reward."
+        },
+        "reward_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AvailableRewardsRewardModifier"
+          },
+          "description": "All reward modifiers from this particular reward."
+        },
+        "weight": {
+          "type": "string",
+          "format": "int64",
+          "description": "The weight of the reward contents."
+        }
+      },
+      "description": "The reward contents for available rewards."
+    },
+    "AvailableRewardsCurrency": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "$ref": "#/definitions/RewardRangeInt64",
+          "description": "The possible count of the currency."
+        }
+      },
+      "description": "A possible currency reward."
+    },
+    "AvailableRewardsEnergy": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "$ref": "#/definitions/RewardRangeInt32",
+          "description": "The possible count of the energy."
+        }
+      },
+      "description": "A possible energy reward."
+    },
+    "AvailableRewardsEnergyModifier": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the energy to modify."
+        },
+        "operator": {
+          "type": "string",
+          "description": "The operator of the energy modifier."
+        },
+        "value": {
+          "$ref": "#/definitions/RewardRangeInt64",
+          "description": "The value of the energy modifier."
+        },
+        "duration_sec": {
+          "$ref": "#/definitions/RewardRangeUInt64",
+          "description": "The possible duration of the modifier."
+        }
+      },
+      "description": "A possible energy reward."
+    },
+    "AvailableRewardsItem": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "$ref": "#/definitions/RewardRangeInt64",
+          "description": "The possible count of the reward."
+        },
+        "numeric_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/RewardRangeDouble"
+          },
+          "description": "The possible numeric properties of the reward."
+        },
+        "string_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/AvailableRewardsStringProperty"
+          },
+          "description": "The possible string properties of the reward."
+        }
+      },
+      "description": "A possible item reward."
+    },
+    "AvailableRewardsItemSet": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "$ref": "#/definitions/RewardRangeInt64",
+          "description": "The number of items to draw from the set."
+        },
+        "max_repeats": {
+          "type": "string",
+          "format": "int64",
+          "description": "The number of repeat items that may be drawn from the set. Also includes the user's inventory."
+        },
+        "set": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Drawn items must exist in the intersection of these sets."
+        }
+      },
+      "description": "A possible item reward."
+    },
+    "AvailableRewardsRewardModifier": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the reward item, currency, energy, or energy modifier to modify."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of reward content to modify."
+        },
+        "operator": {
+          "type": "string",
+          "description": "The operator of the modifier."
+        },
+        "value": {
+          "$ref": "#/definitions/RewardRangeInt64",
+          "description": "The value of the modifier."
+        },
+        "duration_sec": {
+          "$ref": "#/definitions/RewardRangeUInt64",
+          "description": "The possible duration of the modifier."
+        }
+      },
+      "description": "A possible modifier reward."
+    },
+    "AvailableRewardsStringProperty": {
+      "type": "object",
+      "properties": {
+        "options": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/AvailableRewardsStringPropertyOption"
+          },
+          "description": "The available string property options."
+        },
+        "total_weight": {
+          "type": "string",
+          "format": "int64",
+          "description": "The total weight from which the options are selected."
+        }
+      },
+      "description": "A possible string property."
+    },
+    "AvailableRewardsStringPropertyOption": {
+      "type": "object",
+      "properties": {
+        "weight": {
+          "type": "string",
+          "format": "int64",
+          "description": "The option weight."
+        }
+      },
+      "description": "A possible string property option."
+    },
+    "AvailableTeamMemberRewards": {
+      "type": "object",
+      "properties": {
+        "guaranteed": {
+          "$ref": "#/definitions/AvailableRewardsContents",
+          "description": "The guaranteed contents to grant."
+        },
+        "weighted": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AvailableRewardsContents"
+          },
+          "description": "The weighted contents to grant."
+        },
+        "max_rolls": {
+          "type": "string",
+          "format": "int64",
+          "description": "The number of weighted reward contents to select from among the possibilities."
+        },
+        "total_weight": {
+          "type": "string",
+          "format": "int64",
+          "description": "The total weight that all weighted reward contents are calculated against. Auto calculated if set to 0 but can be\nset to a higher value to introduce a chance of a \"none\" reward."
+        },
+        "max_repeat_rolls": {
+          "type": "string",
+          "format": "int64",
+          "description": "The maximum number of repeats of any given weighted reward."
+        }
+      },
+      "description": "Available rewards for each member of a team."
+    },
+    "AvailableTeamRewards": {
+      "type": "object",
+      "properties": {
+        "guaranteed": {
+          "$ref": "#/definitions/AvailableTeamRewardsContents",
+          "description": "The guaranteed contents to grant."
+        },
+        "weighted": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AvailableTeamRewardsContents"
+          },
+          "description": "The weighted contents to grant."
+        },
+        "max_rolls": {
+          "type": "string",
+          "format": "int64",
+          "description": "The number of weighted reward contents to select from among the possibilities."
+        },
+        "total_weight": {
+          "type": "string",
+          "format": "int64",
+          "description": "The total weight that all weighted reward contents are calculated against. Auto calculated if set to 0 but can be\nset to a higher value to introduce a chance of a \"none\" reward."
+        },
+        "max_repeat_rolls": {
+          "type": "string",
+          "format": "int64",
+          "description": "The maximum number of repeats of any given weighted reward."
+        },
+        "to_mailbox_expiry_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "If rewards will be sent to the claimant's reward mailbox rather than applied directly, and what its expiry will be."
+        },
+        "member_reward": {
+          "$ref": "#/definitions/AvailableTeamMemberRewards",
+          "description": "Reward to be granted to all individual team members."
+        }
+      },
+      "description": "Available rewards for the claimant's team."
+    },
+    "AvailableTeamRewardsContents": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/AvailableRewardsItem"
+          },
+          "description": "All possible items from this particular reward."
+        },
+        "item_sets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AvailableRewardsItemSet"
+          },
+          "description": "All possible item sets from this particular reward."
+        },
+        "currencies": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/AvailableRewardsCurrency"
+          },
+          "description": "All possible currencies from this particular reward."
+        },
+        "reward_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AvailableRewardsRewardModifier"
+          },
+          "description": "All reward modifiers from this particular reward."
+        },
+        "weight": {
+          "type": "string",
+          "format": "int64",
+          "description": "The weight of the reward contents."
+        }
+      },
+      "description": "The reward contents for available team rewards."
+    },
+    "CallApiEndpointBody": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        },
+        "session_vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "API Explorer request definition for CallApiEndpoint"
+    },
     "CallApiEndpointResponse": {
       "type": "object",
       "properties": {
@@ -3070,6 +3518,24 @@
         }
       },
       "title": "API Explorer response definition for CallApiEndpoint"
+    },
+    "CallRpcEndpointBody": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        },
+        "session_vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "API Explorer request definition for CallApiEndpoint"
     },
     "ChannelMessage": {
       "type": "object",
@@ -3179,6 +3645,30 @@
         }
       },
       "description": "The current server configuration and any associated warnings."
+    },
+    "Console.WriteStorageObjectBody": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "Value."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version for OCC."
+        },
+        "permission_read": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Read permission value."
+        },
+        "permission_write": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Write permission value."
+        }
+      },
+      "description": "Write a new storage object or update an existing one."
     },
     "ConsoleSession": {
       "type": "object",
@@ -3355,6 +3845,111 @@
       },
       "description": "A list of users belonging to a group, along with their role."
     },
+    "HiroResetProgressionsBody": {
+      "type": "object",
+      "properties": {
+        "progression_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Progression ids to reset."
+        }
+      }
+    },
+    "InventoryItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the item."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the item. May be an i18n code."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the item. May be an i18n code."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category to group the item together with others."
+        },
+        "item_sets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The sets the item is grouped into."
+        },
+        "count": {
+          "type": "string",
+          "format": "int64",
+          "description": "The current count of the item."
+        },
+        "max_count": {
+          "type": "string",
+          "format": "int64",
+          "description": "The maximum count which can be owned for this item."
+        },
+        "stackable": {
+          "type": "boolean",
+          "description": "Whether or not the item is stackable."
+        },
+        "consumable": {
+          "type": "boolean",
+          "description": "Whether or not the item is consumable."
+        },
+        "consume_available_rewards": {
+          "$ref": "#/definitions/AvailableRewards",
+          "description": "The configuration for the reward to grant for consumption."
+        },
+        "string_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The properties with string values."
+        },
+        "numeric_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": "The properties with numeric values."
+        },
+        "owned_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "A UNIX timestamp when the user acquired this item."
+        },
+        "update_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "A UNIX timestamp when the item was updated."
+        },
+        "instance_id": {
+          "type": "string",
+          "description": "The instance ID of the item, if any."
+        }
+      },
+      "description": "A item owned by the current user."
+    },
+    "InventoryList": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/InventoryItem"
+          },
+          "description": "The inventory items from definitions and the user."
+        }
+      },
+      "description": "Response for retrieving Inventory system data definitions."
+    },
     "LeaderboardRecord": {
       "type": "object",
       "properties": {
@@ -3513,23 +4108,267 @@
       },
       "title": "Module information"
     },
-    "Permissions": {
+    "Progression": {
       "type": "object",
       "properties": {
-        "read": {
-          "type": "boolean",
-          "description": "Read a resource."
+        "id": {
+          "type": "string",
+          "description": "The ID of the progression."
         },
-        "write": {
-          "type": "boolean",
-          "description": "Create and/or modify a resource."
+        "name": {
+          "type": "string",
+          "description": "The name of the progression. May be an i18n code."
         },
-        "delete": {
+        "description": {
+          "type": "string",
+          "description": "A description of the progression. May be an i18n code."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category to group the progression together with others."
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Current count, if any."
+        },
+        "additional_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Additional metadata properties."
+        },
+        "unlocked": {
           "type": "boolean",
-          "description": "Delete a resource."
+          "description": "Flag indicating unlock status."
+        },
+        "preconditions": {
+          "$ref": "#/definitions/ProgressionPreconditionsBlock",
+          "description": "All preconditions."
+        },
+        "unmet_preconditions": {
+          "$ref": "#/definitions/ProgressionPreconditionsBlock",
+          "description": "Unmet preconditions."
+        },
+        "unconditional_updates": {
+          "type": "boolean",
+          "description": "Flag indicating if unconditional updates are allowed."
+        },
+        "permanent_unlock": {
+          "type": "boolean",
+          "description": "Flag indicating if the progression remains unlocked permanently once unlocked the first time."
         }
       },
-      "description": "The possible actions that can done over a resource."
+      "description": "A progression element which can be unlocked to access further progressions."
+    },
+    "ProgressionCost": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "The items which will be deducted."
+        },
+        "currencies": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "The currencies which will be deducted."
+        }
+      },
+      "description": "The cost(s) associated with permanently unlocking a progression."
+    },
+    "ProgressionDelta": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the progression."
+        },
+        "state": {
+          "$ref": "#/definitions/ProgressionDeltaState",
+          "description": "Potential state change."
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Changes to counts, if any."
+        },
+        "preconditions": {
+          "$ref": "#/definitions/ProgressionPreconditionsBlock",
+          "description": "Changes to preconditions, if any."
+        }
+      },
+      "description": "A change in a given progression, compared to a previously known state."
+    },
+    "ProgressionDeltaState": {
+      "type": "string",
+      "enum": [
+        "PROGRESSION_DELTA_STATE_UNSPECIFIED",
+        "PROGRESSION_DELTA_STATE_UNCHANGED",
+        "PROGRESSION_DELTA_STATE_UNLOCKED",
+        "PROGRESSION_DELTA_STATE_LOCKED"
+      ],
+      "default": "PROGRESSION_DELTA_STATE_UNSPECIFIED",
+      "description": " - PROGRESSION_DELTA_STATE_UNSPECIFIED: Unspecified. Defaults to UNCHANGED.\n - PROGRESSION_DELTA_STATE_UNCHANGED: Progression unlock state has not changed.\n - PROGRESSION_DELTA_STATE_UNLOCKED: Progression was locked, it is now unlocked.\n - PROGRESSION_DELTA_STATE_LOCKED: Progression was unlocked, it is now locked."
+    },
+    "ProgressionList": {
+      "type": "object",
+      "properties": {
+        "progressions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Progression"
+          },
+          "description": "Progressions keyed by progression ID."
+        },
+        "deltas": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ProgressionDelta"
+          },
+          "description": "Progression deltas keyed by progression ID."
+        }
+      },
+      "description": "All or a filtered list of progressions for a user."
+    },
+    "ProgressionPreconditions": {
+      "type": "object",
+      "properties": {
+        "counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Counts required."
+        },
+        "cost": {
+          "$ref": "#/definitions/ProgressionCost",
+          "description": "Purchase cost paid."
+        },
+        "progressions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Other progressions."
+        },
+        "achievements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Achievements."
+        },
+        "items_min": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Items with associated minimum counts."
+        },
+        "items_max": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Items with associated maximum counts."
+        },
+        "stats_min": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Stats with associated minimum values."
+        },
+        "stats_max": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Stats with associated maximum values."
+        },
+        "energy_min": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Energies with associated minimum counts."
+        },
+        "energy_max": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Energies with associated maximum counts."
+        },
+        "currency_min": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Currencies with associated minimum counts."
+        },
+        "currency_max": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Currencies with associated maximum counts."
+        }
+      },
+      "description": "Preconditions associated with a progression."
+    },
+    "ProgressionPreconditionsBlock": {
+      "type": "object",
+      "properties": {
+        "direct": {
+          "$ref": "#/definitions/ProgressionPreconditions",
+          "description": "Direct preconditions."
+        },
+        "operator": {
+          "$ref": "#/definitions/ProgressionPreconditionsOperator",
+          "description": "Operator for any nested block."
+        },
+        "nested": {
+          "$ref": "#/definitions/ProgressionPreconditionsBlock",
+          "description": "Nested block of preconditions, if any."
+        }
+      },
+      "description": "A complex set of progression preconditions."
+    },
+    "ProgressionPreconditionsOperator": {
+      "type": "string",
+      "enum": [
+        "PROGRESSION_PRECONDITIONS_OPERATOR_UNSPECIFIED",
+        "PROGRESSION_PRECONDITIONS_OPERATOR_AND",
+        "PROGRESSION_PRECONDITIONS_OPERATOR_OR",
+        "PROGRESSION_PRECONDITIONS_OPERATOR_XOR",
+        "PROGRESSION_PRECONDITIONS_OPERATOR_NOT"
+      ],
+      "default": "PROGRESSION_PRECONDITIONS_OPERATOR_UNSPECIFIED",
+      "description": " - PROGRESSION_PRECONDITIONS_OPERATOR_UNSPECIFIED: Unspecified. Defaults to AND.\n - PROGRESSION_PRECONDITIONS_OPERATOR_AND: Both the direct preconditions and the nested block must be true.\n - PROGRESSION_PRECONDITIONS_OPERATOR_OR: Either the direct preconditions or the nested block must be true.\n - PROGRESSION_PRECONDITIONS_OPERATOR_XOR: Either the direct preconditions or the nested block must be true, but not both.\n - PROGRESSION_PRECONDITIONS_OPERATOR_NOT: The direct preconditions must be true, but the nested block must not be."
     },
     "PurchaseList": {
       "type": "object",
@@ -3553,15 +4392,99 @@
       },
       "description": "A list of validated purchases stored by Nakama."
     },
-    "ResetUserResponse": {
+    "RequireUserMfaBody": {
       "type": "object",
       "properties": {
-        "code": {
-          "type": "string",
-          "description": "An one-time code to be used when re-configuring the password."
+        "required": {
+          "type": "boolean",
+          "description": "Required."
         }
       },
-      "description": "Request to reset a user's credentials, password or MFA."
+      "description": "Make a user's mfa required or not."
+    },
+    "RewardRangeDouble": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "number",
+          "format": "double",
+          "description": "The minimum bound of the range."
+        },
+        "max": {
+          "type": "number",
+          "format": "double",
+          "description": "The maximum bound of the range."
+        },
+        "multiple": {
+          "type": "number",
+          "format": "double",
+          "description": "A number that the result must be a multiple of."
+        }
+      },
+      "description": "A range of possible values."
+    },
+    "RewardRangeInt32": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The minimum bound of the range."
+        },
+        "max": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum bound of the range."
+        },
+        "multiple": {
+          "type": "integer",
+          "format": "int32",
+          "description": "A number that the result must be a multiple of."
+        }
+      },
+      "description": "A range of possible values."
+    },
+    "RewardRangeInt64": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "string",
+          "format": "int64",
+          "description": "The minimum bound of the range."
+        },
+        "max": {
+          "type": "string",
+          "format": "int64",
+          "description": "The maximum bound of the range."
+        },
+        "multiple": {
+          "type": "string",
+          "format": "int64",
+          "description": "A number that the result must be a multiple of."
+        }
+      },
+      "description": "A range of possible values."
+    },
+    "RewardRangeUInt64": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "string",
+          "format": "uint64",
+          "description": "The minimum bound of the range."
+        },
+        "max": {
+          "type": "string",
+          "format": "uint64",
+          "description": "The maximum bound of the range."
+        },
+        "multiple": {
+          "type": "string",
+          "format": "uint64",
+          "description": "A number that the result must be a multiple of."
+        }
+      },
+      "description": "A range of possible values."
     },
     "RuntimeInfo": {
       "type": "object",
@@ -3643,13 +4566,6 @@
             "$ref": "#/definitions/Setting"
           },
           "description": "A list of settings."
-        },
-        "acl_resources": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/AclResources"
-          },
-          "description": "This field is only used to allow the swagger generator to output the enum values."
         }
       },
       "description": "A list of settings."
@@ -3937,6 +4853,118 @@
       },
       "description": "A list of validated subscriptions stored by Nakama."
     },
+    "UnlinkDeviceBody": {
+      "type": "object",
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "description": "Device ID to unlink."
+        }
+      },
+      "description": "Unlink a particular device ID from a user's account."
+    },
+    "UpdateAccountBody": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Username."
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "lang_tag": {
+          "type": "string",
+          "description": "Langtag."
+        },
+        "location": {
+          "type": "string",
+          "description": "Location."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Timezone."
+        },
+        "custom_id": {
+          "type": "string",
+          "description": "Custom ID."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email."
+        },
+        "password": {
+          "type": "string",
+          "description": "Password."
+        },
+        "device_ids": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Device ID modifications."
+        },
+        "wallet": {
+          "type": "string",
+          "description": "Wallet."
+        }
+      },
+      "description": "Update user account information."
+    },
+    "UpdateGroupBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description."
+        },
+        "lang_tag": {
+          "type": "string",
+          "description": "Langtag."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Metadata."
+        },
+        "avatar_url": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "open": {
+          "type": "boolean",
+          "description": "Anyone can join open groups, otherwise only admins can accept members."
+        },
+        "max_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum number of members allowed."
+        }
+      },
+      "description": "Update group information."
+    },
+    "UpdateSettingBody": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "Setting value."
+        }
+      },
+      "description": "Request to update an existing setting."
+    },
     "UserGroup": {
       "type": "object",
       "properties": {
@@ -3977,12 +5005,38 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/console.User"
+            "$ref": "#/definitions/UserList.User"
           },
           "description": "A list of users."
         }
       },
       "description": "A list of console users."
+    },
+    "UserList.User": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "title": "Username of the user"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email of the user"
+        },
+        "role": {
+          "$ref": "#/definitions/UserRole",
+          "title": "Role of the user;"
+        },
+        "mfa_required": {
+          "type": "boolean",
+          "description": "Whether the user is required to setup MFA."
+        },
+        "mfa_enabled": {
+          "type": "boolean",
+          "description": "Whether the user has MFA enabled."
+        }
+      },
+      "title": "A console user"
     },
     "UserPresence": {
       "type": "object",
@@ -4009,6 +5063,18 @@
         }
       },
       "description": "A user session associated to a stream, usually through a list operation or a join/leave event."
+    },
+    "UserRole": {
+      "type": "string",
+      "enum": [
+        "USER_ROLE_UNKNOWN",
+        "USER_ROLE_ADMIN",
+        "USER_ROLE_DEVELOPER",
+        "USER_ROLE_MAINTAINER",
+        "USER_ROLE_READONLY"
+      ],
+      "default": "USER_ROLE_UNKNOWN",
+      "title": "- USER_ROLE_ADMIN: All access\n - USER_ROLE_DEVELOPER: Best for developers, also enables APIs and API explorer\n - USER_ROLE_MAINTAINER: Best for users who regularly update player information.\n - USER_ROLE_READONLY: Read-only role for those only need to view data"
     },
     "ValidatedPurchase": {
       "type": "object",
@@ -4624,49 +5690,6 @@
           "description": "Previous page cursor if any."
         }
       }
-    },
-    "console.User": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "User identifier."
-        },
-        "username": {
-          "type": "string",
-          "title": "Username of the user"
-        },
-        "email": {
-          "type": "string",
-          "title": "Email of the user"
-        },
-        "acl": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/Permissions"
-          },
-          "description": "ACL."
-        },
-        "mfa_required": {
-          "type": "boolean",
-          "description": "Whether the user is required to setup MFA."
-        },
-        "mfa_enabled": {
-          "type": "boolean",
-          "description": "Whether the user has MFA enabled."
-        },
-        "create_time": {
-          "type": "string",
-          "format": "date-time",
-          "title": "User's create time"
-        },
-        "update_time": {
-          "type": "string",
-          "format": "date-time",
-          "title": "User's update time"
-        }
-      },
-      "title": "A console user"
     },
     "rpc.Status": {
       "type": "object",

@@ -1,0 +1,16 @@
+version: v2
+breaking:
+    use:
+    - FILE
+lint:
+    use:
+    - STANDARD
+    except:
+    - PACKAGE_DIRECTORY_MATCH
+    - PACKAGE_VERSION_SUFFIX
+modules:
+-   path: .
+    name: buf.build/heroiclabs/hiro
+    excludes:
+    - vendor
+    - node_modules
