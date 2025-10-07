@@ -1300,3 +1300,29 @@ message Permissions {
   // Delete a resource.
   bool delete = 3;
 }
+
+// ATTENTION: Do not modify the order of this enum.
+// New resources should always be appended.
+enum AclResources {
+  ACCOUNT = 0;
+  ACCOUNT_WALLET = 1;
+  ACCOUNT_EXPORT = 2;
+  ACCOUNT_FRIENDS = 3;
+  ACCOUNT_GROUPS = 4;
+  ALL_ACCOUNTS = 5;
+  ALL_DATA = 6;
+  ALL_STORAGE = 7;
+  API = 8;
+  CONFIGURATION = 9;
+  CHANNEL_MESSAGE = 10;
+  USER = 11;
+  GROUP = 12;
+  IN_APP_PURCHASE = 13;
+  LEADERBOARD = 14;
+  LEADERBOARD_RECORD = 15;
+  MATCH = 16;
+  NOTIFICATION = 17;
+  SETTINGS = 18;
+  STORAGE_DATA = 19;
+  STORAGE_DATA_IMPORT = 20;
+}

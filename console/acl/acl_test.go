@@ -14,31 +14,32 @@ package acl
 import (
 	"testing"
 
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_Permission(t *testing.T) {
-	p := NewPermission(Account, PermissionRead).
-		Compose(NewPermission(Account, PermissionWrite)).
-		Compose(NewPermission(AccountWallet, PermissionRead)).
-		Compose(NewPermission(AccountExport, PermissionDelete))
+	p := NewPermission(console.AclResources_ACCOUNT, PermissionRead).
+		Compose(NewPermission(console.AclResources_ACCOUNT, PermissionWrite)).
+		Compose(NewPermission(console.AclResources_ACCOUNT_WALLET, PermissionRead)).
+		Compose(NewPermission(console.AclResources_ACCOUNT_EXPORT, PermissionDelete))
 
-	println(p.bitmapString())
+	t.Logf("Permission bits: %s", p.bitmapString())
 
 	acl := p.ACL()
 
-	assert.True(t, p.HasAccess(NewPermission(Account, PermissionRead)))
-	assert.True(t, p.HasAccess(NewPermission(AccountWallet, PermissionRead)))
-	assert.True(t, p.HasAccess(NewPermission(Account, PermissionWrite)))
-	assert.True(t, p.HasAccess(NewPermission(AccountExport, PermissionDelete)))
-	assert.False(t, p.HasAccess(NewPermission(Account, PermissionDelete)))
-	assert.True(t, acl["Account"].Read)
-	assert.True(t, acl["Account"].Write)
-	assert.False(t, acl["Account"].Delete)
-	assert.True(t, acl["AccountWallet"].Read)
-	assert.False(t, acl["AccountWallet"].Write)
-	assert.False(t, acl["AccountWallet"].Delete)
-	assert.False(t, acl["AccountExport"].Read)
-	assert.False(t, acl["AccountExport"].Write)
-	assert.True(t, acl["AccountExport"].Delete)
+	assert.True(t, p.HasAccess(NewPermission(console.AclResources_ACCOUNT, PermissionRead)))
+	assert.True(t, p.HasAccess(NewPermission(console.AclResources_ACCOUNT, PermissionRead)))
+	assert.True(t, p.HasAccess(NewPermission(console.AclResources_ACCOUNT, PermissionWrite)))
+	assert.True(t, p.HasAccess(NewPermission(console.AclResources_ACCOUNT_EXPORT, PermissionDelete)))
+	assert.False(t, p.HasAccess(NewPermission(console.AclResources_ACCOUNT, PermissionDelete)))
+	assert.True(t, acl[console.AclResources_ACCOUNT.String()].Read)
+	assert.True(t, acl[console.AclResources_ACCOUNT.String()].Write)
+	assert.False(t, acl[console.AclResources_ACCOUNT.String()].Delete)
+	assert.True(t, acl[console.AclResources_ACCOUNT_WALLET.String()].Read)
+	assert.False(t, acl[console.AclResources_ACCOUNT_WALLET.String()].Write)
+	assert.False(t, acl[console.AclResources_ACCOUNT_WALLET.String()].Delete)
+	assert.False(t, acl[console.AclResources_ACCOUNT_EXPORT.String()].Read)
+	assert.False(t, acl[console.AclResources_ACCOUNT_EXPORT.String()].Write)
+	assert.True(t, acl[console.AclResources_ACCOUNT_EXPORT.String()].Delete)
 }

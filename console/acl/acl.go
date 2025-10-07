@@ -14,6 +14,7 @@ package acl
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -21,84 +22,20 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 )
 
-type PermissionLevel uint64
-
+// ATTENTION: These values cannot be changed as they represent the bit positions in the ACL bitmap.
 const (
 	PermissionRead   = PermissionLevel(0)
 	PermissionWrite  = PermissionLevel(1)
 	PermissionDelete = PermissionLevel(2)
 )
 
-type ConsoleResource uint64
-
-// ATTENTION: DO NOT REORDER THE ENUM. ANY MODIFICATION SHOULD BE DONE IN AN INCREMENTAL-ONLY FASHION.
-const (
-	Account ConsoleResource = iota // ATTENTION: Do not modify the expression. The operation priority is important.
-	AccountWallet
-	AccountExport
-	AccountFriends
-	AccountGroups
-	AllAccounts
-	AllData
-	AllStorage
-	Api
-	Configuration
-	ChannelMessage
-	User
-	DatabaseData
-	Group
-	InAppPurchase
-	Leaderboard
-	LeaderboardRecord
-	Match
-	Notification
-	Settings
-	StorageData
-	StorageDataImport
-)
-
-// ATTENTION: DO NOT REORDER THE SLICE. ANY MODIFICATION SHOULD BE DONE IN AN INCREMENTAL-ONLY FASHION.
-var Resources = []struct {
-	Resource ConsoleResource
-	Name     string
-}{
-	{Account, "Account"},
-	{AccountWallet, "AccountWallet"},
-	{AccountExport, "AccountExport"},
-	{AccountFriends, "AccountFriends"},
-	{AccountGroups, "AccountGroups"},
-	{AllAccounts, "AllAccounts"},
-	{AllStorage, "AllStorage"},
-	{AllData, "AllData"},
-	{Api, "Api"},
-	{Configuration, "Configuration"},
-	{ChannelMessage, "ChannelMessage"},
-	{User, "User"},
-	{DatabaseData, "DatabaseData"},
-	{Group, "Group"},
-	{InAppPurchase, "InAppPurchase"},
-	{Leaderboard, "Leaderboard"},
-	{LeaderboardRecord, "LeaderboardRecord"},
-	{Match, "Match"},
-	{Notification, "Notification"},
-	{Settings, "Settings"},
-	{StorageData, "StorageData"},
-	{StorageDataImport, "StorageDataImport"},
-}
+type PermissionLevel = console.AclPermissionLevel
+type ConsoleResource = console.AclResources
 
 var (
-	byteCount = func() int {
-		// Postgres requires hex to be an even number of bytes.
-		// This is not a bytea requirement but rather how hex
-		// is converted from string to bytea in the migration files.
-		b := int(math.Ceil(float64(len(Resources)*3) / 8.0))
-		if b%2 != 0 {
-			b++
-		}
-		return b
-	}()
-	None  = Permission{Bitmap: make([]byte, byteCount)}
-	Admin = Permission{Bitmap: bytes.Repeat([]byte{0xFF}, byteCount)}
+	byteCount = int(math.Ceil(float64(len(console.AclResources_value)*3) / 8.0))
+	None      = Permission{Bitmap: make([]byte, byteCount)}
+	Admin     = Permission{Bitmap: bytes.Repeat([]byte{0xFF}, byteCount)}
 )
 
 type Permission struct {
@@ -113,7 +50,7 @@ func (p Permission) Compose(permission Permission) Permission {
 }
 
 func (p Permission) String() string {
-	resourceBitCount := len(Resources) * 3
+	resourceBitCount := len(console.AclResources_value) * 3
 	bitCount := 0
 	for _, b := range p.Bitmap {
 		for j := 0; j < 8; j++ {
@@ -196,11 +133,10 @@ func NewPermission(resource ConsoleResource, level PermissionLevel) Permission {
 }
 
 func NewPermissionFromString(resource string, level PermissionLevel) Permission {
-	for _, i := range Resources {
-		if i.Name == resource {
-			return NewPermission(i.Resource, level)
-		}
+	if i, ok := console.AclResources_value[resource]; ok {
+		return NewPermission(ConsoleResource(i), level)
 	}
+
 	return None
 }
 
@@ -211,144 +147,144 @@ func CheckACL(action string, userPermissions Permission) bool {
 	case "/satori.console.Console/AclList":
 		requiredPermissions = None
 	case "/nakama.console.Console/AddUser":
-		requiredPermissions = NewPermission(User, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/BanAccount":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/CallApiEndpoint":
-		requiredPermissions = NewPermission(Api, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_API, PermissionWrite)
 	case "/nakama.console.Console/CallRpcEndpoint":
-		requiredPermissions = NewPermission(Api, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_API, PermissionWrite)
 	case "/nakama.console.Console/DeleteAccount":
-		requiredPermissions = NewPermission(Account, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionDelete)
 	case "/nakama.console.Console/DeleteAccounts":
-		requiredPermissions = NewPermission(AllAccounts, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_ALL_ACCOUNTS, PermissionDelete)
 	case "/nakama.console.Console/DeleteAllData":
-		requiredPermissions = NewPermission(AllData, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_ALL_DATA, PermissionDelete)
 	case "/nakama.console.Console/DeleteChannelMessages":
-		requiredPermissions = NewPermission(ChannelMessage, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_CHANNEL_MESSAGE, PermissionDelete)
 	case "/nakama.console.Console/DeleteFriend":
-		requiredPermissions = NewPermission(AccountFriends, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_FRIENDS, PermissionDelete)
 	case "/nakama.console.Console/DeleteGroup":
-		requiredPermissions = NewPermission(Group, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionDelete)
 	case "/nakama.console.Console/DeleteGroupUser":
-		requiredPermissions = NewPermission(Group, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionDelete)
 	case "/nakama.console.Console/DeleteLeaderboard":
-		requiredPermissions = NewPermission(Leaderboard, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_LEADERBOARD, PermissionDelete)
 	case "/nakama.console.Console/DeleteLeaderboardRecord":
-		requiredPermissions = NewPermission(LeaderboardRecord, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_LEADERBOARD_RECORD, PermissionDelete)
 	case "/nakama.console.Console/DeleteNotification":
-		requiredPermissions = NewPermission(Notification, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_NOTIFICATION, PermissionDelete)
 	case "/nakama.console.Console/DeleteStorage": // Delete all storage data.
-		requiredPermissions = NewPermission(AllStorage, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_ALL_STORAGE, PermissionDelete)
 	case "/nakama.console.Console/DeleteStorageObject":
-		requiredPermissions = NewPermission(StorageData, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionDelete)
 	case "/nakama.console.Console/DeleteUser":
-		requiredPermissions = NewPermission(User, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_USER, PermissionDelete)
 	case "/nakama.console.Console/DeleteWalletLedger":
-		requiredPermissions = NewPermission(AccountWallet, PermissionDelete)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_WALLET, PermissionDelete)
 	case "/nakama.console.Console/DemoteGroupMember":
-		requiredPermissions = NewPermission(Group, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionWrite)
 	case "/nakama.console.Console/ExportAccount":
-		requiredPermissions = NewPermission(AccountExport, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_EXPORT, PermissionRead)
 	case "/nakama.console.Console/ExportGroup":
-		requiredPermissions = NewPermission(Group, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionRead)
 	case "/nakama.console.Console/GetAccount":
-		requiredPermissions = NewPermission(Account, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionRead)
 	case "/nakama.console.Console/GetConfig":
-		requiredPermissions = NewPermission(Configuration, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_CONFIGURATION, PermissionRead)
 	case "/nakama.console.Console/GetFriends":
-		requiredPermissions = NewPermission(AccountFriends, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_FRIENDS, PermissionRead)
 	case "/nakama.console.Console/GetGroup":
-		requiredPermissions = NewPermission(Group, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionRead)
 	case "/nakama.console.Console/GetGroups":
-		requiredPermissions = NewPermission(Group, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionRead)
 	case "/nakama.console.Console/GetLeaderboard":
-		requiredPermissions = NewPermission(Leaderboard, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_LEADERBOARD, PermissionRead)
 	case "/nakama.console.Console/GetMatchState":
-		requiredPermissions = NewPermission(Match, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_MATCH, PermissionRead)
 	case "/nakama.console.Console/GetMembers":
-		requiredPermissions = NewPermission(Group, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionRead)
 	case "/nakama.console.Console/GetNotification":
-		requiredPermissions = NewPermission(Notification, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_NOTIFICATION, PermissionRead)
 	case "/nakama.console.Console/GetPurchase":
-		requiredPermissions = NewPermission(InAppPurchase, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_IN_APP_PURCHASE, PermissionRead)
 	case "/nakama.console.Console/GetRuntime":
-		requiredPermissions = NewPermission(Configuration, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_CONFIGURATION, PermissionRead)
 	case "/nakama.console.Console/GetSetting":
-		requiredPermissions = NewPermission(Settings, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionRead)
 	case "/nakama.console.Console/GetStatus":
 		requiredPermissions = None // Accessible to anyone with console access.
 	case "/nakama.console.Console/GetStorage":
-		requiredPermissions = NewPermission(StorageData, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
 	case "/nakama.console.Console/GetSubscription":
-		requiredPermissions = NewPermission(InAppPurchase, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_IN_APP_PURCHASE, PermissionRead)
 	case "/nakama.console.Console/GetWalletLedger":
-		requiredPermissions = NewPermission(AccountWallet, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_WALLET, PermissionRead)
 	case "/nakama.console.Console/ListAccounts":
-		requiredPermissions = NewPermission(Account, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionRead)
 	case "/nakama.console.Console/ListApiEndpoints":
-		requiredPermissions = NewPermission(Api, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_API, PermissionRead)
 	case "/nakama.console.Console/ListChannelMessages":
-		requiredPermissions = NewPermission(ChannelMessage, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_CHANNEL_MESSAGE, PermissionRead)
 	case "/nakama.console.Console/ListGroups":
-		requiredPermissions = NewPermission(Group, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionRead)
 	case "/nakama.console.Console/ListLeaderboardRecords":
-		requiredPermissions = NewPermission(LeaderboardRecord, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_LEADERBOARD_RECORD, PermissionRead)
 	case "/nakama.console.Console/ListLeaderboards":
-		requiredPermissions = NewPermission(Leaderboard, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_LEADERBOARD, PermissionRead)
 	case "/nakama.console.Console/ListMatches":
-		requiredPermissions = NewPermission(Match, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_MATCH, PermissionRead)
 	case "/nakama.console.Console/ListNotifications":
-		requiredPermissions = NewPermission(Notification, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_NOTIFICATION, PermissionRead)
 	case "/nakama.console.Console/ListPurchases":
-		requiredPermissions = NewPermission(InAppPurchase, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_IN_APP_PURCHASE, PermissionRead)
 	case "/nakama.console.Console/ListSettings":
-		requiredPermissions = NewPermission(Settings, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionRead)
 	case "/nakama.console.Console/ListStorage":
-		requiredPermissions = NewPermission(StorageData, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
 	case "/nakama.console.Console/ListStorageCollections":
-		requiredPermissions = NewPermission(StorageData, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
 	case "/nakama.console.Console/ListSubscriptions":
-		requiredPermissions = NewPermission(InAppPurchase, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_IN_APP_PURCHASE, PermissionRead)
 	case "/nakama.console.Console/ListUsers":
-		requiredPermissions = NewPermission(User, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_USER, PermissionRead)
 	case "/nakama.console.Console/PromoteGroupMember":
-		requiredPermissions = NewPermission(Group, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionWrite)
 	case "/nakama.console.Console/RequireUserMfa":
-		requiredPermissions = NewPermission(User, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
 	case "/nakama.console.Console/ResetUserMfa":
-		requiredPermissions = NewPermission(User, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
 	case "/nakama.console.Console/UnbanAccount":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkApple":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkCustom":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkDevice":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkEmail":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkFacebook":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkFacebookInstantGame":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkGameCenter":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkGoogle":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkSteam":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UpdateAccount":
-		requiredPermissions = NewPermission(Account, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UpdateGroup":
-		requiredPermissions = NewPermission(Group, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionWrite)
 	case "/nakama.console.Console/UpdateSetting":
-		requiredPermissions = NewPermission(Settings, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionWrite)
 	case "/nakama.console.Console/WriteStorageObject":
-		requiredPermissions = NewPermission(StorageData, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionWrite)
 	case "/v2/console/storage/import":
 		// Special case for non-grpc gateway endpoint.
-		requiredPermissions = NewPermission(StorageDataImport, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA_IMPORT, PermissionWrite)
 	default:
 		requiredPermissions = Admin
 	}
@@ -359,10 +295,15 @@ func CheckACL(action string, userPermissions Permission) bool {
 func New(acl map[string]*console.Permissions) Permission {
 	acc := None
 
-	resourceBitCount := len(Resources) * 3
+	resourceBitCount := len(console.AclResources_value) * 3
 	setBitCount := 0
 	for resource, permissions := range acl {
 		if permissions == nil {
+			continue
+		}
+
+		if _, ok := console.AclResources_value[resource]; !ok {
+			// Unknown resource value, skip.
 			continue
 		}
 
@@ -389,6 +330,15 @@ func New(acl map[string]*console.Permissions) Permission {
 	return acc
 }
 
+func NewFromJson(s string) (Permission, error) {
+	var acl map[string]*console.Permissions
+	if err := json.Unmarshal([]byte(s), &acl); err != nil {
+		return Permission{}, err
+	}
+
+	return New(acl), nil
+}
+
 func NewFromBytes(b []byte) Permission {
 	return Permission{Bitmap: b}
 }
@@ -397,20 +347,42 @@ func (p Permission) ACL() map[string]*console.Permissions {
 	acl := map[string]*console.Permissions{}
 	curr := p
 
-	for _, resource := range Resources {
+	for i, resource := range console.AclResources_name {
 		p := &console.Permissions{}
-		if curr.HasAccess(NewPermission(resource.Resource, PermissionRead)) {
+		if curr.HasAccess(NewPermission(ConsoleResource(i), PermissionRead)) {
 			p.Read = true
 		}
-		if curr.HasAccess(NewPermission(resource.Resource, PermissionWrite)) {
+		if curr.HasAccess(NewPermission(ConsoleResource(i), PermissionWrite)) {
 			p.Write = true
 		}
-		if curr.HasAccess(NewPermission(resource.Resource, PermissionDelete)) {
+		if curr.HasAccess(NewPermission(ConsoleResource(i), PermissionDelete)) {
 			p.Delete = true
 		}
 
-		acl[resource.Name] = p
+		acl[resource] = p
 	}
 
 	return acl
+}
+
+func (p Permission) ToJson() (string, error) {
+	acl := p.ACL()
+
+	// Create new type to ensure json output contains all keys
+	type aclEntry struct {
+		Read   bool `json:"read"`
+		Write  bool `json:"write"`
+		Delete bool `json:"delete"`
+	}
+
+	out := make(map[string]aclEntry, len(acl))
+	for k, v := range acl {
+		out[k] = aclEntry{Read: v.Read, Write: v.Write, Delete: v.Delete}
+	}
+
+	j, err := json.Marshal(out)
+	if err != nil {
+		return "", err
+	}
+	return string(j), nil
 }
