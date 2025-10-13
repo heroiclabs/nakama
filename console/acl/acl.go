@@ -29,7 +29,7 @@ const (
 	PermissionDelete = PermissionLevel(2)
 )
 
-type PermissionLevel = console.AclPermissionLevel
+type PermissionLevel int
 type ConsoleResource = console.AclResources
 
 var (
