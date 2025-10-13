@@ -3684,6 +3684,34 @@
       },
       "description": "A list of users."
     },
+    "consoleAclResources": {
+      "type": "string",
+      "enum": [
+        "ACCOUNT",
+        "ACCOUNT_WALLET",
+        "ACCOUNT_EXPORT",
+        "ACCOUNT_FRIENDS",
+        "ACCOUNT_GROUPS",
+        "ALL_ACCOUNTS",
+        "ALL_DATA",
+        "ALL_STORAGE",
+        "API",
+        "CONFIGURATION",
+        "CHANNEL_MESSAGE",
+        "USER",
+        "GROUP",
+        "IN_APP_PURCHASE",
+        "LEADERBOARD",
+        "LEADERBOARD_RECORD",
+        "MATCH",
+        "NOTIFICATION",
+        "SETTINGS",
+        "STORAGE_DATA",
+        "STORAGE_DATA_IMPORT"
+      ],
+      "default": "ACCOUNT",
+      "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
+    },
     "consoleAddUserRequest": {
       "type": "object",
       "properties": {
@@ -4024,6 +4052,13 @@
             "$ref": "#/definitions/consoleSetting"
           },
           "description": "A list of settings."
+        },
+        "acl_resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleAclResources"
+          },
+          "description": "This field is only used to allow the swagger generator to output the enum values."
         }
       },
       "description": "A list of settings."

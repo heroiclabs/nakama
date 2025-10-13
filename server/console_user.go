@@ -116,14 +116,18 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 		return false, err
 	}
 
-	userAcl := acl.New(in.Acl)
+	userAclJson, err := acl.New(in.Acl).ToJson()
+	if err != nil {
+		s.logger.Error("failed to json marshal acl", zap.Error(err))
+		return false, status.Error(codes.Internal, "Error creating console user.")
+	}
 
 	updated := false
 	query := `INSERT INTO console_user (id, username, email, password, acl, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
 						ON CONFLICT (id) DO
 						UPDATE SET username = $2, password = $4, acl = $5, mfa_required = $6, update_time = now()
 						RETURNING id, create_time != update_time`
-	err = s.db.QueryRowContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, userAcl, in.MfaRequired).Scan(&id, &updated)
+	err = s.db.QueryRowContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, userAclJson, in.MfaRequired).Scan(&id, &updated)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -174,7 +178,10 @@ func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.User
 		if err := rows.Scan(&user.Username, &user.Email, &aclBytes, &user.MfaRequired, &user.MfaEnabled); err != nil {
 			return nil, err
 		}
-		userAcl := acl.NewFromBytes(aclBytes)
+		userAcl, err := acl.NewFromJson(string(aclBytes))
+		if err != nil {
+			return nil, err
+		}
 		user.Acl = userAcl.ACL()
 		result = append(result, user)
 	}

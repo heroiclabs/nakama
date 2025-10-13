@@ -330,15 +330,6 @@ func New(acl map[string]*console.Permissions) Permission {
 	return acc
 }
 
-func NewFromJson(s string) (Permission, error) {
-	var acl map[string]*console.Permissions
-	if err := json.Unmarshal([]byte(s), &acl); err != nil {
-		return Permission{}, err
-	}
-
-	return New(acl), nil
-}
-
 func NewFromBytes(b []byte) Permission {
 	return Permission{Bitmap: b}
 }
@@ -365,19 +356,59 @@ func (p Permission) ACL() map[string]*console.Permissions {
 	return acl
 }
 
+// Create new type to ensure json output contains all keys
+type dbAclEntry struct {
+	Read   bool `json:"read"`
+	Write  bool `json:"write"`
+	Delete bool `json:"delete"`
+}
+type dbPermission struct {
+	Admin bool                  `json:"admin"`
+	Acl   map[string]dbAclEntry `json:"acl"`
+}
+
+func NewFromJson(s string) (Permission, error) {
+	var dbAcl dbPermission
+	if err := json.Unmarshal([]byte(s), &dbAcl); err != nil {
+		return Permission{}, err
+	}
+
+	if dbAcl.Admin {
+		return Admin, nil
+	}
+
+	out := make(map[string]*console.Permissions, len(console.AclResources_value))
+	for resource, _ := range console.AclResources_value {
+		p := dbAcl.Acl[resource]
+		out[resource] = &console.Permissions{
+			Read:   p.Read,
+			Write:  p.Write,
+			Delete: p.Delete,
+		}
+	}
+	return New(out), nil
+}
+
+func newDbPermission() dbPermission {
+	acl := make(map[string]dbAclEntry, len(console.AclResources_value))
+	return dbPermission{Acl: acl}
+}
+
 func (p Permission) ToJson() (string, error) {
 	acl := p.ACL()
 
-	// Create new type to ensure json output contains all keys
-	type aclEntry struct {
-		Read   bool `json:"read"`
-		Write  bool `json:"write"`
-		Delete bool `json:"delete"`
+	out := newDbPermission()
+
+	allPermissionsKeyCount := 0
+	for k, v := range acl {
+		out.Acl[k] = dbAclEntry{Read: v.Read, Write: v.Write, Delete: v.Delete}
+		if v.Read && v.Write && v.Delete {
+			allPermissionsKeyCount++
+		}
 	}
 
-	out := make(map[string]aclEntry, len(acl))
-	for k, v := range acl {
-		out[k] = aclEntry{Read: v.Read, Write: v.Write, Delete: v.Delete}
+	if allPermissionsKeyCount == len(console.AclResources_value) {
+		out = dbPermission{Admin: true, Acl: nil}
 	}
 
 	j, err := json.Marshal(out)

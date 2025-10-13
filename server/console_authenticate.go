@@ -126,8 +126,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				UNION ALL
 				(SELECT mfa_secret, mfa_recovery_codes, mfa_required FROM console_user WHERE id = $1)
 				`
-
-				if err = tx.QueryRowContext(ctx, query, userId, "admin@nakama", userAcl.Bitmap, uname, hashedPassword, s.config.GetMFA().AdminAccountOn).Scan(&mfaSecret, &mfaRecoveryCodes, &mfaRequired); err != nil {
+				if err = tx.QueryRowContext(ctx, query, userId, "admin@nakama", &userAcl, uname, hashedPassword, s.config.GetMFA().AdminAccountOn).Scan(&mfaSecret, &mfaRecoveryCodes, &mfaRequired); err != nil {
 					s.logger.Error("failed to create admin console user", zap.Error(err))
 					return status.Error(codes.Internal, "Internal error")
 				}
@@ -411,7 +410,11 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, pas
 		return
 	}
 
-	role = acl.NewFromBytes(permissionBytes)
+	role, err = acl.NewFromJson(string(permissionBytes))
+	if err != nil {
+		s.logger.Error("Failed to parse json ACL for console user.", zap.String("username", unameOrEmail), zap.Error(err))
+		err = status.Error(codes.Internal, "Error looking up console user.")
+	}
 
 	return
 }

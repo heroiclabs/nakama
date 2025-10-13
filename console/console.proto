@@ -1281,6 +1281,8 @@ message UpdateSettingRequest {
 message SettingList {
   // A list of settings.
   repeated Setting settings = 1;
+  // This field is only used to allow the swagger generator to output the enum values.
+  repeated AclResources acl_resources = 2;
 }
 
 // Request to update an existing user.
