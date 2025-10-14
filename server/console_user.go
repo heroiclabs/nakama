@@ -32,6 +32,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/console/acl"
 	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -192,7 +193,7 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 	}
 
 	if updated {
-		s.sessionCache.Remove(id, 0, "", 0, "")
+		s.sessionCache.RemoveAll(id)
 	}
 
 	user := &console.User{
@@ -220,6 +221,89 @@ func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*con
 	}
 
 	return users[0], nil
+}
+
+func (s *ConsoleServer) UpdateUser(ctx context.Context, in *console.UpdateUserRequest) (*console.User, error) {
+	creatorRole := ctx.Value(ctxConsoleRoleKey{}).(acl.Permission)
+
+	role := acl.New(in.Acl)
+	if !creatorRole.HasAccess(role) {
+		return nil, status.Error(codes.InvalidArgument, "Cannot create users with more permissions that the one in session.")
+	}
+
+	var update *console.User
+
+	if err := ExecuteInTx(ctx, s.db, func(tx *sql.Tx) error {
+		var err error
+		update, _, err = updateUser(ctx, s.logger, tx, in)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(update.Id)))
+
+	return update, nil
+}
+
+func updateUser(ctx context.Context, logger *zap.Logger, tx *sql.Tx, in *console.UpdateUserRequest) (*console.User, *console.UpdateUserRequest, error) {
+	var email string
+	var createTime, updateTime time.Time
+	var prevAclBytes []byte
+	var id uuid.UUID
+	var mfaEnabled, mfaRequired bool
+	role := acl.New(in.Acl)
+	roleJson, err := role.ToJson()
+	if err != nil {
+		logger.Error("failed to json marshal acl", zap.Error(err))
+		return nil, nil, status.Error(codes.Internal, "Error updating console user.")
+	}
+	query := `
+			UPDATE console_user new
+			SET acl = $1, update_time = now()
+			FROM (SELECT id, username, acl FROM console_user WHERE username = $2) old WHERE old.username = new.username
+			RETURNING new.id,	old.acl, new.email, new.create_time, new.update_time, new.mfa_secret IS NOT NULL AS mfa_enabled, new.mfa_required`
+
+	if err := tx.QueryRowContext(ctx, query, roleJson, in.Username).Scan(&id, &prevAclBytes, &email, &createTime, &updateTime, &mfaEnabled, &mfaRequired); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, nil, err
+		}
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil, status.Error(codes.NotFound, "User not found.")
+		}
+
+		logger.Error("Error updating user.", zap.Error(err))
+
+		return nil, nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
+	}
+
+	prevAcl, err := acl.NewFromJson(string(prevAclBytes))
+	if err != nil {
+		logger.Error("failed to json unmarshal acl", zap.Error(err))
+		return nil, nil, status.Error(codes.Internal, "Error updating console user.")
+	}
+
+	undoReq := &console.UpdateUserRequest{
+		Username: in.Username,
+		Acl:      prevAcl.ACL(),
+	}
+	update := &console.User{
+		Id:          id.String(),
+		Username:    in.Username,
+		Email:       email,
+		Acl:         role.ACL(),
+		MfaRequired: mfaRequired,
+		MfaEnabled:  mfaEnabled,
+		CreateTime:  timestamppb.New(createTime),
+		UpdateTime:  timestamppb.New(updateTime),
+	}
+
+	return update, undoReq, nil
 }
 
 func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Username) (*console.ResetUserResponse, error) {

@@ -489,7 +489,7 @@ service Console {
   // Update a console user.
   rpc UpdateUser (UpdateUserRequest) returns (User) {
     option (google.api.http) = {
-      put: "/v2/console/user/{id}",
+      put: "/v2/console/user/{username}",
       body: "*"
     };
   }
@@ -629,14 +629,6 @@ message AddUserResponse {
   User user = 1;
   // A one-time token required to update the user for the first time
   string token = 2;
-}
-
-// Request to update an existing user.
-message UserUpdateRequest {
-  // User identifier.
-  string id = 1;
-  // ACL.
-  map<string,Permissions> acl = 2;
 }
 
 // API Explorer List of Endpoints
@@ -1324,8 +1316,8 @@ message SettingList {
 
 // Request to update an existing user.
 message UpdateUserRequest {
-  // User identifier.
-  string id = 1;
+  // User username.
+  string username = 1;
   // ACL.
   map<string,Permissions> acl = 2;
 }

@@ -2632,53 +2632,6 @@
         ]
       }
     },
-    "/v2/console/user/{id}": {
-      "put": {
-        "summary": "Update a console user.",
-        "operationId": "UpdateUser",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/console.User"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "description": "User identifier.",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "acl": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/definitions/Permissions"
-                  },
-                  "description": "ACL."
-                }
-              },
-              "description": "Request to update an existing user."
-            }
-          }
-        ]
-      }
-    },
     "/v2/console/user/{username}": {
       "get": {
         "operationId": "GetUser",
@@ -2703,6 +2656,51 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a console user.",
+        "operationId": "UpdateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/console.User"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "User username.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "acl": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/definitions/Permissions"
+                  },
+                  "description": "ACL."
+                }
+              },
+              "description": "Request to update an existing user."
+            }
           }
         ]
       }

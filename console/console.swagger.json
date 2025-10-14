@@ -2853,56 +2853,6 @@
         ]
       }
     },
-    "/v2/console/user/{id}": {
-      "put": {
-        "summary": "Update a console user.",
-        "operationId": "Console_UpdateUser",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/nakamaconsoleUser"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "description": "User identifier.",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "acl": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/definitions/consolePermissions"
-                  },
-                  "description": "ACL."
-                }
-              },
-              "description": "Request to update an existing user."
-            }
-          }
-        ],
-        "tags": [
-          "Console"
-        ]
-      }
-    },
     "/v2/console/user/{username}": {
       "get": {
         "operationId": "Console_GetUser",
@@ -2927,6 +2877,54 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "put": {
+        "summary": "Update a console user.",
+        "operationId": "Console_UpdateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleUser"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "User username.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "acl": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/definitions/consolePermissions"
+                  },
+                  "description": "ACL."
+                }
+              },
+              "description": "Request to update an existing user."
+            }
           }
         ],
         "tags": [

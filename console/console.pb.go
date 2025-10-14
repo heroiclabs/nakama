@@ -251,7 +251,7 @@ func (x ListChannelMessagesRequest_Type) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ListChannelMessagesRequest_Type.Descriptor instead.
 func (ListChannelMessagesRequest_Type) EnumDescriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{40, 0}
+	return file_console_proto_rawDescGZIP(), []int{39, 0}
 }
 
 // API Explorer List of Endpoints response message
@@ -1056,61 +1056,6 @@ func (x *AddUserResponse) GetToken() string {
 	return ""
 }
 
-// Request to update an existing user.
-type UserUpdateRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// User identifier.
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// ACL.
-	Acl           map[string]*Permissions `protobuf:"bytes,2,rep,name=acl,proto3" json:"acl,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UserUpdateRequest) Reset() {
-	*x = UserUpdateRequest{}
-	mi := &file_console_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UserUpdateRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UserUpdateRequest) ProtoMessage() {}
-
-func (x *UserUpdateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UserUpdateRequest.ProtoReflect.Descriptor instead.
-func (*UserUpdateRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *UserUpdateRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *UserUpdateRequest) GetAcl() map[string]*Permissions {
-	if x != nil {
-		return x.Acl
-	}
-	return nil
-}
-
 // API Explorer List of Endpoints
 type ApiEndpointList struct {
 	state         protoimpl.MessageState   `protogen:"open.v1"`
@@ -1122,7 +1067,7 @@ type ApiEndpointList struct {
 
 func (x *ApiEndpointList) Reset() {
 	*x = ApiEndpointList{}
-	mi := &file_console_proto_msgTypes[14]
+	mi := &file_console_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1134,7 +1079,7 @@ func (x *ApiEndpointList) String() string {
 func (*ApiEndpointList) ProtoMessage() {}
 
 func (x *ApiEndpointList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[14]
+	mi := &file_console_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1147,7 +1092,7 @@ func (x *ApiEndpointList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApiEndpointList.ProtoReflect.Descriptor instead.
 func (*ApiEndpointList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{14}
+	return file_console_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ApiEndpointList) GetEndpoints() []*ApiEndpointDescriptor {
@@ -1179,7 +1124,7 @@ type AuthenticateRequest struct {
 
 func (x *AuthenticateRequest) Reset() {
 	*x = AuthenticateRequest{}
-	mi := &file_console_proto_msgTypes[15]
+	mi := &file_console_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1191,7 +1136,7 @@ func (x *AuthenticateRequest) String() string {
 func (*AuthenticateRequest) ProtoMessage() {}
 
 func (x *AuthenticateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[15]
+	mi := &file_console_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1204,7 +1149,7 @@ func (x *AuthenticateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticateRequest.ProtoReflect.Descriptor instead.
 func (*AuthenticateRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{15}
+	return file_console_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AuthenticateRequest) GetUsername() string {
@@ -1241,7 +1186,7 @@ type AuthenticateMFASetupRequest struct {
 
 func (x *AuthenticateMFASetupRequest) Reset() {
 	*x = AuthenticateMFASetupRequest{}
-	mi := &file_console_proto_msgTypes[16]
+	mi := &file_console_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1253,7 +1198,7 @@ func (x *AuthenticateMFASetupRequest) String() string {
 func (*AuthenticateMFASetupRequest) ProtoMessage() {}
 
 func (x *AuthenticateMFASetupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[16]
+	mi := &file_console_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1266,7 +1211,7 @@ func (x *AuthenticateMFASetupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticateMFASetupRequest.ProtoReflect.Descriptor instead.
 func (*AuthenticateMFASetupRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{16}
+	return file_console_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AuthenticateMFASetupRequest) GetMfa() string {
@@ -1294,7 +1239,7 @@ type AuthenticateMFASetupResponse struct {
 
 func (x *AuthenticateMFASetupResponse) Reset() {
 	*x = AuthenticateMFASetupResponse{}
-	mi := &file_console_proto_msgTypes[17]
+	mi := &file_console_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1306,7 +1251,7 @@ func (x *AuthenticateMFASetupResponse) String() string {
 func (*AuthenticateMFASetupResponse) ProtoMessage() {}
 
 func (x *AuthenticateMFASetupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[17]
+	mi := &file_console_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1319,7 +1264,7 @@ func (x *AuthenticateMFASetupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticateMFASetupResponse.ProtoReflect.Descriptor instead.
 func (*AuthenticateMFASetupResponse) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{17}
+	return file_console_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *AuthenticateMFASetupResponse) GetRecoveryCodes() []string {
@@ -1340,7 +1285,7 @@ type AuthenticateLogoutRequest struct {
 
 func (x *AuthenticateLogoutRequest) Reset() {
 	*x = AuthenticateLogoutRequest{}
-	mi := &file_console_proto_msgTypes[18]
+	mi := &file_console_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1352,7 +1297,7 @@ func (x *AuthenticateLogoutRequest) String() string {
 func (*AuthenticateLogoutRequest) ProtoMessage() {}
 
 func (x *AuthenticateLogoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[18]
+	mi := &file_console_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1365,7 +1310,7 @@ func (x *AuthenticateLogoutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticateLogoutRequest.ProtoReflect.Descriptor instead.
 func (*AuthenticateLogoutRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{18}
+	return file_console_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AuthenticateLogoutRequest) GetToken() string {
@@ -1388,7 +1333,7 @@ type CallApiEndpointRequest struct {
 
 func (x *CallApiEndpointRequest) Reset() {
 	*x = CallApiEndpointRequest{}
-	mi := &file_console_proto_msgTypes[19]
+	mi := &file_console_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1400,7 +1345,7 @@ func (x *CallApiEndpointRequest) String() string {
 func (*CallApiEndpointRequest) ProtoMessage() {}
 
 func (x *CallApiEndpointRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[19]
+	mi := &file_console_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1413,7 +1358,7 @@ func (x *CallApiEndpointRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallApiEndpointRequest.ProtoReflect.Descriptor instead.
 func (*CallApiEndpointRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{19}
+	return file_console_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CallApiEndpointRequest) GetMethod() string {
@@ -1455,7 +1400,7 @@ type CallApiEndpointResponse struct {
 
 func (x *CallApiEndpointResponse) Reset() {
 	*x = CallApiEndpointResponse{}
-	mi := &file_console_proto_msgTypes[20]
+	mi := &file_console_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1467,7 +1412,7 @@ func (x *CallApiEndpointResponse) String() string {
 func (*CallApiEndpointResponse) ProtoMessage() {}
 
 func (x *CallApiEndpointResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[20]
+	mi := &file_console_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1480,7 +1425,7 @@ func (x *CallApiEndpointResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallApiEndpointResponse.ProtoReflect.Descriptor instead.
 func (*CallApiEndpointResponse) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{20}
+	return file_console_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CallApiEndpointResponse) GetBody() string {
@@ -1512,7 +1457,7 @@ type Config struct {
 
 func (x *Config) Reset() {
 	*x = Config{}
-	mi := &file_console_proto_msgTypes[21]
+	mi := &file_console_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1524,7 +1469,7 @@ func (x *Config) String() string {
 func (*Config) ProtoMessage() {}
 
 func (x *Config) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[21]
+	mi := &file_console_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1537,7 +1482,7 @@ func (x *Config) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Config.ProtoReflect.Descriptor instead.
 func (*Config) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{21}
+	return file_console_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Config) GetConfig() string {
@@ -1574,7 +1519,7 @@ type ConsoleSession struct {
 
 func (x *ConsoleSession) Reset() {
 	*x = ConsoleSession{}
-	mi := &file_console_proto_msgTypes[22]
+	mi := &file_console_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1586,7 +1531,7 @@ func (x *ConsoleSession) String() string {
 func (*ConsoleSession) ProtoMessage() {}
 
 func (x *ConsoleSession) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[22]
+	mi := &file_console_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1599,7 +1544,7 @@ func (x *ConsoleSession) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConsoleSession.ProtoReflect.Descriptor instead.
 func (*ConsoleSession) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{22}
+	return file_console_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ConsoleSession) GetToken() string {
@@ -1629,7 +1574,7 @@ type DeleteChannelMessagesRequest struct {
 
 func (x *DeleteChannelMessagesRequest) Reset() {
 	*x = DeleteChannelMessagesRequest{}
-	mi := &file_console_proto_msgTypes[23]
+	mi := &file_console_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1641,7 +1586,7 @@ func (x *DeleteChannelMessagesRequest) String() string {
 func (*DeleteChannelMessagesRequest) ProtoMessage() {}
 
 func (x *DeleteChannelMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[23]
+	mi := &file_console_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1654,7 +1599,7 @@ func (x *DeleteChannelMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteChannelMessagesRequest.ProtoReflect.Descriptor instead.
 func (*DeleteChannelMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{23}
+	return file_console_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DeleteChannelMessagesRequest) GetBefore() *timestamppb.Timestamp {
@@ -1684,7 +1629,7 @@ type DeleteFriendRequest struct {
 
 func (x *DeleteFriendRequest) Reset() {
 	*x = DeleteFriendRequest{}
-	mi := &file_console_proto_msgTypes[24]
+	mi := &file_console_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1696,7 +1641,7 @@ func (x *DeleteFriendRequest) String() string {
 func (*DeleteFriendRequest) ProtoMessage() {}
 
 func (x *DeleteFriendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[24]
+	mi := &file_console_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1709,7 +1654,7 @@ func (x *DeleteFriendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteFriendRequest.ProtoReflect.Descriptor instead.
 func (*DeleteFriendRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{24}
+	return file_console_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DeleteFriendRequest) GetId() string {
@@ -1737,7 +1682,7 @@ type DeleteGroupRequest struct {
 
 func (x *DeleteGroupRequest) Reset() {
 	*x = DeleteGroupRequest{}
-	mi := &file_console_proto_msgTypes[25]
+	mi := &file_console_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1749,7 +1694,7 @@ func (x *DeleteGroupRequest) String() string {
 func (*DeleteGroupRequest) ProtoMessage() {}
 
 func (x *DeleteGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[25]
+	mi := &file_console_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1762,7 +1707,7 @@ func (x *DeleteGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGroupRequest.ProtoReflect.Descriptor instead.
 func (*DeleteGroupRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{25}
+	return file_console_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DeleteGroupRequest) GetId() string {
@@ -1785,7 +1730,7 @@ type DeleteGroupUserRequest struct {
 
 func (x *DeleteGroupUserRequest) Reset() {
 	*x = DeleteGroupUserRequest{}
-	mi := &file_console_proto_msgTypes[26]
+	mi := &file_console_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1797,7 +1742,7 @@ func (x *DeleteGroupUserRequest) String() string {
 func (*DeleteGroupUserRequest) ProtoMessage() {}
 
 func (x *DeleteGroupUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[26]
+	mi := &file_console_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1810,7 +1755,7 @@ func (x *DeleteGroupUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGroupUserRequest.ProtoReflect.Descriptor instead.
 func (*DeleteGroupUserRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{26}
+	return file_console_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DeleteGroupUserRequest) GetId() string {
@@ -1840,7 +1785,7 @@ type UpdateGroupUserStateRequest struct {
 
 func (x *UpdateGroupUserStateRequest) Reset() {
 	*x = UpdateGroupUserStateRequest{}
-	mi := &file_console_proto_msgTypes[27]
+	mi := &file_console_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1852,7 +1797,7 @@ func (x *UpdateGroupUserStateRequest) String() string {
 func (*UpdateGroupUserStateRequest) ProtoMessage() {}
 
 func (x *UpdateGroupUserStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[27]
+	mi := &file_console_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1865,7 +1810,7 @@ func (x *UpdateGroupUserStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGroupUserStateRequest.ProtoReflect.Descriptor instead.
 func (*UpdateGroupUserStateRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{27}
+	return file_console_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *UpdateGroupUserStateRequest) GetId() string {
@@ -1893,7 +1838,7 @@ type ResetUserMfaRequest struct {
 
 func (x *ResetUserMfaRequest) Reset() {
 	*x = ResetUserMfaRequest{}
-	mi := &file_console_proto_msgTypes[28]
+	mi := &file_console_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1905,7 +1850,7 @@ func (x *ResetUserMfaRequest) String() string {
 func (*ResetUserMfaRequest) ProtoMessage() {}
 
 func (x *ResetUserMfaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[28]
+	mi := &file_console_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1918,7 +1863,7 @@ func (x *ResetUserMfaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetUserMfaRequest.ProtoReflect.Descriptor instead.
 func (*ResetUserMfaRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{28}
+	return file_console_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ResetUserMfaRequest) GetUsername() string {
@@ -1939,7 +1884,7 @@ type ResetUserResponse struct {
 
 func (x *ResetUserResponse) Reset() {
 	*x = ResetUserResponse{}
-	mi := &file_console_proto_msgTypes[29]
+	mi := &file_console_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1951,7 +1896,7 @@ func (x *ResetUserResponse) String() string {
 func (*ResetUserResponse) ProtoMessage() {}
 
 func (x *ResetUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[29]
+	mi := &file_console_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1964,7 +1909,7 @@ func (x *ResetUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetUserResponse.ProtoReflect.Descriptor instead.
 func (*ResetUserResponse) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{29}
+	return file_console_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ResetUserResponse) GetCode() string {
@@ -1987,7 +1932,7 @@ type RequireUserMfaRequest struct {
 
 func (x *RequireUserMfaRequest) Reset() {
 	*x = RequireUserMfaRequest{}
-	mi := &file_console_proto_msgTypes[30]
+	mi := &file_console_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1999,7 +1944,7 @@ func (x *RequireUserMfaRequest) String() string {
 func (*RequireUserMfaRequest) ProtoMessage() {}
 
 func (x *RequireUserMfaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[30]
+	mi := &file_console_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2012,7 +1957,7 @@ func (x *RequireUserMfaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequireUserMfaRequest.ProtoReflect.Descriptor instead.
 func (*RequireUserMfaRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{30}
+	return file_console_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *RequireUserMfaRequest) GetUsername() string {
@@ -2042,7 +1987,7 @@ type DeleteLeaderboardRecordRequest struct {
 
 func (x *DeleteLeaderboardRecordRequest) Reset() {
 	*x = DeleteLeaderboardRecordRequest{}
-	mi := &file_console_proto_msgTypes[31]
+	mi := &file_console_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2054,7 +1999,7 @@ func (x *DeleteLeaderboardRecordRequest) String() string {
 func (*DeleteLeaderboardRecordRequest) ProtoMessage() {}
 
 func (x *DeleteLeaderboardRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[31]
+	mi := &file_console_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2067,7 +2012,7 @@ func (x *DeleteLeaderboardRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteLeaderboardRecordRequest.ProtoReflect.Descriptor instead.
 func (*DeleteLeaderboardRecordRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{31}
+	return file_console_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DeleteLeaderboardRecordRequest) GetId() string {
@@ -2095,7 +2040,7 @@ type DeleteNotificationRequest struct {
 
 func (x *DeleteNotificationRequest) Reset() {
 	*x = DeleteNotificationRequest{}
-	mi := &file_console_proto_msgTypes[32]
+	mi := &file_console_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2107,7 +2052,7 @@ func (x *DeleteNotificationRequest) String() string {
 func (*DeleteNotificationRequest) ProtoMessage() {}
 
 func (x *DeleteNotificationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[32]
+	mi := &file_console_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2120,7 +2065,7 @@ func (x *DeleteNotificationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNotificationRequest.ProtoReflect.Descriptor instead.
 func (*DeleteNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{32}
+	return file_console_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *DeleteNotificationRequest) GetId() string {
@@ -2147,7 +2092,7 @@ type DeleteStorageObjectRequest struct {
 
 func (x *DeleteStorageObjectRequest) Reset() {
 	*x = DeleteStorageObjectRequest{}
-	mi := &file_console_proto_msgTypes[33]
+	mi := &file_console_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2159,7 +2104,7 @@ func (x *DeleteStorageObjectRequest) String() string {
 func (*DeleteStorageObjectRequest) ProtoMessage() {}
 
 func (x *DeleteStorageObjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[33]
+	mi := &file_console_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2172,7 +2117,7 @@ func (x *DeleteStorageObjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteStorageObjectRequest.ProtoReflect.Descriptor instead.
 func (*DeleteStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{33}
+	return file_console_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *DeleteStorageObjectRequest) GetCollection() string {
@@ -2216,7 +2161,7 @@ type DeleteWalletLedgerRequest struct {
 
 func (x *DeleteWalletLedgerRequest) Reset() {
 	*x = DeleteWalletLedgerRequest{}
-	mi := &file_console_proto_msgTypes[34]
+	mi := &file_console_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2228,7 +2173,7 @@ func (x *DeleteWalletLedgerRequest) String() string {
 func (*DeleteWalletLedgerRequest) ProtoMessage() {}
 
 func (x *DeleteWalletLedgerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[34]
+	mi := &file_console_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2241,7 +2186,7 @@ func (x *DeleteWalletLedgerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWalletLedgerRequest.ProtoReflect.Descriptor instead.
 func (*DeleteWalletLedgerRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{34}
+	return file_console_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *DeleteWalletLedgerRequest) GetId() string {
@@ -2311,7 +2256,7 @@ type Leaderboard struct {
 
 func (x *Leaderboard) Reset() {
 	*x = Leaderboard{}
-	mi := &file_console_proto_msgTypes[35]
+	mi := &file_console_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2323,7 +2268,7 @@ func (x *Leaderboard) String() string {
 func (*Leaderboard) ProtoMessage() {}
 
 func (x *Leaderboard) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[35]
+	mi := &file_console_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2336,7 +2281,7 @@ func (x *Leaderboard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Leaderboard.ProtoReflect.Descriptor instead.
 func (*Leaderboard) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{35}
+	return file_console_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *Leaderboard) GetId() string {
@@ -2504,7 +2449,7 @@ type LeaderboardListRequest struct {
 
 func (x *LeaderboardListRequest) Reset() {
 	*x = LeaderboardListRequest{}
-	mi := &file_console_proto_msgTypes[36]
+	mi := &file_console_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2516,7 +2461,7 @@ func (x *LeaderboardListRequest) String() string {
 func (*LeaderboardListRequest) ProtoMessage() {}
 
 func (x *LeaderboardListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[36]
+	mi := &file_console_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2529,7 +2474,7 @@ func (x *LeaderboardListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaderboardListRequest.ProtoReflect.Descriptor instead.
 func (*LeaderboardListRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{36}
+	return file_console_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *LeaderboardListRequest) GetCursor() string {
@@ -2554,7 +2499,7 @@ type LeaderboardList struct {
 
 func (x *LeaderboardList) Reset() {
 	*x = LeaderboardList{}
-	mi := &file_console_proto_msgTypes[37]
+	mi := &file_console_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2566,7 +2511,7 @@ func (x *LeaderboardList) String() string {
 func (*LeaderboardList) ProtoMessage() {}
 
 func (x *LeaderboardList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[37]
+	mi := &file_console_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2579,7 +2524,7 @@ func (x *LeaderboardList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaderboardList.ProtoReflect.Descriptor instead.
 func (*LeaderboardList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{37}
+	return file_console_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *LeaderboardList) GetLeaderboards() []*Leaderboard {
@@ -2614,7 +2559,7 @@ type LeaderboardRequest struct {
 
 func (x *LeaderboardRequest) Reset() {
 	*x = LeaderboardRequest{}
-	mi := &file_console_proto_msgTypes[38]
+	mi := &file_console_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2626,7 +2571,7 @@ func (x *LeaderboardRequest) String() string {
 func (*LeaderboardRequest) ProtoMessage() {}
 
 func (x *LeaderboardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[38]
+	mi := &file_console_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2639,7 +2584,7 @@ func (x *LeaderboardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaderboardRequest.ProtoReflect.Descriptor instead.
 func (*LeaderboardRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{38}
+	return file_console_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *LeaderboardRequest) GetId() string {
@@ -2664,7 +2609,7 @@ type ListAccountsRequest struct {
 
 func (x *ListAccountsRequest) Reset() {
 	*x = ListAccountsRequest{}
-	mi := &file_console_proto_msgTypes[39]
+	mi := &file_console_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2676,7 +2621,7 @@ func (x *ListAccountsRequest) String() string {
 func (*ListAccountsRequest) ProtoMessage() {}
 
 func (x *ListAccountsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[39]
+	mi := &file_console_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2689,7 +2634,7 @@ func (x *ListAccountsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccountsRequest.ProtoReflect.Descriptor instead.
 func (*ListAccountsRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{39}
+	return file_console_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListAccountsRequest) GetFilter() string {
@@ -2733,7 +2678,7 @@ type ListChannelMessagesRequest struct {
 
 func (x *ListChannelMessagesRequest) Reset() {
 	*x = ListChannelMessagesRequest{}
-	mi := &file_console_proto_msgTypes[40]
+	mi := &file_console_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2745,7 +2690,7 @@ func (x *ListChannelMessagesRequest) String() string {
 func (*ListChannelMessagesRequest) ProtoMessage() {}
 
 func (x *ListChannelMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[40]
+	mi := &file_console_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2758,7 +2703,7 @@ func (x *ListChannelMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListChannelMessagesRequest.ProtoReflect.Descriptor instead.
 func (*ListChannelMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{40}
+	return file_console_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ListChannelMessagesRequest) GetType() ListChannelMessagesRequest_Type {
@@ -2816,7 +2761,7 @@ type ListGroupsRequest struct {
 
 func (x *ListGroupsRequest) Reset() {
 	*x = ListGroupsRequest{}
-	mi := &file_console_proto_msgTypes[41]
+	mi := &file_console_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2828,7 +2773,7 @@ func (x *ListGroupsRequest) String() string {
 func (*ListGroupsRequest) ProtoMessage() {}
 
 func (x *ListGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[41]
+	mi := &file_console_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2841,7 +2786,7 @@ func (x *ListGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGroupsRequest.ProtoReflect.Descriptor instead.
 func (*ListGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{41}
+	return file_console_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ListGroupsRequest) GetFilter() string {
@@ -2883,7 +2828,7 @@ type ListMatchesRequest struct {
 
 func (x *ListMatchesRequest) Reset() {
 	*x = ListMatchesRequest{}
-	mi := &file_console_proto_msgTypes[42]
+	mi := &file_console_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2895,7 +2840,7 @@ func (x *ListMatchesRequest) String() string {
 func (*ListMatchesRequest) ProtoMessage() {}
 
 func (x *ListMatchesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[42]
+	mi := &file_console_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2908,7 +2853,7 @@ func (x *ListMatchesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMatchesRequest.ProtoReflect.Descriptor instead.
 func (*ListMatchesRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{42}
+	return file_console_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ListMatchesRequest) GetLimit() *wrapperspb.Int32Value {
@@ -2982,7 +2927,7 @@ type ListNotificationsRequest struct {
 
 func (x *ListNotificationsRequest) Reset() {
 	*x = ListNotificationsRequest{}
-	mi := &file_console_proto_msgTypes[43]
+	mi := &file_console_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2994,7 +2939,7 @@ func (x *ListNotificationsRequest) String() string {
 func (*ListNotificationsRequest) ProtoMessage() {}
 
 func (x *ListNotificationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[43]
+	mi := &file_console_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3007,7 +2952,7 @@ func (x *ListNotificationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNotificationsRequest.ProtoReflect.Descriptor instead.
 func (*ListNotificationsRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{43}
+	return file_console_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ListNotificationsRequest) GetUserId() string {
@@ -3046,7 +2991,7 @@ type ListPurchasesRequest struct {
 
 func (x *ListPurchasesRequest) Reset() {
 	*x = ListPurchasesRequest{}
-	mi := &file_console_proto_msgTypes[44]
+	mi := &file_console_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3058,7 +3003,7 @@ func (x *ListPurchasesRequest) String() string {
 func (*ListPurchasesRequest) ProtoMessage() {}
 
 func (x *ListPurchasesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[44]
+	mi := &file_console_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3071,7 +3016,7 @@ func (x *ListPurchasesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPurchasesRequest.ProtoReflect.Descriptor instead.
 func (*ListPurchasesRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{44}
+	return file_console_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListPurchasesRequest) GetUserId() string {
@@ -3110,7 +3055,7 @@ type ListSubscriptionsRequest struct {
 
 func (x *ListSubscriptionsRequest) Reset() {
 	*x = ListSubscriptionsRequest{}
-	mi := &file_console_proto_msgTypes[45]
+	mi := &file_console_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3122,7 +3067,7 @@ func (x *ListSubscriptionsRequest) String() string {
 func (*ListSubscriptionsRequest) ProtoMessage() {}
 
 func (x *ListSubscriptionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[45]
+	mi := &file_console_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3135,7 +3080,7 @@ func (x *ListSubscriptionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSubscriptionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSubscriptionsRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{45}
+	return file_console_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListSubscriptionsRequest) GetUserId() string {
@@ -3176,7 +3121,7 @@ type ListStorageRequest struct {
 
 func (x *ListStorageRequest) Reset() {
 	*x = ListStorageRequest{}
-	mi := &file_console_proto_msgTypes[46]
+	mi := &file_console_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3188,7 +3133,7 @@ func (x *ListStorageRequest) String() string {
 func (*ListStorageRequest) ProtoMessage() {}
 
 func (x *ListStorageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[46]
+	mi := &file_console_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3201,7 +3146,7 @@ func (x *ListStorageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListStorageRequest.ProtoReflect.Descriptor instead.
 func (*ListStorageRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{46}
+	return file_console_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ListStorageRequest) GetUserId() string {
@@ -3247,7 +3192,7 @@ type MatchState struct {
 
 func (x *MatchState) Reset() {
 	*x = MatchState{}
-	mi := &file_console_proto_msgTypes[47]
+	mi := &file_console_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3259,7 +3204,7 @@ func (x *MatchState) String() string {
 func (*MatchState) ProtoMessage() {}
 
 func (x *MatchState) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[47]
+	mi := &file_console_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3272,7 +3217,7 @@ func (x *MatchState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MatchState.ProtoReflect.Descriptor instead.
 func (*MatchState) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{47}
+	return file_console_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *MatchState) GetPresences() []*rtapi.UserPresence {
@@ -3307,7 +3252,7 @@ type MatchStateRequest struct {
 
 func (x *MatchStateRequest) Reset() {
 	*x = MatchStateRequest{}
-	mi := &file_console_proto_msgTypes[48]
+	mi := &file_console_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3319,7 +3264,7 @@ func (x *MatchStateRequest) String() string {
 func (*MatchStateRequest) ProtoMessage() {}
 
 func (x *MatchStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[48]
+	mi := &file_console_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3332,7 +3277,7 @@ func (x *MatchStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MatchStateRequest.ProtoReflect.Descriptor instead.
 func (*MatchStateRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{48}
+	return file_console_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *MatchStateRequest) GetId() string {
@@ -3366,7 +3311,7 @@ type Notification struct {
 
 func (x *Notification) Reset() {
 	*x = Notification{}
-	mi := &file_console_proto_msgTypes[49]
+	mi := &file_console_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3378,7 +3323,7 @@ func (x *Notification) String() string {
 func (*Notification) ProtoMessage() {}
 
 func (x *Notification) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[49]
+	mi := &file_console_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3391,7 +3336,7 @@ func (x *Notification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Notification.ProtoReflect.Descriptor instead.
 func (*Notification) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{49}
+	return file_console_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *Notification) GetId() string {
@@ -3464,7 +3409,7 @@ type NotificationList struct {
 
 func (x *NotificationList) Reset() {
 	*x = NotificationList{}
-	mi := &file_console_proto_msgTypes[50]
+	mi := &file_console_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3476,7 +3421,7 @@ func (x *NotificationList) String() string {
 func (*NotificationList) ProtoMessage() {}
 
 func (x *NotificationList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[50]
+	mi := &file_console_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3489,7 +3434,7 @@ func (x *NotificationList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotificationList.ProtoReflect.Descriptor instead.
 func (*NotificationList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{50}
+	return file_console_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *NotificationList) GetNotifications() []*Notification {
@@ -3523,7 +3468,7 @@ type DeleteChannelMessagesResponse struct {
 
 func (x *DeleteChannelMessagesResponse) Reset() {
 	*x = DeleteChannelMessagesResponse{}
-	mi := &file_console_proto_msgTypes[51]
+	mi := &file_console_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3535,7 +3480,7 @@ func (x *DeleteChannelMessagesResponse) String() string {
 func (*DeleteChannelMessagesResponse) ProtoMessage() {}
 
 func (x *DeleteChannelMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[51]
+	mi := &file_console_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3548,7 +3493,7 @@ func (x *DeleteChannelMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteChannelMessagesResponse.ProtoReflect.Descriptor instead.
 func (*DeleteChannelMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{51}
+	return file_console_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *DeleteChannelMessagesResponse) GetTotal() int64 {
@@ -3573,7 +3518,7 @@ type StorageList struct {
 
 func (x *StorageList) Reset() {
 	*x = StorageList{}
-	mi := &file_console_proto_msgTypes[52]
+	mi := &file_console_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3585,7 +3530,7 @@ func (x *StorageList) String() string {
 func (*StorageList) ProtoMessage() {}
 
 func (x *StorageList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[52]
+	mi := &file_console_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3598,7 +3543,7 @@ func (x *StorageList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageList.ProtoReflect.Descriptor instead.
 func (*StorageList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{52}
+	return file_console_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *StorageList) GetObjects() []*StorageListObject {
@@ -3632,7 +3577,7 @@ type StorageCollectionsList struct {
 
 func (x *StorageCollectionsList) Reset() {
 	*x = StorageCollectionsList{}
-	mi := &file_console_proto_msgTypes[53]
+	mi := &file_console_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3644,7 +3589,7 @@ func (x *StorageCollectionsList) String() string {
 func (*StorageCollectionsList) ProtoMessage() {}
 
 func (x *StorageCollectionsList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[53]
+	mi := &file_console_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3657,7 +3602,7 @@ func (x *StorageCollectionsList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageCollectionsList.ProtoReflect.Descriptor instead.
 func (*StorageCollectionsList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{53}
+	return file_console_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *StorageCollectionsList) GetCollections() []string {
@@ -3680,7 +3625,7 @@ type UnlinkDeviceRequest struct {
 
 func (x *UnlinkDeviceRequest) Reset() {
 	*x = UnlinkDeviceRequest{}
-	mi := &file_console_proto_msgTypes[54]
+	mi := &file_console_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3692,7 +3637,7 @@ func (x *UnlinkDeviceRequest) String() string {
 func (*UnlinkDeviceRequest) ProtoMessage() {}
 
 func (x *UnlinkDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[54]
+	mi := &file_console_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3705,7 +3650,7 @@ func (x *UnlinkDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlinkDeviceRequest.ProtoReflect.Descriptor instead.
 func (*UnlinkDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{54}
+	return file_console_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *UnlinkDeviceRequest) GetId() string {
@@ -3757,7 +3702,7 @@ type UpdateAccountRequest struct {
 
 func (x *UpdateAccountRequest) Reset() {
 	*x = UpdateAccountRequest{}
-	mi := &file_console_proto_msgTypes[55]
+	mi := &file_console_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3769,7 +3714,7 @@ func (x *UpdateAccountRequest) String() string {
 func (*UpdateAccountRequest) ProtoMessage() {}
 
 func (x *UpdateAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[55]
+	mi := &file_console_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3782,7 +3727,7 @@ func (x *UpdateAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAccountRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAccountRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{55}
+	return file_console_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *UpdateAccountRequest) GetId() string {
@@ -3901,7 +3846,7 @@ type UpdateGroupRequest struct {
 
 func (x *UpdateGroupRequest) Reset() {
 	*x = UpdateGroupRequest{}
-	mi := &file_console_proto_msgTypes[56]
+	mi := &file_console_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3913,7 +3858,7 @@ func (x *UpdateGroupRequest) String() string {
 func (*UpdateGroupRequest) ProtoMessage() {}
 
 func (x *UpdateGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[56]
+	mi := &file_console_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3926,7 +3871,7 @@ func (x *UpdateGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGroupRequest.ProtoReflect.Descriptor instead.
 func (*UpdateGroupRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{56}
+	return file_console_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *UpdateGroupRequest) GetId() string {
@@ -3996,7 +3941,7 @@ type Username struct {
 
 func (x *Username) Reset() {
 	*x = Username{}
-	mi := &file_console_proto_msgTypes[57]
+	mi := &file_console_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4008,7 +3953,7 @@ func (x *Username) String() string {
 func (*Username) ProtoMessage() {}
 
 func (x *Username) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[57]
+	mi := &file_console_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4021,7 +3966,7 @@ func (x *Username) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Username.ProtoReflect.Descriptor instead.
 func (*Username) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{57}
+	return file_console_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *Username) GetUsername() string {
@@ -4056,7 +4001,7 @@ type User struct {
 
 func (x *User) Reset() {
 	*x = User{}
-	mi := &file_console_proto_msgTypes[58]
+	mi := &file_console_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4068,7 +4013,7 @@ func (x *User) String() string {
 func (*User) ProtoMessage() {}
 
 func (x *User) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[58]
+	mi := &file_console_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4081,7 +4026,7 @@ func (x *User) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use User.ProtoReflect.Descriptor instead.
 func (*User) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{58}
+	return file_console_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *User) GetId() string {
@@ -4151,7 +4096,7 @@ type UserList struct {
 
 func (x *UserList) Reset() {
 	*x = UserList{}
-	mi := &file_console_proto_msgTypes[59]
+	mi := &file_console_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4163,7 +4108,7 @@ func (x *UserList) String() string {
 func (*UserList) ProtoMessage() {}
 
 func (x *UserList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[59]
+	mi := &file_console_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4176,7 +4121,7 @@ func (x *UserList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserList.ProtoReflect.Descriptor instead.
 func (*UserList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{59}
+	return file_console_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *UserList) GetUsers() []*User {
@@ -4199,7 +4144,7 @@ type StatusList struct {
 
 func (x *StatusList) Reset() {
 	*x = StatusList{}
-	mi := &file_console_proto_msgTypes[60]
+	mi := &file_console_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4211,7 +4156,7 @@ func (x *StatusList) String() string {
 func (*StatusList) ProtoMessage() {}
 
 func (x *StatusList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[60]
+	mi := &file_console_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4224,7 +4169,7 @@ func (x *StatusList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusList.ProtoReflect.Descriptor instead.
 func (*StatusList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{60}
+	return file_console_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *StatusList) GetNodes() []*StatusList_Status {
@@ -4262,7 +4207,7 @@ type RuntimeInfo struct {
 
 func (x *RuntimeInfo) Reset() {
 	*x = RuntimeInfo{}
-	mi := &file_console_proto_msgTypes[61]
+	mi := &file_console_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4274,7 +4219,7 @@ func (x *RuntimeInfo) String() string {
 func (*RuntimeInfo) ProtoMessage() {}
 
 func (x *RuntimeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[61]
+	mi := &file_console_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4287,7 +4232,7 @@ func (x *RuntimeInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeInfo.ProtoReflect.Descriptor instead.
 func (*RuntimeInfo) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{61}
+	return file_console_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *RuntimeInfo) GetLuaRpcFunctions() []string {
@@ -4353,7 +4298,7 @@ type WalletLedger struct {
 
 func (x *WalletLedger) Reset() {
 	*x = WalletLedger{}
-	mi := &file_console_proto_msgTypes[62]
+	mi := &file_console_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4365,7 +4310,7 @@ func (x *WalletLedger) String() string {
 func (*WalletLedger) ProtoMessage() {}
 
 func (x *WalletLedger) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[62]
+	mi := &file_console_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4378,7 +4323,7 @@ func (x *WalletLedger) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WalletLedger.ProtoReflect.Descriptor instead.
 func (*WalletLedger) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{62}
+	return file_console_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *WalletLedger) GetId() string {
@@ -4438,7 +4383,7 @@ type WalletLedgerList struct {
 
 func (x *WalletLedgerList) Reset() {
 	*x = WalletLedgerList{}
-	mi := &file_console_proto_msgTypes[63]
+	mi := &file_console_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4450,7 +4395,7 @@ func (x *WalletLedgerList) String() string {
 func (*WalletLedgerList) ProtoMessage() {}
 
 func (x *WalletLedgerList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[63]
+	mi := &file_console_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4463,7 +4408,7 @@ func (x *WalletLedgerList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WalletLedgerList.ProtoReflect.Descriptor instead.
 func (*WalletLedgerList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{63}
+	return file_console_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *WalletLedgerList) GetItems() []*WalletLedger {
@@ -4510,7 +4455,7 @@ type WriteStorageObjectRequest struct {
 
 func (x *WriteStorageObjectRequest) Reset() {
 	*x = WriteStorageObjectRequest{}
-	mi := &file_console_proto_msgTypes[64]
+	mi := &file_console_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4522,7 +4467,7 @@ func (x *WriteStorageObjectRequest) String() string {
 func (*WriteStorageObjectRequest) ProtoMessage() {}
 
 func (x *WriteStorageObjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[64]
+	mi := &file_console_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4535,7 +4480,7 @@ func (x *WriteStorageObjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteStorageObjectRequest.ProtoReflect.Descriptor instead.
 func (*WriteStorageObjectRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{64}
+	return file_console_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *WriteStorageObjectRequest) GetCollection() string {
@@ -4601,7 +4546,7 @@ type GetWalletLedgerRequest struct {
 
 func (x *GetWalletLedgerRequest) Reset() {
 	*x = GetWalletLedgerRequest{}
-	mi := &file_console_proto_msgTypes[65]
+	mi := &file_console_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4613,7 +4558,7 @@ func (x *GetWalletLedgerRequest) String() string {
 func (*GetWalletLedgerRequest) ProtoMessage() {}
 
 func (x *GetWalletLedgerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[65]
+	mi := &file_console_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4626,7 +4571,7 @@ func (x *GetWalletLedgerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWalletLedgerRequest.ProtoReflect.Descriptor instead.
 func (*GetWalletLedgerRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{65}
+	return file_console_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *GetWalletLedgerRequest) GetAccountId() string {
@@ -4660,7 +4605,7 @@ type GetNotificationRequest struct {
 
 func (x *GetNotificationRequest) Reset() {
 	*x = GetNotificationRequest{}
-	mi := &file_console_proto_msgTypes[66]
+	mi := &file_console_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4672,7 +4617,7 @@ func (x *GetNotificationRequest) String() string {
 func (*GetNotificationRequest) ProtoMessage() {}
 
 func (x *GetNotificationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[66]
+	mi := &file_console_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4685,7 +4630,7 @@ func (x *GetNotificationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNotificationRequest.ProtoReflect.Descriptor instead.
 func (*GetNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{66}
+	return file_console_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *GetNotificationRequest) GetId() string {
@@ -4705,7 +4650,7 @@ type GetPurchaseRequest struct {
 
 func (x *GetPurchaseRequest) Reset() {
 	*x = GetPurchaseRequest{}
-	mi := &file_console_proto_msgTypes[67]
+	mi := &file_console_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4717,7 +4662,7 @@ func (x *GetPurchaseRequest) String() string {
 func (*GetPurchaseRequest) ProtoMessage() {}
 
 func (x *GetPurchaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[67]
+	mi := &file_console_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4730,7 +4675,7 @@ func (x *GetPurchaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPurchaseRequest.ProtoReflect.Descriptor instead.
 func (*GetPurchaseRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{67}
+	return file_console_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *GetPurchaseRequest) GetTransactionId() string {
@@ -4750,7 +4695,7 @@ type GetSubscriptionRequest struct {
 
 func (x *GetSubscriptionRequest) Reset() {
 	*x = GetSubscriptionRequest{}
-	mi := &file_console_proto_msgTypes[68]
+	mi := &file_console_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4762,7 +4707,7 @@ func (x *GetSubscriptionRequest) String() string {
 func (*GetSubscriptionRequest) ProtoMessage() {}
 
 func (x *GetSubscriptionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[68]
+	mi := &file_console_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4775,7 +4720,7 @@ func (x *GetSubscriptionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSubscriptionRequest.ProtoReflect.Descriptor instead.
 func (*GetSubscriptionRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{68}
+	return file_console_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *GetSubscriptionRequest) GetOriginalTransactionId() string {
@@ -4810,7 +4755,7 @@ type StorageListObject struct {
 
 func (x *StorageListObject) Reset() {
 	*x = StorageListObject{}
-	mi := &file_console_proto_msgTypes[69]
+	mi := &file_console_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4822,7 +4767,7 @@ func (x *StorageListObject) String() string {
 func (*StorageListObject) ProtoMessage() {}
 
 func (x *StorageListObject) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[69]
+	mi := &file_console_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4835,7 +4780,7 @@ func (x *StorageListObject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageListObject.ProtoReflect.Descriptor instead.
 func (*StorageListObject) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{69}
+	return file_console_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *StorageListObject) GetCollection() string {
@@ -4909,7 +4854,7 @@ type Setting struct {
 
 func (x *Setting) Reset() {
 	*x = Setting{}
-	mi := &file_console_proto_msgTypes[70]
+	mi := &file_console_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4921,7 +4866,7 @@ func (x *Setting) String() string {
 func (*Setting) ProtoMessage() {}
 
 func (x *Setting) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[70]
+	mi := &file_console_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4934,7 +4879,7 @@ func (x *Setting) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Setting.ProtoReflect.Descriptor instead.
 func (*Setting) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{70}
+	return file_console_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *Setting) GetName() string {
@@ -4969,7 +4914,7 @@ type SettingRequest struct {
 
 func (x *SettingRequest) Reset() {
 	*x = SettingRequest{}
-	mi := &file_console_proto_msgTypes[71]
+	mi := &file_console_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4981,7 +4926,7 @@ func (x *SettingRequest) String() string {
 func (*SettingRequest) ProtoMessage() {}
 
 func (x *SettingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[71]
+	mi := &file_console_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4994,7 +4939,7 @@ func (x *SettingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingRequest.ProtoReflect.Descriptor instead.
 func (*SettingRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{71}
+	return file_console_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *SettingRequest) GetName() string {
@@ -5015,7 +4960,7 @@ type ListSettingsRequest struct {
 
 func (x *ListSettingsRequest) Reset() {
 	*x = ListSettingsRequest{}
-	mi := &file_console_proto_msgTypes[72]
+	mi := &file_console_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5027,7 +4972,7 @@ func (x *ListSettingsRequest) String() string {
 func (*ListSettingsRequest) ProtoMessage() {}
 
 func (x *ListSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[72]
+	mi := &file_console_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5040,7 +4985,7 @@ func (x *ListSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSettingsRequest.ProtoReflect.Descriptor instead.
 func (*ListSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{72}
+	return file_console_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *ListSettingsRequest) GetNames() []string {
@@ -5063,7 +5008,7 @@ type UpdateSettingRequest struct {
 
 func (x *UpdateSettingRequest) Reset() {
 	*x = UpdateSettingRequest{}
-	mi := &file_console_proto_msgTypes[73]
+	mi := &file_console_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5075,7 +5020,7 @@ func (x *UpdateSettingRequest) String() string {
 func (*UpdateSettingRequest) ProtoMessage() {}
 
 func (x *UpdateSettingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[73]
+	mi := &file_console_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5088,7 +5033,7 @@ func (x *UpdateSettingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSettingRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSettingRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{73}
+	return file_console_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *UpdateSettingRequest) GetName() string {
@@ -5118,7 +5063,7 @@ type SettingList struct {
 
 func (x *SettingList) Reset() {
 	*x = SettingList{}
-	mi := &file_console_proto_msgTypes[74]
+	mi := &file_console_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5130,7 +5075,7 @@ func (x *SettingList) String() string {
 func (*SettingList) ProtoMessage() {}
 
 func (x *SettingList) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[74]
+	mi := &file_console_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5143,7 +5088,7 @@ func (x *SettingList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingList.ProtoReflect.Descriptor instead.
 func (*SettingList) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{74}
+	return file_console_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *SettingList) GetSettings() []*Setting {
@@ -5163,8 +5108,8 @@ func (x *SettingList) GetAclResources() []AclResources {
 // Request to update an existing user.
 type UpdateUserRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// User identifier.
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// User username.
+	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// ACL.
 	Acl           map[string]*Permissions `protobuf:"bytes,2,rep,name=acl,proto3" json:"acl,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
@@ -5173,7 +5118,7 @@ type UpdateUserRequest struct {
 
 func (x *UpdateUserRequest) Reset() {
 	*x = UpdateUserRequest{}
-	mi := &file_console_proto_msgTypes[75]
+	mi := &file_console_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5185,7 +5130,7 @@ func (x *UpdateUserRequest) String() string {
 func (*UpdateUserRequest) ProtoMessage() {}
 
 func (x *UpdateUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[75]
+	mi := &file_console_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5198,12 +5143,12 @@ func (x *UpdateUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserRequest.ProtoReflect.Descriptor instead.
 func (*UpdateUserRequest) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{75}
+	return file_console_proto_rawDescGZIP(), []int{74}
 }
 
-func (x *UpdateUserRequest) GetId() string {
+func (x *UpdateUserRequest) GetUsername() string {
 	if x != nil {
-		return x.Id
+		return x.Username
 	}
 	return ""
 }
@@ -5230,7 +5175,7 @@ type Permissions struct {
 
 func (x *Permissions) Reset() {
 	*x = Permissions{}
-	mi := &file_console_proto_msgTypes[76]
+	mi := &file_console_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5242,7 +5187,7 @@ func (x *Permissions) String() string {
 func (*Permissions) ProtoMessage() {}
 
 func (x *Permissions) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[76]
+	mi := &file_console_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5255,7 +5200,7 @@ func (x *Permissions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Permissions.ProtoReflect.Descriptor instead.
 func (*Permissions) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{76}
+	return file_console_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *Permissions) GetRead() bool {
@@ -5291,7 +5236,7 @@ type MatchList_Match struct {
 
 func (x *MatchList_Match) Reset() {
 	*x = MatchList_Match{}
-	mi := &file_console_proto_msgTypes[77]
+	mi := &file_console_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5303,7 +5248,7 @@ func (x *MatchList_Match) String() string {
 func (*MatchList_Match) ProtoMessage() {}
 
 func (x *MatchList_Match) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[77]
+	mi := &file_console_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5346,7 +5291,7 @@ type Config_Warning struct {
 
 func (x *Config_Warning) Reset() {
 	*x = Config_Warning{}
-	mi := &file_console_proto_msgTypes[81]
+	mi := &file_console_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5358,7 +5303,7 @@ func (x *Config_Warning) String() string {
 func (*Config_Warning) ProtoMessage() {}
 
 func (x *Config_Warning) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[81]
+	mi := &file_console_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5371,7 +5316,7 @@ func (x *Config_Warning) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Config_Warning.ProtoReflect.Descriptor instead.
 func (*Config_Warning) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{21, 0}
+	return file_console_proto_rawDescGZIP(), []int{20, 0}
 }
 
 func (x *Config_Warning) GetField() string {
@@ -5417,7 +5362,7 @@ type StatusList_Status struct {
 
 func (x *StatusList_Status) Reset() {
 	*x = StatusList_Status{}
-	mi := &file_console_proto_msgTypes[84]
+	mi := &file_console_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5429,7 +5374,7 @@ func (x *StatusList_Status) String() string {
 func (*StatusList_Status) ProtoMessage() {}
 
 func (x *StatusList_Status) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[84]
+	mi := &file_console_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5442,7 +5387,7 @@ func (x *StatusList_Status) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusList_Status.ProtoReflect.Descriptor instead.
 func (*StatusList_Status) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{60, 0}
+	return file_console_proto_rawDescGZIP(), []int{59, 0}
 }
 
 func (x *StatusList_Status) GetName() string {
@@ -5528,7 +5473,7 @@ type RuntimeInfo_ModuleInfo struct {
 
 func (x *RuntimeInfo_ModuleInfo) Reset() {
 	*x = RuntimeInfo_ModuleInfo{}
-	mi := &file_console_proto_msgTypes[85]
+	mi := &file_console_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5540,7 +5485,7 @@ func (x *RuntimeInfo_ModuleInfo) String() string {
 func (*RuntimeInfo_ModuleInfo) ProtoMessage() {}
 
 func (x *RuntimeInfo_ModuleInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[85]
+	mi := &file_console_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5553,7 +5498,7 @@ func (x *RuntimeInfo_ModuleInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeInfo_ModuleInfo.ProtoReflect.Descriptor instead.
 func (*RuntimeInfo_ModuleInfo) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{61, 0}
+	return file_console_proto_rawDescGZIP(), []int{60, 0}
 }
 
 func (x *RuntimeInfo_ModuleInfo) GetPath() string {
@@ -5633,13 +5578,7 @@ const file_console_proto_rawDesc = "" +
 	"\fjoin_request\x18\x03 \x01(\bR\vjoinRequest\"Q\n" +
 	"\x0fAddUserResponse\x12(\n" +
 	"\x04user\x18\x01 \x01(\v2\x14.nakama.console.UserR\x04user\x12\x14\n" +
-	"\x05token\x18\x02 \x01(\tR\x05token\"\xb6\x01\n" +
-	"\x11UserUpdateRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12<\n" +
-	"\x03acl\x18\x02 \x03(\v2*.nakama.console.UserUpdateRequest.AclEntryR\x03acl\x1aS\n" +
-	"\bAclEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
-	"\x05value\x18\x02 \x01(\v2\x1b.nakama.console.PermissionsR\x05value:\x028\x01\"\xa2\x01\n" +
+	"\x05token\x18\x02 \x01(\tR\x05token\"\xa2\x01\n" +
 	"\x0fApiEndpointList\x12C\n" +
 	"\tendpoints\x18\x01 \x03(\v2%.nakama.console.ApiEndpointDescriptorR\tendpoints\x12J\n" +
 	"\rrpc_endpoints\x18\x02 \x03(\v2%.nakama.console.ApiEndpointDescriptorR\frpcEndpoints\"_\n" +
@@ -5982,9 +5921,9 @@ const file_console_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"\x85\x01\n" +
 	"\vSettingList\x123\n" +
 	"\bsettings\x18\x01 \x03(\v2\x17.nakama.console.SettingR\bsettings\x12A\n" +
-	"\racl_resources\x18\x02 \x03(\x0e2\x1c.nakama.console.AclResourcesR\faclResources\"\xb6\x01\n" +
-	"\x11UpdateUserRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12<\n" +
+	"\racl_resources\x18\x02 \x03(\x0e2\x1c.nakama.console.AclResourcesR\faclResources\"\xc2\x01\n" +
+	"\x11UpdateUserRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12<\n" +
 	"\x03acl\x18\x02 \x03(\v2*.nakama.console.UpdateUserRequest.AclEntryR\x03acl\x1aS\n" +
 	"\bAclEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
@@ -6020,7 +5959,7 @@ const file_console_proto_rawDesc = "" +
 	"\fNOTIFICATION\x10\x11\x12\f\n" +
 	"\bSETTINGS\x10\x12\x12\x10\n" +
 	"\fSTORAGE_DATA\x10\x13\x12\x17\n" +
-	"\x13STORAGE_DATA_IMPORT\x10\x142\xa0G\n" +
+	"\x13STORAGE_DATA_IMPORT\x10\x142\xa6G\n" +
 	"\aConsole\x12\x83\x01\n" +
 	"\fAuthenticate\x12#.nakama.console.AuthenticateRequest\x1a\x1e.nakama.console.ConsoleSession\".\x92A\bb\x06\n" +
 	"\x04\n" +
@@ -6105,9 +6044,9 @@ const file_console_proto_rawDesc = "" +
 	"\vUnlinkSteam\x12\x19.nakama.console.AccountId\x1a\x16.google.protobuf.Empty\"-\x82\xd3\xe4\x93\x02'\"%/v2/console/account/{id}/unlink/steam\x12r\n" +
 	"\rUpdateAccount\x12$.nakama.console.UpdateAccountRequest\x1a\x16.google.protobuf.Empty\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/console/account/{id}\x12l\n" +
 	"\vUpdateGroup\x12\".nakama.console.UpdateGroupRequest\x1a\x16.google.protobuf.Empty\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v2/console/group/{id}\x12u\n" +
-	"\rUpdateSetting\x12$.nakama.console.UpdateSettingRequest\x1a\x17.nakama.console.Setting\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v2/console/setting/{name}\x12g\n" +
+	"\rUpdateSetting\x12$.nakama.console.UpdateSettingRequest\x1a\x17.nakama.console.Setting\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v2/console/setting/{name}\x12m\n" +
 	"\n" +
-	"UpdateUser\x12!.nakama.console.UpdateUserRequest\x1a\x14.nakama.console.User\" \x82\xd3\xe4\x93\x02\x1a:\x01*\x1a\x15/v2/console/user/{id}\x12\x9a\x01\n" +
+	"UpdateUser\x12!.nakama.console.UpdateUserRequest\x1a\x14.nakama.console.User\"&\x82\xd3\xe4\x93\x02 :\x01*\x1a\x1b/v2/console/user/{username}\x12\x9a\x01\n" +
 	"\x12WriteStorageObject\x12).nakama.console.WriteStorageObjectRequest\x1a\x1c.nakama.api.StorageObjectAck\";\x82\xd3\xe4\x93\x025:\x01*\x1a0/v2/console/storage/{collection}/{key}/{user_id}B\xed\x02\x92A\xc0\x02\x12}\n" +
 	"\x15Nakama console API v2\"_\n" +
 	"!The Nakama Authors & Contributors\x12$https://github.com/heroiclabs/nakama\x1a\x14hello@heroiclabs.com2\x032.0\x1a\x0e127.0.0.1:7351*\x01\x012\x10application/json:\x10application/jsonZ3\n" +
@@ -6132,7 +6071,7 @@ func file_console_proto_rawDescGZIP() []byte {
 }
 
 var file_console_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_console_proto_msgTypes = make([]protoimpl.MessageInfo, 87)
+var file_console_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
 var file_console_proto_goTypes = []any{
 	(StatusHealth)(0),                         // 0: nakama.console.StatusHealth
 	(AclResources)(0),                         // 1: nakama.console.AclResources
@@ -6150,351 +6089,347 @@ var file_console_proto_goTypes = []any{
 	(*AddUserRequest)(nil),                    // 13: nakama.console.AddUserRequest
 	(*AddGroupUsersRequest)(nil),              // 14: nakama.console.AddGroupUsersRequest
 	(*AddUserResponse)(nil),                   // 15: nakama.console.AddUserResponse
-	(*UserUpdateRequest)(nil),                 // 16: nakama.console.UserUpdateRequest
-	(*ApiEndpointList)(nil),                   // 17: nakama.console.ApiEndpointList
-	(*AuthenticateRequest)(nil),               // 18: nakama.console.AuthenticateRequest
-	(*AuthenticateMFASetupRequest)(nil),       // 19: nakama.console.AuthenticateMFASetupRequest
-	(*AuthenticateMFASetupResponse)(nil),      // 20: nakama.console.AuthenticateMFASetupResponse
-	(*AuthenticateLogoutRequest)(nil),         // 21: nakama.console.AuthenticateLogoutRequest
-	(*CallApiEndpointRequest)(nil),            // 22: nakama.console.CallApiEndpointRequest
-	(*CallApiEndpointResponse)(nil),           // 23: nakama.console.CallApiEndpointResponse
-	(*Config)(nil),                            // 24: nakama.console.Config
-	(*ConsoleSession)(nil),                    // 25: nakama.console.ConsoleSession
-	(*DeleteChannelMessagesRequest)(nil),      // 26: nakama.console.DeleteChannelMessagesRequest
-	(*DeleteFriendRequest)(nil),               // 27: nakama.console.DeleteFriendRequest
-	(*DeleteGroupRequest)(nil),                // 28: nakama.console.DeleteGroupRequest
-	(*DeleteGroupUserRequest)(nil),            // 29: nakama.console.DeleteGroupUserRequest
-	(*UpdateGroupUserStateRequest)(nil),       // 30: nakama.console.UpdateGroupUserStateRequest
-	(*ResetUserMfaRequest)(nil),               // 31: nakama.console.ResetUserMfaRequest
-	(*ResetUserResponse)(nil),                 // 32: nakama.console.ResetUserResponse
-	(*RequireUserMfaRequest)(nil),             // 33: nakama.console.RequireUserMfaRequest
-	(*DeleteLeaderboardRecordRequest)(nil),    // 34: nakama.console.DeleteLeaderboardRecordRequest
-	(*DeleteNotificationRequest)(nil),         // 35: nakama.console.DeleteNotificationRequest
-	(*DeleteStorageObjectRequest)(nil),        // 36: nakama.console.DeleteStorageObjectRequest
-	(*DeleteWalletLedgerRequest)(nil),         // 37: nakama.console.DeleteWalletLedgerRequest
-	(*Leaderboard)(nil),                       // 38: nakama.console.Leaderboard
-	(*LeaderboardListRequest)(nil),            // 39: nakama.console.LeaderboardListRequest
-	(*LeaderboardList)(nil),                   // 40: nakama.console.LeaderboardList
-	(*LeaderboardRequest)(nil),                // 41: nakama.console.LeaderboardRequest
-	(*ListAccountsRequest)(nil),               // 42: nakama.console.ListAccountsRequest
-	(*ListChannelMessagesRequest)(nil),        // 43: nakama.console.ListChannelMessagesRequest
-	(*ListGroupsRequest)(nil),                 // 44: nakama.console.ListGroupsRequest
-	(*ListMatchesRequest)(nil),                // 45: nakama.console.ListMatchesRequest
-	(*ListNotificationsRequest)(nil),          // 46: nakama.console.ListNotificationsRequest
-	(*ListPurchasesRequest)(nil),              // 47: nakama.console.ListPurchasesRequest
-	(*ListSubscriptionsRequest)(nil),          // 48: nakama.console.ListSubscriptionsRequest
-	(*ListStorageRequest)(nil),                // 49: nakama.console.ListStorageRequest
-	(*MatchState)(nil),                        // 50: nakama.console.MatchState
-	(*MatchStateRequest)(nil),                 // 51: nakama.console.MatchStateRequest
-	(*Notification)(nil),                      // 52: nakama.console.Notification
-	(*NotificationList)(nil),                  // 53: nakama.console.NotificationList
-	(*DeleteChannelMessagesResponse)(nil),     // 54: nakama.console.DeleteChannelMessagesResponse
-	(*StorageList)(nil),                       // 55: nakama.console.StorageList
-	(*StorageCollectionsList)(nil),            // 56: nakama.console.StorageCollectionsList
-	(*UnlinkDeviceRequest)(nil),               // 57: nakama.console.UnlinkDeviceRequest
-	(*UpdateAccountRequest)(nil),              // 58: nakama.console.UpdateAccountRequest
-	(*UpdateGroupRequest)(nil),                // 59: nakama.console.UpdateGroupRequest
-	(*Username)(nil),                          // 60: nakama.console.Username
-	(*User)(nil),                              // 61: nakama.console.User
-	(*UserList)(nil),                          // 62: nakama.console.UserList
-	(*StatusList)(nil),                        // 63: nakama.console.StatusList
-	(*RuntimeInfo)(nil),                       // 64: nakama.console.RuntimeInfo
-	(*WalletLedger)(nil),                      // 65: nakama.console.WalletLedger
-	(*WalletLedgerList)(nil),                  // 66: nakama.console.WalletLedgerList
-	(*WriteStorageObjectRequest)(nil),         // 67: nakama.console.WriteStorageObjectRequest
-	(*GetWalletLedgerRequest)(nil),            // 68: nakama.console.GetWalletLedgerRequest
-	(*GetNotificationRequest)(nil),            // 69: nakama.console.GetNotificationRequest
-	(*GetPurchaseRequest)(nil),                // 70: nakama.console.GetPurchaseRequest
-	(*GetSubscriptionRequest)(nil),            // 71: nakama.console.GetSubscriptionRequest
-	(*StorageListObject)(nil),                 // 72: nakama.console.StorageListObject
-	(*Setting)(nil),                           // 73: nakama.console.Setting
-	(*SettingRequest)(nil),                    // 74: nakama.console.SettingRequest
-	(*ListSettingsRequest)(nil),               // 75: nakama.console.ListSettingsRequest
-	(*UpdateSettingRequest)(nil),              // 76: nakama.console.UpdateSettingRequest
-	(*SettingList)(nil),                       // 77: nakama.console.SettingList
-	(*UpdateUserRequest)(nil),                 // 78: nakama.console.UpdateUserRequest
-	(*Permissions)(nil),                       // 79: nakama.console.Permissions
-	(*MatchList_Match)(nil),                   // 80: nakama.console.MatchList.Match
-	nil,                                       // 81: nakama.console.AddUserRequest.AclEntry
-	nil,                                       // 82: nakama.console.UserUpdateRequest.AclEntry
-	nil,                                       // 83: nakama.console.CallApiEndpointRequest.SessionVarsEntry
-	(*Config_Warning)(nil),                    // 84: nakama.console.Config.Warning
-	nil,                                       // 85: nakama.console.UpdateAccountRequest.DeviceIdsEntry
-	nil,                                       // 86: nakama.console.User.AclEntry
-	(*StatusList_Status)(nil),                 // 87: nakama.console.StatusList.Status
-	(*RuntimeInfo_ModuleInfo)(nil),            // 88: nakama.console.RuntimeInfo.ModuleInfo
-	nil,                                       // 89: nakama.console.UpdateUserRequest.AclEntry
-	(*api.Account)(nil),                       // 90: nakama.api.Account
-	(*timestamppb.Timestamp)(nil),             // 91: google.protobuf.Timestamp
-	(*wrapperspb.BoolValue)(nil),              // 92: google.protobuf.BoolValue
-	(*api.StorageObject)(nil),                 // 93: nakama.api.StorageObject
-	(*api.Friend)(nil),                        // 94: nakama.api.Friend
-	(*api.Group)(nil),                         // 95: nakama.api.Group
-	(*api.ChannelMessage)(nil),                // 96: nakama.api.ChannelMessage
-	(*api.LeaderboardRecord)(nil),             // 97: nakama.api.LeaderboardRecord
-	(*api.Notification)(nil),                  // 98: nakama.api.Notification
-	(*api.User)(nil),                          // 99: nakama.api.User
-	(*api.GroupUserList_GroupUser)(nil),       // 100: nakama.api.GroupUserList.GroupUser
-	(*wrapperspb.StringValue)(nil),            // 101: google.protobuf.StringValue
-	(*wrapperspb.Int32Value)(nil),             // 102: google.protobuf.Int32Value
-	(*rtapi.UserPresence)(nil),                // 103: nakama.realtime.UserPresence
-	(*api.Match)(nil),                         // 104: nakama.api.Match
-	(*emptypb.Empty)(nil),                     // 105: google.protobuf.Empty
-	(*api.ReadStorageObjectId)(nil),           // 106: nakama.api.ReadStorageObjectId
-	(*api.ListLeaderboardRecordsRequest)(nil), // 107: nakama.api.ListLeaderboardRecordsRequest
-	(*api.FriendList)(nil),                    // 108: nakama.api.FriendList
-	(*api.GroupUserList)(nil),                 // 109: nakama.api.GroupUserList
-	(*api.UserGroupList)(nil),                 // 110: nakama.api.UserGroupList
-	(*api.ValidatedPurchase)(nil),             // 111: nakama.api.ValidatedPurchase
-	(*api.ValidatedSubscription)(nil),         // 112: nakama.api.ValidatedSubscription
-	(*api.LeaderboardRecordList)(nil),         // 113: nakama.api.LeaderboardRecordList
-	(*api.ChannelMessageList)(nil),            // 114: nakama.api.ChannelMessageList
-	(*api.PurchaseList)(nil),                  // 115: nakama.api.PurchaseList
-	(*api.SubscriptionList)(nil),              // 116: nakama.api.SubscriptionList
-	(*api.StorageObjectAck)(nil),              // 117: nakama.api.StorageObjectAck
+	(*ApiEndpointList)(nil),                   // 16: nakama.console.ApiEndpointList
+	(*AuthenticateRequest)(nil),               // 17: nakama.console.AuthenticateRequest
+	(*AuthenticateMFASetupRequest)(nil),       // 18: nakama.console.AuthenticateMFASetupRequest
+	(*AuthenticateMFASetupResponse)(nil),      // 19: nakama.console.AuthenticateMFASetupResponse
+	(*AuthenticateLogoutRequest)(nil),         // 20: nakama.console.AuthenticateLogoutRequest
+	(*CallApiEndpointRequest)(nil),            // 21: nakama.console.CallApiEndpointRequest
+	(*CallApiEndpointResponse)(nil),           // 22: nakama.console.CallApiEndpointResponse
+	(*Config)(nil),                            // 23: nakama.console.Config
+	(*ConsoleSession)(nil),                    // 24: nakama.console.ConsoleSession
+	(*DeleteChannelMessagesRequest)(nil),      // 25: nakama.console.DeleteChannelMessagesRequest
+	(*DeleteFriendRequest)(nil),               // 26: nakama.console.DeleteFriendRequest
+	(*DeleteGroupRequest)(nil),                // 27: nakama.console.DeleteGroupRequest
+	(*DeleteGroupUserRequest)(nil),            // 28: nakama.console.DeleteGroupUserRequest
+	(*UpdateGroupUserStateRequest)(nil),       // 29: nakama.console.UpdateGroupUserStateRequest
+	(*ResetUserMfaRequest)(nil),               // 30: nakama.console.ResetUserMfaRequest
+	(*ResetUserResponse)(nil),                 // 31: nakama.console.ResetUserResponse
+	(*RequireUserMfaRequest)(nil),             // 32: nakama.console.RequireUserMfaRequest
+	(*DeleteLeaderboardRecordRequest)(nil),    // 33: nakama.console.DeleteLeaderboardRecordRequest
+	(*DeleteNotificationRequest)(nil),         // 34: nakama.console.DeleteNotificationRequest
+	(*DeleteStorageObjectRequest)(nil),        // 35: nakama.console.DeleteStorageObjectRequest
+	(*DeleteWalletLedgerRequest)(nil),         // 36: nakama.console.DeleteWalletLedgerRequest
+	(*Leaderboard)(nil),                       // 37: nakama.console.Leaderboard
+	(*LeaderboardListRequest)(nil),            // 38: nakama.console.LeaderboardListRequest
+	(*LeaderboardList)(nil),                   // 39: nakama.console.LeaderboardList
+	(*LeaderboardRequest)(nil),                // 40: nakama.console.LeaderboardRequest
+	(*ListAccountsRequest)(nil),               // 41: nakama.console.ListAccountsRequest
+	(*ListChannelMessagesRequest)(nil),        // 42: nakama.console.ListChannelMessagesRequest
+	(*ListGroupsRequest)(nil),                 // 43: nakama.console.ListGroupsRequest
+	(*ListMatchesRequest)(nil),                // 44: nakama.console.ListMatchesRequest
+	(*ListNotificationsRequest)(nil),          // 45: nakama.console.ListNotificationsRequest
+	(*ListPurchasesRequest)(nil),              // 46: nakama.console.ListPurchasesRequest
+	(*ListSubscriptionsRequest)(nil),          // 47: nakama.console.ListSubscriptionsRequest
+	(*ListStorageRequest)(nil),                // 48: nakama.console.ListStorageRequest
+	(*MatchState)(nil),                        // 49: nakama.console.MatchState
+	(*MatchStateRequest)(nil),                 // 50: nakama.console.MatchStateRequest
+	(*Notification)(nil),                      // 51: nakama.console.Notification
+	(*NotificationList)(nil),                  // 52: nakama.console.NotificationList
+	(*DeleteChannelMessagesResponse)(nil),     // 53: nakama.console.DeleteChannelMessagesResponse
+	(*StorageList)(nil),                       // 54: nakama.console.StorageList
+	(*StorageCollectionsList)(nil),            // 55: nakama.console.StorageCollectionsList
+	(*UnlinkDeviceRequest)(nil),               // 56: nakama.console.UnlinkDeviceRequest
+	(*UpdateAccountRequest)(nil),              // 57: nakama.console.UpdateAccountRequest
+	(*UpdateGroupRequest)(nil),                // 58: nakama.console.UpdateGroupRequest
+	(*Username)(nil),                          // 59: nakama.console.Username
+	(*User)(nil),                              // 60: nakama.console.User
+	(*UserList)(nil),                          // 61: nakama.console.UserList
+	(*StatusList)(nil),                        // 62: nakama.console.StatusList
+	(*RuntimeInfo)(nil),                       // 63: nakama.console.RuntimeInfo
+	(*WalletLedger)(nil),                      // 64: nakama.console.WalletLedger
+	(*WalletLedgerList)(nil),                  // 65: nakama.console.WalletLedgerList
+	(*WriteStorageObjectRequest)(nil),         // 66: nakama.console.WriteStorageObjectRequest
+	(*GetWalletLedgerRequest)(nil),            // 67: nakama.console.GetWalletLedgerRequest
+	(*GetNotificationRequest)(nil),            // 68: nakama.console.GetNotificationRequest
+	(*GetPurchaseRequest)(nil),                // 69: nakama.console.GetPurchaseRequest
+	(*GetSubscriptionRequest)(nil),            // 70: nakama.console.GetSubscriptionRequest
+	(*StorageListObject)(nil),                 // 71: nakama.console.StorageListObject
+	(*Setting)(nil),                           // 72: nakama.console.Setting
+	(*SettingRequest)(nil),                    // 73: nakama.console.SettingRequest
+	(*ListSettingsRequest)(nil),               // 74: nakama.console.ListSettingsRequest
+	(*UpdateSettingRequest)(nil),              // 75: nakama.console.UpdateSettingRequest
+	(*SettingList)(nil),                       // 76: nakama.console.SettingList
+	(*UpdateUserRequest)(nil),                 // 77: nakama.console.UpdateUserRequest
+	(*Permissions)(nil),                       // 78: nakama.console.Permissions
+	(*MatchList_Match)(nil),                   // 79: nakama.console.MatchList.Match
+	nil,                                       // 80: nakama.console.AddUserRequest.AclEntry
+	nil,                                       // 81: nakama.console.CallApiEndpointRequest.SessionVarsEntry
+	(*Config_Warning)(nil),                    // 82: nakama.console.Config.Warning
+	nil,                                       // 83: nakama.console.UpdateAccountRequest.DeviceIdsEntry
+	nil,                                       // 84: nakama.console.User.AclEntry
+	(*StatusList_Status)(nil),                 // 85: nakama.console.StatusList.Status
+	(*RuntimeInfo_ModuleInfo)(nil),            // 86: nakama.console.RuntimeInfo.ModuleInfo
+	nil,                                       // 87: nakama.console.UpdateUserRequest.AclEntry
+	(*api.Account)(nil),                       // 88: nakama.api.Account
+	(*timestamppb.Timestamp)(nil),             // 89: google.protobuf.Timestamp
+	(*wrapperspb.BoolValue)(nil),              // 90: google.protobuf.BoolValue
+	(*api.StorageObject)(nil),                 // 91: nakama.api.StorageObject
+	(*api.Friend)(nil),                        // 92: nakama.api.Friend
+	(*api.Group)(nil),                         // 93: nakama.api.Group
+	(*api.ChannelMessage)(nil),                // 94: nakama.api.ChannelMessage
+	(*api.LeaderboardRecord)(nil),             // 95: nakama.api.LeaderboardRecord
+	(*api.Notification)(nil),                  // 96: nakama.api.Notification
+	(*api.User)(nil),                          // 97: nakama.api.User
+	(*api.GroupUserList_GroupUser)(nil),       // 98: nakama.api.GroupUserList.GroupUser
+	(*wrapperspb.StringValue)(nil),            // 99: google.protobuf.StringValue
+	(*wrapperspb.Int32Value)(nil),             // 100: google.protobuf.Int32Value
+	(*rtapi.UserPresence)(nil),                // 101: nakama.realtime.UserPresence
+	(*api.Match)(nil),                         // 102: nakama.api.Match
+	(*emptypb.Empty)(nil),                     // 103: google.protobuf.Empty
+	(*api.ReadStorageObjectId)(nil),           // 104: nakama.api.ReadStorageObjectId
+	(*api.ListLeaderboardRecordsRequest)(nil), // 105: nakama.api.ListLeaderboardRecordsRequest
+	(*api.FriendList)(nil),                    // 106: nakama.api.FriendList
+	(*api.GroupUserList)(nil),                 // 107: nakama.api.GroupUserList
+	(*api.UserGroupList)(nil),                 // 108: nakama.api.UserGroupList
+	(*api.ValidatedPurchase)(nil),             // 109: nakama.api.ValidatedPurchase
+	(*api.ValidatedSubscription)(nil),         // 110: nakama.api.ValidatedSubscription
+	(*api.LeaderboardRecordList)(nil),         // 111: nakama.api.LeaderboardRecordList
+	(*api.ChannelMessageList)(nil),            // 112: nakama.api.ChannelMessageList
+	(*api.PurchaseList)(nil),                  // 113: nakama.api.PurchaseList
+	(*api.SubscriptionList)(nil),              // 114: nakama.api.SubscriptionList
+	(*api.StorageObjectAck)(nil),              // 115: nakama.api.StorageObjectAck
 }
 var file_console_proto_depIdxs = []int32{
-	90,  // 0: nakama.console.Account.account:type_name -> nakama.api.Account
-	91,  // 1: nakama.console.Account.disable_time:type_name -> google.protobuf.Timestamp
-	92,  // 2: nakama.console.AccountDeleteRequest.record_deletion:type_name -> google.protobuf.BoolValue
-	90,  // 3: nakama.console.AccountExport.account:type_name -> nakama.api.Account
-	93,  // 4: nakama.console.AccountExport.objects:type_name -> nakama.api.StorageObject
-	94,  // 5: nakama.console.AccountExport.friends:type_name -> nakama.api.Friend
-	95,  // 6: nakama.console.AccountExport.groups:type_name -> nakama.api.Group
-	96,  // 7: nakama.console.AccountExport.messages:type_name -> nakama.api.ChannelMessage
-	97,  // 8: nakama.console.AccountExport.leaderboard_records:type_name -> nakama.api.LeaderboardRecord
-	98,  // 9: nakama.console.AccountExport.notifications:type_name -> nakama.api.Notification
-	65,  // 10: nakama.console.AccountExport.wallet_ledgers:type_name -> nakama.console.WalletLedger
-	99,  // 11: nakama.console.AccountList.users:type_name -> nakama.api.User
-	95,  // 12: nakama.console.GroupList.groups:type_name -> nakama.api.Group
-	95,  // 13: nakama.console.GroupExport.group:type_name -> nakama.api.Group
-	100, // 14: nakama.console.GroupExport.members:type_name -> nakama.api.GroupUserList.GroupUser
-	80,  // 15: nakama.console.MatchList.matches:type_name -> nakama.console.MatchList.Match
-	81,  // 16: nakama.console.AddUserRequest.acl:type_name -> nakama.console.AddUserRequest.AclEntry
-	61,  // 17: nakama.console.AddUserResponse.user:type_name -> nakama.console.User
-	82,  // 18: nakama.console.UserUpdateRequest.acl:type_name -> nakama.console.UserUpdateRequest.AclEntry
-	3,   // 19: nakama.console.ApiEndpointList.endpoints:type_name -> nakama.console.ApiEndpointDescriptor
-	3,   // 20: nakama.console.ApiEndpointList.rpc_endpoints:type_name -> nakama.console.ApiEndpointDescriptor
-	83,  // 21: nakama.console.CallApiEndpointRequest.session_vars:type_name -> nakama.console.CallApiEndpointRequest.SessionVarsEntry
-	84,  // 22: nakama.console.Config.warnings:type_name -> nakama.console.Config.Warning
-	101, // 23: nakama.console.ConsoleSession.mfa_code:type_name -> google.protobuf.StringValue
-	91,  // 24: nakama.console.DeleteChannelMessagesRequest.before:type_name -> google.protobuf.Timestamp
-	91,  // 25: nakama.console.Leaderboard.create_time:type_name -> google.protobuf.Timestamp
-	91,  // 26: nakama.console.Leaderboard.start_time:type_name -> google.protobuf.Timestamp
-	91,  // 27: nakama.console.Leaderboard.end_time:type_name -> google.protobuf.Timestamp
-	38,  // 28: nakama.console.LeaderboardList.leaderboards:type_name -> nakama.console.Leaderboard
-	2,   // 29: nakama.console.ListChannelMessagesRequest.type:type_name -> nakama.console.ListChannelMessagesRequest.Type
-	102, // 30: nakama.console.ListMatchesRequest.limit:type_name -> google.protobuf.Int32Value
-	92,  // 31: nakama.console.ListMatchesRequest.authoritative:type_name -> google.protobuf.BoolValue
-	101, // 32: nakama.console.ListMatchesRequest.label:type_name -> google.protobuf.StringValue
-	102, // 33: nakama.console.ListMatchesRequest.min_size:type_name -> google.protobuf.Int32Value
-	102, // 34: nakama.console.ListMatchesRequest.max_size:type_name -> google.protobuf.Int32Value
-	101, // 35: nakama.console.ListMatchesRequest.query:type_name -> google.protobuf.StringValue
-	101, // 36: nakama.console.ListMatchesRequest.node:type_name -> google.protobuf.StringValue
-	103, // 37: nakama.console.MatchState.presences:type_name -> nakama.realtime.UserPresence
-	91,  // 38: nakama.console.Notification.create_time:type_name -> google.protobuf.Timestamp
-	52,  // 39: nakama.console.NotificationList.notifications:type_name -> nakama.console.Notification
-	72,  // 40: nakama.console.StorageList.objects:type_name -> nakama.console.StorageListObject
-	101, // 41: nakama.console.UpdateAccountRequest.username:type_name -> google.protobuf.StringValue
-	101, // 42: nakama.console.UpdateAccountRequest.display_name:type_name -> google.protobuf.StringValue
-	101, // 43: nakama.console.UpdateAccountRequest.metadata:type_name -> google.protobuf.StringValue
-	101, // 44: nakama.console.UpdateAccountRequest.avatar_url:type_name -> google.protobuf.StringValue
-	101, // 45: nakama.console.UpdateAccountRequest.lang_tag:type_name -> google.protobuf.StringValue
-	101, // 46: nakama.console.UpdateAccountRequest.location:type_name -> google.protobuf.StringValue
-	101, // 47: nakama.console.UpdateAccountRequest.timezone:type_name -> google.protobuf.StringValue
-	101, // 48: nakama.console.UpdateAccountRequest.custom_id:type_name -> google.protobuf.StringValue
-	101, // 49: nakama.console.UpdateAccountRequest.email:type_name -> google.protobuf.StringValue
-	101, // 50: nakama.console.UpdateAccountRequest.password:type_name -> google.protobuf.StringValue
-	85,  // 51: nakama.console.UpdateAccountRequest.device_ids:type_name -> nakama.console.UpdateAccountRequest.DeviceIdsEntry
-	101, // 52: nakama.console.UpdateAccountRequest.wallet:type_name -> google.protobuf.StringValue
-	101, // 53: nakama.console.UpdateGroupRequest.name:type_name -> google.protobuf.StringValue
-	101, // 54: nakama.console.UpdateGroupRequest.description:type_name -> google.protobuf.StringValue
-	101, // 55: nakama.console.UpdateGroupRequest.lang_tag:type_name -> google.protobuf.StringValue
-	101, // 56: nakama.console.UpdateGroupRequest.metadata:type_name -> google.protobuf.StringValue
-	101, // 57: nakama.console.UpdateGroupRequest.avatar_url:type_name -> google.protobuf.StringValue
-	92,  // 58: nakama.console.UpdateGroupRequest.open:type_name -> google.protobuf.BoolValue
-	102, // 59: nakama.console.UpdateGroupRequest.max_count:type_name -> google.protobuf.Int32Value
-	86,  // 60: nakama.console.User.acl:type_name -> nakama.console.User.AclEntry
-	91,  // 61: nakama.console.User.create_time:type_name -> google.protobuf.Timestamp
-	91,  // 62: nakama.console.User.update_time:type_name -> google.protobuf.Timestamp
-	61,  // 63: nakama.console.UserList.users:type_name -> nakama.console.User
-	87,  // 64: nakama.console.StatusList.nodes:type_name -> nakama.console.StatusList.Status
-	91,  // 65: nakama.console.StatusList.timestamp:type_name -> google.protobuf.Timestamp
-	88,  // 66: nakama.console.RuntimeInfo.go_modules:type_name -> nakama.console.RuntimeInfo.ModuleInfo
-	88,  // 67: nakama.console.RuntimeInfo.lua_modules:type_name -> nakama.console.RuntimeInfo.ModuleInfo
-	88,  // 68: nakama.console.RuntimeInfo.js_modules:type_name -> nakama.console.RuntimeInfo.ModuleInfo
-	91,  // 69: nakama.console.WalletLedger.create_time:type_name -> google.protobuf.Timestamp
-	91,  // 70: nakama.console.WalletLedger.update_time:type_name -> google.protobuf.Timestamp
-	65,  // 71: nakama.console.WalletLedgerList.items:type_name -> nakama.console.WalletLedger
-	102, // 72: nakama.console.WriteStorageObjectRequest.permission_read:type_name -> google.protobuf.Int32Value
-	102, // 73: nakama.console.WriteStorageObjectRequest.permission_write:type_name -> google.protobuf.Int32Value
-	91,  // 74: nakama.console.StorageListObject.create_time:type_name -> google.protobuf.Timestamp
-	91,  // 75: nakama.console.StorageListObject.update_time:type_name -> google.protobuf.Timestamp
-	73,  // 76: nakama.console.SettingList.settings:type_name -> nakama.console.Setting
-	1,   // 77: nakama.console.SettingList.acl_resources:type_name -> nakama.console.AclResources
-	89,  // 78: nakama.console.UpdateUserRequest.acl:type_name -> nakama.console.UpdateUserRequest.AclEntry
-	104, // 79: nakama.console.MatchList.Match.api_match:type_name -> nakama.api.Match
-	79,  // 80: nakama.console.AddUserRequest.AclEntry.value:type_name -> nakama.console.Permissions
-	79,  // 81: nakama.console.UserUpdateRequest.AclEntry.value:type_name -> nakama.console.Permissions
-	79,  // 82: nakama.console.User.AclEntry.value:type_name -> nakama.console.Permissions
-	0,   // 83: nakama.console.StatusList.Status.health:type_name -> nakama.console.StatusHealth
-	91,  // 84: nakama.console.RuntimeInfo.ModuleInfo.mod_time:type_name -> google.protobuf.Timestamp
-	79,  // 85: nakama.console.UpdateUserRequest.AclEntry.value:type_name -> nakama.console.Permissions
-	18,  // 86: nakama.console.Console.Authenticate:input_type -> nakama.console.AuthenticateRequest
-	21,  // 87: nakama.console.Console.AuthenticateLogout:input_type -> nakama.console.AuthenticateLogoutRequest
-	19,  // 88: nakama.console.Console.AuthenticateMFASetup:input_type -> nakama.console.AuthenticateMFASetupRequest
-	13,  // 89: nakama.console.Console.AddUser:input_type -> nakama.console.AddUserRequest
-	60,  // 90: nakama.console.Console.ResetUserPassword:input_type -> nakama.console.Username
-	14,  // 91: nakama.console.Console.AddGroupUsers:input_type -> nakama.console.AddGroupUsersRequest
-	7,   // 92: nakama.console.Console.BanAccount:input_type -> nakama.console.AccountId
-	22,  // 93: nakama.console.Console.CallApiEndpoint:input_type -> nakama.console.CallApiEndpointRequest
-	22,  // 94: nakama.console.Console.CallRpcEndpoint:input_type -> nakama.console.CallApiEndpointRequest
-	105, // 95: nakama.console.Console.DeleteAllData:input_type -> google.protobuf.Empty
-	5,   // 96: nakama.console.Console.DeleteAccount:input_type -> nakama.console.AccountDeleteRequest
-	26,  // 97: nakama.console.Console.DeleteChannelMessages:input_type -> nakama.console.DeleteChannelMessagesRequest
-	27,  // 98: nakama.console.Console.DeleteFriend:input_type -> nakama.console.DeleteFriendRequest
-	28,  // 99: nakama.console.Console.DeleteGroup:input_type -> nakama.console.DeleteGroupRequest
-	29,  // 100: nakama.console.Console.DeleteGroupUser:input_type -> nakama.console.DeleteGroupUserRequest
-	105, // 101: nakama.console.Console.DeleteStorage:input_type -> google.protobuf.Empty
-	36,  // 102: nakama.console.Console.DeleteStorageObject:input_type -> nakama.console.DeleteStorageObjectRequest
-	105, // 103: nakama.console.Console.DeleteAccounts:input_type -> google.protobuf.Empty
-	41,  // 104: nakama.console.Console.DeleteLeaderboard:input_type -> nakama.console.LeaderboardRequest
-	34,  // 105: nakama.console.Console.DeleteLeaderboardRecord:input_type -> nakama.console.DeleteLeaderboardRecordRequest
-	35,  // 106: nakama.console.Console.DeleteNotification:input_type -> nakama.console.DeleteNotificationRequest
-	60,  // 107: nakama.console.Console.DeleteUser:input_type -> nakama.console.Username
-	37,  // 108: nakama.console.Console.DeleteWalletLedger:input_type -> nakama.console.DeleteWalletLedgerRequest
-	30,  // 109: nakama.console.Console.DemoteGroupMember:input_type -> nakama.console.UpdateGroupUserStateRequest
-	7,   // 110: nakama.console.Console.ExportAccount:input_type -> nakama.console.AccountId
-	9,   // 111: nakama.console.Console.ExportGroup:input_type -> nakama.console.GroupId
-	7,   // 112: nakama.console.Console.GetAccount:input_type -> nakama.console.AccountId
-	105, // 113: nakama.console.Console.GetConfig:input_type -> google.protobuf.Empty
-	7,   // 114: nakama.console.Console.GetFriends:input_type -> nakama.console.AccountId
-	9,   // 115: nakama.console.Console.GetGroup:input_type -> nakama.console.GroupId
-	9,   // 116: nakama.console.Console.GetMembers:input_type -> nakama.console.GroupId
-	7,   // 117: nakama.console.Console.GetGroups:input_type -> nakama.console.AccountId
-	41,  // 118: nakama.console.Console.GetLeaderboard:input_type -> nakama.console.LeaderboardRequest
-	51,  // 119: nakama.console.Console.GetMatchState:input_type -> nakama.console.MatchStateRequest
-	105, // 120: nakama.console.Console.GetRuntime:input_type -> google.protobuf.Empty
-	74,  // 121: nakama.console.Console.GetSetting:input_type -> nakama.console.SettingRequest
-	105, // 122: nakama.console.Console.GetStatus:input_type -> google.protobuf.Empty
-	106, // 123: nakama.console.Console.GetStorage:input_type -> nakama.api.ReadStorageObjectId
-	60,  // 124: nakama.console.Console.GetUser:input_type -> nakama.console.Username
-	68,  // 125: nakama.console.Console.GetWalletLedger:input_type -> nakama.console.GetWalletLedgerRequest
-	69,  // 126: nakama.console.Console.GetNotification:input_type -> nakama.console.GetNotificationRequest
-	70,  // 127: nakama.console.Console.GetPurchase:input_type -> nakama.console.GetPurchaseRequest
-	71,  // 128: nakama.console.Console.GetSubscription:input_type -> nakama.console.GetSubscriptionRequest
-	105, // 129: nakama.console.Console.ListApiEndpoints:input_type -> google.protobuf.Empty
-	107, // 130: nakama.console.Console.ListLeaderboardRecords:input_type -> nakama.api.ListLeaderboardRecordsRequest
-	39,  // 131: nakama.console.Console.ListLeaderboards:input_type -> nakama.console.LeaderboardListRequest
-	75,  // 132: nakama.console.Console.ListSettings:input_type -> nakama.console.ListSettingsRequest
-	49,  // 133: nakama.console.Console.ListStorage:input_type -> nakama.console.ListStorageRequest
-	105, // 134: nakama.console.Console.ListStorageCollections:input_type -> google.protobuf.Empty
-	42,  // 135: nakama.console.Console.ListAccounts:input_type -> nakama.console.ListAccountsRequest
-	43,  // 136: nakama.console.Console.ListChannelMessages:input_type -> nakama.console.ListChannelMessagesRequest
-	44,  // 137: nakama.console.Console.ListGroups:input_type -> nakama.console.ListGroupsRequest
-	46,  // 138: nakama.console.Console.ListNotifications:input_type -> nakama.console.ListNotificationsRequest
-	45,  // 139: nakama.console.Console.ListMatches:input_type -> nakama.console.ListMatchesRequest
-	47,  // 140: nakama.console.Console.ListPurchases:input_type -> nakama.console.ListPurchasesRequest
-	48,  // 141: nakama.console.Console.ListSubscriptions:input_type -> nakama.console.ListSubscriptionsRequest
-	105, // 142: nakama.console.Console.ListUsers:input_type -> google.protobuf.Empty
-	30,  // 143: nakama.console.Console.PromoteGroupMember:input_type -> nakama.console.UpdateGroupUserStateRequest
-	33,  // 144: nakama.console.Console.RequireUserMfa:input_type -> nakama.console.RequireUserMfaRequest
-	31,  // 145: nakama.console.Console.ResetUserMfa:input_type -> nakama.console.ResetUserMfaRequest
-	7,   // 146: nakama.console.Console.UnbanAccount:input_type -> nakama.console.AccountId
-	7,   // 147: nakama.console.Console.UnlinkCustom:input_type -> nakama.console.AccountId
-	57,  // 148: nakama.console.Console.UnlinkDevice:input_type -> nakama.console.UnlinkDeviceRequest
-	7,   // 149: nakama.console.Console.UnlinkEmail:input_type -> nakama.console.AccountId
-	7,   // 150: nakama.console.Console.UnlinkApple:input_type -> nakama.console.AccountId
-	7,   // 151: nakama.console.Console.UnlinkFacebook:input_type -> nakama.console.AccountId
-	7,   // 152: nakama.console.Console.UnlinkFacebookInstantGame:input_type -> nakama.console.AccountId
-	7,   // 153: nakama.console.Console.UnlinkGameCenter:input_type -> nakama.console.AccountId
-	7,   // 154: nakama.console.Console.UnlinkGoogle:input_type -> nakama.console.AccountId
-	7,   // 155: nakama.console.Console.UnlinkSteam:input_type -> nakama.console.AccountId
-	58,  // 156: nakama.console.Console.UpdateAccount:input_type -> nakama.console.UpdateAccountRequest
-	59,  // 157: nakama.console.Console.UpdateGroup:input_type -> nakama.console.UpdateGroupRequest
-	76,  // 158: nakama.console.Console.UpdateSetting:input_type -> nakama.console.UpdateSettingRequest
-	78,  // 159: nakama.console.Console.UpdateUser:input_type -> nakama.console.UpdateUserRequest
-	67,  // 160: nakama.console.Console.WriteStorageObject:input_type -> nakama.console.WriteStorageObjectRequest
-	25,  // 161: nakama.console.Console.Authenticate:output_type -> nakama.console.ConsoleSession
-	105, // 162: nakama.console.Console.AuthenticateLogout:output_type -> google.protobuf.Empty
-	20,  // 163: nakama.console.Console.AuthenticateMFASetup:output_type -> nakama.console.AuthenticateMFASetupResponse
-	15,  // 164: nakama.console.Console.AddUser:output_type -> nakama.console.AddUserResponse
-	32,  // 165: nakama.console.Console.ResetUserPassword:output_type -> nakama.console.ResetUserResponse
-	105, // 166: nakama.console.Console.AddGroupUsers:output_type -> google.protobuf.Empty
-	105, // 167: nakama.console.Console.BanAccount:output_type -> google.protobuf.Empty
-	23,  // 168: nakama.console.Console.CallApiEndpoint:output_type -> nakama.console.CallApiEndpointResponse
-	23,  // 169: nakama.console.Console.CallRpcEndpoint:output_type -> nakama.console.CallApiEndpointResponse
-	105, // 170: nakama.console.Console.DeleteAllData:output_type -> google.protobuf.Empty
-	105, // 171: nakama.console.Console.DeleteAccount:output_type -> google.protobuf.Empty
-	54,  // 172: nakama.console.Console.DeleteChannelMessages:output_type -> nakama.console.DeleteChannelMessagesResponse
-	105, // 173: nakama.console.Console.DeleteFriend:output_type -> google.protobuf.Empty
-	105, // 174: nakama.console.Console.DeleteGroup:output_type -> google.protobuf.Empty
-	105, // 175: nakama.console.Console.DeleteGroupUser:output_type -> google.protobuf.Empty
-	105, // 176: nakama.console.Console.DeleteStorage:output_type -> google.protobuf.Empty
-	105, // 177: nakama.console.Console.DeleteStorageObject:output_type -> google.protobuf.Empty
-	105, // 178: nakama.console.Console.DeleteAccounts:output_type -> google.protobuf.Empty
-	105, // 179: nakama.console.Console.DeleteLeaderboard:output_type -> google.protobuf.Empty
-	105, // 180: nakama.console.Console.DeleteLeaderboardRecord:output_type -> google.protobuf.Empty
-	105, // 181: nakama.console.Console.DeleteNotification:output_type -> google.protobuf.Empty
-	105, // 182: nakama.console.Console.DeleteUser:output_type -> google.protobuf.Empty
-	105, // 183: nakama.console.Console.DeleteWalletLedger:output_type -> google.protobuf.Empty
-	105, // 184: nakama.console.Console.DemoteGroupMember:output_type -> google.protobuf.Empty
-	6,   // 185: nakama.console.Console.ExportAccount:output_type -> nakama.console.AccountExport
-	11,  // 186: nakama.console.Console.ExportGroup:output_type -> nakama.console.GroupExport
-	4,   // 187: nakama.console.Console.GetAccount:output_type -> nakama.console.Account
-	24,  // 188: nakama.console.Console.GetConfig:output_type -> nakama.console.Config
-	108, // 189: nakama.console.Console.GetFriends:output_type -> nakama.api.FriendList
-	95,  // 190: nakama.console.Console.GetGroup:output_type -> nakama.api.Group
-	109, // 191: nakama.console.Console.GetMembers:output_type -> nakama.api.GroupUserList
-	110, // 192: nakama.console.Console.GetGroups:output_type -> nakama.api.UserGroupList
-	38,  // 193: nakama.console.Console.GetLeaderboard:output_type -> nakama.console.Leaderboard
-	50,  // 194: nakama.console.Console.GetMatchState:output_type -> nakama.console.MatchState
-	64,  // 195: nakama.console.Console.GetRuntime:output_type -> nakama.console.RuntimeInfo
-	73,  // 196: nakama.console.Console.GetSetting:output_type -> nakama.console.Setting
-	63,  // 197: nakama.console.Console.GetStatus:output_type -> nakama.console.StatusList
-	93,  // 198: nakama.console.Console.GetStorage:output_type -> nakama.api.StorageObject
-	61,  // 199: nakama.console.Console.GetUser:output_type -> nakama.console.User
-	66,  // 200: nakama.console.Console.GetWalletLedger:output_type -> nakama.console.WalletLedgerList
-	52,  // 201: nakama.console.Console.GetNotification:output_type -> nakama.console.Notification
-	111, // 202: nakama.console.Console.GetPurchase:output_type -> nakama.api.ValidatedPurchase
-	112, // 203: nakama.console.Console.GetSubscription:output_type -> nakama.api.ValidatedSubscription
-	17,  // 204: nakama.console.Console.ListApiEndpoints:output_type -> nakama.console.ApiEndpointList
-	113, // 205: nakama.console.Console.ListLeaderboardRecords:output_type -> nakama.api.LeaderboardRecordList
-	40,  // 206: nakama.console.Console.ListLeaderboards:output_type -> nakama.console.LeaderboardList
-	77,  // 207: nakama.console.Console.ListSettings:output_type -> nakama.console.SettingList
-	55,  // 208: nakama.console.Console.ListStorage:output_type -> nakama.console.StorageList
-	56,  // 209: nakama.console.Console.ListStorageCollections:output_type -> nakama.console.StorageCollectionsList
-	8,   // 210: nakama.console.Console.ListAccounts:output_type -> nakama.console.AccountList
-	114, // 211: nakama.console.Console.ListChannelMessages:output_type -> nakama.api.ChannelMessageList
-	10,  // 212: nakama.console.Console.ListGroups:output_type -> nakama.console.GroupList
-	53,  // 213: nakama.console.Console.ListNotifications:output_type -> nakama.console.NotificationList
-	12,  // 214: nakama.console.Console.ListMatches:output_type -> nakama.console.MatchList
-	115, // 215: nakama.console.Console.ListPurchases:output_type -> nakama.api.PurchaseList
-	116, // 216: nakama.console.Console.ListSubscriptions:output_type -> nakama.api.SubscriptionList
-	62,  // 217: nakama.console.Console.ListUsers:output_type -> nakama.console.UserList
-	105, // 218: nakama.console.Console.PromoteGroupMember:output_type -> google.protobuf.Empty
-	105, // 219: nakama.console.Console.RequireUserMfa:output_type -> google.protobuf.Empty
-	105, // 220: nakama.console.Console.ResetUserMfa:output_type -> google.protobuf.Empty
-	105, // 221: nakama.console.Console.UnbanAccount:output_type -> google.protobuf.Empty
-	105, // 222: nakama.console.Console.UnlinkCustom:output_type -> google.protobuf.Empty
-	105, // 223: nakama.console.Console.UnlinkDevice:output_type -> google.protobuf.Empty
-	105, // 224: nakama.console.Console.UnlinkEmail:output_type -> google.protobuf.Empty
-	105, // 225: nakama.console.Console.UnlinkApple:output_type -> google.protobuf.Empty
-	105, // 226: nakama.console.Console.UnlinkFacebook:output_type -> google.protobuf.Empty
-	105, // 227: nakama.console.Console.UnlinkFacebookInstantGame:output_type -> google.protobuf.Empty
-	105, // 228: nakama.console.Console.UnlinkGameCenter:output_type -> google.protobuf.Empty
-	105, // 229: nakama.console.Console.UnlinkGoogle:output_type -> google.protobuf.Empty
-	105, // 230: nakama.console.Console.UnlinkSteam:output_type -> google.protobuf.Empty
-	105, // 231: nakama.console.Console.UpdateAccount:output_type -> google.protobuf.Empty
-	105, // 232: nakama.console.Console.UpdateGroup:output_type -> google.protobuf.Empty
-	73,  // 233: nakama.console.Console.UpdateSetting:output_type -> nakama.console.Setting
-	61,  // 234: nakama.console.Console.UpdateUser:output_type -> nakama.console.User
-	117, // 235: nakama.console.Console.WriteStorageObject:output_type -> nakama.api.StorageObjectAck
-	161, // [161:236] is the sub-list for method output_type
-	86,  // [86:161] is the sub-list for method input_type
-	86,  // [86:86] is the sub-list for extension type_name
-	86,  // [86:86] is the sub-list for extension extendee
-	0,   // [0:86] is the sub-list for field type_name
+	88,  // 0: nakama.console.Account.account:type_name -> nakama.api.Account
+	89,  // 1: nakama.console.Account.disable_time:type_name -> google.protobuf.Timestamp
+	90,  // 2: nakama.console.AccountDeleteRequest.record_deletion:type_name -> google.protobuf.BoolValue
+	88,  // 3: nakama.console.AccountExport.account:type_name -> nakama.api.Account
+	91,  // 4: nakama.console.AccountExport.objects:type_name -> nakama.api.StorageObject
+	92,  // 5: nakama.console.AccountExport.friends:type_name -> nakama.api.Friend
+	93,  // 6: nakama.console.AccountExport.groups:type_name -> nakama.api.Group
+	94,  // 7: nakama.console.AccountExport.messages:type_name -> nakama.api.ChannelMessage
+	95,  // 8: nakama.console.AccountExport.leaderboard_records:type_name -> nakama.api.LeaderboardRecord
+	96,  // 9: nakama.console.AccountExport.notifications:type_name -> nakama.api.Notification
+	64,  // 10: nakama.console.AccountExport.wallet_ledgers:type_name -> nakama.console.WalletLedger
+	97,  // 11: nakama.console.AccountList.users:type_name -> nakama.api.User
+	93,  // 12: nakama.console.GroupList.groups:type_name -> nakama.api.Group
+	93,  // 13: nakama.console.GroupExport.group:type_name -> nakama.api.Group
+	98,  // 14: nakama.console.GroupExport.members:type_name -> nakama.api.GroupUserList.GroupUser
+	79,  // 15: nakama.console.MatchList.matches:type_name -> nakama.console.MatchList.Match
+	80,  // 16: nakama.console.AddUserRequest.acl:type_name -> nakama.console.AddUserRequest.AclEntry
+	60,  // 17: nakama.console.AddUserResponse.user:type_name -> nakama.console.User
+	3,   // 18: nakama.console.ApiEndpointList.endpoints:type_name -> nakama.console.ApiEndpointDescriptor
+	3,   // 19: nakama.console.ApiEndpointList.rpc_endpoints:type_name -> nakama.console.ApiEndpointDescriptor
+	81,  // 20: nakama.console.CallApiEndpointRequest.session_vars:type_name -> nakama.console.CallApiEndpointRequest.SessionVarsEntry
+	82,  // 21: nakama.console.Config.warnings:type_name -> nakama.console.Config.Warning
+	99,  // 22: nakama.console.ConsoleSession.mfa_code:type_name -> google.protobuf.StringValue
+	89,  // 23: nakama.console.DeleteChannelMessagesRequest.before:type_name -> google.protobuf.Timestamp
+	89,  // 24: nakama.console.Leaderboard.create_time:type_name -> google.protobuf.Timestamp
+	89,  // 25: nakama.console.Leaderboard.start_time:type_name -> google.protobuf.Timestamp
+	89,  // 26: nakama.console.Leaderboard.end_time:type_name -> google.protobuf.Timestamp
+	37,  // 27: nakama.console.LeaderboardList.leaderboards:type_name -> nakama.console.Leaderboard
+	2,   // 28: nakama.console.ListChannelMessagesRequest.type:type_name -> nakama.console.ListChannelMessagesRequest.Type
+	100, // 29: nakama.console.ListMatchesRequest.limit:type_name -> google.protobuf.Int32Value
+	90,  // 30: nakama.console.ListMatchesRequest.authoritative:type_name -> google.protobuf.BoolValue
+	99,  // 31: nakama.console.ListMatchesRequest.label:type_name -> google.protobuf.StringValue
+	100, // 32: nakama.console.ListMatchesRequest.min_size:type_name -> google.protobuf.Int32Value
+	100, // 33: nakama.console.ListMatchesRequest.max_size:type_name -> google.protobuf.Int32Value
+	99,  // 34: nakama.console.ListMatchesRequest.query:type_name -> google.protobuf.StringValue
+	99,  // 35: nakama.console.ListMatchesRequest.node:type_name -> google.protobuf.StringValue
+	101, // 36: nakama.console.MatchState.presences:type_name -> nakama.realtime.UserPresence
+	89,  // 37: nakama.console.Notification.create_time:type_name -> google.protobuf.Timestamp
+	51,  // 38: nakama.console.NotificationList.notifications:type_name -> nakama.console.Notification
+	71,  // 39: nakama.console.StorageList.objects:type_name -> nakama.console.StorageListObject
+	99,  // 40: nakama.console.UpdateAccountRequest.username:type_name -> google.protobuf.StringValue
+	99,  // 41: nakama.console.UpdateAccountRequest.display_name:type_name -> google.protobuf.StringValue
+	99,  // 42: nakama.console.UpdateAccountRequest.metadata:type_name -> google.protobuf.StringValue
+	99,  // 43: nakama.console.UpdateAccountRequest.avatar_url:type_name -> google.protobuf.StringValue
+	99,  // 44: nakama.console.UpdateAccountRequest.lang_tag:type_name -> google.protobuf.StringValue
+	99,  // 45: nakama.console.UpdateAccountRequest.location:type_name -> google.protobuf.StringValue
+	99,  // 46: nakama.console.UpdateAccountRequest.timezone:type_name -> google.protobuf.StringValue
+	99,  // 47: nakama.console.UpdateAccountRequest.custom_id:type_name -> google.protobuf.StringValue
+	99,  // 48: nakama.console.UpdateAccountRequest.email:type_name -> google.protobuf.StringValue
+	99,  // 49: nakama.console.UpdateAccountRequest.password:type_name -> google.protobuf.StringValue
+	83,  // 50: nakama.console.UpdateAccountRequest.device_ids:type_name -> nakama.console.UpdateAccountRequest.DeviceIdsEntry
+	99,  // 51: nakama.console.UpdateAccountRequest.wallet:type_name -> google.protobuf.StringValue
+	99,  // 52: nakama.console.UpdateGroupRequest.name:type_name -> google.protobuf.StringValue
+	99,  // 53: nakama.console.UpdateGroupRequest.description:type_name -> google.protobuf.StringValue
+	99,  // 54: nakama.console.UpdateGroupRequest.lang_tag:type_name -> google.protobuf.StringValue
+	99,  // 55: nakama.console.UpdateGroupRequest.metadata:type_name -> google.protobuf.StringValue
+	99,  // 56: nakama.console.UpdateGroupRequest.avatar_url:type_name -> google.protobuf.StringValue
+	90,  // 57: nakama.console.UpdateGroupRequest.open:type_name -> google.protobuf.BoolValue
+	100, // 58: nakama.console.UpdateGroupRequest.max_count:type_name -> google.protobuf.Int32Value
+	84,  // 59: nakama.console.User.acl:type_name -> nakama.console.User.AclEntry
+	89,  // 60: nakama.console.User.create_time:type_name -> google.protobuf.Timestamp
+	89,  // 61: nakama.console.User.update_time:type_name -> google.protobuf.Timestamp
+	60,  // 62: nakama.console.UserList.users:type_name -> nakama.console.User
+	85,  // 63: nakama.console.StatusList.nodes:type_name -> nakama.console.StatusList.Status
+	89,  // 64: nakama.console.StatusList.timestamp:type_name -> google.protobuf.Timestamp
+	86,  // 65: nakama.console.RuntimeInfo.go_modules:type_name -> nakama.console.RuntimeInfo.ModuleInfo
+	86,  // 66: nakama.console.RuntimeInfo.lua_modules:type_name -> nakama.console.RuntimeInfo.ModuleInfo
+	86,  // 67: nakama.console.RuntimeInfo.js_modules:type_name -> nakama.console.RuntimeInfo.ModuleInfo
+	89,  // 68: nakama.console.WalletLedger.create_time:type_name -> google.protobuf.Timestamp
+	89,  // 69: nakama.console.WalletLedger.update_time:type_name -> google.protobuf.Timestamp
+	64,  // 70: nakama.console.WalletLedgerList.items:type_name -> nakama.console.WalletLedger
+	100, // 71: nakama.console.WriteStorageObjectRequest.permission_read:type_name -> google.protobuf.Int32Value
+	100, // 72: nakama.console.WriteStorageObjectRequest.permission_write:type_name -> google.protobuf.Int32Value
+	89,  // 73: nakama.console.StorageListObject.create_time:type_name -> google.protobuf.Timestamp
+	89,  // 74: nakama.console.StorageListObject.update_time:type_name -> google.protobuf.Timestamp
+	72,  // 75: nakama.console.SettingList.settings:type_name -> nakama.console.Setting
+	1,   // 76: nakama.console.SettingList.acl_resources:type_name -> nakama.console.AclResources
+	87,  // 77: nakama.console.UpdateUserRequest.acl:type_name -> nakama.console.UpdateUserRequest.AclEntry
+	102, // 78: nakama.console.MatchList.Match.api_match:type_name -> nakama.api.Match
+	78,  // 79: nakama.console.AddUserRequest.AclEntry.value:type_name -> nakama.console.Permissions
+	78,  // 80: nakama.console.User.AclEntry.value:type_name -> nakama.console.Permissions
+	0,   // 81: nakama.console.StatusList.Status.health:type_name -> nakama.console.StatusHealth
+	89,  // 82: nakama.console.RuntimeInfo.ModuleInfo.mod_time:type_name -> google.protobuf.Timestamp
+	78,  // 83: nakama.console.UpdateUserRequest.AclEntry.value:type_name -> nakama.console.Permissions
+	17,  // 84: nakama.console.Console.Authenticate:input_type -> nakama.console.AuthenticateRequest
+	20,  // 85: nakama.console.Console.AuthenticateLogout:input_type -> nakama.console.AuthenticateLogoutRequest
+	18,  // 86: nakama.console.Console.AuthenticateMFASetup:input_type -> nakama.console.AuthenticateMFASetupRequest
+	13,  // 87: nakama.console.Console.AddUser:input_type -> nakama.console.AddUserRequest
+	59,  // 88: nakama.console.Console.ResetUserPassword:input_type -> nakama.console.Username
+	14,  // 89: nakama.console.Console.AddGroupUsers:input_type -> nakama.console.AddGroupUsersRequest
+	7,   // 90: nakama.console.Console.BanAccount:input_type -> nakama.console.AccountId
+	21,  // 91: nakama.console.Console.CallApiEndpoint:input_type -> nakama.console.CallApiEndpointRequest
+	21,  // 92: nakama.console.Console.CallRpcEndpoint:input_type -> nakama.console.CallApiEndpointRequest
+	103, // 93: nakama.console.Console.DeleteAllData:input_type -> google.protobuf.Empty
+	5,   // 94: nakama.console.Console.DeleteAccount:input_type -> nakama.console.AccountDeleteRequest
+	25,  // 95: nakama.console.Console.DeleteChannelMessages:input_type -> nakama.console.DeleteChannelMessagesRequest
+	26,  // 96: nakama.console.Console.DeleteFriend:input_type -> nakama.console.DeleteFriendRequest
+	27,  // 97: nakama.console.Console.DeleteGroup:input_type -> nakama.console.DeleteGroupRequest
+	28,  // 98: nakama.console.Console.DeleteGroupUser:input_type -> nakama.console.DeleteGroupUserRequest
+	103, // 99: nakama.console.Console.DeleteStorage:input_type -> google.protobuf.Empty
+	35,  // 100: nakama.console.Console.DeleteStorageObject:input_type -> nakama.console.DeleteStorageObjectRequest
+	103, // 101: nakama.console.Console.DeleteAccounts:input_type -> google.protobuf.Empty
+	40,  // 102: nakama.console.Console.DeleteLeaderboard:input_type -> nakama.console.LeaderboardRequest
+	33,  // 103: nakama.console.Console.DeleteLeaderboardRecord:input_type -> nakama.console.DeleteLeaderboardRecordRequest
+	34,  // 104: nakama.console.Console.DeleteNotification:input_type -> nakama.console.DeleteNotificationRequest
+	59,  // 105: nakama.console.Console.DeleteUser:input_type -> nakama.console.Username
+	36,  // 106: nakama.console.Console.DeleteWalletLedger:input_type -> nakama.console.DeleteWalletLedgerRequest
+	29,  // 107: nakama.console.Console.DemoteGroupMember:input_type -> nakama.console.UpdateGroupUserStateRequest
+	7,   // 108: nakama.console.Console.ExportAccount:input_type -> nakama.console.AccountId
+	9,   // 109: nakama.console.Console.ExportGroup:input_type -> nakama.console.GroupId
+	7,   // 110: nakama.console.Console.GetAccount:input_type -> nakama.console.AccountId
+	103, // 111: nakama.console.Console.GetConfig:input_type -> google.protobuf.Empty
+	7,   // 112: nakama.console.Console.GetFriends:input_type -> nakama.console.AccountId
+	9,   // 113: nakama.console.Console.GetGroup:input_type -> nakama.console.GroupId
+	9,   // 114: nakama.console.Console.GetMembers:input_type -> nakama.console.GroupId
+	7,   // 115: nakama.console.Console.GetGroups:input_type -> nakama.console.AccountId
+	40,  // 116: nakama.console.Console.GetLeaderboard:input_type -> nakama.console.LeaderboardRequest
+	50,  // 117: nakama.console.Console.GetMatchState:input_type -> nakama.console.MatchStateRequest
+	103, // 118: nakama.console.Console.GetRuntime:input_type -> google.protobuf.Empty
+	73,  // 119: nakama.console.Console.GetSetting:input_type -> nakama.console.SettingRequest
+	103, // 120: nakama.console.Console.GetStatus:input_type -> google.protobuf.Empty
+	104, // 121: nakama.console.Console.GetStorage:input_type -> nakama.api.ReadStorageObjectId
+	59,  // 122: nakama.console.Console.GetUser:input_type -> nakama.console.Username
+	67,  // 123: nakama.console.Console.GetWalletLedger:input_type -> nakama.console.GetWalletLedgerRequest
+	68,  // 124: nakama.console.Console.GetNotification:input_type -> nakama.console.GetNotificationRequest
+	69,  // 125: nakama.console.Console.GetPurchase:input_type -> nakama.console.GetPurchaseRequest
+	70,  // 126: nakama.console.Console.GetSubscription:input_type -> nakama.console.GetSubscriptionRequest
+	103, // 127: nakama.console.Console.ListApiEndpoints:input_type -> google.protobuf.Empty
+	105, // 128: nakama.console.Console.ListLeaderboardRecords:input_type -> nakama.api.ListLeaderboardRecordsRequest
+	38,  // 129: nakama.console.Console.ListLeaderboards:input_type -> nakama.console.LeaderboardListRequest
+	74,  // 130: nakama.console.Console.ListSettings:input_type -> nakama.console.ListSettingsRequest
+	48,  // 131: nakama.console.Console.ListStorage:input_type -> nakama.console.ListStorageRequest
+	103, // 132: nakama.console.Console.ListStorageCollections:input_type -> google.protobuf.Empty
+	41,  // 133: nakama.console.Console.ListAccounts:input_type -> nakama.console.ListAccountsRequest
+	42,  // 134: nakama.console.Console.ListChannelMessages:input_type -> nakama.console.ListChannelMessagesRequest
+	43,  // 135: nakama.console.Console.ListGroups:input_type -> nakama.console.ListGroupsRequest
+	45,  // 136: nakama.console.Console.ListNotifications:input_type -> nakama.console.ListNotificationsRequest
+	44,  // 137: nakama.console.Console.ListMatches:input_type -> nakama.console.ListMatchesRequest
+	46,  // 138: nakama.console.Console.ListPurchases:input_type -> nakama.console.ListPurchasesRequest
+	47,  // 139: nakama.console.Console.ListSubscriptions:input_type -> nakama.console.ListSubscriptionsRequest
+	103, // 140: nakama.console.Console.ListUsers:input_type -> google.protobuf.Empty
+	29,  // 141: nakama.console.Console.PromoteGroupMember:input_type -> nakama.console.UpdateGroupUserStateRequest
+	32,  // 142: nakama.console.Console.RequireUserMfa:input_type -> nakama.console.RequireUserMfaRequest
+	30,  // 143: nakama.console.Console.ResetUserMfa:input_type -> nakama.console.ResetUserMfaRequest
+	7,   // 144: nakama.console.Console.UnbanAccount:input_type -> nakama.console.AccountId
+	7,   // 145: nakama.console.Console.UnlinkCustom:input_type -> nakama.console.AccountId
+	56,  // 146: nakama.console.Console.UnlinkDevice:input_type -> nakama.console.UnlinkDeviceRequest
+	7,   // 147: nakama.console.Console.UnlinkEmail:input_type -> nakama.console.AccountId
+	7,   // 148: nakama.console.Console.UnlinkApple:input_type -> nakama.console.AccountId
+	7,   // 149: nakama.console.Console.UnlinkFacebook:input_type -> nakama.console.AccountId
+	7,   // 150: nakama.console.Console.UnlinkFacebookInstantGame:input_type -> nakama.console.AccountId
+	7,   // 151: nakama.console.Console.UnlinkGameCenter:input_type -> nakama.console.AccountId
+	7,   // 152: nakama.console.Console.UnlinkGoogle:input_type -> nakama.console.AccountId
+	7,   // 153: nakama.console.Console.UnlinkSteam:input_type -> nakama.console.AccountId
+	57,  // 154: nakama.console.Console.UpdateAccount:input_type -> nakama.console.UpdateAccountRequest
+	58,  // 155: nakama.console.Console.UpdateGroup:input_type -> nakama.console.UpdateGroupRequest
+	75,  // 156: nakama.console.Console.UpdateSetting:input_type -> nakama.console.UpdateSettingRequest
+	77,  // 157: nakama.console.Console.UpdateUser:input_type -> nakama.console.UpdateUserRequest
+	66,  // 158: nakama.console.Console.WriteStorageObject:input_type -> nakama.console.WriteStorageObjectRequest
+	24,  // 159: nakama.console.Console.Authenticate:output_type -> nakama.console.ConsoleSession
+	103, // 160: nakama.console.Console.AuthenticateLogout:output_type -> google.protobuf.Empty
+	19,  // 161: nakama.console.Console.AuthenticateMFASetup:output_type -> nakama.console.AuthenticateMFASetupResponse
+	15,  // 162: nakama.console.Console.AddUser:output_type -> nakama.console.AddUserResponse
+	31,  // 163: nakama.console.Console.ResetUserPassword:output_type -> nakama.console.ResetUserResponse
+	103, // 164: nakama.console.Console.AddGroupUsers:output_type -> google.protobuf.Empty
+	103, // 165: nakama.console.Console.BanAccount:output_type -> google.protobuf.Empty
+	22,  // 166: nakama.console.Console.CallApiEndpoint:output_type -> nakama.console.CallApiEndpointResponse
+	22,  // 167: nakama.console.Console.CallRpcEndpoint:output_type -> nakama.console.CallApiEndpointResponse
+	103, // 168: nakama.console.Console.DeleteAllData:output_type -> google.protobuf.Empty
+	103, // 169: nakama.console.Console.DeleteAccount:output_type -> google.protobuf.Empty
+	53,  // 170: nakama.console.Console.DeleteChannelMessages:output_type -> nakama.console.DeleteChannelMessagesResponse
+	103, // 171: nakama.console.Console.DeleteFriend:output_type -> google.protobuf.Empty
+	103, // 172: nakama.console.Console.DeleteGroup:output_type -> google.protobuf.Empty
+	103, // 173: nakama.console.Console.DeleteGroupUser:output_type -> google.protobuf.Empty
+	103, // 174: nakama.console.Console.DeleteStorage:output_type -> google.protobuf.Empty
+	103, // 175: nakama.console.Console.DeleteStorageObject:output_type -> google.protobuf.Empty
+	103, // 176: nakama.console.Console.DeleteAccounts:output_type -> google.protobuf.Empty
+	103, // 177: nakama.console.Console.DeleteLeaderboard:output_type -> google.protobuf.Empty
+	103, // 178: nakama.console.Console.DeleteLeaderboardRecord:output_type -> google.protobuf.Empty
+	103, // 179: nakama.console.Console.DeleteNotification:output_type -> google.protobuf.Empty
+	103, // 180: nakama.console.Console.DeleteUser:output_type -> google.protobuf.Empty
+	103, // 181: nakama.console.Console.DeleteWalletLedger:output_type -> google.protobuf.Empty
+	103, // 182: nakama.console.Console.DemoteGroupMember:output_type -> google.protobuf.Empty
+	6,   // 183: nakama.console.Console.ExportAccount:output_type -> nakama.console.AccountExport
+	11,  // 184: nakama.console.Console.ExportGroup:output_type -> nakama.console.GroupExport
+	4,   // 185: nakama.console.Console.GetAccount:output_type -> nakama.console.Account
+	23,  // 186: nakama.console.Console.GetConfig:output_type -> nakama.console.Config
+	106, // 187: nakama.console.Console.GetFriends:output_type -> nakama.api.FriendList
+	93,  // 188: nakama.console.Console.GetGroup:output_type -> nakama.api.Group
+	107, // 189: nakama.console.Console.GetMembers:output_type -> nakama.api.GroupUserList
+	108, // 190: nakama.console.Console.GetGroups:output_type -> nakama.api.UserGroupList
+	37,  // 191: nakama.console.Console.GetLeaderboard:output_type -> nakama.console.Leaderboard
+	49,  // 192: nakama.console.Console.GetMatchState:output_type -> nakama.console.MatchState
+	63,  // 193: nakama.console.Console.GetRuntime:output_type -> nakama.console.RuntimeInfo
+	72,  // 194: nakama.console.Console.GetSetting:output_type -> nakama.console.Setting
+	62,  // 195: nakama.console.Console.GetStatus:output_type -> nakama.console.StatusList
+	91,  // 196: nakama.console.Console.GetStorage:output_type -> nakama.api.StorageObject
+	60,  // 197: nakama.console.Console.GetUser:output_type -> nakama.console.User
+	65,  // 198: nakama.console.Console.GetWalletLedger:output_type -> nakama.console.WalletLedgerList
+	51,  // 199: nakama.console.Console.GetNotification:output_type -> nakama.console.Notification
+	109, // 200: nakama.console.Console.GetPurchase:output_type -> nakama.api.ValidatedPurchase
+	110, // 201: nakama.console.Console.GetSubscription:output_type -> nakama.api.ValidatedSubscription
+	16,  // 202: nakama.console.Console.ListApiEndpoints:output_type -> nakama.console.ApiEndpointList
+	111, // 203: nakama.console.Console.ListLeaderboardRecords:output_type -> nakama.api.LeaderboardRecordList
+	39,  // 204: nakama.console.Console.ListLeaderboards:output_type -> nakama.console.LeaderboardList
+	76,  // 205: nakama.console.Console.ListSettings:output_type -> nakama.console.SettingList
+	54,  // 206: nakama.console.Console.ListStorage:output_type -> nakama.console.StorageList
+	55,  // 207: nakama.console.Console.ListStorageCollections:output_type -> nakama.console.StorageCollectionsList
+	8,   // 208: nakama.console.Console.ListAccounts:output_type -> nakama.console.AccountList
+	112, // 209: nakama.console.Console.ListChannelMessages:output_type -> nakama.api.ChannelMessageList
+	10,  // 210: nakama.console.Console.ListGroups:output_type -> nakama.console.GroupList
+	52,  // 211: nakama.console.Console.ListNotifications:output_type -> nakama.console.NotificationList
+	12,  // 212: nakama.console.Console.ListMatches:output_type -> nakama.console.MatchList
+	113, // 213: nakama.console.Console.ListPurchases:output_type -> nakama.api.PurchaseList
+	114, // 214: nakama.console.Console.ListSubscriptions:output_type -> nakama.api.SubscriptionList
+	61,  // 215: nakama.console.Console.ListUsers:output_type -> nakama.console.UserList
+	103, // 216: nakama.console.Console.PromoteGroupMember:output_type -> google.protobuf.Empty
+	103, // 217: nakama.console.Console.RequireUserMfa:output_type -> google.protobuf.Empty
+	103, // 218: nakama.console.Console.ResetUserMfa:output_type -> google.protobuf.Empty
+	103, // 219: nakama.console.Console.UnbanAccount:output_type -> google.protobuf.Empty
+	103, // 220: nakama.console.Console.UnlinkCustom:output_type -> google.protobuf.Empty
+	103, // 221: nakama.console.Console.UnlinkDevice:output_type -> google.protobuf.Empty
+	103, // 222: nakama.console.Console.UnlinkEmail:output_type -> google.protobuf.Empty
+	103, // 223: nakama.console.Console.UnlinkApple:output_type -> google.protobuf.Empty
+	103, // 224: nakama.console.Console.UnlinkFacebook:output_type -> google.protobuf.Empty
+	103, // 225: nakama.console.Console.UnlinkFacebookInstantGame:output_type -> google.protobuf.Empty
+	103, // 226: nakama.console.Console.UnlinkGameCenter:output_type -> google.protobuf.Empty
+	103, // 227: nakama.console.Console.UnlinkGoogle:output_type -> google.protobuf.Empty
+	103, // 228: nakama.console.Console.UnlinkSteam:output_type -> google.protobuf.Empty
+	103, // 229: nakama.console.Console.UpdateAccount:output_type -> google.protobuf.Empty
+	103, // 230: nakama.console.Console.UpdateGroup:output_type -> google.protobuf.Empty
+	72,  // 231: nakama.console.Console.UpdateSetting:output_type -> nakama.console.Setting
+	60,  // 232: nakama.console.Console.UpdateUser:output_type -> nakama.console.User
+	115, // 233: nakama.console.Console.WriteStorageObject:output_type -> nakama.api.StorageObjectAck
+	159, // [159:234] is the sub-list for method output_type
+	84,  // [84:159] is the sub-list for method input_type
+	84,  // [84:84] is the sub-list for extension type_name
+	84,  // [84:84] is the sub-list for extension extendee
+	0,   // [0:84] is the sub-list for field type_name
 }
 
 func init() { file_console_proto_init() }
@@ -6508,7 +6443,7 @@ func file_console_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_console_proto_rawDesc), len(file_console_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   87,
+			NumMessages:   85,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
