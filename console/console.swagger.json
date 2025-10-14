@@ -25,6 +25,38 @@
     "application/json"
   ],
   "paths": {
+    "/v1/console/user/{username}/reset/password": {
+      "post": {
+        "summary": "Reset a user's password.",
+        "operationId": "Console_ResetUserPassword",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/consoleResetUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "The unique username of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account": {
       "get": {
         "summary": "List (and optionally filter) accounts.",
@@ -2796,8 +2828,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "type": "object",
-              "properties": {}
+              "$ref": "#/definitions/consoleAddUserResponse"
             }
           },
           "default": {
@@ -2814,6 +2845,85 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/consoleAddUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/user/{username}": {
+      "get": {
+        "operationId": "Console_GetUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleUser"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "The unique username of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "put": {
+        "summary": "Update a console user.",
+        "operationId": "Console_UpdateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/nakamaconsoleUser"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "User username.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "acl": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/definitions/consolePermissions"
+                  },
+                  "description": "ACL."
+                }
+              },
+              "description": "Request to update an existing user."
             }
           }
         ],
@@ -3651,6 +3761,34 @@
       },
       "description": "A list of users."
     },
+    "consoleAclResources": {
+      "type": "string",
+      "enum": [
+        "ACCOUNT",
+        "ACCOUNT_WALLET",
+        "ACCOUNT_EXPORT",
+        "ACCOUNT_FRIENDS",
+        "ACCOUNT_GROUPS",
+        "ALL_ACCOUNTS",
+        "ALL_DATA",
+        "ALL_STORAGE",
+        "API_EXPLORER",
+        "CONFIGURATION",
+        "CHANNEL_MESSAGE",
+        "USER",
+        "GROUP",
+        "IN_APP_PURCHASE",
+        "LEADERBOARD",
+        "LEADERBOARD_RECORD",
+        "MATCH",
+        "NOTIFICATION",
+        "SETTINGS",
+        "STORAGE_DATA",
+        "STORAGE_DATA_IMPORT"
+      ],
+      "default": "ACCOUNT",
+      "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
+    },
     "consoleAddUserRequest": {
       "type": "object",
       "properties": {
@@ -3666,9 +3804,12 @@
           "type": "string",
           "description": "Email address of the user."
         },
-        "role": {
-          "$ref": "#/definitions/consoleUserRole",
-          "title": "Role of this user;"
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/consolePermissions"
+          },
+          "description": "ACL."
         },
         "mfa_required": {
           "type": "boolean",
@@ -3680,6 +3821,20 @@
         }
       },
       "title": "Add a new console user"
+    },
+    "consoleAddUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/nakamaconsoleUser",
+          "description": "The user recently created."
+        },
+        "token": {
+          "type": "string",
+          "title": "A one-time token required to update the user for the first time"
+        }
+      },
+      "description": "Response to create/invite a new user."
     },
     "consoleApiEndpointDescriptor": {
       "type": "object",
@@ -3890,6 +4045,34 @@
       },
       "title": "Match state"
     },
+    "consolePermissions": {
+      "type": "object",
+      "properties": {
+        "read": {
+          "type": "boolean",
+          "description": "Read a resource."
+        },
+        "write": {
+          "type": "boolean",
+          "description": "Create and/or modify a resource."
+        },
+        "delete": {
+          "type": "boolean",
+          "description": "Delete a resource."
+        }
+      },
+      "description": "The possible actions that can done over a resource."
+    },
+    "consoleResetUserResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "An one-time code to be used when re-configuring the password."
+        }
+      },
+      "description": "Request to reset a user's credentials, password or MFA."
+    },
     "consoleRuntimeInfo": {
       "type": "object",
       "properties": {
@@ -3970,6 +4153,13 @@
             "$ref": "#/definitions/consoleSetting"
           },
           "description": "A list of settings."
+        },
+        "acl_resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/consoleAclResources"
+          },
+          "description": "This field is only used to allow the swagger generator to output the enum values."
         }
       },
       "description": "A list of settings."
@@ -4141,50 +4331,12 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/consoleUserListUser"
+            "$ref": "#/definitions/nakamaconsoleUser"
           },
           "description": "A list of users."
         }
       },
       "description": "A list of console users."
-    },
-    "consoleUserListUser": {
-      "type": "object",
-      "properties": {
-        "username": {
-          "type": "string",
-          "title": "Username of the user"
-        },
-        "email": {
-          "type": "string",
-          "title": "Email of the user"
-        },
-        "role": {
-          "$ref": "#/definitions/consoleUserRole",
-          "title": "Role of the user;"
-        },
-        "mfa_required": {
-          "type": "boolean",
-          "description": "Whether the user is required to setup MFA."
-        },
-        "mfa_enabled": {
-          "type": "boolean",
-          "description": "Whether the user has MFA enabled."
-        }
-      },
-      "title": "A console user"
-    },
-    "consoleUserRole": {
-      "type": "string",
-      "enum": [
-        "USER_ROLE_UNKNOWN",
-        "USER_ROLE_ADMIN",
-        "USER_ROLE_DEVELOPER",
-        "USER_ROLE_MAINTAINER",
-        "USER_ROLE_READONLY"
-      ],
-      "default": "USER_ROLE_UNKNOWN",
-      "title": "- USER_ROLE_ADMIN: All access\n - USER_ROLE_DEVELOPER: Best for developers, also enables APIs and API explorer\n - USER_ROLE_MAINTAINER: Best for users who regularly update player information.\n - USER_ROLE_READONLY: Read-only role for those only need to view data"
     },
     "consoleWalletLedger": {
       "type": "object",
@@ -4689,6 +4841,49 @@
           "description": "Previous page cursor if any."
         }
       }
+    },
+    "nakamaconsoleUser": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User identifier."
+        },
+        "username": {
+          "type": "string",
+          "title": "Username of the user"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email of the user"
+        },
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/consolePermissions"
+          },
+          "description": "ACL."
+        },
+        "mfa_required": {
+          "type": "boolean",
+          "description": "Whether the user is required to setup MFA."
+        },
+        "mfa_enabled": {
+          "type": "boolean",
+          "description": "Whether the user has MFA enabled."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "title": "User's create time"
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "title": "User's update time"
+        }
+      },
+      "title": "A console user"
     },
     "protobufAny": {
       "type": "object",

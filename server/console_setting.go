@@ -16,12 +16,13 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"errors"
-	"go.uber.org/zap"
 	"slices"
 
+	"go.uber.org/zap"
+
 	"github.com/heroiclabs/nakama/v3/console"
-	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -48,7 +49,7 @@ func (s *ConsoleServer) GetSetting(ctx context.Context, in *console.SettingReque
 			return nil, status.Error(codes.Canceled, "Request was canceled.")
 		}
 
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrSettingNotFound
 		}
 
@@ -78,7 +79,7 @@ func (s *ConsoleServer) UpdateSetting(ctx context.Context, in *console.UpdateSet
 		if errors.Is(err, context.Canceled) {
 			return nil, status.Error(codes.Canceled, "Request was canceled.")
 		}
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrSettingNotFound
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to update the setting.")
