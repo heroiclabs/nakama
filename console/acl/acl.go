@@ -148,12 +148,14 @@ func CheckACL(action string, userPermissions Permission) bool {
 		requiredPermissions = None
 	case "/nakama.console.Console/AddUser":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
+	case "/nakama.console.Console/ResetUserPassword":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/BanAccount":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/CallApiEndpoint":
-		requiredPermissions = NewPermission(console.AclResources_API, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_API_EXPLORER, PermissionWrite)
 	case "/nakama.console.Console/CallRpcEndpoint":
-		requiredPermissions = NewPermission(console.AclResources_API, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_API_EXPLORER, PermissionWrite)
 	case "/nakama.console.Console/DeleteAccount":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionDelete)
 	case "/nakama.console.Console/DeleteAccounts":
@@ -223,7 +225,7 @@ func CheckACL(action string, userPermissions Permission) bool {
 	case "/nakama.console.Console/ListAccounts":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionRead)
 	case "/nakama.console.Console/ListApiEndpoints":
-		requiredPermissions = NewPermission(console.AclResources_API, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_API_EXPLORER, PermissionRead)
 	case "/nakama.console.Console/ListChannelMessages":
 		requiredPermissions = NewPermission(console.AclResources_CHANNEL_MESSAGE, PermissionRead)
 	case "/nakama.console.Console/ListGroups":

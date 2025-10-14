@@ -20,6 +20,35 @@
     "application/json"
   ],
   "paths": {
+    "/v1/console/user/{id}/reset/password": {
+      "post": {
+        "summary": "Reset a user's password.",
+        "operationId": "ResetUserPassword",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ResetUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "User id.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ]
+      }
+    },
     "/v2/console/account": {
       "get": {
         "summary": "List (and optionally filter) accounts.",
@@ -2581,8 +2610,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "type": "object",
-              "properties": {}
+              "$ref": "#/definitions/AddUserResponse"
             }
           },
           "default": {
@@ -2602,7 +2630,9 @@
             }
           }
         ]
-      },
+      }
+    },
+    "/v2/console/user/{id}": {
       "put": {
         "summary": "Update a console user.",
         "operationId": "UpdateUser",
@@ -2610,8 +2640,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "type": "object",
-              "properties": {}
+              "$ref": "#/definitions/console.User"
             }
           },
           "default": {
@@ -2623,12 +2652,28 @@
         },
         "parameters": [
           {
+            "name": "id",
+            "description": "User identifier.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
             "name": "body",
-            "description": "Request to update an existing user.",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/UpdateUserRequest"
+              "type": "object",
+              "properties": {
+                "acl": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/definitions/Permissions"
+                  },
+                  "description": "ACL."
+                }
+              },
+              "description": "Request to update an existing user."
             }
           }
         ]
@@ -2828,7 +2873,7 @@
         "ALL_ACCOUNTS",
         "ALL_DATA",
         "ALL_STORAGE",
-        "API",
+        "API_EXPLORER",
         "CONFIGURATION",
         "CHANNEL_MESSAGE",
         "USER",
@@ -2877,6 +2922,20 @@
         }
       },
       "title": "Add a new console user"
+    },
+    "AddUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/console.User",
+          "description": "The user recently created."
+        },
+        "token": {
+          "type": "string",
+          "title": "A one-time token required to update the user for the first time"
+        }
+      },
+      "description": "Response to create/invite a new user."
     },
     "Any": {
       "type": "object",
@@ -3468,6 +3527,16 @@
       },
       "description": "A list of validated purchases stored by Nakama."
     },
+    "ResetUserResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "An one-time code to be used when re-configuring the password."
+        }
+      },
+      "description": "Request to reset a user's credentials, password or MFA."
+    },
     "RuntimeInfo": {
       "type": "object",
       "properties": {
@@ -3842,23 +3911,6 @@
       },
       "description": "A list of validated subscriptions stored by Nakama."
     },
-    "UpdateUserRequest": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "User identifier."
-        },
-        "acl": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/Permissions"
-          },
-          "description": "ACL."
-        }
-      },
-      "description": "Request to update an existing user."
-    },
     "UserGroup": {
       "type": "object",
       "properties": {
@@ -3899,41 +3951,12 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/UserList.User"
+            "$ref": "#/definitions/console.User"
           },
           "description": "A list of users."
         }
       },
       "description": "A list of console users."
-    },
-    "UserList.User": {
-      "type": "object",
-      "properties": {
-        "username": {
-          "type": "string",
-          "title": "Username of the user"
-        },
-        "email": {
-          "type": "string",
-          "title": "Email of the user"
-        },
-        "acl": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/Permissions"
-          },
-          "description": "ACL."
-        },
-        "mfa_required": {
-          "type": "boolean",
-          "description": "Whether the user is required to setup MFA."
-        },
-        "mfa_enabled": {
-          "type": "boolean",
-          "description": "Whether the user has MFA enabled."
-        }
-      },
-      "title": "A console user"
     },
     "UserPresence": {
       "type": "object",
@@ -4575,6 +4598,49 @@
           "description": "Previous page cursor if any."
         }
       }
+    },
+    "console.User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User identifier."
+        },
+        "username": {
+          "type": "string",
+          "title": "Username of the user"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email of the user"
+        },
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Permissions"
+          },
+          "description": "ACL."
+        },
+        "mfa_required": {
+          "type": "boolean",
+          "description": "Whether the user is required to setup MFA."
+        },
+        "mfa_enabled": {
+          "type": "boolean",
+          "description": "Whether the user has MFA enabled."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "title": "User's create time"
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "title": "User's update time"
+        }
+      },
+      "title": "A console user"
     },
     "rpc.Status": {
       "type": "object",

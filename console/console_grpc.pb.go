@@ -42,6 +42,7 @@ const (
 	Console_AuthenticateLogout_FullMethodName        = "/nakama.console.Console/AuthenticateLogout"
 	Console_AuthenticateMFASetup_FullMethodName      = "/nakama.console.Console/AuthenticateMFASetup"
 	Console_AddUser_FullMethodName                   = "/nakama.console.Console/AddUser"
+	Console_ResetUserPassword_FullMethodName         = "/nakama.console.Console/ResetUserPassword"
 	Console_AddGroupUsers_FullMethodName             = "/nakama.console.Console/AddGroupUsers"
 	Console_BanAccount_FullMethodName                = "/nakama.console.Console/BanAccount"
 	Console_CallApiEndpoint_FullMethodName           = "/nakama.console.Console/CallApiEndpoint"
@@ -127,7 +128,9 @@ type ConsoleClient interface {
 	// Change an account's MFA using a code, usually delivered over email.
 	AuthenticateMFASetup(ctx context.Context, in *AuthenticateMFASetupRequest, opts ...grpc.CallOption) (*AuthenticateMFASetupResponse, error)
 	// Add a new console user.
-	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*AddUserResponse, error)
+	// Reset a user's password.
+	ResetUserPassword(ctx context.Context, in *ResetUserRequest, opts ...grpc.CallOption) (*ResetUserResponse, error)
 	// Add/join members to a group.
 	AddGroupUsers(ctx context.Context, in *AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Ban a user.
@@ -263,7 +266,7 @@ type ConsoleClient interface {
 	// Update an existing setting.
 	UpdateSetting(ctx context.Context, in *UpdateSettingRequest, opts ...grpc.CallOption) (*Setting, error)
 	// Update a console user.
-	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*User, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error)
 }
@@ -306,10 +309,20 @@ func (c *consoleClient) AuthenticateMFASetup(ctx context.Context, in *Authentica
 	return out, nil
 }
 
-func (c *consoleClient) AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *consoleClient) AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*AddUserResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(AddUserResponse)
 	err := c.cc.Invoke(ctx, Console_AddUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ResetUserPassword(ctx context.Context, in *ResetUserRequest, opts ...grpc.CallOption) (*ResetUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetUserResponse)
+	err := c.cc.Invoke(ctx, Console_ResetUserPassword_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -986,9 +999,9 @@ func (c *consoleClient) UpdateSetting(ctx context.Context, in *UpdateSettingRequ
 	return out, nil
 }
 
-func (c *consoleClient) UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *consoleClient) UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*User, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(User)
 	err := c.cc.Invoke(ctx, Console_UpdateUser_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -1020,7 +1033,9 @@ type ConsoleServer interface {
 	// Change an account's MFA using a code, usually delivered over email.
 	AuthenticateMFASetup(context.Context, *AuthenticateMFASetupRequest) (*AuthenticateMFASetupResponse, error)
 	// Add a new console user.
-	AddUser(context.Context, *AddUserRequest) (*emptypb.Empty, error)
+	AddUser(context.Context, *AddUserRequest) (*AddUserResponse, error)
+	// Reset a user's password.
+	ResetUserPassword(context.Context, *ResetUserRequest) (*ResetUserResponse, error)
 	// Add/join members to a group.
 	AddGroupUsers(context.Context, *AddGroupUsersRequest) (*emptypb.Empty, error)
 	// Ban a user.
@@ -1156,7 +1171,7 @@ type ConsoleServer interface {
 	// Update an existing setting.
 	UpdateSetting(context.Context, *UpdateSettingRequest) (*Setting, error)
 	// Update a console user.
-	UpdateUser(context.Context, *UpdateUserRequest) (*emptypb.Empty, error)
+	UpdateUser(context.Context, *UpdateUserRequest) (*User, error)
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error)
 	mustEmbedUnimplementedConsoleServer()
@@ -1178,8 +1193,11 @@ func (UnimplementedConsoleServer) AuthenticateLogout(context.Context, *Authentic
 func (UnimplementedConsoleServer) AuthenticateMFASetup(context.Context, *AuthenticateMFASetupRequest) (*AuthenticateMFASetupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateMFASetup not implemented")
 }
-func (UnimplementedConsoleServer) AddUser(context.Context, *AddUserRequest) (*emptypb.Empty, error) {
+func (UnimplementedConsoleServer) AddUser(context.Context, *AddUserRequest) (*AddUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddUser not implemented")
+}
+func (UnimplementedConsoleServer) ResetUserPassword(context.Context, *ResetUserRequest) (*ResetUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetUserPassword not implemented")
 }
 func (UnimplementedConsoleServer) AddGroupUsers(context.Context, *AddGroupUsersRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddGroupUsers not implemented")
@@ -1382,7 +1400,7 @@ func (UnimplementedConsoleServer) UpdateGroup(context.Context, *UpdateGroupReque
 func (UnimplementedConsoleServer) UpdateSetting(context.Context, *UpdateSettingRequest) (*Setting, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateSetting not implemented")
 }
-func (UnimplementedConsoleServer) UpdateUser(context.Context, *UpdateUserRequest) (*emptypb.Empty, error) {
+func (UnimplementedConsoleServer) UpdateUser(context.Context, *UpdateUserRequest) (*User, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
 }
 func (UnimplementedConsoleServer) WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
@@ -1477,6 +1495,24 @@ func _Console_AddUser_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).AddUser(ctx, req.(*AddUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ResetUserPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ResetUserPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_ResetUserPassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ResetUserPassword(ctx, req.(*ResetUserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2745,6 +2781,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddUser",
 			Handler:    _Console_AddUser_Handler,
+		},
+		{
+			MethodName: "ResetUserPassword",
+			Handler:    _Console_ResetUserPassword_Handler,
 		},
 		{
 			MethodName: "AddGroupUsers",

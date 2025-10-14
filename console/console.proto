@@ -106,11 +106,16 @@ service Console {
   }
 
   // Add a new console user.
-  rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
+  rpc AddUser (AddUserRequest) returns (AddUserResponse) {
     option (google.api.http) = {
       post: "/v2/console/user",
       body: "*"
     };
+  }
+
+  // Reset a user's password.
+  rpc ResetUserPassword (ResetUserRequest) returns (ResetUserResponse) {
+    option (google.api.http).post = "/v1/console/user/{id}/reset/password";
   }
 
   // Add/join members to a group.
@@ -290,6 +295,10 @@ service Console {
   // Get a storage object.
   rpc GetStorage (api.ReadStorageObjectId) returns (api.StorageObject) {
     option (google.api.http).get = "/v2/console/storage/{collection}/{key}/{user_id}";
+  }
+
+  rpc GetUser (Username) returns (User) {
+    option (google.api.http).get = "/v2/console/user/{username}";
   }
 
   // Get a list of the user's wallet transactions.
@@ -478,9 +487,9 @@ service Console {
   }
 
   // Update a console user.
-  rpc UpdateUser (UpdateUserRequest) returns (google.protobuf.Empty) {
+  rpc UpdateUser (UpdateUserRequest) returns (User) {
     option (google.api.http) = {
-      put: "/v2/console/user",
+      put: "/v2/console/user/{id}",
       body: "*"
     };
   }
@@ -614,6 +623,22 @@ message AddGroupUsersRequest {
   bool join_request = 3;
 }
 
+// Response to create/invite a new user.
+message AddUserResponse {
+  // The user recently created.
+  User user = 1;
+  // A one-time token required to update the user for the first time
+  string token = 2;
+}
+
+// Request to update an existing user.
+message UserUpdateRequest {
+  // User identifier.
+  string id = 1;
+  // ACL.
+  map<string,Permissions> acl = 2;
+}
+
 // API Explorer List of Endpoints
 message ApiEndpointList {
   repeated ApiEndpointDescriptor endpoints = 1;
@@ -732,6 +757,18 @@ message UpdateGroupUserStateRequest {
 message ResetUserMfaRequest {
   // User username.
   string username = 1;
+}
+
+// Request to reset a user's credentials, password or MFA.
+message ResetUserRequest {
+  // User id.
+  string id = 1;
+}
+
+// Request to reset a user's credentials, password or MFA.
+message ResetUserResponse{
+  // An one-time code to be used when re-configuring the password.
+  string code = 1;
 }
 
 // Make a user's mfa required or not.
@@ -1075,22 +1112,28 @@ message Username {
   string username = 1;
 }
 
+// A console user
+message User {
+  // User identifier.
+  string id = 1;
+  // Username of the user
+  string username = 2;
+  // Email of the user
+  string email = 3;
+  // ACL.
+  map<string,Permissions> acl = 4;
+  // Whether the user is required to setup MFA.
+  bool mfa_required = 5;
+  // Whether the user has MFA enabled.
+  bool mfa_enabled = 6;
+  // User's create time
+  google.protobuf.Timestamp create_time = 7;
+  // User's update time
+  google.protobuf.Timestamp update_time = 8;
+}
+
 // A list of console users.
 message UserList {
-  // A console user
-  message User {
-    // Username of the user
-    string username = 1;
-    // Email of the user
-    string email = 2;
-    // ACL.
-    map<string,Permissions> acl = 3;
-    // Whether the user is required to setup MFA.
-    bool mfa_required = 4;
-    // Whether the user has MFA enabled.
-    bool mfa_enabled = 5;
-  }
-
   // A list of users.
   repeated User users = 1;
 }
@@ -1314,7 +1357,7 @@ enum AclResources {
   ALL_ACCOUNTS = 5;
   ALL_DATA = 6;
   ALL_STORAGE = 7;
-  API = 8;
+  API_EXPLORER = 8;
   CONFIGURATION = 9;
   CHANNEL_MESSAGE = 10;
   USER = 11;
