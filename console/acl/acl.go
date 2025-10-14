@@ -380,7 +380,7 @@ func NewFromJson(s string) (Permission, error) {
 	}
 
 	out := make(map[string]*console.Permissions, len(console.AclResources_value))
-	for resource, _ := range console.AclResources_value {
+	for resource := range console.AclResources_value {
 		p := dbAcl.Acl[resource]
 		out[resource] = &console.Permissions{
 			Read:   p.Read,

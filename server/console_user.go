@@ -148,6 +148,10 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 			IssuedAt:  user.CreateTime.AsTime().UTC().Unix(),
 		},
 	)
+	if err != nil {
+		s.logger.Error("failed to generate console user token", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	}
 
 	return &console.AddUserResponse{User: user, Token: token}, nil
 }
