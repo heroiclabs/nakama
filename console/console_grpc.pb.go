@@ -76,6 +76,7 @@ const (
 	Console_GetSetting_FullMethodName                = "/nakama.console.Console/GetSetting"
 	Console_GetStatus_FullMethodName                 = "/nakama.console.Console/GetStatus"
 	Console_GetStorage_FullMethodName                = "/nakama.console.Console/GetStorage"
+	Console_GetUser_FullMethodName                   = "/nakama.console.Console/GetUser"
 	Console_GetWalletLedger_FullMethodName           = "/nakama.console.Console/GetWalletLedger"
 	Console_GetNotification_FullMethodName           = "/nakama.console.Console/GetNotification"
 	Console_GetPurchase_FullMethodName               = "/nakama.console.Console/GetPurchase"
@@ -130,7 +131,7 @@ type ConsoleClient interface {
 	// Add a new console user.
 	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*AddUserResponse, error)
 	// Reset a user's password.
-	ResetUserPassword(ctx context.Context, in *ResetUserRequest, opts ...grpc.CallOption) (*ResetUserResponse, error)
+	ResetUserPassword(ctx context.Context, in *Username, opts ...grpc.CallOption) (*ResetUserResponse, error)
 	// Add/join members to a group.
 	AddGroupUsers(ctx context.Context, in *AddGroupUsersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Ban a user.
@@ -197,6 +198,7 @@ type ConsoleClient interface {
 	GetStatus(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StatusList, error)
 	// Get a storage object.
 	GetStorage(ctx context.Context, in *api.ReadStorageObjectId, opts ...grpc.CallOption) (*api.StorageObject, error)
+	GetUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*User, error)
 	// Get a list of the user's wallet transactions.
 	GetWalletLedger(ctx context.Context, in *GetWalletLedgerRequest, opts ...grpc.CallOption) (*WalletLedgerList, error)
 	// Get a notification by id.
@@ -319,7 +321,7 @@ func (c *consoleClient) AddUser(ctx context.Context, in *AddUserRequest, opts ..
 	return out, nil
 }
 
-func (c *consoleClient) ResetUserPassword(ctx context.Context, in *ResetUserRequest, opts ...grpc.CallOption) (*ResetUserResponse, error) {
+func (c *consoleClient) ResetUserPassword(ctx context.Context, in *Username, opts ...grpc.CallOption) (*ResetUserResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResetUserResponse)
 	err := c.cc.Invoke(ctx, Console_ResetUserPassword_FullMethodName, in, out, cOpts...)
@@ -653,6 +655,16 @@ func (c *consoleClient) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.StorageObject)
 	err := c.cc.Invoke(ctx, Console_GetStorage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) GetUser(ctx context.Context, in *Username, opts ...grpc.CallOption) (*User, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(User)
+	err := c.cc.Invoke(ctx, Console_GetUser_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1035,7 +1047,7 @@ type ConsoleServer interface {
 	// Add a new console user.
 	AddUser(context.Context, *AddUserRequest) (*AddUserResponse, error)
 	// Reset a user's password.
-	ResetUserPassword(context.Context, *ResetUserRequest) (*ResetUserResponse, error)
+	ResetUserPassword(context.Context, *Username) (*ResetUserResponse, error)
 	// Add/join members to a group.
 	AddGroupUsers(context.Context, *AddGroupUsersRequest) (*emptypb.Empty, error)
 	// Ban a user.
@@ -1102,6 +1114,7 @@ type ConsoleServer interface {
 	GetStatus(context.Context, *emptypb.Empty) (*StatusList, error)
 	// Get a storage object.
 	GetStorage(context.Context, *api.ReadStorageObjectId) (*api.StorageObject, error)
+	GetUser(context.Context, *Username) (*User, error)
 	// Get a list of the user's wallet transactions.
 	GetWalletLedger(context.Context, *GetWalletLedgerRequest) (*WalletLedgerList, error)
 	// Get a notification by id.
@@ -1196,7 +1209,7 @@ func (UnimplementedConsoleServer) AuthenticateMFASetup(context.Context, *Authent
 func (UnimplementedConsoleServer) AddUser(context.Context, *AddUserRequest) (*AddUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddUser not implemented")
 }
-func (UnimplementedConsoleServer) ResetUserPassword(context.Context, *ResetUserRequest) (*ResetUserResponse, error) {
+func (UnimplementedConsoleServer) ResetUserPassword(context.Context, *Username) (*ResetUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetUserPassword not implemented")
 }
 func (UnimplementedConsoleServer) AddGroupUsers(context.Context, *AddGroupUsersRequest) (*emptypb.Empty, error) {
@@ -1297,6 +1310,9 @@ func (UnimplementedConsoleServer) GetStatus(context.Context, *emptypb.Empty) (*S
 }
 func (UnimplementedConsoleServer) GetStorage(context.Context, *api.ReadStorageObjectId) (*api.StorageObject, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStorage not implemented")
+}
+func (UnimplementedConsoleServer) GetUser(context.Context, *Username) (*User, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
 }
 func (UnimplementedConsoleServer) GetWalletLedger(context.Context, *GetWalletLedgerRequest) (*WalletLedgerList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWalletLedger not implemented")
@@ -1500,7 +1516,7 @@ func _Console_AddUser_Handler(srv interface{}, ctx context.Context, dec func(int
 }
 
 func _Console_ResetUserPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResetUserRequest)
+	in := new(Username)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1512,7 +1528,7 @@ func _Console_ResetUserPassword_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: Console_ResetUserPassword_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).ResetUserPassword(ctx, req.(*ResetUserRequest))
+		return srv.(ConsoleServer).ResetUserPassword(ctx, req.(*Username))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2107,6 +2123,24 @@ func _Console_GetStorage_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).GetStorage(ctx, req.(*api.ReadStorageObjectId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_GetUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Username)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).GetUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_GetUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).GetUser(ctx, req.(*Username))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2917,6 +2951,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetStorage",
 			Handler:    _Console_GetStorage_Handler,
+		},
+		{
+			MethodName: "GetUser",
+			Handler:    _Console_GetUser_Handler,
 		},
 		{
 			MethodName: "GetWalletLedger",

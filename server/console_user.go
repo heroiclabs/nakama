@@ -222,7 +222,7 @@ func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*con
 	return users[0], nil
 }
 
-func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.ResetUserRequest) (*console.ResetUserResponse, error) {
+func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Username) (*console.ResetUserResponse, error) {
 	var token, email string
 
 	transaction := func(tx *sql.Tx) error {
@@ -241,7 +241,7 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Reset
 		var uid uuid.UUID
 		var username string
 		var updateTime pgtype.Timestamptz
-		if err := tx.QueryRowContext(ctx, `UPDATE console_user SET password = $1, update_time = NOW() WHERE id = $2 RETURNING id, username, email, update_time`, hashedPassword, in.Id).Scan(&uid, &username, &email, &updateTime); err != nil {
+		if err := tx.QueryRowContext(ctx, `UPDATE console_user SET password = $1, update_time = NOW() WHERE username = $2 RETURNING id, username, email, update_time`, hashedPassword, in.Username).Scan(&uid, &username, &email, &updateTime); err != nil {
 			return status.Error(codes.NotFound, "User not found.")
 		}
 
@@ -296,22 +296,25 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*cons
 
 func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context, usernames []string) ([]*console.User, error) {
 	result := make([]*console.User, 0, 10)
-	query := "SELECT username, email, acl, mfa_required, mfa_secret, create_time, update_time IS NOT NULL AS mfa_enabled FROM console_user WHERE id != $1"
+	query := "SELECT id, username, email, acl, mfa_required, mfa_secret IS NOT NULL AS mfa_enabled, create_time, update_time FROM console_user WHERE id != $1"
 	params := []any{uuid.Nil}
 	if len(usernames) > 0 {
-		query += " AND username = IN($2)"
+		query += " AND username IN($2)"
 		params = append(params, usernames)
 	}
-	rows, err := s.db.QueryContext(ctx, query, params)
+	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		user := &console.User{}
+		var createTime, updateTime time.Time
 		var aclBytes []byte
-		if err := rows.Scan(&user.Username, &user.Email, &aclBytes, &user.MfaRequired, &user.MfaEnabled, &user.CreateTime, &user.UpdateTime); err != nil {
+		if err := rows.Scan(&user.Id, &user.Username, &user.Email, &aclBytes, &user.MfaRequired, &user.MfaEnabled, &createTime, &updateTime); err != nil {
 			return nil, err
 		}
+		user.CreateTime = timestamppb.New(createTime)
+		user.UpdateTime = timestamppb.New(updateTime)
 		userAcl, err := acl.NewFromJson(string(aclBytes))
 		if err != nil {
 			return nil, err

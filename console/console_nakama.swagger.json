@@ -20,7 +20,7 @@
     "application/json"
   ],
   "paths": {
-    "/v1/console/user/{id}/reset/password": {
+    "/v1/console/user/{username}/reset/password": {
       "post": {
         "summary": "Reset a user's password.",
         "operationId": "ResetUserPassword",
@@ -40,8 +40,8 @@
         },
         "parameters": [
           {
-            "name": "id",
-            "description": "User id.",
+            "name": "username",
+            "description": "The unique username of the user account.",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2675,6 +2675,34 @@
               },
               "description": "Request to update an existing user."
             }
+          }
+        ]
+      }
+    },
+    "/v2/console/user/{username}": {
+      "get": {
+        "operationId": "GetUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/console.User"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "The unique username of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
           }
         ]
       }

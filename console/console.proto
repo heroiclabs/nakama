@@ -114,8 +114,8 @@ service Console {
   }
 
   // Reset a user's password.
-  rpc ResetUserPassword (ResetUserRequest) returns (ResetUserResponse) {
-    option (google.api.http).post = "/v1/console/user/{id}/reset/password";
+  rpc ResetUserPassword (Username) returns (ResetUserResponse) {
+    option (google.api.http).post = "/v1/console/user/{username}/reset/password";
   }
 
   // Add/join members to a group.
@@ -757,12 +757,6 @@ message UpdateGroupUserStateRequest {
 message ResetUserMfaRequest {
   // User username.
   string username = 1;
-}
-
-// Request to reset a user's credentials, password or MFA.
-message ResetUserRequest {
-  // User id.
-  string id = 1;
 }
 
 // Request to reset a user's credentials, password or MFA.
