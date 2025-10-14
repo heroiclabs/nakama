@@ -30,7 +30,6 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/console/acl"
-	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -81,7 +80,7 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username,
 	}
 	aclBytes, err := base64.RawURLEncoding.DecodeString(claims.Acl)
 	if err != nil {
-		return "", "", "", acl.None, 0, false, fmt.Errorf("failed to base64 decode ACL: %w", err)
+		return "", "", "", acl.None(), 0, false, fmt.Errorf("failed to base64 decode ACL: %w", err)
 	}
 	return claims.ID, claims.Username, claims.Email, acl.NewFromBytes(aclBytes), claims.ExpiresAt, true, nil
 }
@@ -103,13 +102,19 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		switch in.Username {
 		case s.config.GetConsole().Username:
 			if in.Password == s.config.GetConsole().Password {
-				userAcl = acl.Admin
+				userAcl = acl.Admin()
 				uname = in.Username
 				userId = uuid.Nil
 
 				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 				if err != nil {
-					s.logger.Error("failed to hash admin console user password")
+					s.logger.Error("failed to hash admin console user password", zap.Error(err))
+					return status.Error(codes.Internal, "failed to create admin console user")
+				}
+
+				aclJson, err := userAcl.ToJson()
+				if err != nil {
+					s.logger.Error("failed to serialize admin console user acl", zap.Error(err))
 					return status.Error(codes.Internal, "failed to create admin console user")
 				}
 
@@ -126,7 +131,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				UNION ALL
 				(SELECT mfa_secret, mfa_recovery_codes, mfa_required FROM console_user WHERE id = $1)
 				`
-				if err = tx.QueryRowContext(ctx, query, userId, "admin@nakama", &userAcl, uname, hashedPassword, s.config.GetMFA().AdminAccountOn).Scan(&mfaSecret, &mfaRecoveryCodes, &mfaRequired); err != nil {
+				if err = tx.QueryRowContext(ctx, query, userId, "admin@nakama", aclJson, uname, hashedPassword, s.config.GetMFA().AdminAccountOn).Scan(&mfaSecret, &mfaRecoveryCodes, &mfaRequired); err != nil {
 					s.logger.Error("failed to create admin console user", zap.Error(err))
 					return status.Error(codes.Internal, "Internal error")
 				}
@@ -350,7 +355,7 @@ func (s *ConsoleServer) AuthenticateMFASetup(ctx context.Context, in *console.Au
 	query := `UPDATE console_user SET mfa_secret = $1, mfa_recovery_codes = $2, update_time = now() WHERE id = $3 AND date_trunc('second', update_time) <= $4 RETURNING update_time`
 	_, err = s.db.ExecContext(ctx, query, dbMFASecret, dbRecoveryCodes, userId, time.Unix(claims.CreateTime, 0).UTC())
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			logger.Warn("The token provided was created before the last update of the user data.")
 			return nil, status.Error(codes.Unauthenticated, "The token is outdated.")
 		}
@@ -363,7 +368,7 @@ func (s *ConsoleServer) AuthenticateMFASetup(ctx context.Context, in *console.Au
 }
 
 func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, unameOrEmail, password, ip string) (id uuid.UUID, uname string, email string, role acl.Permission, mfaRequired bool, mfaSecret, mfaRecoveryCodes []byte, err error) {
-	role = acl.None
+	role = acl.None()
 	var permissionBytes []byte
 	query := "SELECT id, username, email, acl, password, mfa_required, mfa_secret, mfa_recovery_codes, disable_time FROM console_user WHERE username = $1 OR email = $1"
 	var dbPassword []byte

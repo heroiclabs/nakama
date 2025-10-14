@@ -31,8 +31,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/console/acl"
-	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -73,7 +71,7 @@ func (s *UserInvitationClaims) GetSubject() (string, error) {
 }
 
 func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*console.AddUserResponse, error) {
-	uname := ctx.Value(ctxkeys.UserIDKey{}).(string)
+	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 	if uname == in.Username {
 		return nil, status.Error(codes.FailedPrecondition, "Cannot change own configuration")
 	}
@@ -269,16 +267,10 @@ func updateUser(ctx context.Context, logger *zap.Logger, tx *sql.Tx, in *console
 			RETURNING new.id,	old.acl, new.email, new.create_time, new.update_time, new.mfa_secret IS NOT NULL AS mfa_enabled, new.mfa_required`
 
 	if err := tx.QueryRowContext(ctx, query, roleJson, in.Username).Scan(&id, &prevAclBytes, &email, &createTime, &updateTime, &mfaEnabled, &mfaRequired); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return nil, nil, err
-		}
-
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil, status.Error(codes.NotFound, "User not found.")
 		}
-
 		logger.Error("Error updating user.", zap.Error(err))
-
 		return nil, nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
 	}
 

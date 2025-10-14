@@ -34,8 +34,8 @@ type ConsoleResource = console.AclResources
 
 var (
 	byteCount = int(math.Ceil(float64(len(console.AclResources_value)*3) / 8.0))
-	None      = Permission{Bitmap: make([]byte, byteCount)}
-	Admin     = Permission{Bitmap: bytes.Repeat([]byte{0xFF}, byteCount)}
+	None      = func() Permission { return Permission{Bitmap: make([]byte, byteCount)} }
+	Admin     = func() Permission { return Permission{Bitmap: bytes.Repeat([]byte{0xFF}, byteCount)} }
 )
 
 type Permission struct {
@@ -62,7 +62,7 @@ func (p Permission) String() string {
 
 	if bitCount == resourceBitCount {
 		// Admin equivalent. Return all bits set to 1 including padding.
-		p.Bitmap = Admin.Bitmap
+		p.Bitmap = Admin().Bitmap
 	}
 
 	return base64.RawURLEncoding.EncodeToString(p.Bitmap)
@@ -137,7 +137,7 @@ func NewPermissionFromString(resource string, level PermissionLevel) Permission 
 		return NewPermission(ConsoleResource(i), level)
 	}
 
-	return None
+	return None()
 }
 
 func CheckACL(action string, userPermissions Permission) bool {
@@ -145,7 +145,7 @@ func CheckACL(action string, userPermissions Permission) bool {
 
 	switch action {
 	case "/satori.console.Console/AclList":
-		requiredPermissions = None
+		requiredPermissions = None()
 	case "/nakama.console.Console/AddUser":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/ResetUserPassword":
@@ -215,7 +215,7 @@ func CheckACL(action string, userPermissions Permission) bool {
 	case "/nakama.console.Console/GetSetting":
 		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionRead)
 	case "/nakama.console.Console/GetStatus":
-		requiredPermissions = None // Accessible to anyone with console access.
+		requiredPermissions = None() // Accessible to anyone with console access.
 	case "/nakama.console.Console/GetStorage":
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
 	case "/nakama.console.Console/GetSubscription":
@@ -288,14 +288,14 @@ func CheckACL(action string, userPermissions Permission) bool {
 		// Special case for non-grpc gateway endpoint.
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA_IMPORT, PermissionWrite)
 	default:
-		requiredPermissions = Admin
+		requiredPermissions = Admin()
 	}
 
 	return userPermissions.HasAccess(requiredPermissions)
 }
 
 func New(acl map[string]*console.Permissions) Permission {
-	acc := None
+	acc := None()
 
 	resourceBitCount := len(console.AclResources_value) * 3
 	setBitCount := 0
@@ -326,7 +326,7 @@ func New(acl map[string]*console.Permissions) Permission {
 	}
 
 	if setBitCount == resourceBitCount {
-		return Admin
+		return Admin()
 	}
 
 	return acc
@@ -366,7 +366,7 @@ type dbAclEntry struct {
 }
 type dbPermission struct {
 	Admin bool                  `json:"admin"`
-	Acl   map[string]dbAclEntry `json:"acl"`
+	Acl   map[string]dbAclEntry `json:"acl,omitempty"`
 }
 
 func NewFromJson(s string) (Permission, error) {
@@ -376,7 +376,7 @@ func NewFromJson(s string) (Permission, error) {
 	}
 
 	if dbAcl.Admin {
-		return Admin, nil
+		return Admin(), nil
 	}
 
 	out := make(map[string]*console.Permissions, len(console.AclResources_value))
