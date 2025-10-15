@@ -69,6 +69,9 @@ type InventorySystem interface {
 	// UpdateItems will update the properties which are stored on each item by instance ID for a user.
 	UpdateItems(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, userID string, instanceIDs map[string]*InventoryUpdateItemProperties) (updatedInventory *Inventory, err error)
 
+	// DeleteItems will remove all specified instances for the user's inventory.
+	DeleteItems(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, userID string, instanceIDs []string) (updatedInventory *Inventory, err error)
+
 	// SetOnConsumeReward sets a custom reward function which will run after an inventory items' consume reward is rolled.
 	SetOnConsumeReward(fn OnReward[*InventoryConfigItem])
 

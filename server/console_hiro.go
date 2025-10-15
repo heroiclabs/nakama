@@ -98,15 +98,14 @@ func (s *ConsoleServer) HiroDeleteUserInventoryItems(ctx context.Context, in *co
 		return nil, ErrHiroNotRegistered
 	}
 
-	//inventorySystem := s.hiro.hiro.GetInventorySystem()
-	//
-	//inventory, _, err := inventorySystem.DeleteItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ItemIds)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	// return &hiro.InventoryUpdateAck{Inventory: inventory}, nil
-	return nil, nil
+	inventorySystem := s.hiro.hiro.GetInventorySystem()
+
+	inventory, err := inventorySystem.DeleteItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.InstanceIds)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hiro.InventoryUpdateAck{Inventory: inventory}, nil
 }
 
 func (s *ConsoleServer) HiroListProgressions(ctx context.Context, in *console.HiroProgressionsRequest) (*hiro.ProgressionList, error) {
