@@ -78,7 +78,7 @@ func (s *ConsoleServer) HiroListUserInventoryItems(ctx context.Context, in *cons
 	return &hiro.InventoryList{Items: inventory.Items}, nil
 }
 
-func (s *ConsoleServer) HiroGrantUserInventoryItems(ctx context.Context, in *console.HiroGrantUserInventoryRequest) (*hiro.InventoryUpdateAck, error) {
+func (s *ConsoleServer) HiroAddUserInventoryItems(ctx context.Context, in *console.HiroGrantUserInventoryRequest) (*hiro.InventoryUpdateAck, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {
 		return nil, ErrHiroNotRegistered
 	}
