@@ -1,0 +1,12 @@
+version: v2
+deps:
+  - buf.build/googleapis/googleapis
+  - buf.build/grpc-ecosystem/grpc-gateway
+modules:
+  - path: apigrpc
+  - path: console
+  - path: vendor/github.com/heroiclabs/nakama-common
+  - path: vendor/github.com/heroiclabs/hiro
+lint:
+  use:
+    - STANDARD

@@ -1,0 +1,21 @@
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: .
+    strategy: directory
+    include_imports: false
+    opt:
+      - paths=source_relative
+  - local: protoc-gen-grpc-gateway
+    out: .
+    strategy: directory
+    include_imports: false
+    opt:
+      - paths=source_relative
+      - logtostderr=true
+  - local: protoc-gen-go-grpc
+    out: .
+    strategy: directory
+    include_imports: false
+    opt:
+      - paths=source_relative

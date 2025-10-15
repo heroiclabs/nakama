@@ -561,6 +561,8 @@ type Runtime struct {
 	shutdownFunction RuntimeShutdownFunction
 
 	fleetManager runtime.FleetManager
+
+	hiro *consoleHiro
 }
 
 type MatchNamesListFunction func() []string
@@ -688,7 +690,55 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		[]string{RuntimeExecutionModeRPC.String(), RuntimeExecutionModeBefore.String(), RuntimeExecutionModeAfter.String()},
 	)
 
-	goModules, goRPCFns, goBeforeRtFns, goAfterRtFns, goBeforeReqFns, goAfterReqFns, goMatchmakerMatchedFn, goMatchmakerCustomMatchingFn, goMatchmakerProcessorFn, goTournamentEndFn, goTournamentResetFn, goLeaderboardResetFn, goShutdownFn, goPurchaseNotificationAppleFn, goSubscriptionNotificationAppleFn, goPurchaseNotificationGoogleFn, goSubscriptionNotificationGoogleFn, goIndexFilterFns, fleetManager, httpHandlers, allEventFns, goMatchNamesListFn, err := NewRuntimeProviderGo(ctx, logger, startupLogger, db, protojsonMarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, runtimeConfig.Path, paths, eventQueue, matchProvider, fmCallbackHandler)
+	goModules,
+		goRPCFns,
+		goBeforeRtFns,
+		goAfterRtFns,
+		goBeforeReqFns,
+		goAfterReqFns,
+		goMatchmakerMatchedFn,
+		goMatchmakerCustomMatchingFn,
+		goMatchmakerProcessorFn,
+		goTournamentEndFn,
+		goTournamentResetFn,
+		goLeaderboardResetFn,
+		goShutdownFn,
+		goPurchaseNotificationAppleFn,
+		goSubscriptionNotificationAppleFn,
+		goPurchaseNotificationGoogleFn,
+		goSubscriptionNotificationGoogleFn,
+		goIndexFilterFns,
+		fleetManager,
+		hiro,
+		httpHandlers,
+		allEventFns,
+		goMatchNamesListFn, err := NewRuntimeProviderGo(ctx,
+		logger,
+		startupLogger,
+		db,
+		protojsonMarshaler,
+		config,
+		version,
+		socialClient,
+		leaderboardCache,
+		leaderboardRankCache,
+		leaderboardScheduler,
+		sessionRegistry,
+		sessionCache,
+		statusRegistry,
+		matchRegistry,
+		partyRegistry,
+		tracker,
+		metrics,
+		streamManager,
+		router,
+		storageIndex,
+		satoriClient,
+		runtimeConfig.Path,
+		paths,
+		eventQueue,
+		matchProvider,
+		fmCallbackHandler)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -2759,6 +2809,8 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		fleetManager: fleetManager,
 
 		eventFunctions: allEventFns,
+
+		hiro: hiro,
 	}, rInfo, nil
 }
 
