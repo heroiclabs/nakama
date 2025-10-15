@@ -837,23 +837,77 @@ AND ((facebook_id IS NOT NULL
 }
 
 func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccountNoteRequest) (*emptypb.Empty, error) {
-	//userID, err := uuid.FromString(in.AccountId)
-	//if err != nil {
-	//	return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
-	//}
-	//if in.Note == "" {
-	//	return nil, status.Error(codes.InvalidArgument, "Note cannot be empty.")
-	//}
-	//
-	//query := "INSERT INTO account_note (user_id, note, create_time) VALUES ($1, $2, extract(epoch from now()))"
+	userID, err := uuid.FromString(in.AccountId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+	if in.Note == "" {
+		return nil, status.Error(codes.InvalidArgument, "Note cannot be empty.")
+	}
 
-	return nil, nil
+	if in.Id == "" {
+		// Create new note.
+		in.Id = uuid.Must(uuid.NewV4()).String()
+	}
+
+	query := `
+INSERT INTO users_notes (user_id, id, note)
+VALUES ($1, $2, $3)
+ON CONFLICT (id)
+DO UPDATE SET note = $2, update_time = now()
+`
+
+	if _, err := s.db.ExecContext(ctx, query, userID, in.Id, in.Note); err != nil {
+		s.logger.Error("Could not add note.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to add the user note.")
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAccountNotesRequest) (*console.ListAccountNotesResponse, error) {
-	return nil, nil
+	userID, err := uuid.FromString(in.AccountId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	//if in.Limit < 1 {
+	//	in.Limit = 10
+	//}
+
+	//if in.Limit < 0 || in.Limit > 10 {
+	//	return nil, status.Error(codes.InvalidArgument, "Limit must be between 1 and 10.")
+	//}
+
+	rows, err := s.db.QueryContext(ctx, "SELECT user_id, id, note, create_time, update_time FROM users_notes WHERE user_id = $1 ORDER BY update_time desc", userID)
+	if err != nil {
+		s.logger.Error("Error querying user notes.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
+	}
+
+	// TODO: pagination
+	notes := make([]*console.AccountNote, 0, in.Limit)
+	for rows.Next() {
+		note := &console.AccountNote{}
+		var createTime, updateTime pgtype.Timestamptz
+		if err := rows.Scan(&note.UserId, &note.Id, &note.Note, &createTime, &updateTime); err != nil {
+			s.logger.Error("Error scanning user notes.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
+		}
+
+		note.CreateTime = timestamppb.New(createTime.Time)
+		note.UpdateTime = timestamppb.New(updateTime.Time)
+		notes = append(notes, note)
+	}
+
+	return &console.ListAccountNotesResponse{Notes: notes}, nil
 }
 
 func (s *ConsoleServer) DeleteAccountNote(ctx context.Context, in *console.DeleteAccountNoteRequest) (*emptypb.Empty, error) {
-	return nil, nil
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM users_notes WHERE id = $1", in.NoteId); err != nil {
+		s.logger.Error("Could not delete note.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user note.")
+	}
+
+	return &emptypb.Empty{}, nil
 }

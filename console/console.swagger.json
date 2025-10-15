@@ -3348,9 +3348,23 @@
           "type": "string",
           "description": "Identifier of the note."
         },
+        "user_id": {
+          "type": "string",
+          "description": "Owner of this note."
+        },
         "note": {
           "type": "string",
           "description": "The content of the note."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of note creation."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of note update."
         }
       },
       "description": "A user note."

@@ -697,8 +697,14 @@ message AddAccountNoteRequest {
 message AccountNote {
   // Identifier of the note.
   string id = 1;
+  // Owner of this note.
+  string user_id = 2;
   // The content of the note.
-  string note = 2;
+  string note = 3;
+  // Timestamp of note creation.
+  google.protobuf.Timestamp create_time = 4;
+  // Timestamp of note update.
+  google.protobuf.Timestamp update_time = 5;
 }
 
 // List of user notes.
