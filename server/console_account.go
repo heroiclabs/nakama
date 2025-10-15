@@ -854,7 +854,7 @@ func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccou
 INSERT INTO users_notes (user_id, id, note)
 VALUES ($1, $2, $3)
 ON CONFLICT (id)
-DO UPDATE SET note = $2, update_time = now()
+DO UPDATE SET note = $3, update_time = now()
 `
 
 	if _, err := s.db.ExecContext(ctx, query, userID, in.Id, in.Note); err != nil {

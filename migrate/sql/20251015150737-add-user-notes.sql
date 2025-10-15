@@ -18,6 +18,7 @@
 CREATE TABLE IF NOT EXISTS users_notes (
     PRIMARY KEY (user_id, create_time, id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE (id),
 
     id          UUID NOT NULL,
     user_id     UUID NOT NULL,
