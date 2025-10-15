@@ -1745,6 +1745,43 @@
         "tags": [
           "Console"
         ]
+      },
+      "put": {
+        "operationId": "HiroUnlockProgressions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ProgressionList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to unlock progressions for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HiroUnlockProgressionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/hiro/systems": {
@@ -4128,6 +4165,19 @@
         }
       },
       "description": "Request to reset one or more progressions for a user."
+    },
+    "HiroUnlockProgressionsBody": {
+      "type": "object",
+      "properties": {
+        "progression_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Progression ids to unlock."
+        }
+      },
+      "description": "Request to unlock one or more progressions for a user."
     },
     "Inventory": {
       "type": "object",

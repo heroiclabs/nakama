@@ -60,4 +60,7 @@ type ProgressionSystem interface {
 
 	// Reset one or more progressions to clear their progress. Only applies to progression counts and unlock costs.
 	Reset(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, userID string, progressionIDs []string) (progressions map[string]*Progression, err error)
+
+	// Unlock one or more progressions marking them as complete no matter their cost or preconditions.
+	Unlock(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, userID string, progressionIDs []string) (progressions map[string]*Progression, err error)
 }

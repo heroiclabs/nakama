@@ -539,6 +539,13 @@ service Console {
       body: "*"
     };
   }
+
+  rpc HiroUnlockProgressions (HiroUnlockProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http) = {
+      put: "/v2/console/hiro/progression/{user_id}",
+      body: "*"
+    };
+  }
 }
 
 // API Explorer List of Endpoints response message
@@ -881,6 +888,14 @@ message HiroResetProgressionsRequest {
   // The user ID to reset progressions for.
   string user_id = 1;
   // Progression ids to reset.
+  repeated string progression_ids = 2;
+}
+
+// Request to unlock one or more progressions for a user.
+message HiroUnlockProgressionsRequest {
+  // The user ID to unlock progressions for.
+  string user_id = 1;
+  // Progression ids to unlock.
   repeated string progression_ids = 2;
 }
 

@@ -157,6 +157,20 @@ func (s *ConsoleServer) HiroResetProgressions(ctx context.Context, in *console.H
 	return &hiro.ProgressionList{Progressions: progressions}, nil
 }
 
+func (s *ConsoleServer) HiroUnlockProgressions(ctx context.Context, in *console.HiroUnlockProgressionsRequest) (*hiro.ProgressionList, error) {
+	if s.hiro == nil || s.hiro.hiro == nil {
+		return nil, ErrHiroNotRegistered
+	}
+
+	progressionSystem := s.hiro.hiro.GetProgressionSystem()
+	progressions, err := progressionSystem.Unlock(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ProgressionIds)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hiro.ProgressionList{Progressions: progressions}, nil
+}
+
 func rewardConfigToProto(rewardConfig *hiro.EconomyConfigReward) *hiro.AvailableRewards {
 	if rewardConfig == nil {
 		return nil
