@@ -106,6 +106,21 @@ service Console {
     };
   }
 
+  rpc AddAccountNote (AddAccountNoteRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/account/{account_id}/note",
+      body: "*"
+    };
+  }
+
+  rpc ListAccountNotes (ListAccountNotesRequest) returns (ListAccountNotesResponse) {
+    option (google.api.http).get = "/v2/console/account/{account_id}/note";
+  }
+
+  rpc DeleteAccountNote (DeleteAccountNoteRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/account/{account_id}/note/{note_id}";
+  }
+
   // Add a new console user.
   rpc AddUser (AddUserRequest) returns (AddUserResponse) {
     option (google.api.http) = {
@@ -666,6 +681,46 @@ message AddGroupUsersRequest {
   string group_id = 2;
   // Whether it is a join request.
   bool join_request = 3;
+}
+
+// Add a new note for the user.
+message AddAccountNoteRequest {
+  // Identifier of the note. Empty to update existing note.
+  string id = 1;
+  // The account id to add the note for.
+  string account_id = 2;
+  // The content of the note.
+  string note = 3;
+}
+
+// A user note.
+message AccountNote {
+  // Identifier of the note.
+  string id = 1;
+  // The content of the note.
+  string note = 2;
+}
+
+// List of user notes.
+message ListAccountNotesRequest {
+  // Account to list notes for.
+  string account_id = 1;
+  // Response result page limit.
+  int32 limit = 2;
+}
+
+// Delete an account note.
+message DeleteAccountNoteRequest {
+  // Account owning the notes.
+  string account_id = 1;
+  // Identifier of the note.
+  string note_id = 2;
+}
+
+// Response to list user notes.
+message ListAccountNotesResponse {
+  // The list of notes.
+  repeated AccountNote notes = 1;
 }
 
 // Response to create/invite a new user.

@@ -835,3 +835,25 @@ AND ((facebook_id IS NOT NULL
 
 	return &emptypb.Empty{}, nil
 }
+
+func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccountNoteRequest) (*emptypb.Empty, error) {
+	//userID, err := uuid.FromString(in.AccountId)
+	//if err != nil {
+	//	return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	//}
+	//if in.Note == "" {
+	//	return nil, status.Error(codes.InvalidArgument, "Note cannot be empty.")
+	//}
+	//
+	//query := "INSERT INTO account_note (user_id, note, create_time) VALUES ($1, $2, extract(epoch from now()))"
+
+	return nil, nil
+}
+
+func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAccountNotesRequest) (*console.ListAccountNotesResponse, error) {
+	return nil, nil
+}
+
+func (s *ConsoleServer) DeleteAccountNote(ctx context.Context, in *console.DeleteAccountNoteRequest) (*emptypb.Empty, error) {
+	return nil, nil
+}

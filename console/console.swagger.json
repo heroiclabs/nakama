@@ -125,6 +125,122 @@
         ]
       }
     },
+    "/v2/console/account/{account_id}/note": {
+      "get": {
+        "operationId": "ListAccountNotes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ListAccountNotesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "account_id",
+            "description": "Account to list notes for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Response result page limit.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "post": {
+        "operationId": "AddAccountNote",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "account_id",
+            "description": "The account id to add the note for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AddAccountNoteBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/account/{account_id}/note/{note_id}": {
+      "delete": {
+        "operationId": "DeleteAccountNote",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "account_id",
+            "description": "Account owning the notes.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "note_id",
+            "description": "Identifier of the note.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account/{account_id}/wallet": {
       "get": {
         "summary": "Get a list of the user's wallet transactions.",
@@ -3225,6 +3341,20 @@
       },
       "description": "A list of users."
     },
+    "AccountNote": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier of the note."
+        },
+        "note": {
+          "type": "string",
+          "description": "The content of the note."
+        }
+      },
+      "description": "A user note."
+    },
     "AclResources": {
       "type": "string",
       "enum": [
@@ -3252,6 +3382,20 @@
       ],
       "default": "ACCOUNT",
       "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
+    },
+    "AddAccountNoteBody": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier of the note. Empty to update existing note."
+        },
+        "note": {
+          "type": "string",
+          "description": "The content of the note."
+        }
+      },
+      "description": "Add a new note for the user."
     },
     "AddGroupUsersBody": {
       "type": "object",
@@ -4391,6 +4535,20 @@
         }
       },
       "description": "A set of leaderboard records, may be part of a leaderboard records page or a batch of individual records."
+    },
+    "ListAccountNotesResponse": {
+      "type": "object",
+      "properties": {
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AccountNote"
+          },
+          "description": "The list of notes."
+        }
+      },
+      "description": "Response to list user notes."
     },
     "ListChannelMessagesRequest.Type": {
       "type": "string",
