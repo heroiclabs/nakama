@@ -744,8 +744,10 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			// These should always contain transactionInfo as they imply something was billed.
 			transactionInfo := notificationData.TransactionInfo
 			renewalInfo := notificationData.RenewalInfo
-			if transactionInfo == nil {
-				logger.Warn("No transaction info for this Apple IAP notification type", zap.String("notification_type", notificationType))
+			if transactionInfo == nil || renewalInfo == nil {
+				logger.Warn("No transaction or renewal info available for Apple IAP notification type", zap.String("notification_type", notificationType),
+					zap.Bool("transaction_info_present", transactionInfo != nil),
+					zap.Bool("renewal_info_present", renewalInfo != nil))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
