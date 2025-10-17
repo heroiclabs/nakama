@@ -743,11 +743,9 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			// These notification types only relate to subscriptions.
 			// These should always contain transactionInfo as they imply something was billed.
 			transactionInfo := notificationData.TransactionInfo
-			renewalInfo := notificationData.RenewalInfo
-			if transactionInfo == nil || renewalInfo == nil {
-				logger.Warn("No transaction or renewal info available for Apple IAP notification type", zap.String("notification_type", notificationType),
-					zap.Bool("transaction_info_present", transactionInfo != nil),
-					zap.Bool("renewal_info_present", renewalInfo != nil))
+			if transactionInfo == nil {
+				logger.Warn("No transaction info available for Apple IAP notification type", zap.String("notification_type", notificationType),
+					zap.Bool("transaction_info_present", transactionInfo != nil))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -783,7 +781,12 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			switch notificationPayload.Subtype {
 			case "UPGRADE", "DOWNGRADE":
 				// For subscription plan changes, the product ID is in the renewal info.
-				productId = renewalInfo.AutoRenewProductId
+				renewalInfo := notificationData.RenewalInfo
+				if renewalInfo != nil {
+					productId = renewalInfo.AutoRenewProductId
+				} else {
+					logger.Warn("No renewal info for Apple IAP subscription plan change notification", zap.String("notification_subtype", notificationPayload.Subtype))
+				}
 			}
 
 			sub := &storageSubscription{
