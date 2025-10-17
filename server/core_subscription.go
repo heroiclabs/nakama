@@ -611,6 +611,7 @@ ON CONFLICT
     (original_transaction_id)
 DO
 	UPDATE SET
+		product_id = $4,
 		expire_time = $7,
 		update_time = now(),
 		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
@@ -738,12 +739,13 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", notificationData))
 
 		switch notificationType := strings.ToUpper(notificationPayload.NotificationType); notificationType {
-		case "DID_RENEW", "SUBSCRIBED":
+		case "DID_RENEW", "SUBSCRIBED", "DID_CHANGE_RENEWAL_PREF", "OFFER_REDEEMED":
 			// These notification types only relate to subscriptions.
 			// These should always contain transactionInfo as they imply something was billed.
 			transactionInfo := notificationData.TransactionInfo
 			if transactionInfo == nil {
-				logger.Warn("No transaction info for this Apple IAP notification type", zap.String("notification_type", notificationType))
+				logger.Warn("No transaction info available for Apple IAP notification type", zap.String("notification_type", notificationType),
+					zap.Bool("transaction_info_present", transactionInfo != nil))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -775,11 +777,23 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				}
 			}
 
+			productId := transactionInfo.ProductId
+			switch notificationPayload.Subtype {
+			case "UPGRADE", "DOWNGRADE":
+				// For subscription plan changes, the product ID is in the renewal info.
+				renewalInfo := notificationData.RenewalInfo
+				if renewalInfo != nil {
+					productId = renewalInfo.AutoRenewProductId
+				} else {
+					logger.Warn("No renewal info for Apple IAP subscription plan change notification", zap.String("notification_subtype", notificationPayload.Subtype))
+				}
+			}
+
 			sub := &storageSubscription{
 				userID:                uid,
 				originalTransactionId: transactionInfo.OriginalTransactionId,
 				store:                 api.StoreProvider_APPLE_APP_STORE,
-				productId:             transactionInfo.ProductId,
+				productId:             productId,
 				purchaseTime:          parseMillisecondUnixTimestamp(transactionInfo.OriginalPurchaseDate),
 				environment:           env,
 				expireTime:            parseMillisecondUnixTimestamp(transactionInfo.ExpiresDate),
@@ -1333,7 +1347,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				originalTransactionId: transactionId,
 				userID:                *uid,
 				store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
-				productId:             gSubscription.LineItems[0].ProductId, // This item can have multiple entries if the subscription was upgraded/downgraded. Skip handling this for now.
+				productId:             gSubscription.LineItems[0].ProductId,
 				environment:           env,
 				expireTime:            gSubscription.LineItems[0].ExpiryTime,
 				rawNotification:       string(body),
