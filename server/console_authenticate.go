@@ -276,7 +276,11 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 		Cookie:    s.cookie,
 	})
 	key := []byte(s.config.GetConsole().SigningKey)
-	signedToken, _ := token.SignedString(key)
+	signedToken, err := token.SignedString(key)
+	if err != nil {
+		s.logger.Error("Failed to sign the token", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to sign the token.")
+	}
 
 	s.consoleSessionCache.Add(userId, exp, signedToken, 0, "")
 

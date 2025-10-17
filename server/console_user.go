@@ -211,6 +211,7 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*console.User, error) {
 	users, err := s.dbListConsoleUsers(ctx, []string{in.Username})
 	if err != nil {
+		s.logger.Error("failed to list console users", zap.Error(err))
 		return nil, err
 	}
 
@@ -375,7 +376,7 @@ func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context, usernames []stri
 	query := "SELECT id, username, email, acl, mfa_required, mfa_secret IS NOT NULL AS mfa_enabled, create_time, update_time FROM console_user WHERE id != $1"
 	params := []any{uuid.Nil}
 	if len(usernames) > 0 {
-		query += " AND username IN($2)"
+		query += " AND username = ANY($2)"
 		params = append(params, usernames)
 	}
 	rows, err := s.db.QueryContext(ctx, query, params...)
