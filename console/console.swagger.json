@@ -157,6 +157,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "cursor",
+            "description": "Optional cursor for pagination.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -4560,6 +4567,10 @@
             "$ref": "#/definitions/AccountNote"
           },
           "description": "The list of notes."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for retrieving the next page, if any."
         }
       },
       "description": "Response to list user notes."

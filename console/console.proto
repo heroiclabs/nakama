@@ -713,6 +713,8 @@ message ListAccountNotesRequest {
   string account_id = 1;
   // Response result page limit.
   int32 limit = 2;
+  // Optional cursor for pagination.
+  string cursor = 3;
 }
 
 // Delete an account note.
@@ -727,6 +729,8 @@ message DeleteAccountNoteRequest {
 message ListAccountNotesResponse {
   // The list of notes.
   repeated AccountNote notes = 1;
+  // Cursor for retrieving the next page, if any.
+  string cursor = 2;
 }
 
 // Response to create/invite a new user.

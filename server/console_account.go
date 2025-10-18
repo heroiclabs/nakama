@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -43,6 +44,12 @@ var validTrigramFilterRegex = regexp.MustCompile("^%?[^%]{3,}%?$")
 type consoleAccountCursor struct {
 	ID       uuid.UUID
 	Username string
+}
+
+type consoleAccountNotesCursor struct {
+	NoteID     uuid.UUID
+	UserID     uuid.UUID
+	CreateTime time.Time
 }
 
 func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
@@ -871,36 +878,83 @@ func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAc
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	//if in.Limit < 1 {
-	//	in.Limit = 10
-	//}
-
-	//if in.Limit < 0 || in.Limit > 10 {
-	//	return nil, status.Error(codes.InvalidArgument, "Limit must be between 1 and 10.")
-	//}
-
-	rows, err := s.db.QueryContext(ctx, "SELECT user_id, id, note, create_time, update_time FROM users_notes WHERE user_id = $1 ORDER BY update_time desc", userID)
-	if err != nil {
-		s.logger.Error("Error querying user notes.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
+	if in.Limit < 1 || in.Limit > 100 {
+		in.Limit = 10
 	}
 
-	// TODO: pagination
+	var cursor *consoleAccountNotesCursor
+	if in.Cursor != "" {
+		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
+		if err != nil {
+			s.logger.Error("Error decoding user account notes list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to decode user notes list request cursor.")
+		}
+		cursor = &consoleAccountNotesCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(&cursor); err != nil {
+			s.logger.Error("Error decoding user account notes list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to decode user notes list request cursor.")
+		}
+
+		if cursor.UserID != userID {
+			s.logger.Error("User identifier mismatch in user account notes list cursor.", zap.String("cursor", in.Cursor))
+			return nil, status.Error(codes.InvalidArgument, "Cursor user identifier mismatch.")
+		}
+	}
+
+	query := "SELECT id, note, create_time, update_time FROM users_notes WHERE user_id = $1"
+	params := []interface{}{userID, in.Limit + 1}
+	if cursor != nil {
+		query += " AND (user_id, create_time, id) >= ($1, $3, $4)"
+		params = append(params, cursor.CreateTime, cursor.NoteID)
+	}
+	query += " ORDER BY create_time DESC LIMIT $2"
+
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		s.logger.Error("Error querying user account notes.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
+	}
+	defer rows.Close()
+
+	var newCursor *consoleAccountNotesCursor
 	notes := make([]*console.AccountNote, 0, in.Limit)
 	for rows.Next() {
 		note := &console.AccountNote{}
 		var createTime, updateTime pgtype.Timestamptz
-		if err := rows.Scan(&note.UserId, &note.Id, &note.Note, &createTime, &updateTime); err != nil {
-			s.logger.Error("Error scanning user notes.", zap.Error(err))
+		if err := rows.Scan(&note.Id, &note.Note, &createTime, &updateTime); err != nil {
+			_ = rows.Close()
+			s.logger.Error("Error scanning user account notes.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
 		}
 
+		if len(notes) >= int(in.Limit) {
+			newCursor = &consoleAccountNotesCursor{
+				NoteID:     uuid.FromStringOrNil(note.Id),
+				UserID:     userID,
+				CreateTime: createTime.Time,
+			}
+			break
+		}
+
+		note.UserId = in.AccountId
 		note.CreateTime = timestamppb.New(createTime.Time)
 		note.UpdateTime = timestamppb.New(updateTime.Time)
 		notes = append(notes, note)
 	}
+	_ = rows.Close()
 
-	return &console.ListAccountNotesResponse{Notes: notes}, nil
+	response := &console.ListAccountNotesResponse{Notes: notes}
+
+	if newCursor != nil {
+		cursorBuf := &bytes.Buffer{}
+		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+			s.logger.Error("Error encoding account notes cursor.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list account notes.")
+		}
+		response.Cursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	return response, nil
 }
 
 func (s *ConsoleServer) DeleteAccountNote(ctx context.Context, in *console.DeleteAccountNoteRequest) (*emptypb.Empty, error) {
