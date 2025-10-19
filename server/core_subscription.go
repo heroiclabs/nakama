@@ -53,9 +53,11 @@ type subscriptionsListCursor struct {
 	PurchaseTime          *timestamppb.Timestamp
 	UserId                string
 	IsNext                bool
+	After                 time.Time
+	Before                time.Time
 }
 
-func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string) (*api.SubscriptionList, error) {
+func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string, after, before time.Time) (*api.SubscriptionList, error) {
 	var incomingCursor *subscriptionsListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -70,6 +72,12 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			// userID filter was set and has changed, cursor is now invalid
 			return nil, ErrSubscriptionsListInvalidCursor
 		}
+		if !after.Equal(incomingCursor.After) {
+			return nil, ErrPurchasesListInvalidCursor
+		}
+		if !before.Equal(incomingCursor.Before) {
+			return nil, ErrPurchasesListInvalidCursor
+		}
 	}
 
 	comparisonOp := "<="
@@ -79,7 +87,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		sortConf = "ASC"
 	}
 
-	params := make([]interface{}, 0, 4)
+	params := make([]interface{}, 0, 6)
 	predicateConf := ""
 	if incomingCursor != nil {
 		if userID == "" {
@@ -95,6 +103,26 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		}
 	}
 
+	if !after.IsZero() {
+		if len(params) == 0 {
+			params = append(params, after)
+			predicateConf += fmt.Sprintf(" WHERE purchase_time >= $%v", len(params))
+		} else {
+			params = append(params, after)
+			predicateConf += fmt.Sprintf(" AND purchase_time >= $%v", len(params))
+		}
+	}
+	if !before.IsZero() {
+		if len(params) == 0 {
+			params = append(params, before)
+			predicateConf += fmt.Sprintf(" WHERE purchase_time <= $%v", len(params))
+		} else {
+			params = append(params, before)
+			predicateConf += fmt.Sprintf(" AND purchase_time <= $%v", len(params))
+		}
+	}
+
+	// Add limit to query.
 	if limit > 0 {
 		params = append(params, limit+1)
 	} else {

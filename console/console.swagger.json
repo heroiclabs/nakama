@@ -2504,6 +2504,22 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "after",
+            "description": "Optional timestamp threshold to list purchases after.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "before",
+            "description": "Optional timestamp threshold to list purchases before.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
           }
         ],
         "tags": [
@@ -3005,6 +3021,22 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "after",
+            "description": "Optional timestamp threshold to list purchases after.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "before",
+            "description": "Optional timestamp threshold to list purchases before.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
           }
         ],
         "tags": [

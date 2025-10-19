@@ -1121,6 +1121,10 @@ message ListPurchasesRequest {
   uint32 limit = 2;
   // Cursor to retrieve a page of records from
   string cursor = 3;
+  // Optional timestamp threshold to list purchases after.
+  google.protobuf.Timestamp after = 4;
+  // Optional timestamp threshold to list purchases before.
+  google.protobuf.Timestamp before = 5;
 }
 
 // List subscriptions.
@@ -1131,6 +1135,10 @@ message ListSubscriptionsRequest {
   uint32 limit = 2;
   // Cursor to retrieve a page of records from
   string cursor = 3;
+  // Optional timestamp threshold to list purchases after.
+  google.protobuf.Timestamp after = 4;
+  // Optional timestamp threshold to list purchases before.
+  google.protobuf.Timestamp before = 5;
 }
 
 // List (and optionally filter) storage objects.

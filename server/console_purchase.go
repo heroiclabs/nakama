@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -37,7 +38,16 @@ func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurch
 		return nil, status.Error(codes.InvalidArgument, "expects a limit value between 1 and 100")
 	}
 
-	purchases, err := ListPurchases(ctx, s.logger, s.db, in.UserId, int(in.Limit), in.Cursor)
+	var after time.Time
+	if in.After != nil {
+		after = in.After.AsTime()
+	}
+	var before time.Time
+	if in.Before != nil {
+		before = in.Before.AsTime()
+	}
+
+	purchases, err := ListPurchases(ctx, s.logger, s.db, in.UserId, int(in.Limit), in.Cursor, after, before)
 	if err != nil {
 		s.logger.Error("Failed to list purchases", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error listing purchases.")

@@ -3309,7 +3309,7 @@ func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, userID string
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListPurchases(ctx, n.logger, n.db, userID, limit, cursor)
+	return ListPurchases(ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
 }
 
 // @group purchases
@@ -3435,7 +3435,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionsList(ctx context.Context, userID st
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListSubscriptions(ctx, n.logger, n.db, userID, limit, cursor)
+	return ListSubscriptions(ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
 }
 
 // @group subscriptions
