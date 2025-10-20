@@ -31,7 +31,7 @@ type ConsoleClient interface {
 	AuthenticateLogout(ctx context.Context, in *AuthenticateLogoutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Change an account's MFA using a code, usually delivered over email.
 	AuthenticateMFASetup(ctx context.Context, in *AuthenticateMFASetupRequest, opts ...grpc.CallOption) (*AuthenticateMFASetupResponse, error)
-	AddAccountNote(ctx context.Context, in *AddAccountNoteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AddAccountNote(ctx context.Context, in *AddAccountNoteRequest, opts ...grpc.CallOption) (*AccountNote, error)
 	ListAccountNotes(ctx context.Context, in *ListAccountNotesRequest, opts ...grpc.CallOption) (*ListAccountNotesResponse, error)
 	DeleteAccountNote(ctx context.Context, in *DeleteAccountNoteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add a new console user.
@@ -222,8 +222,8 @@ func (c *consoleClient) AuthenticateMFASetup(ctx context.Context, in *Authentica
 	return out, nil
 }
 
-func (c *consoleClient) AddAccountNote(ctx context.Context, in *AddAccountNoteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *consoleClient) AddAccountNote(ctx context.Context, in *AddAccountNoteRequest, opts ...grpc.CallOption) (*AccountNote, error) {
+	out := new(AccountNote)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/AddAccountNote", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -979,7 +979,7 @@ type ConsoleServer interface {
 	AuthenticateLogout(context.Context, *AuthenticateLogoutRequest) (*emptypb.Empty, error)
 	// Change an account's MFA using a code, usually delivered over email.
 	AuthenticateMFASetup(context.Context, *AuthenticateMFASetupRequest) (*AuthenticateMFASetupResponse, error)
-	AddAccountNote(context.Context, *AddAccountNoteRequest) (*emptypb.Empty, error)
+	AddAccountNote(context.Context, *AddAccountNoteRequest) (*AccountNote, error)
 	ListAccountNotes(context.Context, *ListAccountNotesRequest) (*ListAccountNotesResponse, error)
 	DeleteAccountNote(context.Context, *DeleteAccountNoteRequest) (*emptypb.Empty, error)
 	// Add a new console user.
@@ -1149,7 +1149,7 @@ func (UnimplementedConsoleServer) AuthenticateLogout(context.Context, *Authentic
 func (UnimplementedConsoleServer) AuthenticateMFASetup(context.Context, *AuthenticateMFASetupRequest) (*AuthenticateMFASetupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateMFASetup not implemented")
 }
-func (UnimplementedConsoleServer) AddAccountNote(context.Context, *AddAccountNoteRequest) (*emptypb.Empty, error) {
+func (UnimplementedConsoleServer) AddAccountNote(context.Context, *AddAccountNoteRequest) (*AccountNote, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddAccountNote not implemented")
 }
 func (UnimplementedConsoleServer) ListAccountNotes(context.Context, *ListAccountNotesRequest) (*ListAccountNotesResponse, error) {

@@ -6866,14 +6866,14 @@ const file_console_proto_rawDesc = "" +
 	"\fNOTIFICATION\x10\x11\x12\f\n" +
 	"\bSETTINGS\x10\x12\x12\x10\n" +
 	"\fSTORAGE_DATA\x10\x13\x12\x17\n" +
-	"\x13STORAGE_DATA_IMPORT\x10\x142\xb9S\n" +
+	"\x13STORAGE_DATA_IMPORT\x10\x142\xbeS\n" +
 	"\aConsole\x12\x83\x01\n" +
 	"\fAuthenticate\x12#.nakama.console.AuthenticateRequest\x1a\x1e.nakama.console.ConsoleSession\".\x92A\bb\x06\n" +
 	"\x04\n" +
 	"\x00\x12\x00\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/console/authenticate\x12\x83\x01\n" +
 	"\x12AuthenticateLogout\x12).nakama.console.AuthenticateLogoutRequest\x1a\x16.google.protobuf.Empty\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v2/console/authenticate/logout\x12\x9a\x01\n" +
-	"\x14AuthenticateMFASetup\x12+.nakama.console.AuthenticateMFASetupRequest\x1a,.nakama.console.AuthenticateMFASetupResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v2/console/authenticate/mfa\x12\x81\x01\n" +
-	"\x0eAddAccountNote\x12%.nakama.console.AddAccountNoteRequest\x1a\x16.google.protobuf.Empty\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v2/console/account/{account_id}/note\x12\x94\x01\n" +
+	"\x14AuthenticateMFASetup\x12+.nakama.console.AuthenticateMFASetupRequest\x1a,.nakama.console.AuthenticateMFASetupResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v2/console/authenticate/mfa\x12\x86\x01\n" +
+	"\x0eAddAccountNote\x12%.nakama.console.AddAccountNoteRequest\x1a\x1b.nakama.console.AccountNote\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v2/console/account/{account_id}/note\x12\x94\x01\n" +
 	"\x10ListAccountNotes\x12'.nakama.console.ListAccountNotesRequest\x1a(.nakama.console.ListAccountNotesResponse\"-\x82\xd3\xe4\x93\x02'\x12%/v2/console/account/{account_id}/note\x12\x8e\x01\n" +
 	"\x11DeleteAccountNote\x12(.nakama.console.DeleteAccountNoteRequest\x1a\x16.google.protobuf.Empty\"7\x82\xd3\xe4\x93\x021*//v2/console/account/{account_id}/note/{note_id}\x12g\n" +
 	"\aAddUser\x12\x1e.nakama.console.AddUserRequest\x1a\x1f.nakama.console.AddUserResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v2/console/user\x12\x84\x01\n" +
@@ -7313,7 +7313,7 @@ var file_console_proto_depIdxs = []int32{
 	29,  // 182: nakama.console.Console.Authenticate:output_type -> nakama.console.ConsoleSession
 	119, // 183: nakama.console.Console.AuthenticateLogout:output_type -> google.protobuf.Empty
 	24,  // 184: nakama.console.Console.AuthenticateMFASetup:output_type -> nakama.console.AuthenticateMFASetupResponse
-	119, // 185: nakama.console.Console.AddAccountNote:output_type -> google.protobuf.Empty
+	16,  // 185: nakama.console.Console.AddAccountNote:output_type -> nakama.console.AccountNote
 	19,  // 186: nakama.console.Console.ListAccountNotes:output_type -> nakama.console.ListAccountNotesResponse
 	119, // 187: nakama.console.Console.DeleteAccountNote:output_type -> google.protobuf.Empty
 	20,  // 188: nakama.console.Console.AddUser:output_type -> nakama.console.AddUserResponse

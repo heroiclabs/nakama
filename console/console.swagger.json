@@ -176,8 +176,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "type": "object",
-              "properties": {}
+              "$ref": "#/definitions/AccountNote"
             }
           },
           "default": {

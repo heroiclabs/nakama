@@ -106,7 +106,7 @@ service Console {
     };
   }
 
-  rpc AddAccountNote (AddAccountNoteRequest) returns (google.protobuf.Empty) {
+  rpc AddAccountNote (AddAccountNoteRequest) returns (AccountNote) {
     option (google.api.http) = {
       post: "/v2/console/account/{account_id}/note",
       body: "*"

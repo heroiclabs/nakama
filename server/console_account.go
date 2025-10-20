@@ -843,7 +843,7 @@ AND ((facebook_id IS NOT NULL
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccountNoteRequest) (*emptypb.Empty, error) {
+func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccountNoteRequest) (*console.AccountNote, error) {
 	userID, err := uuid.FromString(in.AccountId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -862,14 +862,21 @@ INSERT INTO users_notes (user_id, id, note)
 VALUES ($1, $2, $3)
 ON CONFLICT (id)
 DO UPDATE SET note = $3, update_time = now()
+RETURNING create_time, update_time
 `
-
-	if _, err := s.db.ExecContext(ctx, query, userID, in.Id, in.Note); err != nil {
-		s.logger.Error("Could not add note.", zap.Error(err))
-		return nil, status.Error(codes.Internal, "An error occurred while trying to add the user note.")
+	var createTime, updateTime pgtype.Timestamptz
+	if err := s.db.QueryRowContext(ctx, query, userID, in.Id, in.Note).Scan(&createTime, &updateTime); err != nil {
+		s.logger.Error("Could not add or update user note.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to add or update user note.")
 	}
 
-	return &emptypb.Empty{}, nil
+	return &console.AccountNote{
+		Id:         in.Id,
+		UserId:     in.AccountId,
+		Note:       in.Note,
+		CreateTime: timestamppb.New(createTime.Time),
+		UpdateTime: timestamppb.New(updateTime.Time),
+	}, nil
 }
 
 func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAccountNotesRequest) (*console.ListAccountNotesResponse, error) {
