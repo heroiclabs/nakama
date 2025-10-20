@@ -539,7 +539,8 @@ FROM
 			//query += " "
 			order = " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC"
 		} else {
-			query += " WHERE user_id = $1 ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC"
+			query += " WHERE user_id = $1"
+			order = " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC"
 			params = append(params, userID)
 		}
 	}
