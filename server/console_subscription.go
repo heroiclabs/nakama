@@ -27,6 +27,20 @@ import (
 )
 
 func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListSubscriptionsRequest) (*api.SubscriptionList, error) {
+	if in.Filter != "" {
+		subscription, err := getSubscriptionByOriginalTransactionId(ctx, s.logger, s.db, in.Filter)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "Error listing purchases.")
+		}
+		response := &api.SubscriptionList{
+			ValidatedSubscriptions: make([]*api.ValidatedSubscription, 0, 1),
+		}
+		if subscription != nil {
+			response.ValidatedSubscriptions = append(response.ValidatedSubscriptions, subscription)
+		}
+		return response, nil
+	}
+
 	if in.UserId != "" {
 		_, err := uuid.FromString(in.UserId)
 		if err != nil {

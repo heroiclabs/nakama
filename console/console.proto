@@ -1125,6 +1125,8 @@ message ListPurchasesRequest {
   google.protobuf.Timestamp after = 4;
   // Optional timestamp threshold to list purchases before.
   google.protobuf.Timestamp before = 5;
+  // Filter to use when searching for specific purchases.
+  string filter = 6;
 }
 
 // List subscriptions.
@@ -1135,10 +1137,12 @@ message ListSubscriptionsRequest {
   uint32 limit = 2;
   // Cursor to retrieve a page of records from
   string cursor = 3;
-  // Optional timestamp threshold to list purchases after.
+  // Optional timestamp threshold to list subscriptions after.
   google.protobuf.Timestamp after = 4;
-  // Optional timestamp threshold to list purchases before.
+  // Optional timestamp threshold to list subscriptions before.
   google.protobuf.Timestamp before = 5;
+  // Filter to use when searching for specific subscriptions.
+  string filter = 6;
 }
 
 // List (and optionally filter) storage objects.
@@ -1418,10 +1422,14 @@ message WriteStorageObjectRequest {
 message GetWalletLedgerRequest {
   // The unique identifier of the user account.
   string account_id = 1;
-  // Max number of results per page
+  // Max number of results per page.
   uint32 limit = 2;
-  // Cursor to retrieve a page of records from
+  // Cursor to retrieve a page of records from.
   string cursor = 3;
+  // Optional timestamp threshold to list wallet ledger records after.
+  google.protobuf.Timestamp after = 4;
+  // Optional timestamp threshold to list wallet ledger records before.
+  google.protobuf.Timestamp before = 5;
 }
 
 message GetNotificationRequest {

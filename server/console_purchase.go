@@ -27,6 +27,20 @@ import (
 )
 
 func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurchasesRequest) (*api.PurchaseList, error) {
+	if in.Filter != "" {
+		purchase, err := GetPurchaseByTransactionId(ctx, s.logger, s.db, in.Filter)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "Error listing purchases.")
+		}
+		response := &api.PurchaseList{
+			ValidatedPurchases: make([]*api.ValidatedPurchase, 0, 1),
+		}
+		if purchase != nil {
+			response.ValidatedPurchases = append(response.ValidatedPurchases, purchase)
+		}
+		return response, nil
+	}
+
 	if in.UserId != "" {
 		_, err := uuid.FromString(in.UserId)
 		if err != nil {

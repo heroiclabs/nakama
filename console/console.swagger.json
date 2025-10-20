@@ -276,7 +276,7 @@
           },
           {
             "name": "limit",
-            "description": "Max number of results per page",
+            "description": "Max number of results per page.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -284,10 +284,26 @@
           },
           {
             "name": "cursor",
-            "description": "Cursor to retrieve a page of records from",
+            "description": "Cursor to retrieve a page of records from.",
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "after",
+            "description": "Optional timestamp threshold to list wallet ledger records after.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "before",
+            "description": "Optional timestamp threshold to list wallet ledger records before.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
           }
         ],
         "tags": [
@@ -2520,6 +2536,13 @@
             "required": false,
             "type": "string",
             "format": "date-time"
+          },
+          {
+            "name": "filter",
+            "description": "Filter to use when searching for specific purchases.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -3024,7 +3047,7 @@
           },
           {
             "name": "after",
-            "description": "Optional timestamp threshold to list purchases after.",
+            "description": "Optional timestamp threshold to list subscriptions after.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -3032,11 +3055,18 @@
           },
           {
             "name": "before",
-            "description": "Optional timestamp threshold to list purchases before.",
+            "description": "Optional timestamp threshold to list subscriptions before.",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "date-time"
+          },
+          {
+            "name": "filter",
+            "description": "Filter to use when searching for specific subscriptions.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
