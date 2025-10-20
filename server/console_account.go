@@ -904,10 +904,10 @@ func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAc
 	query := "SELECT id, note, create_time, update_time FROM users_notes WHERE user_id = $1"
 	params := []interface{}{userID, in.Limit + 1}
 	if cursor != nil {
-		query += " AND (user_id, create_time, id) >= ($1, $3, $4)"
+		query += " AND (user_id, create_time, id) <= ($1, $3, $4)"
 		params = append(params, cursor.CreateTime, cursor.NoteID)
 	}
-	query += " ORDER BY create_time DESC LIMIT $2"
+	query += " ORDER BY create_time DESC, id DESC LIMIT $2"
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
