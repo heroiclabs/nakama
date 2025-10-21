@@ -3461,6 +3461,7 @@
         "ACCOUNT_EXPORT",
         "ACCOUNT_FRIENDS",
         "ACCOUNT_GROUPS",
+        "ACCOUNT_NOTES",
         "ALL_ACCOUNTS",
         "ALL_DATA",
         "ALL_STORAGE",
@@ -3476,7 +3477,9 @@
         "NOTIFICATION",
         "SETTINGS",
         "STORAGE_DATA",
-        "STORAGE_DATA_IMPORT"
+        "STORAGE_DATA_IMPORT",
+        "HIRO_INVENTORY",
+        "HIRO_PROGRESSION"
       ],
       "default": "ACCOUNT",
       "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."

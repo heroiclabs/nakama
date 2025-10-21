@@ -144,14 +144,18 @@ func CheckACL(action string, userPermissions Permission) bool {
 	var requiredPermissions Permission
 
 	switch action {
-	case "/satori.console.Console/AclList":
+	case "/nakama.console.Console/GetUser":
 		requiredPermissions = None()
 	case "/nakama.console.Console/AddUser":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
-	case "/nakama.console.Console/ResetUserPassword":
-		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/BanAccount":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
+	case "/nakama.console.Console/AddAccountNote":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_NOTES, PermissionWrite)
+	case "/nakama.console.Console/ListAccountNotes":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_NOTES, PermissionRead)
+	case "/nakama.console.Console/DeleteAccountNote":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_NOTES, PermissionDelete)
 	case "/nakama.console.Console/CallApiEndpoint":
 		requiredPermissions = NewPermission(console.AclResources_API_EXPLORER, PermissionWrite)
 	case "/nakama.console.Console/CallRpcEndpoint":
@@ -256,6 +260,8 @@ func CheckACL(action string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
 	case "/nakama.console.Console/ResetUserMfa":
 		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
+	case "/nakama.console.Console/ResetUserPassword":
+		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
 	case "/nakama.console.Console/UnbanAccount":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkApple":
@@ -280,6 +286,8 @@ func CheckACL(action string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UpdateGroup":
 		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionWrite)
+	case "/nakama.console.Console/UpdateUser":
+		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
 	case "/nakama.console.Console/UpdateSetting":
 		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionWrite)
 	case "/nakama.console.Console/WriteStorageObject":
@@ -287,6 +295,22 @@ func CheckACL(action string, userPermissions Permission) bool {
 	case "/v2/console/storage/import":
 		// Special case for non-grpc gateway endpoint.
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA_IMPORT, PermissionWrite)
+	case "/nakama.console.Console/HiroListInventoryItems":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionRead)
+	case "/nakama.console.Console/HiroListUserInventoryItems":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionRead)
+	case "/nakama.console.Console/HiroAddUserInventoryItems":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionWrite)
+	case "/nakama.console.Console/HiroDeleteUserInventoryItems":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionDelete)
+	case "/nakama.console.Console/HiroListProgressions":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionRead)
+	case "/nakama.console.Console/HiroRegisteredSystems":
+		requiredPermissions = None()
+	case "/nakama.console.Console/HiroResetProgressions":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionWrite)
+	case "/nakama.console.Console/HiroUnlockProgressions":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionWrite)
 	default:
 		requiredPermissions = Admin()
 	}

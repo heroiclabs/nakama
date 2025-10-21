@@ -224,6 +224,11 @@ func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*con
 
 func (s *ConsoleServer) UpdateUser(ctx context.Context, in *console.UpdateUserRequest) (*console.User, error) {
 	creatorRole := ctx.Value(ctxConsoleRoleKey{}).(acl.Permission)
+	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
+
+	if in.Username == uname {
+		return nil, status.Error(codes.FailedPrecondition, "Cannot change own configuration")
+	}
 
 	role := acl.New(in.Acl)
 	if !creatorRole.HasAccess(role) {
@@ -350,6 +355,12 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 }
 
 func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*emptypb.Empty, error) {
+	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
+
+	if in.Username == uname {
+		return nil, status.Error(codes.FailedPrecondition, "Cannot delete own user")
+	}
+
 	deleted, id, err := s.dbDeleteConsoleUser(ctx, in.Username)
 	if err != nil {
 		s.logger.Error("failed to delete console user", zap.Error(err), zap.String("username", in.Username))

@@ -438,7 +438,7 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache Sess
 		}
 
 		if ctx, ok = checkAuth(ctx, logger, config, auth[0], info.FullMethod, sessionCache, loginAttmeptCache); !ok {
-			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
+			return nil, status.Error(codes.PermissionDenied, "Unauthorized: you do not have permissions to access this resource.")
 		}
 
 		return handler(ctx, req)
