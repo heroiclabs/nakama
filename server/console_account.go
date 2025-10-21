@@ -844,6 +844,15 @@ AND ((facebook_id IS NOT NULL
 }
 
 func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccountNoteRequest) (*console.AccountNote, error) {
+	consoleUserID, ok := ctx.Value(ctxConsoleIdKey{}).(uuid.UUID)
+	if !ok {
+		return nil, status.Error(codes.FailedPrecondition, "Console user identifier not found in request context.")
+	}
+	consoleUsername, ok := ctx.Value(ctxConsoleUsernameKey{}).(string)
+	if !ok {
+		return nil, status.Error(codes.FailedPrecondition, "Console username not found in request context.")
+	}
+
 	userID, err := uuid.FromString(in.AccountId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -858,25 +867,42 @@ func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccou
 	}
 
 	query := `
-INSERT INTO users_notes (user_id, id, note)
-VALUES ($1, $2, $3)
-ON CONFLICT (id)
-DO UPDATE SET note = $3, update_time = now()
-RETURNING create_time, update_time
+WITH cte AS (
+  INSERT INTO users_notes (user_id, id, note, create_id, update_id)
+  VALUES ($1, $2, $3, $4, $4)
+  ON CONFLICT (id)
+  DO UPDATE SET note = $3, update_time = now(), update_id = $4
+  RETURNING create_time, update_time, create_id
+)
+SELECT c.create_time, c.update_time, c.create_id, cu.username
+FROM cte AS c
+LEFT JOIN console_user AS cu ON cte.create_id = cu.id
 `
+	var createId uuid.UUID
 	var createTime, updateTime pgtype.Timestamptz
-	if err := s.db.QueryRowContext(ctx, query, userID, in.Id, in.Note).Scan(&createTime, &updateTime); err != nil {
+	var createUsername string
+	if err := s.db.QueryRowContext(ctx, query, userID, in.Id, in.Note, consoleUserID).Scan(&createTime, &updateTime, &createId, &createUsername); err != nil {
 		s.logger.Error("Could not add or update user note.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to add or update user note.")
 	}
 
-	return &console.AccountNote{
-		Id:         in.Id,
-		UserId:     in.AccountId,
-		Note:       in.Note,
-		CreateTime: timestamppb.New(createTime.Time),
-		UpdateTime: timestamppb.New(updateTime.Time),
-	}, nil
+	note := &console.AccountNote{
+		Id:             in.Id,
+		UserId:         in.AccountId,
+		Note:           in.Note,
+		CreateTime:     timestamppb.New(createTime.Time),
+		UpdateTime:     timestamppb.New(updateTime.Time),
+		CreateUsername: createUsername,
+		UpdateUsername: consoleUsername,
+	}
+	if createId != uuid.Nil {
+		note.CreateId = createId.String()
+	}
+	if consoleUserID != uuid.Nil {
+		note.UpdateId = consoleUserID.String()
+	}
+
+	return note, nil
 }
 
 func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAccountNotesRequest) (*console.ListAccountNotesResponse, error) {
@@ -908,7 +934,12 @@ func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAc
 		}
 	}
 
-	query := "SELECT id, note, create_time, update_time FROM users_notes WHERE user_id = $1"
+	query := `
+SELECT un.id, un.note, un.create_time, un.update_time, un.create_id, cuc.username, un.update_id, cuu.username
+FROM users_notes AS un
+LEFT JOIN console_user AS cuc ON un.create_id = cuc.id
+LEFT JOIN console_user AS cuu ON un.update_id = cuu.id
+WHERE user_id = $1`
 	params := []interface{}{userID, in.Limit + 1}
 	if cursor != nil {
 		query += " AND (user_id, create_time, id) <= ($1, $3, $4)"
@@ -927,8 +958,9 @@ func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAc
 	notes := make([]*console.AccountNote, 0, in.Limit)
 	for rows.Next() {
 		note := &console.AccountNote{}
+		var createId, updateId uuid.UUID
 		var createTime, updateTime pgtype.Timestamptz
-		if err := rows.Scan(&note.Id, &note.Note, &createTime, &updateTime); err != nil {
+		if err := rows.Scan(&note.Id, &note.Note, &createTime, &updateTime, &createId, &note.CreateUsername, &updateId, &note.UpdateUsername); err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning user account notes.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
@@ -946,6 +978,12 @@ func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAc
 		note.UserId = in.AccountId
 		note.CreateTime = timestamppb.New(createTime.Time)
 		note.UpdateTime = timestamppb.New(updateTime.Time)
+		if createId != uuid.Nil {
+			note.CreateId = createId.String()
+		}
+		if updateId != uuid.Nil {
+			note.UpdateId = updateId.String()
+		}
 		notes = append(notes, note)
 	}
 	_ = rows.Close()

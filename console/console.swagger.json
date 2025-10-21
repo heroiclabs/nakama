@@ -3433,6 +3433,22 @@
           "type": "string",
           "format": "date-time",
           "description": "Timestamp of note update."
+        },
+        "create_id": {
+          "type": "string",
+          "description": "Console user identifier that created this note."
+        },
+        "create_username": {
+          "type": "string",
+          "description": "Console username that created this note."
+        },
+        "update_id": {
+          "type": "string",
+          "description": "Console user identifier that last updated this note."
+        },
+        "update_username": {
+          "type": "string",
+          "description": "Console username that last updated this note."
         }
       },
       "description": "A user note."

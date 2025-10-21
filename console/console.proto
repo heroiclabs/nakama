@@ -705,6 +705,14 @@ message AccountNote {
   google.protobuf.Timestamp create_time = 4;
   // Timestamp of note update.
   google.protobuf.Timestamp update_time = 5;
+  // Console user identifier that created this note.
+  string create_id = 6;
+  // Console username that created this note.
+  string create_username = 7;
+  // Console user identifier that last updated this note.
+  string update_id = 8;
+  // Console username that last updated this note.
+  string update_username = 9;
 }
 
 // List of user notes.

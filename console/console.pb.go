@@ -1078,9 +1078,17 @@ type AccountNote struct {
 	// Timestamp of note creation.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// Timestamp of note update.
-	UpdateTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	// Console user identifier that created this note.
+	CreateId string `protobuf:"bytes,6,opt,name=create_id,json=createId,proto3" json:"create_id,omitempty"`
+	// Console username that created this note.
+	CreateUsername string `protobuf:"bytes,7,opt,name=create_username,json=createUsername,proto3" json:"create_username,omitempty"`
+	// Console user identifier that last updated this note.
+	UpdateId string `protobuf:"bytes,8,opt,name=update_id,json=updateId,proto3" json:"update_id,omitempty"`
+	// Console username that last updated this note.
+	UpdateUsername string `protobuf:"bytes,9,opt,name=update_username,json=updateUsername,proto3" json:"update_username,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AccountNote) Reset() {
@@ -1146,6 +1154,34 @@ func (x *AccountNote) GetUpdateTime() *timestamppb.Timestamp {
 		return x.UpdateTime
 	}
 	return nil
+}
+
+func (x *AccountNote) GetCreateId() string {
+	if x != nil {
+		return x.CreateId
+	}
+	return ""
+}
+
+func (x *AccountNote) GetCreateUsername() string {
+	if x != nil {
+		return x.CreateUsername
+	}
+	return ""
+}
+
+func (x *AccountNote) GetUpdateId() string {
+	if x != nil {
+		return x.UpdateId
+	}
+	return ""
+}
+
+func (x *AccountNote) GetUpdateUsername() string {
+	if x != nil {
+		return x.UpdateUsername
+	}
+	return ""
 }
 
 // List of user notes.
@@ -6422,7 +6458,7 @@ const file_console_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x02 \x01(\tR\taccountId\x12\x12\n" +
-	"\x04note\x18\x03 \x01(\tR\x04note\"\xc4\x01\n" +
+	"\x04note\x18\x03 \x01(\tR\x04note\"\xd0\x02\n" +
 	"\vAccountNote\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
@@ -6430,7 +6466,11 @@ const file_console_proto_rawDesc = "" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12;\n" +
 	"\vupdate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"updateTime\"f\n" +
+	"updateTime\x12\x1b\n" +
+	"\tcreate_id\x18\x06 \x01(\tR\bcreateId\x12'\n" +
+	"\x0fcreate_username\x18\a \x01(\tR\x0ecreateUsername\x12\x1b\n" +
+	"\tupdate_id\x18\b \x01(\tR\bupdateId\x12'\n" +
+	"\x0fupdate_username\x18\t \x01(\tR\x0eupdateUsername\"f\n" +
 	"\x17ListAccountNotesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +

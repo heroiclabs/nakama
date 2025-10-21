@@ -15,19 +15,11 @@
  */
 
 -- +migrate Up
-CREATE TABLE IF NOT EXISTS users_notes (
-    PRIMARY KEY (user_id, create_time, id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE (id),
-
-    id          UUID NOT NULL,
-    user_id     UUID NOT NULL,
-    create_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    update_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    note TEXT   NOT NULL,
-    create_id   UUID DEFAULT NULL,
-    update_id   UUID DEFAULT NULL
-);
+ALTER TABLE IF EXISTS users_notes
+    ADD COLUMN create_id UUID DEFAULT NULL,
+    ADD COLUMN update_id UUID DEFAULT NULL;
 
 -- +migrate Down
-DROP TABLE IF EXISTS users_notes;
+ALTER TABLE users_notes
+    DROP COLUMN create_id,
+    DROP COLUMN update_id;
