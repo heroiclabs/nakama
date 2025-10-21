@@ -952,10 +952,10 @@ LEFT JOIN console_user AS cuu ON un.update_id = cuu.id
 WHERE user_id = $1`
 	params := []interface{}{userID, in.Limit + 1}
 	if cursor != nil {
-		query += " AND (user_id, create_time, id) <= ($1, $3, $4)"
+		query += " AND (un.user_id, un.create_time, un.id) <= ($1, $3, $4)"
 		params = append(params, cursor.CreateTime, cursor.NoteID)
 	}
-	query += " ORDER BY create_time DESC, id DESC LIMIT $2"
+	query += " ORDER BY un.create_time DESC, un.id DESC LIMIT $2"
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
