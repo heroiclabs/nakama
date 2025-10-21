@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/hiro"
 	"github.com/heroiclabs/nakama/v3/console"
 	"google.golang.org/grpc/codes"
@@ -29,6 +30,11 @@ var ErrHiroNotRegistered = status.Error(codes.NotFound, "Hiro not registered")
 func (s *ConsoleServer) HiroListInventoryItems(ctx context.Context, in *console.HiroInventoryListRequest) (*hiro.InventoryList, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {
 		return nil, ErrHiroNotRegistered
+	}
+
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error listing inventory items, user identifier required.")
 	}
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
@@ -68,6 +74,11 @@ func (s *ConsoleServer) HiroListUserInventoryItems(ctx context.Context, in *cons
 		return nil, ErrHiroNotRegistered
 	}
 
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error listing inventory items, user identifier required.")
+	}
+
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
 
 	inventory, err := inventorySystem.ListInventoryItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ItemCategory)
@@ -81,6 +92,11 @@ func (s *ConsoleServer) HiroListUserInventoryItems(ctx context.Context, in *cons
 func (s *ConsoleServer) HiroAddUserInventoryItems(ctx context.Context, in *console.HiroGrantUserInventoryRequest) (*hiro.InventoryUpdateAck, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {
 		return nil, ErrHiroNotRegistered
+	}
+
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error adding inventory item, user identifier required.")
 	}
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
@@ -98,6 +114,11 @@ func (s *ConsoleServer) HiroDeleteUserInventoryItems(ctx context.Context, in *co
 		return nil, ErrHiroNotRegistered
 	}
 
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error deleting inventory item, user identifier required.")
+	}
+
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
 
 	inventory, err := inventorySystem.DeleteItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.InstanceIds)
@@ -111,6 +132,11 @@ func (s *ConsoleServer) HiroDeleteUserInventoryItems(ctx context.Context, in *co
 func (s *ConsoleServer) HiroListProgressions(ctx context.Context, in *console.HiroProgressionsRequest) (*hiro.ProgressionList, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {
 		return nil, ErrHiroNotRegistered
+	}
+
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error listing progressions, user identifier required.")
 	}
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
@@ -148,6 +174,11 @@ func (s *ConsoleServer) HiroResetProgressions(ctx context.Context, in *console.H
 		return nil, ErrHiroNotRegistered
 	}
 
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error resetting progressions, user identifier required.")
+	}
+
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
 	progressions, err := progressionSystem.Reset(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ProgressionIds)
 	if err != nil {
@@ -160,6 +191,11 @@ func (s *ConsoleServer) HiroResetProgressions(ctx context.Context, in *console.H
 func (s *ConsoleServer) HiroUnlockProgressions(ctx context.Context, in *console.HiroUnlockProgressionsRequest) (*hiro.ProgressionList, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {
 		return nil, ErrHiroNotRegistered
+	}
+
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error unlocking progressions, user identifier required.")
 	}
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
