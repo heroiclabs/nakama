@@ -1995,7 +1995,7 @@ func (n *RuntimeGoNakamaModule) WalletLedgerList(ctx context.Context, userID str
 		return nil, "", errors.New("expects limit to be 0-100")
 	}
 
-	items, newCursor, _, err := ListWalletLedger(ctx, n.logger, n.db, uid, &limit, cursor)
+	items, newCursor, _, err := ListWalletLedger(ctx, n.logger, n.db, uid, &limit, cursor, time.Time{}, time.Time{})
 	if err != nil {
 		return nil, "", err
 	}

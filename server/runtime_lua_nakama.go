@@ -5934,7 +5934,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 	// Parse cursor.
 	cursor := l.OptString(3, "")
 
-	items, newCursor, _, err := ListWalletLedger(l.Context(), n.logger, n.db, uid, &limit, cursor)
+	items, newCursor, _, err := ListWalletLedger(l.Context(), n.logger, n.db, uid, &limit, cursor, time.Time{}, time.Time{})
 	if err != nil {
 		l.RaiseError("failed to retrieve user wallet ledger: %s", err.Error())
 		return 0

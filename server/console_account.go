@@ -255,7 +255,16 @@ func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.GetWall
 		return nil, status.Error(codes.InvalidArgument, "expects a limit value between 1 and 100")
 	}
 
-	ledger, nextCursorStr, prevCursorStr, err := ListWalletLedger(ctx, s.logger, s.db, userID, &limit, in.Cursor)
+	var after time.Time
+	if in.After != nil {
+		after = in.After.AsTime()
+	}
+	var before time.Time
+	if in.Before != nil {
+		before = in.Before.AsTime()
+	}
+
+	ledger, nextCursorStr, prevCursorStr, err := ListWalletLedger(ctx, s.logger, s.db, userID, &limit, in.Cursor, after, before)
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's wallet ledger.")
@@ -876,9 +885,9 @@ WITH cte AS (
 )
 SELECT c.create_time, c.update_time, c.create_id, cu.username
 FROM cte AS c
-LEFT JOIN console_user AS cu ON cte.create_id = cu.id
+LEFT JOIN console_user AS cu ON c.create_id = cu.id
 `
-	var createId uuid.UUID
+	var createId []byte
 	var createTime, updateTime pgtype.Timestamptz
 	var createUsername string
 	if err := s.db.QueryRowContext(ctx, query, userID, in.Id, in.Note, consoleUserID).Scan(&createTime, &updateTime, &createId, &createUsername); err != nil {
@@ -895,8 +904,8 @@ LEFT JOIN console_user AS cu ON cte.create_id = cu.id
 		CreateUsername: createUsername,
 		UpdateUsername: consoleUsername,
 	}
-	if createId != uuid.Nil {
-		note.CreateId = createId.String()
+	if len(createId) != 0 {
+		note.CreateId = uuid.FromBytesOrNil(createId).String()
 	}
 	if consoleUserID != uuid.Nil {
 		note.UpdateId = consoleUserID.String()
@@ -958,7 +967,7 @@ WHERE user_id = $1`
 	notes := make([]*console.AccountNote, 0, in.Limit)
 	for rows.Next() {
 		note := &console.AccountNote{}
-		var createId, updateId uuid.UUID
+		var createId, updateId []byte
 		var createTime, updateTime pgtype.Timestamptz
 		if err := rows.Scan(&note.Id, &note.Note, &createTime, &updateTime, &createId, &note.CreateUsername, &updateId, &note.UpdateUsername); err != nil {
 			_ = rows.Close()
@@ -978,11 +987,11 @@ WHERE user_id = $1`
 		note.UserId = in.AccountId
 		note.CreateTime = timestamppb.New(createTime.Time)
 		note.UpdateTime = timestamppb.New(updateTime.Time)
-		if createId != uuid.Nil {
-			note.CreateId = createId.String()
+		if len(createId) != 0 {
+			note.CreateId = uuid.FromBytesOrNil(createId).String()
 		}
-		if updateId != uuid.Nil {
-			note.UpdateId = updateId.String()
+		if len(updateId) != 0 {
+			note.UpdateId = uuid.FromBytesOrNil(updateId).String()
 		}
 		notes = append(notes, note)
 	}

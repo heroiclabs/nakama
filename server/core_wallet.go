@@ -37,6 +37,8 @@ type walletLedgerListCursor struct {
 	CreateTime time.Time
 	Id         string
 	IsNext     bool
+	After      time.Time
+	Before     time.Time
 }
 
 // Not an API entity, only used to receive data from runtime environment.
@@ -289,7 +291,7 @@ func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id 
 	}, nil
 }
 
-func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit *int, cursor string) ([]*walletLedger, string, string, error) {
+func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit *int, cursor string, after, before time.Time) ([]*walletLedger, string, string, error) {
 	var incomingCursor *walletLedgerListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -303,6 +305,12 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 
 		// Cursor and filter mismatch. Perhaps the caller has sent an old cursor with a changed filter.
 		if userID.String() != incomingCursor.UserId {
+			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
+		}
+		if !after.Equal(incomingCursor.After) {
+			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
+		}
+		if !before.Equal(incomingCursor.Before) {
 			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
 		}
 	}
