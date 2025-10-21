@@ -887,9 +887,8 @@ SELECT c.create_time, c.update_time, c.create_id, cu.username
 FROM cte AS c
 LEFT JOIN console_user AS cu ON c.create_id = cu.id
 `
-	var createId []byte
 	var createTime, updateTime pgtype.Timestamptz
-	var createUsername sql.NullString
+	var createId, createUsername sql.NullString
 	if err := s.db.QueryRowContext(ctx, query, userID, in.Id, in.Note, consoleUserID).Scan(&createTime, &updateTime, &createId, &createUsername); err != nil {
 		s.logger.Error("Could not add or update user note.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to add or update user note.")
@@ -906,8 +905,8 @@ LEFT JOIN console_user AS cu ON c.create_id = cu.id
 	if createUsername.Valid {
 		note.CreateUsername = createUsername.String
 	}
-	if len(createId) != 0 {
-		note.CreateId = uuid.FromBytesOrNil(createId).String()
+	if createId.Valid {
+		note.CreateId = createId.String
 	}
 	if consoleUserID != uuid.Nil {
 		note.UpdateId = consoleUserID.String()
@@ -969,9 +968,8 @@ WHERE user_id = $1`
 	notes := make([]*console.AccountNote, 0, in.Limit)
 	for rows.Next() {
 		note := &console.AccountNote{}
-		var createId, updateId []byte
 		var createTime, updateTime pgtype.Timestamptz
-		var createUsername, updateUsername sql.NullString
+		var createId, updateId, createUsername, updateUsername sql.NullString
 		if err := rows.Scan(&note.Id, &note.Note, &createTime, &updateTime, &createId, &createUsername, &updateId, &updateUsername); err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning user account notes.", zap.Error(err))
@@ -990,14 +988,14 @@ WHERE user_id = $1`
 		note.UserId = in.AccountId
 		note.CreateTime = timestamppb.New(createTime.Time)
 		note.UpdateTime = timestamppb.New(updateTime.Time)
-		if len(createId) != 0 {
-			note.CreateId = uuid.FromBytesOrNil(createId).String()
+		if createId.Valid {
+			note.CreateId = createId.String
 		}
 		if createUsername.Valid {
 			note.CreateUsername = createUsername.String
 		}
-		if len(updateId) != 0 {
-			note.UpdateId = uuid.FromBytesOrNil(updateId).String()
+		if updateId.Valid {
+			note.UpdateId = updateId.String
 		}
 		if updateUsername.Valid {
 			note.UpdateUsername = updateUsername.String
