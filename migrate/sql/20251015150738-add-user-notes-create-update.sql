@@ -16,8 +16,8 @@
 
 -- +migrate Up
 ALTER TABLE IF EXISTS users_notes
-    ADD COLUMN create_id UUID DEFAULT NULL,
-    ADD COLUMN update_id UUID DEFAULT NULL;
+    ADD COLUMN IF NOT EXISTS create_id UUID DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS update_id UUID DEFAULT NULL;
 
 -- +migrate Down
 ALTER TABLE users_notes
