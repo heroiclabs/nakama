@@ -889,7 +889,7 @@ LEFT JOIN console_user AS cu ON c.create_id = cu.id
 `
 	var createId []byte
 	var createTime, updateTime pgtype.Timestamptz
-	var createUsername string
+	var createUsername sql.NullString
 	if err := s.db.QueryRowContext(ctx, query, userID, in.Id, in.Note, consoleUserID).Scan(&createTime, &updateTime, &createId, &createUsername); err != nil {
 		s.logger.Error("Could not add or update user note.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to add or update user note.")
@@ -901,8 +901,10 @@ LEFT JOIN console_user AS cu ON c.create_id = cu.id
 		Note:           in.Note,
 		CreateTime:     timestamppb.New(createTime.Time),
 		UpdateTime:     timestamppb.New(updateTime.Time),
-		CreateUsername: createUsername,
 		UpdateUsername: consoleUsername,
+	}
+	if createUsername.Valid {
+		note.CreateUsername = createUsername.String
 	}
 	if len(createId) != 0 {
 		note.CreateId = uuid.FromBytesOrNil(createId).String()
@@ -969,7 +971,8 @@ WHERE user_id = $1`
 		note := &console.AccountNote{}
 		var createId, updateId []byte
 		var createTime, updateTime pgtype.Timestamptz
-		if err := rows.Scan(&note.Id, &note.Note, &createTime, &updateTime, &createId, &note.CreateUsername, &updateId, &note.UpdateUsername); err != nil {
+		var createUsername, updateUsername sql.NullString
+		if err := rows.Scan(&note.Id, &note.Note, &createTime, &updateTime, &createId, &createUsername, &updateId, &updateUsername); err != nil {
 			_ = rows.Close()
 			s.logger.Error("Error scanning user account notes.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
@@ -990,8 +993,14 @@ WHERE user_id = $1`
 		if len(createId) != 0 {
 			note.CreateId = uuid.FromBytesOrNil(createId).String()
 		}
+		if createUsername.Valid {
+			note.CreateUsername = createUsername.String
+		}
 		if len(updateId) != 0 {
 			note.UpdateId = uuid.FromBytesOrNil(updateId).String()
+		}
+		if updateUsername.Valid {
+			note.UpdateUsername = updateUsername.String
 		}
 		notes = append(notes, note)
 	}
