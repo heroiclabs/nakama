@@ -1661,44 +1661,6 @@
         ]
       }
     },
-    "/v2/console/hiro/inventory": {
-      "get": {
-        "operationId": "HiroListInventoryItems",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/InventoryList"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "user_id",
-            "description": "The user ID to list inventory items for.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "item_category",
-            "description": "The category for the items to filter for, or empty for all.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "Console"
-        ]
-      }
-    },
     "/v2/console/hiro/inventory/{user_id}": {
       "get": {
         "operationId": "HiroListUserInventoryItems",
@@ -1804,6 +1766,44 @@
             "schema": {
               "$ref": "#/definitions/HiroDeleteUserInventoryItemsBody"
             }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/hiro/inventory/{user_id}/codex": {
+      "get": {
+        "operationId": "HiroListInventoryItems",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/InventoryList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to list inventory items for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "item_category",
+            "description": "The category for the items to filter for, or empty for all.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [

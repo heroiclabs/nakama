@@ -6866,7 +6866,7 @@ const file_console_proto_rawDesc = "" +
 	"\fNOTIFICATION\x10\x11\x12\f\n" +
 	"\bSETTINGS\x10\x12\x12\x10\n" +
 	"\fSTORAGE_DATA\x10\x13\x12\x17\n" +
-	"\x13STORAGE_DATA_IMPORT\x10\x142\xbeS\n" +
+	"\x13STORAGE_DATA_IMPORT\x10\x142\xcfS\n" +
 	"\aConsole\x12\x83\x01\n" +
 	"\fAuthenticate\x12#.nakama.console.AuthenticateRequest\x1a\x1e.nakama.console.ConsoleSession\".\x92A\bb\x06\n" +
 	"\x04\n" +
@@ -6957,8 +6957,8 @@ const file_console_proto_rawDesc = "" +
 	"\rUpdateSetting\x12$.nakama.console.UpdateSettingRequest\x1a\x17.nakama.console.Setting\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v2/console/setting/{name}\x12m\n" +
 	"\n" +
 	"UpdateUser\x12!.nakama.console.UpdateUserRequest\x1a\x14.nakama.console.User\"&\x82\xd3\xe4\x93\x02 :\x01*\x1a\x1b/v2/console/user/{username}\x12\x9a\x01\n" +
-	"\x12WriteStorageObject\x12).nakama.console.WriteStorageObjectRequest\x1a\x1c.nakama.api.StorageObjectAck\";\x82\xd3\xe4\x93\x025:\x01*\x1a0/v2/console/storage/{collection}/{key}/{user_id}\x12{\n" +
-	"\x16HiroListInventoryItems\x12(.nakama.console.HiroInventoryListRequest\x1a\x13.hiro.InventoryList\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v2/console/hiro/inventory\x12\x89\x01\n" +
+	"\x12WriteStorageObject\x12).nakama.console.WriteStorageObjectRequest\x1a\x1c.nakama.api.StorageObjectAck\";\x82\xd3\xe4\x93\x025:\x01*\x1a0/v2/console/storage/{collection}/{key}/{user_id}\x12\x8b\x01\n" +
+	"\x16HiroListInventoryItems\x12(.nakama.console.HiroInventoryListRequest\x1a\x13.hiro.InventoryList\"2\x82\xd3\xe4\x93\x02,\x12*/v2/console/hiro/inventory/{user_id}/codex\x12\x89\x01\n" +
 	"\x1aHiroListUserInventoryItems\x12(.nakama.console.HiroInventoryListRequest\x1a\x13.hiro.InventoryList\",\x82\xd3\xe4\x93\x02&\x12$/v2/console/hiro/inventory/{user_id}\x12\x95\x01\n" +
 	"\x19HiroAddUserInventoryItems\x12-.nakama.console.HiroGrantUserInventoryRequest\x1a\x18.hiro.InventoryUpdateAck\"/\x82\xd3\xe4\x93\x02):\x01*\"$/v2/console/hiro/inventory/{user_id}\x12\x9e\x01\n" +
 	"\x1cHiroDeleteUserInventoryItems\x123.nakama.console.HiroDeleteUserInventoryItemsRequest\x1a\x18.hiro.InventoryUpdateAck\"/\x82\xd3\xe4\x93\x02):\x01*\x1a$/v2/console/hiro/inventory/{user_id}\x12\x86\x01\n" +

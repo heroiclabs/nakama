@@ -519,7 +519,7 @@ service Console {
   }
 
   rpc HiroListInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
-    option (google.api.http).get = "/v2/console/hiro/inventory";
+    option (google.api.http).get = "/v2/console/hiro/inventory/{user_id}/codex";
   }
 
   rpc HiroListUserInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
