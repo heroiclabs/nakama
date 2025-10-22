@@ -203,7 +203,7 @@ func CheckACL(action string, userPermissions Permission) bool {
 	case "/nakama.console.Console/GetGroup":
 		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionRead)
 	case "/nakama.console.Console/GetGroups":
-		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_GROUPS, PermissionRead)
 	case "/nakama.console.Console/GetLeaderboard":
 		requiredPermissions = NewPermission(console.AclResources_LEADERBOARD, PermissionRead)
 	case "/nakama.console.Console/GetMatchState":
@@ -245,7 +245,7 @@ func CheckACL(action string, userPermissions Permission) bool {
 	case "/nakama.console.Console/ListPurchases":
 		requiredPermissions = NewPermission(console.AclResources_IN_APP_PURCHASE, PermissionRead)
 	case "/nakama.console.Console/ListSettings":
-		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionRead)
+		requiredPermissions = None()
 	case "/nakama.console.Console/ListStorage":
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
 	case "/nakama.console.Console/ListStorageCollections":
