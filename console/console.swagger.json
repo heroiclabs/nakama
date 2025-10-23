@@ -1771,6 +1771,43 @@
         "tags": [
           "Console"
         ]
+      },
+      "patch": {
+        "operationId": "HiroUpdateUserInventoryItems",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/InventoryUpdateAck"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to update inventory items for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HiroUpdateUserInventoryItemsBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/hiro/inventory/{user_id}/codex": {
@@ -4424,6 +4461,18 @@
       },
       "description": "Request to unlock one or more progressions for a user."
     },
+    "HiroUpdateUserInventoryItemsBody": {
+      "type": "object",
+      "properties": {
+        "item_updates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/InventoryUpdateItemProperties"
+          },
+          "description": "The item updates to action, keyed by item instance ID."
+        }
+      }
+    },
     "Inventory": {
       "type": "object",
       "properties": {
@@ -4539,6 +4588,27 @@
         }
       },
       "description": "Response from granting or purchasing items. This contains updated inventory data, if changed."
+    },
+    "InventoryUpdateItemProperties": {
+      "type": "object",
+      "properties": {
+        "string_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The properties with string values."
+        },
+        "numeric_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": "The properties with numeric values."
+        }
+      },
+      "description": "The typed properties to update in an instanced inventory item."
     },
     "LeaderboardRecord": {
       "type": "object",

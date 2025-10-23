@@ -129,6 +129,26 @@ func (s *ConsoleServer) HiroDeleteUserInventoryItems(ctx context.Context, in *co
 	return &hiro.InventoryUpdateAck{Inventory: inventory}, nil
 }
 
+func (s *ConsoleServer) HiroUpdateUserInventoryItems(ctx context.Context, in *console.HiroUpdateUserInventoryItemsRequest) (*hiro.InventoryUpdateAck, error) {
+	if s.hiro == nil || s.hiro.hiro == nil {
+		return nil, ErrHiroNotRegistered
+	}
+
+	_, err := uuid.FromString(in.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error updating inventory item properties, user identifier required.")
+	}
+
+	inventorySystem := s.hiro.hiro.GetInventorySystem()
+
+	inventory, err := inventorySystem.UpdateItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ItemUpdates)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hiro.InventoryUpdateAck{Inventory: inventory}, nil
+}
+
 func (s *ConsoleServer) HiroListProgressions(ctx context.Context, in *console.HiroProgressionsRequest) (*hiro.ProgressionList, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {
 		return nil, ErrHiroNotRegistered

@@ -539,6 +539,13 @@ service Console {
       body: "*"
     };
   }
+  
+  rpc HiroUpdateUserInventoryItems (HiroUpdateUserInventoryItemsRequest) returns (hiro.InventoryUpdateAck) {
+    option (google.api.http) = {
+      patch: "/v2/console/hiro/inventory/{user_id}",
+      body: "*"
+    };
+  }
 
   rpc HiroListProgressions (HiroProgressionsRequest) returns (hiro.ProgressionList) {
     option (google.api.http).get = "/v2/console/hiro/progression/{user_id}";
@@ -946,6 +953,13 @@ message HiroDeleteUserInventoryItemsRequest {
   string user_id = 1;
   // list of instance ids
   repeated string instance_ids = 2;
+}
+
+message HiroUpdateUserInventoryItemsRequest {
+  // The user ID to update inventory items for.
+  string user_id = 1;
+  // The item updates to action, keyed by item instance ID.
+  map<string, hiro.InventoryUpdateItemProperties> item_updates = 2;
 }
 
 // Request user's progressions.
