@@ -25,7 +25,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-var ErrHiroNotRegistered = status.Error(codes.NotFound, "Hiro not registered")
+var (
+	ErrHiroNotRegistered                  = status.Error(codes.NotFound, "Hiro not registered")
+	ErrHiroInventorySystemNotRegistered   = status.Error(codes.NotFound, "Hiro Inventory system not registered")
+	ErrHiroEconomySystemNotRegistered     = status.Error(codes.NotFound, "Hiro Economy system not registered")
+	ErrHiroProgressionSystemNotRegistered = status.Error(codes.NotFound, "Hiro Progression system not registered")
+	ErrHiroStatsSystemNotRegistered       = status.Error(codes.NotFound, "Hiro Stats system not registered")
+)
 
 func (s *ConsoleServer) HiroRegisteredSystems(ctx context.Context, in *emptypb.Empty) (*console.RegisteredSystems, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {
@@ -37,6 +43,7 @@ func (s *ConsoleServer) HiroRegisteredSystems(ctx context.Context, in *emptypb.E
 		EconomySystem:     s.hiro.hiro.GetEconomySystem().GetType() != hiro.SystemTypeUnknown,
 		InventorySystem:   s.hiro.hiro.GetInventorySystem().GetType() != hiro.SystemTypeUnknown,
 		ProgressionSystem: s.hiro.hiro.GetProgressionSystem().GetType() != hiro.SystemTypeUnknown,
+		StatsSystem:       s.hiro.hiro.GetStatsSystem().GetType() != hiro.SystemTypeUnknown,
 	}
 
 	return registeredSystems, nil
@@ -47,12 +54,15 @@ func (s *ConsoleServer) HiroListInventoryItems(ctx context.Context, in *console.
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error listing inventory items, user identifier required.")
 	}
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
+
+	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroInventorySystemNotRegistered
+	}
 
 	items, _, err := inventorySystem.List(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ItemCategory)
 	if err != nil {
@@ -89,12 +99,15 @@ func (s *ConsoleServer) HiroListUserInventoryItems(ctx context.Context, in *cons
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error listing inventory items, user identifier required.")
 	}
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
+
+	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroInventorySystemNotRegistered
+	}
 
 	inventory, err := inventorySystem.ListInventoryItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ItemCategory)
 	if err != nil {
@@ -109,12 +122,15 @@ func (s *ConsoleServer) HiroAddUserInventoryItems(ctx context.Context, in *conso
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error adding inventory item, user identifier required.")
 	}
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
+
+	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroInventorySystemNotRegistered
+	}
 
 	inventory, _, _, _, err := inventorySystem.GrantItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.Items, in.IgnoreLimits)
 	if err != nil {
@@ -129,12 +145,15 @@ func (s *ConsoleServer) HiroDeleteUserInventoryItems(ctx context.Context, in *co
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error deleting inventory item, user identifier required.")
 	}
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
+
+	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroInventorySystemNotRegistered
+	}
 
 	inventory, err := inventorySystem.DeleteItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.InstanceIds)
 	if err != nil {
@@ -149,12 +168,15 @@ func (s *ConsoleServer) HiroUpdateUserInventoryItems(ctx context.Context, in *co
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error updating inventory item properties, user identifier required.")
 	}
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
+
+	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroInventorySystemNotRegistered
+	}
 
 	inventory, err := inventorySystem.UpdateItems(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ItemUpdates)
 	if err != nil {
@@ -169,12 +191,16 @@ func (s *ConsoleServer) HiroListProgressions(ctx context.Context, in *console.Hi
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error listing progressions, user identifier required.")
 	}
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
+
+	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroProgressionSystemNotRegistered
+	}
+
 	progressions, deltas, err := progressionSystem.Get(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.Progressions)
 	if err != nil {
 		return nil, err
@@ -193,12 +219,16 @@ func (s *ConsoleServer) HiroResetProgressions(ctx context.Context, in *console.H
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error resetting progressions, user identifier required.")
 	}
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
+
+	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroProgressionSystemNotRegistered
+	}
+
 	progressions, err := progressionSystem.Reset(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ProgressionIds)
 	if err != nil {
 		return nil, err
@@ -212,12 +242,16 @@ func (s *ConsoleServer) HiroUnlockProgressions(ctx context.Context, in *console.
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error unlocking progressions, user identifier required.")
 	}
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
+
+	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroProgressionSystemNotRegistered
+	}
+
 	progressions, err := progressionSystem.Unlock(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ProgressionIds)
 	if err != nil {
 		return nil, err
@@ -231,12 +265,16 @@ func (s *ConsoleServer) HiroUpdateProgressions(ctx context.Context, in *console.
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error updating progressions, user identifier required.")
 	}
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
+
+	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroProgressionSystemNotRegistered
+	}
+
 	progressions, err := progressionSystem.Update(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ProgressionId, in.Counts)
 	if err != nil {
 		return nil, err
@@ -250,18 +288,68 @@ func (s *ConsoleServer) HiroPurchaseProgressions(ctx context.Context, in *consol
 		return nil, ErrHiroNotRegistered
 	}
 
-	_, err := uuid.FromString(in.UserId)
-	if err != nil {
+	if _, err := uuid.FromString(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Error purchasing progressions, user identifier required.")
 	}
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
+
+	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroProgressionSystemNotRegistered
+	}
+
 	progressions, err := progressionSystem.Purchase(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.ProgressionId)
 	if err != nil {
 		return nil, err
 	}
 
 	return &hiro.ProgressionList{Progressions: progressions}, nil
+}
+
+func (s *ConsoleServer) HiroEconomyGrant(ctx context.Context, in *console.HiroEconomyGrantRequest) (*hiro.EconomyUpdateAck, error) {
+	if s.hiro == nil || s.hiro.hiro == nil {
+		return nil, ErrHiroNotRegistered
+	}
+
+	if _, err := uuid.FromString(in.UserId); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error granting economy update, user identifier required.")
+	}
+
+	economySystem := s.hiro.hiro.GetEconomySystem()
+
+	if economySystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroEconomySystemNotRegistered
+	}
+
+	updatedWallet, _, _, err := economySystem.Grant(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.Currencies, nil, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hiro.EconomyUpdateAck{Wallet: updatedWallet}, nil
+}
+
+func (s *ConsoleServer) HiroStatsUpdate(ctx context.Context, in *console.HiroStatsUpdateRequest) (*hiro.StatList, error) {
+	if s.hiro == nil || s.hiro.hiro == nil {
+		return nil, ErrHiroNotRegistered
+	}
+
+	if _, err := uuid.FromString(in.UserId); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error updating stats, user identifier required.")
+	}
+
+	statsSystem := s.hiro.hiro.GetStatsSystem()
+
+	if statsSystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroStatsSystemNotRegistered
+	}
+
+	statList, err := statsSystem.Update(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.Public, in.Private)
+	if err != nil {
+		return nil, err
+	}
+
+	return statList, nil
 }
 
 func rewardConfigToProto(rewardConfig *hiro.EconomyConfigReward) *hiro.AvailableRewards {

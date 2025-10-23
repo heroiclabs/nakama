@@ -1661,6 +1661,45 @@
         ]
       }
     },
+    "/v2/console/hiro/economy/{user_id}": {
+      "post": {
+        "operationId": "HiroEconomyGrant",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/EconomyUpdateAck"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to update economy for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HiroEconomyGrantBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/hiro/inventory/{user_id}": {
       "get": {
         "operationId": "HiroListUserInventoryItems",
@@ -2028,6 +2067,45 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/HiroUpdateProgressionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/hiro/stats/{user_id}": {
+      "post": {
+        "operationId": "HiroStatsUpdate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/StatList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to update stats for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HiroStatsUpdateBody"
             }
           }
         ],
@@ -3594,10 +3672,44 @@
         "STORAGE_DATA_IMPORT",
         "HIRO_INVENTORY",
         "HIRO_PROGRESSION",
-        "HIRO_ECONOMY"
+        "HIRO_ECONOMY",
+        "HIRO_STATS"
       ],
       "default": "ACCOUNT",
       "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
+    },
+    "ActiveRewardModifier": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the reward content to modify."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of reward content to modify."
+        },
+        "operator": {
+          "type": "string",
+          "description": "The operator to apply."
+        },
+        "value": {
+          "type": "string",
+          "format": "int64",
+          "description": "The value to apply. Its behavior depends on the operator."
+        },
+        "start_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The start time when this reward modifier was activated."
+        },
+        "end_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The time when this reward modifier will expire."
+        }
+      },
+      "description": "A reward modifier that is currently active."
     },
     "AddAccountNoteBody": {
       "type": "object",
@@ -4332,6 +4444,41 @@
         }
       }
     },
+    "EconomyUpdateAck": {
+      "type": "object",
+      "properties": {
+        "wallet": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Updated wallet data, if changed."
+        },
+        "inventory": {
+          "$ref": "#/definitions/Inventory",
+          "description": "Update inventory data, if changed."
+        },
+        "reward": {
+          "$ref": "#/definitions/Reward",
+          "description": "Reward, if any."
+        },
+        "active_reward_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/ActiveRewardModifier"
+          },
+          "description": "Updated active reward modifiers, if changed."
+        },
+        "current_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "Current server time."
+        }
+      },
+      "description": "Response from granting currencies, reward modifiers, and/or items.\nContains updated wallet and inventory data, if changed.\nContains reward granted, if any.\nContains active reward modifiers, if changed."
+    },
     "Friend": {
       "type": "object",
       "properties": {
@@ -4513,6 +4660,20 @@
         }
       }
     },
+    "HiroEconomyGrantBody": {
+      "type": "object",
+      "properties": {
+        "currencies": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Currencies to grant."
+        }
+      },
+      "description": "Request to modify a user's economy wallet."
+    },
     "HiroPurchaseProgressionsBody": {
       "type": "object",
       "properties": {
@@ -4522,6 +4683,28 @@
         }
       },
       "description": "Request to purchase a progression for a user."
+    },
+    "HiroStatsUpdateBody": {
+      "type": "object",
+      "properties": {
+        "public": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/StatUpdate"
+          },
+          "description": "Public stat updates."
+        },
+        "private": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/StatUpdate"
+          },
+          "description": "Private stat updates."
+        }
+      },
+      "description": "Request to update a user's stats."
     },
     "HiroUnlockProgressionsBody": {
       "type": "object",
@@ -4879,6 +5062,14 @@
       },
       "title": "Module information"
     },
+    "NullValue": {
+      "type": "string",
+      "enum": [
+        "NULL_VALUE"
+      ],
+      "default": "NULL_VALUE",
+      "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\nThe JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
+    },
     "Permissions": {
       "type": "object",
       "properties": {
@@ -5199,6 +5390,10 @@
         "progression_system": {
           "type": "boolean",
           "description": "Is Progression system registered."
+        },
+        "stats_system": {
+          "type": "boolean",
+          "description": "Is Stats system registered."
         }
       },
       "description": "Whether Hiro is registered and which systems are enabled."
@@ -5222,6 +5417,164 @@
         }
       },
       "description": "Request to reset a user's credentials, password or MFA."
+    },
+    "Reward": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "The items granted. Keyed by item ID."
+        },
+        "currencies": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "The currencies granted."
+        },
+        "energies": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "The energy granted."
+        },
+        "energy_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/RewardEnergyModifier"
+          },
+          "description": "The energy modifier granted."
+        },
+        "reward_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/RewardModifier"
+          },
+          "description": "The reward modifiers granted."
+        },
+        "grant_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "When the reward was granted, in UNIX time."
+        },
+        "item_instances": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/RewardInventoryItem"
+          },
+          "description": "The item instances granted. Keyed by item instance ID."
+        },
+        "to_mailbox_expiry_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "Indicates if this reward was sent to the reward mailbox, and what its expiry will be."
+        },
+        "team_reward": {
+          "$ref": "#/definitions/TeamReward",
+          "description": "Team reward, if any."
+        }
+      },
+      "description": "Rewards granted to the player."
+    },
+    "RewardEnergyModifier": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of they modifier granted."
+        },
+        "operator": {
+          "type": "string",
+          "description": "The energy modifier operator."
+        },
+        "value": {
+          "type": "string",
+          "format": "int64",
+          "description": "The value to apply. Its behavior depends on the operator."
+        },
+        "duration_sec": {
+          "type": "string",
+          "format": "uint64",
+          "description": "The duration of the energy modifier in seconds."
+        },
+        "weight": {
+          "type": "string",
+          "format": "int64",
+          "description": "The weight of the energy modifier, if weighted. Otherwise, -1."
+        }
+      },
+      "description": "Energy modifier granted."
+    },
+    "RewardInventoryItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the item."
+        },
+        "count": {
+          "type": "string",
+          "format": "int64",
+          "description": "The count granted of the item."
+        },
+        "string_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The properties with string values."
+        },
+        "numeric_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": "The properties with numeric values."
+        },
+        "instance_id": {
+          "type": "string",
+          "description": "The instance ID of the item."
+        }
+      },
+      "description": "Inventory item granted."
+    },
+    "RewardModifier": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the reward content to modify."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of reward content to modify."
+        },
+        "operator": {
+          "type": "string",
+          "description": "The operator to apply."
+        },
+        "value": {
+          "type": "string",
+          "format": "int64",
+          "description": "The value to apply. Its behavior depends on the operator."
+        },
+        "duration_sec": {
+          "type": "string",
+          "format": "uint64",
+          "description": "The duration of the item modifier in seconds."
+        }
+      },
+      "description": "A reward modifier temporally adjusts the way all rewards are handled in the economy."
     },
     "RewardRangeDouble": {
       "type": "object",
@@ -5397,6 +5750,115 @@
         }
       },
       "description": "A list of settings."
+    },
+    "Stat": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "public": {
+          "type": "boolean",
+          "description": "Indicator if this belongs to public or private stats."
+        },
+        "update_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "Update time in UTC seconds."
+        },
+        "value": {
+          "type": "string",
+          "format": "int64",
+          "description": "Current value."
+        },
+        "count": {
+          "type": "string",
+          "format": "int64",
+          "description": "Number of values submitted."
+        },
+        "total": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total of all submitted values."
+        },
+        "min": {
+          "type": "string",
+          "format": "int64",
+          "description": "Smallest value submitted."
+        },
+        "max": {
+          "type": "string",
+          "format": "int64",
+          "description": "Largest value submitted."
+        },
+        "first": {
+          "type": "string",
+          "format": "int64",
+          "description": "First value submitted."
+        },
+        "last": {
+          "type": "string",
+          "format": "int64",
+          "description": "Latest value submitted."
+        },
+        "additional_properties": {
+          "type": "object",
+          "description": "Additional properties."
+        }
+      },
+      "description": "A single stat with associated information."
+    },
+    "StatList": {
+      "type": "object",
+      "properties": {
+        "public": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Stat"
+          },
+          "description": "Public stat names and their associated data."
+        },
+        "private": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Stat"
+          },
+          "description": "Private stat names and their associated data."
+        }
+      },
+      "description": "A list of stats all belonging to one user."
+    },
+    "StatUpdate": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "value": {
+          "type": "string",
+          "format": "int64",
+          "description": "Value."
+        },
+        "operator": {
+          "$ref": "#/definitions/StatUpdateOperator",
+          "description": "Operator."
+        }
+      },
+      "description": "Describes a single stat update."
+    },
+    "StatUpdateOperator": {
+      "type": "string",
+      "enum": [
+        "STAT_UPDATE_OPERATOR_UNSPECIFIED",
+        "STAT_UPDATE_OPERATOR_SET",
+        "STAT_UPDATE_OPERATOR_DELTA",
+        "STAT_UPDATE_OPERATOR_MIN",
+        "STAT_UPDATE_OPERATOR_MAX"
+      ],
+      "default": "STAT_UPDATE_OPERATOR_UNSPECIFIED",
+      "description": "Indicate how a stats update should be handled.\n\n - STAT_UPDATE_OPERATOR_UNSPECIFIED: Unspecified. Defaults to Set.\n - STAT_UPDATE_OPERATOR_SET: Set the given value, overwriting any previous one.\n - STAT_UPDATE_OPERATOR_DELTA: Increment or decrement the existing value by the given amount. Equivalent to Set if no previous value existed.\n - STAT_UPDATE_OPERATOR_MIN: Use the new value if it's lower than the existing one. Equivalent to Set if no previous value existed.\n - STAT_UPDATE_OPERATOR_MAX: Use the new value if it's higher than the existing one. Equivalent to Set if no previous value existed."
     },
     "StatusHealth": {
       "type": "string",
@@ -5680,6 +6142,123 @@
         }
       },
       "description": "A list of validated subscriptions stored by Nakama."
+    },
+    "TeamMemberReward": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "The items granted. Keyed by item ID."
+        },
+        "currencies": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "The currencies granted."
+        },
+        "energies": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "The energy granted."
+        },
+        "energy_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/RewardEnergyModifier"
+          },
+          "description": "The energy modifier granted."
+        },
+        "reward_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/RewardModifier"
+          },
+          "description": "The reward modifiers granted."
+        },
+        "grant_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "When the reward was granted, in UNIX time."
+        },
+        "item_instances": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/RewardInventoryItem"
+          },
+          "description": "The item instances granted. Keyed by item instance ID."
+        }
+      },
+      "description": "Rewards granted to each member of the team."
+    },
+    "TeamReward": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "The items granted. Keyed by item ID."
+        },
+        "currencies": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "The currencies granted."
+        },
+        "reward_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/RewardModifier"
+          },
+          "description": "The reward modifiers granted."
+        },
+        "member_reward_modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/RewardModifier"
+          },
+          "description": "The reward modifiers granted that will apply to team members."
+        },
+        "grant_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "When the reward was granted, in UNIX time."
+        },
+        "item_instances": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/RewardInventoryItem"
+          },
+          "description": "The item instances granted. Keyed by item instance ID."
+        },
+        "to_mailbox_expiry_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "Indicates if this reward was sent to the team reward mailbox, and what its expiry will be."
+        },
+        "member_reward": {
+          "$ref": "#/definitions/TeamMemberReward",
+          "description": "Reward granted to each team member."
+        }
+      },
+      "description": "Rewards granted to the team."
     },
     "UnlinkDeviceBody": {
       "type": "object",

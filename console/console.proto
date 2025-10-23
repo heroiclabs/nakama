@@ -579,6 +579,20 @@ service Console {
       body: "*"
     };
   }
+
+  rpc HiroEconomyGrant (HiroEconomyGrantRequest) returns (hiro.EconomyUpdateAck) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/economy/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroStatsUpdate (HiroStatsUpdateRequest) returns (hiro.StatList) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/stats/{user_id}",
+      body: "*"
+    };
+  }
 }
 
 // API Explorer List of Endpoints response message
@@ -1015,6 +1029,24 @@ message HiroPurchaseProgressionsRequest {
   string progression_id = 2;
 }
 
+// Request to modify a user's economy wallet.
+message HiroEconomyGrantRequest {
+  // The user ID to update economy for.
+  string user_id = 1;
+  // Currencies to grant.
+  map<string, int64> currencies = 2;
+}
+
+// Request to update a user's stats.
+message HiroStatsUpdateRequest {
+  // The user ID to update stats for.
+  string user_id = 1;
+  // Public stat updates.
+  repeated hiro.StatUpdate public = 2;
+  // Private stat updates.
+  repeated hiro.StatUpdate private = 3;
+}
+
 // Whether Hiro is registered and which systems are enabled.
 message RegisteredSystems {
   // Is Hiro registered.
@@ -1025,6 +1057,8 @@ message RegisteredSystems {
   bool inventory_system = 3;
   // Is Progression system registered.
   bool progression_system = 4;
+  // Is Stats system registered.
+  bool stats_system = 5;
 }
 
 // A leaderboard.
@@ -1604,4 +1638,5 @@ enum AclResources {
   HIRO_INVENTORY = 22;
   HIRO_PROGRESSION = 23;
   HIRO_ECONOMY = 24;
+  HIRO_STATS = 25;
 }

@@ -303,6 +303,8 @@ func CheckACL(action string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionWrite)
 	case "/nakama.console.Console/HiroDeleteUserInventoryItems":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionDelete)
+	case "/nakama.console.Console/HiroUpdateUserInventoryItems":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionWrite)
 	case "/nakama.console.Console/HiroListProgressions":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionRead)
 	case "/nakama.console.Console/HiroRegisteredSystems":
@@ -311,6 +313,14 @@ func CheckACL(action string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionWrite)
 	case "/nakama.console.Console/HiroUnlockProgressions":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionWrite)
+	case "/nakama.console.Console/HiroUpdateProgressions":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionWrite)
+	case "/nakama.console.Console/HiroPurchaseProgressions":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionWrite)
+	case "/nakama.console.Console/HiroEconomyGrant":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_ECONOMY, PermissionWrite)
+	case "/nakama.console.Console/HiroStatsUpdate":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_STATS, PermissionWrite)
 	default:
 		requiredPermissions = Admin()
 	}

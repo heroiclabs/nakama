@@ -188,6 +188,8 @@ type ConsoleClient interface {
 	HiroUnlockProgressions(ctx context.Context, in *HiroUnlockProgressionsRequest, opts ...grpc.CallOption) (*hiro.ProgressionList, error)
 	HiroUpdateProgressions(ctx context.Context, in *HiroUpdateProgressionsRequest, opts ...grpc.CallOption) (*hiro.ProgressionList, error)
 	HiroPurchaseProgressions(ctx context.Context, in *HiroPurchaseProgressionsRequest, opts ...grpc.CallOption) (*hiro.ProgressionList, error)
+	HiroEconomyGrant(ctx context.Context, in *HiroEconomyGrantRequest, opts ...grpc.CallOption) (*hiro.EconomyUpdateAck, error)
+	HiroStatsUpdate(ctx context.Context, in *HiroStatsUpdateRequest, opts ...grpc.CallOption) (*hiro.StatList, error)
 }
 
 type consoleClient struct {
@@ -999,6 +1001,24 @@ func (c *consoleClient) HiroPurchaseProgressions(ctx context.Context, in *HiroPu
 	return out, nil
 }
 
+func (c *consoleClient) HiroEconomyGrant(ctx context.Context, in *HiroEconomyGrantRequest, opts ...grpc.CallOption) (*hiro.EconomyUpdateAck, error) {
+	out := new(hiro.EconomyUpdateAck)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/HiroEconomyGrant", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) HiroStatsUpdate(ctx context.Context, in *HiroStatsUpdateRequest, opts ...grpc.CallOption) (*hiro.StatList, error) {
+	out := new(hiro.StatList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/HiroStatsUpdate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConsoleServer is the server API for Console service.
 // All implementations must embed UnimplementedConsoleServer
 // for forward compatibility
@@ -1166,6 +1186,8 @@ type ConsoleServer interface {
 	HiroUnlockProgressions(context.Context, *HiroUnlockProgressionsRequest) (*hiro.ProgressionList, error)
 	HiroUpdateProgressions(context.Context, *HiroUpdateProgressionsRequest) (*hiro.ProgressionList, error)
 	HiroPurchaseProgressions(context.Context, *HiroPurchaseProgressionsRequest) (*hiro.ProgressionList, error)
+	HiroEconomyGrant(context.Context, *HiroEconomyGrantRequest) (*hiro.EconomyUpdateAck, error)
+	HiroStatsUpdate(context.Context, *HiroStatsUpdateRequest) (*hiro.StatList, error)
 	mustEmbedUnimplementedConsoleServer()
 }
 
@@ -1439,6 +1461,12 @@ func (UnimplementedConsoleServer) HiroUpdateProgressions(context.Context, *HiroU
 }
 func (UnimplementedConsoleServer) HiroPurchaseProgressions(context.Context, *HiroPurchaseProgressionsRequest) (*hiro.ProgressionList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HiroPurchaseProgressions not implemented")
+}
+func (UnimplementedConsoleServer) HiroEconomyGrant(context.Context, *HiroEconomyGrantRequest) (*hiro.EconomyUpdateAck, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HiroEconomyGrant not implemented")
+}
+func (UnimplementedConsoleServer) HiroStatsUpdate(context.Context, *HiroStatsUpdateRequest) (*hiro.StatList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HiroStatsUpdate not implemented")
 }
 func (UnimplementedConsoleServer) mustEmbedUnimplementedConsoleServer() {}
 
@@ -3055,6 +3083,42 @@ func _Console_HiroPurchaseProgressions_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_HiroEconomyGrant_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HiroEconomyGrantRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).HiroEconomyGrant(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/HiroEconomyGrant",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).HiroEconomyGrant(ctx, req.(*HiroEconomyGrantRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_HiroStatsUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HiroStatsUpdateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).HiroStatsUpdate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/HiroStatsUpdate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).HiroStatsUpdate(ctx, req.(*HiroStatsUpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Console_ServiceDesc is the grpc.ServiceDesc for Console service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3417,6 +3481,14 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HiroPurchaseProgressions",
 			Handler:    _Console_HiroPurchaseProgressions_Handler,
+		},
+		{
+			MethodName: "HiroEconomyGrant",
+			Handler:    _Console_HiroEconomyGrant_Handler,
+		},
+		{
+			MethodName: "HiroStatsUpdate",
+			Handler:    _Console_HiroStatsUpdate_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
