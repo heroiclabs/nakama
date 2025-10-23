@@ -248,6 +248,19 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/export";
   }
 
+  // Import given account export data, overwriting the user account's current state.
+  rpc ImportAccount (AccountImport) returns (google.protobuf.Empty) {
+    option (google.api.http).put = "/v2/console/account/{id}/import";
+  }
+
+  // Import given account export data, creating a new account that fully matches the data.
+  rpc ImportAccountFull (AccountImport) returns (Account) {
+    option (google.api.http) = {
+      post: "/v2/console/account",
+      body: "*"
+    };
+  }
+
   // Export all information stored about a group.
   rpc ExportGroup (GroupId) returns (GroupExport) {
     option (google.api.http).get = "/v2/console/group/{id}/export";
@@ -645,6 +658,14 @@ message AccountExport {
   repeated api.Notification notifications = 7;
   // The user's wallet ledger items.
   repeated WalletLedger wallet_ledgers = 8;
+}
+
+// Request to import user account data.
+message AccountImport {
+  // The user ID to overwrite data for, or blank if the account should be freshly created.
+  string id = 1;
+  // The export data snapshot to import.
+  AccountExport data = 2;
 }
 
 // The identifier for a user account.

@@ -193,6 +193,26 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	return export, nil
 }
 
+func (s *ConsoleServer) ImportAccount(ctx context.Context, in *console.AccountImport) (*emptypb.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+	if userID == uuid.Nil {
+		return nil, status.Error(codes.InvalidArgument, "Cannot import to the system user.")
+	}
+
+	// TODO
+
+	return &emptypb.Empty{}, nil
+}
+
+func (s *ConsoleServer) ImportAccountFull(ctx context.Context, in *console.AccountImport) (*console.Account, error) {
+	// TODO
+
+	return &console.Account{}, nil
+}
+
 func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (*console.Account, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {

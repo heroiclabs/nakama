@@ -196,6 +196,10 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionWrite)
 	case "/nakama.console.Console/ExportAccount":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_EXPORT, PermissionRead)
+	case "/nakama.console.Console/ImportAccount":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_EXPORT, PermissionWrite)
+	case "/nakama.console.Console/ImportAccountFull":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_EXPORT, PermissionWrite)
 	case "/nakama.console.Console/ExportGroup":
 		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionRead)
 	case "/nakama.console.Console/GetAccount":
