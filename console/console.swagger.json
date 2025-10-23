@@ -1884,7 +1884,7 @@
           "Console"
         ]
       },
-      "post": {
+      "delete": {
         "operationId": "HiroResetProgressions",
         "responses": {
           "200": {
@@ -1909,11 +1909,51 @@
             "type": "string"
           },
           {
+            "name": "progression_ids",
+            "description": "Progression ids to reset.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "post": {
+        "operationId": "HiroPurchaseProgressions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ProgressionList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to purchase progressions for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
             "name": "body",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HiroResetProgressionsBody"
+              "$ref": "#/definitions/HiroPurchaseProgressionsBody"
             }
           }
         ],
@@ -1951,6 +1991,43 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/HiroUnlockProgressionsBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "patch": {
+        "operationId": "HiroUpdateProgressions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ProgressionList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to update progressions for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HiroUpdateProgressionsBody"
             }
           }
         ],
@@ -3516,7 +3593,8 @@
         "STORAGE_DATA",
         "STORAGE_DATA_IMPORT",
         "HIRO_INVENTORY",
-        "HIRO_PROGRESSION"
+        "HIRO_PROGRESSION",
+        "HIRO_ECONOMY"
       ],
       "default": "ACCOUNT",
       "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
@@ -4435,18 +4513,15 @@
         }
       }
     },
-    "HiroResetProgressionsBody": {
+    "HiroPurchaseProgressionsBody": {
       "type": "object",
       "properties": {
-        "progression_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Progression ids to reset."
+        "progression_id": {
+          "type": "string",
+          "description": "Progression ID to purchase."
         }
       },
-      "description": "Request to reset one or more progressions for a user."
+      "description": "Request to purchase a progression for a user."
     },
     "HiroUnlockProgressionsBody": {
       "type": "object",
@@ -4460,6 +4535,24 @@
         }
       },
       "description": "Request to unlock one or more progressions for a user."
+    },
+    "HiroUpdateProgressionsBody": {
+      "type": "object",
+      "properties": {
+        "progression_id": {
+          "type": "string",
+          "description": "Progression ID to update."
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "Counts to apply to the progression."
+        }
+      },
+      "description": "Request to update a progression for a user."
     },
     "HiroUpdateUserInventoryItemsBody": {
       "type": "object",
@@ -5094,6 +5187,10 @@
         "hiro": {
           "type": "boolean",
           "description": "Is Hiro registered."
+        },
+        "economy_system": {
+          "type": "boolean",
+          "description": "Is Economy system registered."
         },
         "inventory_system": {
           "type": "boolean",

@@ -539,7 +539,7 @@ service Console {
       body: "*"
     };
   }
-  
+
   rpc HiroUpdateUserInventoryItems (HiroUpdateUserInventoryItemsRequest) returns (hiro.InventoryUpdateAck) {
     option (google.api.http) = {
       patch: "/v2/console/hiro/inventory/{user_id}",
@@ -556,15 +556,26 @@ service Console {
   }
 
   rpc HiroResetProgressions (HiroResetProgressionsRequest) returns (hiro.ProgressionList) {
-    option (google.api.http) = {
-      post: "/v2/console/hiro/progression/{user_id}",
-      body: "*"
-    };
+    option (google.api.http).delete = "/v2/console/hiro/progression/{user_id}";
   }
 
   rpc HiroUnlockProgressions (HiroUnlockProgressionsRequest) returns (hiro.ProgressionList) {
     option (google.api.http) = {
       put: "/v2/console/hiro/progression/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroUpdateProgressions (HiroUpdateProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http) = {
+      patch: "/v2/console/hiro/progression/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroPurchaseProgressions (HiroPurchaseProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/progression/{user_id}",
       body: "*"
     };
   }
@@ -986,14 +997,34 @@ message HiroUnlockProgressionsRequest {
   repeated string progression_ids = 2;
 }
 
+// Request to update a progression for a user.
+message HiroUpdateProgressionsRequest {
+  // The user ID to update progressions for.
+  string user_id = 1;
+  // Progression ID to update.
+  string progression_id = 2;
+  // Counts to apply to the progression.
+  map<string, int64> counts = 3;
+}
+
+// Request to purchase a progression for a user.
+message HiroPurchaseProgressionsRequest {
+  // The user ID to purchase progressions for.
+  string user_id = 1;
+  // Progression ID to purchase.
+  string progression_id = 2;
+}
+
 // Whether Hiro is registered and which systems are enabled.
 message RegisteredSystems {
   // Is Hiro registered.
   bool hiro = 1;
+  // Is Economy system registered.
+  bool economy_system = 2;
   // Is Inventory system registered.
-  bool inventory_system = 2;
+  bool inventory_system = 3;
   // Is Progression system registered.
-  bool progression_system = 3;
+  bool progression_system = 4;
 }
 
 // A leaderboard.
@@ -1572,4 +1603,5 @@ enum AclResources {
   STORAGE_DATA_IMPORT = 21;
   HIRO_INVENTORY = 22;
   HIRO_PROGRESSION = 23;
+  HIRO_ECONOMY = 24;
 }
