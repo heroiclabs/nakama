@@ -1205,6 +1205,7 @@
     },
     "/v2/console/audit/log/users": {
       "get": {
+        "summary": "List console usernames that can be used to filter the audit logs",
         "operationId": "ListAuditLogsUsers",
         "responses": {
           "200": {
@@ -3752,6 +3753,7 @@
         "ALL_DATA",
         "ALL_STORAGE",
         "API_EXPLORER",
+        "AUDIT_LOG",
         "CONFIGURATION",
         "CHANNEL_MESSAGE",
         "USER",
