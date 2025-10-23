@@ -51,7 +51,7 @@ import (
 type ctxConsoleIdKey struct{}
 type ctxConsoleUsernameKey struct{}
 type ctxConsoleEmailKey struct{}
-type ctxConsoleRoleKey struct{}
+type ctxConsoleUserAclKey struct{}
 
 type ConsoleServer struct {
 	console.UnimplementedConsoleServer
@@ -104,7 +104,10 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	serverOpts := []grpc.ServerOption{
 		//grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
-		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config, consoleSessionCache, loginAttemptCache)),
+		grpc.ChainUnaryInterceptor(
+			consoleAuthInterceptor(logger, config, consoleSessionCache, loginAttemptCache),
+			consoleAuditLogInterceptor(logger, db),
+		),
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
@@ -408,7 +411,7 @@ func (s *ConsoleServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache SessionCache, loginAttmeptCache LoginAttemptCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
+func consoleAuthInterceptor(logger *zap.Logger, config Config, sessionCache SessionCache, loginAttmeptCache LoginAttemptCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if info.FullMethod == "/nakama.console.Console/Authenticate" {
 			// Skip authentication check for Login endpoint.
@@ -479,7 +482,7 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, pat
 			return ctx, false
 		}
 
-		ctx = context.WithValue(ctx, ctxConsoleRoleKey{}, acl.Admin)
+		ctx = context.WithValue(ctx, ctxConsoleUserAclKey{}, acl.Admin())
 		ctx = context.WithValue(ctx, ctxConsoleUsernameKey{}, username)
 		ctx = context.WithValue(ctx, ctxConsoleEmailKey{}, "")
 		// Basic authentication successful.
@@ -522,7 +525,7 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, pat
 		ctx = context.WithValue(ctx, ctxConsoleIdKey{}, userId)
 		ctx = context.WithValue(ctx, ctxConsoleUsernameKey{}, uname)
 		ctx = context.WithValue(ctx, ctxConsoleEmailKey{}, email)
-		ctx = context.WithValue(ctx, ctxConsoleRoleKey{}, userAcl)
+		ctx = context.WithValue(ctx, ctxConsoleUserAclKey{}, userAcl)
 
 		if !(acl.CheckACL(path, userAcl)) {
 			return ctx, false

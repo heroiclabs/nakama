@@ -337,6 +337,16 @@ service Console {
     option (google.api.http).get = "/v2/console/iap/subscription/{original_transaction_id}";
   }
 
+  // List audit log entries with the selected filter
+  rpc ListAuditLogs (AuditLogRequest) returns (AuditLogList) {
+    option (google.api.http).get = "/v2/console/audit/log";
+  }
+
+  // List console usernames that can be used to filter the audit logs
+  rpc ListAuditLogsUsers (google.protobuf.Empty) returns (AuditLogUsersList) {
+    option (google.api.http).get = "/v2/console/audit/log/users";
+  }
+
   // API Explorer - list all endpoints
   rpc ListApiEndpoints (google.protobuf.Empty) returns (ApiEndpointList) {
     option (google.api.http).get = "/v2/console/api/endpoints";
@@ -651,6 +661,56 @@ message AccountList {
   int32 total_count = 2;
   // Next cursor.
   string next_cursor = 3;
+}
+
+// Request to list audit log entries.
+message AuditLogRequest {
+  // Maximum number of entries to return.
+  int32 limit = 1;
+  // Filter by username.
+  string username = 2;
+  // Filter by resource.
+  google.protobuf.Int32Value resource = 3;
+  // Filter by action.
+  AuditLogAction action = 4;
+  // Cursor to fetch additional.
+  string cursor = 5;
+}
+
+// List of users that can be filtered in the audit logs.
+message AuditLogUsersList {
+ repeated string usernames = 1;
+}
+
+// Audit log entries.
+message AuditLogList {
+  message AuditLog {
+    // Id of the entry.
+    string id = 1;
+    // The time the action occurred.
+    google.protobuf.Timestamp timestamp = 2;
+    // The console user id that performed the action.
+    string user_id = 3;
+    // The console user username that performed the action.
+    string username = 4;
+    // The console user email that performed the action.
+    string email = 5;
+    // The resource the action was performed on.
+    AclResources resource = 6;
+    // The action that was performed.
+    AuditLogAction action = 7;
+    // Log message.
+    string message = 8;
+    // Additional details about the action.
+    string metadata = 9;
+  }
+
+  // A list of audit log entries.
+  repeated AuditLog entries = 1;
+  // Cursor to fetch next page of results.
+  string next_cursor = 2;
+  // Cursor to fetch prev page of results.
+  string prev_cursor = 3;
 }
 
 // The identifier for a group.
@@ -1639,4 +1699,14 @@ enum AclResources {
   HIRO_PROGRESSION = 23;
   HIRO_ECONOMY = 24;
   HIRO_STATS = 25;
+}
+
+enum AuditLogAction {
+  UNKNOWN = 0;
+  CREATE = 1;
+  UPDATE = 2;
+  DELETE = 3;
+  INVOKE = 4;
+  IMPORT = 5;
+  EXPORT = 6;
 }

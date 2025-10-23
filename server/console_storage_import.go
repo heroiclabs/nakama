@@ -64,7 +64,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check user role
-	role := ctx.Value(ctxConsoleRoleKey{}).(acl.Permission)
+	role := ctx.Value(ctxConsoleUserAclKey{}).(acl.Permission)
 	if !acl.CheckACL(r.URL.Path, role) {
 		w.WriteHeader(403)
 		if _, err := w.Write([]byte("Forbidden")); err != nil {

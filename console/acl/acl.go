@@ -140,10 +140,10 @@ func NewPermissionFromString(resource string, level PermissionLevel) Permission 
 	return None()
 }
 
-func CheckACL(action string, userPermissions Permission) bool {
+func CheckACL(path string, userPermissions Permission) bool {
 	var requiredPermissions Permission
 
-	switch action {
+	switch path {
 	case "/nakama.console.Console/GetUser":
 		requiredPermissions = None()
 	case "/nakama.console.Console/AddUser":
@@ -227,6 +227,9 @@ func CheckACL(action string, userPermissions Permission) bool {
 	case "/nakama.console.Console/GetWalletLedger":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_WALLET, PermissionRead)
 	case "/nakama.console.Console/ListAccounts":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionRead)
+	case "/nakama.console.Console/ListAccounts/ListAuditLogs":
+		// TODO: Add resource for audit log.
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionRead)
 	case "/nakama.console.Console/ListApiEndpoints":
 		requiredPermissions = NewPermission(console.AclResources_API_EXPLORER, PermissionRead)

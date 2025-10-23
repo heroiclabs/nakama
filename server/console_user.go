@@ -223,7 +223,7 @@ func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*con
 }
 
 func (s *ConsoleServer) UpdateUser(ctx context.Context, in *console.UpdateUserRequest) (*console.User, error) {
-	creatorRole := ctx.Value(ctxConsoleRoleKey{}).(acl.Permission)
+	creatorRole := ctx.Value(ctxConsoleUserAclKey{}).(acl.Permission)
 	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 
 	if in.Username == uname {

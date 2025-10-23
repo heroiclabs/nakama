@@ -1131,6 +1131,100 @@
         ]
       }
     },
+    "/v2/console/audit/log": {
+      "get": {
+        "summary": "List audit log entries with the selected filter",
+        "operationId": "ListAuditLogs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/AuditLogList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "description": "Maximum number of entries to return.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "username",
+            "description": "Filter by username.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "resource",
+            "description": "Filter by resource.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "action",
+            "description": "Filter by action.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "UNKNOWN",
+              "CREATE",
+              "UPDATE",
+              "DELETE",
+              "INVOKE",
+              "IMPORT",
+              "EXPORT"
+            ],
+            "default": "UNKNOWN"
+          },
+          {
+            "name": "cursor",
+            "description": "Cursor to fetch additional.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/audit/log/users": {
+      "get": {
+        "operationId": "ListAuditLogsUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/AuditLogUsersList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/authenticate": {
       "post": {
         "summary": "Authenticate a console user with username and password.",
@@ -3826,6 +3920,95 @@
         }
       },
       "title": "API Explorer List of Endpoints"
+    },
+    "AuditLog": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Id of the entry."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the action occurred."
+        },
+        "user_id": {
+          "type": "string",
+          "description": "The console user id that performed the action."
+        },
+        "username": {
+          "type": "string",
+          "description": "The console user username that performed the action."
+        },
+        "email": {
+          "type": "string",
+          "description": "The console user email that performed the action."
+        },
+        "resource": {
+          "$ref": "#/definitions/AclResources",
+          "description": "The resource the action was performed on."
+        },
+        "action": {
+          "$ref": "#/definitions/AuditLogAction",
+          "description": "The action that was performed."
+        },
+        "message": {
+          "type": "string",
+          "description": "Log message."
+        },
+        "metadata": {
+          "type": "string",
+          "description": "Additional details about the action."
+        }
+      }
+    },
+    "AuditLogAction": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "CREATE",
+        "UPDATE",
+        "DELETE",
+        "INVOKE",
+        "IMPORT",
+        "EXPORT"
+      ],
+      "default": "UNKNOWN"
+    },
+    "AuditLogList": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AuditLog"
+          },
+          "description": "A list of audit log entries."
+        },
+        "next_cursor": {
+          "type": "string",
+          "description": "Cursor to fetch next page of results."
+        },
+        "prev_cursor": {
+          "type": "string",
+          "description": "Cursor to fetch prev page of results."
+        }
+      },
+      "description": "Audit log entries."
+    },
+    "AuditLogUsersList": {
+      "type": "object",
+      "properties": {
+        "usernames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "List of users that can be filtered in the audit logs."
     },
     "AuthenticateLogoutRequest": {
       "type": "object",
