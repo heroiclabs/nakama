@@ -249,7 +249,7 @@ func (s *ConsoleServer) UpdateUser(ctx context.Context, in *console.UpdateUserRe
 		return nil, err
 	}
 
-	s.sessionCache.RemoveAll(uuid.Must(uuid.FromString(update.Id)))
+	s.consoleSessionCache.RemoveAll(uuid.Must(uuid.FromString(update.Id)))
 
 	return update, nil
 }

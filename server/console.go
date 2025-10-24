@@ -440,15 +440,16 @@ func consoleAuthInterceptor(logger *zap.Logger, config Config, sessionCache Sess
 			return nil, status.Error(codes.Unauthenticated, "Console authentication required.")
 		}
 
-		if ctx, ok = checkAuth(ctx, logger, config, auth[0], info.FullMethod, sessionCache, loginAttmeptCache); !ok {
-			return nil, status.Error(codes.PermissionDenied, "Unauthorized: you do not have permissions to access this resource.")
+		ctx, err := checkAuth(ctx, logger, config, auth[0], info.FullMethod, sessionCache, loginAttmeptCache)
+		if err != nil {
+			return nil, err
 		}
 
 		return handler(ctx, req)
 	}
 }
 
-func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, path string, sessionCache SessionCache, loginAttemptCache LoginAttemptCache) (context.Context, bool) {
+func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, path string, sessionCache SessionCache, loginAttemptCache LoginAttemptCache) (context.Context, error) {
 	const basicPrefix = "Basic "
 	const bearerPrefix = "Bearer "
 
@@ -456,11 +457,11 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, pat
 		// Basic authentication.
 		username, password, ok := parseBasicAuth(auth)
 		if !ok {
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 		ip, _ := extractClientAddressFromContext(logger, ctx)
 		if !loginAttemptCache.Allow(username, ip) {
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 		if username == config.GetConsole().Username {
 			if password != config.GetConsole().Password {
@@ -476,17 +477,17 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, pat
 				default:
 					// No lockout.
 				}
-				return ctx, false
+				return ctx, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 			}
 		} else {
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 
 		ctx = context.WithValue(ctx, ctxConsoleUserAclKey{}, acl.Admin())
 		ctx = context.WithValue(ctx, ctxConsoleUsernameKey{}, username)
 		ctx = context.WithValue(ctx, ctxConsoleEmailKey{}, "")
 		// Basic authentication successful.
-		return ctx, true
+		return ctx, nil
 	} else if strings.HasPrefix(auth, bearerPrefix) {
 		// Bearer token authentication.
 		tokenStr := auth[len(bearerPrefix):]
@@ -498,28 +499,28 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, pat
 		})
 		if err != nil {
 			// Token verification failed.
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 		id, uname, email, userAcl, exp, ok, err := parseConsoleToken([]byte(config.GetConsole().SigningKey), tokenStr)
 		if err != nil {
 			logger.Error("Failed to parse token console jwt token.", zap.Error(err))
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 		if !ok || !token.Valid {
 			// The token or its claims are invalid.
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 		if exp <= time.Now().UTC().Unix() {
 			// Token expired.
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 		userId, err := uuid.FromString(id)
 		if err != nil {
 			// Malformed id
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 		if !sessionCache.IsValidSession(userId, exp, tokenStr) {
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 
 		ctx = context.WithValue(ctx, ctxConsoleIdKey{}, userId)
@@ -528,13 +529,13 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, pat
 		ctx = context.WithValue(ctx, ctxConsoleUserAclKey{}, userAcl)
 
 		if !(acl.CheckACL(path, userAcl)) {
-			return ctx, false
+			return ctx, status.Error(codes.PermissionDenied, "Unauthorized: you do not have permissions to access this resource.")
 		}
 
-		return ctx, true
+		return ctx, nil
 	}
 
-	return ctx, false
+	return ctx, nil
 }
 
 func adminBasicAuth(config *ConsoleConfig) func(h http.Handler) http.Handler {
