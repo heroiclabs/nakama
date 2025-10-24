@@ -613,6 +613,10 @@ service Console {
     };
   }
 
+  rpc HiroStatsList (HiroStatsListRequest) returns (hiro.StatList) {
+    option (google.api.http).get = "/v2/console/hiro/stats/{user_id}";
+  }
+
   rpc HiroStatsUpdate (HiroStatsUpdateRequest) returns (hiro.StatList) {
     option (google.api.http) = {
       post: "/v2/console/hiro/stats/{user_id}",
@@ -1126,6 +1130,12 @@ message HiroEconomyGrantRequest {
   string user_id = 1;
   // Currencies to grant.
   map<string, int64> currencies = 2;
+}
+
+// Request to list a user's stats.
+message HiroStatsListRequest {
+  // The user ID to list stats for.
+  string user_id = 1;
 }
 
 // Request to update a user's stats.

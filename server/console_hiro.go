@@ -331,6 +331,37 @@ func (s *ConsoleServer) HiroEconomyGrant(ctx context.Context, in *console.HiroEc
 	return &hiro.EconomyUpdateAck{Wallet: updatedWallet}, nil
 }
 
+func (s *ConsoleServer) HiroStatsList(ctx context.Context, in *console.HiroStatsListRequest) (*hiro.StatList, error) {
+	if s.hiro == nil || s.hiro.hiro == nil {
+		return nil, ErrHiroNotRegistered
+	}
+
+	if _, err := uuid.FromString(in.UserId); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error updating stats, user identifier required.")
+	}
+
+	statsSystem := s.hiro.hiro.GetStatsSystem()
+
+	if statsSystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroStatsSystemNotRegistered
+	}
+
+	statList, err := statsSystem.List(ctx, s.hiro.logger, s.hiro.nk, in.UserId, []string{in.UserId})
+	if err != nil {
+		return nil, err
+	}
+
+	userStatList, found := statList[in.UserId]
+	if !found {
+		return &hiro.StatList{
+			Public:  make(map[string]*hiro.Stat),
+			Private: make(map[string]*hiro.Stat),
+		}, nil
+	}
+
+	return userStatList, nil
+}
+
 func (s *ConsoleServer) HiroStatsUpdate(ctx context.Context, in *console.HiroStatsUpdateRequest) (*hiro.StatList, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {
 		return nil, ErrHiroNotRegistered

@@ -85,7 +85,7 @@ FROM users u
 WHERE u.id = $1`
 
 	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, m.SQLScanner(&deviceIDs)); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAccountNotFound
 		}
 		logger.Error("Error retrieving user account.", zap.Error(err))
@@ -249,8 +249,9 @@ func UpdateAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, updates
 		}
 		return nil
 	}); err != nil {
-		if e, ok := err.(*statusError); ok {
-			return e.Cause()
+		var statusErr *statusError
+		if errors.As(err, &statusErr) {
+			return statusErr.Cause()
 		}
 		logger.Error("Error updating user accounts.", zap.Error(err))
 		return err
@@ -369,7 +370,7 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	// Core user account.
 	account, err := GetAccount(ctx, logger, db, nil, userID)
 	if err != nil {
-		if err == ErrAccountNotFound {
+		if errors.Is(err, ErrAccountNotFound) {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
 		logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", userID.String()))
@@ -461,6 +462,10 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	}
 
 	return export, nil
+}
+
+func ImportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, data *console.AccountExport) (*console.Account, error) {
+	return nil, nil
 }
 
 func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, tracker Tracker, userID uuid.UUID, recorded bool) error {

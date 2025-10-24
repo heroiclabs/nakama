@@ -2283,6 +2283,35 @@
       }
     },
     "/v2/console/hiro/stats/{user_id}": {
+      "get": {
+        "operationId": "HiroStatsList",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/StatList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to list stats for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
       "post": {
         "operationId": "HiroStatsUpdate",
         "responses": {

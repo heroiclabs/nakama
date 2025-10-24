@@ -197,6 +197,7 @@ type ConsoleClient interface {
 	HiroUpdateProgressions(ctx context.Context, in *HiroUpdateProgressionsRequest, opts ...grpc.CallOption) (*hiro.ProgressionList, error)
 	HiroPurchaseProgressions(ctx context.Context, in *HiroPurchaseProgressionsRequest, opts ...grpc.CallOption) (*hiro.ProgressionList, error)
 	HiroEconomyGrant(ctx context.Context, in *HiroEconomyGrantRequest, opts ...grpc.CallOption) (*hiro.EconomyUpdateAck, error)
+	HiroStatsList(ctx context.Context, in *HiroStatsListRequest, opts ...grpc.CallOption) (*hiro.StatList, error)
 	HiroStatsUpdate(ctx context.Context, in *HiroStatsUpdateRequest, opts ...grpc.CallOption) (*hiro.StatList, error)
 	HiroEnergyGrant(ctx context.Context, in *HiroEnergyGrantRequest, opts ...grpc.CallOption) (*hiro.EnergyList, error)
 }
@@ -1055,6 +1056,15 @@ func (c *consoleClient) HiroEconomyGrant(ctx context.Context, in *HiroEconomyGra
 	return out, nil
 }
 
+func (c *consoleClient) HiroStatsList(ctx context.Context, in *HiroStatsListRequest, opts ...grpc.CallOption) (*hiro.StatList, error) {
+	out := new(hiro.StatList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/HiroStatsList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) HiroStatsUpdate(ctx context.Context, in *HiroStatsUpdateRequest, opts ...grpc.CallOption) (*hiro.StatList, error) {
 	out := new(hiro.StatList)
 	err := c.cc.Invoke(ctx, "/nakama.console.Console/HiroStatsUpdate", in, out, opts...)
@@ -1249,6 +1259,7 @@ type ConsoleServer interface {
 	HiroUpdateProgressions(context.Context, *HiroUpdateProgressionsRequest) (*hiro.ProgressionList, error)
 	HiroPurchaseProgressions(context.Context, *HiroPurchaseProgressionsRequest) (*hiro.ProgressionList, error)
 	HiroEconomyGrant(context.Context, *HiroEconomyGrantRequest) (*hiro.EconomyUpdateAck, error)
+	HiroStatsList(context.Context, *HiroStatsListRequest) (*hiro.StatList, error)
 	HiroStatsUpdate(context.Context, *HiroStatsUpdateRequest) (*hiro.StatList, error)
 	HiroEnergyGrant(context.Context, *HiroEnergyGrantRequest) (*hiro.EnergyList, error)
 	mustEmbedUnimplementedConsoleServer()
@@ -1539,6 +1550,9 @@ func (UnimplementedConsoleServer) HiroPurchaseProgressions(context.Context, *Hir
 }
 func (UnimplementedConsoleServer) HiroEconomyGrant(context.Context, *HiroEconomyGrantRequest) (*hiro.EconomyUpdateAck, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HiroEconomyGrant not implemented")
+}
+func (UnimplementedConsoleServer) HiroStatsList(context.Context, *HiroStatsListRequest) (*hiro.StatList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HiroStatsList not implemented")
 }
 func (UnimplementedConsoleServer) HiroStatsUpdate(context.Context, *HiroStatsUpdateRequest) (*hiro.StatList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HiroStatsUpdate not implemented")
@@ -3251,6 +3265,24 @@ func _Console_HiroEconomyGrant_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_HiroStatsList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HiroStatsListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).HiroStatsList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/HiroStatsList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).HiroStatsList(ctx, req.(*HiroStatsListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_HiroStatsUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HiroStatsUpdateRequest)
 	if err := dec(in); err != nil {
@@ -3669,6 +3701,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HiroEconomyGrant",
 			Handler:    _Console_HiroEconomyGrant_Handler,
+		},
+		{
+			MethodName: "HiroStatsList",
+			Handler:    _Console_HiroStatsList_Handler,
 		},
 		{
 			MethodName: "HiroStatsUpdate",
