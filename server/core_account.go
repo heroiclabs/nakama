@@ -548,7 +548,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $
 		}
 		if l := len(data.Objects); l > 0 {
 			query := `INSERT INTO storage (user_id, collection, key, "value", "version", "read", "write", create_time, update_time)`
-			params := make([]interface{}, l*8+1)
+			params := make([]interface{}, 0, l*8+1)
 			if userID == uuid.Nil {
 				params = append(params, data.Account.User.Id)
 			} else {
