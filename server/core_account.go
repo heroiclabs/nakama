@@ -519,7 +519,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $
 			}
 		} else {
 			query := "UPDATE users SET metadata = $1, wallet = $2 WHERE id = $3"
-			res, err := tx.ExecContext(ctx, query, data.Account.User.Metadata, data.Account.Wallet, data.Account.User.Id)
+			res, err := tx.ExecContext(ctx, query, data.Account.User.Metadata, data.Account.Wallet, userID.String())
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return err
