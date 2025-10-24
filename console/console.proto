@@ -619,6 +619,13 @@ service Console {
       body: "*"
     };
   }
+
+  rpc HiroEnergyGrant (HiroEnergyGrantRequest) returns (hiro.EnergyList) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/energy/{user_id}",
+      body: "*"
+    };
+  }
 }
 
 // API Explorer List of Endpoints response message
@@ -1131,6 +1138,14 @@ message HiroStatsUpdateRequest {
   repeated hiro.StatUpdate private = 3;
 }
 
+// Request to update a user's energy.
+message HiroEnergyGrantRequest {
+  // The user ID to update energy for.
+  string user_id = 1;
+  // Energy amounts to grant.
+  map<string, int32> amounts = 2;
+}
+
 // Whether Hiro is registered and which systems are enabled.
 message RegisteredSystems {
   // Is Hiro registered.
@@ -1143,6 +1158,8 @@ message RegisteredSystems {
   bool progression_system = 4;
   // Is Stats system registered.
   bool stats_system = 5;
+  // Is Energy system registered.
+  bool energy_system = 6;
 }
 
 // A leaderboard.
@@ -1724,6 +1741,7 @@ enum AclResources {
   HIRO_PROGRESSION = 24;
   HIRO_ECONOMY = 25;
   HIRO_STATS = 26;
+  HIRO_ENERGY = 27;
 }
 
 enum AuditLogAction {

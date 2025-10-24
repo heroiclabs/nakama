@@ -198,6 +198,7 @@ type ConsoleClient interface {
 	HiroPurchaseProgressions(ctx context.Context, in *HiroPurchaseProgressionsRequest, opts ...grpc.CallOption) (*hiro.ProgressionList, error)
 	HiroEconomyGrant(ctx context.Context, in *HiroEconomyGrantRequest, opts ...grpc.CallOption) (*hiro.EconomyUpdateAck, error)
 	HiroStatsUpdate(ctx context.Context, in *HiroStatsUpdateRequest, opts ...grpc.CallOption) (*hiro.StatList, error)
+	HiroEnergyGrant(ctx context.Context, in *HiroEnergyGrantRequest, opts ...grpc.CallOption) (*hiro.EnergyList, error)
 }
 
 type consoleClient struct {
@@ -1063,6 +1064,15 @@ func (c *consoleClient) HiroStatsUpdate(ctx context.Context, in *HiroStatsUpdate
 	return out, nil
 }
 
+func (c *consoleClient) HiroEnergyGrant(ctx context.Context, in *HiroEnergyGrantRequest, opts ...grpc.CallOption) (*hiro.EnergyList, error) {
+	out := new(hiro.EnergyList)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/HiroEnergyGrant", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConsoleServer is the server API for Console service.
 // All implementations must embed UnimplementedConsoleServer
 // for forward compatibility
@@ -1240,6 +1250,7 @@ type ConsoleServer interface {
 	HiroPurchaseProgressions(context.Context, *HiroPurchaseProgressionsRequest) (*hiro.ProgressionList, error)
 	HiroEconomyGrant(context.Context, *HiroEconomyGrantRequest) (*hiro.EconomyUpdateAck, error)
 	HiroStatsUpdate(context.Context, *HiroStatsUpdateRequest) (*hiro.StatList, error)
+	HiroEnergyGrant(context.Context, *HiroEnergyGrantRequest) (*hiro.EnergyList, error)
 	mustEmbedUnimplementedConsoleServer()
 }
 
@@ -1531,6 +1542,9 @@ func (UnimplementedConsoleServer) HiroEconomyGrant(context.Context, *HiroEconomy
 }
 func (UnimplementedConsoleServer) HiroStatsUpdate(context.Context, *HiroStatsUpdateRequest) (*hiro.StatList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HiroStatsUpdate not implemented")
+}
+func (UnimplementedConsoleServer) HiroEnergyGrant(context.Context, *HiroEnergyGrantRequest) (*hiro.EnergyList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HiroEnergyGrant not implemented")
 }
 func (UnimplementedConsoleServer) mustEmbedUnimplementedConsoleServer() {}
 
@@ -3255,6 +3269,24 @@ func _Console_HiroStatsUpdate_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_HiroEnergyGrant_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HiroEnergyGrantRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).HiroEnergyGrant(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.console.Console/HiroEnergyGrant",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).HiroEnergyGrant(ctx, req.(*HiroEnergyGrantRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Console_ServiceDesc is the grpc.ServiceDesc for Console service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3641,6 +3673,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HiroStatsUpdate",
 			Handler:    _Console_HiroStatsUpdate_Handler,
+		},
+		{
+			MethodName: "HiroEnergyGrant",
+			Handler:    _Console_HiroEnergyGrant_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

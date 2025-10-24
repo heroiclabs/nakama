@@ -31,6 +31,7 @@ var (
 	ErrHiroEconomySystemNotRegistered     = status.Error(codes.NotFound, "Hiro Economy system not registered")
 	ErrHiroProgressionSystemNotRegistered = status.Error(codes.NotFound, "Hiro Progression system not registered")
 	ErrHiroStatsSystemNotRegistered       = status.Error(codes.NotFound, "Hiro Stats system not registered")
+	ErrHiroEnergySystemNotRegistered      = status.Error(codes.NotFound, "Hiro Energy system not registered")
 )
 
 func (s *ConsoleServer) HiroRegisteredSystems(ctx context.Context, in *emptypb.Empty) (*console.RegisteredSystems, error) {
@@ -44,6 +45,7 @@ func (s *ConsoleServer) HiroRegisteredSystems(ctx context.Context, in *emptypb.E
 		InventorySystem:   s.hiro.hiro.GetInventorySystem().GetType() != hiro.SystemTypeUnknown,
 		ProgressionSystem: s.hiro.hiro.GetProgressionSystem().GetType() != hiro.SystemTypeUnknown,
 		StatsSystem:       s.hiro.hiro.GetStatsSystem().GetType() != hiro.SystemTypeUnknown,
+		EnergySystem:      s.hiro.hiro.GetEnergySystem().GetType() != hiro.SystemTypeUnknown,
 	}
 
 	return registeredSystems, nil
@@ -350,6 +352,29 @@ func (s *ConsoleServer) HiroStatsUpdate(ctx context.Context, in *console.HiroSta
 	}
 
 	return statList, nil
+}
+
+func (s *ConsoleServer) HiroEnergyGrant(ctx context.Context, in *console.HiroEnergyGrantRequest) (*hiro.EnergyList, error) {
+	if s.hiro == nil || s.hiro.hiro == nil {
+		return nil, ErrHiroNotRegistered
+	}
+
+	if _, err := uuid.FromString(in.UserId); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Error updating energy, user identifier required.")
+	}
+
+	energySystem := s.hiro.hiro.GetEnergySystem()
+
+	if energySystem.GetType() == hiro.SystemTypeUnknown {
+		return nil, ErrHiroEnergySystemNotRegistered
+	}
+
+	energies, err := energySystem.Grant(ctx, s.hiro.logger, s.hiro.nk, in.UserId, in.Amounts, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hiro.EnergyList{Energies: energies}, nil
 }
 
 func rewardConfigToProto(rewardConfig *hiro.EconomyConfigReward) *hiro.AvailableRewards {

@@ -1868,6 +1868,45 @@
         ]
       }
     },
+    "/v2/console/hiro/energy/{user_id}": {
+      "post": {
+        "operationId": "HiroEnergyGrant",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/EnergyList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "The user ID to update energy for.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HiroEnergyGrantBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/hiro/inventory/{user_id}": {
       "get": {
         "operationId": "HiroListUserInventoryItems",
@@ -3856,7 +3895,8 @@
         "HIRO_INVENTORY",
         "HIRO_PROGRESSION",
         "HIRO_ECONOMY",
-        "HIRO_STATS"
+        "HIRO_STATS",
+        "HIRO_ENERGY"
       ],
       "default": "ACCOUNT",
       "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
@@ -4751,6 +4791,113 @@
       },
       "description": "Response from granting currencies, reward modifiers, and/or items.\nContains updated wallet and inventory data, if changed.\nContains reward granted, if any.\nContains active reward modifiers, if changed."
     },
+    "Energy": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique energy identifier."
+        },
+        "current": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The current amount."
+        },
+        "max": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum amount."
+        },
+        "refill": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Amount of energy granted per refill."
+        },
+        "refill_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "Number of seconds between refills."
+        },
+        "next_refill_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX timestamp when the count will increase, if it is not at max already."
+        },
+        "max_refill_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX timestamp when the count will reach max, if it is not at max already."
+        },
+        "start_refill_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX timestamp when the count started filling, if it is not at max already."
+        },
+        "modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/EnergyModifier"
+          },
+          "description": "The modifiers, if any."
+        },
+        "available_rewards": {
+          "$ref": "#/definitions/AvailableRewards",
+          "description": "The available rewards, if any."
+        },
+        "additional_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Additional metadata properties."
+        },
+        "current_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The current UNIX timestamp in seconds."
+        }
+      },
+      "description": "Information about a single energy type."
+    },
+    "EnergyList": {
+      "type": "object",
+      "properties": {
+        "energies": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Energy"
+          },
+          "description": "Energy types keyed on the energy identifier."
+        }
+      },
+      "description": "One or more energy values for a user."
+    },
+    "EnergyModifier": {
+      "type": "object",
+      "properties": {
+        "operator": {
+          "type": "string",
+          "description": "The modifier operator."
+        },
+        "value": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The modifier value, if applicable."
+        },
+        "start_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX timestamp when the modifier became active."
+        },
+        "end_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The UNIX timestamp when the modifier ends."
+        }
+      },
+      "description": "A modifier that may change energy behaviour."
+    },
     "Friend": {
       "type": "object",
       "properties": {
@@ -4945,6 +5092,20 @@
         }
       },
       "description": "Request to modify a user's economy wallet."
+    },
+    "HiroEnergyGrantBody": {
+      "type": "object",
+      "properties": {
+        "amounts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "Energy amounts to grant."
+        }
+      },
+      "description": "Request to update a user's energy."
     },
     "HiroPurchaseProgressionsBody": {
       "type": "object",
@@ -5676,6 +5837,10 @@
         "stats_system": {
           "type": "boolean",
           "description": "Is Stats system registered."
+        },
+        "energy_system": {
+          "type": "boolean",
+          "description": "Is Energy system registered."
         }
       },
       "description": "Whether Hiro is registered and which systems are enabled."

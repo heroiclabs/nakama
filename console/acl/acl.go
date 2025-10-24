@@ -332,6 +332,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_HIRO_ECONOMY, PermissionWrite)
 	case "/nakama.console.Console/HiroStatsUpdate":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_STATS, PermissionWrite)
+	case "/nakama.console.Console/HiroEnergyGrant":
+		requiredPermissions = NewPermission(console.AclResources_HIRO_ENERGY, PermissionWrite)
 	default:
 		requiredPermissions = Admin()
 	}
