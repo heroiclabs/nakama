@@ -202,7 +202,7 @@ func (s *ConsoleServer) ImportAccount(ctx context.Context, in *console.AccountIm
 		return nil, status.Error(codes.InvalidArgument, "Cannot import to the system user.")
 	}
 
-	if _, err := ImportAccount(ctx, s.logger, s.db, userID, in.Data); err != nil {
+	if _, err := ImportAccount(ctx, s.logger, s.db, s.statusRegistry, userID, in.Data); err != nil {
 		return nil, err
 	}
 
@@ -210,7 +210,7 @@ func (s *ConsoleServer) ImportAccount(ctx context.Context, in *console.AccountIm
 }
 
 func (s *ConsoleServer) ImportAccountFull(ctx context.Context, in *console.AccountImport) (*console.Account, error) {
-	account, err := ImportAccount(ctx, s.logger, s.db, uuid.Nil, in.Data)
+	account, err := ImportAccount(ctx, s.logger, s.db, s.statusRegistry, uuid.Nil, in.Data)
 	if err != nil {
 		return nil, err
 	}
