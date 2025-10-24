@@ -250,7 +250,10 @@ service Console {
 
   // Import given account export data, overwriting the user account's current state.
   rpc ImportAccount (AccountImport) returns (google.protobuf.Empty) {
-    option (google.api.http).put = "/v2/console/account/{id}/import";
+    option (google.api.http) = {
+      put: "/v2/console/account/{id}/import",
+      body: "*"
+    };
   }
 
   // Import given account export data, creating a new account that fully matches the data.

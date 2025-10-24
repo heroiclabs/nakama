@@ -688,170 +688,12 @@
             "type": "string"
           },
           {
-            "name": "data.account.user.id",
-            "description": "The id of the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.username",
-            "description": "The username of the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.display_name",
-            "description": "The display name of the user.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.avatar_url",
-            "description": "A URL for an avatar image.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.lang_tag",
-            "description": "The language expected to be a tag which follows the BCP-47 spec.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.location",
-            "description": "The location set by the user.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.timezone",
-            "description": "The timezone set by the user.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.metadata",
-            "description": "Additional information stored as a JSON object.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.facebook_id",
-            "description": "The Facebook id in the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.google_id",
-            "description": "The Google id in the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.gamecenter_id",
-            "description": "The Apple Game Center in of the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.steam_id",
-            "description": "The Steam id in the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.online",
-            "description": "Indicates whether the user is currently online.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "data.account.user.edge_count",
-            "description": "Number of related edges to this user.",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "data.account.user.create_time",
-            "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was created.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "date-time"
-          },
-          {
-            "name": "data.account.user.update_time",
-            "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user was last updated.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "date-time"
-          },
-          {
-            "name": "data.account.user.facebook_instant_game_id",
-            "description": "The Facebook Instant Game ID in the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.user.apple_id",
-            "description": "The Apple Sign In ID in the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.wallet",
-            "description": "The user's wallet data.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.email",
-            "description": "The email address of the user.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.custom_id",
-            "description": "The custom id in the user's account.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "data.account.verify_time",
-            "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's email was verified.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "date-time"
-          },
-          {
-            "name": "data.account.disable_time",
-            "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "date-time"
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ImportAccountBody"
+            }
           }
         ],
         "tags": [
@@ -5178,6 +5020,16 @@
           "description": "The item updates to action, keyed by item instance ID."
         }
       }
+    },
+    "ImportAccountBody": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/definitions/AccountExport",
+          "description": "The export data snapshot to import."
+        }
+      },
+      "description": "Request to import user account data."
     },
     "Inventory": {
       "type": "object",

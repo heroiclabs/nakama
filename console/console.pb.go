@@ -7736,7 +7736,7 @@ const file_console_proto_rawDesc = "" +
 	"\n" +
 	"\x06IMPORT\x10\x05\x12\n" +
 	"\n" +
-	"\x06EXPORT\x10\x062\xd9\\\n" +
+	"\x06EXPORT\x10\x062\xdc\\\n" +
 	"\aConsole\x12\x83\x01\n" +
 	"\fAuthenticate\x12#.nakama.console.AuthenticateRequest\x1a\x1e.nakama.console.ConsoleSession\".\x92A\bb\x06\n" +
 	"\x04\n" +
@@ -7769,8 +7769,8 @@ const file_console_proto_rawDesc = "" +
 	"DeleteUser\x12\x18.nakama.console.Username\x1a\x16.google.protobuf.Empty\"\x18\x82\xd3\xe4\x93\x02\x12*\x10/v2/console/user\x12\x8c\x01\n" +
 	"\x12DeleteWalletLedger\x12).nakama.console.DeleteWalletLedgerRequest\x1a\x16.google.protobuf.Empty\"3\x82\xd3\xe4\x93\x02-*+/v2/console/account/{id}/wallet/{wallet_id}\x12\x92\x01\n" +
 	"\x11DemoteGroupMember\x12+.nakama.console.UpdateGroupUserStateRequest\x1a\x16.google.protobuf.Empty\"8\x82\xd3\xe4\x93\x022\"0/v2/console/group/{group_id}/account/{id}/demote\x12r\n" +
-	"\rExportAccount\x12\x19.nakama.console.AccountId\x1a\x1d.nakama.console.AccountExport\"'\x82\xd3\xe4\x93\x02!\x12\x1f/v2/console/account/{id}/export\x12o\n" +
-	"\rImportAccount\x12\x1d.nakama.console.AccountImport\x1a\x16.google.protobuf.Empty\"'\x82\xd3\xe4\x93\x02!\x1a\x1f/v2/console/account/{id}/import\x12k\n" +
+	"\rExportAccount\x12\x19.nakama.console.AccountId\x1a\x1d.nakama.console.AccountExport\"'\x82\xd3\xe4\x93\x02!\x12\x1f/v2/console/account/{id}/export\x12r\n" +
+	"\rImportAccount\x12\x1d.nakama.console.AccountImport\x1a\x16.google.protobuf.Empty\"*\x82\xd3\xe4\x93\x02$:\x01*\x1a\x1f/v2/console/account/{id}/import\x12k\n" +
 	"\x11ImportAccountFull\x12\x1d.nakama.console.AccountImport\x1a\x17.nakama.console.Account\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v2/console/account\x12j\n" +
 	"\vExportGroup\x12\x17.nakama.console.GroupId\x1a\x1b.nakama.console.GroupExport\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v2/console/group/{id}/export\x12b\n" +
 	"\n" +
