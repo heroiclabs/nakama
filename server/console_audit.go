@@ -80,7 +80,16 @@ func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogR
 		*resourceFilter = console.AclResources(in.Resource.Value)
 	}
 
-	auditLogs, err := auditLogEntryList(ctx, s.logger, s.db, in.Username, in.Action, resourceFilter, int(in.Limit), in.Cursor)
+	var after time.Time
+	if in.After != nil {
+		after = in.After.AsTime()
+	}
+	var before time.Time
+	if in.Before != nil {
+		before = in.Before.AsTime()
+	}
+
+	auditLogs, err := auditLogEntryList(ctx, s.logger, s.db, in.Username, in.Action, resourceFilter, after, before, int(in.Limit), in.Cursor)
 	if err != nil {
 		s.logger.Error("Failed to list audit logs", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to list audit logs")
@@ -439,10 +448,12 @@ type auditLogListCursor struct {
 	UsernameFilter string
 	ResourceFilter *console.AclResources
 	ActionFilter   console.AuditLogAction
+	BeforeFilter   time.Time
+	AfterFilter    time.Time
 }
 
 // auditLogEntryList retrieves audit log entries with bidirectional keyset pagination and filtering
-func auditLogEntryList(ctx context.Context, logger *zap.Logger, db *sql.DB, username string, action console.AuditLogAction, resource *console.AclResources, limit int, cursor string) (*console.AuditLogList, error) {
+func auditLogEntryList(ctx context.Context, logger *zap.Logger, db *sql.DB, username string, action console.AuditLogAction, resource *console.AclResources, after, before time.Time, limit int, cursor string) (*console.AuditLogList, error) {
 	var incomingCursor *auditLogListCursor
 	if cursor != "" {
 		// Decode the cursor
@@ -463,6 +474,12 @@ func auditLogEntryList(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			return nil, ErrAuditLogInvalidCursor
 		}
 		if resource != nil && incomingCursor.ResourceFilter != nil && *resource.Enum() != *incomingCursor.ResourceFilter {
+			return nil, ErrAuditLogInvalidCursor
+		}
+		if !before.Equal(incomingCursor.AfterFilter) {
+			return nil, ErrAuditLogInvalidCursor
+		}
+		if !after.Equal(incomingCursor.BeforeFilter) {
 			return nil, ErrAuditLogInvalidCursor
 		}
 	}
@@ -524,6 +541,16 @@ FROM
 			params = append(params, *incomingCursor.ResourceFilter.Enum())
 		}
 
+		if !incomingCursor.AfterFilter.IsZero() {
+			filterConditions = append(filterConditions, "create_time > $"+strconv.Itoa(len(params)+1))
+			params = append(params, incomingCursor.AfterFilter)
+		}
+
+		if !incomingCursor.BeforeFilter.IsZero() {
+			filterConditions = append(filterConditions, "create_time < $"+strconv.Itoa(len(params)+1))
+			params = append(params, incomingCursor.BeforeFilter)
+		}
+
 		query += " WHERE " + strings.Join(filterConditions, " AND ")
 	} else {
 		// No cursor - initial query
@@ -542,6 +569,16 @@ FROM
 		if resource != nil {
 			filterConditions = append(filterConditions, "resource = $"+strconv.Itoa(len(params)+1))
 			params = append(params, *resource.Enum())
+		}
+
+		if !after.IsZero() {
+			filterConditions = append(filterConditions, "create_time > $"+strconv.Itoa(len(params)+1))
+			params = append(params, after)
+		}
+
+		if !before.IsZero() {
+			filterConditions = append(filterConditions, "create_time < $"+strconv.Itoa(len(params)+1))
+			params = append(params, before)
 		}
 
 		if len(filterConditions) > 0 {

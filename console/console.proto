@@ -708,8 +708,12 @@ message AuditLogRequest {
   google.protobuf.Int32Value resource = 3;
   // Filter by action.
   AuditLogAction action = 4;
+  // Optional timestamp threshold to list audit log records after.
+  google.protobuf.Timestamp after = 5;
+  // Optional timestamp threshold to list audit log records before.
+  google.protobuf.Timestamp before = 6;
   // Cursor to fetch additional.
-  string cursor = 5;
+  string cursor = 7;
 }
 
 // List of users that can be filtered in the audit logs.

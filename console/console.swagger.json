@@ -1264,6 +1264,22 @@
             "default": "UNKNOWN"
           },
           {
+            "name": "after",
+            "description": "Optional timestamp threshold to list audit log records after.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "before",
+            "description": "Optional timestamp threshold to list audit log records before.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
             "name": "cursor",
             "description": "Cursor to fetch additional.",
             "in": "query",
