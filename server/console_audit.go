@@ -369,16 +369,46 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				resource = console.AclResources_HIRO_INVENTORY
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "hiro inventory items removed from account"
+			case "/nakama.console.Console/HiroUpdateUserInventoryItems":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_HIRO_INVENTORY
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "hiro inventory items updated"
 			case "/nakama.console.Console/HiroResetProgressions":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_HIRO_PROGRESSION
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro inventory progression reset"
+				log = "hiro progression reset"
 			case "/nakama.console.Console/HiroUnlockProgressions":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_HIRO_PROGRESSION
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro inventory progression unlocked"
+				log = "hiro progression unlocked"
+			case "/nakama.console.Console/HiroUpdateProgressions":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_HIRO_PROGRESSION
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "hiro progression updated"
+			case "/nakama.console.Console/HiroPurchaseProgressions":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_HIRO_PROGRESSION
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "hiro progression purchased"
+			case "/nakama.console.Console/HiroEconomyGrant":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_HIRO_ECONOMY
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "hiro economy grant"
+			case "/nakama.console.Console/HiroStatsUpdate":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_HIRO_STATS
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "hiro stats update"
+			case "/nakama.console.Console/HiroEnergyGrant":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_HIRO_ENERGY
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "hiro energy grant"
 			}
 
 			if mErr != nil {
