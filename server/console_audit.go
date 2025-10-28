@@ -98,7 +98,7 @@ func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogR
 	return auditLogs, nil
 }
 
-func (s *ConsoleServer) ListAuditLogUsers(ctx context.Context, in *emptypb.Empty) (*console.AuditLogUsersList, error) {
+func (s *ConsoleServer) ListAuditLogsUsers(ctx context.Context, in *emptypb.Empty) (*console.AuditLogUsersList, error) {
 	users, err := s.dbListConsoleUsers(ctx, nil)
 	if err != nil {
 		s.logger.Error("failed to list console users", zap.Error(err))
