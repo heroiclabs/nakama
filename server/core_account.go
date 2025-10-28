@@ -616,7 +616,7 @@ SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timez
 FROM users u
 WHERE u.id = $1`
 
-		if err := db.QueryRowContext(ctx, query, lookupUserID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, m.SQLScanner(&deviceIDs)); err != nil {
+		if err := tx.QueryRowContext(ctx, query, lookupUserID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, m.SQLScanner(&deviceIDs)); err != nil {
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
