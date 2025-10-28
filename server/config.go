@@ -1447,8 +1447,9 @@ type SatoriConfig struct {
 	ApiKey     string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
 	SigningKey string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
 	// Deprecated: This is longer observed, use CacheDisabled instead.
-	CacheEnabled  bool `yaml:"cache_enabled" json:"cache_enabled" usage:"Enable caching of responses throughout the lifetime of a request. Deprecated, use 'cache_disabled' instead."`
-	CacheDisabled bool `yaml:"cache_disabled" json:"cache_disabled" usage:"Disable caching of responses throughout the lifetime of a request. Default is enabled."`
+	CacheEnabled   bool `yaml:"cache_enabled" json:"cache_enabled" usage:"Enable caching of responses throughout the lifetime of a request. Deprecated, use 'cache_disabled' instead."`
+	CacheDisabled  bool `yaml:"cache_disabled" json:"cache_disabled" usage:"Disable caching of responses throughout the lifetime of a request. Default is enabled."`
+	HttpTimeoutSec int  `yaml:"http_timeout_sec" json:"http_timeout_sec" usage:"Timeout for HTTP requests to Satori in seconds. Default 2s."`
 }
 
 func (sc *SatoriConfig) GetUrl() string {
@@ -1477,7 +1478,9 @@ func (sc *SatoriConfig) Clone() *SatoriConfig {
 }
 
 func NewSatoriConfig() *SatoriConfig {
-	return &SatoriConfig{}
+	return &SatoriConfig{
+		HttpTimeoutSec: 2,
+	}
 }
 
 func (sc *SatoriConfig) Validate(logger *zap.Logger) {
@@ -1498,6 +1501,10 @@ func (sc *SatoriConfig) Validate(logger *zap.Logger) {
 		}
 	} else if sc.ApiKeyName != "" || sc.ApiKey != "" || sc.SigningKey != "" {
 		logger.Fatal("Satori configuration incomplete: url not set")
+	}
+
+	if sc.HttpTimeoutSec < 1 {
+		logger.Fatal("Satori configuration invalid: http_timeout_sec must be greater than 0")
 	}
 }
 

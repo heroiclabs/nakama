@@ -37,6 +37,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const satoriCacheTTL = 5 * time.Second
+
 var _ runtime.Satori = &SatoriClient{}
 
 type SatoriClient struct {
@@ -50,7 +52,6 @@ type SatoriClient struct {
 	tokenExpirySec       int
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
-	strictContextModes   map[string]bool
 
 	cacheEnabled         bool
 	propertiesCacheMutex sync.RWMutex
@@ -61,7 +62,7 @@ type SatoriClient struct {
 	experimentsCache     *satoriCache[*runtime.Experiment]
 }
 
-func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool, strictContextModes []string) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec, httpTimeoutSec int64, cacheEnabled bool) *SatoriClient {
 	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
 	// the server.
 	parsedUrl, _ := url.Parse(satoriUrl)
@@ -69,14 +70,13 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 	sc := &SatoriClient{
 		logger:               logger,
 		urlString:            satoriUrl,
-		httpc:                &http.Client{Timeout: 2 * time.Second},
+		httpc:                &http.Client{Timeout: time.Duration(httpTimeoutSec) * time.Second},
 		url:                  parsedUrl,
 		apiKeyName:           strings.TrimSpace(apiKeyName),
 		apiKey:               strings.TrimSpace(apiKey),
 		signingKey:           strings.TrimSpace(signingKey),
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
-		strictContextModes:   make(map[string]bool, len(strictContextModes)),
 
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
@@ -94,8 +94,25 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		logger.Warn(err.Error())
 	}
 
-	for _, strictContextMode := range strictContextModes {
-		sc.strictContextModes[strictContextMode] = true
+	if cacheEnabled {
+		go func() {
+			ticker := time.NewTicker(satoriCacheTTL)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					sc.propertiesCacheMutex.Lock()
+					for cacheCtx := range sc.propertiesCache {
+						if cacheCtx.Err() != nil {
+							delete(sc.propertiesCache, cacheCtx)
+						}
+					}
+					sc.propertiesCacheMutex.Unlock()
+				}
+			}
+		}()
 	}
 
 	return sc
@@ -296,15 +313,11 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	var entry *runtime.Properties
-	var found bool
-	if s.cacheEnabled {
-		s.propertiesCacheMutex.RLock()
-		entry, found = s.propertiesCache[ctx]
-		s.propertiesCacheMutex.RUnlock()
-	}
+	s.propertiesCacheMutex.RLock()
+	entry, found := s.propertiesCache[ctx]
+	s.propertiesCacheMutex.RUnlock()
 
-	if !s.cacheEnabled || !found {
+	if !found {
 		url := s.url.String() + "/v1/properties"
 
 		sessionToken, err := s.generateToken(ctx, id)
@@ -1112,7 +1125,7 @@ func newSatoriCache[T any](ctx context.Context, enabled bool) *satoriCache[T] {
 	}
 
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(satoriCacheTTL)
 		defer ticker.Stop()
 		for {
 			select {
