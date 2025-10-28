@@ -150,6 +150,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_AUDIT_LOG, PermissionRead)
 	case "/nakama.console.Console/ListAuditLogUsers":
 		requiredPermissions = None()
+	case "/nakama.console.Console/AddAclTemplate":
+		requiredPermissions = Admin()
 	case "/nakama.console.Console/AddUser":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/BanAccount":
@@ -236,9 +238,10 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_WALLET, PermissionRead)
 	case "/nakama.console.Console/ListAccounts":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionRead)
+	case "/nakama.console.Console/ListAccounts/ListAclTemplates":
+		requiredPermissions = None()
 	case "/nakama.console.Console/ListAccounts/ListAuditLogs":
-		// TODO: Add resource for audit log.
-		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionRead)
+		requiredPermissions = NewPermission(console.AclResources_AUDIT_LOG, PermissionRead)
 	case "/nakama.console.Console/ListApiEndpoints":
 		requiredPermissions = NewPermission(console.AclResources_API_EXPLORER, PermissionRead)
 	case "/nakama.console.Console/ListChannelMessages":
@@ -381,7 +384,12 @@ func New(acl map[string]*console.Permissions) Permission {
 	return acc
 }
 
+// Create Permission from raw bitmap bytes.
+// Do not use for JSON deserialization. Use NewFromJson instead.
 func NewFromBytes(b []byte) Permission {
+	if len(b) != byteCount {
+		return None()
+	}
 	return Permission{Bitmap: b}
 }
 

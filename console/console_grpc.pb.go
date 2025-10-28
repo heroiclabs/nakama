@@ -44,6 +44,8 @@ const (
 	Console_AuthenticateMFASetup_FullMethodName         = "/nakama.console.Console/AuthenticateMFASetup"
 	Console_AddAccountNote_FullMethodName               = "/nakama.console.Console/AddAccountNote"
 	Console_ListAccountNotes_FullMethodName             = "/nakama.console.Console/ListAccountNotes"
+	Console_AddAclTemplate_FullMethodName               = "/nakama.console.Console/AddAclTemplate"
+	Console_ListAclTemplates_FullMethodName             = "/nakama.console.Console/ListAclTemplates"
 	Console_DeleteAccountNote_FullMethodName            = "/nakama.console.Console/DeleteAccountNote"
 	Console_AddUser_FullMethodName                      = "/nakama.console.Console/AddUser"
 	Console_ResetUserPassword_FullMethodName            = "/nakama.console.Console/ResetUserPassword"
@@ -153,6 +155,8 @@ type ConsoleClient interface {
 	AuthenticateMFASetup(ctx context.Context, in *AuthenticateMFASetupRequest, opts ...grpc.CallOption) (*AuthenticateMFASetupResponse, error)
 	AddAccountNote(ctx context.Context, in *AddAccountNoteRequest, opts ...grpc.CallOption) (*AccountNote, error)
 	ListAccountNotes(ctx context.Context, in *ListAccountNotesRequest, opts ...grpc.CallOption) (*ListAccountNotesResponse, error)
+	AddAclTemplate(ctx context.Context, in *AddAclTemplateRequest, opts ...grpc.CallOption) (*AclTemplate, error)
+	ListAclTemplates(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AclTemplateList, error)
 	DeleteAccountNote(ctx context.Context, in *DeleteAccountNoteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add a new console user.
 	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*AddUserResponse, error)
@@ -374,6 +378,26 @@ func (c *consoleClient) ListAccountNotes(ctx context.Context, in *ListAccountNot
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListAccountNotesResponse)
 	err := c.cc.Invoke(ctx, Console_ListAccountNotes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) AddAclTemplate(ctx context.Context, in *AddAclTemplateRequest, opts ...grpc.CallOption) (*AclTemplate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AclTemplate)
+	err := c.cc.Invoke(ctx, Console_AddAclTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) ListAclTemplates(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AclTemplateList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AclTemplateList)
+	err := c.cc.Invoke(ctx, Console_ListAclTemplates_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1315,6 +1339,8 @@ type ConsoleServer interface {
 	AuthenticateMFASetup(context.Context, *AuthenticateMFASetupRequest) (*AuthenticateMFASetupResponse, error)
 	AddAccountNote(context.Context, *AddAccountNoteRequest) (*AccountNote, error)
 	ListAccountNotes(context.Context, *ListAccountNotesRequest) (*ListAccountNotesResponse, error)
+	AddAclTemplate(context.Context, *AddAclTemplateRequest) (*AclTemplate, error)
+	ListAclTemplates(context.Context, *emptypb.Empty) (*AclTemplateList, error)
 	DeleteAccountNote(context.Context, *DeleteAccountNoteRequest) (*emptypb.Empty, error)
 	// Add a new console user.
 	AddUser(context.Context, *AddUserRequest) (*AddUserResponse, error)
@@ -1506,6 +1532,12 @@ func (UnimplementedConsoleServer) AddAccountNote(context.Context, *AddAccountNot
 }
 func (UnimplementedConsoleServer) ListAccountNotes(context.Context, *ListAccountNotesRequest) (*ListAccountNotesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccountNotes not implemented")
+}
+func (UnimplementedConsoleServer) AddAclTemplate(context.Context, *AddAclTemplateRequest) (*AclTemplate, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddAclTemplate not implemented")
+}
+func (UnimplementedConsoleServer) ListAclTemplates(context.Context, *emptypb.Empty) (*AclTemplateList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAclTemplates not implemented")
 }
 func (UnimplementedConsoleServer) DeleteAccountNote(context.Context, *DeleteAccountNoteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccountNote not implemented")
@@ -1890,6 +1922,42 @@ func _Console_ListAccountNotes_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).ListAccountNotes(ctx, req.(*ListAccountNotesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_AddAclTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddAclTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).AddAclTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_AddAclTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).AddAclTemplate(ctx, req.(*AddAclTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_ListAclTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListAclTemplates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_ListAclTemplates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListAclTemplates(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3576,6 +3644,14 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAccountNotes",
 			Handler:    _Console_ListAccountNotes_Handler,
+		},
+		{
+			MethodName: "AddAclTemplate",
+			Handler:    _Console_AddAclTemplate_Handler,
+		},
+		{
+			MethodName: "ListAclTemplates",
+			Handler:    _Console_ListAclTemplates_Handler,
 		},
 		{
 			MethodName: "DeleteAccountNote",

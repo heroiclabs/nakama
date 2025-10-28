@@ -154,12 +154,17 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				action = console.AuditLogAction_CREATE
 				resource = console.AclResources_USER
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "new console user added"
+				log = "new console user added or updated"
 			case "/nakama.console.Console/BanAccount":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_ACCOUNT
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "player account banned"
+			case "/nakama.console.Console/AddAclTemplate":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_SETTINGS
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "access-control-list template added or updated"
 			case "/nakama.console.Console/AddAccountNote":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_ACCOUNT_NOTES

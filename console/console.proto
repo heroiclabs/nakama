@@ -117,6 +117,17 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{account_id}/note";
   }
 
+  rpc AddAclTemplate (AddAclTemplateRequest) returns (AclTemplate) {
+    option (google.api.http) = {
+      post: "/v2/console/acl/template",
+      body: "*"
+    };
+  }
+
+  rpc ListAclTemplates (google.protobuf.Empty) returns (AclTemplateList) {
+    option (google.api.http).get = "/v2/console/acl/template";
+  }
+
   rpc DeleteAccountNote (DeleteAccountNoteRequest) returns (google.protobuf.Empty) {
     option (google.api.http).delete = "/v2/console/account/{account_id}/note/{note_id}";
   }
@@ -822,6 +833,34 @@ message AddAccountNoteRequest {
   string account_id = 2;
   // The content of the note.
   string note = 3;
+}
+
+// Add a new ACL template.
+message AddAclTemplateRequest {
+  // The name of the ACL template.
+  string name = 1;
+  // The ACL template description.
+  string description = 2;
+  // The ACL template permissions.
+  map<string,Permissions> acl = 3;
+}
+
+message AclTemplateList {
+  // A list of ACL templates.
+  repeated AclTemplate templates = 1;
+}
+
+message AclTemplate {
+  // The name of the ACL template.
+  string name = 1;
+  // The ACL template description.
+  string description = 2;
+  // The ACL template permissions.
+  map<string,Permissions> acl = 3;
+  // The template Create time.
+  google.protobuf.Timestamp create_time = 4;
+  // The template Update time.
+  google.protobuf.Timestamp update_time = 5;
 }
 
 // A user note.

@@ -1079,6 +1079,59 @@
         ]
       }
     },
+    "/v2/console/acl/template": {
+      "get": {
+        "operationId": "ListAclTemplates",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/AclTemplateList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      },
+      "post": {
+        "operationId": "AddAclTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/AclTemplate"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Add a new ACL template.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AddAclTemplateRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/all": {
       "delete": {
         "summary": "Deletes all data",
@@ -3946,6 +3999,49 @@
       "default": "ACCOUNT",
       "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
     },
+    "AclTemplate": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the ACL template."
+        },
+        "description": {
+          "type": "string",
+          "description": "The ACL template description."
+        },
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Permissions"
+          },
+          "description": "The ACL template permissions."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The template Create time."
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The template Update time."
+        }
+      }
+    },
+    "AclTemplateList": {
+      "type": "object",
+      "properties": {
+        "templates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AclTemplate"
+          },
+          "description": "A list of ACL templates."
+        }
+      }
+    },
     "ActiveRewardModifier": {
       "type": "object",
       "properties": {
@@ -3992,6 +4088,27 @@
         }
       },
       "description": "Add a new note for the user."
+    },
+    "AddAclTemplateRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the ACL template."
+        },
+        "description": {
+          "type": "string",
+          "description": "The ACL template description."
+        },
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Permissions"
+          },
+          "description": "The ACL template permissions."
+        }
+      },
+      "description": "Add a new ACL template."
     },
     "AddGroupUsersBody": {
       "type": "object",
