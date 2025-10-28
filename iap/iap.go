@@ -639,7 +639,7 @@ func GetSubscriptionV2Google(ctx context.Context, httpc *http.Client, clientEmai
 			return nil, nil, err
 		}
 
-		return out, nil, nil
+		return out, buf, nil
 	default:
 		return nil, nil, &ValidationError{
 			Err:        ErrNon200ServiceGoogle,
