@@ -161,10 +161,10 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "player account banned"
 			case "/nakama.console.Console/AddAclTemplate":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_SETTINGS
+				action = console.AuditLogAction_CREATE
+				resource = console.AclResources_ACL_TEMPLATE
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "access-control-list template added or updated"
+				log = "access-control-list template added"
 			case "/nakama.console.Console/AddAccountNote":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_ACCOUNT_NOTES
@@ -191,6 +191,10 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				action = console.AuditLogAction_DELETE
 				resource = console.AclResources_ALL_ACCOUNTS
 				log = "all player accounts deleted"
+			case "/nakama.console.Console/DeleteAclTemplate":
+				action = console.AuditLogAction_DELETE
+				resource = console.AclResources_ACL_TEMPLATE
+				log = "access-control-list template deleted"
 			case "/nakama.console.Console/DeleteAllData":
 				action = console.AuditLogAction_DELETE
 				resource = console.AclResources_ALL_DATA
@@ -339,6 +343,11 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				resource = console.AclResources_ACCOUNT
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "player account data updated"
+			case "/nakama.console.Console/UpdateAclTemplate":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_ACL_TEMPLATE
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "access-control-list template updated"
 			case "/nakama.console.Console/UpdateGroup":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_GROUP

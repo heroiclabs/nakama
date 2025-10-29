@@ -124,8 +124,19 @@ service Console {
     };
   }
 
+  rpc UpdateAclTemplate (UpdateAclTemplateRequest) returns (AclTemplate) {
+    option (google.api.http) = {
+      put: "/v2/console/acl/template/{id}",
+      body: "*"
+    };
+  }
+
   rpc ListAclTemplates (google.protobuf.Empty) returns (AclTemplateList) {
     option (google.api.http).get = "/v2/console/acl/template";
+  }
+
+  rpc DeleteAclTemplate (DeleteAclTemplateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/acl/template/{id}";
   }
 
   rpc DeleteAccountNote (DeleteAccountNoteRequest) returns (google.protobuf.Empty) {
@@ -845,22 +856,35 @@ message AddAclTemplateRequest {
   map<string,Permissions> acl = 3;
 }
 
+message UpdateAclTemplateRequest {
+  // The identifier of the ACL template.
+  string id = 1;
+  // The name of the ACL template.
+  string name = 2;
+  // The ACL template description.
+  string description = 3;
+  // The ACL template permissions.
+  map<string,Permissions> acl = 4;
+}
+
 message AclTemplateList {
   // A list of ACL templates.
   repeated AclTemplate templates = 1;
 }
 
 message AclTemplate {
+  // The identifier of the ACL template.
+  string id = 1;
   // The name of the ACL template.
-  string name = 1;
+  string name = 2;
   // The ACL template description.
-  string description = 2;
+  string description = 3;
   // The ACL template permissions.
-  map<string,Permissions> acl = 3;
+  map<string,Permissions> acl = 4;
   // The template Create time.
-  google.protobuf.Timestamp create_time = 4;
+  google.protobuf.Timestamp create_time = 5;
   // The template Update time.
-  google.protobuf.Timestamp update_time = 5;
+  google.protobuf.Timestamp update_time = 6;
 }
 
 // A user note.
@@ -893,6 +917,11 @@ message ListAccountNotesRequest {
   int32 limit = 2;
   // Optional cursor for pagination.
   string cursor = 3;
+}
+
+message DeleteAclTemplateRequest {
+  // The identifier of the ACL template.
+  string id = 1;
 }
 
 // Delete an account note.
@@ -1773,28 +1802,29 @@ enum AclResources {
   ACCOUNT_FRIENDS = 3;
   ACCOUNT_GROUPS = 4;
   ACCOUNT_NOTES = 5;
-  ALL_ACCOUNTS = 6;
-  ALL_DATA = 7;
-  ALL_STORAGE = 8;
-  API_EXPLORER = 9;
-  AUDIT_LOG = 10;
-  CONFIGURATION = 11;
-  CHANNEL_MESSAGE = 12;
-  USER = 13;
-  GROUP = 14;
-  IN_APP_PURCHASE = 15;
-  LEADERBOARD = 16;
-  LEADERBOARD_RECORD = 17;
-  MATCH = 18;
-  NOTIFICATION = 19;
-  SETTINGS = 20;
-  STORAGE_DATA = 21;
-  STORAGE_DATA_IMPORT = 22;
-  HIRO_INVENTORY = 23;
-  HIRO_PROGRESSION = 24;
-  HIRO_ECONOMY = 25;
-  HIRO_STATS = 26;
-  HIRO_ENERGY = 27;
+  ACL_TEMPLATE = 6;
+  ALL_ACCOUNTS = 7;
+  ALL_DATA = 8;
+  ALL_STORAGE = 9;
+  API_EXPLORER = 10;
+  AUDIT_LOG = 11;
+  CONFIGURATION = 12;
+  CHANNEL_MESSAGE = 13;
+  USER = 14;
+  GROUP = 15;
+  IN_APP_PURCHASE = 16;
+  LEADERBOARD = 17;
+  LEADERBOARD_RECORD = 18;
+  MATCH = 19;
+  NOTIFICATION = 20;
+  SETTINGS = 21;
+  STORAGE_DATA = 22;
+  STORAGE_DATA_IMPORT = 23;
+  HIRO_INVENTORY = 24;
+  HIRO_PROGRESSION = 25;
+  HIRO_ECONOMY = 26;
+  HIRO_STATS = 27;
+  HIRO_ENERGY = 28;
 }
 
 enum AuditLogAction {

@@ -16,8 +16,9 @@
 
 -- +migrate Up
 CREATE TABLE IF NOT EXISTS console_acl_template (
-    PRIMARY KEY (name),
+    PRIMARY KEY (id),
 
+    "id"          UUID         NOT NULL DEFAULT gen_random_uuid(),
     "name"        VARCHAR(64)  NOT NULL CHECK (length("name") > 0) CONSTRAINT template_name_uniq UNIQUE,
     "description" VARCHAR(64)  NOT NULL DEFAULT '',
     "acl"         JSONB        NOT NULL DEFAULT '{}',

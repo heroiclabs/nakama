@@ -45,7 +45,9 @@ const (
 	Console_AddAccountNote_FullMethodName               = "/nakama.console.Console/AddAccountNote"
 	Console_ListAccountNotes_FullMethodName             = "/nakama.console.Console/ListAccountNotes"
 	Console_AddAclTemplate_FullMethodName               = "/nakama.console.Console/AddAclTemplate"
+	Console_UpdateAclTemplate_FullMethodName            = "/nakama.console.Console/UpdateAclTemplate"
 	Console_ListAclTemplates_FullMethodName             = "/nakama.console.Console/ListAclTemplates"
+	Console_DeleteAclTemplate_FullMethodName            = "/nakama.console.Console/DeleteAclTemplate"
 	Console_DeleteAccountNote_FullMethodName            = "/nakama.console.Console/DeleteAccountNote"
 	Console_AddUser_FullMethodName                      = "/nakama.console.Console/AddUser"
 	Console_ResetUserPassword_FullMethodName            = "/nakama.console.Console/ResetUserPassword"
@@ -156,7 +158,9 @@ type ConsoleClient interface {
 	AddAccountNote(ctx context.Context, in *AddAccountNoteRequest, opts ...grpc.CallOption) (*AccountNote, error)
 	ListAccountNotes(ctx context.Context, in *ListAccountNotesRequest, opts ...grpc.CallOption) (*ListAccountNotesResponse, error)
 	AddAclTemplate(ctx context.Context, in *AddAclTemplateRequest, opts ...grpc.CallOption) (*AclTemplate, error)
+	UpdateAclTemplate(ctx context.Context, in *UpdateAclTemplateRequest, opts ...grpc.CallOption) (*AclTemplate, error)
 	ListAclTemplates(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AclTemplateList, error)
+	DeleteAclTemplate(ctx context.Context, in *DeleteAclTemplateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeleteAccountNote(ctx context.Context, in *DeleteAccountNoteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add a new console user.
 	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*AddUserResponse, error)
@@ -394,10 +398,30 @@ func (c *consoleClient) AddAclTemplate(ctx context.Context, in *AddAclTemplateRe
 	return out, nil
 }
 
+func (c *consoleClient) UpdateAclTemplate(ctx context.Context, in *UpdateAclTemplateRequest, opts ...grpc.CallOption) (*AclTemplate, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AclTemplate)
+	err := c.cc.Invoke(ctx, Console_UpdateAclTemplate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) ListAclTemplates(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AclTemplateList, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AclTemplateList)
 	err := c.cc.Invoke(ctx, Console_ListAclTemplates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) DeleteAclTemplate(ctx context.Context, in *DeleteAclTemplateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Console_DeleteAclTemplate_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1340,7 +1364,9 @@ type ConsoleServer interface {
 	AddAccountNote(context.Context, *AddAccountNoteRequest) (*AccountNote, error)
 	ListAccountNotes(context.Context, *ListAccountNotesRequest) (*ListAccountNotesResponse, error)
 	AddAclTemplate(context.Context, *AddAclTemplateRequest) (*AclTemplate, error)
+	UpdateAclTemplate(context.Context, *UpdateAclTemplateRequest) (*AclTemplate, error)
 	ListAclTemplates(context.Context, *emptypb.Empty) (*AclTemplateList, error)
+	DeleteAclTemplate(context.Context, *DeleteAclTemplateRequest) (*emptypb.Empty, error)
 	DeleteAccountNote(context.Context, *DeleteAccountNoteRequest) (*emptypb.Empty, error)
 	// Add a new console user.
 	AddUser(context.Context, *AddUserRequest) (*AddUserResponse, error)
@@ -1536,8 +1562,14 @@ func (UnimplementedConsoleServer) ListAccountNotes(context.Context, *ListAccount
 func (UnimplementedConsoleServer) AddAclTemplate(context.Context, *AddAclTemplateRequest) (*AclTemplate, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddAclTemplate not implemented")
 }
+func (UnimplementedConsoleServer) UpdateAclTemplate(context.Context, *UpdateAclTemplateRequest) (*AclTemplate, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAclTemplate not implemented")
+}
 func (UnimplementedConsoleServer) ListAclTemplates(context.Context, *emptypb.Empty) (*AclTemplateList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAclTemplates not implemented")
+}
+func (UnimplementedConsoleServer) DeleteAclTemplate(context.Context, *DeleteAclTemplateRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAclTemplate not implemented")
 }
 func (UnimplementedConsoleServer) DeleteAccountNote(context.Context, *DeleteAccountNoteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccountNote not implemented")
@@ -1944,6 +1976,24 @@ func _Console_AddAclTemplate_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_UpdateAclTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAclTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).UpdateAclTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_UpdateAclTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).UpdateAclTemplate(ctx, req.(*UpdateAclTemplateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListAclTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -1958,6 +2008,24 @@ func _Console_ListAclTemplates_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).ListAclTemplates(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_DeleteAclTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAclTemplateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).DeleteAclTemplate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_DeleteAclTemplate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).DeleteAclTemplate(ctx, req.(*DeleteAclTemplateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3650,8 +3718,16 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_AddAclTemplate_Handler,
 		},
 		{
+			MethodName: "UpdateAclTemplate",
+			Handler:    _Console_UpdateAclTemplate_Handler,
+		},
+		{
 			MethodName: "ListAclTemplates",
 			Handler:    _Console_ListAclTemplates_Handler,
+		},
+		{
+			MethodName: "DeleteAclTemplate",
+			Handler:    _Console_DeleteAclTemplate_Handler,
 		},
 		{
 			MethodName: "DeleteAccountNote",

@@ -151,7 +151,7 @@ func CheckACL(path string, userPermissions Permission) bool {
 	case "/nakama.console.Console/ListAuditLogUsers":
 		requiredPermissions = None()
 	case "/nakama.console.Console/AddAclTemplate":
-		requiredPermissions = Admin()
+		requiredPermissions = NewPermission(console.AclResources_ACL_TEMPLATE, PermissionWrite)
 	case "/nakama.console.Console/AddUser":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/BanAccount":
@@ -170,6 +170,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionDelete)
 	case "/nakama.console.Console/DeleteAccounts":
 		requiredPermissions = NewPermission(console.AclResources_ALL_ACCOUNTS, PermissionDelete)
+	case "/nakama.console.Console/DeleteAclTemplate":
+		requiredPermissions = NewPermission(console.AclResources_ACL_TEMPLATE, PermissionDelete)
 	case "/nakama.console.Console/DeleteAllData":
 		requiredPermissions = NewPermission(console.AclResources_ALL_DATA, PermissionDelete)
 	case "/nakama.console.Console/DeleteChannelMessages":
@@ -229,7 +231,7 @@ func CheckACL(path string, userPermissions Permission) bool {
 	case "/nakama.console.Console/GetSetting":
 		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionRead)
 	case "/nakama.console.Console/GetStatus":
-		requiredPermissions = None() // Accessible to anyone with console access.
+		requiredPermissions = None()
 	case "/nakama.console.Console/GetStorage":
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
 	case "/nakama.console.Console/GetSubscription":
@@ -298,6 +300,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UpdateAccount":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
+	case "/nakama.console.Console/UpdateAclTemplate":
+		requiredPermissions = NewPermission(console.AclResources_ACL_TEMPLATE, PermissionWrite)
 	case "/nakama.console.Console/UpdateGroup":
 		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionWrite)
 	case "/nakama.console.Console/UpdateUser":

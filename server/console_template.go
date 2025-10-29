@@ -18,6 +18,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/console/acl"
 	"go.uber.org/zap"
@@ -33,14 +34,8 @@ func (s *ConsoleServer) AddAclTemplate(ctx context.Context, in *console.AddAclTe
 			(name, description, acl)
 		VALUES
 			($1, $2, $3)
-		ON CONFLICT
-			(name)
-		DO UPDATE SET
-			description = $2,
-			acl = $3,
-			update_time = now()
 		RETURNING
-			name, description, acl, create_time, update_time
+			id, name, description, acl, create_time, update_time
 `
 
 	templateAcl := acl.New(in.Acl)
@@ -50,9 +45,55 @@ func (s *ConsoleServer) AddAclTemplate(ctx context.Context, in *console.AddAclTe
 		return nil, status.Error(codes.Internal, "Internal error")
 	}
 
+	var id uuid.UUID
 	var createTime, updateTime time.Time
 	var name, description, aclJson string
-	if err = s.db.QueryRowContext(ctx, query, in.Name, in.Description, aclValue).Scan(&name, &description, &aclJson, &createTime, &updateTime); err != nil {
+	if err = s.db.QueryRowContext(ctx, query, in.Name, in.Description, aclValue).Scan(&id, &name, &description, &aclJson, &createTime, &updateTime); err != nil {
+		s.logger.Error("Error inserting acl template", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error adding ACL template.")
+	}
+
+	templateAcl, err = acl.NewFromJson(aclJson)
+	if err != nil {
+		s.logger.Error("Error unmarshaling acl from json", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Internal error")
+	}
+
+	out := &console.AclTemplate{
+		Id:          id.String(),
+		Name:        name,
+		Description: description,
+		Acl:         templateAcl.ACL(),
+		CreateTime:  timestamppb.New(createTime),
+		UpdateTime:  timestamppb.New(updateTime),
+	}
+
+	return out, nil
+}
+
+func (s *ConsoleServer) UpdateAclTemplate(ctx context.Context, in *console.UpdateAclTemplateRequest) (*console.AclTemplate, error) {
+	query := `
+		UPDATE console_acl_template SET
+			name = $1,
+			description = $2,
+			acl = $3
+		WHERE
+			id = $4
+		RETURNING
+			id, name, description, acl, create_time, update_time
+`
+
+	templateAcl := acl.New(in.Acl)
+	aclValue, err := templateAcl.ToJson()
+	if err != nil {
+		s.logger.Error("Error marshaling acl to json", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Internal error")
+	}
+
+	var id uuid.UUID
+	var createTime, updateTime time.Time
+	var name, description, aclJson string
+	if err = s.db.QueryRowContext(ctx, query, in.Name, in.Description, aclValue, in.Id).Scan(&id, &name, &description, &aclJson, &createTime, &updateTime); err != nil {
 		s.logger.Error("Error inserting acl template", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error adding ACL template.")
 	}
@@ -77,7 +118,7 @@ func (s *ConsoleServer) AddAclTemplate(ctx context.Context, in *console.AddAclTe
 func (s *ConsoleServer) ListAclTemplates(ctx context.Context, in *emptypb.Empty) (*console.AclTemplateList, error) {
 	query := `
 		SELECT
-			name, description, acl, create_time, update_time
+			id, name, description, acl, create_time, update_time
 		FROM
 			console_acl_template
 		ORDER BY
@@ -93,10 +134,11 @@ func (s *ConsoleServer) ListAclTemplates(ctx context.Context, in *emptypb.Empty)
 
 	var templates []*console.AclTemplate
 	for rows.Next() {
+		var id uuid.UUID
 		var name, description, aclJson string
 		var createTime, updateTime time.Time
 
-		if err := rows.Scan(&name, &description, &aclJson, &createTime, &updateTime); err != nil {
+		if err := rows.Scan(&id, &name, &description, &aclJson, &createTime, &updateTime); err != nil {
 			s.logger.Error("Error scanning acl template row", zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error listing ACL templates.")
 		}
@@ -108,6 +150,7 @@ func (s *ConsoleServer) ListAclTemplates(ctx context.Context, in *emptypb.Empty)
 		}
 
 		template := &console.AclTemplate{
+			Id:          id.String(),
 			Name:        name,
 			Description: description,
 			Acl:         templateAcl.ACL(),
@@ -120,4 +163,11 @@ func (s *ConsoleServer) ListAclTemplates(ctx context.Context, in *emptypb.Empty)
 	return &console.AclTemplateList{Templates: templates}, nil
 }
 
-// TODO: Add audit log entry and ACL check.
+func (s *ConsoleServer) DeleteAclTemplate(ctx context.Context, in *console.DeleteAclTemplateRequest) (*emptypb.Empty, error) {
+	if _, err := s.db.ExecContext(ctx, "DELETE from console_acl_template WHERE id = $1", in.Id); err != nil {
+		s.logger.Error("Error deleting acl template", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error deleting ACL template.")
+	}
+
+	return &emptypb.Empty{}, nil
+}

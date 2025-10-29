@@ -1132,6 +1132,75 @@
         ]
       }
     },
+    "/v2/console/acl/template/{id}": {
+      "delete": {
+        "operationId": "DeleteAclTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The identifier of the ACL template.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateAclTemplate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/AclTemplate"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The identifier of the ACL template.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateAclTemplateBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/all": {
       "delete": {
         "summary": "Deletes all data",
@@ -3973,6 +4042,7 @@
         "ACCOUNT_FRIENDS",
         "ACCOUNT_GROUPS",
         "ACCOUNT_NOTES",
+        "ACL_TEMPLATE",
         "ALL_ACCOUNTS",
         "ALL_DATA",
         "ALL_STORAGE",
@@ -4002,6 +4072,10 @@
     "AclTemplate": {
       "type": "object",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "The identifier of the ACL template."
+        },
         "name": {
           "type": "string",
           "description": "The name of the ACL template."
@@ -6935,6 +7009,26 @@
         }
       },
       "description": "Update user account information."
+    },
+    "UpdateAclTemplateBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the ACL template."
+        },
+        "description": {
+          "type": "string",
+          "description": "The ACL template description."
+        },
+        "acl": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Permissions"
+          },
+          "description": "The ACL template permissions."
+        }
+      }
     },
     "UpdateGroupBody": {
       "type": "object",
