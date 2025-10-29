@@ -24,6 +24,7 @@ import "rtapi/realtime.proto";
 import "hiro.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
@@ -564,6 +565,11 @@ service Console {
       put: "/v2/console/storage/{collection}/{key}/{user_id}",
       body: "*"
     };
+  }
+
+  // Send a notification.
+  rpc SendNotification (SendNotificationRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).post = "/v2/console/notification";
   }
 
   rpc HiroListInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
@@ -1781,6 +1787,20 @@ message UpdateUserRequest {
   string username = 1;
   // ACL.
   map<string,Permissions> acl = 2;
+}
+
+// Request to send a notification.
+message SendNotificationRequest {
+  // One or more users to send the notification to, or empty to send to all users.
+  repeated string user_ids = 1;
+  // Subject for the notification.
+  string subject = 2;
+  // Arbitrary content.
+  google.protobuf.Struct content = 3;
+  // Code.
+  int32 code = 4;
+  // Persistent flag.
+  bool persistent = 5;
 }
 
 // The possible actions that can done over a resource.

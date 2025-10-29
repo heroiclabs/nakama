@@ -368,6 +368,11 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				resource = console.AclResources_STORAGE_DATA
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "storage object was updated"
+			case "/nakama.console.Console/SendNotificationRequest":
+				action = console.AuditLogAction_CREATE
+				resource = console.AclResources_NOTIFICATION
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "notification was sent"
 			case "/v2/console/storage/import":
 				action = console.AuditLogAction_IMPORT
 				resource = console.AclResources_STORAGE_DATA

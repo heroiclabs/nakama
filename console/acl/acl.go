@@ -310,6 +310,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionWrite)
 	case "/nakama.console.Console/WriteStorageObject":
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionWrite)
+	case "/nakama.console.Console/SendNotificationRequest":
+		requiredPermissions = NewPermission(console.AclResources_NOTIFICATION, PermissionWrite)
 	case "/v2/console/storage/import":
 		// Special case for non-grpc gateway endpoint.
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA_IMPORT, PermissionWrite)

@@ -20,7 +20,11 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"slices"
+	"time"
+
 	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -28,8 +32,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"slices"
-	"time"
 )
 
 type notificationsCursor struct {
@@ -269,6 +271,68 @@ func (s *ConsoleServer) DeleteNotification(ctx context.Context, in *console.Dele
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM notification WHERE id = $1", in.Id); err != nil {
 		s.logger.Error("Error deleting notification.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to delete notification")
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNotificationRequest) (*emptypb.Empty, error) {
+	if l := len(in.UserIds); l == 0 {
+		content := "{}"
+		if contentBytes, err := in.Content.MarshalJSON(); err != nil {
+			s.logger.Error("Error marshaling notification content.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to send notification, invalid content")
+		} else {
+			content = string(contentBytes)
+		}
+		notification := &api.Notification{
+			Id:         uuid.Must(uuid.NewV4()).String(),
+			Subject:    in.Subject,
+			Content:    content,
+			Code:       in.Code,
+			SenderId:   "",
+			CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
+			Persistent: in.Persistent,
+		}
+
+		if err := NotificationSendAll(ctx, s.logger, s.db, s.tracker, s.router, notification); err != nil {
+			s.logger.Error("Error sending notification.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to send notification")
+		}
+	} else {
+		content := "{}"
+		if contentBytes, err := in.Content.MarshalJSON(); err != nil {
+			s.logger.Error("Error marshaling notification content.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to send notification, invalid content")
+		} else {
+			content = string(contentBytes)
+		}
+		t := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
+		notifications := make(map[uuid.UUID][]*api.Notification, l)
+		for _, id := range in.UserIds {
+			userID, err := uuid.FromString(id)
+			if err != nil {
+				s.logger.Error("Error parsing user id.", zap.Error(err), zap.String("id", id))
+				return nil, status.Error(codes.Internal, "failed to send notification, invalid user id")
+			}
+			if userID == uuid.Nil {
+				return nil, status.Error(codes.Internal, "failed to send notification, cannot send to system user")
+			}
+			notifications[userID] = []*api.Notification{{
+				Id:         uuid.Must(uuid.NewV4()).String(),
+				Subject:    in.Subject,
+				Content:    content,
+				Code:       in.Code,
+				SenderId:   "",
+				CreateTime: t,
+				Persistent: in.Persistent,
+			}}
+		}
+
+		if err := NotificationSend(ctx, s.logger, s.db, s.tracker, s.router, notifications); err != nil {
+			s.logger.Error("Error sending notification.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to send notification")
+		}
 	}
 
 	return &emptypb.Empty{}, nil

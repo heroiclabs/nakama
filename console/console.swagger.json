@@ -2980,6 +2980,70 @@
         "tags": [
           "Console"
         ]
+      },
+      "post": {
+        "summary": "Send a notification.",
+        "operationId": "SendNotification",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_ids",
+            "description": "One or more users to send the notification to, or empty to send to all users.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "subject",
+            "description": "Subject for the notification.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "content",
+            "description": "Arbitrary content.",
+            "in": "query",
+            "required": false,
+            "type": "object"
+          },
+          {
+            "name": "code",
+            "description": "Code.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "persistent",
+            "description": "Persistent flag.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
       }
     },
     "/v2/console/notification/{id}": {
