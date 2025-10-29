@@ -373,6 +373,16 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				resource = console.AclResources_STORAGE_DATA
 				metadata, mErr = auditLogMarshaller.Marshal(msg) // Should we marshal the whole request?
 				log = "storage objects imported"
+			case "/nakama.console.Console/ImportAccount":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_ACCOUNT_EXPORT
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "account data imported into existing account"
+			case "/nakama.console.Console/ImportAccountFull":
+				action = console.AuditLogAction_CREATE
+				resource = console.AclResources_ACCOUNT_EXPORT
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "account data imported into new account"
 			case "/nakama.console.Console/HiroAddUserInventoryItems":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_HIRO_INVENTORY
