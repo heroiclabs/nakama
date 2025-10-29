@@ -139,7 +139,7 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 
 			var action console.AuditLogAction
 			var resource console.AclResources
-			var metadata []byte
+			metadata := []byte("{}")
 			var mErr error
 			var log string
 
