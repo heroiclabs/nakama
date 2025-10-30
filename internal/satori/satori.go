@@ -1229,6 +1229,48 @@ func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *cons
 	}
 }
 
+func (s *SatoriClient) ConsoleMessageIntegrationsList(ctx context.Context) (*console.MessageIntegrationListResponse, error) {
+	if s.serverKey == "" {
+		return nil, runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.String() + "/v1/console/message-integration"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(s.serverKey, "")
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var out console.MessageIntegrationListResponse
+		if err = protojson.Unmarshal(resBody, &out); err != nil {
+			return nil, err
+		}
+
+		return &out, nil
+	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
 func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, in *console.MessageDirectSendRequest) (*console.MessageDirectSendResponse, error) {
 	if s.serverKey == "" {
 		return nil, runtime.ErrSatoriConfigurationInvalid

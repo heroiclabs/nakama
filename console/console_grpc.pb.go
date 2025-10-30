@@ -126,6 +126,7 @@ const (
 	Console_UpdateUser_FullMethodName                   = "/nakama.console.Console/UpdateUser"
 	Console_WriteStorageObject_FullMethodName           = "/nakama.console.Console/WriteStorageObject"
 	Console_SatoriTemplatesList_FullMethodName          = "/nakama.console.Console/SatoriTemplatesList"
+	Console_SatoriIntegrationsList_FullMethodName       = "/nakama.console.Console/SatoriIntegrationsList"
 	Console_SatoriDirectMessageSend_FullMethodName      = "/nakama.console.Console/SatoriDirectMessageSend"
 	Console_SendNotification_FullMethodName             = "/nakama.console.Console/SendNotification"
 	Console_HiroListInventoryItems_FullMethodName       = "/nakama.console.Console/HiroListInventoryItems"
@@ -317,6 +318,7 @@ type ConsoleClient interface {
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(ctx context.Context, in *WriteStorageObjectRequest, opts ...grpc.CallOption) (*api.StorageObjectAck, error)
 	SatoriTemplatesList(ctx context.Context, in *Template_ListRequest, opts ...grpc.CallOption) (*Template_ListResponse, error)
+	SatoriIntegrationsList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*MessageIntegrationListResponse, error)
 	SatoriDirectMessageSend(ctx context.Context, in *MessageDirectSendRequest, opts ...grpc.CallOption) (*MessageDirectSendResponse, error)
 	// Send a notification.
 	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -1215,6 +1217,16 @@ func (c *consoleClient) SatoriTemplatesList(ctx context.Context, in *Template_Li
 	return out, nil
 }
 
+func (c *consoleClient) SatoriIntegrationsList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*MessageIntegrationListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MessageIntegrationListResponse)
+	err := c.cc.Invoke(ctx, Console_SatoriIntegrationsList_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) SatoriDirectMessageSend(ctx context.Context, in *MessageDirectSendRequest, opts ...grpc.CallOption) (*MessageDirectSendResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MessageDirectSendResponse)
@@ -1557,6 +1569,7 @@ type ConsoleServer interface {
 	// Write a new storage object or replace an existing one.
 	WriteStorageObject(context.Context, *WriteStorageObjectRequest) (*api.StorageObjectAck, error)
 	SatoriTemplatesList(context.Context, *Template_ListRequest) (*Template_ListResponse, error)
+	SatoriIntegrationsList(context.Context, *emptypb.Empty) (*MessageIntegrationListResponse, error)
 	SatoriDirectMessageSend(context.Context, *MessageDirectSendRequest) (*MessageDirectSendResponse, error)
 	// Send a notification.
 	SendNotification(context.Context, *SendNotificationRequest) (*emptypb.Empty, error)
@@ -1845,6 +1858,9 @@ func (UnimplementedConsoleServer) WriteStorageObject(context.Context, *WriteStor
 }
 func (UnimplementedConsoleServer) SatoriTemplatesList(context.Context, *Template_ListRequest) (*Template_ListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SatoriTemplatesList not implemented")
+}
+func (UnimplementedConsoleServer) SatoriIntegrationsList(context.Context, *emptypb.Empty) (*MessageIntegrationListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SatoriIntegrationsList not implemented")
 }
 func (UnimplementedConsoleServer) SatoriDirectMessageSend(context.Context, *MessageDirectSendRequest) (*MessageDirectSendResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SatoriDirectMessageSend not implemented")
@@ -3484,6 +3500,24 @@ func _Console_SatoriTemplatesList_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_SatoriIntegrationsList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).SatoriIntegrationsList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_SatoriIntegrationsList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).SatoriIntegrationsList(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_SatoriDirectMessageSend_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(MessageDirectSendRequest)
 	if err := dec(in); err != nil {
@@ -4144,6 +4178,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SatoriTemplatesList",
 			Handler:    _Console_SatoriTemplatesList_Handler,
+		},
+		{
+			MethodName: "SatoriIntegrationsList",
+			Handler:    _Console_SatoriIntegrationsList_Handler,
 		},
 		{
 			MethodName: "SatoriDirectMessageSend",

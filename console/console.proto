@@ -571,7 +571,9 @@ service Console {
     option (google.api.http).get = "/v2/console/satori/template";
   }
 
-  // TODO: Do we need to list the integrations
+  rpc SatoriIntegrationsList (google.protobuf.Empty) returns (MessageIntegrationListResponse) {
+    option (google.api.http).get = "/v2/console/satori/integration";
+  }
 
   rpc SatoriDirectMessageSend (MessageDirectSendRequest) returns (MessageDirectSendResponse) {
     option (google.api.http) = {
@@ -2125,6 +2127,74 @@ enum MessageChannelType {
   PUSH = 1;
   // Email.
   EMAIL = 2;
+}
+
+message MessageIntegration {
+  // The name of the Message integration.
+  MessageIntegrationType type = 1;
+  // The status of the integration.
+  bool enabled = 2;
+  // The update time of the integration.
+  int64 update_time_sec = 3;
+  // The configuration of this integration.
+  oneof configuration {
+    // The new configuration for APNs.
+    AppleMessageConfiguration apns = 4;
+    // The new configuration for FCM.
+    FirebaseMessagingConfiguration fcm = 5;
+    // The new configuration for Facebook App-to-User Notifications.
+    FacebookNotificationConfiguration facebook_notification = 6;
+    // The new configuration for OneSignal Notifications.
+    OneSignalNotificationConfiguration onesignal_notification = 7;
+  }
+
+  message Export {
+    // The type of the message integration.
+    MessageIntegrationType type = 1;
+    // The platform specific configuration as JSON.
+    string configuration = 2;
+    // The last time it was updated.
+    int64 update_time = 3;
+  }
+}
+
+// The list of Message integrations available and their status.
+message MessageIntegrationListResponse {
+  // The list of integrations
+  repeated MessageIntegration configurations = 1;
+}
+
+// The configuration necessary to integrate with APNs.
+message AppleMessageConfiguration{
+  string team_id = 1;
+  string topic = 2;
+  string p8_auth_key_id = 3;
+  string p8_auth_key_value = 4;
+  EnvType env = 5;
+
+  // The APNs environment type.
+  enum EnvType {
+    PRODUCTION = 0;
+    DEVELOPMENT = 1;
+  }
+}
+
+// The configuration necessary to integrate with Google's Firebase Cloud Messaging.
+message FirebaseMessagingConfiguration{
+  string credentials = 1;
+  string project_id = 2;
+}
+
+// The configuration necessary to integrate with Facebook App-To-User Notifications.
+message FacebookNotificationConfiguration{
+  string app_id = 1;
+  string app_secret = 2;
+}
+
+// The configuration necessary to integrate with OneSignal Notifications.
+message OneSignalNotificationConfiguration {
+  string app_id = 1;
+  string api_key = 2;
 }
 
 // The possible actions that can done over a resource.

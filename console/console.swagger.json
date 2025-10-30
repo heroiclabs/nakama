@@ -3204,6 +3204,28 @@
         ]
       }
     },
+    "/v2/console/satori/integration": {
+      "get": {
+        "operationId": "SatoriIntegrationsList",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/MessageIntegrationListResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/satori/template": {
       "get": {
         "operationId": "SatoriTemplatesList",
@@ -4438,6 +4460,27 @@
       },
       "title": "API Explorer List of Endpoints"
     },
+    "AppleMessageConfiguration": {
+      "type": "object",
+      "properties": {
+        "team_id": {
+          "type": "string"
+        },
+        "topic": {
+          "type": "string"
+        },
+        "p8_auth_key_id": {
+          "type": "string"
+        },
+        "p8_auth_key_value": {
+          "type": "string"
+        },
+        "env": {
+          "$ref": "#/definitions/EnvType"
+        }
+      },
+      "description": "The configuration necessary to integrate with APNs."
+    },
     "AuditLog": {
       "type": "object",
       "properties": {
@@ -5322,6 +5365,15 @@
       },
       "description": "A modifier that may change energy behaviour."
     },
+    "EnvType": {
+      "type": "string",
+      "enum": [
+        "PRODUCTION",
+        "DEVELOPMENT"
+      ],
+      "default": "PRODUCTION",
+      "description": "The APNs environment type."
+    },
     "Extensions": {
       "type": "object",
       "properties": {
@@ -5339,6 +5391,30 @@
         }
       },
       "description": "Which Console extensions are registered and available."
+    },
+    "FacebookNotificationConfiguration": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "app_secret": {
+          "type": "string"
+        }
+      },
+      "description": "The configuration necessary to integrate with Facebook App-To-User Notifications."
+    },
+    "FirebaseMessagingConfiguration": {
+      "type": "object",
+      "properties": {
+        "credentials": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        }
+      },
+      "description": "The configuration necessary to integrate with Google's Firebase Cloud Messaging."
     },
     "Friend": {
       "type": "object",
@@ -6068,6 +6144,54 @@
       },
       "description": "The response for the SendDirectMessageRequest."
     },
+    "MessageIntegration": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/MessageIntegrationType",
+          "description": "The name of the Message integration."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "The status of the integration."
+        },
+        "update_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "The update time of the integration."
+        },
+        "apns": {
+          "$ref": "#/definitions/AppleMessageConfiguration",
+          "description": "The new configuration for APNs."
+        },
+        "fcm": {
+          "$ref": "#/definitions/FirebaseMessagingConfiguration",
+          "description": "The new configuration for FCM."
+        },
+        "facebook_notification": {
+          "$ref": "#/definitions/FacebookNotificationConfiguration",
+          "description": "The new configuration for Facebook App-to-User Notifications."
+        },
+        "onesignal_notification": {
+          "$ref": "#/definitions/OneSignalNotificationConfiguration",
+          "description": "The new configuration for OneSignal Notifications."
+        }
+      }
+    },
+    "MessageIntegrationListResponse": {
+      "type": "object",
+      "properties": {
+        "configurations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/MessageIntegration"
+          },
+          "title": "The list of integrations"
+        }
+      },
+      "description": "The list of Message integrations available and their status."
+    },
     "MessageIntegrationType": {
       "type": "string",
       "enum": [
@@ -6123,6 +6247,18 @@
       ],
       "default": "NULL_VALUE",
       "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\nThe JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
+    },
+    "OneSignalNotificationConfiguration": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "api_key": {
+          "type": "string"
+        }
+      },
+      "description": "The configuration necessary to integrate with OneSignal Notifications."
     },
     "PageOptions": {
       "type": "object",
@@ -6766,7 +6902,19 @@
       },
       "title": "Runtime information"
     },
-<<<<<<< HEAD
+    "SearchOptions": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/SingleTextValueFilterOption",
+          "description": "Filter by Name."
+        },
+        "label_name": {
+          "$ref": "#/definitions/MultiTextValueFilterOption",
+          "description": "Filter by Label name."
+        }
+      }
+    },
     "SendNotificationRequest": {
       "type": "object",
       "properties": {
@@ -6800,21 +6948,6 @@
         }
       },
       "description": "Request to send a notification."
-||||||| parent of b6b1462e (Add Console integration with Satori.)
-=======
-    "SearchOptions": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "$ref": "#/definitions/SingleTextValueFilterOption",
-          "description": "Filter by Name."
-        },
-        "label_name": {
-          "$ref": "#/definitions/MultiTextValueFilterOption",
-          "description": "Filter by Label name."
-        }
-      }
->>>>>>> b6b1462e (Add Console integration with Satori.)
     },
     "Setting": {
       "type": "object",
