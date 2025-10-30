@@ -272,6 +272,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_USER, PermissionRead)
 	case "/nakama.console.Console/PromoteGroupMember":
 		requiredPermissions = NewPermission(console.AclResources_GROUP, PermissionWrite)
+	case "/nakama.console.Console/RegisteredExtensions":
+		requiredPermissions = None()
 	case "/nakama.console.Console/RequireUserMfa":
 		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
 	case "/nakama.console.Console/ResetUserMfa":
@@ -312,8 +314,6 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionWrite)
 	case "/nakama.console.Console/SendNotificationRequest":
 		requiredPermissions = NewPermission(console.AclResources_NOTIFICATION, PermissionWrite)
-	case "/v2/console/storage/import":
-		// Special case for non-grpc gateway endpoint.
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA_IMPORT, PermissionWrite)
 	case "/nakama.console.Console/HiroListInventoryItems":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionRead)
@@ -327,8 +327,6 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionWrite)
 	case "/nakama.console.Console/HiroListProgressions":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionRead)
-	case "/nakama.console.Console/HiroRegisteredSystems":
-		requiredPermissions = None()
 	case "/nakama.console.Console/HiroResetProgressions":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_PROGRESSION, PermissionWrite)
 	case "/nakama.console.Console/HiroUnlockProgressions":
@@ -345,6 +343,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_HIRO_STATS, PermissionWrite)
 	case "/nakama.console.Console/HiroEnergyGrant":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_ENERGY, PermissionWrite)
+	case "/v2/console/storage/import":
+		// Special case for non-grpc gateway endpoint.
 	default:
 		requiredPermissions = Admin()
 	}

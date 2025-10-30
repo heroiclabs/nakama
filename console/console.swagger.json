@@ -1641,6 +1641,28 @@
         ]
       }
     },
+    "/v2/console/extensions": {
+      "get": {
+        "operationId": "RegisteredExtensions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/Extensions"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/group": {
       "get": {
         "summary": "List (and optionally filter) groups.",
@@ -2488,28 +2510,6 @@
         ]
       }
     },
-    "/v2/console/hiro/systems": {
-      "get": {
-        "operationId": "HiroRegisteredSystems",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/RegisteredSystems"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "tags": [
-          "Console"
-        ]
-      }
-    },
     "/v2/console/iap/purchase/{transaction_id}": {
       "get": {
         "summary": "Get purchase by transaction_id",
@@ -3166,6 +3166,125 @@
             }
           }
         },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/satori/direct-message": {
+      "post": {
+        "operationId": "SatoriDirectMessageSend",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/MessageDirectSendResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "The request to send direct messages.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MessageDirectSendRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/satori/template": {
+      "get": {
+        "operationId": "SatoriTemplatesList",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ListResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "search.name.or",
+            "description": "Filter by elements matching one of the parameters.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "search.name.exact",
+            "description": "Filter by elements matching exactly the value.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "search.name.like",
+            "description": "Filter by elements matching the pattern.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "search.label_name.or",
+            "description": "Filter by elements matching one of the parameters.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "search.label_name.and",
+            "description": "Filter by elements matching all parameters.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "pagination.limit",
+            "description": "Limit of results to return.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pagination.cursor",
+            "description": "Cursor to the next page.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "tags": [
           "Console"
         ]
@@ -4868,6 +4987,24 @@
       },
       "title": "API Explorer request definition for CallApiEndpoint"
     },
+    "Category.View": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "color": {
+          "type": "string",
+          "description": "Color hex for the label."
+        }
+      },
+      "description": "A summary of a Category."
+    },
     "ChannelMessage": {
       "type": "object",
       "properties": {
@@ -5025,6 +5162,24 @@
         }
       }
     },
+    "DeliveryResult": {
+      "type": "object",
+      "properties": {
+        "recipient_id": {
+          "type": "string",
+          "description": "The identity ID of the recipient."
+        },
+        "integration_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/IntegrationResult"
+          },
+          "description": "Results for each valid integration used in the delivery."
+        }
+      },
+      "description": "Details of each delivery attempt."
+    },
     "EconomyUpdateAck": {
       "type": "object",
       "properties": {
@@ -5166,6 +5321,24 @@
         }
       },
       "description": "A modifier that may change energy behaviour."
+    },
+    "Extensions": {
+      "type": "object",
+      "properties": {
+        "hiro": {
+          "type": "boolean",
+          "description": "Is Hiro registered."
+        },
+        "hiro_systems": {
+          "$ref": "#/definitions/HiroSystems",
+          "description": "Hiro registered systems, if hiro is available."
+        },
+        "satori": {
+          "type": "boolean",
+          "description": "Is Satori registered."
+        }
+      },
+      "description": "Which Console extensions are registered and available."
     },
     "Friend": {
       "type": "object",
@@ -5408,6 +5581,32 @@
       },
       "description": "Request to update a user's stats."
     },
+    "HiroSystems": {
+      "type": "object",
+      "properties": {
+        "economy_system": {
+          "type": "boolean",
+          "description": "Is Economy system registered."
+        },
+        "inventory_system": {
+          "type": "boolean",
+          "description": "Is Inventory system registered."
+        },
+        "progression_system": {
+          "type": "boolean",
+          "description": "Is Progression system registered."
+        },
+        "stats_system": {
+          "type": "boolean",
+          "description": "Is Stats system registered."
+        },
+        "energy_system": {
+          "type": "boolean",
+          "description": "Is Energy system registered."
+        }
+      },
+      "description": "Hiro available systems."
+    },
     "HiroUnlockProgressionsBody": {
       "type": "object",
       "properties": {
@@ -5460,6 +5659,28 @@
         }
       },
       "description": "Request to import user account data."
+    },
+    "IntegrationResult": {
+      "type": "object",
+      "properties": {
+        "integration_type": {
+          "$ref": "#/definitions/MessageIntegrationType",
+          "description": "The integration type used for the message delivery."
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether the message was successfully delivered using this integration."
+        },
+        "error_message": {
+          "type": "string",
+          "description": "An error message, if the delivery failed."
+        },
+        "channel_type": {
+          "$ref": "#/definitions/MessageChannelType",
+          "description": "The channel type used for the message delivery."
+        }
+      },
+      "description": "The outcome of using a specific integration."
     },
     "Inventory": {
       "type": "object",
@@ -5723,6 +5944,24 @@
       ],
       "default": "UNKNOWN"
     },
+    "ListResponse": {
+      "type": "object",
+      "properties": {
+        "templates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/Template.View"
+          },
+          "description": "A list of templates."
+        },
+        "page_options": {
+          "$ref": "#/definitions/PageOptions",
+          "description": "The pagination options, if there are more pages."
+        }
+      },
+      "description": "A list of templates."
+    },
     "MatchList.Match": {
       "type": "object",
       "properties": {
@@ -5759,6 +5998,89 @@
       },
       "title": "Match state"
     },
+    "MessageChannelType": {
+      "type": "string",
+      "enum": [
+        "DEFAULT",
+        "PUSH",
+        "EMAIL"
+      ],
+      "default": "DEFAULT",
+      "description": "Message channel types.\n\n - PUSH: Push notification.\n - EMAIL: Email."
+    },
+    "MessageChannels": {
+      "type": "object",
+      "properties": {
+        "channels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MessageChannelType"
+          }
+        }
+      }
+    },
+    "MessageDirectSendRequest": {
+      "type": "object",
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "description": "The identifier of the template used to render the message content."
+        },
+        "identity_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of recipient identity IDs."
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MessageIntegrationType"
+          },
+          "description": "A list of integrations to use for sending the message."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Whether the message should be stored in the recipient's inbox."
+        },
+        "channels": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/MessageChannels"
+          },
+          "description": "If applicable, channels to send this message through, per integration."
+        }
+      },
+      "description": "The request to send direct messages."
+    },
+    "MessageDirectSendResponse": {
+      "type": "object",
+      "properties": {
+        "delivery_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/DeliveryResult"
+          },
+          "description": "Results for each attempted message delivery."
+        }
+      },
+      "description": "The response for the SendDirectMessageRequest."
+    },
+    "MessageIntegrationType": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN_MESSAGE_TYPE",
+        "FCM",
+        "APNS",
+        "FACEBOOK_NOTIFICATION",
+        "ONESIGNAL_NOTIFICATION",
+        "WEBHOOK_NOTIFICATION"
+      ],
+      "default": "UNKNOWN_MESSAGE_TYPE",
+      "description": "Message integration's names.\n\n - FCM: The variant for Google's Firebase Cloud Messaging.\n - APNS: The variant for Apple's Message system.\n - FACEBOOK_NOTIFICATION: The variant for Facebook App-to-User Notifications.\n - ONESIGNAL_NOTIFICATION: The variant for OneSignal Notifications.\n - WEBHOOK_NOTIFICATION: The variant for Webhook Notifications."
+    },
     "ModuleInfo": {
       "type": "object",
       "properties": {
@@ -5774,6 +6096,26 @@
       },
       "title": "Module information"
     },
+    "MultiTextValueFilterOption": {
+      "type": "object",
+      "properties": {
+        "or": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Filter by elements matching one of the parameters."
+        },
+        "and": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Filter by elements matching all parameters."
+        }
+      },
+      "description": "The MultiTextValueFilterOption specifies the operation to apply to multi-value text fields.\nOnly a single operation can be used at one time."
+    },
     "NullValue": {
       "type": "string",
       "enum": [
@@ -5781,6 +6123,33 @@
       ],
       "default": "NULL_VALUE",
       "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\nThe JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
+    },
+    "PageOptions": {
+      "type": "object",
+      "properties": {
+        "prev_cursor": {
+          "type": "string",
+          "description": "Cursor, if there are prev pages."
+        },
+        "next_cursor": {
+          "type": "string",
+          "description": "Cursor, if there are next pages."
+        }
+      }
+    },
+    "PaginationOptions": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Limit of results to return."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor to the next page."
+        }
+      }
     },
     "Permissions": {
       "type": "object",
@@ -6083,36 +6452,6 @@
         }
       },
       "description": "A list of validated purchases stored by Nakama."
-    },
-    "RegisteredSystems": {
-      "type": "object",
-      "properties": {
-        "hiro": {
-          "type": "boolean",
-          "description": "Is Hiro registered."
-        },
-        "economy_system": {
-          "type": "boolean",
-          "description": "Is Economy system registered."
-        },
-        "inventory_system": {
-          "type": "boolean",
-          "description": "Is Inventory system registered."
-        },
-        "progression_system": {
-          "type": "boolean",
-          "description": "Is Progression system registered."
-        },
-        "stats_system": {
-          "type": "boolean",
-          "description": "Is Stats system registered."
-        },
-        "energy_system": {
-          "type": "boolean",
-          "description": "Is Energy system registered."
-        }
-      },
-      "description": "Whether Hiro is registered and which systems are enabled."
     },
     "RequireUserMfaBody": {
       "type": "object",
@@ -6427,6 +6766,7 @@
       },
       "title": "Runtime information"
     },
+<<<<<<< HEAD
     "SendNotificationRequest": {
       "type": "object",
       "properties": {
@@ -6460,6 +6800,21 @@
         }
       },
       "description": "Request to send a notification."
+||||||| parent of b6b1462e (Add Console integration with Satori.)
+=======
+    "SearchOptions": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/SingleTextValueFilterOption",
+          "description": "Filter by Name."
+        },
+        "label_name": {
+          "$ref": "#/definitions/MultiTextValueFilterOption",
+          "description": "Filter by Label name."
+        }
+      }
+>>>>>>> b6b1462e (Add Console integration with Satori.)
     },
     "Setting": {
       "type": "object",
@@ -6500,6 +6855,27 @@
         }
       },
       "description": "A list of settings."
+    },
+    "SingleTextValueFilterOption": {
+      "type": "object",
+      "properties": {
+        "or": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Filter by elements matching one of the parameters."
+        },
+        "exact": {
+          "type": "string",
+          "description": "Filter by elements matching exactly the value."
+        },
+        "like": {
+          "type": "string",
+          "description": "Filter by elements matching the pattern."
+        }
+      },
+      "description": "The SingleTextValueFilterOption specifies the operation to apply to single value text fields.\nOnly a single operation can be used at one time."
     },
     "Stat": {
       "type": "object",
@@ -7009,6 +7385,58 @@
         }
       },
       "description": "Rewards granted to the team."
+    },
+    "Template.View": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The identifier."
+        },
+        "name": {
+          "type": "string",
+          "description": "The display name."
+        },
+        "create_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "Create time."
+        },
+        "update_time_sec": {
+          "type": "string",
+          "format": "int64",
+          "description": "Update time."
+        },
+        "value": {
+          "type": "string",
+          "description": "The template value to generate the message's content."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title to generate the message's title."
+        },
+        "image_url": {
+          "type": "string",
+          "description": "The image_url for the message."
+        },
+        "value_type": {
+          "type": "string",
+          "title": "The value_type for the message's content"
+        },
+        "json_metadata": {
+          "type": "string",
+          "title": "The json_metadata for the message"
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/Category.View"
+          },
+          "description": "Category label identifiers."
+        }
+      },
+      "description": "A template view."
     },
     "UnlinkDeviceBody": {
       "type": "object",

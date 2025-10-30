@@ -22,7 +22,6 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var (
@@ -33,23 +32,6 @@ var (
 	ErrHiroStatsSystemNotRegistered       = status.Error(codes.NotFound, "Hiro Stats system not registered")
 	ErrHiroEnergySystemNotRegistered      = status.Error(codes.NotFound, "Hiro Energy system not registered")
 )
-
-func (s *ConsoleServer) HiroRegisteredSystems(ctx context.Context, in *emptypb.Empty) (*console.RegisteredSystems, error) {
-	if s.hiro == nil || s.hiro.hiro == nil {
-		return &console.RegisteredSystems{}, nil
-	}
-
-	registeredSystems := &console.RegisteredSystems{
-		Hiro:              true,
-		EconomySystem:     s.hiro.hiro.GetEconomySystem().GetType() != hiro.SystemTypeUnknown,
-		InventorySystem:   s.hiro.hiro.GetInventorySystem().GetType() != hiro.SystemTypeUnknown,
-		ProgressionSystem: s.hiro.hiro.GetProgressionSystem().GetType() != hiro.SystemTypeUnknown,
-		StatsSystem:       s.hiro.hiro.GetStatsSystem().GetType() != hiro.SystemTypeUnknown,
-		EnergySystem:      s.hiro.hiro.GetEnergySystem().GetType() != hiro.SystemTypeUnknown,
-	}
-
-	return registeredSystems, nil
-}
 
 func (s *ConsoleServer) HiroListInventoryItems(ctx context.Context, in *console.HiroInventoryListRequest) (*hiro.InventoryList, error) {
 	if s.hiro == nil || s.hiro.hiro == nil {

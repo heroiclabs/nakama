@@ -684,6 +684,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		config.GetSatori().Url,
 		config.GetSatori().ApiKeyName,
 		config.GetSatori().ApiKey,
+		config.GetSatori().ServerKey,
 		config.GetSatori().SigningKey,
 		config.GetSession().TokenExpirySec,
 		int64(config.GetSatori().HttpTimeoutSec),

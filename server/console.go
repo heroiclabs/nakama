@@ -39,6 +39,7 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/console/acl"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -84,6 +85,7 @@ type ConsoleServer struct {
 	cookie               string
 	httpClient           *http.Client
 	hiro                 *consoleHiro
+	satori               *satori.SatoriClient
 }
 
 type consoleHiro struct {
@@ -113,6 +115,22 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
 
+	var satoriClient *satori.SatoriClient
+	if config.GetSatori().ServerKey != "" {
+		satoriClient = satori.NewSatoriClient(
+			ctx,
+			logger,
+			config.GetSatori().Url,
+			config.GetSatori().ApiKeyName,
+			config.GetSatori().ApiKey,
+			config.GetSatori().ServerKey,
+			config.GetSatori().SigningKey,
+			config.GetSession().TokenExpirySec,
+			int64(config.GetSatori().HttpTimeoutSec),
+			false,
+		)
+	}
+
 	s := &ConsoleServer{
 		logger:               logger,
 		db:                   db,
@@ -141,6 +159,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		cookie:               cookie,
 		httpClient:           &http.Client{Timeout: 5 * time.Second},
 		hiro:                 runtime.hiro,
+		satori:               satoriClient,
 	}
 
 	if err := s.initRpcMethodCache(); err != nil {

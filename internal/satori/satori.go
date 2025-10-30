@@ -33,8 +33,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const satoriCacheTTL = 5 * time.Second
@@ -48,6 +50,7 @@ type SatoriClient struct {
 	urlString            string
 	apiKeyName           string
 	apiKey               string
+	serverKey            string
 	signingKey           string
 	tokenExpirySec       int
 	nakamaTokenExpirySec int64
@@ -62,7 +65,7 @@ type SatoriClient struct {
 	experimentsCache     *satoriCache[*runtime.Experiment]
 }
 
-func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec, httpTimeoutSec int64, cacheEnabled bool) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, serverKey, signingKey string, nakamaTokenExpirySec, httpTimeoutSec int64, cacheEnabled bool) *SatoriClient {
 	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
 	// the server.
 	parsedUrl, _ := url.Parse(satoriUrl)
@@ -74,6 +77,7 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		url:                  parsedUrl,
 		apiKeyName:           strings.TrimSpace(apiKeyName),
 		apiKey:               strings.TrimSpace(apiKey),
+		serverKey:            strings.TrimSpace(serverKey),
 		signingKey:           strings.TrimSpace(signingKey),
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
@@ -1097,6 +1101,178 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 			return fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
 		}
 		return fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+//{
+//"name": "search.name.or",
+//"description": "Filter by elements matching one of the parameters.",
+//"in": "query",
+//"required": false,
+//"type": "array",
+//"items": {
+//"type": "string"
+//},
+//"collectionFormat": "multi"
+//},
+//{
+//"name": "search.name.exact",
+//"description": "Filter by elements matching exactly the value.",
+//"in": "query",
+//"required": false,
+//"type": "string"
+//},
+//{
+//"name": "search.name.like",
+//"description": "Filter by elements matching the pattern.",
+//"in": "query",
+//"required": false,
+//"type": "string"
+//},
+//{
+//"name": "search.label_name.or",
+//"description": "Filter by elements matching one of the parameters.",
+//"in": "query",
+//"required": false,
+//"type": "array",
+//"items": {
+//"type": "string"
+//},
+//"collectionFormat": "multi"
+//},
+//{
+//"name": "search.label_name.and",
+//"description": "Filter by elements matching all parameters.",
+//"in": "query",
+//"required": false,
+//"type": "array",
+//"items": {
+//"type": "string"
+//},
+//"collectionFormat": "multi"
+//},
+
+func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *console.Template_ListRequest) (*console.Template_ListResponse, error) {
+	if s.serverKey == "" {
+		return nil, runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.String() + "/v1/console/template"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(s.serverKey, "")
+	q := req.URL.Query()
+	if in.GetPagination() != nil {
+		if in.Pagination.Limit > 0 {
+			q.Set("pagination.limit", strconv.Itoa(int(in.Pagination.Limit)))
+		}
+		if in.Pagination.Cursor != "" {
+			q.Set("pagination.cursor", in.Pagination.Cursor)
+		}
+	}
+	if in.Search.GetName() != nil {
+		if len(in.Search.GetName().GetOr()) > 0 {
+			for _, query := range in.Search.GetName().GetOr() {
+				q.Add("search.name.or", query)
+			}
+		}
+		if in.Search.GetName().GetExact() != "" {
+			q.Set("search.name.exact", in.Search.GetName().GetExact())
+		}
+		if in.Search.GetName().GetLike() != "" {
+			q.Set("search.name.like", in.Search.GetName().GetLike())
+		}
+	}
+	if in.Search.GetLabelName() != nil {
+		if len(in.Search.GetLabelName().GetOr()) > 0 {
+			for _, query := range in.Search.GetLabelName().GetOr() {
+				q.Add("search.label_name.or", query)
+			}
+		}
+		if len(in.Search.GetLabelName().GetAnd()) > 0 {
+			for _, query := range in.Search.GetLabelName().GetAnd() {
+				q.Add("search.label_name.and", query)
+			}
+		}
+	}
+	req.URL.RawQuery = q.Encode()
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var out console.Template_ListResponse
+		if err = protojson.Unmarshal(resBody, &out); err != nil {
+			return nil, err
+		}
+
+		return &out, nil
+	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, in *console.MessageDirectSendRequest) (*console.MessageDirectSendResponse, error) {
+	if s.serverKey == "" {
+		return nil, runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.String() + "/v1/console/message-direct"
+
+	json, err := protojson.Marshal(in)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(json))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(s.serverKey, "")
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var out console.MessageDirectSendResponse
+		if err = protojson.Unmarshal(resBody, &out); err != nil {
+			return nil, err
+		}
+
+		return &out, nil
+	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
 	}
 }
 

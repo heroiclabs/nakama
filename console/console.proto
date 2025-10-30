@@ -567,6 +567,19 @@ service Console {
     };
   }
 
+  rpc SatoriTemplatesList (Template.ListRequest) returns (Template.ListResponse) {
+    option (google.api.http).get = "/v2/console/satori/template";
+  }
+
+  // TODO: Do we need to list the integrations
+
+  rpc SatoriDirectMessageSend (MessageDirectSendRequest) returns (MessageDirectSendResponse) {
+    option (google.api.http) = {
+      post: "/v2/console/satori/direct-message",
+      body: "*"
+    };
+  }
+
   // Send a notification.
   rpc SendNotification (SendNotificationRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -608,8 +621,8 @@ service Console {
     option (google.api.http).get = "/v2/console/hiro/progression/{user_id}";
   }
 
-  rpc HiroRegisteredSystems (google.protobuf.Empty) returns (RegisteredSystems) {
-    option (google.api.http).get = "/v2/console/hiro/systems";
+  rpc RegisteredExtensions (google.protobuf.Empty) returns (Extensions) {
+    option (google.api.http).get = "/v2/console/extensions";
   }
 
   rpc HiroResetProgressions (HiroResetProgressionsRequest) returns (hiro.ProgressionList) {
@@ -1237,20 +1250,28 @@ message HiroEnergyGrantRequest {
   map<string, int32> amounts = 2;
 }
 
-// Whether Hiro is registered and which systems are enabled.
-message RegisteredSystems {
+// Which Console extensions are registered and available.
+message Extensions {
   // Is Hiro registered.
   bool hiro = 1;
-  // Is Economy system registered.
-  bool economy_system = 2;
-  // Is Inventory system registered.
-  bool inventory_system = 3;
-  // Is Progression system registered.
-  bool progression_system = 4;
-  // Is Stats system registered.
-  bool stats_system = 5;
-  // Is Energy system registered.
-  bool energy_system = 6;
+  // Hiro registered systems, if hiro is available.
+  HiroSystems hiro_systems = 2;
+  // Is Satori registered.
+  bool satori = 3;
+
+  // Hiro available systems.
+  message HiroSystems {
+    // Is Economy system registered.
+    bool economy_system = 1;
+    // Is Inventory system registered.
+    bool inventory_system = 2;
+    // Is Progression system registered.
+    bool progression_system = 3;
+    // Is Stats system registered.
+    bool stats_system = 4;
+    // Is Energy system registered.
+    bool energy_system = 5;
+  }
 }
 
 // A leaderboard.
@@ -1806,6 +1827,304 @@ message SendNotificationRequest {
   bool persistent = 5;
   // Sender identifier.
   string sender_id = 6;
+}
+
+// A template.
+message Template {
+  // The identifier.
+  string id = 1;
+  // The display name.
+  string name = 2;
+  // Create time.
+  int64 create_time_sec = 4;
+  // Update time.
+  int64 update_time_sec = 5;
+  // The template value to generate the message's content.
+  string value = 6;
+  // The template variants..
+  repeated TemplateVariant variants = 7;
+  // The title to generate the message's title.
+  string title = 8;
+  // The image_url for the message.
+  string image_url = 9;
+  // The value_type for the message's content
+  string value_type = 10;
+  // The json_metadata for the message
+  string json_metadata = 11;
+  // Category label identifiers.
+  repeated Category.View categories = 12;
+
+  // A template view.
+  message View {
+    // The identifier.
+    string id = 1;
+    // The display name.
+    string name = 2;
+    // Create time.
+    int64 create_time_sec = 4;
+    // Update time.
+    int64 update_time_sec = 5;
+    // The template value to generate the message's content.
+    string value = 6;
+    // The title to generate the message's title.
+    string title = 7;
+    // The image_url for the message.
+    string image_url = 8;
+    // The value_type for the message's content
+    string value_type = 9;
+    // The json_metadata for the message
+    string json_metadata = 10;
+    // Category label identifiers.
+    repeated Category.View categories = 11;
+  }
+
+  // An export of a message template.
+  message Export {
+    // The identifier.
+    string id = 1;
+    // The display name.
+    string name = 2;
+    // The template value to generate the message's content.
+    string value = 3;
+    // The template variants..
+    repeated VariantExport variants = 4;
+    // The title to generate the message's title.
+    string title = 5;
+    // The image_url for the message.
+    string image_url = 6;
+    // The value_type for the message's content
+    string value_type = 7;
+    // The json_metadata for the message
+    string json_metadata = 8;
+    // Category label identifiers.
+    repeated string category_ids = 9;
+  }
+
+  message VariantExport {
+    // The language of the template.
+    string language = 1;
+    // The template value to generate the message's content.
+    string value = 2;
+    // The title to generate the message's title.
+    string title = 3;
+    // The image_url for the message.
+    string image_url = 4;
+  }
+
+  // The request to list templates.
+  message ListRequest {
+    // Search options.
+    SearchOptions search = 5;
+    // Pagination options.
+    PaginationOptions pagination = 6;
+
+    message SearchOptions {
+      // Filter by Name.
+      SingleTextValueFilterOption name = 1;
+      // Filter by Label name.
+      MultiTextValueFilterOption label_name = 3;
+    }
+
+    // The MultiTextValueFilterOption specifies the operation to apply to multi-value text fields.
+    // Only a single operation can be used at one time.
+    message MultiTextValueFilterOption {
+      // Filter by elements matching one of the parameters.
+      repeated string or = 1;
+      // Filter by elements matching all parameters.
+      repeated string and = 2;
+    }
+
+    message PaginationOptions {
+      // Limit of results to return.
+      int32 limit = 1;
+      // Cursor to the next page.
+      string cursor = 2;
+    }
+  }
+
+  // The SingleTextValueFilterOption specifies the operation to apply to single value text fields.
+  // Only a single operation can be used at one time.
+  message SingleTextValueFilterOption {
+    // Filter by elements matching one of the parameters.
+    repeated string or = 1;
+    // Filter by elements matching exactly the value.
+    string exact = 2;
+    // Filter by elements matching the pattern.
+    string like = 3;
+  }
+
+  // A list of templates.
+  message ListResponse {
+    // A list of templates.
+    repeated Template.View templates = 1;
+    // The pagination options, if there are more pages.
+    PageOptions page_options = 2;
+  }
+
+  // The request to create a template.
+  message CreateRequest {
+    // The name for the template.
+    string name = 1;
+    // The template value to generate the message's content.
+    string value = 2;
+    // The title to generate the message's title.
+    string title = 3;
+    // The image_url for the message.
+    string image_url = 4;
+    // The value_type for the message's content
+    string value_type = 5;
+    // The json_metadata for the message
+    string json_metadata = 6;
+    // Category label identifiers.
+    repeated string category_ids = 7;
+  }
+
+  // The request to update a template.
+  message UpdateRequest {
+    // The identifier of the template.
+    string id = 1;
+    // The new name for the template.
+    string name = 2;
+    // The template value to generate the message's content.
+    string value = 3;
+    // The title to generate the message's title.
+    string title = 4;
+    // The image_url for the message.
+    string image_url = 5;
+    // The value_type for the message's content
+    string value_type = 6;
+    // The json_metadata for the message
+    string json_metadata = 7;
+    // Category label identifiers.
+    repeated string category_ids = 8;
+  }
+
+  message PageOptions {
+    // Cursor, if there are prev pages.
+    string prev_cursor = 1;
+    // Cursor, if there are next pages.
+    string next_cursor = 2;
+  }
+}
+
+// A template variant.
+message TemplateVariant {
+  // The language of the template.
+  string language = 1;
+  // The template value to generate the message's content.
+  string value = 2;
+  // Create time.
+  int64 create_time_sec = 4;
+  // Update time.
+  int64 update_time_sec = 5;
+  // The title to generate the message's title.
+  string title = 6;
+  // The image_url for the message.
+  string image_url = 7;
+}
+
+// Represents a category label.
+message Category {
+  // Identifier.
+  string id = 1;
+  // Name.
+  string name = 2;
+  // Description.
+  string description = 3;
+  // Color hex for the label.
+  string color = 4;
+  // Create time.
+  int64 create_time_sec = 5;
+  // Update time.
+  int64 update_time_sec = 6;
+
+  // A export of a Category
+  message Export {
+    // Identifier.
+    string id = 1;
+    // Name.
+    string name = 2;
+    // Description.
+    string description = 3;
+    // Color hex for the label.
+    string color = 4;
+  }
+
+  // A summary of a Category.
+  message View {
+    // Identifier.
+    string id = 1;
+    // Name.
+    string name = 2;
+    // Color hex for the label.
+    string color = 3;
+  }
+}
+
+// The request to send direct messages.
+message MessageDirectSendRequest {
+  // The identifier of the template used to render the message content.
+  string template_id = 1;
+  // A list of recipient identity IDs.
+  repeated string identity_ids = 2;
+  // A list of integrations to use for sending the message.
+  repeated MessageIntegrationType integrations = 3;
+  // Whether the message should be stored in the recipient's inbox.
+  bool persist = 4;
+  // If applicable, channels to send this message through, per integration.
+  map<int32, MessageChannels> channels = 5;
+
+  message MessageChannels {
+    repeated MessageChannelType channels = 1;
+  }
+}
+
+// The response for the SendDirectMessageRequest.
+message MessageDirectSendResponse {
+  // Results for each attempted message delivery.
+  repeated DeliveryResult delivery_results = 1;
+  // Details of each delivery attempt.
+  message DeliveryResult {
+    // The identity ID of the recipient.
+    string recipient_id = 1;
+    // Results for each valid integration used in the delivery.
+    repeated IntegrationResult integration_results = 2;
+    // The outcome of using a specific integration.
+    message IntegrationResult {
+      // The integration type used for the message delivery.
+      MessageIntegrationType integration_type = 1;
+      // Whether the message was successfully delivered using this integration.
+      bool success = 2;
+      // An error message, if the delivery failed.
+      string error_message = 3;
+      // The channel type used for the message delivery.
+      MessageChannelType channel_type = 4;
+    }
+  }
+}
+
+// Message integration's names.
+enum MessageIntegrationType {
+  UNKNOWN_MESSAGE_TYPE = 0;
+  // The variant for Google's Firebase Cloud Messaging.
+  FCM = 1;
+  // The variant for Apple's Message system.
+  APNS = 2;
+  // The variant for Facebook App-to-User Notifications.
+  FACEBOOK_NOTIFICATION = 3;
+  // The variant for OneSignal Notifications.
+  ONESIGNAL_NOTIFICATION = 4;
+  // The variant for Webhook Notifications.
+  WEBHOOK_NOTIFICATION = 5;
+}
+
+// Message channel types.
+enum MessageChannelType {
+  DEFAULT = 0;
+  // Push notification.
+  PUSH = 1;
+  // Email.
+  EMAIL = 2;
 }
 
 // The possible actions that can done over a resource.
