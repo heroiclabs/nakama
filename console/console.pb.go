@@ -8331,7 +8331,7 @@ const file_console_proto_rawDesc = "" +
 	"\n" +
 	"\x06IMPORT\x10\x05\x12\n" +
 	"\n" +
-	"\x06EXPORT\x10\x062\xaec\n" +
+	"\x06EXPORT\x10\x062\xb1c\n" +
 	"\aConsole\x12\x83\x01\n" +
 	"\fAuthenticate\x12#.nakama.console.AuthenticateRequest\x1a\x1e.nakama.console.ConsoleSession\".\x92A\bb\x06\n" +
 	"\x04\n" +
@@ -8430,8 +8430,8 @@ const file_console_proto_rawDesc = "" +
 	"\rUpdateSetting\x12$.nakama.console.UpdateSettingRequest\x1a\x17.nakama.console.Setting\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v2/console/setting/{name}\x12m\n" +
 	"\n" +
 	"UpdateUser\x12!.nakama.console.UpdateUserRequest\x1a\x14.nakama.console.User\"&\x82\xd3\xe4\x93\x02 :\x01*\x1a\x1b/v2/console/user/{username}\x12\x9a\x01\n" +
-	"\x12WriteStorageObject\x12).nakama.console.WriteStorageObjectRequest\x1a\x1c.nakama.api.StorageObjectAck\";\x82\xd3\xe4\x93\x025:\x01*\x1a0/v2/console/storage/{collection}/{key}/{user_id}\x12u\n" +
-	"\x10SendNotification\x12'.nakama.console.SendNotificationRequest\x1a\x16.google.protobuf.Empty\" \x82\xd3\xe4\x93\x02\x1a\"\x18/v2/console/notification\x12\x8b\x01\n" +
+	"\x12WriteStorageObject\x12).nakama.console.WriteStorageObjectRequest\x1a\x1c.nakama.api.StorageObjectAck\";\x82\xd3\xe4\x93\x025:\x01*\x1a0/v2/console/storage/{collection}/{key}/{user_id}\x12x\n" +
+	"\x10SendNotification\x12'.nakama.console.SendNotificationRequest\x1a\x16.google.protobuf.Empty\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/console/notification\x12\x8b\x01\n" +
 	"\x16HiroListInventoryItems\x12(.nakama.console.HiroInventoryListRequest\x1a\x13.hiro.InventoryList\"2\x82\xd3\xe4\x93\x02,\x12*/v2/console/hiro/inventory/{user_id}/codex\x12\x89\x01\n" +
 	"\x1aHiroListUserInventoryItems\x12(.nakama.console.HiroInventoryListRequest\x1a\x13.hiro.InventoryList\",\x82\xd3\xe4\x93\x02&\x12$/v2/console/hiro/inventory/{user_id}\x12\x95\x01\n" +
 	"\x19HiroAddUserInventoryItems\x12-.nakama.console.HiroGrantUserInventoryRequest\x1a\x18.hiro.InventoryUpdateAck\"/\x82\xd3\xe4\x93\x02):\x01*\"$/v2/console/hiro/inventory/{user_id}\x12\x9e\x01\n" +

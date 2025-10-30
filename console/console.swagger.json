@@ -3001,51 +3001,13 @@
         },
         "parameters": [
           {
-            "name": "user_ids",
-            "description": "One or more users to send the notification to, or empty to send to all users.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "subject",
-            "description": "Subject for the notification.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "content",
-            "description": "Arbitrary content.",
-            "in": "query",
-            "required": false,
-            "type": "object"
-          },
-          {
-            "name": "code",
-            "description": "Code.",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "persistent",
-            "description": "Persistent flag.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "sender_id",
-            "description": "Sender identifier.",
-            "in": "query",
-            "required": false,
-            "type": "string"
+            "name": "body",
+            "description": "Request to send a notification.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SendNotificationRequest"
+            }
           }
         ],
         "tags": [
@@ -6464,6 +6426,40 @@
         }
       },
       "title": "Runtime information"
+    },
+    "SendNotificationRequest": {
+      "type": "object",
+      "properties": {
+        "user_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "One or more users to send the notification to, or empty to send to all users."
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject for the notification."
+        },
+        "content": {
+          "type": "object",
+          "description": "Arbitrary content."
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Code."
+        },
+        "persistent": {
+          "type": "boolean",
+          "description": "Persistent flag."
+        },
+        "sender_id": {
+          "type": "string",
+          "description": "Sender identifier."
+        }
+      },
+      "description": "Request to send a notification."
     },
     "Setting": {
       "type": "object",

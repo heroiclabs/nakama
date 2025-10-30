@@ -569,7 +569,10 @@ service Console {
 
   // Send a notification.
   rpc SendNotification (SendNotificationRequest) returns (google.protobuf.Empty) {
-    option (google.api.http).post = "/v2/console/notification";
+    option (google.api.http) = {
+      post: "/v2/console/notification",
+      body: "*"
+    };
   }
 
   rpc HiroListInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {

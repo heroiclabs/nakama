@@ -278,7 +278,7 @@ func (s *ConsoleServer) DeleteNotification(ctx context.Context, in *console.Dele
 
 func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNotificationRequest) (*emptypb.Empty, error) {
 	if l := len(in.UserIds); l == 0 {
-		var senderId string
+		senderId := uuid.Nil.String()
 		if in.SenderId != "" {
 			if _, err := uuid.FromString(in.SenderId); err != nil {
 				return nil, status.Error(codes.Internal, "failed to send notification, invalid sender id")
@@ -307,7 +307,7 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 			return nil, status.Error(codes.Internal, "failed to send notification")
 		}
 	} else {
-		var senderId string
+		senderId := uuid.Nil.String()
 		if in.SenderId != "" {
 			if _, err := uuid.FromString(in.SenderId); err != nil {
 				return nil, status.Error(codes.Internal, "failed to send notification, invalid sender id")
