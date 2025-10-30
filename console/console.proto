@@ -1801,6 +1801,8 @@ message SendNotificationRequest {
   int32 code = 4;
   // Persistent flag.
   bool persistent = 5;
+  // Sender identifier.
+  string sender_id = 6;
 }
 
 // The possible actions that can done over a resource.

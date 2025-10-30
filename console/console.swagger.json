@@ -3039,6 +3039,13 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "sender_id",
+            "description": "Sender identifier.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [

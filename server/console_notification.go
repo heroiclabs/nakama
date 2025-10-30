@@ -278,6 +278,13 @@ func (s *ConsoleServer) DeleteNotification(ctx context.Context, in *console.Dele
 
 func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNotificationRequest) (*emptypb.Empty, error) {
 	if l := len(in.UserIds); l == 0 {
+		var senderId string
+		if in.SenderId != "" {
+			if _, err := uuid.FromString(in.SenderId); err != nil {
+				return nil, status.Error(codes.Internal, "failed to send notification, invalid sender id")
+			}
+			senderId = in.SenderId
+		}
 		content := "{}"
 		if contentBytes, err := in.Content.MarshalJSON(); err != nil {
 			s.logger.Error("Error marshaling notification content.", zap.Error(err))
@@ -290,7 +297,7 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 			Subject:    in.Subject,
 			Content:    content,
 			Code:       in.Code,
-			SenderId:   "",
+			SenderId:   senderId,
 			CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
 			Persistent: in.Persistent,
 		}
@@ -300,6 +307,13 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 			return nil, status.Error(codes.Internal, "failed to send notification")
 		}
 	} else {
+		var senderId string
+		if in.SenderId != "" {
+			if _, err := uuid.FromString(in.SenderId); err != nil {
+				return nil, status.Error(codes.Internal, "failed to send notification, invalid sender id")
+			}
+			senderId = in.SenderId
+		}
 		content := "{}"
 		if contentBytes, err := in.Content.MarshalJSON(); err != nil {
 			s.logger.Error("Error marshaling notification content.", zap.Error(err))
@@ -323,7 +337,7 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 				Subject:    in.Subject,
 				Content:    content,
 				Code:       in.Code,
-				SenderId:   "",
+				SenderId:   senderId,
 				CreateTime: t,
 				Persistent: in.Persistent,
 			}}

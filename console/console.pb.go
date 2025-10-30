@@ -7135,7 +7135,9 @@ type SendNotificationRequest struct {
 	// Code.
 	Code int32 `protobuf:"varint,4,opt,name=code,proto3" json:"code,omitempty"`
 	// Persistent flag.
-	Persistent    bool `protobuf:"varint,5,opt,name=persistent,proto3" json:"persistent,omitempty"`
+	Persistent bool `protobuf:"varint,5,opt,name=persistent,proto3" json:"persistent,omitempty"`
+	// Sender identifier.
+	SenderId      string `protobuf:"bytes,6,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7203,6 +7205,13 @@ func (x *SendNotificationRequest) GetPersistent() bool {
 		return x.Persistent
 	}
 	return false
+}
+
+func (x *SendNotificationRequest) GetSenderId() string {
+	if x != nil {
+		return x.SenderId
+	}
+	return ""
 }
 
 // The possible actions that can done over a resource.
@@ -8258,7 +8267,7 @@ const file_console_proto_rawDesc = "" +
 	"\x03acl\x18\x02 \x03(\v2*.nakama.console.UpdateUserRequest.AclEntryR\x03acl\x1aS\n" +
 	"\bAclEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
-	"\x05value\x18\x02 \x01(\v2\x1b.nakama.console.PermissionsR\x05value:\x028\x01\"\xb5\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x1b.nakama.console.PermissionsR\x05value:\x028\x01\"\xd2\x01\n" +
 	"\x17SendNotificationRequest\x12\x19\n" +
 	"\buser_ids\x18\x01 \x03(\tR\auserIds\x12\x18\n" +
 	"\asubject\x18\x02 \x01(\tR\asubject\x121\n" +
@@ -8266,7 +8275,8 @@ const file_console_proto_rawDesc = "" +
 	"\x04code\x18\x04 \x01(\x05R\x04code\x12\x1e\n" +
 	"\n" +
 	"persistent\x18\x05 \x01(\bR\n" +
-	"persistent\"O\n" +
+	"persistent\x12\x1b\n" +
+	"\tsender_id\x18\x06 \x01(\tR\bsenderId\"O\n" +
 	"\vPermissions\x12\x12\n" +
 	"\x04read\x18\x01 \x01(\bR\x04read\x12\x14\n" +
 	"\x05write\x18\x02 \x01(\bR\x05write\x12\x16\n" +
