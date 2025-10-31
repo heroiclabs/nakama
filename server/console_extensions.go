@@ -22,24 +22,24 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (c *ConsoleServer) RegisteredExtensions(ctx context.Context, in *emptypb.Empty) (*console.Extensions, error) {
+func (s *ConsoleServer) RegisteredExtensions(ctx context.Context, in *emptypb.Empty) (*console.Extensions, error) {
 	hiroRegistered := false
 	var hiroSystems *console.Extensions_HiroSystems
-	if c.hiro != nil && c.hiro.hiro != nil {
+	if s.hiro != nil && s.hiro.hiro != nil {
 		hiroRegistered = true
 		hiroSystems = &console.Extensions_HiroSystems{
-			EconomySystem:     c.hiro.hiro.GetEconomySystem().GetType() != hiro.SystemTypeUnregistered,
-			InventorySystem:   c.hiro.hiro.GetInventorySystem().GetType() != hiro.SystemTypeUnregistered,
-			ProgressionSystem: c.hiro.hiro.GetProgressionSystem().GetType() != hiro.SystemTypeUnregistered,
-			StatsSystem:       c.hiro.hiro.GetStatsSystem().GetType() != hiro.SystemTypeUnregistered,
-			EnergySystem:      c.hiro.hiro.GetEnergySystem().GetType() != hiro.SystemTypeUnregistered,
+			EconomySystem:     s.hiro.hiro.GetEconomySystem().GetType() != hiro.SystemTypeUnregistered,
+			InventorySystem:   s.hiro.hiro.GetInventorySystem().GetType() != hiro.SystemTypeUnregistered,
+			ProgressionSystem: s.hiro.hiro.GetProgressionSystem().GetType() != hiro.SystemTypeUnregistered,
+			StatsSystem:       s.hiro.hiro.GetStatsSystem().GetType() != hiro.SystemTypeUnregistered,
+			EnergySystem:      s.hiro.hiro.GetEnergySystem().GetType() != hiro.SystemTypeUnregistered,
 		}
 	}
 
 	extensions := &console.Extensions{
 		Hiro:        hiroRegistered,
 		HiroSystems: hiroSystems,
-		Satori:      c.satori != nil,
+		Satori:      s.satori != nil,
 	}
 
 	return extensions, nil

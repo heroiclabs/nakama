@@ -285,17 +285,15 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 			}
 			senderId = in.SenderId
 		}
-		content := "{}"
-		if contentBytes, err := in.Content.MarshalJSON(); err != nil {
+		contentBytes, err := in.Content.MarshalJSON()
+		if err != nil {
 			s.logger.Error("Error marshaling notification content.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "failed to send notification, invalid content")
-		} else {
-			content = string(contentBytes)
 		}
 		notification := &api.Notification{
 			Id:         uuid.Must(uuid.NewV4()).String(),
 			Subject:    in.Subject,
-			Content:    content,
+			Content:    string(contentBytes),
 			Code:       in.Code,
 			SenderId:   senderId,
 			CreateTime: &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()},
@@ -314,12 +312,10 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 			}
 			senderId = in.SenderId
 		}
-		content := "{}"
-		if contentBytes, err := in.Content.MarshalJSON(); err != nil {
+		contentBytes, err := in.Content.MarshalJSON()
+		if err != nil {
 			s.logger.Error("Error marshaling notification content.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "failed to send notification, invalid content")
-		} else {
-			content = string(contentBytes)
 		}
 		t := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
 		notifications := make(map[uuid.UUID][]*api.Notification, l)
@@ -335,7 +331,7 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 			notifications[userID] = []*api.Notification{{
 				Id:         uuid.Must(uuid.NewV4()).String(),
 				Subject:    in.Subject,
-				Content:    content,
+				Content:    string(contentBytes),
 				Code:       in.Code,
 				SenderId:   senderId,
 				CreateTime: t,

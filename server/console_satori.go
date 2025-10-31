@@ -23,28 +23,28 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (c *ConsoleServer) SatoriListTemplates(ctx context.Context, in *console.Template_ListRequest) (*console.Template_ListResponse, error) {
-	if c.satori == nil {
+func (s *ConsoleServer) SatoriListTemplates(ctx context.Context, in *console.Template_ListRequest) (*console.Template_ListResponse, error) {
+	if s.satori == nil {
 		return nil, status.Error(codes.FailedPrecondition, "Satori server key not configured.")
 	}
 
-	res, err := c.satori.ConsoleMessageTemplatesList(ctx, in)
+	res, err := s.satori.ConsoleMessageTemplatesList(ctx, in)
 	if err != nil {
-		c.logger.Error("Failed to list message templates from satori", zap.Error(err))
+		s.logger.Error("Failed to list message templates from satori", zap.Error(err))
 		return nil, err
 	}
 
 	return res, nil
 }
 
-func (c *ConsoleServer) SatoriSendDirectMessage(ctx context.Context, in *console.SendDirectMessageRequest) (*console.SendDirectMessageResponse, error) {
-	if c.satori == nil {
+func (s *ConsoleServer) SatoriSendDirectMessage(ctx context.Context, in *console.SendDirectMessageRequest) (*console.SendDirectMessageResponse, error) {
+	if s.satori == nil {
 		return nil, status.Error(codes.FailedPrecondition, "Satori server key not configured.")
 	}
 
-	res, err := c.satori.ConsoleDirectMessageSend(ctx, in)
+	res, err := s.satori.ConsoleDirectMessageSend(ctx, in)
 	if err != nil {
-		c.logger.Error("Failed to send satori direct message", zap.Error(err))
+		s.logger.Error("Failed to send satori direct message", zap.Error(err))
 		return nil, err
 	}
 
