@@ -5,8 +5,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.32.1] - 2025-10-17
 ### Fixed
 - Shorter processing for matchmaker custom function when inactive.
+- Google and Apple In-App Purchase notification handling improvements for subscription upgrade/downgrade events.
 
 ## [3.32.0] - 2025-09-16
 ### Changed
