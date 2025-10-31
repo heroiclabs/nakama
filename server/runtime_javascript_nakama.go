@@ -4642,7 +4642,7 @@ func (n *RuntimeJavascriptNakamaModule) walletLedgerList(r *goja.Runtime) func(g
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		items, newCursor, _, err := ListWalletLedger(n.ctx, n.logger, n.db, uid, &limit, cursor)
+		items, newCursor, _, err := ListWalletLedger(n.ctx, n.logger, n.db, uid, &limit, cursor, time.Time{}, time.Time{})
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to retrieve user wallet ledger: %s", err.Error())))
 		}
@@ -6234,7 +6234,7 @@ func (n *RuntimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		purchases, err := ListPurchases(n.ctx, n.logger, n.db, userID, limit, cursor)
+		purchases, err := ListPurchases(n.ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}
@@ -6431,7 +6431,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, userID, limit, cursor)
+		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}

@@ -37,6 +37,8 @@ type walletLedgerListCursor struct {
 	CreateTime time.Time
 	Id         string
 	IsNext     bool
+	After      time.Time
+	Before     time.Time
 }
 
 // Not an API entity, only used to receive data from runtime environment.
@@ -289,7 +291,7 @@ func UpdateWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, id 
 	}, nil
 }
 
-func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit *int, cursor string) ([]*walletLedger, string, string, error) {
+func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, limit *int, cursor string, after, before time.Time) ([]*walletLedger, string, string, error) {
 	var incomingCursor *walletLedgerListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -305,6 +307,12 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 		if userID.String() != incomingCursor.UserId {
 			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
 		}
+		if !after.Equal(incomingCursor.After) {
+			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
+		}
+		if !before.Equal(incomingCursor.Before) {
+			return nil, "", "", runtime.ErrWalletLedgerInvalidCursor
+		}
 	}
 
 	params := []interface{}{userID, time.Now().UTC(), uuid.UUID{}}
@@ -313,13 +321,23 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 		params[2] = incomingCursor.Id
 	}
 
-	query := `SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID AND (user_id, create_time, id) < ($1::UUID, $2, $3::UUID) ORDER BY create_time DESC`
+	query := `SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID AND (user_id, create_time, id) < ($1::UUID, $2, $3::UUID)`
+	order := " ORDER BY create_time DESC"
 	if incomingCursor != nil && !incomingCursor.IsNext {
-		query = `SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID AND (user_id, create_time, id) > ($1::UUID, $2, $3::UUID) ORDER BY create_time ASC`
+		query = `SELECT id, changeset, metadata, create_time, update_time FROM wallet_ledger WHERE user_id = $1::UUID AND (user_id, create_time, id) > ($1::UUID, $2, $3::UUID)`
+		order = " ORDER BY create_time ASC"
 	}
-
+	if !after.IsZero() {
+		params = append(params, after)
+		query += fmt.Sprintf(" AND create_time > $%v", len(params))
+	}
+	if !before.IsZero() {
+		params = append(params, before)
+		query += fmt.Sprintf(" AND create_time < $%v", len(params))
+	}
+	query += order
 	if limit != nil {
-		query = fmt.Sprintf(`%s LIMIT %v`, query, *limit+1)
+		query += fmt.Sprintf(` LIMIT %v`, *limit+1)
 	}
 
 	results := make([]*walletLedger, 0, 10)

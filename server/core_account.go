@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -85,7 +86,7 @@ FROM users u
 WHERE u.id = $1`
 
 	if err := db.QueryRowContext(ctx, query, userID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, m.SQLScanner(&deviceIDs)); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAccountNotFound
 		}
 		logger.Error("Error retrieving user account.", zap.Error(err))
@@ -249,8 +250,9 @@ func UpdateAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, updates
 		}
 		return nil
 	}); err != nil {
-		if e, ok := err.(*statusError); ok {
-			return e.Cause()
+		var statusErr *statusError
+		if errors.As(err, &statusErr) {
+			return statusErr.Cause()
 		}
 		logger.Error("Error updating user accounts.", zap.Error(err))
 		return err
@@ -369,7 +371,7 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	// Core user account.
 	account, err := GetAccount(ctx, logger, db, nil, userID)
 	if err != nil {
-		if err == ErrAccountNotFound {
+		if errors.Is(err, ErrAccountNotFound) {
 			return nil, status.Error(codes.NotFound, "Account not found.")
 		}
 		logger.Error("Could not export account data", zap.Error(err), zap.String("user_id", userID.String()))
@@ -422,7 +424,7 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	}
 
 	// History of user's wallet.
-	walletLedgers, _, _, err := ListWalletLedger(ctx, logger, db, userID, nil, "")
+	walletLedgers, _, _, err := ListWalletLedger(ctx, logger, db, userID, nil, "", time.Time{}, time.Time{})
 	if err != nil {
 		logger.Error("Could not fetch wallet ledger items", zap.Error(err), zap.String("user_id", userID.String()))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export user data.")
@@ -461,6 +463,228 @@ func ExportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, userID u
 	}
 
 	return export, nil
+}
+
+func ImportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userID uuid.UUID, data *console.AccountExport) (*console.Account, error) {
+	var account *console.Account
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		account = nil
+
+		// Check if importing a completely new account, and create it if needed.
+		if userID == uuid.Nil {
+			query := `
+INSERT INTO users (id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet, email, password, facebook_id, google_id, gamecenter_id, steam_id, custom_id, create_time, update_time, verify_time, disable_time)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`
+			_, err := tx.ExecContext(ctx, query, data.Account.User.Id, data.Account.User.Username, data.Account.User.DisplayName, data.Account.User.AvatarUrl, data.Account.User.LangTag,
+				data.Account.User.Location, data.Account.User.Timezone, data.Account.User.Metadata, data.Account.Wallet, data.Account.Email, "", data.Account.User.FacebookId,
+				data.Account.User.GoogleId, data.Account.User.GamecenterId, data.Account.User.SteamId, data.Account.CustomId, data.Account.User.CreateTime.AsTime(),
+				data.Account.User.UpdateTime.AsTime(), data.Account.VerifyTime.AsTime(), data.Account.DisableTime.AsTime())
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) {
+					if pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_pkey") {
+						return errors.New("User identifier already exists.")
+					}
+					if pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_username_key") {
+						return errors.New("Username already in use.")
+					}
+				}
+				logger.Error("Error creating user account during import", zap.Error(err), zap.String("user_id", userID.String()))
+				return err
+			}
+
+			if len(data.Account.Devices) > 0 {
+				query = `INSERT INTO user_device (id, user_id)`
+				params := []interface{}{data.Account.User.Id}
+				for _, d := range data.Account.Devices {
+					params = append(params, d.Id)
+					if l := len(params); l == 2 {
+						query += " VALUES ($2, $1)"
+					} else {
+						query += fmt.Sprintf(", ($%v, $1)", l)
+					}
+				}
+
+				_, err := tx.ExecContext(ctx, query, params...)
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						return err
+					}
+					logger.Error("Error creating user devices during import", zap.Error(err), zap.String("user_id", userID.String()))
+					return err
+				}
+			}
+		} else {
+			query := "UPDATE users SET metadata = $1, wallet = $2 WHERE id = $3"
+			res, err := tx.ExecContext(ctx, query, data.Account.User.Metadata, data.Account.Wallet, userID.String())
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
+				logger.Error("Error updating user account during import", zap.Error(err), zap.String("user_id", userID.String()))
+				return err
+			}
+			if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+				logger.Error("Error updating user account during import, no rows affected", zap.String("user_id", userID.String()))
+				return errors.New("Error updating user account during import.")
+			}
+		}
+
+		// Ensure all storage objects for the user match what is in the data import.
+		if userID != uuid.Nil {
+			// First wipe out any existing storage.
+			query := "DELETE FROM storage WHERE user_id = $1"
+			_, err := tx.ExecContext(ctx, query, userID.String())
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
+				logger.Error("Error deleting user storage during import", zap.Error(err), zap.String("user_id", userID.String()))
+				return err
+			}
+		}
+		if l := len(data.Objects); l > 0 {
+			query := `INSERT INTO storage (user_id, collection, key, "value", "version", "read", "write", create_time, update_time)`
+			params := make([]interface{}, 0, l*8+1)
+			if userID == uuid.Nil {
+				params = append(params, data.Account.User.Id)
+			} else {
+				params = append(params, userID.String())
+			}
+			for i, d := range data.Objects {
+				params = append(params, d.Collection, d.Key, d.Value, d.Version, d.PermissionRead, d.PermissionWrite, d.CreateTime.AsTime(), d.UpdateTime.AsTime())
+				if i == 0 {
+					query += fmt.Sprintf(" VALUES ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9)
+				} else {
+					query += fmt.Sprintf(", ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9)
+				}
+			}
+
+			res, err := tx.ExecContext(ctx, query, params...)
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
+				logger.Error("Error writing user storage during import", zap.Error(err), zap.String("user_id", userID.String()))
+				return err
+			}
+			if rowsAffected, _ := res.RowsAffected(); rowsAffected != int64(l) {
+				logger.Error("Error updating user account during import, rows affected mismatch", zap.String("user_id", userID.String()), zap.Int64("rows_affected", rowsAffected), zap.Int("expected_rows", l))
+				return errors.New("Error writing user storage during import.")
+			}
+		}
+
+		// Look up the final state of the user account.
+		var lookupUserID string
+		if userID != uuid.Nil {
+			lookupUserID = userID.String()
+		} else {
+			lookupUserID = data.Account.User.Id
+		}
+		var username sql.NullString
+		var displayName sql.NullString
+		var avatarURL sql.NullString
+		var langTag sql.NullString
+		var location sql.NullString
+		var timezone sql.NullString
+		var metadata sql.NullString
+		var wallet sql.NullString
+		var email sql.NullString
+		var apple sql.NullString
+		var facebook sql.NullString
+		var facebookInstantGame sql.NullString
+		var google sql.NullString
+		var gamecenter sql.NullString
+		var steam sql.NullString
+		var customID sql.NullString
+		var edgeCount int
+		var createTime pgtype.Timestamptz
+		var updateTime pgtype.Timestamptz
+		var verifyTime pgtype.Timestamptz
+		var disableTime pgtype.Timestamptz
+		var deviceIDs pgtype.FlatArray[string]
+
+		m := pgtype.NewMap()
+
+		query := `
+SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
+	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+FROM users u
+WHERE u.id = $1`
+
+		if err := tx.QueryRowContext(ctx, query, lookupUserID).Scan(&username, &displayName, &avatarURL, &langTag, &location, &timezone, &metadata, &wallet, &email, &apple, &facebook, &facebookInstantGame, &google, &gamecenter, &steam, &customID, &edgeCount, &createTime, &updateTime, &verifyTime, &disableTime, m.SQLScanner(&deviceIDs)); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrAccountNotFound
+			}
+			logger.Error("Error retrieving user account during import", zap.Error(err), zap.String("user_id", userID.String()))
+			return err
+		}
+
+		devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+		for _, deviceID := range deviceIDs {
+			devices = append(devices, &api.AccountDevice{Id: deviceID})
+		}
+
+		var verifyTimestamp *timestamppb.Timestamp
+		if verifyTime.Valid && verifyTime.Time.Unix() != 0 {
+			verifyTimestamp = &timestamppb.Timestamp{Seconds: verifyTime.Time.Unix()}
+		}
+		var disableTimestamp *timestamppb.Timestamp
+		if disableTime.Valid && disableTime.Time.Unix() != 0 {
+			disableTimestamp = &timestamppb.Timestamp{Seconds: disableTime.Time.Unix()}
+		}
+
+		online := false
+		if statusRegistry != nil {
+			online = statusRegistry.IsOnline(userID)
+		}
+
+		account = &console.Account{
+			Account: &api.Account{
+				User: &api.User{
+					Id:                    userID.String(),
+					Username:              username.String,
+					DisplayName:           displayName.String,
+					AvatarUrl:             avatarURL.String,
+					LangTag:               langTag.String,
+					Location:              location.String,
+					Timezone:              timezone.String,
+					Metadata:              metadata.String,
+					AppleId:               apple.String,
+					FacebookId:            facebook.String,
+					FacebookInstantGameId: facebookInstantGame.String,
+					GoogleId:              google.String,
+					GamecenterId:          gamecenter.String,
+					SteamId:               steam.String,
+					EdgeCount:             int32(edgeCount),
+					CreateTime:            &timestamppb.Timestamp{Seconds: createTime.Time.Unix()},
+					UpdateTime:            &timestamppb.Timestamp{Seconds: updateTime.Time.Unix()},
+					Online:                online,
+				},
+				Wallet:      wallet.String,
+				Email:       email.String,
+				Devices:     devices,
+				CustomId:    customID.String,
+				VerifyTime:  verifyTimestamp,
+				DisableTime: disableTimestamp,
+			},
+			DisableTime: disableTimestamp,
+		}
+
+		return nil
+	}); err != nil {
+		logger.Error("Error importing account.", zap.Error(err))
+		return nil, err
+	}
+
+	return account, nil
 }
 
 func DeleteAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, sessionRegistry SessionRegistry, sessionCache SessionCache, tracker Tracker, userID uuid.UUID, recorded bool) error {

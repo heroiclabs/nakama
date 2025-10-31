@@ -33,9 +33,13 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
 )
+
+const satoriCacheTTL = 5 * time.Second
 
 var _ runtime.Satori = &SatoriClient{}
 
@@ -46,11 +50,11 @@ type SatoriClient struct {
 	urlString            string
 	apiKeyName           string
 	apiKey               string
+	serverKey            string
 	signingKey           string
 	tokenExpirySec       int
 	nakamaTokenExpirySec int64
 	invalidConfig        bool
-	strictContextModes   map[string]bool
 
 	cacheEnabled         bool
 	propertiesCacheMutex sync.RWMutex
@@ -61,7 +65,7 @@ type SatoriClient struct {
 	experimentsCache     *satoriCache[*runtime.Experiment]
 }
 
-func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, signingKey string, nakamaTokenExpirySec int64, cacheEnabled bool, strictContextModes []string) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, serverKey, signingKey string, nakamaTokenExpirySec, httpTimeoutSec int64, cacheEnabled bool) *SatoriClient {
 	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
 	// the server.
 	parsedUrl, _ := url.Parse(satoriUrl)
@@ -69,14 +73,14 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 	sc := &SatoriClient{
 		logger:               logger,
 		urlString:            satoriUrl,
-		httpc:                &http.Client{Timeout: 2 * time.Second},
+		httpc:                &http.Client{Timeout: time.Duration(httpTimeoutSec) * time.Second},
 		url:                  parsedUrl,
 		apiKeyName:           strings.TrimSpace(apiKeyName),
 		apiKey:               strings.TrimSpace(apiKey),
+		serverKey:            strings.TrimSpace(serverKey),
 		signingKey:           strings.TrimSpace(signingKey),
 		tokenExpirySec:       3600,
 		nakamaTokenExpirySec: nakamaTokenExpirySec,
-		strictContextModes:   make(map[string]bool, len(strictContextModes)),
 
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
@@ -94,8 +98,25 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		logger.Warn(err.Error())
 	}
 
-	for _, strictContextMode := range strictContextModes {
-		sc.strictContextModes[strictContextMode] = true
+	if cacheEnabled {
+		go func() {
+			ticker := time.NewTicker(satoriCacheTTL)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					sc.propertiesCacheMutex.Lock()
+					for cacheCtx := range sc.propertiesCache {
+						if cacheCtx.Err() != nil {
+							delete(sc.propertiesCache, cacheCtx)
+						}
+					}
+					sc.propertiesCacheMutex.Unlock()
+				}
+			}
+		}()
 	}
 
 	return sc
@@ -224,7 +245,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/authenticate"
+	url := s.url.JoinPath("/v1/authenticate").String()
 
 	body := &authenticateBody{
 		Id:        id,
@@ -296,16 +317,12 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	var entry *runtime.Properties
-	var found bool
-	if s.cacheEnabled {
-		s.propertiesCacheMutex.RLock()
-		entry, found = s.propertiesCache[ctx]
-		s.propertiesCacheMutex.RUnlock()
-	}
+	s.propertiesCacheMutex.RLock()
+	entry, found := s.propertiesCache[ctx]
+	s.propertiesCacheMutex.RUnlock()
 
-	if !s.cacheEnabled || !found {
-		url := s.url.String() + "/v1/properties"
+	if !found {
+		url := s.url.JoinPath("/v1/properties").String()
 
 		sessionToken, err := s.generateToken(ctx, id)
 		if err != nil {
@@ -363,7 +380,7 @@ func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properti
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/properties"
+	url := s.url.JoinPath("/v1/properties").String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -422,7 +439,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/event"
+	url := s.url.JoinPath("/v1/event").String()
 
 	evts := make([]*event, 0, len(events))
 	for i, e := range events {
@@ -486,7 +503,7 @@ func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtim
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/server-event"
+	url := s.url.JoinPath("/v1/server-event").String()
 
 	evts := make([]*event, 0, len(events))
 	for i, e := range events {
@@ -551,7 +568,7 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 	entry, missingKeys := s.experimentsCache.Get(ctx, names...)
 
 	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
-		url := s.url.String() + "/v1/experiment"
+		url := s.url.JoinPath("/v1/experiment").String()
 
 		sessionToken, err := s.generateToken(ctx, id)
 		if err != nil {
@@ -645,7 +662,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	entry, missingKeys := s.flagsCache.Get(ctx, names...)
 
 	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
-		url := s.url.String() + "/v1/flag"
+		url := s.url.JoinPath("/v1/flag").String()
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
@@ -741,7 +758,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 	entry, missingKeys := s.flagsOverridesCache.Get(ctx, names...)
 
 	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
-		url := s.url.String() + "/v1/flag/override"
+		url := s.url.JoinPath("/v1/flag/override").String()
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
@@ -854,7 +871,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 	entry, missingKeys := s.liveEventsCache.Get(ctx, names...)
 
 	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
-		url := s.url.String() + "/v1/live-event"
+		url := s.url.JoinPath("/v1/live-event").String()
 
 		sessionToken, err := s.generateToken(ctx, id)
 		if err != nil {
@@ -939,7 +956,7 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 		return nil, errors.New("limit must be greater than zero")
 	}
 
-	url := s.url.String() + "/v1/message"
+	url := s.url.JoinPath("/v1/message").String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -999,7 +1016,7 @@ func (s *SatoriClient) MessageUpdate(ctx context.Context, id, messageId string, 
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + fmt.Sprintf("/v1/message/%s", messageId)
+	url := s.url.JoinPath(fmt.Sprintf("/v1/message/%s", messageId)).String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -1055,7 +1072,7 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 		return errors.New("message id cannot be an empty string")
 	}
 
-	url := s.url.String() + fmt.Sprintf("/v1/message/%s", messageId)
+	url := s.url.JoinPath(fmt.Sprintf("/v1/message/%s", messageId)).String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -1087,6 +1104,130 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 	}
 }
 
+func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *console.Template_ListRequest) (*console.Template_ListResponse, error) {
+	if s.serverKey == "" {
+		return nil, runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.JoinPath("/v1/console/template").String()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(s.serverKey, "")
+	q := req.URL.Query()
+	if in.GetPagination() != nil {
+		if in.Pagination.Limit > 0 {
+			q.Set("pagination.limit", strconv.Itoa(int(in.Pagination.Limit)))
+		}
+		if in.Pagination.Cursor != "" {
+			q.Set("pagination.cursor", in.Pagination.Cursor)
+		}
+	}
+	if in.Search.GetName() != nil {
+		if len(in.Search.GetName().GetOr()) > 0 {
+			for _, query := range in.Search.GetName().GetOr() {
+				q.Add("search.name.or", query)
+			}
+		}
+		if in.Search.GetName().GetExact() != "" {
+			q.Set("search.name.exact", in.Search.GetName().GetExact())
+		}
+		if in.Search.GetName().GetLike() != "" {
+			q.Set("search.name.like", in.Search.GetName().GetLike())
+		}
+	}
+	if in.Search.GetLabelName() != nil {
+		if len(in.Search.GetLabelName().GetOr()) > 0 {
+			for _, query := range in.Search.GetLabelName().GetOr() {
+				q.Add("search.label_name.or", query)
+			}
+		}
+		if len(in.Search.GetLabelName().GetAnd()) > 0 {
+			for _, query := range in.Search.GetLabelName().GetAnd() {
+				q.Add("search.label_name.and", query)
+			}
+		}
+	}
+	req.URL.RawQuery = q.Encode()
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var out console.Template_ListResponse
+		if err = protojson.Unmarshal(resBody, &out); err != nil {
+			return nil, err
+		}
+
+		return &out, nil
+	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, in *console.SendDirectMessageRequest) (*console.SendDirectMessageResponse, error) {
+	if s.serverKey == "" {
+		return nil, runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.String() + "/v1/console/message-direct"
+
+	json, err := protojson.Marshal(in)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(json))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(s.serverKey, "")
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case 200:
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var out console.SendDirectMessageResponse
+		if err = protojson.Unmarshal(resBody, &out); err != nil {
+			return nil, err
+		}
+
+		return &out, nil
+	default:
+		errBody, err := io.ReadAll(res.Body)
+		if err == nil && len(errBody) > 0 {
+			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
+		}
+		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
 type satoriCacheEntry[T any] struct {
 	containsAll bool
 	entryData   map[string]T
@@ -1112,7 +1253,7 @@ func newSatoriCache[T any](ctx context.Context, enabled bool) *satoriCache[T] {
 	}
 
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(satoriCacheTTL)
 		defer ticker.Stop()
 		for {
 			select {

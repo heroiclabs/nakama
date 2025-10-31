@@ -17,10 +17,10 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"regexp"
 	"strings"
@@ -28,18 +28,54 @@ import (
 	"unicode"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/heroiclabs/nakama/v3/console/acl"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var usernameRegex = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9._].*[a-zA-Z0-9]$")
 
-func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*emptypb.Empty, error) {
+type UserInvitationClaims struct {
+	Id        string `json:"uid,omitempty"`
+	Username  string `json:"usn,omitempty"`
+	Email     string `json:"ema,omitempty"`
+	ExpiresAt int64  `json:"exp,omitempty"`
+	IssuedAt  int64  `json:"iat,omitempty"`
+}
+
+func (s *UserInvitationClaims) GetExpirationTime() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.ExpiresAt, 0)), nil
+}
+func (s *UserInvitationClaims) GetNotBefore() (*jwt.NumericDate, error) {
+	return nil, nil
+}
+func (s *UserInvitationClaims) GetIssuedAt() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(s.IssuedAt, 0)), nil
+}
+func (s *UserInvitationClaims) GetAudience() (jwt.ClaimStrings, error) {
+	return []string{}, nil
+}
+func (s *UserInvitationClaims) GetIssuer() (string, error) {
+	return "", nil
+}
+func (s *UserInvitationClaims) GetSubject() (string, error) {
+	return s.Id, nil
+}
+
+func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*console.AddUserResponse, error) {
+	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
+	if uname == in.Username {
+		return nil, status.Error(codes.FailedPrecondition, "Cannot change own configuration")
+	}
+
 	if in.Username == "" {
 		return nil, status.Error(codes.InvalidArgument, "Username is required")
 	} else if len(in.Username) < 3 || len(in.Username) > 20 || !usernameRegex.MatchString(in.Username) {
@@ -90,41 +126,241 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 		}
 	}
 
-	if inserted, err := s.dbInsertConsoleUser(ctx, in); err != nil {
-		s.logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
-		return nil, status.Error(codes.Internal, "Internal Server Error")
-	} else if !inserted {
-		return nil, status.Error(codes.FailedPrecondition, "Username or Email already exists")
+	user, err := s.dbInsertConsoleUser(ctx, in)
+	if err != nil {
+		var statusErr *statusError
+		if errors.As(err, &statusErr) {
+			return nil, statusErr
+		} else {
+			s.logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
+			return nil, status.Error(codes.Internal, "Internal Server Error")
+		}
 	}
-	return &emptypb.Empty{}, nil
+
+	token, err := generateJWTToken(
+		s.config.GetConsole().SigningKey,
+		&UserInvitationClaims{
+			Id:        user.Id,
+			Username:  in.Username,
+			Email:     in.Email,
+			ExpiresAt: user.CreateTime.AsTime().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix(),
+			IssuedAt:  user.CreateTime.AsTime().UTC().Unix(),
+		},
+	)
+	if err != nil {
+		s.logger.Error("failed to generate console user token", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
+	}
+
+	return &console.AddUserResponse{User: user, Token: token}, nil
 }
 
-func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.AddUserRequest) (bool, error) {
+func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.AddUserRequest) (*console.User, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	id, err := uuid.NewV4()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	query := `INSERT INTO console_user (id, username, email, password, role, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
-						ON CONFLICT (id) DO
-						UPDATE SET username = $2, password = $4, role = $5, mfa_required = $6, update_time = now()`
-	_, err = s.db.ExecContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, in.Role, in.MfaRequired)
+
+	userAclJson, err := acl.New(in.Acl).ToJson()
+	if err != nil {
+		s.logger.Error("failed to json marshal acl", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error creating console user.")
+	}
+
+	var createTime *time.Time
+	var updateTime *time.Time
+	updated := false
+	mfaEnabled := false
+	query := `INSERT INTO console_user (id, username, email, password, acl, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
+						ON CONFLICT (username) DO
+						UPDATE SET password = $4, acl = $5, mfa_required = $6, update_time = now()
+						RETURNING id, create_time, update_time, create_time != update_time AS updated, mfa_secret IS NOT NULL AS mfa_enabled`
+	err = s.db.QueryRowContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, userAclJson, in.MfaRequired).Scan(&id, &createTime, &updateTime, &updated, &mfaEnabled)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == dbErrorUniqueViolation {
-				return false, nil
+				return nil, status.Error(codes.FailedPrecondition, "Username or Email already exists")
 			}
 		}
-		return false, err
+		return nil, err
 	}
-	return true, nil
+
+	if updated {
+		s.sessionCache.RemoveAll(id)
+	}
+
+	user := &console.User{
+		Id:          id.String(),
+		Username:    in.Username,
+		Email:       in.Email,
+		Acl:         in.Acl,
+		MfaRequired: in.MfaRequired,
+		MfaEnabled:  mfaEnabled,
+		CreateTime:  timestamppb.New(*createTime),
+		UpdateTime:  timestamppb.New(*updateTime),
+	}
+
+	return user, nil
+}
+
+func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*console.User, error) {
+	users, err := s.dbListConsoleUsers(ctx, []string{in.Username})
+	if err != nil {
+		s.logger.Error("failed to list console users", zap.Error(err))
+		return nil, err
+	}
+
+	if len(users) == 0 {
+		return nil, status.Error(codes.NotFound, "User not found")
+	}
+
+	return users[0], nil
+}
+
+func (s *ConsoleServer) UpdateUser(ctx context.Context, in *console.UpdateUserRequest) (*console.User, error) {
+	creatorRole := ctx.Value(ctxConsoleUserAclKey{}).(acl.Permission)
+	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
+
+	if in.Username == uname {
+		return nil, status.Error(codes.FailedPrecondition, "Cannot change own configuration")
+	}
+
+	role := acl.New(in.Acl)
+	if !creatorRole.HasAccess(role) {
+		return nil, status.Error(codes.InvalidArgument, "Cannot create users with more permissions that the one in session.")
+	}
+
+	var update *console.User
+
+	if err := ExecuteInTx(ctx, s.db, func(tx *sql.Tx) error {
+		var err error
+		update, _, err = updateUser(ctx, s.logger, tx, in)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	s.consoleSessionCache.RemoveAll(uuid.Must(uuid.FromString(update.Id)))
+
+	return update, nil
+}
+
+func updateUser(ctx context.Context, logger *zap.Logger, tx *sql.Tx, in *console.UpdateUserRequest) (*console.User, *console.UpdateUserRequest, error) {
+	var email string
+	var createTime, updateTime time.Time
+	var prevAclBytes []byte
+	var id uuid.UUID
+	var mfaEnabled, mfaRequired bool
+	role := acl.New(in.Acl)
+	roleJson, err := role.ToJson()
+	if err != nil {
+		logger.Error("failed to json marshal acl", zap.Error(err))
+		return nil, nil, status.Error(codes.Internal, "Error updating console user.")
+	}
+	query := `
+			UPDATE console_user new
+			SET acl = $1, update_time = now()
+			FROM (SELECT id, username, acl FROM console_user WHERE username = $2) old WHERE old.username = new.username
+			RETURNING new.id,	old.acl, new.email, new.create_time, new.update_time, new.mfa_secret IS NOT NULL AS mfa_enabled, new.mfa_required`
+
+	if err := tx.QueryRowContext(ctx, query, roleJson, in.Username).Scan(&id, &prevAclBytes, &email, &createTime, &updateTime, &mfaEnabled, &mfaRequired); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, status.Error(codes.NotFound, "User not found.")
+		}
+		logger.Error("Error updating user.", zap.Error(err))
+		return nil, nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
+	}
+
+	prevAcl, err := acl.NewFromJson(string(prevAclBytes))
+	if err != nil {
+		logger.Error("failed to json unmarshal acl", zap.Error(err))
+		return nil, nil, status.Error(codes.Internal, "Error updating console user.")
+	}
+
+	undoReq := &console.UpdateUserRequest{
+		Username: in.Username,
+		Acl:      prevAcl.ACL(),
+	}
+	update := &console.User{
+		Id:          id.String(),
+		Username:    in.Username,
+		Email:       email,
+		Acl:         role.ACL(),
+		MfaRequired: mfaRequired,
+		MfaEnabled:  mfaEnabled,
+		CreateTime:  timestamppb.New(createTime),
+		UpdateTime:  timestamppb.New(updateTime),
+	}
+
+	return update, undoReq, nil
+}
+
+func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Username) (*console.ResetUserResponse, error) {
+	var token, email string
+
+	transaction := func(tx *sql.Tx) error {
+		password := make([]byte, 32)
+		if _, err := rand.Read(password); err != nil {
+			s.logger.Error("Failed to generate a temporary password for the user.", zap.Error(err))
+			return status.Error(codes.Internal, "Failed to generate a temporary password for the user.")
+		}
+
+		hashedPassword, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+		if err != nil {
+			s.logger.Error("Failed to hash the temporary password for the user.", zap.Error(err))
+			return status.Error(codes.Internal, "Failed to hash the temporary password for the user.")
+		}
+
+		var uid uuid.UUID
+		var username string
+		var updateTime pgtype.Timestamptz
+		if err := tx.QueryRowContext(ctx, `UPDATE console_user SET password = $1, update_time = NOW() WHERE username = $2 RETURNING id, username, email, update_time`, hashedPassword, in.Username).Scan(&uid, &username, &email, &updateTime); err != nil {
+			return status.Error(codes.NotFound, "User not found.")
+		}
+
+		config := s.config.GetConsole()
+		tokenTime := updateTime.Time.UTC()
+
+		token, err = generateJWTToken(
+			config.SigningKey,
+			&UserInvitationClaims{
+				Id:        uid.String(),
+				Username:  username,
+				Email:     email,
+				ExpiresAt: tokenTime.Add(time.Duration(config.TokenExpirySec) * time.Second).Unix(),
+				IssuedAt:  tokenTime.UTC().Unix(),
+			},
+		)
+		if err != nil {
+			s.logger.Error("Failed generate one-time code to reconfigure the user's password.", zap.Error(err))
+			return status.Errorf(codes.Internal, "Failed generate one-time code to reconfigure the user's password.")
+		}
+
+		return nil
+	}
+	if err := ExecuteInTx(ctx, s.db, transaction); err != nil {
+		return nil, err
+	}
+
+	return &console.ResetUserResponse{Code: token}, nil
 }
 
 func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*emptypb.Empty, error) {
+	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
+
+	if in.Username == uname {
+		return nil, status.Error(codes.FailedPrecondition, "Cannot delete own user")
+	}
+
 	deleted, id, err := s.dbDeleteConsoleUser(ctx, in.Username)
 	if err != nil {
 		s.logger.Error("failed to delete console user", zap.Error(err), zap.String("username", in.Username))
@@ -138,7 +374,7 @@ func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*
 }
 
 func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*console.UserList, error) {
-	users, err := s.dbListConsoleUsers(ctx)
+	users, err := s.dbListConsoleUsers(ctx, nil)
 	if err != nil {
 		s.logger.Error("failed to list console users", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
@@ -146,17 +382,32 @@ func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*cons
 	return &console.UserList{Users: users}, nil
 }
 
-func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context) ([]*console.UserList_User, error) {
-	result := make([]*console.UserList_User, 0, 10)
-	rows, err := s.db.QueryContext(ctx, "SELECT username, email, role, mfa_required, mfa_secret is not null AS mfa_enabled  FROM console_user WHERE id != $1", uuid.Nil)
+func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context, usernames []string) ([]*console.User, error) {
+	result := make([]*console.User, 0, 10)
+	query := "SELECT id, username, email, acl, mfa_required, mfa_secret IS NOT NULL AS mfa_enabled, create_time, update_time FROM console_user WHERE id != $1"
+	params := []any{uuid.Nil}
+	if len(usernames) > 0 {
+		query += " AND username = ANY($2)"
+		params = append(params, usernames)
+	}
+	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		user := &console.UserList_User{}
-		if err := rows.Scan(&user.Username, &user.Email, &user.Role, &user.MfaRequired, &user.MfaEnabled); err != nil {
+		user := &console.User{}
+		var createTime, updateTime time.Time
+		var aclBytes []byte
+		if err := rows.Scan(&user.Id, &user.Username, &user.Email, &aclBytes, &user.MfaRequired, &user.MfaEnabled, &createTime, &updateTime); err != nil {
 			return nil, err
 		}
+		user.CreateTime = timestamppb.New(createTime)
+		user.UpdateTime = timestamppb.New(updateTime)
+		userAcl, err := acl.NewFromJson(string(aclBytes))
+		if err != nil {
+			return nil, err
+		}
+		user.Acl = userAcl.ACL()
 		result = append(result, user)
 	}
 	return result, nil

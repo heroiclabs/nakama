@@ -1,0 +1,128 @@
+[
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "base",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "achievements",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+      "collection": "hiro_datadefinitions",
+      "key": "challenges",
+      "permission_read": 0,
+      "permission_write": 0,
+      "user_id": "00000000-0000-0000-0000-000000000000",
+      "value": {
+      }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "economy",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "energy",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "event_leaderboards",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "incentives",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "inventory",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "leaderboards",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "progression",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "stats",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "teams",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "tutorials",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    },
+    {
+        "collection": "hiro_datadefinitions",
+        "key": "unlockables",
+        "permission_read": 0,
+        "permission_write": 0,
+        "user_id": "00000000-0000-0000-0000-000000000000",
+        "value": {
+        }
+    }
+]

@@ -23,11 +23,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -104,7 +105,7 @@ func NotificationSend(ctx context.Context, logger *zap.Logger, db *sql.DB, track
 	return nil
 }
 
-func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, gotracker Tracker, messageRouter MessageRouter, notification *api.Notification) error {
+func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, notification *api.Notification) error {
 	// Non-persistent notifications don't need to work through all database users, just use currently connected notification streams.
 	if !notification.Persistent {
 		env := &rtapi.Envelope{

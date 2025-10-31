@@ -892,6 +892,8 @@ type Initializer interface {
 
 	// RegisterHttp attaches a new HTTP handler to a specified path on the main client API server endpoint.
 	RegisterHttp(pathPattern string, handler func(http.ResponseWriter, *http.Request), methods ...string) error
+
+	RegisterHiro(module any) error
 }
 
 type PresenceReason uint8
