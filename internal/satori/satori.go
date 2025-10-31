@@ -1181,7 +1181,7 @@ func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *cons
 	}
 }
 
-func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, in *console.MessageDirectSendRequest) (*console.MessageDirectSendResponse, error) {
+func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, in *console.SendDirectMessageRequest) (*console.SendDirectMessageResponse, error) {
 	if s.serverKey == "" {
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
@@ -1213,7 +1213,7 @@ func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, in *console
 			return nil, err
 		}
 
-		var out console.MessageDirectSendResponse
+		var out console.SendDirectMessageResponse
 		if err = protojson.Unmarshal(resBody, &out); err != nil {
 			return nil, err
 		}
