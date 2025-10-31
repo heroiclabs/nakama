@@ -5,6 +5,25 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.33.0] - 2025-10-31
+### Added
+- Add Hiro integration to Console UI.
+- Console UI display and interaction with Hiro Inventory.
+- Console UI display and interaction with Hiro Progressions.
+- Add support for importing accounts in Console UI.
+- Add support for exporting and importing storage object values.
+- Expanded support for access controls in Console UI and API.
+- Support for access control templates in Console UI.
+- Console UI integration with Satori, if configuration is present.
+- Allow sending Satori messages directly from the Console UI.
+- Add support for account notes in Console UI.
+- Add support for additional filtering options in Console UI Purchases and Subscriptions views.
+- Add support for additional filtering options in Console UI Wallet Ledger view.
+- Allow sending In-App Notifications from Console UI.
+
+### Fixed
+- Add missing return value in Google In-App Purchase subscription validation.
+
 ## [3.32.1] - 2025-10-17
 ### Fixed
 - Shorter processing for matchmaker custom function when inactive.
