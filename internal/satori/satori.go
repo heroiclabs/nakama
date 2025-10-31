@@ -245,7 +245,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/authenticate"
+	url := s.url.JoinPath("/v1/authenticate").String()
 
 	body := &authenticateBody{
 		Id:        id,
@@ -322,7 +322,7 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 	s.propertiesCacheMutex.RUnlock()
 
 	if !found {
-		url := s.url.String() + "/v1/properties"
+		url := s.url.JoinPath("/v1/properties").String()
 
 		sessionToken, err := s.generateToken(ctx, id)
 		if err != nil {
@@ -380,7 +380,7 @@ func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properti
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/properties"
+	url := s.url.JoinPath("/v1/properties").String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -439,7 +439,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/event"
+	url := s.url.JoinPath("/v1/event").String()
 
 	evts := make([]*event, 0, len(events))
 	for i, e := range events {
@@ -503,7 +503,7 @@ func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtim
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/server-event"
+	url := s.url.JoinPath("/v1/server-event").String()
 
 	evts := make([]*event, 0, len(events))
 	for i, e := range events {
@@ -568,7 +568,7 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names ...
 	entry, missingKeys := s.experimentsCache.Get(ctx, names...)
 
 	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
-		url := s.url.String() + "/v1/experiment"
+		url := s.url.JoinPath("/v1/experiment").String()
 
 		sessionToken, err := s.generateToken(ctx, id)
 		if err != nil {
@@ -662,7 +662,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names ...string
 	entry, missingKeys := s.flagsCache.Get(ctx, names...)
 
 	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
-		url := s.url.String() + "/v1/flag"
+		url := s.url.JoinPath("/v1/flag").String()
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
@@ -758,7 +758,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names 
 	entry, missingKeys := s.flagsOverridesCache.Get(ctx, names...)
 
 	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
-		url := s.url.String() + "/v1/flag/override"
+		url := s.url.JoinPath("/v1/flag/override").String()
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
@@ -871,7 +871,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names ...s
 	entry, missingKeys := s.liveEventsCache.Get(ctx, names...)
 
 	if !s.cacheEnabled || entry == nil || len(missingKeys) > 0 {
-		url := s.url.String() + "/v1/live-event"
+		url := s.url.JoinPath("/v1/live-event").String()
 
 		sessionToken, err := s.generateToken(ctx, id)
 		if err != nil {
@@ -956,7 +956,7 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 		return nil, errors.New("limit must be greater than zero")
 	}
 
-	url := s.url.String() + "/v1/message"
+	url := s.url.JoinPath("/v1/message").String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -1016,7 +1016,7 @@ func (s *SatoriClient) MessageUpdate(ctx context.Context, id, messageId string, 
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + fmt.Sprintf("/v1/message/%s", messageId)
+	url := s.url.JoinPath(fmt.Sprintf("/v1/message/%s", messageId)).String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -1072,7 +1072,7 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 		return errors.New("message id cannot be an empty string")
 	}
 
-	url := s.url.String() + fmt.Sprintf("/v1/message/%s", messageId)
+	url := s.url.JoinPath(fmt.Sprintf("/v1/message/%s", messageId)).String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -1104,60 +1104,12 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 	}
 }
 
-//{
-//"name": "search.name.or",
-//"description": "Filter by elements matching one of the parameters.",
-//"in": "query",
-//"required": false,
-//"type": "array",
-//"items": {
-//"type": "string"
-//},
-//"collectionFormat": "multi"
-//},
-//{
-//"name": "search.name.exact",
-//"description": "Filter by elements matching exactly the value.",
-//"in": "query",
-//"required": false,
-//"type": "string"
-//},
-//{
-//"name": "search.name.like",
-//"description": "Filter by elements matching the pattern.",
-//"in": "query",
-//"required": false,
-//"type": "string"
-//},
-//{
-//"name": "search.label_name.or",
-//"description": "Filter by elements matching one of the parameters.",
-//"in": "query",
-//"required": false,
-//"type": "array",
-//"items": {
-//"type": "string"
-//},
-//"collectionFormat": "multi"
-//},
-//{
-//"name": "search.label_name.and",
-//"description": "Filter by elements matching all parameters.",
-//"in": "query",
-//"required": false,
-//"type": "array",
-//"items": {
-//"type": "string"
-//},
-//"collectionFormat": "multi"
-//},
-
 func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *console.Template_ListRequest) (*console.Template_ListResponse, error) {
 	if s.serverKey == "" {
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.String() + "/v1/console/template"
+	url := s.url.JoinPath("/v1/console/template").String()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -1215,48 +1167,6 @@ func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *cons
 		}
 
 		var out console.Template_ListResponse
-		if err = protojson.Unmarshal(resBody, &out); err != nil {
-			return nil, err
-		}
-
-		return &out, nil
-	default:
-		errBody, err := io.ReadAll(res.Body)
-		if err == nil && len(errBody) > 0 {
-			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
-		}
-		return nil, fmt.Errorf("%d status code", res.StatusCode)
-	}
-}
-
-func (s *SatoriClient) ConsoleMessageIntegrationsList(ctx context.Context) (*console.MessageIntegrationListResponse, error) {
-	if s.serverKey == "" {
-		return nil, runtime.ErrSatoriConfigurationInvalid
-	}
-
-	url := s.url.String() + "/v1/console/message-integration"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(s.serverKey, "")
-
-	res, err := s.httpc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-
-	switch res.StatusCode {
-	case 200:
-		resBody, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		var out console.MessageIntegrationListResponse
 		if err = protojson.Unmarshal(resBody, &out); err != nil {
 			return nil, err
 		}

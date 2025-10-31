@@ -21,10 +21,9 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (c *ConsoleServer) SatoriTemplatesList(ctx context.Context, in *console.Template_ListRequest) (*console.Template_ListResponse, error) {
+func (c *ConsoleServer) SatoriListTemplates(ctx context.Context, in *console.Template_ListRequest) (*console.Template_ListResponse, error) {
 	if c.satori == nil {
 		return nil, status.Error(codes.FailedPrecondition, "Satori server key not configured.")
 	}
@@ -38,21 +37,7 @@ func (c *ConsoleServer) SatoriTemplatesList(ctx context.Context, in *console.Tem
 	return res, nil
 }
 
-func (c *ConsoleServer) SatoriIntegrationsList(ctx context.Context, in *emptypb.Empty) (*console.MessageIntegrationListResponse, error) {
-	if c.satori == nil {
-		return nil, status.Error(codes.FailedPrecondition, "Satori server key not configured.")
-	}
-
-	res, err := c.satori.ConsoleMessageIntegrationsList(ctx)
-	if err != nil {
-		c.logger.Error("Failed to list message templates from satori", zap.Error(err))
-		return nil, err
-	}
-
-	return res, nil
-}
-
-func (c *ConsoleServer) SatoriDirectMessageSend(ctx context.Context, in *console.MessageDirectSendRequest) (*console.MessageDirectSendResponse, error) {
+func (c *ConsoleServer) SatoriSendDirectMessage(ctx context.Context, in *console.SendDirectMessageRequest) (*console.SendDirectMessageResponse, error) {
 	if c.satori == nil {
 		return nil, status.Error(codes.FailedPrecondition, "Satori server key not configured.")
 	}

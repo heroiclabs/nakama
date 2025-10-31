@@ -438,6 +438,11 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				resource = console.AclResources_HIRO_ENERGY
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "hiro energy grant"
+			case "/nakama.console.Console/SatoriSendDirectMessage":
+				action = console.AuditLogAction_CREATE
+				resource = console.AclResources_SATORI_MESSAGE
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "satori message sent"
 			}
 
 			if mErr != nil {

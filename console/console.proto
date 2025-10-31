@@ -567,15 +567,11 @@ service Console {
     };
   }
 
-  rpc SatoriTemplatesList (Template.ListRequest) returns (Template.ListResponse) {
+  rpc SatoriListTemplates (Template.ListRequest) returns (Template.ListResponse) {
     option (google.api.http).get = "/v2/console/satori/template";
   }
 
-  rpc SatoriIntegrationsList (google.protobuf.Empty) returns (MessageIntegrationListResponse) {
-    option (google.api.http).get = "/v2/console/satori/integration";
-  }
-
-  rpc SatoriDirectMessageSend (MessageDirectSendRequest) returns (MessageDirectSendResponse) {
+  rpc SatoriSendDirectMessage (SendDirectMessageRequest) returns (SendDirectMessageResponse) {
     option (google.api.http) = {
       post: "/v2/console/satori/direct-message",
       body: "*"
@@ -2064,7 +2060,7 @@ message Category {
 }
 
 // The request to send direct messages.
-message MessageDirectSendRequest {
+message SendDirectMessageRequest {
   // The identifier of the template used to render the message content.
   string template_id = 1;
   // A list of recipient identity IDs.
@@ -2082,7 +2078,7 @@ message MessageDirectSendRequest {
 }
 
 // The response for the SendDirectMessageRequest.
-message MessageDirectSendResponse {
+message SendDirectMessageResponse {
   // Results for each attempted message delivery.
   repeated DeliveryResult delivery_results = 1;
   // Details of each delivery attempt.
@@ -2158,12 +2154,6 @@ message MessageIntegration {
   }
 }
 
-// The list of Message integrations available and their status.
-message MessageIntegrationListResponse {
-  // The list of integrations
-  repeated MessageIntegration configurations = 1;
-}
-
 // The configuration necessary to integrate with APNs.
 message AppleMessageConfiguration{
   string team_id = 1;
@@ -2231,14 +2221,15 @@ enum AclResources {
   LEADERBOARD_RECORD = 18;
   MATCH = 19;
   NOTIFICATION = 20;
-  SETTINGS = 21;
-  STORAGE_DATA = 22;
-  STORAGE_DATA_IMPORT = 23;
-  HIRO_INVENTORY = 24;
-  HIRO_PROGRESSION = 25;
-  HIRO_ECONOMY = 26;
-  HIRO_STATS = 27;
-  HIRO_ENERGY = 28;
+  SATORI_MESSAGE = 21;
+  SETTINGS = 22;
+  STORAGE_DATA = 23;
+  STORAGE_DATA_IMPORT = 24;
+  HIRO_INVENTORY = 25;
+  HIRO_PROGRESSION = 26;
+  HIRO_ECONOMY = 27;
+  HIRO_STATS = 28;
+  HIRO_ENERGY = 29;
 }
 
 enum AuditLogAction {

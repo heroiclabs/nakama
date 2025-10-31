@@ -3173,12 +3173,12 @@
     },
     "/v2/console/satori/direct-message": {
       "post": {
-        "operationId": "SatoriDirectMessageSend",
+        "operationId": "SatoriSendDirectMessage",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/MessageDirectSendResponse"
+              "$ref": "#/definitions/SendDirectMessageResponse"
             }
           },
           "default": {
@@ -3195,7 +3195,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/MessageDirectSendRequest"
+              "$ref": "#/definitions/SendDirectMessageRequest"
             }
           }
         ],
@@ -3204,31 +3204,9 @@
         ]
       }
     },
-    "/v2/console/satori/integration": {
-      "get": {
-        "operationId": "SatoriIntegrationsList",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/MessageIntegrationListResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "tags": [
-          "Console"
-        ]
-      }
-    },
     "/v2/console/satori/template": {
       "get": {
-        "operationId": "SatoriTemplatesList",
+        "operationId": "SatoriListTemplates",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4231,6 +4209,7 @@
         "LEADERBOARD_RECORD",
         "MATCH",
         "NOTIFICATION",
+        "SATORI_MESSAGE",
         "SETTINGS",
         "STORAGE_DATA",
         "STORAGE_DATA_IMPORT",
@@ -4459,27 +4438,6 @@
         }
       },
       "title": "API Explorer List of Endpoints"
-    },
-    "AppleMessageConfiguration": {
-      "type": "object",
-      "properties": {
-        "team_id": {
-          "type": "string"
-        },
-        "topic": {
-          "type": "string"
-        },
-        "p8_auth_key_id": {
-          "type": "string"
-        },
-        "p8_auth_key_value": {
-          "type": "string"
-        },
-        "env": {
-          "$ref": "#/definitions/EnvType"
-        }
-      },
-      "description": "The configuration necessary to integrate with APNs."
     },
     "AuditLog": {
       "type": "object",
@@ -5365,15 +5323,6 @@
       },
       "description": "A modifier that may change energy behaviour."
     },
-    "EnvType": {
-      "type": "string",
-      "enum": [
-        "PRODUCTION",
-        "DEVELOPMENT"
-      ],
-      "default": "PRODUCTION",
-      "description": "The APNs environment type."
-    },
     "Extensions": {
       "type": "object",
       "properties": {
@@ -5391,30 +5340,6 @@
         }
       },
       "description": "Which Console extensions are registered and available."
-    },
-    "FacebookNotificationConfiguration": {
-      "type": "object",
-      "properties": {
-        "app_id": {
-          "type": "string"
-        },
-        "app_secret": {
-          "type": "string"
-        }
-      },
-      "description": "The configuration necessary to integrate with Facebook App-To-User Notifications."
-    },
-    "FirebaseMessagingConfiguration": {
-      "type": "object",
-      "properties": {
-        "credentials": {
-          "type": "string"
-        },
-        "project_id": {
-          "type": "string"
-        }
-      },
-      "description": "The configuration necessary to integrate with Google's Firebase Cloud Messaging."
     },
     "Friend": {
       "type": "object",
@@ -6095,103 +6020,6 @@
         }
       }
     },
-    "MessageDirectSendRequest": {
-      "type": "object",
-      "properties": {
-        "template_id": {
-          "type": "string",
-          "description": "The identifier of the template used to render the message content."
-        },
-        "identity_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "A list of recipient identity IDs."
-        },
-        "integrations": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/MessageIntegrationType"
-          },
-          "description": "A list of integrations to use for sending the message."
-        },
-        "persist": {
-          "type": "boolean",
-          "description": "Whether the message should be stored in the recipient's inbox."
-        },
-        "channels": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/MessageChannels"
-          },
-          "description": "If applicable, channels to send this message through, per integration."
-        }
-      },
-      "description": "The request to send direct messages."
-    },
-    "MessageDirectSendResponse": {
-      "type": "object",
-      "properties": {
-        "delivery_results": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/DeliveryResult"
-          },
-          "description": "Results for each attempted message delivery."
-        }
-      },
-      "description": "The response for the SendDirectMessageRequest."
-    },
-    "MessageIntegration": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "$ref": "#/definitions/MessageIntegrationType",
-          "description": "The name of the Message integration."
-        },
-        "enabled": {
-          "type": "boolean",
-          "description": "The status of the integration."
-        },
-        "update_time_sec": {
-          "type": "string",
-          "format": "int64",
-          "description": "The update time of the integration."
-        },
-        "apns": {
-          "$ref": "#/definitions/AppleMessageConfiguration",
-          "description": "The new configuration for APNs."
-        },
-        "fcm": {
-          "$ref": "#/definitions/FirebaseMessagingConfiguration",
-          "description": "The new configuration for FCM."
-        },
-        "facebook_notification": {
-          "$ref": "#/definitions/FacebookNotificationConfiguration",
-          "description": "The new configuration for Facebook App-to-User Notifications."
-        },
-        "onesignal_notification": {
-          "$ref": "#/definitions/OneSignalNotificationConfiguration",
-          "description": "The new configuration for OneSignal Notifications."
-        }
-      }
-    },
-    "MessageIntegrationListResponse": {
-      "type": "object",
-      "properties": {
-        "configurations": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/MessageIntegration"
-          },
-          "title": "The list of integrations"
-        }
-      },
-      "description": "The list of Message integrations available and their status."
-    },
     "MessageIntegrationType": {
       "type": "string",
       "enum": [
@@ -6247,18 +6075,6 @@
       ],
       "default": "NULL_VALUE",
       "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\nThe JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
-    },
-    "OneSignalNotificationConfiguration": {
-      "type": "object",
-      "properties": {
-        "app_id": {
-          "type": "string"
-        },
-        "api_key": {
-          "type": "string"
-        }
-      },
-      "description": "The configuration necessary to integrate with OneSignal Notifications."
     },
     "PageOptions": {
       "type": "object",
@@ -6914,6 +6730,55 @@
           "description": "Filter by Label name."
         }
       }
+    },
+    "SendDirectMessageRequest": {
+      "type": "object",
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "description": "The identifier of the template used to render the message content."
+        },
+        "identity_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of recipient identity IDs."
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MessageIntegrationType"
+          },
+          "description": "A list of integrations to use for sending the message."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Whether the message should be stored in the recipient's inbox."
+        },
+        "channels": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/MessageChannels"
+          },
+          "description": "If applicable, channels to send this message through, per integration."
+        }
+      },
+      "description": "The request to send direct messages."
+    },
+    "SendDirectMessageResponse": {
+      "type": "object",
+      "properties": {
+        "delivery_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/DeliveryResult"
+          },
+          "description": "Results for each attempted message delivery."
+        }
+      },
+      "description": "The response for the SendDirectMessageRequest."
     },
     "SendNotificationRequest": {
       "type": "object",

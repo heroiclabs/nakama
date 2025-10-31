@@ -312,9 +312,12 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_SETTINGS, PermissionWrite)
 	case "/nakama.console.Console/WriteStorageObject":
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionWrite)
+	case "/nakama.console.Console/SatoriListTemplates":
+		requiredPermissions = NewPermission(console.AclResources_SATORI_MESSAGE, PermissionRead)
+	case "/nakama.console.Console/SatoriSendDirectMessage":
+		requiredPermissions = NewPermission(console.AclResources_SATORI_MESSAGE, PermissionWrite)
 	case "/nakama.console.Console/SendNotificationRequest":
 		requiredPermissions = NewPermission(console.AclResources_NOTIFICATION, PermissionWrite)
-		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA_IMPORT, PermissionWrite)
 	case "/nakama.console.Console/HiroListInventoryItems":
 		requiredPermissions = NewPermission(console.AclResources_HIRO_INVENTORY, PermissionRead)
 	case "/nakama.console.Console/HiroListUserInventoryItems":
@@ -345,6 +348,7 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_HIRO_ENERGY, PermissionWrite)
 	case "/v2/console/storage/import":
 		// Special case for non-grpc gateway endpoint.
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA_IMPORT, PermissionWrite)
 	default:
 		requiredPermissions = Admin()
 	}
