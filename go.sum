@@ -106,8 +106,8 @@ github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/ad
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 h1:8Tjv8EJ+pM1xP8mK6egEbD1OgnVTyacbefKhmbLhIhU=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2/go.mod h1:pkJQ2tZHJ0aFOVEEot6oZmaVEZcRme73eIFmhiVuRWs=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
-github.com/heroiclabs/hiro v1.28.1-0.20251031190041-0a77a00a5241 h1:AtnInBdGBhdLVw29MxaMWh+6lxU+cOa9NeuH+D9BKxo=
-github.com/heroiclabs/hiro v1.28.1-0.20251031190041-0a77a00a5241/go.mod h1:giDDMxUbOYzeblbmwj4U8jXOvuYhQTj0OQlUzC+PLuA=
+github.com/heroiclabs/hiro v1.28.1-0.20251031192923-efef805f339e h1:62YiBG9hm67mM5FtwaB2SYMxj0GSilhrrL44q9dCOUM=
+github.com/heroiclabs/hiro v1.28.1-0.20251031192923-efef805f339e/go.mod h1:giDDMxUbOYzeblbmwj4U8jXOvuYhQTj0OQlUzC+PLuA=
 github.com/heroiclabs/nakama-common v1.42.2 h1:Y24aguXQ0SL/X/C1qeXDJBVcZL9Q1G8e58jO2NWR3eQ=
 github.com/heroiclabs/nakama-common v1.42.2/go.mod h1:E4yiMQmn8KHQ77WqBLVUfazdiPnwFYWqUrfGOrqOXk8=
 github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0 h1:hHJcYOP6L2/wZIEnYjjkJM+rOk/bK0uaYkDAejYpLhI=

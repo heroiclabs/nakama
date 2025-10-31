@@ -46,6 +46,9 @@ type EnergySystem interface {
 	// Get returns all energies defined and the values a user currently owns by ID.
 	Get(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, userID string) (energies map[string]*Energy, err error)
 
+	// BatchSpend will deduct the amounts from each energy for each user by ID.
+	BatchSpend(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, usersAmounts map[string]map[string]int32) (map[string]map[string]*Energy, map[string]*Reward, error)
+
 	// Spend will deduct the amounts from each energy for a user by ID.
 	Spend(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, userID string, amounts map[string]int32) (energies map[string]*Energy, reward *Reward, err error)
 
