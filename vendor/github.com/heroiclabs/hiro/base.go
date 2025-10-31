@@ -120,6 +120,7 @@ type SystemType uint
 
 const (
 	SystemTypeUnknown SystemType = iota
+	SystemTypeUnregistered
 	SystemTypeBase
 	SystemTypeEnergy
 	SystemTypeUnlockables

@@ -44,7 +44,7 @@ func (s *ConsoleServer) HiroListInventoryItems(ctx context.Context, in *console.
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
 
-	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+	if inventorySystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroInventorySystemNotRegistered
 	}
 
@@ -89,7 +89,7 @@ func (s *ConsoleServer) HiroListUserInventoryItems(ctx context.Context, in *cons
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
 
-	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+	if inventorySystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroInventorySystemNotRegistered
 	}
 
@@ -112,7 +112,7 @@ func (s *ConsoleServer) HiroAddUserInventoryItems(ctx context.Context, in *conso
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
 
-	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+	if inventorySystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroInventorySystemNotRegistered
 	}
 
@@ -135,7 +135,7 @@ func (s *ConsoleServer) HiroDeleteUserInventoryItems(ctx context.Context, in *co
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
 
-	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+	if inventorySystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroInventorySystemNotRegistered
 	}
 
@@ -158,7 +158,7 @@ func (s *ConsoleServer) HiroUpdateUserInventoryItems(ctx context.Context, in *co
 
 	inventorySystem := s.hiro.hiro.GetInventorySystem()
 
-	if inventorySystem.GetType() == hiro.SystemTypeUnknown {
+	if inventorySystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroInventorySystemNotRegistered
 	}
 
@@ -181,7 +181,7 @@ func (s *ConsoleServer) HiroListProgressions(ctx context.Context, in *console.Hi
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
 
-	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+	if progressionSystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroProgressionSystemNotRegistered
 	}
 
@@ -209,7 +209,7 @@ func (s *ConsoleServer) HiroResetProgressions(ctx context.Context, in *console.H
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
 
-	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+	if progressionSystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroProgressionSystemNotRegistered
 	}
 
@@ -232,7 +232,7 @@ func (s *ConsoleServer) HiroUnlockProgressions(ctx context.Context, in *console.
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
 
-	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+	if progressionSystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroProgressionSystemNotRegistered
 	}
 
@@ -255,7 +255,7 @@ func (s *ConsoleServer) HiroUpdateProgressions(ctx context.Context, in *console.
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
 
-	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+	if progressionSystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroProgressionSystemNotRegistered
 	}
 
@@ -278,7 +278,7 @@ func (s *ConsoleServer) HiroPurchaseProgressions(ctx context.Context, in *consol
 
 	progressionSystem := s.hiro.hiro.GetProgressionSystem()
 
-	if progressionSystem.GetType() == hiro.SystemTypeUnknown {
+	if progressionSystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroProgressionSystemNotRegistered
 	}
 
@@ -301,7 +301,7 @@ func (s *ConsoleServer) HiroEconomyGrant(ctx context.Context, in *console.HiroEc
 
 	economySystem := s.hiro.hiro.GetEconomySystem()
 
-	if economySystem.GetType() == hiro.SystemTypeUnknown {
+	if economySystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroEconomySystemNotRegistered
 	}
 
@@ -324,7 +324,7 @@ func (s *ConsoleServer) HiroStatsList(ctx context.Context, in *console.HiroStats
 
 	statsSystem := s.hiro.hiro.GetStatsSystem()
 
-	if statsSystem.GetType() == hiro.SystemTypeUnknown {
+	if statsSystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroStatsSystemNotRegistered
 	}
 
@@ -355,7 +355,7 @@ func (s *ConsoleServer) HiroStatsUpdate(ctx context.Context, in *console.HiroSta
 
 	statsSystem := s.hiro.hiro.GetStatsSystem()
 
-	if statsSystem.GetType() == hiro.SystemTypeUnknown {
+	if statsSystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroStatsSystemNotRegistered
 	}
 
@@ -378,7 +378,7 @@ func (s *ConsoleServer) HiroEnergyGrant(ctx context.Context, in *console.HiroEne
 
 	energySystem := s.hiro.hiro.GetEnergySystem()
 
-	if energySystem.GetType() == hiro.SystemTypeUnknown {
+	if energySystem.GetType() == hiro.SystemTypeUnregistered {
 		return nil, ErrHiroEnergySystemNotRegistered
 	}
 

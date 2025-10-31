@@ -28,11 +28,11 @@ func (c *ConsoleServer) RegisteredExtensions(ctx context.Context, in *emptypb.Em
 	if c.hiro != nil && c.hiro.hiro != nil {
 		hiroRegistered = true
 		hiroSystems = &console.Extensions_HiroSystems{
-			EconomySystem:     c.hiro.hiro.GetEconomySystem().GetType() != hiro.SystemTypeUnknown,
-			InventorySystem:   c.hiro.hiro.GetInventorySystem().GetType() != hiro.SystemTypeUnknown,
-			ProgressionSystem: c.hiro.hiro.GetProgressionSystem().GetType() != hiro.SystemTypeUnknown,
-			StatsSystem:       c.hiro.hiro.GetStatsSystem().GetType() != hiro.SystemTypeUnknown,
-			EnergySystem:      c.hiro.hiro.GetEnergySystem().GetType() != hiro.SystemTypeUnknown,
+			EconomySystem:     c.hiro.hiro.GetEconomySystem().GetType() != hiro.SystemTypeUnregistered,
+			InventorySystem:   c.hiro.hiro.GetInventorySystem().GetType() != hiro.SystemTypeUnregistered,
+			ProgressionSystem: c.hiro.hiro.GetProgressionSystem().GetType() != hiro.SystemTypeUnregistered,
+			StatsSystem:       c.hiro.hiro.GetStatsSystem().GetType() != hiro.SystemTypeUnregistered,
+			EnergySystem:      c.hiro.hiro.GetEnergySystem().GetType() != hiro.SystemTypeUnregistered,
 		}
 	}
 
