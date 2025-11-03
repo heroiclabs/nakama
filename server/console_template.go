@@ -31,11 +31,11 @@ import (
 func (s *ConsoleServer) AddAclTemplate(ctx context.Context, in *console.AddAclTemplateRequest) (*console.AclTemplate, error) {
 	query := `
 		INSERT INTO console_acl_template
-			(name, description, acl)
+			(id, name, description, acl)
 		VALUES
-			($1, $2, $3)
+			($1, $2, $3, $4)
 		RETURNING
-			id, name, description, acl, create_time, update_time
+			name, description, acl, create_time, update_time
 `
 
 	templateAcl := acl.New(in.Acl)
@@ -45,10 +45,10 @@ func (s *ConsoleServer) AddAclTemplate(ctx context.Context, in *console.AddAclTe
 		return nil, status.Error(codes.Internal, "Internal error")
 	}
 
-	var id uuid.UUID
+	id := uuid.Must(uuid.NewV4())
 	var createTime, updateTime time.Time
 	var name, description, aclJson string
-	if err = s.db.QueryRowContext(ctx, query, in.Name, in.Description, aclValue).Scan(&id, &name, &description, &aclJson, &createTime, &updateTime); err != nil {
+	if err = s.db.QueryRowContext(ctx, query, id, in.Name, in.Description, aclValue).Scan(&name, &description, &aclJson, &createTime, &updateTime); err != nil {
 		s.logger.Error("Error inserting acl template", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error adding ACL template.")
 	}
