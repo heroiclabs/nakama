@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Fix an issue with Hiro dependencies vendoring.
+- Remove usage of gen_random_uuid function in migrations for compatibility with older PostgreSQL versions.
 
 ## [3.33.0] - 2025-10-31
 ### Added

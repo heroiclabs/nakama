@@ -455,7 +455,6 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 			}
 
 			auditEntry := &AuditLogEntry{
-				ID:        uuid.Must(uuid.NewV4()).String(),
 				UserID:    userId.String(),
 				Username:  username,
 				Email:     email,
@@ -476,6 +475,10 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 }
 
 func auditLogAdd(logger *zap.Logger, db *sql.DB, entry *AuditLogEntry) error {
+	if entry.ID == "" {
+		entry.ID = uuid.Must(uuid.NewV4()).String()
+	}
+
 	query := `
 		INSERT INTO console_audit_log (
 			id, console_user_id, console_username, email, resource, action, metadata, message, create_time
