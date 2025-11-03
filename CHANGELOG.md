@@ -5,6 +5,11 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.33.1] - 2025-11-03
+### Fixed
+- Fix an issue with Hiro dependencies vendoring.
+- Remove usage of database random generator function in migrations for compatibility with older PostgreSQL versions.
+
 ## [3.33.0] - 2025-10-31
 ### Added
 - Add Hiro integration to Console UI.

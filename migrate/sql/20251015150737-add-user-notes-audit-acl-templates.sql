@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS console_audit_log (
    UNIQUE (id),
 
    create_time      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-   id               UUID NOT NULL DEFAULT gen_random_uuid(),
+   id               UUID NOT NULL,
    console_user_id  UUID NOT NULL,
    console_username TEXT NOT NULL,
    email            TEXT NOT NULL,
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS console_audit_log (
 CREATE TABLE IF NOT EXISTS console_acl_template (
     PRIMARY KEY (id),
 
-    "id"          UUID         NOT NULL DEFAULT gen_random_uuid(),
+    "id"          UUID         NOT NULL,
     "name"        VARCHAR(64)  NOT NULL CHECK (length("name") > 0) CONSTRAINT template_name_uniq UNIQUE,
     "description" VARCHAR(64)  NOT NULL DEFAULT '',
     "acl"         JSONB        NOT NULL DEFAULT '{}',
