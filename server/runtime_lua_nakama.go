@@ -5934,7 +5934,7 @@ func (n *RuntimeLuaNakamaModule) walletLedgerList(l *lua.LState) int {
 	// Parse cursor.
 	cursor := l.OptString(3, "")
 
-	items, newCursor, _, err := ListWalletLedger(l.Context(), n.logger, n.db, uid, &limit, cursor)
+	items, newCursor, _, err := ListWalletLedger(l.Context(), n.logger, n.db, uid, &limit, cursor, time.Time{}, time.Time{})
 	if err != nil {
 		l.RaiseError("failed to retrieve user wallet ledger: %s", err.Error())
 		return 0
@@ -7905,7 +7905,7 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	purchases, err := ListPurchases(l.Context(), n.logger, n.db, userID, limit, cursor)
+	purchases, err := ListPurchases(l.Context(), n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
 	if err != nil {
 		l.RaiseError("error retrieving purchases: %v", err.Error())
 		return 0
@@ -8088,7 +8088,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, userID, limit, cursor)
+	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
 	if err != nil {
 		l.RaiseError("error retrieving subscriptions: %v", err.Error())
 		return 0

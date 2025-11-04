@@ -20,9 +20,11 @@ syntax = "proto3";
 package nakama.console;
 
 import "api/api.proto";
-import "github.com/heroiclabs/nakama-common/rtapi/realtime.proto";
+import "rtapi/realtime.proto";
+import "hiro.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
@@ -105,12 +107,54 @@ service Console {
     };
   }
 
+  rpc AddAccountNote (AddAccountNoteRequest) returns (AccountNote) {
+    option (google.api.http) = {
+      post: "/v2/console/account/{account_id}/note",
+      body: "*"
+    };
+  }
+
+  rpc ListAccountNotes (ListAccountNotesRequest) returns (ListAccountNotesResponse) {
+    option (google.api.http).get = "/v2/console/account/{account_id}/note";
+  }
+
+  rpc AddAclTemplate (AddAclTemplateRequest) returns (AclTemplate) {
+    option (google.api.http) = {
+      post: "/v2/console/acl/template",
+      body: "*"
+    };
+  }
+
+  rpc UpdateAclTemplate (UpdateAclTemplateRequest) returns (AclTemplate) {
+    option (google.api.http) = {
+      put: "/v2/console/acl/template/{id}",
+      body: "*"
+    };
+  }
+
+  rpc ListAclTemplates (google.protobuf.Empty) returns (AclTemplateList) {
+    option (google.api.http).get = "/v2/console/acl/template";
+  }
+
+  rpc DeleteAclTemplate (DeleteAclTemplateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/acl/template/{id}";
+  }
+
+  rpc DeleteAccountNote (DeleteAccountNoteRequest) returns (google.protobuf.Empty) {
+    option (google.api.http).delete = "/v2/console/account/{account_id}/note/{note_id}";
+  }
+
   // Add a new console user.
-  rpc AddUser (AddUserRequest) returns (google.protobuf.Empty) {
+  rpc AddUser (AddUserRequest) returns (AddUserResponse) {
     option (google.api.http) = {
       post: "/v2/console/user",
       body: "*"
     };
+  }
+
+  // Reset a user's password.
+  rpc ResetUserPassword (Username) returns (ResetUserResponse) {
+    option (google.api.http).post = "/v1/console/user/{username}/reset/password";
   }
 
   // Add/join members to a group.
@@ -227,6 +271,22 @@ service Console {
     option (google.api.http).get = "/v2/console/account/{id}/export";
   }
 
+  // Import given account export data, overwriting the user account's current state.
+  rpc ImportAccount (AccountImport) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/v2/console/account/{id}/import",
+      body: "*"
+    };
+  }
+
+  // Import given account export data, creating a new account that fully matches the data.
+  rpc ImportAccountFull (AccountImport) returns (Account) {
+    option (google.api.http) = {
+      post: "/v2/console/account",
+      body: "*"
+    };
+  }
+
   // Export all information stored about a group.
   rpc ExportGroup (GroupId) returns (GroupExport) {
     option (google.api.http).get = "/v2/console/group/{id}/export";
@@ -292,6 +352,10 @@ service Console {
     option (google.api.http).get = "/v2/console/storage/{collection}/{key}/{user_id}";
   }
 
+  rpc GetUser (Username) returns (User) {
+    option (google.api.http).get = "/v2/console/user/{username}";
+  }
+
   // Get a list of the user's wallet transactions.
   rpc GetWalletLedger (GetWalletLedgerRequest) returns (WalletLedgerList) {
     option (google.api.http).get = "/v2/console/account/{account_id}/wallet";
@@ -310,6 +374,16 @@ service Console {
   // Get subscription by original_transaction_id
   rpc GetSubscription (GetSubscriptionRequest) returns (api.ValidatedSubscription) {
     option (google.api.http).get = "/v2/console/iap/subscription/{original_transaction_id}";
+  }
+
+  // List audit log entries with the selected filter
+  rpc ListAuditLogs (AuditLogRequest) returns (AuditLogList) {
+    option (google.api.http).get = "/v2/console/audit/log";
+  }
+
+  // List console usernames that can be used to filter the audit logs
+  rpc ListAuditLogsUsers (google.protobuf.Empty) returns (AuditLogUsersList) {
+    option (google.api.http).get = "/v2/console/audit/log/users";
   }
 
   // API Explorer - list all endpoints
@@ -477,10 +551,124 @@ service Console {
     };
   }
 
+  // Update a console user.
+  rpc UpdateUser (UpdateUserRequest) returns (User) {
+    option (google.api.http) = {
+      put: "/v2/console/user/{username}",
+      body: "*"
+    };
+  }
+
   // Write a new storage object or replace an existing one.
   rpc WriteStorageObject (WriteStorageObjectRequest) returns (api.StorageObjectAck) {
     option (google.api.http) = {
       put: "/v2/console/storage/{collection}/{key}/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc SatoriListTemplates (Template.ListRequest) returns (Template.ListResponse) {
+    option (google.api.http).get = "/v2/console/satori/template";
+  }
+
+  rpc SatoriSendDirectMessage (SendDirectMessageRequest) returns (SendDirectMessageResponse) {
+    option (google.api.http) = {
+      post: "/v2/console/satori/direct-message",
+      body: "*"
+    };
+  }
+
+  // Send a notification.
+  rpc SendNotification (SendNotificationRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/notification",
+      body: "*"
+    };
+  }
+
+  rpc HiroListInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
+    option (google.api.http).get = "/v2/console/hiro/inventory/{user_id}/codex";
+  }
+
+  rpc HiroListUserInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
+    option (google.api.http).get = "/v2/console/hiro/inventory/{user_id}";
+  }
+
+  rpc HiroAddUserInventoryItems (HiroGrantUserInventoryRequest) returns (hiro.InventoryUpdateAck) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/inventory/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroDeleteUserInventoryItems (HiroDeleteUserInventoryItemsRequest) returns (hiro.InventoryUpdateAck) {
+    option (google.api.http) = {
+      put: "/v2/console/hiro/inventory/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroUpdateUserInventoryItems (HiroUpdateUserInventoryItemsRequest) returns (hiro.InventoryUpdateAck) {
+    option (google.api.http) = {
+      patch: "/v2/console/hiro/inventory/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroListProgressions (HiroProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http).get = "/v2/console/hiro/progression/{user_id}";
+  }
+
+  rpc RegisteredExtensions (google.protobuf.Empty) returns (Extensions) {
+    option (google.api.http).get = "/v2/console/extensions";
+  }
+
+  rpc HiroResetProgressions (HiroResetProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http).delete = "/v2/console/hiro/progression/{user_id}";
+  }
+
+  rpc HiroUnlockProgressions (HiroUnlockProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http) = {
+      put: "/v2/console/hiro/progression/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroUpdateProgressions (HiroUpdateProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http) = {
+      patch: "/v2/console/hiro/progression/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroPurchaseProgressions (HiroPurchaseProgressionsRequest) returns (hiro.ProgressionList) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/progression/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroEconomyGrant (HiroEconomyGrantRequest) returns (hiro.EconomyUpdateAck) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/economy/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroStatsList (HiroStatsListRequest) returns (hiro.StatList) {
+    option (google.api.http).get = "/v2/console/hiro/stats/{user_id}";
+  }
+
+  rpc HiroStatsUpdate (HiroStatsUpdateRequest) returns (hiro.StatList) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/stats/{user_id}",
+      body: "*"
+    };
+  }
+
+  rpc HiroEnergyGrant (HiroEnergyGrantRequest) returns (hiro.EnergyList) {
+    option (google.api.http) = {
+      post: "/v2/console/hiro/energy/{user_id}",
       body: "*"
     };
   }
@@ -528,6 +716,14 @@ message AccountExport {
   repeated WalletLedger wallet_ledgers = 8;
 }
 
+// Request to import user account data.
+message AccountImport {
+  // The user ID to overwrite data for, or blank if the account should be freshly created.
+  string id = 1;
+  // The export data snapshot to import.
+  AccountExport data = 2;
+}
+
 // The identifier for a user account.
 message AccountId {
   // The unique identifier of the user account.
@@ -542,6 +738,60 @@ message AccountList {
   int32 total_count = 2;
   // Next cursor.
   string next_cursor = 3;
+}
+
+// Request to list audit log entries.
+message AuditLogRequest {
+  // Maximum number of entries to return.
+  int32 limit = 1;
+  // Filter by username.
+  string username = 2;
+  // Filter by resource.
+  google.protobuf.Int32Value resource = 3;
+  // Filter by action.
+  AuditLogAction action = 4;
+  // Optional timestamp threshold to list audit log records after.
+  google.protobuf.Timestamp after = 5;
+  // Optional timestamp threshold to list audit log records before.
+  google.protobuf.Timestamp before = 6;
+  // Cursor to fetch additional.
+  string cursor = 7;
+}
+
+// List of users that can be filtered in the audit logs.
+message AuditLogUsersList {
+ repeated string usernames = 1;
+}
+
+// Audit log entries.
+message AuditLogList {
+  message AuditLog {
+    // Id of the entry.
+    string id = 1;
+    // The time the action occurred.
+    google.protobuf.Timestamp timestamp = 2;
+    // The console user id that performed the action.
+    string user_id = 3;
+    // The console user username that performed the action.
+    string username = 4;
+    // The console user email that performed the action.
+    string email = 5;
+    // The resource the action was performed on.
+    AclResources resource = 6;
+    // The action that was performed.
+    AuditLogAction action = 7;
+    // Log message.
+    string message = 8;
+    // Additional details about the action.
+    string metadata = 9;
+  }
+
+  // A list of audit log entries.
+  repeated AuditLog entries = 1;
+  // Cursor to fetch next page of results.
+  string next_cursor = 2;
+  // Cursor to fetch prev page of results.
+  string prev_cursor = 3;
 }
 
 // The identifier for a group.
@@ -588,8 +838,8 @@ message AddUserRequest {
   string password = 2;
   // Email address of the user.
   string email = 3;
-  // Role of this user;
-  UserRole role = 4;
+  // ACL.
+  map<string,Permissions> acl = 4;
   // Require MFA
   bool mfa_required = 5;
   // Subscribe to newsletters
@@ -604,6 +854,118 @@ message AddGroupUsersRequest {
   string group_id = 2;
   // Whether it is a join request.
   bool join_request = 3;
+}
+
+// Add a new note for the user.
+message AddAccountNoteRequest {
+  // Identifier of the note. Empty to update existing note.
+  string id = 1;
+  // The account id to add the note for.
+  string account_id = 2;
+  // The content of the note.
+  string note = 3;
+}
+
+// Add a new ACL template.
+message AddAclTemplateRequest {
+  // The name of the ACL template.
+  string name = 1;
+  // The ACL template description.
+  string description = 2;
+  // The ACL template permissions.
+  map<string,Permissions> acl = 3;
+}
+
+message UpdateAclTemplateRequest {
+  // The identifier of the ACL template.
+  string id = 1;
+  // The name of the ACL template.
+  string name = 2;
+  // The ACL template description.
+  string description = 3;
+  // The ACL template permissions.
+  map<string,Permissions> acl = 4;
+}
+
+message AclTemplateList {
+  // A list of ACL templates.
+  repeated AclTemplate templates = 1;
+}
+
+message AclTemplate {
+  // The identifier of the ACL template.
+  string id = 1;
+  // The name of the ACL template.
+  string name = 2;
+  // The ACL template description.
+  string description = 3;
+  // The ACL template permissions.
+  map<string,Permissions> acl = 4;
+  // The template Create time.
+  google.protobuf.Timestamp create_time = 5;
+  // The template Update time.
+  google.protobuf.Timestamp update_time = 6;
+}
+
+// A user note.
+message AccountNote {
+  // Identifier of the note.
+  string id = 1;
+  // Owner of this note.
+  string user_id = 2;
+  // The content of the note.
+  string note = 3;
+  // Timestamp of note creation.
+  google.protobuf.Timestamp create_time = 4;
+  // Timestamp of note update.
+  google.protobuf.Timestamp update_time = 5;
+  // Console user identifier that created this note.
+  string create_id = 6;
+  // Console username that created this note.
+  string create_username = 7;
+  // Console user identifier that last updated this note.
+  string update_id = 8;
+  // Console username that last updated this note.
+  string update_username = 9;
+}
+
+// List of user notes.
+message ListAccountNotesRequest {
+  // Account to list notes for.
+  string account_id = 1;
+  // Response result page limit.
+  int32 limit = 2;
+  // Optional cursor for pagination.
+  string cursor = 3;
+}
+
+message DeleteAclTemplateRequest {
+  // The identifier of the ACL template.
+  string id = 1;
+}
+
+// Delete an account note.
+message DeleteAccountNoteRequest {
+  // Account owning the notes.
+  string account_id = 1;
+  // Identifier of the note.
+  string note_id = 2;
+}
+
+// Response to list user notes.
+message ListAccountNotesResponse {
+  // The list of notes.
+  repeated AccountNote notes = 1;
+  // Cursor for retrieving the next page, if any.
+  string cursor = 2;
+}
+
+// Response to create/invite a new user.
+message AddUserResponse {
+  // The user recently created.
+  User user = 1;
+  // A one-time token required to update the user for the first time
+  string token = 2;
 }
 
 // API Explorer List of Endpoints
@@ -720,10 +1082,22 @@ message UpdateGroupUserStateRequest {
   string group_id = 2;
 }
 
+// Request to reset a user's credentials, password or MFA.
+message ResetUserRequest {
+  // User identifier.
+  string id = 1;
+}
+
 // Reset a user's mfa setup.
 message ResetUserMfaRequest {
   // User username.
   string username = 1;
+}
+
+// Request to reset a user's credentials, password or MFA.
+message ResetUserResponse{
+  // An one-time code to be used when re-configuring the password.
+  string code = 1;
 }
 
 // Make a user's mfa required or not.
@@ -766,6 +1140,136 @@ message DeleteWalletLedgerRequest {
   string id = 1;
   // ID of the wallet ledger item to remove.
   string wallet_id = 2;
+}
+
+// Request all inventory items in the economy.
+message HiroInventoryListRequest {
+  // The user ID to list inventory items for.
+  string user_id = 1;
+  // The category for the items to filter for, or empty for all.
+  string item_category = 2;
+}
+
+// Represents a request to grant items to the user.
+message HiroGrantUserInventoryRequest {
+  // The user ID to grant inventory items for.
+  string user_id = 1;
+  // The items to grant.
+  map<string, int64> items = 2;
+  // Whether to ignore limits when granting items.
+  bool ignore_limits = 3;
+}
+
+message HiroDeleteUserInventoryItemsRequest {
+  // The user ID to delete inventory items for.
+  string user_id = 1;
+  // list of instance ids
+  repeated string instance_ids = 2;
+}
+
+message HiroUpdateUserInventoryItemsRequest {
+  // The user ID to update inventory items for.
+  string user_id = 1;
+  // The item updates to action, keyed by item instance ID.
+  map<string, hiro.InventoryUpdateItemProperties> item_updates = 2;
+}
+
+// Request user's progressions.
+message HiroProgressionsRequest {
+  // The user ID to list progressions for.
+  string user_id = 1;
+  // Optional last known progressions state, keyed by progression ID.
+  map<string, hiro.Progression> progressions = 2;
+}
+
+// Request to reset one or more progressions for a user.
+message HiroResetProgressionsRequest {
+  // The user ID to reset progressions for.
+  string user_id = 1;
+  // Progression ids to reset.
+  repeated string progression_ids = 2;
+}
+
+// Request to unlock one or more progressions for a user.
+message HiroUnlockProgressionsRequest {
+  // The user ID to unlock progressions for.
+  string user_id = 1;
+  // Progression ids to unlock.
+  repeated string progression_ids = 2;
+}
+
+// Request to update a progression for a user.
+message HiroUpdateProgressionsRequest {
+  // The user ID to update progressions for.
+  string user_id = 1;
+  // Progression ID to update.
+  string progression_id = 2;
+  // Counts to apply to the progression.
+  map<string, int64> counts = 3;
+}
+
+// Request to purchase a progression for a user.
+message HiroPurchaseProgressionsRequest {
+  // The user ID to purchase progressions for.
+  string user_id = 1;
+  // Progression ID to purchase.
+  string progression_id = 2;
+}
+
+// Request to modify a user's economy wallet.
+message HiroEconomyGrantRequest {
+  // The user ID to update economy for.
+  string user_id = 1;
+  // Currencies to grant.
+  map<string, int64> currencies = 2;
+}
+
+// Request to list a user's stats.
+message HiroStatsListRequest {
+  // The user ID to list stats for.
+  string user_id = 1;
+}
+
+// Request to update a user's stats.
+message HiroStatsUpdateRequest {
+  // The user ID to update stats for.
+  string user_id = 1;
+  // Public stat updates.
+  repeated hiro.StatUpdate public = 2;
+  // Private stat updates.
+  repeated hiro.StatUpdate private = 3;
+}
+
+// Request to update a user's energy.
+message HiroEnergyGrantRequest {
+  // The user ID to update energy for.
+  string user_id = 1;
+  // Energy amounts to grant.
+  map<string, int32> amounts = 2;
+}
+
+// Which Console extensions are registered and available.
+message Extensions {
+  // Is Hiro registered.
+  bool hiro = 1;
+  // Hiro registered systems, if hiro is available.
+  HiroSystems hiro_systems = 2;
+  // Is Satori registered.
+  bool satori = 3;
+
+  // Hiro available systems.
+  message HiroSystems {
+    // Is Economy system registered.
+    bool economy_system = 1;
+    // Is Inventory system registered.
+    bool inventory_system = 2;
+    // Is Progression system registered.
+    bool progression_system = 3;
+    // Is Stats system registered.
+    bool stats_system = 4;
+    // Is Energy system registered.
+    bool energy_system = 5;
+  }
 }
 
 // A leaderboard.
@@ -915,6 +1419,12 @@ message ListPurchasesRequest {
   uint32 limit = 2;
   // Cursor to retrieve a page of records from
   string cursor = 3;
+  // Optional timestamp threshold to list purchases after.
+  google.protobuf.Timestamp after = 4;
+  // Optional timestamp threshold to list purchases before.
+  google.protobuf.Timestamp before = 5;
+  // Filter to use when searching for specific purchases.
+  string filter = 6;
 }
 
 // List subscriptions.
@@ -925,6 +1435,12 @@ message ListSubscriptionsRequest {
   uint32 limit = 2;
   // Cursor to retrieve a page of records from
   string cursor = 3;
+  // Optional timestamp threshold to list subscriptions after.
+  google.protobuf.Timestamp after = 4;
+  // Optional timestamp threshold to list subscriptions before.
+  google.protobuf.Timestamp before = 5;
+  // Filter to use when searching for specific subscriptions.
+  string filter = 6;
 }
 
 // List (and optionally filter) storage objects.
@@ -1067,32 +1583,30 @@ message Username {
   string username = 1;
 }
 
-// A list of console users.
-message UserList {
-  // A console user
-  message User {
-    // Username of the user
-    string username = 1;
-    // Email of the user
-    string email = 2;
-    // Role of the user;
-    UserRole role = 3;
-    // Whether the user is required to setup MFA.
-    bool mfa_required = 4;
-    // Whether the user has MFA enabled.
-    bool mfa_enabled = 5;
-  }
-
-  // A list of users.
-  repeated User users = 1;
+// A console user
+message User {
+  // User identifier.
+  string id = 1;
+  // Username of the user
+  string username = 2;
+  // Email of the user
+  string email = 3;
+  // ACL.
+  map<string,Permissions> acl = 4;
+  // Whether the user is required to setup MFA.
+  bool mfa_required = 5;
+  // Whether the user has MFA enabled.
+  bool mfa_enabled = 6;
+  // User's create time
+  google.protobuf.Timestamp create_time = 7;
+  // User's update time
+  google.protobuf.Timestamp update_time = 8;
 }
 
-enum UserRole {
-  USER_ROLE_UNKNOWN = 0;
-  USER_ROLE_ADMIN = 1; // All access
-  USER_ROLE_DEVELOPER = 2; // Best for developers, also enables APIs and API explorer
-  USER_ROLE_MAINTAINER = 3; // Best for users who regularly update player information.
-  USER_ROLE_READONLY = 4; // Read-only role for those only need to view data
+// A list of console users.
+message UserList {
+  // A list of users.
+  repeated User users = 1;
 }
 
 enum StatusHealth {
@@ -1206,10 +1720,14 @@ message WriteStorageObjectRequest {
 message GetWalletLedgerRequest {
   // The unique identifier of the user account.
   string account_id = 1;
-  // Max number of results per page
+  // Max number of results per page.
   uint32 limit = 2;
-  // Cursor to retrieve a page of records from
+  // Cursor to retrieve a page of records from.
   string cursor = 3;
+  // Optional timestamp threshold to list wallet ledger records after.
+  google.protobuf.Timestamp after = 4;
+  // Optional timestamp threshold to list wallet ledger records before.
+  google.protobuf.Timestamp before = 5;
 }
 
 message GetNotificationRequest {
@@ -1281,4 +1799,445 @@ message UpdateSettingRequest {
 message SettingList {
   // A list of settings.
   repeated Setting settings = 1;
+  // This field is only used to allow the swagger generator to output the enum values.
+  repeated AclResources acl_resources = 2;
+}
+
+// Request to update an existing user.
+message UpdateUserRequest {
+  // User username.
+  string username = 1;
+  // ACL.
+  map<string,Permissions> acl = 2;
+}
+
+// Request to send a notification.
+message SendNotificationRequest {
+  // One or more users to send the notification to, or empty to send to all users.
+  repeated string user_ids = 1;
+  // Subject for the notification.
+  string subject = 2;
+  // Arbitrary content.
+  google.protobuf.Struct content = 3;
+  // Code.
+  int32 code = 4;
+  // Persistent flag.
+  bool persistent = 5;
+  // Sender identifier.
+  string sender_id = 6;
+}
+
+// A template.
+message Template {
+  // The identifier.
+  string id = 1;
+  // The display name.
+  string name = 2;
+  // Create time.
+  int64 create_time_sec = 4;
+  // Update time.
+  int64 update_time_sec = 5;
+  // The template value to generate the message's content.
+  string value = 6;
+  // The template variants..
+  repeated TemplateVariant variants = 7;
+  // The title to generate the message's title.
+  string title = 8;
+  // The image_url for the message.
+  string image_url = 9;
+  // The value_type for the message's content
+  string value_type = 10;
+  // The json_metadata for the message
+  string json_metadata = 11;
+  // Category label identifiers.
+  repeated Category.View categories = 12;
+
+  // A template view.
+  message View {
+    // The identifier.
+    string id = 1;
+    // The display name.
+    string name = 2;
+    // Create time.
+    int64 create_time_sec = 4;
+    // Update time.
+    int64 update_time_sec = 5;
+    // The template value to generate the message's content.
+    string value = 6;
+    // The title to generate the message's title.
+    string title = 7;
+    // The image_url for the message.
+    string image_url = 8;
+    // The value_type for the message's content
+    string value_type = 9;
+    // The json_metadata for the message
+    string json_metadata = 10;
+    // Category label identifiers.
+    repeated Category.View categories = 11;
+  }
+
+  // An export of a message template.
+  message Export {
+    // The identifier.
+    string id = 1;
+    // The display name.
+    string name = 2;
+    // The template value to generate the message's content.
+    string value = 3;
+    // The template variants..
+    repeated VariantExport variants = 4;
+    // The title to generate the message's title.
+    string title = 5;
+    // The image_url for the message.
+    string image_url = 6;
+    // The value_type for the message's content
+    string value_type = 7;
+    // The json_metadata for the message
+    string json_metadata = 8;
+    // Category label identifiers.
+    repeated string category_ids = 9;
+  }
+
+  message VariantExport {
+    // The language of the template.
+    string language = 1;
+    // The template value to generate the message's content.
+    string value = 2;
+    // The title to generate the message's title.
+    string title = 3;
+    // The image_url for the message.
+    string image_url = 4;
+  }
+
+  // The request to list templates.
+  message ListRequest {
+    // Search options.
+    SearchOptions search = 5;
+    // Pagination options.
+    PaginationOptions pagination = 6;
+
+    message SearchOptions {
+      // Filter by Name.
+      SingleTextValueFilterOption name = 1;
+      // Filter by Label name.
+      MultiTextValueFilterOption label_name = 3;
+    }
+
+    // The MultiTextValueFilterOption specifies the operation to apply to multi-value text fields.
+    // Only a single operation can be used at one time.
+    message MultiTextValueFilterOption {
+      // Filter by elements matching one of the parameters.
+      repeated string or = 1;
+      // Filter by elements matching all parameters.
+      repeated string and = 2;
+    }
+
+    message PaginationOptions {
+      // Limit of results to return.
+      int32 limit = 1;
+      // Cursor to the next page.
+      string cursor = 2;
+    }
+  }
+
+  // The SingleTextValueFilterOption specifies the operation to apply to single value text fields.
+  // Only a single operation can be used at one time.
+  message SingleTextValueFilterOption {
+    // Filter by elements matching one of the parameters.
+    repeated string or = 1;
+    // Filter by elements matching exactly the value.
+    string exact = 2;
+    // Filter by elements matching the pattern.
+    string like = 3;
+  }
+
+  // A list of templates.
+  message ListResponse {
+    // A list of templates.
+    repeated Template.View templates = 1;
+    // The pagination options, if there are more pages.
+    PageOptions page_options = 2;
+  }
+
+  // The request to create a template.
+  message CreateRequest {
+    // The name for the template.
+    string name = 1;
+    // The template value to generate the message's content.
+    string value = 2;
+    // The title to generate the message's title.
+    string title = 3;
+    // The image_url for the message.
+    string image_url = 4;
+    // The value_type for the message's content
+    string value_type = 5;
+    // The json_metadata for the message
+    string json_metadata = 6;
+    // Category label identifiers.
+    repeated string category_ids = 7;
+  }
+
+  // The request to update a template.
+  message UpdateRequest {
+    // The identifier of the template.
+    string id = 1;
+    // The new name for the template.
+    string name = 2;
+    // The template value to generate the message's content.
+    string value = 3;
+    // The title to generate the message's title.
+    string title = 4;
+    // The image_url for the message.
+    string image_url = 5;
+    // The value_type for the message's content
+    string value_type = 6;
+    // The json_metadata for the message
+    string json_metadata = 7;
+    // Category label identifiers.
+    repeated string category_ids = 8;
+  }
+
+  message PageOptions {
+    // Cursor, if there are prev pages.
+    string prev_cursor = 1;
+    // Cursor, if there are next pages.
+    string next_cursor = 2;
+  }
+}
+
+// A template variant.
+message TemplateVariant {
+  // The language of the template.
+  string language = 1;
+  // The template value to generate the message's content.
+  string value = 2;
+  // Create time.
+  int64 create_time_sec = 4;
+  // Update time.
+  int64 update_time_sec = 5;
+  // The title to generate the message's title.
+  string title = 6;
+  // The image_url for the message.
+  string image_url = 7;
+}
+
+// Represents a category label.
+message Category {
+  // Identifier.
+  string id = 1;
+  // Name.
+  string name = 2;
+  // Description.
+  string description = 3;
+  // Color hex for the label.
+  string color = 4;
+  // Create time.
+  int64 create_time_sec = 5;
+  // Update time.
+  int64 update_time_sec = 6;
+
+  // A export of a Category
+  message Export {
+    // Identifier.
+    string id = 1;
+    // Name.
+    string name = 2;
+    // Description.
+    string description = 3;
+    // Color hex for the label.
+    string color = 4;
+  }
+
+  // A summary of a Category.
+  message View {
+    // Identifier.
+    string id = 1;
+    // Name.
+    string name = 2;
+    // Color hex for the label.
+    string color = 3;
+  }
+}
+
+// The request to send direct messages.
+message SendDirectMessageRequest {
+  // The identifier of the template used to render the message content.
+  string template_id = 1;
+  // A list of recipient identity IDs.
+  repeated string identity_ids = 2;
+  // A list of integrations to use for sending the message.
+  repeated MessageIntegrationType integrations = 3;
+  // Whether the message should be stored in the recipient's inbox.
+  bool persist = 4;
+  // If applicable, channels to send this message through, per integration.
+  map<int32, MessageChannels> channels = 5;
+
+  message MessageChannels {
+    repeated MessageChannelType channels = 1;
+  }
+}
+
+// The response for the SendDirectMessageRequest.
+message SendDirectMessageResponse {
+  // Results for each attempted message delivery.
+  repeated DeliveryResult delivery_results = 1;
+  // Details of each delivery attempt.
+  message DeliveryResult {
+    // The identity ID of the recipient.
+    string recipient_id = 1;
+    // Results for each valid integration used in the delivery.
+    repeated IntegrationResult integration_results = 2;
+    // The outcome of using a specific integration.
+    message IntegrationResult {
+      // The integration type used for the message delivery.
+      MessageIntegrationType integration_type = 1;
+      // Whether the message was successfully delivered using this integration.
+      bool success = 2;
+      // An error message, if the delivery failed.
+      string error_message = 3;
+      // The channel type used for the message delivery.
+      MessageChannelType channel_type = 4;
+    }
+  }
+}
+
+// Message integration's names.
+enum MessageIntegrationType {
+  UNKNOWN_MESSAGE_TYPE = 0;
+  // The variant for Google's Firebase Cloud Messaging.
+  FCM = 1;
+  // The variant for Apple's Message system.
+  APNS = 2;
+  // The variant for Facebook App-to-User Notifications.
+  FACEBOOK_NOTIFICATION = 3;
+  // The variant for OneSignal Notifications.
+  ONESIGNAL_NOTIFICATION = 4;
+  // The variant for Webhook Notifications.
+  WEBHOOK_NOTIFICATION = 5;
+}
+
+// Message channel types.
+enum MessageChannelType {
+  DEFAULT = 0;
+  // Push notification.
+  PUSH = 1;
+  // Email.
+  EMAIL = 2;
+}
+
+message MessageIntegration {
+  // The name of the Message integration.
+  MessageIntegrationType type = 1;
+  // The status of the integration.
+  bool enabled = 2;
+  // The update time of the integration.
+  int64 update_time_sec = 3;
+  // The configuration of this integration.
+  oneof configuration {
+    // The new configuration for APNs.
+    AppleMessageConfiguration apns = 4;
+    // The new configuration for FCM.
+    FirebaseMessagingConfiguration fcm = 5;
+    // The new configuration for Facebook App-to-User Notifications.
+    FacebookNotificationConfiguration facebook_notification = 6;
+    // The new configuration for OneSignal Notifications.
+    OneSignalNotificationConfiguration onesignal_notification = 7;
+  }
+
+  message Export {
+    // The type of the message integration.
+    MessageIntegrationType type = 1;
+    // The platform specific configuration as JSON.
+    string configuration = 2;
+    // The last time it was updated.
+    int64 update_time = 3;
+  }
+}
+
+// The configuration necessary to integrate with APNs.
+message AppleMessageConfiguration{
+  string team_id = 1;
+  string topic = 2;
+  string p8_auth_key_id = 3;
+  string p8_auth_key_value = 4;
+  EnvType env = 5;
+
+  // The APNs environment type.
+  enum EnvType {
+    PRODUCTION = 0;
+    DEVELOPMENT = 1;
+  }
+}
+
+// The configuration necessary to integrate with Google's Firebase Cloud Messaging.
+message FirebaseMessagingConfiguration{
+  string credentials = 1;
+  string project_id = 2;
+}
+
+// The configuration necessary to integrate with Facebook App-To-User Notifications.
+message FacebookNotificationConfiguration{
+  string app_id = 1;
+  string app_secret = 2;
+}
+
+// The configuration necessary to integrate with OneSignal Notifications.
+message OneSignalNotificationConfiguration {
+  string app_id = 1;
+  string api_key = 2;
+}
+
+// The possible actions that can done over a resource.
+message Permissions {
+  // Read a resource.
+  bool read = 1;
+  // Create and/or modify a resource.
+  bool write = 2;
+  // Delete a resource.
+  bool delete = 3;
+}
+
+// ATTENTION: Do not modify the order of this enum.
+// New resources should always be appended.
+enum AclResources {
+  ACCOUNT = 0;
+  ACCOUNT_WALLET = 1;
+  ACCOUNT_EXPORT = 2;
+  ACCOUNT_FRIENDS = 3;
+  ACCOUNT_GROUPS = 4;
+  ACCOUNT_NOTES = 5;
+  ACL_TEMPLATE = 6;
+  ALL_ACCOUNTS = 7;
+  ALL_DATA = 8;
+  ALL_STORAGE = 9;
+  API_EXPLORER = 10;
+  AUDIT_LOG = 11;
+  CONFIGURATION = 12;
+  CHANNEL_MESSAGE = 13;
+  USER = 14;
+  GROUP = 15;
+  IN_APP_PURCHASE = 16;
+  LEADERBOARD = 17;
+  LEADERBOARD_RECORD = 18;
+  MATCH = 19;
+  NOTIFICATION = 20;
+  SATORI_MESSAGE = 21;
+  SETTINGS = 22;
+  STORAGE_DATA = 23;
+  STORAGE_DATA_IMPORT = 24;
+  HIRO_INVENTORY = 25;
+  HIRO_PROGRESSION = 26;
+  HIRO_ECONOMY = 27;
+  HIRO_STATS = 28;
+  HIRO_ENERGY = 29;
+}
+
+enum AuditLogAction {
+  UNKNOWN = 0;
+  CREATE = 1;
+  UPDATE = 2;
+  DELETE = 3;
+  INVOKE = 4;
+  IMPORT = 5;
+  EXPORT = 6;
 }

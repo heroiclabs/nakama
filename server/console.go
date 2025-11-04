@@ -35,7 +35,11 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/heroiclabs/hiro"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/heroiclabs/nakama/v3/console/acl"
+	"github.com/heroiclabs/nakama/v3/internal/satori"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -45,111 +49,10 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// Lists API methods and the minimum role required to access them
-var restrictedMethods = map[string]console.UserRole{
-	// Account
-	"/nakama.console.Console/BanAccount":         console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnbanAccount":       console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/DeleteAccount":      console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/DeleteAccounts":     console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteFriend":       console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/DeleteGroupUser":    console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/DeleteWalletLedger": console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/ExportAccount":      console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/GetAccount":         console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/GetFriends":         console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/GetGroups":          console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/GetWalletLedger":    console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/ListAccounts":       console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/UpdateAccount":      console.UserRole_USER_ROLE_MAINTAINER,
-
-	// API Explorer
-	"/nakama.console.Console/CallRpcEndpoint":  console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/CallApiEndpoint":  console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/ListApiEndpoints": console.UserRole_USER_ROLE_DEVELOPER,
-
-	// Config
-	"/nakama.console.Console/GetConfig":     console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteAllData": console.UserRole_USER_ROLE_DEVELOPER,
-
-	// Group
-	"/nakama.console.Console/ListGroups":         console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/DeleteGroup":        console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/GetGroup":           console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/ExportGroup":        console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UpdateGroup":        console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/GetMembers":         console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/DemoteGroupMember":  console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/PromoteGroupMember": console.UserRole_USER_ROLE_MAINTAINER,
-
-	// Leaderboard
-	"/nakama.console.Console/ListLeaderboards":        console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/GetLeaderboard":          console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/ListLeaderboardRecords":  console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/DeleteLeaderboard":       console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteLeaderboardRecord": console.UserRole_USER_ROLE_MAINTAINER,
-
-	// Match
-	"/nakama.console.Console/ListMatches":   console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/GetMatchState": console.UserRole_USER_ROLE_READONLY,
-
-	// Channel messages
-	"/nakama.console.Console/ListChannelMessages":   console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/DeleteChannelMessages": console.UserRole_USER_ROLE_MAINTAINER,
-
-	// Notifications
-	"/nakama.console.Console/GetNotification":    console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/ListNotifications":  console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/DeleteNotification": console.UserRole_USER_ROLE_MAINTAINER,
-
-	// Purchase
-	"/nakama.console.Console/ListPurchases": console.UserRole_USER_ROLE_READONLY,
-
-	// Subscription
-	"/nakama.console.Console/ListSubscriptions": console.UserRole_USER_ROLE_READONLY,
-
-	// Runtime
-	"/nakama.console.Console/GetRuntime": console.UserRole_USER_ROLE_DEVELOPER,
-
-	// Setting
-	"/nakama.console.Console/GetSetting":    console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/UpdateSetting": console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/ListSettings":  console.UserRole_USER_ROLE_READONLY,
-
-	// Status
-	"/nakama.console.Console/GetStatus": console.UserRole_USER_ROLE_READONLY,
-
-	// Storage
-	"/nakama.console.Console/DeleteStorage":          console.UserRole_USER_ROLE_DEVELOPER,
-	"/nakama.console.Console/DeleteStorageObject":    console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/GetStorage":             console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/ListStorageCollections": console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/ListStorage":            console.UserRole_USER_ROLE_READONLY,
-	"/nakama.console.Console/WriteStorageObject":     console.UserRole_USER_ROLE_MAINTAINER,
-
-	// Unlink
-	"/nakama.console.Console/UnlinkApple":               console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnlinkCustom":              console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnlinkDevice":              console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnlinkEmail":               console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnlinkFacebook":            console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnlinkFacebookInstantGame": console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnlinkGameCenter":          console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnlinkGoogle":              console.UserRole_USER_ROLE_MAINTAINER,
-	"/nakama.console.Console/UnlinkSteam":               console.UserRole_USER_ROLE_MAINTAINER,
-
-	// User
-	"/nakama.console.Console/AddUser":        console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/DeleteUser":     console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/ListUsers":      console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/ResetUserMfa":   console.UserRole_USER_ROLE_ADMIN,
-	"/nakama.console.Console/RequireUserMfa": console.UserRole_USER_ROLE_ADMIN,
-}
-
 type ctxConsoleIdKey struct{}
 type ctxConsoleUsernameKey struct{}
 type ctxConsoleEmailKey struct{}
-type ctxConsoleRoleKey struct{}
+type ctxConsoleUserAclKey struct{}
 
 type ConsoleServer struct {
 	console.UnimplementedConsoleServer
@@ -181,6 +84,14 @@ type ConsoleServer struct {
 	rpcMethodCache       *rpcReflectCache
 	cookie               string
 	httpClient           *http.Client
+	hiro                 *consoleHiro
+	satori               *satori.SatoriClient
+}
+
+type consoleHiro struct {
+	hiro   hiro.Hiro
+	nk     runtime.NakamaModule
+	logger runtime.Logger
 }
 
 func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, config Config, tracker Tracker, router MessageRouter, streamManager StreamManager, metrics Metrics, sessionRegistry SessionRegistry, sessionCache SessionCache, consoleSessionCache SessionCache, loginAttemptCache LoginAttemptCache, statusRegistry StatusRegistry, statusHandler StatusHandler, runtimeInfo *RuntimeInfo, matchRegistry MatchRegistry, configWarnings map[string]string, serverVersion string, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, storageIndex StorageIndex, api *ApiServer, runtime *Runtime, cookie string) *ConsoleServer {
@@ -195,11 +106,30 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	serverOpts := []grpc.ServerOption{
 		//grpc.StatsHandler(&ocgrpc.ServerHandler{IsPublicEndpoint: true}),
 		grpc.MaxRecvMsgSize(int(config.GetConsole().MaxMessageSizeBytes)),
-		grpc.UnaryInterceptor(consoleInterceptorFunc(logger, config, consoleSessionCache, loginAttemptCache)),
+		grpc.ChainUnaryInterceptor(
+			consoleAuthInterceptor(logger, config, consoleSessionCache, loginAttemptCache),
+			consoleAuditLogInterceptor(logger, db),
+		),
 	}
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	ctx, ctxCancelFn := context.WithCancel(context.Background())
+
+	var satoriClient *satori.SatoriClient
+	if config.GetSatori().ServerKey != "" {
+		satoriClient = satori.NewSatoriClient(
+			ctx,
+			logger,
+			config.GetSatori().Url,
+			config.GetSatori().ApiKeyName,
+			config.GetSatori().ApiKey,
+			config.GetSatori().ServerKey,
+			config.GetSatori().SigningKey,
+			config.GetSession().TokenExpirySec,
+			int64(config.GetSatori().HttpTimeoutSec),
+			false,
+		)
+	}
 
 	s := &ConsoleServer{
 		logger:               logger,
@@ -228,6 +158,8 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		api:                  api,
 		cookie:               cookie,
 		httpClient:           &http.Client{Timeout: 5 * time.Second},
+		hiro:                 runtime.hiro,
+		satori:               satoriClient,
 	}
 
 	if err := s.initRpcMethodCache(); err != nil {
@@ -498,7 +430,7 @@ func (s *ConsoleServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache SessionCache, loginAttmeptCache LoginAttemptCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
+func consoleAuthInterceptor(logger *zap.Logger, config Config, sessionCache SessionCache, loginAttmeptCache LoginAttemptCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if info.FullMethod == "/nakama.console.Console/Authenticate" {
 			// Skip authentication check for Login endpoint.
@@ -527,21 +459,16 @@ func consoleInterceptorFunc(logger *zap.Logger, config Config, sessionCache Sess
 			return nil, status.Error(codes.Unauthenticated, "Console authentication required.")
 		}
 
-		if ctx, ok = checkAuth(ctx, logger, config, auth[0], sessionCache, loginAttmeptCache); !ok {
-			return nil, status.Error(codes.Unauthenticated, "Console authentication invalid.")
-		}
-		role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
-
-		// if restriction was defined, and user role is less than or equal to (in number, lower = higher privilege) the restriction (excluding 0 - UNKNOWN), allow access; otherwise block access for all but admins
-		if restrictedRole, restrictionFound := restrictedMethods[info.FullMethod]; (restrictionFound && role <= restrictedRole && role != console.UserRole_USER_ROLE_UNKNOWN) || role == console.UserRole_USER_ROLE_ADMIN {
-			return handler(ctx, req)
+		ctx, err := checkAuth(ctx, logger, config, auth[0], info.FullMethod, sessionCache, loginAttmeptCache)
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, status.Error(codes.PermissionDenied, "You don't have the necessary permissions to complete the operation.")
+		return handler(ctx, req)
 	}
 }
 
-func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth string, sessionCache SessionCache, loginAttemptCache LoginAttemptCache) (context.Context, bool) {
+func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, path string, sessionCache SessionCache, loginAttemptCache LoginAttemptCache) (context.Context, error) {
 	const basicPrefix = "Basic "
 	const bearerPrefix = "Bearer "
 
@@ -549,11 +476,11 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth stri
 		// Basic authentication.
 		username, password, ok := parseBasicAuth(auth)
 		if !ok {
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 		ip, _ := extractClientAddressFromContext(logger, ctx)
 		if !loginAttemptCache.Allow(username, ip) {
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 		if username == config.GetConsole().Username {
 			if password != config.GetConsole().Password {
@@ -569,15 +496,17 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth stri
 				default:
 					// No lockout.
 				}
-				return ctx, false
+				return ctx, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 			}
 		} else {
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Console authentication invalid.")
 		}
 
-		ctx = context.WithValue(context.WithValue(context.WithValue(ctx, ctxConsoleRoleKey{}, console.UserRole_USER_ROLE_ADMIN), ctxConsoleUsernameKey{}, username), ctxConsoleEmailKey{}, "")
+		ctx = context.WithValue(ctx, ctxConsoleUserAclKey{}, acl.Admin())
+		ctx = context.WithValue(ctx, ctxConsoleUsernameKey{}, username)
+		ctx = context.WithValue(ctx, ctxConsoleEmailKey{}, "")
 		// Basic authentication successful.
-		return ctx, true
+		return ctx, nil
 	} else if strings.HasPrefix(auth, bearerPrefix) {
 		// Bearer token authentication.
 		tokenStr := auth[len(bearerPrefix):]
@@ -589,32 +518,43 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth stri
 		})
 		if err != nil {
 			// Token verification failed.
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
-		id, uname, email, role, exp, ok := parseConsoleToken([]byte(config.GetConsole().SigningKey), tokenStr)
+		id, uname, email, userAcl, exp, ok, err := parseConsoleToken([]byte(config.GetConsole().SigningKey), tokenStr)
+		if err != nil {
+			logger.Error("Failed to parse token console jwt token.", zap.Error(err))
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
+		}
 		if !ok || !token.Valid {
 			// The token or its claims are invalid.
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 		if exp <= time.Now().UTC().Unix() {
 			// Token expired.
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 		userId, err := uuid.FromString(id)
 		if err != nil {
 			// Malformed id
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 		if !sessionCache.IsValidSession(userId, exp, tokenStr) {
-			return ctx, false
+			return ctx, status.Error(codes.Unauthenticated, "Token invalid.")
 		}
 
-		ctx = context.WithValue(context.WithValue(context.WithValue(context.WithValue(ctx, ctxConsoleRoleKey{}, role), ctxConsoleUsernameKey{}, uname), ctxConsoleEmailKey{}, email), ctxConsoleIdKey{}, userId)
+		ctx = context.WithValue(ctx, ctxConsoleIdKey{}, userId)
+		ctx = context.WithValue(ctx, ctxConsoleUsernameKey{}, uname)
+		ctx = context.WithValue(ctx, ctxConsoleEmailKey{}, email)
+		ctx = context.WithValue(ctx, ctxConsoleUserAclKey{}, userAcl)
 
-		return ctx, true
+		if !(acl.CheckACL(path, userAcl)) {
+			return ctx, status.Error(codes.PermissionDenied, "Unauthorized: you do not have permissions to access this resource.")
+		}
+
+		return ctx, nil
 	}
 
-	return ctx, false
+	return ctx, nil
 }
 
 func adminBasicAuth(config *ConsoleConfig) func(h http.Handler) http.Handler {

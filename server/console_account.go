@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -43,6 +44,12 @@ var validTrigramFilterRegex = regexp.MustCompile("^%?[^%]{3,}%?$")
 type consoleAccountCursor struct {
 	ID       uuid.UUID
 	Username string
+}
+
+type consoleAccountNotesCursor struct {
+	NoteID     uuid.UUID
+	UserID     uuid.UUID
+	CreateTime time.Time
 }
 
 func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
@@ -186,6 +193,31 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	return export, nil
 }
 
+func (s *ConsoleServer) ImportAccount(ctx context.Context, in *console.AccountImport) (*emptypb.Empty, error) {
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+	if userID == uuid.Nil {
+		return nil, status.Error(codes.InvalidArgument, "Cannot import to the system user.")
+	}
+
+	if _, err := ImportAccount(ctx, s.logger, s.db, s.statusRegistry, userID, in.Data); err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (s *ConsoleServer) ImportAccountFull(ctx context.Context, in *console.AccountImport) (*console.Account, error) {
+	account, err := ImportAccount(ctx, s.logger, s.db, s.statusRegistry, uuid.Nil, in.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	return account, nil
+}
+
 func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (*console.Account, error) {
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
@@ -248,7 +280,16 @@ func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.GetWall
 		return nil, status.Error(codes.InvalidArgument, "expects a limit value between 1 and 100")
 	}
 
-	ledger, nextCursorStr, prevCursorStr, err := ListWalletLedger(ctx, s.logger, s.db, userID, &limit, in.Cursor)
+	var after time.Time
+	if in.After != nil {
+		after = in.After.AsTime()
+	}
+	var before time.Time
+	if in.Before != nil {
+		before = in.Before.AsTime()
+	}
+
+	ledger, nextCursorStr, prevCursorStr, err := ListWalletLedger(ctx, s.logger, s.db, userID, &limit, in.Cursor, after, before)
 	if err != nil {
 		// Error already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list the user's wallet ledger.")
@@ -831,6 +872,181 @@ AND ((facebook_id IS NOT NULL
 		}
 		s.logger.Error("Error updating user.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to update the user.")
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccountNoteRequest) (*console.AccountNote, error) {
+	consoleUserID, ok := ctx.Value(ctxConsoleIdKey{}).(uuid.UUID)
+	if !ok {
+		return nil, status.Error(codes.FailedPrecondition, "Console user identifier not found in request context.")
+	}
+	consoleUsername, ok := ctx.Value(ctxConsoleUsernameKey{}).(string)
+	if !ok {
+		return nil, status.Error(codes.FailedPrecondition, "Console username not found in request context.")
+	}
+
+	userID, err := uuid.FromString(in.AccountId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+	if in.Note == "" {
+		return nil, status.Error(codes.InvalidArgument, "Note cannot be empty.")
+	}
+
+	if in.Id == "" {
+		// Create new note.
+		in.Id = uuid.Must(uuid.NewV4()).String()
+	}
+
+	query := `
+WITH cte AS (
+  INSERT INTO users_notes (user_id, id, note, create_id, update_id)
+  VALUES ($1, $2, $3, $4, $4)
+  ON CONFLICT (id)
+  DO UPDATE SET note = $3, update_time = now(), update_id = $4
+  RETURNING create_time, update_time, create_id
+)
+SELECT c.create_time, c.update_time, c.create_id, cu.username
+FROM cte AS c
+LEFT JOIN console_user AS cu ON c.create_id = cu.id
+`
+	var createTime, updateTime pgtype.Timestamptz
+	var createId, createUsername sql.NullString
+	if err := s.db.QueryRowContext(ctx, query, userID, in.Id, in.Note, consoleUserID).Scan(&createTime, &updateTime, &createId, &createUsername); err != nil {
+		s.logger.Error("Could not add or update user note.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to add or update user note.")
+	}
+
+	note := &console.AccountNote{
+		Id:             in.Id,
+		UserId:         in.AccountId,
+		Note:           in.Note,
+		CreateTime:     timestamppb.New(createTime.Time),
+		UpdateTime:     timestamppb.New(updateTime.Time),
+		UpdateUsername: consoleUsername,
+	}
+	if createUsername.Valid {
+		note.CreateUsername = createUsername.String
+	}
+	if createId.Valid {
+		note.CreateId = createId.String
+	}
+	if consoleUserID != uuid.Nil {
+		note.UpdateId = consoleUserID.String()
+	}
+
+	return note, nil
+}
+
+func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAccountNotesRequest) (*console.ListAccountNotesResponse, error) {
+	userID, err := uuid.FromString(in.AccountId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	if in.Limit < 1 || in.Limit > 100 {
+		in.Limit = 10
+	}
+
+	var cursor *consoleAccountNotesCursor
+	if in.Cursor != "" {
+		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
+		if err != nil {
+			s.logger.Error("Error decoding user account notes list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to decode user notes list request cursor.")
+		}
+		cursor = &consoleAccountNotesCursor{}
+		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(&cursor); err != nil {
+			s.logger.Error("Error decoding user account notes list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to decode user notes list request cursor.")
+		}
+
+		if cursor.UserID != userID {
+			s.logger.Error("User identifier mismatch in user account notes list cursor.", zap.String("cursor", in.Cursor))
+			return nil, status.Error(codes.InvalidArgument, "Cursor user identifier mismatch.")
+		}
+	}
+
+	query := `
+SELECT un.id, un.note, un.create_time, un.update_time, un.create_id, cuc.username, un.update_id, cuu.username
+FROM users_notes AS un
+LEFT JOIN console_user AS cuc ON un.create_id = cuc.id
+LEFT JOIN console_user AS cuu ON un.update_id = cuu.id
+WHERE user_id = $1`
+	params := []interface{}{userID, in.Limit + 1}
+	if cursor != nil {
+		query += " AND (un.user_id, un.create_time, un.id) <= ($1, $3, $4)"
+		params = append(params, cursor.CreateTime, cursor.NoteID)
+	}
+	query += " ORDER BY un.create_time DESC, un.id DESC LIMIT $2"
+
+	rows, err := s.db.QueryContext(ctx, query, params...)
+	if err != nil {
+		s.logger.Error("Error querying user account notes.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
+	}
+	defer rows.Close()
+
+	var newCursor *consoleAccountNotesCursor
+	notes := make([]*console.AccountNote, 0, in.Limit)
+	for rows.Next() {
+		note := &console.AccountNote{}
+		var createTime, updateTime pgtype.Timestamptz
+		var createId, updateId, createUsername, updateUsername sql.NullString
+		if err := rows.Scan(&note.Id, &note.Note, &createTime, &updateTime, &createId, &createUsername, &updateId, &updateUsername); err != nil {
+			_ = rows.Close()
+			s.logger.Error("Error scanning user account notes.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list user notes.")
+		}
+
+		if len(notes) >= int(in.Limit) {
+			newCursor = &consoleAccountNotesCursor{
+				NoteID:     uuid.FromStringOrNil(note.Id),
+				UserID:     userID,
+				CreateTime: createTime.Time,
+			}
+			break
+		}
+
+		note.UserId = in.AccountId
+		note.CreateTime = timestamppb.New(createTime.Time)
+		note.UpdateTime = timestamppb.New(updateTime.Time)
+		if createId.Valid {
+			note.CreateId = createId.String
+		}
+		if createUsername.Valid {
+			note.CreateUsername = createUsername.String
+		}
+		if updateId.Valid {
+			note.UpdateId = updateId.String
+		}
+		if updateUsername.Valid {
+			note.UpdateUsername = updateUsername.String
+		}
+		notes = append(notes, note)
+	}
+	_ = rows.Close()
+
+	response := &console.ListAccountNotesResponse{Notes: notes}
+
+	if newCursor != nil {
+		cursorBuf := &bytes.Buffer{}
+		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
+			s.logger.Error("Error encoding account notes cursor.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list account notes.")
+		}
+		response.Cursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
+	}
+
+	return response, nil
+}
+
+func (s *ConsoleServer) DeleteAccountNote(ctx context.Context, in *console.DeleteAccountNoteRequest) (*emptypb.Empty, error) {
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM users_notes WHERE id = $1", in.NoteId); err != nil {
+		s.logger.Error("Could not delete note.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user note.")
 	}
 
 	return &emptypb.Empty{}, nil

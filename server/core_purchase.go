@@ -470,9 +470,11 @@ type purchasesListCursor struct {
 	PurchaseTime  *timestamppb.Timestamp
 	UserId        string
 	IsNext        bool
+	After         time.Time
+	Before        time.Time
 }
 
-func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string) (*api.PurchaseList, error) {
+func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string, after, before time.Time) (*api.PurchaseList, error) {
 	var incomingCursor *purchasesListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -485,6 +487,12 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 		}
 		if userID != "" && userID != incomingCursor.UserId {
 			// userID filter was set and has changed, cursor is now invalid
+			return nil, ErrPurchasesListInvalidCursor
+		}
+		if !after.Equal(incomingCursor.After) {
+			return nil, ErrPurchasesListInvalidCursor
+		}
+		if !before.Equal(incomingCursor.Before) {
 			return nil, ErrPurchasesListInvalidCursor
 		}
 	}
@@ -502,54 +510,70 @@ SELECT
 	refund_time,
 	environment
 FROM
-	purchase
-`
+	purchase`
 
-	params := make([]interface{}, 0)
+	var order string
+	params := make([]interface{}, 0, 7)
 
 	if incomingCursor != nil {
 		if incomingCursor.IsNext {
 			if userID == "" {
-				query += `
-WHERE (purchase_time, user_id, transaction_id) < ($1, $2, $3)
-ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC
-LIMIT $4`
+				query += " WHERE (purchase_time, user_id, transaction_id) < ($1, $2, $3)"
+				order = " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC"
 			} else {
-				query += `
-WHERE user_id = $2
-	AND (purchase_time, user_id, transaction_id) < ($1, $2, $3)
-ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC
-LIMIT $4`
+				query += " WHERE user_id = $2 AND (purchase_time, user_id, transaction_id) < ($1, $2, $3)"
+				order = " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC"
 			}
 		} else {
 			if userID == "" {
-				query += `
-WHERE (purchase_time, user_id, transaction_id) > ($1, $2, $3)
-ORDER BY purchase_time, user_id, transaction_id
-LIMIT $4`
+				query += " WHERE (purchase_time, user_id, transaction_id) > ($1, $2, $3)"
+				order = " ORDER BY purchase_time, user_id, transaction_id"
 			} else {
-				query += `
-WHERE user_id = $2
-	AND (purchase_time, user_id, transaction_id) > ($1, $2, $3)
-ORDER BY purchase_time, user_id, transaction_id
-LIMIT $4`
+				query += " WHERE user_id = $2 AND (purchase_time, user_id, transaction_id) > ($1, $2, $3)"
+				order = " ORDER BY purchase_time, user_id, transaction_id"
 			}
 		}
 		params = append(params, incomingCursor.PurchaseTime.AsTime(), incomingCursor.UserId, incomingCursor.TransactionId)
 	} else {
 		if userID == "" {
-			query += " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $1"
+			//query += " "
+			order = " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC"
 		} else {
-			query += " WHERE user_id = $1 ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC LIMIT $2"
+			query += " WHERE user_id = $1"
+			order = " ORDER BY purchase_time DESC, user_id DESC, transaction_id DESC"
 			params = append(params, userID)
 		}
 	}
 
+	if !after.IsZero() {
+		if len(params) == 0 {
+			params = append(params, after)
+			query += fmt.Sprintf(" WHERE purchase_time >= $%v", len(params))
+		} else {
+			params = append(params, after)
+			query += fmt.Sprintf(" AND purchase_time >= $%v", len(params))
+		}
+	}
+	if !before.IsZero() {
+		if len(params) == 0 {
+			params = append(params, before)
+			query += fmt.Sprintf(" WHERE purchase_time <= $%v", len(params))
+		} else {
+			params = append(params, before)
+			query += fmt.Sprintf(" AND purchase_time <= $%v", len(params))
+		}
+	}
+
+	// Add order to query.
+	query += order
+
+	// Add limit to query.
 	if limit > 0 {
 		params = append(params, limit+1)
 	} else {
 		params = append(params, 101) // Default limit to 100 purchases if not set
 	}
+	query += fmt.Sprintf(" LIMIT $%d", len(params))
 
 	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
@@ -580,6 +604,8 @@ LIMIT $4`
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
 				UserId:        dbUserID.String(),
 				IsNext:        true,
+				After:         after,
+				Before:        before,
 			}
 			break
 		}
@@ -615,6 +641,8 @@ LIMIT $4`
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
 				UserId:        dbUserID.String(),
 				IsNext:        false,
+				After:         after,
+				Before:        before,
 			}
 		}
 	}

@@ -1,10 +1,10 @@
 nakama
 .cookie
+local.yml
 
 # Created by https://www.toptal.com/developers/gitignore/api/go,angular,node,intellij+all,visualstudiocode,visualstudio,sublimetext,windows,linux,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,angular,node,intellij+all,visualstudiocode,visualstudio,sublimetext,windows,linux,macos
 
-### Angular ###
 ## Angular ##
 # compiled output
 tmp/

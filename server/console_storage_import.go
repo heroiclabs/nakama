@@ -29,7 +29,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/heroiclabs/nakama/v3/console/acl"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -54,18 +54,18 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	ctx, ok := checkAuth(r.Context(), s.logger, s.config, auth, s.consoleSessionCache, s.loginAttemptCache)
-	if !ok {
+	ctx, err := checkAuth(r.Context(), s.logger, s.config, auth, r.URL.Path, s.consoleSessionCache, s.loginAttemptCache)
+	if err != nil {
 		w.WriteHeader(401)
-		if _, err := w.Write([]byte("Console authentication invalid.")); err != nil {
+		if _, err := w.Write([]byte(err.Error())); err != nil {
 			s.logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return
 	}
 
 	// Check user role
-	role := ctx.Value(ctxConsoleRoleKey{}).(console.UserRole)
-	if role > console.UserRole_USER_ROLE_DEVELOPER {
+	role := ctx.Value(ctxConsoleUserAclKey{}).(acl.Permission)
+	if !acl.CheckACL(r.URL.Path, role) {
 		w.WriteHeader(403)
 		if _, err := w.Write([]byte("Forbidden")); err != nil {
 			s.logger.Error("Error writing storage import response", zap.Error(err))
@@ -141,7 +141,7 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 			s.logger.Error("Error writing storage import response", zap.Error(err))
 		}
 	} else {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

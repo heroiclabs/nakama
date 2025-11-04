@@ -19,10 +19,10 @@ syntax = "proto3";
 
 package nakama.api;
 
+import "api/api.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
-import "github.com/heroiclabs/nakama-common/api/api.proto";
 
 option go_package = "github.com/heroiclabs/nakama/v3/apigrpc";
 

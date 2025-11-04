@@ -1,0 +1,33 @@
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: .
+    strategy: directory
+    include_imports: false
+    opt:
+      - paths=source_relative
+  - local: protoc-gen-grpc-gateway
+    out: .
+    strategy: directory
+    include_imports: false
+    opt:
+      - paths=source_relative
+      - logtostderr=true
+  - local: protoc-gen-go-grpc
+    out: .
+    strategy: directory
+    include_imports: false
+    opt:
+      - paths=source_relative
+  - remote: buf.build/grpc-ecosystem/openapiv2:v2.27.3
+    out: .
+    include_imports: false
+    opt:
+      - use_go_templates=true
+      - allow_merge=true
+      - merge_file_name=console
+      - json_names_for_fields=false
+      - simple_operation_ids=true
+      - openapi_naming_strategy=simple
+      - logtostderr=true
+      - allow_delete_body=true
