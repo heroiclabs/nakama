@@ -16,23 +16,51 @@ package server
 
 import (
 	"context"
+	"strings"
 
-	"github.com/heroiclabs/hiro"
 	"github.com/heroiclabs/nakama/v3/console"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func (s *ConsoleServer) RegisteredExtensions(ctx context.Context, in *emptypb.Empty) (*console.Extensions, error) {
-	hiroRegistered := false
+	var hiroRegistered bool
 	var hiroSystems *console.Extensions_HiroSystems
-	if s.hiro != nil && s.hiro.hiro != nil {
-		hiroRegistered = true
-		hiroSystems = &console.Extensions_HiroSystems{
-			EconomySystem:     s.hiro.hiro.GetEconomySystem().GetType() != hiro.SystemTypeUnregistered,
-			InventorySystem:   s.hiro.hiro.GetInventorySystem().GetType() != hiro.SystemTypeUnregistered,
-			ProgressionSystem: s.hiro.hiro.GetProgressionSystem().GetType() != hiro.SystemTypeUnregistered,
-			StatsSystem:       s.hiro.hiro.GetStatsSystem().GetType() != hiro.SystemTypeUnregistered,
-			EnergySystem:      s.hiro.hiro.GetEnergySystem().GetType() != hiro.SystemTypeUnregistered,
+	for _, handler := range s.runtime.consoleHttpHandlers {
+		if handler == nil {
+			continue
+		}
+		if !hiroRegistered && strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/") {
+			hiroRegistered = true
+		}
+		if (hiroSystems == nil || !hiroSystems.EconomySystem) && strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/economy/") {
+			if hiroSystems == nil {
+				hiroSystems = &console.Extensions_HiroSystems{}
+			}
+			hiroSystems.EconomySystem = true
+		}
+		if (hiroSystems == nil || !hiroSystems.InventorySystem) && strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/inventory/") {
+			if hiroSystems == nil {
+				hiroSystems = &console.Extensions_HiroSystems{}
+			}
+			hiroSystems.InventorySystem = true
+		}
+		if (hiroSystems == nil || !hiroSystems.ProgressionSystem) && strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/progression/") {
+			if hiroSystems == nil {
+				hiroSystems = &console.Extensions_HiroSystems{}
+			}
+			hiroSystems.ProgressionSystem = true
+		}
+		if (hiroSystems == nil || !hiroSystems.StatsSystem) && strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/stats/") {
+			if hiroSystems == nil {
+				hiroSystems = &console.Extensions_HiroSystems{}
+			}
+			hiroSystems.StatsSystem = true
+		}
+		if (hiroSystems == nil || !hiroSystems.EnergySystem) && strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/energy/") {
+			if hiroSystems == nil {
+				hiroSystems = &console.Extensions_HiroSystems{}
+			}
+			hiroSystems.EnergySystem = true
 		}
 	}
 

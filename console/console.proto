@@ -21,7 +21,6 @@ package nakama.console;
 
 import "api/api.proto";
 import "rtapi/realtime.proto";
-import "hiro.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
@@ -586,91 +585,8 @@ service Console {
     };
   }
 
-  rpc HiroListInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
-    option (google.api.http).get = "/v2/console/hiro/inventory/{user_id}/codex";
-  }
-
-  rpc HiroListUserInventoryItems (HiroInventoryListRequest) returns (hiro.InventoryList) {
-    option (google.api.http).get = "/v2/console/hiro/inventory/{user_id}";
-  }
-
-  rpc HiroAddUserInventoryItems (HiroGrantUserInventoryRequest) returns (hiro.InventoryUpdateAck) {
-    option (google.api.http) = {
-      post: "/v2/console/hiro/inventory/{user_id}",
-      body: "*"
-    };
-  }
-
-  rpc HiroDeleteUserInventoryItems (HiroDeleteUserInventoryItemsRequest) returns (hiro.InventoryUpdateAck) {
-    option (google.api.http) = {
-      put: "/v2/console/hiro/inventory/{user_id}",
-      body: "*"
-    };
-  }
-
-  rpc HiroUpdateUserInventoryItems (HiroUpdateUserInventoryItemsRequest) returns (hiro.InventoryUpdateAck) {
-    option (google.api.http) = {
-      patch: "/v2/console/hiro/inventory/{user_id}",
-      body: "*"
-    };
-  }
-
-  rpc HiroListProgressions (HiroProgressionsRequest) returns (hiro.ProgressionList) {
-    option (google.api.http).get = "/v2/console/hiro/progression/{user_id}";
-  }
-
   rpc RegisteredExtensions (google.protobuf.Empty) returns (Extensions) {
     option (google.api.http).get = "/v2/console/extensions";
-  }
-
-  rpc HiroResetProgressions (HiroResetProgressionsRequest) returns (hiro.ProgressionList) {
-    option (google.api.http).delete = "/v2/console/hiro/progression/{user_id}";
-  }
-
-  rpc HiroUnlockProgressions (HiroUnlockProgressionsRequest) returns (hiro.ProgressionList) {
-    option (google.api.http) = {
-      put: "/v2/console/hiro/progression/{user_id}",
-      body: "*"
-    };
-  }
-
-  rpc HiroUpdateProgressions (HiroUpdateProgressionsRequest) returns (hiro.ProgressionList) {
-    option (google.api.http) = {
-      patch: "/v2/console/hiro/progression/{user_id}",
-      body: "*"
-    };
-  }
-
-  rpc HiroPurchaseProgressions (HiroPurchaseProgressionsRequest) returns (hiro.ProgressionList) {
-    option (google.api.http) = {
-      post: "/v2/console/hiro/progression/{user_id}",
-      body: "*"
-    };
-  }
-
-  rpc HiroEconomyGrant (HiroEconomyGrantRequest) returns (hiro.EconomyUpdateAck) {
-    option (google.api.http) = {
-      post: "/v2/console/hiro/economy/{user_id}",
-      body: "*"
-    };
-  }
-
-  rpc HiroStatsList (HiroStatsListRequest) returns (hiro.StatList) {
-    option (google.api.http).get = "/v2/console/hiro/stats/{user_id}";
-  }
-
-  rpc HiroStatsUpdate (HiroStatsUpdateRequest) returns (hiro.StatList) {
-    option (google.api.http) = {
-      post: "/v2/console/hiro/stats/{user_id}",
-      body: "*"
-    };
-  }
-
-  rpc HiroEnergyGrant (HiroEnergyGrantRequest) returns (hiro.EnergyList) {
-    option (google.api.http) = {
-      post: "/v2/console/hiro/energy/{user_id}",
-      body: "*"
-    };
   }
 }
 
@@ -1140,112 +1056,6 @@ message DeleteWalletLedgerRequest {
   string id = 1;
   // ID of the wallet ledger item to remove.
   string wallet_id = 2;
-}
-
-// Request all inventory items in the economy.
-message HiroInventoryListRequest {
-  // The user ID to list inventory items for.
-  string user_id = 1;
-  // The category for the items to filter for, or empty for all.
-  string item_category = 2;
-}
-
-// Represents a request to grant items to the user.
-message HiroGrantUserInventoryRequest {
-  // The user ID to grant inventory items for.
-  string user_id = 1;
-  // The items to grant.
-  map<string, int64> items = 2;
-  // Whether to ignore limits when granting items.
-  bool ignore_limits = 3;
-}
-
-message HiroDeleteUserInventoryItemsRequest {
-  // The user ID to delete inventory items for.
-  string user_id = 1;
-  // list of instance ids
-  repeated string instance_ids = 2;
-}
-
-message HiroUpdateUserInventoryItemsRequest {
-  // The user ID to update inventory items for.
-  string user_id = 1;
-  // The item updates to action, keyed by item instance ID.
-  map<string, hiro.InventoryUpdateItemProperties> item_updates = 2;
-}
-
-// Request user's progressions.
-message HiroProgressionsRequest {
-  // The user ID to list progressions for.
-  string user_id = 1;
-  // Optional last known progressions state, keyed by progression ID.
-  map<string, hiro.Progression> progressions = 2;
-}
-
-// Request to reset one or more progressions for a user.
-message HiroResetProgressionsRequest {
-  // The user ID to reset progressions for.
-  string user_id = 1;
-  // Progression ids to reset.
-  repeated string progression_ids = 2;
-}
-
-// Request to unlock one or more progressions for a user.
-message HiroUnlockProgressionsRequest {
-  // The user ID to unlock progressions for.
-  string user_id = 1;
-  // Progression ids to unlock.
-  repeated string progression_ids = 2;
-}
-
-// Request to update a progression for a user.
-message HiroUpdateProgressionsRequest {
-  // The user ID to update progressions for.
-  string user_id = 1;
-  // Progression ID to update.
-  string progression_id = 2;
-  // Counts to apply to the progression.
-  map<string, int64> counts = 3;
-}
-
-// Request to purchase a progression for a user.
-message HiroPurchaseProgressionsRequest {
-  // The user ID to purchase progressions for.
-  string user_id = 1;
-  // Progression ID to purchase.
-  string progression_id = 2;
-}
-
-// Request to modify a user's economy wallet.
-message HiroEconomyGrantRequest {
-  // The user ID to update economy for.
-  string user_id = 1;
-  // Currencies to grant.
-  map<string, int64> currencies = 2;
-}
-
-// Request to list a user's stats.
-message HiroStatsListRequest {
-  // The user ID to list stats for.
-  string user_id = 1;
-}
-
-// Request to update a user's stats.
-message HiroStatsUpdateRequest {
-  // The user ID to update stats for.
-  string user_id = 1;
-  // Public stat updates.
-  repeated hiro.StatUpdate public = 2;
-  // Private stat updates.
-  repeated hiro.StatUpdate private = 3;
-}
-
-// Request to update a user's energy.
-message HiroEnergyGrantRequest {
-  // The user ID to update energy for.
-  string user_id = 1;
-  // Energy amounts to grant.
-  map<string, int32> amounts = 2;
 }
 
 // Which Console extensions are registered and available.

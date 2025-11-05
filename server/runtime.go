@@ -552,7 +552,8 @@ type Runtime struct {
 
 	storageIndexFilterFunctions map[string]RuntimeStorageIndexFilterFunction
 
-	httpHandlers []*RuntimeHttpHandler
+	httpHandlers        []*RuntimeHttpHandler
+	consoleHttpHandlers []*RuntimeHttpHandler
 
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
 
@@ -561,8 +562,6 @@ type Runtime struct {
 	shutdownFunction RuntimeShutdownFunction
 
 	fleetManager runtime.FleetManager
-
-	hiro *consoleHiro
 }
 
 type MatchNamesListFunction func() []string
@@ -710,8 +709,8 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		goSubscriptionNotificationGoogleFn,
 		goIndexFilterFns,
 		fleetManager,
-		hiro,
 		httpHandlers,
+		consoleHttpHandlers,
 		allEventFns,
 		goMatchNamesListFn, err := NewRuntimeProviderGo(ctx,
 		logger,
@@ -2803,15 +2802,14 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		subscriptionNotificationGoogleFunction: allSubscriptionNotificationGoogleFunction,
 		storageIndexFilterFunctions:            allStorageIndexFilterFunctions,
 
-		httpHandlers: httpHandlers,
+		httpHandlers:        httpHandlers,
+		consoleHttpHandlers: consoleHttpHandlers,
 
 		shutdownFunction: allShutdownFunction,
 
 		fleetManager: fleetManager,
 
 		eventFunctions: allEventFns,
-
-		hiro: hiro,
 	}, rInfo, nil
 }
 
