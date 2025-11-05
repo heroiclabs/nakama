@@ -26,7 +26,12 @@ COPY data/modules ./data/modules
 # Install TypeScript and compile to JS
 RUN npm install -g typescript && \
     mkdir -p ./data/modules/build && \
-    find ./data/modules -name "*.ts" -exec sh -c 'tsc --outDir ./data/modules/build --target ES2015 "$1"' sh {} \;
+    cd ./data/modules && \
+    if ls *.ts 1> /dev/null 2>&1; then \
+        tsc --outDir ./build --target ES2015 --module commonjs --moduleResolution node *.ts; \
+    else \
+        mkdir -p ./build; \
+    fi
 
 
 # =========================
@@ -42,9 +47,11 @@ RUN mkdir -p /nakama/config /nakama/data /nakama/logs /nakama/data/modules /naka
 # Copy Nakama binary
 COPY --from=builder /go/src/github.com/heroiclabs/nakama/nakama /nakama/nakama
 
-# Copy compiled JS modules and Lua (if any)
+# Copy compiled JS modules from build stage
 COPY --from=modules /build/data/modules/build /nakama/data/modules
-COPY data/modules/*.lua /nakama/data/modules/lua/
+
+# Copy Lua modules from source
+COPY data/modules /nakama/data/modules/lua
 
 # Copy config
 COPY config.yaml /nakama/config/config.yaml
