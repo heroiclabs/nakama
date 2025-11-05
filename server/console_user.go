@@ -399,6 +399,7 @@ func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context, usernames []stri
 		var createTime, updateTime time.Time
 		var aclBytes []byte
 		if err := rows.Scan(&user.Id, &user.Username, &user.Email, &aclBytes, &user.MfaRequired, &user.MfaEnabled, &createTime, &updateTime); err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
 		user.CreateTime = timestamppb.New(createTime)
@@ -410,6 +411,8 @@ func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context, usernames []stri
 		user.Acl = userAcl.ACL()
 		result = append(result, user)
 	}
+	_ = rows.Close()
+
 	return result, nil
 }
 

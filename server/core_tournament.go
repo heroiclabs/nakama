@@ -856,7 +856,7 @@ func DisableTournamentRanks(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return runtime.ErrTournamentNotFound
 	}
 
-	if _, err := db.QueryContext(ctx, "UPDATE leaderboard SET enable_ranks = false WHERE id = $1", id); err != nil {
+	if _, err := db.ExecContext(ctx, "UPDATE leaderboard SET enable_ranks = false WHERE id = $1", id); err != nil {
 		logger.Error("failed to set leaderboard enable_ranks value", zap.Error(err))
 		return errors.New("failed to disable leaderboard ranks")
 	}
