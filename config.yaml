@@ -1,0 +1,5 @@
+name: nakama
+logger:
+  level: info
+session:
+  token_expiry_sec: 7200
