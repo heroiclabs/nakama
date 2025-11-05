@@ -1372,6 +1372,8 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, query
 		return "", ErrRuntimeRPCNotFound, codes.NotFound
 	}
 
+	logger := LoggerWithTraceId(ctx, rp.logger)
+
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"rpc_id": id})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeRPC, headers, queryParams, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
@@ -1383,7 +1385,7 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, query
 		if !isCustomErr {
 			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
 			// Assume they've been fully handled (logged etc) before that error is invoked.
-			rp.logger.Error("Runtime RPC function caused an error", zap.String("id", id), zap.Error(fnErr))
+			logger.Error("Runtime RPC function caused an error", zap.String("id", id), zap.Error(fnErr))
 		}
 
 		if code <= 0 || code >= 17 {
@@ -1403,7 +1405,7 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, query
 
 	payload, ok := result.(string)
 	if !ok {
-		rp.logger.Warn("Lua runtime function returned invalid data", zap.Any("result", result))
+		logger.Warn("Lua runtime function returned invalid data", zap.Any("result", result))
 		return "", errors.New("Runtime function returned invalid data - only allowed one return value of type String/Byte."), codes.Internal
 	}
 	return payload, nil, 0

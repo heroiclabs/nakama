@@ -35,7 +35,8 @@ type methodReflection struct {
 }
 
 func (s *ConsoleServer) CallRpcEndpoint(ctx context.Context, in *console.CallApiEndpointRequest) (*console.CallApiEndpointResponse, error) {
-	callCtx, err := s.extractApiCallContext(ctx, in, true)
+	logger := LoggerWithTraceId(ctx, s.logger)
+	callCtx, err := s.extractApiCallContext(ctx, logger, in, true)
 	if err != nil {
 		return nil, err
 	}
@@ -55,11 +56,12 @@ func (s *ConsoleServer) CallRpcEndpoint(ctx context.Context, in *console.CallApi
 }
 
 func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApiEndpointRequest) (*console.CallApiEndpointResponse, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	r, ok := s.rpcMethodCache.endpoints[MethodName(in.Method)]
 	if !ok {
 		return nil, fmt.Errorf("API method doesn't exist: %s", in.Method)
 	}
-	callCtx, err := s.extractApiCallContext(ctx, in, false)
+	callCtx, err := s.extractApiCallContext(ctx, logger, in, false)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +72,7 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 
 	if r.method.Type.In(2) == reflect.TypeOf(&emptypb.Empty{}) {
 		if in.Body != "" {
-			s.logger.Error("Body passed to an api call that doesn't accept any.", zap.String("method", in.Method))
+			logger.Error("Body passed to an api call that doesn't accept any.", zap.String("method", in.Method))
 			return nil, status.Error(codes.InvalidArgument, "Api method doesn't accept a request body.")
 		}
 		args[2] = reflect.ValueOf(&emptypb.Empty{})
@@ -78,7 +80,7 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 		request := reflect.New(r.request).Interface().(proto.Message)
 		err = protojson.Unmarshal([]byte(in.Body), request)
 		if err != nil {
-			s.logger.Error("Error parsing method request body.", zap.String("method", in.Method), zap.Error(err))
+			logger.Error("Error parsing method request body.", zap.String("method", in.Method), zap.Error(err))
 			return nil, status.Error(codes.InvalidArgument, "Error parsing method request body.")
 		}
 		args[2] = reflect.ValueOf(request)
@@ -97,7 +99,7 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 			m := new(protojson.MarshalOptions)
 			j, err = m.Marshal(cval.(proto.Message))
 			if err != nil {
-				s.logger.Error("Error serializing method response body.", zap.String("method", in.Method), zap.Error(err))
+				logger.Error("Error serializing method response body.", zap.String("method", in.Method), zap.Error(err))
 				return nil, status.Error(codes.Internal, "Error serializing method response body.")
 			}
 		}
@@ -107,13 +109,13 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 	}
 }
 
-func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.CallApiEndpointRequest, userIdOptional bool) (context.Context, error) {
+func (s *ConsoleServer) extractApiCallContext(ctx context.Context, logger *zap.Logger, in *console.CallApiEndpointRequest, userIdOptional bool) (context.Context, error) {
 	var callCtx context.Context
 	if strings.HasPrefix(in.Method, "Authenticate") {
 		callCtx = context.WithValue(ctx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
 	} else if in.UserId == "" {
 		if !userIdOptional {
-			s.logger.Error("Error calling a built-in RPC function without a user_id.", zap.String("method", in.Method))
+			logger.Error("Error calling a built-in RPC function without a user_id.", zap.String("method", in.Method))
 			return nil, status.Error(codes.InvalidArgument, "Built-in RPC functions require a user_id.")
 		} else {
 			callCtx = context.WithValue(ctx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
@@ -123,16 +125,16 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, in *console.C
 		var dbUsername string
 		userUUID, err := uuid.FromString(in.UserId)
 		if err != nil {
-			s.logger.Error("Invalid user uuid.", zap.String("method", in.Method))
+			logger.Error("Invalid user uuid.", zap.String("method", in.Method))
 			return nil, status.Error(codes.InvalidArgument, "Invalid user uuid.")
 		}
 		err = row.Scan(&dbUsername)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				s.logger.Error("User id not found.", zap.String("method", in.Method))
+				logger.Error("User id not found.", zap.String("method", in.Method))
 				return nil, status.Error(codes.InvalidArgument, "User id not found.")
 			}
-			s.logger.Error("Error looking up user account.", zap.String("method", in.Method), zap.Error(err))
+			logger.Error("Error looking up user account.", zap.String("method", in.Method), zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error looking up user account.")
 		}
 		callCtx = context.WithValue(ctx, ctxUserIDKey{}, userUUID)

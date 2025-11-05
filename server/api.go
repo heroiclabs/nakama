@@ -60,6 +60,7 @@ var once sync.Once
 const byteBracket byte = '{'
 
 // Keys used for storing/retrieving user information in the context of a request after authentication.
+type ctxTraceId = ctxkeys.TraceIdKey
 type ctxUserIDKey = ctxkeys.UserIDKey
 type ctxUsernameKey = ctxkeys.UsernameKey
 type ctxVarsKey = ctxkeys.VarsKey
@@ -109,6 +110,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		grpc.StatsHandler(&MetricsGrpcHandler{MetricsFn: metrics.Api, Metrics: metrics}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxRequestSizeBytes)),
 		grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+			ctx = context.WithValue(ctx, ctxTraceId{}, uuid.Must(uuid.NewV4()).String())
 			ctx, err := securityInterceptorFunc(logger, config, sessionCache, ctx, req, info)
 			if err != nil {
 				return nil, err
@@ -235,6 +237,11 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 
 	// Another nested router to hijack RPC requests bound for GRPC Gateway.
 	grpcGatewayMux := mux.NewRouter()
+	grpcGatewayMux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxTraceId{}, uuid.Must(uuid.NewV4()).String())))
+		})
+	})
 	grpcGatewayMux.HandleFunc("/v2/rpc/{id:.*}", s.RpcFuncHttp).Methods(http.MethodGet, http.MethodPost)
 	for _, handler := range runtime.httpHandlers {
 		if handler == nil {

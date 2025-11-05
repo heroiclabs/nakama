@@ -27,9 +27,10 @@ import (
 )
 
 func (s *ConsoleServer) GetStatus(ctx context.Context, in *emptypb.Empty) (*console.StatusList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	nodes, err := s.statusHandler.GetStatus(ctx)
 	if err != nil {
-		s.logger.Error("Error getting status.", zap.Error(err))
+		logger.Error("Error getting status.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while getting status.")
 	}
 

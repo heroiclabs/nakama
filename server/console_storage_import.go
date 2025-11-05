@@ -44,21 +44,21 @@ type importStorageObject struct {
 }
 
 func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
+	logger := LoggerWithTraceId(context.WithValue(r.Context(), ctxTraceId{}, uuid.Must(uuid.NewV4()).String()), s.logger)
 	// Check authentication.
-
 	auth := r.Header.Get("authorization")
 	if len(auth) == 0 {
 		w.WriteHeader(401)
 		if _, err := w.Write([]byte("Console authentication required.")); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
+			logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return
 	}
-	ctx, err := checkAuth(r.Context(), s.logger, s.config, auth, r.URL.Path, s.consoleSessionCache, s.loginAttemptCache)
+	ctx, err := checkAuth(r.Context(), logger, s.config, auth, r.URL.Path, s.consoleSessionCache, s.loginAttemptCache)
 	if err != nil {
 		w.WriteHeader(401)
 		if _, err := w.Write([]byte(err.Error())); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
+			logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return
 	}
@@ -68,18 +68,18 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	if !acl.CheckACL(r.URL.Path, role) {
 		w.WriteHeader(403)
 		if _, err := w.Write([]byte("Forbidden")); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
+			logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return
 	}
 
 	// Parse multipart form request data.
 	if err := r.ParseMultipartForm(s.config.GetConsole().MaxMessageSizeBytes); err != nil {
-		s.logger.Error("Error parsing storage import form", zap.Error(err))
+		logger.Error("Error parsing storage import form", zap.Error(err))
 
 		w.WriteHeader(400)
 		if _, err := w.Write([]byte("Error parsing form data.")); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
+			logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return
 	}
@@ -92,11 +92,11 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 		break
 	}
 	if filename == "" {
-		s.logger.Warn("Could not find file in storage import multipart form")
+		logger.Warn("Could not find file in storage import multipart form")
 
 		w.WriteHeader(400)
 		if _, err := w.Write([]byte("No file was uploaded.")); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
+			logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return
 	}
@@ -104,11 +104,11 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	// Open the uploaded file.
 	file, _, err := r.FormFile(filename)
 	if err != nil {
-		s.logger.Error("Error opening storage import file", zap.Error(err))
+		logger.Error("Error opening storage import file", zap.Error(err))
 
 		w.WriteHeader(400)
 		if _, err := w.Write([]byte("Error opening uploaded file.")); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
+			logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return
 	}
@@ -117,11 +117,11 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	// Fully read the file contents.
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
-		s.logger.Error("Error opening storage import file", zap.Error(err))
+		logger.Error("Error opening storage import file", zap.Error(err))
 
 		w.WriteHeader(400)
 		if _, err := w.Write([]byte("Error opening uploaded file.")); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
+			logger.Error("Error writing storage import response", zap.Error(err))
 		}
 		return
 	}
@@ -129,16 +129,16 @@ func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
 	// Examine file name to determine if it's a JSON or CSV import.
 	if strings.HasSuffix(strings.ToLower(filename), ".json") {
 		// File has .json suffix, try to import as JSON.
-		err = importStorageJSON(r.Context(), s.logger, s.db, s.metrics, s.storageIndex, fileBytes)
+		err = importStorageJSON(r.Context(), logger, s.db, s.metrics, s.storageIndex, fileBytes)
 	} else {
 		// Assume all other files are CSV.
-		err = importStorageCSV(r.Context(), s.logger, s.db, s.metrics, s.storageIndex, fileBytes)
+		err = importStorageCSV(r.Context(), logger, s.db, s.metrics, s.storageIndex, fileBytes)
 	}
 
 	if err != nil {
 		w.WriteHeader(400)
 		if _, err := fmt.Fprintf(w, "Error importing uploaded file - %s.", err.Error()); err != nil {
-			s.logger.Error("Error writing storage import response", zap.Error(err))
+			logger.Error("Error writing storage import response", zap.Error(err))
 		}
 	} else {
 		w.WriteHeader(http.StatusOK)

@@ -46,15 +46,17 @@ type consoleStorageCursor struct {
 var collectionSetCache = &atomic.Value{}
 
 func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	_, err := s.db.ExecContext(ctx, "TRUNCATE TABLE storage")
 	if err != nil {
-		s.logger.Error("Failed to truncate Storage table.", zap.Error(err))
+		logger.Error("Failed to truncate Storage table.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while deleting storage objects.")
 	}
 	return &emptypb.Empty{}, nil
 }
 
 func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.DeleteStorageObjectRequest) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}
@@ -66,7 +68,7 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	code, err := StorageDeleteObjects(ctx, s.logger, s.db, s.storageIndex, true, StorageOpDeletes{
+	code, err := StorageDeleteObjects(ctx, logger, s.db, s.storageIndex, true, StorageOpDeletes{
 		&StorageOpDelete{
 			OwnerID: in.UserId,
 			ObjectID: &api.DeleteStorageObjectId{
@@ -79,7 +81,7 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 
 	if err != nil {
 		if code == codes.Internal {
-			s.logger.Error("Failed to delete storage object.", zap.Error(err))
+			logger.Error("Failed to delete storage object.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while deleting storage object.")
 		}
 
@@ -91,6 +93,7 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 }
 
 func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjectId) (*api.StorageObject, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}
@@ -102,7 +105,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	objects, err := StorageReadObjects(ctx, s.logger, s.db, uuid.Nil, []*api.ReadStorageObjectId{in})
+	objects, err := StorageReadObjects(ctx, logger, s.db, uuid.Nil, []*api.ReadStorageObjectId{in})
 	if err != nil {
 		// Errors already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while reading storage object.")
@@ -117,6 +120,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 }
 
 func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *emptypb.Empty) (*console.StorageCollectionsList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	collectionSetCache := collectionSetCache.Load()
 	if collectionSetCache == nil {
 		return &console.StorageCollectionsList{
@@ -126,7 +130,7 @@ func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *emptypb.
 
 	collections, ok := collectionSetCache.([]string)
 	if !ok {
-		s.logger.Error("Error reading collection set cache, not a []string.")
+		logger.Error("Error reading collection set cache, not a []string.")
 		return &console.StorageCollectionsList{
 			Collections: make([]string, 0),
 		}, nil
@@ -138,6 +142,7 @@ func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *emptypb.
 }
 
 func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	const defaultLimit = 100
 
 	// Validate user ID, if provided.
@@ -164,12 +169,12 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
 		if err != nil {
-			s.logger.Warn("Could not base64 decode console storage list cursor.", zap.String("cursor", in.Cursor))
+			logger.Warn("Could not base64 decode console storage list cursor.", zap.String("cursor", in.Cursor))
 			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
 		}
 		cursor = &consoleStorageCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(cursor); err != nil {
-			s.logger.Error("Error decoding console storage list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			logger.Error("Error decoding console storage list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to decode console storage list request cursor.")
 		}
 
@@ -274,7 +279,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
-		s.logger.Error("Error querying storage objects.", zap.Any("in", in), zap.Error(err))
+		logger.Error("Error querying storage objects.", zap.Any("in", in), zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
 	}
 
@@ -300,7 +305,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 		if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
 			_ = rows.Close()
-			s.logger.Error("Error scanning storage objects.", zap.Any("in", in), zap.Error(err))
+			logger.Error("Error scanning storage objects.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
 		}
 
@@ -314,13 +319,13 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 
 	response := &console.StorageList{
 		Objects:    objects,
-		TotalCount: countDatabase(ctx, s.logger, s.db, "storage"),
+		TotalCount: countDatabase(ctx, logger, s.db, "storage"),
 	}
 
 	if nextCursor != nil {
 		cursorBuf := &bytes.Buffer{}
 		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
-			s.logger.Error("Error encoding storage cursor.", zap.Any("in", in), zap.Error(err))
+			logger.Error("Error encoding storage cursor.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
 		}
 		response.NextCursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
@@ -330,6 +335,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 }
 
 func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}
@@ -357,7 +363,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid JSON object value.")
 	}
 
-	acks, code, err := StorageWriteObjects(ctx, s.logger, s.db, s.metrics, s.storageIndex, true, StorageOpWrites{
+	acks, code, err := StorageWriteObjects(ctx, logger, s.db, s.metrics, s.storageIndex, true, StorageOpWrites{
 		&StorageOpWrite{
 			OwnerID: in.UserId,
 			Object: &api.WriteStorageObject{
@@ -373,7 +379,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 
 	if err != nil {
 		if code == codes.Internal {
-			s.logger.Error("Failed to write storage object.", zap.Error(err))
+			logger.Error("Failed to write storage object.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while writing storage object.")
 		}
 
@@ -382,7 +388,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 	}
 
 	if acks == nil || len(acks.Acks) < 1 {
-		s.logger.Error("Failed to get storage object acks.")
+		logger.Error("Failed to get storage object acks.")
 		return nil, status.Error(codes.Internal, "An error occurred while writing storage object.")
 	}
 

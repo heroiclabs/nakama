@@ -31,9 +31,10 @@ import (
 const ObfuscationString = "REDACTED"
 
 func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*console.Config, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	cfg, err := s.config.Clone()
 	if err != nil {
-		s.logger.Error("Error cloning config.", zap.Error(err))
+		logger.Error("Error cloning config.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error processing config.")
 	}
 
@@ -42,7 +43,7 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 		rawURL := fmt.Sprintf("postgresql://%s", address)
 		parsedURL, err := url.Parse(rawURL)
 		if err != nil {
-			s.logger.Error("Error parsing database address in config.", zap.Error(err))
+			logger.Error("Error parsing database address in config.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error processing config.")
 		}
 		if parsedURL.User != nil {
@@ -76,7 +77,7 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 
 	cfgBytes, err := json.Marshal(cfg)
 	if err != nil {
-		s.logger.Error("Error encoding config.", zap.Error(err))
+		logger.Error("Error encoding config.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error processing config.")
 	}
 
@@ -96,10 +97,11 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 }
 
 func (s *ConsoleServer) DeleteAllData(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	query := `TRUNCATE TABLE users, user_edge, user_device, user_tombstone, wallet_ledger, storage, purchase,
 			subscription, notification, message, leaderboard, leaderboard_record, groups, group_edge`
 	if _, err := s.db.ExecContext(ctx, query); err != nil {
-		s.logger.Debug("Could not cleanup data.", zap.Error(err))
+		logger.Debug("Could not cleanup data.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to truncate tables.")
 	}
 	// Setup System user
@@ -107,9 +109,9 @@ func (s *ConsoleServer) DeleteAllData(ctx context.Context, in *emptypb.Empty) (*
     VALUES ('00000000-0000-0000-0000-000000000000', '')
     ON CONFLICT(id) DO NOTHING`
 	if _, err := s.db.ExecContext(ctx, query); err != nil {
-		s.logger.Debug("Error creating system user.", zap.Error(err))
+		logger.Debug("Error creating system user.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to setup the system user.")
 	}
-	s.logger.Info("All data cleaned up.")
+	logger.Info("All data cleaned up.")
 	return &emptypb.Empty{}, nil
 }

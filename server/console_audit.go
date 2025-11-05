@@ -67,6 +67,7 @@ type AuditLogEntry struct {
 }
 
 func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogRequest) (*console.AuditLogList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Limit == 0 {
 		in.Limit = 20
 	}
@@ -90,9 +91,9 @@ func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogR
 		before = in.Before.AsTime()
 	}
 
-	auditLogs, err := auditLogEntryList(ctx, s.logger, s.db, in.Username, in.Action, resourceFilter, after, before, int(in.Limit), in.Cursor)
+	auditLogs, err := auditLogEntryList(ctx, logger, s.db, in.Username, in.Action, resourceFilter, after, before, int(in.Limit), in.Cursor)
 	if err != nil {
-		s.logger.Error("Failed to list audit logs", zap.Error(err))
+		logger.Error("Failed to list audit logs", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to list audit logs")
 	}
 
@@ -100,9 +101,10 @@ func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogR
 }
 
 func (s *ConsoleServer) ListAuditLogsUsers(ctx context.Context, in *emptypb.Empty) (*console.AuditLogUsersList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	users, err := s.dbListConsoleUsers(ctx, nil)
 	if err != nil {
-		s.logger.Error("failed to list console users", zap.Error(err))
+		logger.Error("failed to list console users", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
 	}
 
@@ -126,7 +128,7 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 			var userId uuid.UUID
 			var username, email string
 
-			if uid, ok := ctx.Value(ctxConsoleIdKey{}).(uuid.UUID); ok {
+			if uid, ok := ctx.Value(ctxConsoleUserIdKey{}).(uuid.UUID); ok {
 				userId = uid
 			}
 			if uname, ok := ctx.Value(ctxConsoleUsernameKey{}).(string); ok {
@@ -480,7 +482,7 @@ func consoleHttpAuditLogInterceptor(ctx context.Context, logger *zap.Logger, db 
 	var userId uuid.UUID
 	var username, email string
 
-	if uid, ok := ctx.Value(ctxConsoleIdKey{}).(uuid.UUID); ok {
+	if uid, ok := ctx.Value(ctxConsoleUserIdKey{}).(uuid.UUID); ok {
 		userId = uid
 	}
 	if uname, ok := ctx.Value(ctxConsoleUsernameKey{}).(string); ok {

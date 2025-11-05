@@ -42,16 +42,17 @@ type notificationsCursor struct {
 }
 
 func (s *ConsoleServer) ListNotifications(ctx context.Context, in *console.ListNotificationsRequest) (*console.NotificationList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	var nc *notificationsCursor
 	if in.Cursor != "" {
 		nc = &notificationsCursor{}
 		cb, err := base64.URLEncoding.DecodeString(in.Cursor)
 		if err != nil {
-			s.logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", in.Cursor))
+			logger.Warn("Could not base64 decode notification cursor.", zap.String("cursor", in.Cursor))
 			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
 		}
 		if err = gob.NewDecoder(bytes.NewReader(cb)).Decode(nc); err != nil {
-			s.logger.Warn("Could not decode notification cursor.", zap.String("cursor", in.Cursor))
+			logger.Warn("Could not decode notification cursor.", zap.String("cursor", in.Cursor))
 			return nil, status.Error(codes.InvalidArgument, "Malformed cursor was used.")
 		}
 	}
@@ -113,7 +114,7 @@ LIMIT $4`
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
 	if err != nil {
-		s.logger.Error("Could not retrieve notifications.", zap.Error(err))
+		logger.Error("Could not retrieve notifications.", zap.Error(err))
 		return nil, err
 	}
 	defer rows.Close()
@@ -145,7 +146,7 @@ LIMIT $4`
 
 		if err := rows.Scan(&id, &userId, &subject, &content, &code, &senderId, &createTime); err != nil {
 			_ = rows.Close()
-			s.logger.Error("Could not scan notification from database.", zap.Error(err))
+			logger.Error("Could not scan notification from database.", zap.Error(err))
 			return nil, err
 		}
 
@@ -173,7 +174,7 @@ LIMIT $4`
 	}
 	_ = rows.Close()
 	if err = rows.Err(); err != nil {
-		s.logger.Error("Error retrieving notifications", zap.Error(err))
+		logger.Error("Error retrieving notifications", zap.Error(err))
 		return nil, err
 	}
 
@@ -195,7 +196,7 @@ LIMIT $4`
 	if nextCursor != nil {
 		cursorBuf := new(bytes.Buffer)
 		if err := gob.NewEncoder(cursorBuf).Encode(nextCursor); err != nil {
-			s.logger.Error("Error creating purchases list cursor", zap.Error(err))
+			logger.Error("Error creating purchases list cursor", zap.Error(err))
 			return nil, err
 		}
 		nextCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
@@ -205,7 +206,7 @@ LIMIT $4`
 	if prevCursor != nil {
 		cursorBuf := new(bytes.Buffer)
 		if err := gob.NewEncoder(cursorBuf).Encode(prevCursor); err != nil {
-			s.logger.Error("Error creating purchases list cursor", zap.Error(err))
+			logger.Error("Error creating purchases list cursor", zap.Error(err))
 			return nil, err
 		}
 		prevCursorStr = base64.URLEncoding.EncodeToString(cursorBuf.Bytes())
@@ -219,6 +220,7 @@ LIMIT $4`
 }
 
 func (s *ConsoleServer) GetNotification(ctx context.Context, in *console.GetNotificationRequest) (*console.Notification, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "notification id is required.")
 	}
@@ -251,7 +253,7 @@ WHERE
 		if err == sql.ErrNoRows {
 			return nil, status.Error(codes.NotFound, "Notification not found.")
 		}
-		s.logger.Error("Could not retrieve notification.", zap.Error(err))
+		logger.Error("Could not retrieve notification.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to fetch notification")
 	}
 
@@ -268,8 +270,9 @@ WHERE
 }
 
 func (s *ConsoleServer) DeleteNotification(ctx context.Context, in *console.DeleteNotificationRequest) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM notification WHERE id = $1", in.Id); err != nil {
-		s.logger.Error("Error deleting notification.", zap.Error(err))
+		logger.Error("Error deleting notification.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to delete notification")
 	}
 
@@ -277,6 +280,7 @@ func (s *ConsoleServer) DeleteNotification(ctx context.Context, in *console.Dele
 }
 
 func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNotificationRequest) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if l := len(in.UserIds); l == 0 {
 		senderId := uuid.Nil.String()
 		if in.SenderId != "" {
@@ -287,7 +291,7 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 		}
 		contentBytes, err := in.Content.MarshalJSON()
 		if err != nil {
-			s.logger.Error("Error marshaling notification content.", zap.Error(err))
+			logger.Error("Error marshaling notification content.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "failed to send notification, invalid content")
 		}
 		notification := &api.Notification{
@@ -300,8 +304,8 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 			Persistent: in.Persistent,
 		}
 
-		if err := NotificationSendAll(ctx, s.logger, s.db, s.tracker, s.router, notification); err != nil {
-			s.logger.Error("Error sending notification.", zap.Error(err))
+		if err := NotificationSendAll(ctx, logger, s.db, s.tracker, s.router, notification); err != nil {
+			logger.Error("Error sending notification.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "failed to send notification")
 		}
 	} else {
@@ -314,7 +318,7 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 		}
 		contentBytes, err := in.Content.MarshalJSON()
 		if err != nil {
-			s.logger.Error("Error marshaling notification content.", zap.Error(err))
+			logger.Error("Error marshaling notification content.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "failed to send notification, invalid content")
 		}
 		t := &timestamppb.Timestamp{Seconds: time.Now().UTC().Unix()}
@@ -322,7 +326,7 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 		for _, id := range in.UserIds {
 			userID, err := uuid.FromString(id)
 			if err != nil {
-				s.logger.Error("Error parsing user id.", zap.Error(err), zap.String("id", id))
+				logger.Error("Error parsing user id.", zap.Error(err), zap.String("id", id))
 				return nil, status.Error(codes.Internal, "failed to send notification, invalid user id")
 			}
 			if userID == uuid.Nil {
@@ -339,8 +343,8 @@ func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNo
 			}}
 		}
 
-		if err := NotificationSend(ctx, s.logger, s.db, s.tracker, s.router, notifications); err != nil {
-			s.logger.Error("Error sending notification.", zap.Error(err))
+		if err := NotificationSend(ctx, logger, s.db, s.tracker, s.router, notifications); err != nil {
+			logger.Error("Error sending notification.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "failed to send notification")
 		}
 	}

@@ -27,8 +27,9 @@ import (
 )
 
 func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListSubscriptionsRequest) (*api.SubscriptionList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Filter != "" {
-		subscription, err := getSubscriptionByOriginalTransactionId(ctx, s.logger, s.db, in.Filter)
+		subscription, err := getSubscriptionByOriginalTransactionId(ctx, logger, s.db, in.Filter)
 		if err != nil {
 			return nil, status.Error(codes.Internal, "Error listing purchases.")
 		}
@@ -61,9 +62,9 @@ func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListS
 		before = in.Before.AsTime()
 	}
 
-	subscriptions, err := ListSubscriptions(ctx, s.logger, s.db, in.UserId, int(in.Limit), in.Cursor, after, before)
+	subscriptions, err := ListSubscriptions(ctx, logger, s.db, in.UserId, int(in.Limit), in.Cursor, after, before)
 	if err != nil {
-		s.logger.Error("Failed to list subscriptions", zap.Error(err))
+		logger.Error("Failed to list subscriptions", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error listing purchases.")
 	}
 
@@ -71,11 +72,12 @@ func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListS
 }
 
 func (s *ConsoleServer) GetSubscription(ctx context.Context, in *console.GetSubscriptionRequest) (*api.ValidatedSubscription, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.GetOriginalTransactionId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "original transaction id is required")
 	}
 
-	subscription, err := getSubscriptionByOriginalTransactionId(ctx, s.logger, s.db, in.GetOriginalTransactionId())
+	subscription, err := getSubscriptionByOriginalTransactionId(ctx, logger, s.db, in.GetOriginalTransactionId())
 	if err != nil || subscription == nil {
 		return nil, status.Error(codes.NotFound, "subscription not found")
 	}
