@@ -5,6 +5,12 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Fixed
+- Use correct leaderboard ranks disable hook in the Go runtime.
+- Release database connections faster in notification deletion operations.
+- Release database connections faster when listing console users.
+- Release database connections faster when disabling ranks for leaderboards or tournaments.
+
 ## [3.33.1] - 2025-11-03
 ### Fixed
 - Fix an issue with Hiro dependencies vendoring.

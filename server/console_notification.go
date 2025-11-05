@@ -171,11 +171,11 @@ LIMIT $4`
 			}
 		}
 	}
+	_ = rows.Close()
 	if err = rows.Err(); err != nil {
 		s.logger.Error("Error retrieving notifications", zap.Error(err))
 		return nil, err
 	}
-	_ = rows.Close()
 
 	if nc != nil && !nc.IsNext {
 		if nextCursor != nil && prevCursor != nil {

@@ -21,10 +21,11 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/heroiclabs/nakama-common/runtime"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -981,7 +982,7 @@ func disableLeaderboardRanks(ctx context.Context, logger *zap.Logger, db *sql.DB
 		return runtime.ErrLeaderboardNotFound
 	}
 
-	if _, err := db.QueryContext(ctx, "UPDATE leaderboard SET enable_ranks = false WHERE id = $1", id); err != nil {
+	if _, err := db.ExecContext(ctx, "UPDATE leaderboard SET enable_ranks = false WHERE id = $1", id); err != nil {
 		logger.Error("failed to set leaderboard enable_ranks value", zap.Error(err))
 		return errors.New("failed to disable tournament ranks")
 	}

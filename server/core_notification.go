@@ -433,7 +433,7 @@ func NotificationsDeleteId(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		return NotificationDelete(ctx, logger, db, uid, ids)
 	}
 
-	if _, err := db.QueryContext(ctx, "DELETE FROM notification WHERE id = any($1)", ids); err != nil {
+	if _, err := db.ExecContext(ctx, "DELETE FROM notification WHERE id = any($1)", ids); err != nil {
 		logger.Error("failed to delete notifications by id", zap.Error(err))
 		return fmt.Errorf("failed to delete notifications: %s", err.Error())
 	}
