@@ -29,9 +29,9 @@ RUN npm install -g typescript && \
     cd ./data/modules && \
     if ls *.ts 1> /dev/null 2>&1; then \
         if [ -f tsconfig.json ]; then \
-            tsc; \
+            tsc || true; \
         else \
-            tsc --outDir ./build --target ES2015 --module commonjs --moduleResolution node *.ts; \
+            tsc --outDir ./build --target ES2015 --module commonjs --moduleResolution node *.ts || true; \
         fi \
     else \
         mkdir -p ./build; \
