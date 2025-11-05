@@ -300,7 +300,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 			sw := &statusCheckResponseWriter{w: w}
 
-			handler(w, r)
+			handler(sw, r)
 
 			// If operation was successful, note it in the audit log.
 			if sw.statusCode >= 200 && sw.statusCode < 300 {
