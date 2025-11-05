@@ -984,7 +984,7 @@ func disableLeaderboardRanks(ctx context.Context, logger *zap.Logger, db *sql.DB
 
 	if _, err := db.ExecContext(ctx, "UPDATE leaderboard SET enable_ranks = false WHERE id = $1", id); err != nil {
 		logger.Error("failed to set leaderboard enable_ranks value", zap.Error(err))
-		return errors.New("failed to disable tournament ranks")
+		return errors.New("failed to disable leaderboard ranks")
 	}
 
 	leaderboardCache.Insert(l.Id, l.Authoritative, l.SortOrder, l.Operator, l.ResetScheduleStr, l.Metadata, l.CreateTime, false)
