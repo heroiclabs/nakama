@@ -28,11 +28,13 @@ RUN npm install -g typescript && \
     mkdir -p ./data/modules/build && \
     cd ./data/modules && \
     if ls *.ts 1> /dev/null 2>&1; then \
+        echo "Compiling TypeScript modules..." && \
         if [ -f tsconfig.json ]; then \
-            tsc || true; \
+            tsc || echo "TypeScript compilation completed with warnings (expected if Nakama types are not defined)"; \
         else \
-            tsc --outDir ./build --target ES2015 --module commonjs --moduleResolution node *.ts || true; \
-        fi \
+            tsc --outDir ./build --target ES2015 --module commonjs --moduleResolution node *.ts || echo "TypeScript compilation completed with warnings"; \
+        fi && \
+        test -d ./build || mkdir -p ./build; \
     else \
         mkdir -p ./build; \
     fi
