@@ -5,7 +5,9 @@
     "moduleResolution": "node",
     "outDir": "./build",
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmitOnError": false
   },
   "include": ["./*.ts"]
 }
