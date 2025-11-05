@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES2015",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "./build",
+    "strict": true,
+    "esModuleInterop": true
+  },
+  "include": ["./*.ts"]
+}
