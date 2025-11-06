@@ -309,6 +309,15 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		}
 	}
 
+	customHttpMuxParamsFunc := func(handler func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
+			for k, v := range mux.Vars(r) {
+				r.SetPathValue(k, v)
+			}
+			handler(w, r)
+		}
+	}
+
 	// Custom routes.
 	for _, handler := range runtime.consoleHttpHandlers {
 		if handler == nil {
@@ -317,6 +326,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		handlerFunc := handler.Handler
 		if strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/") {
 			// Handlers in reverse order of priority.
+			handlerFunc = customHttpMuxParamsFunc(handlerFunc)
 			handlerFunc = customHttpAuditLogFunc(handler.PathPattern, handler.Methods, handlerFunc)
 			handlerFunc = customHttpAuthFunc(handler.PathPattern, handler.Methods, handlerFunc)
 		}

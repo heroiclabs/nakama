@@ -6,7 +6,6 @@ modules:
   - path: apigrpc
   - path: console
   - path: vendor/github.com/heroiclabs/nakama-common
-  - path: vendor/github.com/heroiclabs/hiro
 lint:
   use:
     - STANDARD
