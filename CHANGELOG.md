@@ -5,6 +5,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Added
+- New Go runtime initializer function to register raw console HTTP handlers.
+
 ### Fixed
 - Use correct leaderboard ranks disable hook in the Go runtime.
 - Release database connections faster in notification deletion operations.
