@@ -26,17 +26,18 @@ import (
 
 func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	logger := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeValidatePurchaseApple(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
 			if result == nil {
 				// If result is nil, requested resource is disabled.
-				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
 				return status.Error(codes.NotFound, "Requested resource was not found.")
 			}
 			in = result
@@ -44,7 +45,7 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateP
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +64,7 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateP
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchasesApple(ctx, s.logger, s.db, userID, s.config.GetIAP().Apple.SharedPassword, in.Receipt, persist)
+	validation, err := ValidatePurchasesApple(ctx, logger, s.db, userID, s.config.GetIAP().Apple.SharedPassword, in.Receipt, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -71,11 +72,11 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateP
 	// After hook.
 	if fn := s.runtime.AfterValidatePurchaseApple(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return validation, err
@@ -83,17 +84,18 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateP
 
 func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.ValidatePurchaseGoogleRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	logger := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeValidatePurchaseGoogle(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
 			if result == nil {
 				// If result is nil, requested resource is disabled.
-				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
 				return status.Error(codes.NotFound, "Requested resource was not found.")
 			}
 			in = result
@@ -101,7 +103,7 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -120,7 +122,7 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchaseGoogle(ctx, s.logger, s.db, userID, s.config.GetIAP().Google, in.Purchase, persist)
+	validation, err := ValidatePurchaseGoogle(ctx, logger, s.db, userID, s.config.GetIAP().Google, in.Purchase, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -128,11 +130,11 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 	// After hook.
 	if fn := s.runtime.AfterValidatePurchaseGoogle(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return validation, err
@@ -140,17 +142,18 @@ func (s *ApiServer) ValidatePurchaseGoogle(ctx context.Context, in *api.Validate
 
 func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.ValidatePurchaseHuaweiRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	logger := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeValidatePurchaseHuawei(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
 			if result == nil {
 				// If result is nil, requested resource is disabled.
-				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
 				return status.Error(codes.NotFound, "Requested resource was not found.")
 			}
 			in = result
@@ -158,7 +161,7 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +186,7 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchaseHuawei(ctx, s.logger, s.db, userID, s.config.GetIAP().Huawei, in.Purchase, in.Signature, persist)
+	validation, err := ValidatePurchaseHuawei(ctx, logger, s.db, userID, s.config.GetIAP().Huawei, in.Purchase, in.Signature, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -191,11 +194,11 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 	// After hook.
 	if fn := s.runtime.AfterValidatePurchaseHuawei(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return validation, err
@@ -203,17 +206,18 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 
 func (s *ApiServer) ValidatePurchaseFacebookInstant(ctx context.Context, in *api.ValidatePurchaseFacebookInstantRequest) (*api.ValidatePurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	logger := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeValidatePurchaseFacebookInstant(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
 			if result == nil {
 				// If result is nil, requested resource is disabled.
-				s.logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
 				return status.Error(codes.NotFound, "Requested resource was not found.")
 			}
 			in = result
@@ -221,7 +225,7 @@ func (s *ApiServer) ValidatePurchaseFacebookInstant(ctx context.Context, in *api
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -240,7 +244,7 @@ func (s *ApiServer) ValidatePurchaseFacebookInstant(ctx context.Context, in *api
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchaseFacebookInstant(ctx, s.logger, s.db, userID, s.config.GetIAP().FacebookInstant, in.SignedRequest, persist)
+	validation, err := ValidatePurchaseFacebookInstant(ctx, logger, s.db, userID, s.config.GetIAP().FacebookInstant, in.SignedRequest, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -248,11 +252,11 @@ func (s *ApiServer) ValidatePurchaseFacebookInstant(ctx context.Context, in *api
 	// After hook.
 	if fn := s.runtime.AfterValidatePurchaseFacebookInstant(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, s.logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, s.logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return validation, err

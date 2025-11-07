@@ -3602,3 +3602,14 @@ func (r *Runtime) EventSessionStart() RuntimeEventSessionStartFunction {
 func (r *Runtime) EventSessionEnd() RuntimeEventSessionEndFunction {
 	return r.eventFunctions.sessionEndFunction
 }
+
+func RuntimeLoggerWithTraceId(ctx context.Context, logger runtime.Logger) runtime.Logger {
+	traceId := ctx.Value(ctxTraceId{})
+	if traceId != nil {
+		if traceIdStr, ok := traceId.(string); ok && traceIdStr != "" {
+			return logger.WithField("trace_id", traceIdStr)
+		}
+	}
+
+	return logger
+}

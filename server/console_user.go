@@ -71,6 +71,7 @@ func (s *UserInvitationClaims) GetSubject() (string, error) {
 }
 
 func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*console.AddUserResponse, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 	if uname == in.Username {
 		return nil, status.Error(codes.FailedPrecondition, "Cannot change own configuration")
@@ -112,27 +113,27 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	}
 
 	if payloadJson, err := json.Marshal(payload); err != nil {
-		s.logger.Debug("Failed to create newsletter request payload.", zap.Error(err))
+		logger.Debug("Failed to create newsletter request payload.", zap.Error(err))
 	} else {
 		if req, err := http.NewRequest(http.MethodPost, "https://cloud.heroiclabs.com/v1/nakama-newsletter/subscribe", bytes.NewBuffer(payloadJson)); err != nil {
-			s.logger.Debug("Failed to create newsletter request.", zap.Error(err))
+			logger.Debug("Failed to create newsletter request.", zap.Error(err))
 		} else {
 			req.Header.Set("Content-Type", "application/json")
 			if resp, err := s.httpClient.Do(req); err != nil {
-				s.logger.Debug("Failed to add newsletter subscription.", zap.Error(err))
+				logger.Debug("Failed to add newsletter subscription.", zap.Error(err))
 			} else {
-				s.logger.Debug("Added newsletter subscription.", zap.Int("status", resp.StatusCode))
+				logger.Debug("Added newsletter subscription.", zap.Int("status", resp.StatusCode))
 			}
 		}
 	}
 
-	user, err := s.dbInsertConsoleUser(ctx, in)
+	user, err := s.dbInsertConsoleUser(ctx, logger, in)
 	if err != nil {
 		var statusErr *statusError
 		if errors.As(err, &statusErr) {
 			return nil, statusErr
 		} else {
-			s.logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
+			logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
 			return nil, status.Error(codes.Internal, "Internal Server Error")
 		}
 	}
@@ -148,14 +149,14 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 		},
 	)
 	if err != nil {
-		s.logger.Error("failed to generate console user token", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
+		logger.Error("failed to generate console user token", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
 	}
 
 	return &console.AddUserResponse{User: user, Token: token}, nil
 }
 
-func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.AddUserRequest) (*console.User, error) {
+func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, logger *zap.Logger, in *console.AddUserRequest) (*console.User, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
@@ -167,7 +168,7 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 
 	userAclJson, err := acl.New(in.Acl).ToJson()
 	if err != nil {
-		s.logger.Error("failed to json marshal acl", zap.Error(err))
+		logger.Error("failed to json marshal acl", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error creating console user.")
 	}
 
@@ -209,9 +210,10 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, in *console.Add
 }
 
 func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*console.User, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	users, err := s.dbListConsoleUsers(ctx, []string{in.Username})
 	if err != nil {
-		s.logger.Error("failed to list console users", zap.Error(err))
+		logger.Error("failed to list console users", zap.Error(err))
 		return nil, err
 	}
 
@@ -223,6 +225,7 @@ func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*con
 }
 
 func (s *ConsoleServer) UpdateUser(ctx context.Context, in *console.UpdateUserRequest) (*console.User, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	creatorRole := ctx.Value(ctxConsoleUserAclKey{}).(acl.Permission)
 	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 
@@ -239,7 +242,7 @@ func (s *ConsoleServer) UpdateUser(ctx context.Context, in *console.UpdateUserRe
 
 	if err := ExecuteInTx(ctx, s.db, func(tx *sql.Tx) error {
 		var err error
-		update, _, err = updateUser(ctx, s.logger, tx, in)
+		update, _, err = updateUser(ctx, logger, tx, in)
 		if err != nil {
 			return err
 		}
@@ -305,18 +308,20 @@ func updateUser(ctx context.Context, logger *zap.Logger, tx *sql.Tx, in *console
 }
 
 func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Username) (*console.ResetUserResponse, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
+
 	var token, email string
 
 	transaction := func(tx *sql.Tx) error {
 		password := make([]byte, 32)
 		if _, err := rand.Read(password); err != nil {
-			s.logger.Error("Failed to generate a temporary password for the user.", zap.Error(err))
+			logger.Error("Failed to generate a temporary password for the user.", zap.Error(err))
 			return status.Error(codes.Internal, "Failed to generate a temporary password for the user.")
 		}
 
 		hashedPassword, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 		if err != nil {
-			s.logger.Error("Failed to hash the temporary password for the user.", zap.Error(err))
+			logger.Error("Failed to hash the temporary password for the user.", zap.Error(err))
 			return status.Error(codes.Internal, "Failed to hash the temporary password for the user.")
 		}
 
@@ -341,7 +346,7 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 			},
 		)
 		if err != nil {
-			s.logger.Error("Failed generate one-time code to reconfigure the user's password.", zap.Error(err))
+			logger.Error("Failed generate one-time code to reconfigure the user's password.", zap.Error(err))
 			return status.Errorf(codes.Internal, "Failed generate one-time code to reconfigure the user's password.")
 		}
 
@@ -355,6 +360,7 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 }
 
 func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 
 	if in.Username == uname {
@@ -363,7 +369,7 @@ func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*
 
 	deleted, id, err := s.dbDeleteConsoleUser(ctx, in.Username)
 	if err != nil {
-		s.logger.Error("failed to delete console user", zap.Error(err), zap.String("username", in.Username))
+		logger.Error("failed to delete console user", zap.Error(err), zap.String("username", in.Username))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
 	} else if !deleted {
 		return nil, status.Error(codes.InvalidArgument, "User not found")
@@ -374,9 +380,10 @@ func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*
 }
 
 func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*console.UserList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	users, err := s.dbListConsoleUsers(ctx, nil)
 	if err != nil {
-		s.logger.Error("failed to list console users", zap.Error(err))
+		logger.Error("failed to list console users", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
 	}
 	return &console.UserList{Users: users}, nil
@@ -445,8 +452,9 @@ func isValidPassword(pwd string) bool {
 }
 
 func (s *ConsoleServer) RequireUserMfa(ctx context.Context, in *console.RequireUserMfaRequest) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if _, err := s.db.ExecContext(ctx, "UPDATE console_user SET mfa_required = $1 WHERE username = $2", in.Required, in.Username); err != nil {
-		s.logger.Error("failed to change required value for user MFA", zap.Error(err))
+		logger.Error("failed to change required value for user MFA", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
 	}
 
@@ -454,8 +462,9 @@ func (s *ConsoleServer) RequireUserMfa(ctx context.Context, in *console.RequireU
 }
 
 func (s *ConsoleServer) ResetUserMfa(ctx context.Context, in *console.ResetUserMfaRequest) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if _, err := s.db.ExecContext(ctx, "UPDATE console_user SET mfa_secret = NULL, mfa_recovery_codes = NULL WHERE username = $1", in.Username); err != nil {
-		s.logger.Error("failed to reset user MFA", zap.Error(err))
+		logger.Error("failed to reset user MFA", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
 	}
 

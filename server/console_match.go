@@ -28,6 +28,7 @@ import (
 )
 
 func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatchesRequest) (*console.MatchList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	matchID := in.MatchId
 	// Try to get match ID for authoritative query.
 	if in.Authoritative != nil && in.Authoritative.Value && in.Query != nil {
@@ -46,7 +47,7 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatches
 					return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
 				}
 			} else {
-				s.logger.Error("Error listing matches", zap.Error(err))
+				logger.Error("Error listing matches", zap.Error(err))
 				return nil, status.Error(codes.Internal, "Error listing matches.")
 			}
 		}
@@ -78,7 +79,7 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatches
 
 	matches, nodes, err := s.matchRegistry.ListMatches(ctx, limit, in.Authoritative, in.Label, in.MinSize, in.MaxSize, in.Query, in.Node)
 	if err != nil {
-		s.logger.Error("Error listing matches", zap.Error(err))
+		logger.Error("Error listing matches", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error listing matches.")
 	}
 
@@ -95,6 +96,7 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatches
 }
 
 func (s *ConsoleServer) GetMatchState(ctx context.Context, in *console.MatchStateRequest) (*console.MatchState, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	// Validate the match ID.
 	matchIDComponents := strings.SplitN(in.GetId(), ".", 2)
 	if len(matchIDComponents) != 2 {
@@ -113,7 +115,7 @@ func (s *ConsoleServer) GetMatchState(ctx context.Context, in *console.MatchStat
 	presences, tick, state, err := s.matchRegistry.GetState(ctx, matchID, node)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, runtime.ErrMatchNotFound) {
-			s.logger.Error("Error getting match state.", zap.Any("in", in), zap.Error(err))
+			logger.Error("Error getting match state.", zap.Any("in", in), zap.Error(err))
 		}
 		if errors.Is(err, runtime.ErrMatchNotFound) {
 			return nil, status.Error(codes.InvalidArgument, "Match not found, or match handler already stopped.")
