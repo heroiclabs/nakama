@@ -1314,7 +1314,7 @@ func newSatoriCache[T runtime.SatoriLabeled](ctx context.Context, enabled bool) 
 
 func (s *satoriCache[T]) Get(ctx context.Context, names, labels []string) (values []T, missingNames, missingLabels []string) {
 	if !s.enabled {
-		return nil, nil, nil
+		return nil, names, labels
 	}
 	s.RLock()
 	entry, found := s.entries[ctx]
@@ -1324,7 +1324,7 @@ func (s *satoriCache[T]) Get(ctx context.Context, names, labels []string) (value
 		// Asked for all keys, but they were never fetched, or no cache entries exist for the context.
 		// There may be a partially available data set locally, but it's hard to know the scope of
 		// anything that might be missing, so the caller needs to fetch all data anyway to be sure.
-		return nil, nil, nil
+		return nil, names, labels
 	}
 
 	if len(names) > 0 && len(labels) > 0 {
