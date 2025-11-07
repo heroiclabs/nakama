@@ -588,14 +588,14 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names, la
 		if len(names) > 0 {
 			q := req.URL.Query()
 			for _, n := range names {
-				q.Set("names", n)
+				q.Add("names", n)
 			}
 			req.URL.RawQuery = q.Encode()
 		}
 		if len(labels) > 0 {
 			q := req.URL.Query()
 			for _, n := range labels {
-				q.Set("labels", n)
+				q.Add("labels", n)
 			}
 			req.URL.RawQuery = q.Encode()
 		}
@@ -705,7 +705,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names, labels [
 		if len(labels) > 0 {
 			q := req.URL.Query()
 			for _, n := range labels {
-				q.Set("labels", n)
+				q.Add("labels", n)
 			}
 			req.URL.RawQuery = q.Encode()
 		}
@@ -808,7 +808,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names,
 		if len(labels) > 0 {
 			q := req.URL.Query()
 			for _, n := range labels {
-				q.Set("labels", n)
+				q.Add("labels", n)
 			}
 			req.URL.RawQuery = q.Encode()
 		}
@@ -927,7 +927,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 		if len(labels) > 0 {
 			q := req.URL.Query()
 			for _, n := range labels {
-				q.Set("labels", n)
+				q.Add("labels", n)
 			}
 			req.URL.RawQuery = q.Encode()
 		}
