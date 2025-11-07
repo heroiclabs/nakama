@@ -96,7 +96,7 @@ loop:
 		}
 
 		ctx = context.WithValue(ctx, "", struct{}{})
-		_, err := client.FlagsList(ctx, identityID, "BenchmarkTest")
+		_, err := client.FlagsList(ctx, identityID, []string{"BenchmarkTest"}, nil)
 		if err != nil {
 			t.Fatalf("error in client.FlagsList: %s", err.Error())
 		}
