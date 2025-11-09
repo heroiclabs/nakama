@@ -27,6 +27,7 @@ import (
 )
 
 func (s *ConsoleServer) UnlinkApple(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -48,7 +49,7 @@ AND ((custom_id IS NOT NULL
 	res, err := s.db.ExecContext(ctx, query, userID)
 
 	if err != nil {
-		s.logger.Error("Could not unlink Apple ID.", zap.Error(err), zap.Any("input", in))
+		logger.Error("Could not unlink Apple ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink Apple ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Apple ID when there are no other identifiers.")
@@ -58,6 +59,7 @@ AND ((custom_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkCustom(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -79,7 +81,7 @@ AND ((apple_id IS NOT NULL
 	res, err := s.db.ExecContext(ctx, query, userID)
 
 	if err != nil {
-		s.logger.Error("Could not unlink custom ID.", zap.Error(err), zap.Any("input", in))
+		logger.Error("Could not unlink custom ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink custom ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink custom ID when there are no other identifiers.")
@@ -89,6 +91,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkDevice(ctx context.Context, in *console.UnlinkDeviceRequest) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -112,7 +115,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 
 		res, err := tx.ExecContext(ctx, query, userID, in.DeviceId)
 		if err != nil {
-			s.logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
+			logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return err
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
@@ -121,7 +124,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 
 		res, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
 		if err != nil {
-			s.logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
+			logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", in))
 			return err
 		}
 		if count, _ := res.RowsAffected(); count == 0 {
@@ -135,7 +138,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 		if e, ok := err.(*statusError); ok {
 			return nil, e.Status()
 		}
-		s.logger.Error("Error in database transaction.", zap.Error(err))
+		logger.Error("Error in database transaction.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Could not unlink device ID.")
 	}
 
@@ -143,6 +146,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 }
 
 func (s *ConsoleServer) UnlinkEmail(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -164,7 +168,7 @@ AND ((apple_id IS NOT NULL
 	res, err := s.db.ExecContext(ctx, query, userID)
 
 	if err != nil {
-		s.logger.Error("Could not unlink email.", zap.Error(err), zap.Any("input", in))
+		logger.Error("Could not unlink email.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink email.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink email address when there are no other identifiers.")
@@ -174,6 +178,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkFacebook(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -195,7 +200,7 @@ AND ((apple_id IS NOT NULL
 	res, err := s.db.ExecContext(ctx, query, userID)
 
 	if err != nil {
-		s.logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", in))
+		logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink Facebook ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Facebook ID when there are no other identifiers.")
@@ -205,6 +210,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkFacebookInstantGame(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -226,7 +232,7 @@ AND ((apple_id IS NOT NULL
 	res, err := s.db.ExecContext(ctx, query, userID)
 
 	if err != nil {
-		s.logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", in))
+		logger.Error("Could not unlink Facebook ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink Facebook ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Facebook ID when there are no other identifiers.")
@@ -236,6 +242,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkGameCenter(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -257,7 +264,7 @@ AND ((apple_id IS NOT NULL
 	res, err := s.db.ExecContext(ctx, query, userID)
 
 	if err != nil {
-		s.logger.Error("Could not unlink GameCenter ID.", zap.Error(err), zap.Any("input", in))
+		logger.Error("Could not unlink GameCenter ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink GameCenter ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Game Center ID when there are no other identifiers.")
@@ -267,6 +274,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkGoogle(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -288,7 +296,7 @@ AND ((apple_id IS NOT NULL
 	res, err := s.db.ExecContext(ctx, query, userID)
 
 	if err != nil {
-		s.logger.Error("Could not unlink Google ID.", zap.Error(err), zap.Any("input", in))
+		logger.Error("Could not unlink Google ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink Google ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Google ID when there are no other identifiers.")
@@ -298,6 +306,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkSteam(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -319,7 +328,7 @@ AND ((apple_id IS NOT NULL
 	res, err := s.db.ExecContext(ctx, query, userID)
 
 	if err != nil {
-		s.logger.Error("Could not unlink Steam ID.", zap.Error(err), zap.Any("input", in))
+		logger.Error("Could not unlink Steam ID.", zap.Error(err), zap.Any("input", in))
 		return nil, status.Error(codes.Internal, "Error while trying to unlink Steam ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return nil, status.Error(codes.PermissionDenied, "Cannot unlink Steam ID when there are no other identifiers.")

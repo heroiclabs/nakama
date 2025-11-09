@@ -2302,6 +2302,16 @@ func (n *RuntimeLuaNakamaModule) loggerDebug(l *lua.LState) int {
 		return 0
 	}
 
+	logger := n.logger
+
+	traceId := l.Context().Value(ctxTraceId{})
+	if traceId != nil {
+		traceIdStr, ok := traceId.(string)
+		if ok {
+			logger = logger.With(zap.String("trace_id", traceIdStr))
+		}
+	}
+
 	ctxLogFields := l.Context().Value(ctxLoggerFields{})
 	if ctxLogFields != nil {
 		logFields, ok := ctxLogFields.(map[string]string)
@@ -2311,10 +2321,10 @@ func (n *RuntimeLuaNakamaModule) loggerDebug(l *lua.LState) int {
 			for key, val := range logFields {
 				fields = append(fields, zap.String(key, val))
 			}
-			n.logger.Debug(message, fields...)
+			logger.Debug(message, fields...)
 		}
 	} else {
-		n.logger.Debug(message, zap.String("runtime", "lua"))
+		logger.Debug(message, zap.String("runtime", "lua"))
 	}
 
 	l.Push(lua.LString(message))
@@ -2333,6 +2343,16 @@ func (n *RuntimeLuaNakamaModule) loggerInfo(l *lua.LState) int {
 		return 0
 	}
 
+	logger := n.logger
+
+	traceId := l.Context().Value(ctxTraceId{})
+	if traceId != nil {
+		traceIdStr, ok := traceId.(string)
+		if ok {
+			logger = logger.With(zap.String("trace_id", traceIdStr))
+		}
+	}
+
 	ctxLogFields := l.Context().Value(ctxLoggerFields{})
 	if ctxLogFields != nil {
 		logFields, ok := ctxLogFields.(map[string]string)
@@ -2342,10 +2362,10 @@ func (n *RuntimeLuaNakamaModule) loggerInfo(l *lua.LState) int {
 			for key, val := range logFields {
 				fields = append(fields, zap.String(key, val))
 			}
-			n.logger.Info(message, fields...)
+			logger.Info(message, fields...)
 		}
 	} else {
-		n.logger.Info(message, zap.String("runtime", "lua"))
+		logger.Info(message, zap.String("runtime", "lua"))
 	}
 
 	l.Push(lua.LString(message))
@@ -2364,6 +2384,16 @@ func (n *RuntimeLuaNakamaModule) loggerWarn(l *lua.LState) int {
 		return 0
 	}
 
+	logger := n.logger
+
+	traceId := l.Context().Value(ctxTraceId{})
+	if traceId != nil {
+		traceIdStr, ok := traceId.(string)
+		if ok {
+			logger = logger.With(zap.String("trace_id", traceIdStr))
+		}
+	}
+
 	ctxLogFields := l.Context().Value(ctxLoggerFields{})
 	if ctxLogFields != nil {
 		logFields, ok := ctxLogFields.(map[string]string)
@@ -2373,10 +2403,10 @@ func (n *RuntimeLuaNakamaModule) loggerWarn(l *lua.LState) int {
 			for key, val := range logFields {
 				fields = append(fields, zap.String(key, val))
 			}
-			n.logger.Warn(message, fields...)
+			logger.Warn(message, fields...)
 		}
 	} else {
-		n.logger.Warn(message, zap.String("runtime", "lua"))
+		logger.Warn(message, zap.String("runtime", "lua"))
 	}
 
 	l.Push(lua.LString(message))
@@ -2395,6 +2425,16 @@ func (n *RuntimeLuaNakamaModule) loggerError(l *lua.LState) int {
 		return 0
 	}
 
+	logger := n.logger
+
+	traceId := l.Context().Value(ctxTraceId{})
+	if traceId != nil {
+		traceIdStr, ok := traceId.(string)
+		if ok {
+			logger = logger.With(zap.String("trace_id", traceIdStr))
+		}
+	}
+
 	ctxLogFields := l.Context().Value(ctxLoggerFields{})
 	if ctxLogFields != nil {
 		logFields, ok := ctxLogFields.(map[string]string)
@@ -2404,10 +2444,10 @@ func (n *RuntimeLuaNakamaModule) loggerError(l *lua.LState) int {
 			for key, val := range logFields {
 				fields = append(fields, zap.String(key, val))
 			}
-			n.logger.Error(message, fields...)
+			logger.Error(message, fields...)
 		}
 	} else {
-		n.logger.Error(message, zap.String("runtime", "lua"), zap.String("source", n.getLuaModule(l)))
+		logger.Error(message, zap.String("runtime", "lua"), zap.String("source", n.getLuaModule(l)))
 	}
 
 	l.Push(lua.LString(message))
@@ -11412,6 +11452,7 @@ func (n *RuntimeLuaNakamaModule) satoriServerEventsPublish(l *lua.LState) int {
 // @summary List experiments.
 // @param identifier(type=string) The identifier of the identity.
 // @param names(type=table, optional=true, default=[]) Optional list of experiment names to filter.
+// @param labels(type=table, optional=true, default=[]) Optional list of experiment labels to filter.
 // @return experiments(table) The experiment list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
@@ -11426,7 +11467,7 @@ func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
 				return
 			}
 			if v.Type() != lua.LTString {
-				l.ArgError(1, "name filter must be a string")
+				l.ArgError(2, "name filter must be a string")
 				conversionError = true
 				return
 			}
@@ -11439,7 +11480,29 @@ func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
 		}
 	}
 
-	experiments, err := n.satori.ExperimentsList(l.Context(), identifier, namesArray...)
+	labels := l.OptTable(3, nil)
+	labelsArray := make([]string, 0)
+	if labels != nil {
+		var conversionError bool
+		labels.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(3, "label filter must be a string")
+				conversionError = true
+				return
+			}
+
+			labelsArray = append(labelsArray, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	experiments, err := n.satori.ExperimentsList(l.Context(), identifier, namesArray, labelsArray)
 	if err != nil {
 		l.RaiseError("failed to satori list experiments: %v", err.Error())
 		return 0
@@ -11462,6 +11525,7 @@ func (n *RuntimeLuaNakamaModule) satoriExperimentsList(l *lua.LState) int {
 // @summary List flags.
 // @param identifier(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
 // @param names(type=table, optional=true, default=[]) Optional list of flag names to filter.
+// @param labels(type=table, optional=true, default=[]) Optional list of flag labels to filter.
 // @return flags(table) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
@@ -11476,7 +11540,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 				return
 			}
 			if v.Type() != lua.LTString {
-				l.ArgError(1, "name filter must be a string")
+				l.ArgError(2, "name filter must be a string")
 				conversionError = true
 				return
 			}
@@ -11489,7 +11553,29 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 		}
 	}
 
-	flags, err := n.satori.FlagsList(l.Context(), identifier, namesArray...)
+	labels := l.OptTable(3, nil)
+	labelsArray := make([]string, 0)
+	if labels != nil {
+		var conversionError bool
+		labels.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(3, "label filter must be a string")
+				conversionError = true
+				return
+			}
+
+			labelsArray = append(labelsArray, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	flags, err := n.satori.FlagsList(l.Context(), identifier, namesArray, labelsArray)
 	if err != nil {
 		l.RaiseError("failed to satori list flags: %v", err.Error())
 		return 0
@@ -11521,6 +11607,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsList(l *lua.LState) int {
 // @summary List flags overrides.
 // @param identifier(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
 // @param names(type=table, optional=true, default=[]) Optional list of flag names to filter.
+// @param labels(type=table, optional=true, default=[]) Optional list of flag labels to filter.
 // @return flagsOverrides(table) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
@@ -11535,7 +11622,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
 				return
 			}
 			if v.Type() != lua.LTString {
-				l.ArgError(1, "name filter must be a string")
+				l.ArgError(2, "name filter must be a string")
 				conversionError = true
 				return
 			}
@@ -11548,7 +11635,29 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
 		}
 	}
 
-	flagsList, err := n.satori.FlagsOverridesList(l.Context(), identifier, namesArray...)
+	labels := l.OptTable(3, nil)
+	labelsArray := make([]string, 0)
+	if labels != nil {
+		var conversionError bool
+		labels.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(3, "label filter must be a string")
+				conversionError = true
+				return
+			}
+
+			labelsArray = append(labelsArray, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	flagsList, err := n.satori.FlagsOverridesList(l.Context(), identifier, namesArray, labelsArray)
 	if err != nil {
 		l.RaiseError("failed to satori list flags: %v", err.Error())
 		return 0
@@ -11581,6 +11690,7 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
 // @summary List live events.
 // @param identifier(type=string) The identifier of the identity.
 // @param names(type=table, optional=true, default=[]) Optional list of live event names to filter.
+// @param labels(type=table, optional=true, default=[]) Optional list of live event labels to filter.
 // @return liveEvents(table) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
@@ -11595,7 +11705,7 @@ func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
 				return
 			}
 			if v.Type() != lua.LTString {
-				l.ArgError(1, "name filter must be a string")
+				l.ArgError(2, "name filter must be a string")
 				conversionError = true
 				return
 			}
@@ -11608,7 +11718,29 @@ func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
 		}
 	}
 
-	liveEvents, err := n.satori.LiveEventsList(l.Context(), identifier, namesArray...)
+	labels := l.OptTable(3, nil)
+	labelsArray := make([]string, 0)
+	if labels != nil {
+		var conversionError bool
+		labels.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(3, "label filter must be a string")
+				conversionError = true
+				return
+			}
+
+			labelsArray = append(labelsArray, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	liveEvents, err := n.satori.LiveEventsList(l.Context(), identifier, namesArray, labelsArray)
 	if err != nil {
 		l.RaiseError("failed to satori list live-events: %v", err.Error())
 		return 0

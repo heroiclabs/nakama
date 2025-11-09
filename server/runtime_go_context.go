@@ -57,5 +57,7 @@ func NewRuntimeGoContext(ctx context.Context, node, version string, env map[stri
 		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_CLIENT_PORT, clientPort)
 	}
 
+	// TODO: Add trace_id to the context?
+
 	return ctx
 }

@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -66,6 +67,7 @@ type AuditLogEntry struct {
 }
 
 func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogRequest) (*console.AuditLogList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Limit == 0 {
 		in.Limit = 20
 	}
@@ -89,9 +91,9 @@ func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogR
 		before = in.Before.AsTime()
 	}
 
-	auditLogs, err := auditLogEntryList(ctx, s.logger, s.db, in.Username, in.Action, resourceFilter, after, before, int(in.Limit), in.Cursor)
+	auditLogs, err := auditLogEntryList(ctx, logger, s.db, in.Username, in.Action, resourceFilter, after, before, int(in.Limit), in.Cursor)
 	if err != nil {
-		s.logger.Error("Failed to list audit logs", zap.Error(err))
+		logger.Error("Failed to list audit logs", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to list audit logs")
 	}
 
@@ -99,9 +101,10 @@ func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogR
 }
 
 func (s *ConsoleServer) ListAuditLogsUsers(ctx context.Context, in *emptypb.Empty) (*console.AuditLogUsersList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	users, err := s.dbListConsoleUsers(ctx, nil)
 	if err != nil {
-		s.logger.Error("failed to list console users", zap.Error(err))
+		logger.Error("failed to list console users", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
 	}
 
@@ -125,7 +128,7 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 			var userId uuid.UUID
 			var username, email string
 
-			if uid, ok := ctx.Value(ctxConsoleIdKey{}).(uuid.UUID); ok {
+			if uid, ok := ctx.Value(ctxConsoleUserIdKey{}).(uuid.UUID); ok {
 				userId = uid
 			}
 			if uname, ok := ctx.Value(ctxConsoleUsernameKey{}).(string); ok {
@@ -471,6 +474,110 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 		}
 
 		return resp, err
+	}
+}
+
+func consoleHttpAuditLogInterceptor(ctx context.Context, logger *zap.Logger, db *sql.DB, method, path string, body []byte) {
+	// Extract user information from context
+	var userId uuid.UUID
+	var username, email string
+
+	if uid, ok := ctx.Value(ctxConsoleUserIdKey{}).(uuid.UUID); ok {
+		userId = uid
+	}
+	if uname, ok := ctx.Value(ctxConsoleUsernameKey{}).(string); ok {
+		username = uname
+	}
+	if em, ok := ctx.Value(ctxConsoleEmailKey{}).(string); ok {
+		email = em
+	}
+
+	ts := time.Now()
+
+	var action console.AuditLogAction
+	var resource console.AclResources
+	metadata := []byte("{}")
+	var log string
+
+	switch {
+	case method == http.MethodGet && path == "/v2/console/hiro/inventory/{user_id}/codex": // HiroListInventoryItems
+		// Read-only operations do not create audit log entries.
+	case method == http.MethodGet && path == "/v2/console/hiro/inventory/{user_id}": // HiroListUserInventoryItems
+		// Read-only operations do not create audit log entries.
+	case method == http.MethodPost && path == "/v2/console/hiro/inventory/{user_id}": // HiroAddUserInventoryItems
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_INVENTORY
+		metadata = body
+		log = "hiro inventory items added to account"
+	case method == http.MethodPut && path == "/v2/console/hiro/inventory/{user_id}": // HiroDeleteUserInventoryItems
+		action = console.AuditLogAction_DELETE
+		resource = console.AclResources_HIRO_INVENTORY
+		metadata = body
+		log = "hiro inventory items removed from account"
+	case method == http.MethodPatch && path == "/v2/console/hiro/inventory/{user_id}": // HiroUpdateUserInventoryItems
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_INVENTORY
+		metadata = body
+		log = "hiro inventory items updated"
+	case method == http.MethodGet && path == "/v2/console/hiro/progression/{user_id}": // HiroListProgressions
+		// Read-only operations do not create audit log entries.
+	case method == http.MethodDelete && path == "/v2/console/hiro/progression/{user_id}": // HiroResetProgressions
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_PROGRESSION
+		metadata = body
+		log = "hiro progression reset"
+	case method == http.MethodPut && path == "/v2/console/hiro/progression/{user_id}": // HiroUnlockProgressions
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_PROGRESSION
+		metadata = body
+		log = "hiro progression unlocked"
+	case method == http.MethodPatch && path == "/v2/console/hiro/progression/{user_id}": // HiroUpdateProgressions
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_PROGRESSION
+		metadata = body
+		log = "hiro progression updated"
+	case method == http.MethodPost && path == "/v2/console/hiro/progression/{user_id}": // HiroPurchaseProgressions
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_PROGRESSION
+		metadata = body
+		log = "hiro progression purchased"
+	case method == http.MethodPost && path == "/v2/console/hiro/economy/{user_id}": // HiroEconomyGrant
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_ECONOMY
+		metadata = body
+		log = "hiro economy grant"
+	case method == http.MethodGet && path == "/v2/console/hiro/stats/{user_id}": // HiroStatsList
+		// Read-only operations do not create audit log entries.
+	case method == http.MethodPost && path == "/v2/console/hiro/stats/{user_id}": // HiroStatsUpdate
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_STATS
+		metadata = body
+		log = "hiro stats update"
+	case method == http.MethodPost && path == "/v2/console/hiro/energy/{user_id}": // HiroEnergyGrant
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_ENERGY
+		metadata = body
+		log = "hiro energy grant"
+	}
+
+	if action == console.AuditLogAction_UNKNOWN {
+		// No audit to insert, skip.
+		return
+	}
+
+	auditEntry := &AuditLogEntry{
+		UserID:    userId.String(),
+		Username:  username,
+		Email:     email,
+		Resource:  resource.String(),
+		Action:    action.String(),
+		Timestamp: ts,
+		Metadata:  string(metadata),
+		Message:   log,
+	}
+
+	if err := auditLogAdd(logger, db, auditEntry); err != nil {
+		logger.Error("Failed to add audit log entry", zap.Error(err))
 	}
 }
 

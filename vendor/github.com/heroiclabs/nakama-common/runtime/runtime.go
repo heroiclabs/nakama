@@ -893,7 +893,8 @@ type Initializer interface {
 	// RegisterHttp attaches a new HTTP handler to a specified path on the main client API server endpoint.
 	RegisterHttp(pathPattern string, handler func(http.ResponseWriter, *http.Request), methods ...string) error
 
-	RegisterHiro(module any) error
+	// RegisterConsoleHttp attaches a new HTTP handler to a specified path on the main console API server endpoint.
+	RegisterConsoleHttp(pathPattern string, handler func(http.ResponseWriter, *http.Request), methods ...string) error
 }
 
 type PresenceReason uint8
@@ -1353,13 +1354,17 @@ type Satori interface {
 	PropertiesUpdate(ctx context.Context, id string, properties *PropertiesUpdate) error
 	EventsPublish(ctx context.Context, id string, events []*Event, ipAddress ...string) error
 	ServerEventsPublish(ctx context.Context, events []*Event, ipAddress ...string) error
-	ExperimentsList(ctx context.Context, id string, names ...string) (*ExperimentList, error)
-	FlagsList(ctx context.Context, id string, names ...string) (*FlagList, error)
-	FlagsOverridesList(ctx context.Context, id string, names ...string) (*FlagOverridesList, error)
-	LiveEventsList(ctx context.Context, id string, names ...string) (*LiveEventList, error)
+	ExperimentsList(ctx context.Context, id string, names, labels []string) (*ExperimentList, error)
+	FlagsList(ctx context.Context, id string, names, labels []string) (*FlagList, error)
+	FlagsOverridesList(ctx context.Context, id string, names, labels []string) (*FlagOverridesList, error)
+	LiveEventsList(ctx context.Context, id string, names, labels []string) (*LiveEventList, error)
 	MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*MessageList, error)
 	MessageUpdate(ctx context.Context, id, messageId string, readTime, consumeTime int64) error
 	MessageDelete(ctx context.Context, id, messageId string) error
+}
+
+type SatoriLabeled interface {
+	GetLabels() []string
 }
 
 type Properties struct {
@@ -1395,8 +1400,13 @@ type ExperimentList struct {
 }
 
 type Experiment struct {
-	Name  string `json:"name,omitempty"`
-	Value string `json:"value,omitempty"`
+	Name   string   `json:"name,omitempty"`
+	Value  string   `json:"value,omitempty"`
+	Labels []string `json:"labels,omitempty"`
+}
+
+func (e *Experiment) GetLabels() []string {
+	return e.Labels
 }
 
 type FlagList struct {
@@ -1408,9 +1418,14 @@ type FlagOverridesList struct {
 }
 
 type FlagOverrides struct {
-	FlagName string `protobuf:"bytes,1,opt,name=flag_name,json=flagName,proto3" json:"flag_name,omitempty"`
+	FlagName string   `json:"flag_name,omitempty"`
+	Labels   []string `json:"labels,omitempty"`
 	// The list of configuration that affect the value of the flag.
 	Overrides []*FlagOverride `json:"overrides,omitempty"`
+}
+
+func (fo *FlagOverrides) GetLabels() []string {
+	return fo.Labels
 }
 
 type FlagOverride struct {
@@ -1449,14 +1464,19 @@ func (ot OverrideType) String() string {
 }
 
 type Flag struct {
-	Name              string `json:"name,omitempty"`
-	Value             string `json:"value,omitempty"`
-	ConditionChanged  bool   `json:"condition_changed,omitempty"`
+	Name              string   `json:"name,omitempty"`
+	Value             string   `json:"value,omitempty"`
+	Labels            []string `json:"labels,omitempty"`
+	ConditionChanged  bool     `json:"condition_changed,omitempty"`
 	ValueChangeReason *struct {
 		Type        FlagType `json:"type,omitempty"`
 		Name        string   `json:"name,omitempty"`
 		VariantName string   `json:"variant_name,omitempty"`
 	} `json:"change_reason,omitempty"`
+}
+
+func (f *Flag) GetLabels() []string {
+	return f.Labels
 }
 
 type FlagType int
@@ -1488,16 +1508,21 @@ type LiveEventList struct {
 }
 
 type LiveEvent struct {
-	Name               string `json:"name,omitempty"`
-	Description        string `json:"description,omitempty"`
-	Value              string `json:"value,omitempty"`
-	ActiveStartTimeSec int64  `json:"active_start_time_sec,string,omitempty"`
-	ActiveEndTimeSec   int64  `json:"active_end_time_sec,string,omitempty"`
-	Id                 string `json:"id,omitempty"`
-	StartTimeSec       int64  `json:"start_time_sec,string,omitempty"`
-	EndTimeSec         int64  `json:"end_time_sec,string,omitempty"`
-	DurationSec        int64  `json:"duration_sec,string,omitempty"`
-	ResetCronExpr      string `json:"reset_cron,omitempty"`
+	Name               string   `json:"name,omitempty"`
+	Description        string   `json:"description,omitempty"`
+	Value              string   `json:"value,omitempty"`
+	Labels             []string `json:"labels,omitempty"`
+	ActiveStartTimeSec int64    `json:"active_start_time_sec,string,omitempty"`
+	ActiveEndTimeSec   int64    `json:"active_end_time_sec,string,omitempty"`
+	Id                 string   `json:"id,omitempty"`
+	StartTimeSec       int64    `json:"start_time_sec,string,omitempty"`
+	EndTimeSec         int64    `json:"end_time_sec,string,omitempty"`
+	DurationSec        int64    `json:"duration_sec,string,omitempty"`
+	ResetCronExpr      string   `json:"reset_cron,omitempty"`
+}
+
+func (le *LiveEvent) GetLabels() []string {
+	return le.Labels
 }
 
 type MessageList struct {

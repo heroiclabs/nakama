@@ -1,6 +1,7 @@
 package ctxkeys
 
 // Keys used for storing/retrieving user information in the context of a request after authentication.
+type TraceIdKey struct{}
 type UserIDKey struct{}
 type UsernameKey struct{}
 type VarsKey struct{}

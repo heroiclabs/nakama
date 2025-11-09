@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -261,4 +262,15 @@ func (g grpcCustomLogger) Warningf(format string, args ...any) {
 
 func (g grpcCustomLogger) V(l int) bool {
 	return int(g.Level()) <= l
+}
+
+func LoggerWithTraceId(ctx context.Context, logger *zap.Logger) *zap.Logger {
+	traceId := ctx.Value(ctxTraceId{})
+	if traceId != nil {
+		if traceIdStr, ok := traceId.(string); ok && traceIdStr != "" {
+			return logger.With(zap.String("trace_id", traceIdStr))
+		}
+	}
+
+	return logger
 }

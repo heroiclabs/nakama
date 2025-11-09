@@ -552,7 +552,8 @@ type Runtime struct {
 
 	storageIndexFilterFunctions map[string]RuntimeStorageIndexFilterFunction
 
-	httpHandlers []*RuntimeHttpHandler
+	httpHandlers        []*RuntimeHttpHandler
+	consoleHttpHandlers []*RuntimeHttpHandler
 
 	leaderboardResetFunction RuntimeLeaderboardResetFunction
 
@@ -561,8 +562,6 @@ type Runtime struct {
 	shutdownFunction RuntimeShutdownFunction
 
 	fleetManager runtime.FleetManager
-
-	hiro *consoleHiro
 }
 
 type MatchNamesListFunction func() []string
@@ -710,8 +709,8 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		goSubscriptionNotificationGoogleFn,
 		goIndexFilterFns,
 		fleetManager,
-		hiro,
 		httpHandlers,
+		consoleHttpHandlers,
 		allEventFns,
 		goMatchNamesListFn, err := NewRuntimeProviderGo(ctx,
 		logger,
@@ -2803,15 +2802,14 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		subscriptionNotificationGoogleFunction: allSubscriptionNotificationGoogleFunction,
 		storageIndexFilterFunctions:            allStorageIndexFilterFunctions,
 
-		httpHandlers: httpHandlers,
+		httpHandlers:        httpHandlers,
+		consoleHttpHandlers: consoleHttpHandlers,
 
 		shutdownFunction: allShutdownFunction,
 
 		fleetManager: fleetManager,
 
 		eventFunctions: allEventFns,
-
-		hiro: hiro,
 	}, rInfo, nil
 }
 
@@ -3603,4 +3601,15 @@ func (r *Runtime) EventSessionStart() RuntimeEventSessionStartFunction {
 
 func (r *Runtime) EventSessionEnd() RuntimeEventSessionEndFunction {
 	return r.eventFunctions.sessionEndFunction
+}
+
+func RuntimeLoggerWithTraceId(ctx context.Context, logger runtime.Logger) runtime.Logger {
+	traceId := ctx.Value(ctxTraceId{})
+	if traceId != nil {
+		if traceIdStr, ok := traceId.(string); ok && traceIdStr != "" {
+			return logger.WithField("trace_id", traceIdStr)
+		}
+	}
+
+	return logger
 }

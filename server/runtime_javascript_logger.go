@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -26,8 +27,9 @@ type jsLogger struct {
 	logger *zap.Logger
 }
 
-func NewJsLogger(r *goja.Runtime, logger *zap.Logger, fields ...zap.Field) (goja.Value, error) {
-	l := &jsLogger{logger: logger.With(fields...)}
+func NewJsLogger(ctx context.Context, r *goja.Runtime, logger *zap.Logger, fields ...zap.Field) (goja.Value, error) {
+	logger = LoggerWithTraceId(ctx, logger.With(fields...))
+	l := &jsLogger{logger: logger}
 	jsl, err := l.Constructor(r)
 	if err != nil {
 		return nil, err

@@ -9299,6 +9299,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriServerEventsPublish(r *goja.Runtim
 // @summary List experiments.
 // @param identifier(type=string) The identifier of the identity.
 // @param nameFilters(type=string[], optional=true, default=[]) Optional list of experiment names to filter.
+// @param labelFilters(type=string[], optional=true, default=[]) Optional list of experiment labels to filter.
 // @return experiments(nkruntime.Experiment[]) The experiment list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -9315,7 +9316,17 @@ func (n *RuntimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) f
 			}
 		}
 
-		experimentList, err := n.satori.ExperimentsList(n.ctx, identifier, nameFiltersArray...)
+		labelFiltersArray := make([]string, 0)
+		labelFilters := f.Argument(2)
+		if !goja.IsUndefined(labelFilters) && !goja.IsNull(labelFilters) {
+			var err error
+			labelFiltersArray, err = exportToSlice[[]string](labelFilters)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+		}
+
+		experimentList, err := n.satori.ExperimentsList(n.ctx, identifier, nameFiltersArray, labelFiltersArray)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list satori experiments: %s", err.Error())))
 		}
@@ -9338,6 +9349,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriExperimentsList(r *goja.Runtime) f
 // @summary List flags.
 // @param identifier(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
 // @param nameFilters(type=string[], optional=true, default=[]) Optional list of flag names to filter.
+// @param labelFilters(type=string[], optional=true, default=[]) Optional list of flag labels to filter.
 // @return flags(nkruntime.Flag[]) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -9357,7 +9369,17 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 			}
 		}
 
-		flagsList, err := n.satori.FlagsList(n.ctx, identifier, nameFiltersArray...)
+		labelFiltersArray := make([]string, 0)
+		labelFilters := f.Argument(2)
+		if !goja.IsUndefined(labelFilters) && !goja.IsNull(labelFilters) {
+			var err error
+			labelFiltersArray, err = exportToSlice[[]string](labelFilters)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+		}
+
+		flagsList, err := n.satori.FlagsList(n.ctx, identifier, nameFiltersArray, labelFiltersArray)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list satori flags: %s", err.Error())))
 		}
@@ -9389,6 +9411,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsList(r *goja.Runtime) func(go
 // @summary List flags overrides.
 // @param identifier(type=string) The identifier of the identity. Set to empty string to fetch all default flag values.
 // @param nameFilters(type=string[], optional=true, default=[]) Optional list of flag names to filter.
+// @param labelFilters(type=string[], optional=true, default=[]) Optional list of flag labels to filter.
 // @return flagsOverrides(nkruntime.FlagOverride[]) The flag list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriFlagsOverridesList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -9408,7 +9431,17 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsOverridesList(r *goja.Runtime
 			}
 		}
 
-		flagsList, err := n.satori.FlagsOverridesList(n.ctx, identifier, nameFiltersArray...)
+		labelFiltersArray := make([]string, 0)
+		labelFilters := f.Argument(2)
+		if !goja.IsUndefined(labelFilters) && !goja.IsNull(labelFilters) {
+			var err error
+			labelFiltersArray, err = exportToSlice[[]string](labelFilters)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+		}
+
+		flagsList, err := n.satori.FlagsOverridesList(n.ctx, identifier, nameFiltersArray, labelFiltersArray)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list satori flags overrides: %s", err.Error())))
 		}
@@ -9442,6 +9475,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsOverridesList(r *goja.Runtime
 // @summary List live events.
 // @param identifier(type=string) The identifier of the identity.
 // @param nameFilters(type=string[], optional=true, default=[]) Optional list of live event names to filter.
+// @param labelFilters(type=string[], optional=true, default=[]) Optional list of live event labels to filter.
 // @return liveEvents(*nkruntime.LiveEvent[]) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -9458,7 +9492,17 @@ func (n *RuntimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) fu
 			}
 		}
 
-		liveEventsList, err := n.satori.LiveEventsList(n.ctx, identifier, nameFiltersArray...)
+		labelFiltersArray := make([]string, 0)
+		labelFilters := f.Argument(2)
+		if !goja.IsUndefined(labelFilters) && !goja.IsNull(labelFilters) {
+			var err error
+			labelFiltersArray, err = exportToSlice[[]string](labelFilters)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+		}
+
+		liveEventsList, err := n.satori.LiveEventsList(n.ctx, identifier, nameFiltersArray, labelFiltersArray)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list satori live-events %s:", err.Error())))
 		}

@@ -34,16 +34,17 @@ import (
 )
 
 func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.LeaderboardListRequest) (*console.LeaderboardList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	var cursor *LeaderboardAllCursor
 	if in.Cursor != "" {
 		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
 		if err != nil {
-			s.logger.Error("Error decoding leaderboard list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			logger.Error("Error decoding leaderboard list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
 			return nil, status.Error(codes.InvalidArgument, "An error occurred while trying to decode leaderboard list request cursor.")
 		}
 		cursor = &LeaderboardAllCursor{}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(&cursor); err != nil {
-			s.logger.Error("Error decoding leaderboard list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
+			logger.Error("Error decoding leaderboard list cursor.", zap.String("cursor", in.Cursor), zap.Error(err))
 			return nil, status.Error(codes.InvalidArgument, "An error occurred while trying to decode leaderboard list request cursor.")
 		}
 	}
@@ -68,7 +69,7 @@ func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.Leader
 	if newCursor != nil {
 		cursorBuf := &bytes.Buffer{}
 		if err := gob.NewEncoder(cursorBuf).Encode(newCursor); err != nil {
-			s.logger.Error("Error encoding leaderboard list cursor.", zap.Any("in", in), zap.Error(err))
+			logger.Error("Error encoding leaderboard list cursor.", zap.Any("in", in), zap.Error(err))
 			return nil, status.Error(codes.Internal, "An error occurred while trying to list leaderboards.")
 		}
 		response.Cursor = base64.RawURLEncoding.EncodeToString(cursorBuf.Bytes())
@@ -78,6 +79,7 @@ func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.Leader
 }
 
 func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.LeaderboardRequest) (*console.Leaderboard, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Tournament ID must be set.")
 	}
@@ -90,9 +92,9 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 	var t *api.Tournament
 	var prevReset, nextReset int64
 	if l.IsTournament() {
-		results, err := TournamentsGet(ctx, s.logger, s.db, s.leaderboardCache, []string{in.Id})
+		results, err := TournamentsGet(ctx, logger, s.db, s.leaderboardCache, []string{in.Id})
 		if err != nil {
-			s.logger.Error("Error retrieving tournament.", zap.Error(err))
+			logger.Error("Error retrieving tournament.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error retrieving tournament.")
 		}
 
@@ -144,6 +146,7 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 }
 
 func (s *ConsoleServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	var limit *wrapperspb.Int32Value
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
@@ -167,7 +170,7 @@ func (s *ConsoleServer) ListLeaderboardRecords(ctx context.Context, in *api.List
 		overrideExpiry = in.Expiry.Value
 	}
 
-	records, err := LeaderboardRecordsList(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds, overrideExpiry)
+	records, err := LeaderboardRecordsList(ctx, logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds, overrideExpiry)
 	if err == ErrLeaderboardNotFound {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 	} else if err == ErrLeaderboardInvalidCursor {
@@ -194,6 +197,7 @@ func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.Leade
 }
 
 func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console.DeleteLeaderboardRecordRequest) (*emptypb.Empty, error) {
+	logger := LoggerWithTraceId(ctx, s.logger)
 	if in.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
 	}
@@ -205,7 +209,7 @@ func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console
 
 	if l.IsTournament() {
 		// Pass uuid.Nil as userID to bypass leaderboard Authoritative check.
-		err := TournamentRecordDelete(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, uuid.Nil, in.Id, in.OwnerId)
+		err := TournamentRecordDelete(ctx, logger, s.db, s.leaderboardCache, s.leaderboardRankCache, uuid.Nil, in.Id, in.OwnerId)
 		if err == runtime.ErrTournamentNotFound {
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
 		} else if err != nil {
@@ -213,7 +217,7 @@ func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console
 		}
 	} else {
 		// Pass uuid.Nil as userID to bypass leaderboard Authoritative check.
-		err := LeaderboardRecordDelete(ctx, s.logger, s.db, s.leaderboardCache, s.leaderboardRankCache, uuid.Nil, in.Id, in.OwnerId)
+		err := LeaderboardRecordDelete(ctx, logger, s.db, s.leaderboardCache, s.leaderboardRankCache, uuid.Nil, in.Id, in.OwnerId)
 		if err == ErrLeaderboardNotFound {
 			return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 		} else if err != nil {
