@@ -100,7 +100,7 @@ Common errors:
 - **Credentials**: Client ID and secret (configured in the module)
 
 ### Games List Endpoint
-- **URL**: `https://gaming.intelli-verse-x.ai/api/games/games/all`
+- **URL**: `https://api.intelli-verse-x.ai/api/games/all`
 - **Method**: GET
 - **Authentication**: Bearer token from OAuth
 

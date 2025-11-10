@@ -1,4 +1,6 @@
-# ---- Stage 1: Build Nakama binary ----
+# =========================
+# Stage 1: Build Nakama binary
+# =========================
 FROM golang:1.25-alpine AS builder
 
 ENV GO111MODULE=on \
@@ -8,11 +10,12 @@ RUN apk add --no-cache git make
 
 WORKDIR /go/src/github.com/heroiclabs/nakama
 COPY . .
-
 RUN go build -trimpath -mod=vendor -ldflags "-s -w" -o nakama .
 
 
-# ---- Stage 2: Build Nakama runtime modules ----
+# =========================
+# Stage 2: Compile TypeScript modules
+# =========================
 FROM node:18-alpine AS modules
 
 WORKDIR /build
@@ -25,19 +28,21 @@ RUN npm install -g typescript && \
     mkdir -p ./data/modules/build && \
     cd ./data/modules && \
     if ls *.ts 1> /dev/null 2>&1; then \
-        echo "Compiling TypeScript modules..."; \
+        echo "Compiling TypeScript modules..." && \
         if [ -f tsconfig.json ]; then \
             tsc || echo "TypeScript compilation completed with warnings (expected if Nakama types are not defined)"; \
         else \
-            tsc --outDir ./build --target ES2015 --module commonjs --moduleResolution node || echo "TypeScript compilation completed with warnings"; \
-        fi; \
-        [ -d ./build ] || mkdir -p ./build; \
+            tsc --outDir ./build --target ES2015 --module commonjs --moduleResolution node *.ts || echo "TypeScript compilation completed with warnings"; \
+        fi && \
+        test -d ./build || mkdir -p ./build; \
     else \
         mkdir -p ./build; \
     fi
 
 
-# ---- Stage 3: Final lightweight runtime image ----
+# =========================
+# Stage 3: Final Nakama runtime image
+# =========================
 FROM alpine:3.19
 
 RUN apk add --no-cache ca-certificates
@@ -54,8 +59,10 @@ COPY --from=modules /build/data/modules/build /nakama/data/modules
 # Copy Lua modules from source
 COPY data/modules /nakama/data/modules
 
-RUN addgroup -S nakama && adduser -S nakama -G nakama && chown -R nakama:nakama /nakama
+# Copy config
+#COPY config.yaml /nakama/config/config.yaml
 
+RUN addgroup -S nakama && adduser -S nakama -G nakama && chown -R nakama:nakama /nakama
 USER nakama
 WORKDIR /nakama
 
