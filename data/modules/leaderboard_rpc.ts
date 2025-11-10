@@ -19,9 +19,14 @@ interface LeaderboardRecord {
     createdAt: string;
 }
 
-function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string): string {
+let InitModule: nkruntime.InitModule = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
+    initializer.registerRpc("create_all_leaderboards_persistent", createAllLeaderboardsPersistent);
+    logger.info("Leaderboard RPC registered successfully.");
+};
+
+function createAllLeaderboardsPersistent(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     const tokenUrl = "https://api.intelli-verse-x.ai/api/admin/oauth/token";
-    const gamesUrl = "https://api.intelli-verse-x.ai/api/games/all";
+    const gamesUrl = "https://gaming.intelli-verse-x.ai/api/games/games/all";
 
     const client_id = "54clc0uaqvr1944qvkas63o0rb";
     const client_secret = "1eb7ooua6ft832nh8dpmi37mos4juqq27svaqvmkt5grc3b7e377";
@@ -39,7 +44,7 @@ function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string
             existingRecords = records[0].value as LeaderboardRecord[];
         }
     } catch (err) {
-        nk.loggerWarn(`Failed to read existing leaderboard records: ${err}`);
+        logger.warn(`Failed to read existing leaderboard records: ${err}`);
     }
 
     const existingIds = new Set(existingRecords.map(r => r.leaderboardId));
@@ -47,7 +52,7 @@ function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string
     const skipped: string[] = [];
 
     // Step 1: Request token
-    nk.loggerInfo("Requesting IntelliVerse OAuth token...");
+    logger.info("Requesting IntelliVerse OAuth token...");
     let tokenResponse;
     try {
         tokenResponse = nk.httpRequest(tokenUrl, "post", {
@@ -58,7 +63,8 @@ function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string
             client_secret
         }));
     } catch (err) {
-        return JSON.stringify({ success: false, error: `Token request failed: ${err.message}` });
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        return JSON.stringify({ success: false, error: `Token request failed: ${errorMsg}` });
     }
 
     if (tokenResponse.code !== 200) {
@@ -78,7 +84,7 @@ function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string
     }
 
     // Step 2: Fetch game list
-    nk.loggerInfo("Fetching onboarded game list...");
+    logger.info("Fetching onboarded game list...");
     let gameResponse;
     try {
         gameResponse = nk.httpRequest(gamesUrl, "get", {
@@ -86,7 +92,8 @@ function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string
             "Authorization": `Bearer ${accessToken}`
         });
     } catch (err) {
-        return JSON.stringify({ success: false, error: `Game fetch failed: ${err.message}` });
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        return JSON.stringify({ success: false, error: `Game fetch failed: ${errorMsg}` });
     }
 
     if (gameResponse.code !== 200) {
@@ -116,7 +123,7 @@ function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string
     }
 
     // Step 4: Create per-game leaderboards
-    nk.loggerInfo(`Processing ${games.length} games for leaderboard creation...`);
+    logger.info(`Processing ${games.length} games for leaderboard creation...`);
     for (const game of games) {
         if (!game.id) continue;
         const leaderboardId = `leaderboard_${game.id}`;
@@ -153,7 +160,8 @@ function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string
             permissionWrite: 0
         }]);
     } catch (err) {
-        nk.loggerError(`Failed to write leaderboard records: ${err.message}`);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        logger.error(`Failed to write leaderboard records: ${errorMsg}`);
     }
 
     return JSON.stringify({
@@ -165,4 +173,4 @@ function createAllLeaderboardsPersistent(ctx: nkruntime.Context, payload: string
     });
 }
 
-nk.registerRpc(createAllLeaderboardsPersistent, "create_all_leaderboards_persistent");
+
