@@ -2,43 +2,33 @@
 # Stage 1: Build Nakama binary
 # =========================
 FROM golang:1.25-alpine AS builder
-
 ENV GO111MODULE=on \
     CGO_ENABLED=0
-
 RUN apk add --no-cache git make
-
 WORKDIR /go/src/github.com/heroiclabs/nakama
 COPY . .
 RUN go build -trimpath -mod=vendor -ldflags "-s -w" -o nakama .
 
-
 # =========================
-# Stage 2: Compile TypeScript modules
+# Stage 2: Compile TypeScript modules (if any)
 # =========================
 FROM node:18-alpine AS modules
-
 WORKDIR /build
 
 # Copy your Nakama runtime modules
-COPY data/modules ./data/modules
+COPY data/modules ./modules
 
-# Install TypeScript and compile to JS
-RUN npm install -g typescript && \
-    mkdir -p ./data/modules/build && \
-    cd ./data/modules && \
-    if ls *.ts 1> /dev/null 2>&1; then \
+WORKDIR /build/modules
+
+# Install TypeScript (optional, only if you have .ts files other than index.js)
+RUN npm install -g typescript
+
+# Compile TypeScript files to JavaScript (skip index.js)
+RUN if ls *.ts 1> /dev/null 2>&1; then \
         echo "Compiling TypeScript modules..." && \
-        if [ -f tsconfig.json ]; then \
-            tsc || echo "TypeScript compilation completed with warnings (expected if Nakama types are not defined)"; \
-        else \
-            tsc --outDir ./build --target ES2015 --module commonjs --moduleResolution node *.ts || echo "TypeScript compilation completed with warnings"; \
-        fi && \
-        test -d ./build || mkdir -p ./build; \
-    else \
-        mkdir -p ./build; \
-    fi
-
+        tsc --target ES2015 --module commonjs --skipLibCheck true *.ts 2>&1 || true; \
+    fi && \
+    echo "Module preparation complete"
 
 # =========================
 # Stage 3: Final Nakama runtime image
@@ -48,23 +38,19 @@ FROM alpine:3.19
 RUN apk add --no-cache ca-certificates
 
 # Nakama directory structure
-RUN mkdir -p /nakama/config /nakama/data /nakama/logs /nakama/data/modules /nakama/data/modules/lua
+RUN mkdir -p /nakama/config /nakama/data/modules /nakama/logs
 
 # Copy Nakama binary
 COPY --from=builder /go/src/github.com/heroiclabs/nakama/nakama /nakama/nakama
 
-# Copy compiled JS modules from build stage
-COPY --from=modules /build/data/modules/build /nakama/data/modules
+# Copy ALL module files (.js, .ts, .lua)
+COPY --from=modules /build/modules /nakama/data/modules
 
-# Copy Lua modules from source
-COPY data/modules /nakama/data/modules
-
-# Copy config
-#COPY config.yaml /nakama/config/config.yaml
+WORKDIR /nakama
 
 RUN addgroup -S nakama && adduser -S nakama -G nakama && chown -R nakama:nakama /nakama
+
 USER nakama
-WORKDIR /nakama
 
 EXPOSE 7349 7350 7351
 
