@@ -9556,7 +9556,17 @@ func (n *RuntimeJavascriptNakamaModule) satoriMessagesList(r *goja.Runtime) func
 			cursor = getJsString(r, f.Argument(3))
 		}
 
-		messagesList, err := n.satori.MessagesList(n.ctx, identifier, int(limit), forward, cursor)
+		messageIDsArray := make([]string, 0)
+		messageIDs := f.Argument(4)
+		if !goja.IsUndefined(messageIDs) && !goja.IsNull(messageIDs) {
+			var err error
+			messageIDsArray, err = exportToSlice[[]string](messageIDs)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+		}
+
+		messagesList, err := n.satori.MessagesList(n.ctx, identifier, int(limit), forward, cursor, messageIDsArray)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list satori messages %s:", err.Error())))
 		}

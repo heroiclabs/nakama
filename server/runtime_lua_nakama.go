@@ -11784,7 +11784,29 @@ func (n *RuntimeLuaNakamaModule) satoriMessagesList(l *lua.LState) int {
 
 	cursor := l.OptString(4, "")
 
-	messages, err := n.satori.MessagesList(l.Context(), identifier, limit, forward, cursor)
+	messageIDs := l.OptTable(5, nil)
+	messageIDsArray := make([]string, 0)
+	if messageIDs != nil {
+		var conversionError bool
+		messageIDs.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(5, "message id must be a string")
+				conversionError = true
+				return
+			}
+
+			messageIDsArray = append(messageIDsArray, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	messages, err := n.satori.MessagesList(l.Context(), identifier, limit, forward, cursor, messageIDsArray)
 	if err != nil {
 		l.RaiseError("failed to list satori messages: %v", err.Error())
 		return 0
