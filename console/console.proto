@@ -1881,6 +1881,22 @@ message SendDirectMessageRequest {
   bool persist = 4;
   // If applicable, channels to send this message through, per integration.
   map<int32, MessageChannels> channels = 5;
+  // A template for the message. If this value is provided then the 'template_id' will be ignored.
+  TemplateOverride template_override = 6;
+
+  // An template override.
+  message TemplateOverride {
+    // The title to generate the message's title.
+    string title = 1;
+    // The template value to generate the message's content.
+    string value = 2;
+    // The image_url for the message.
+    string image_url = 3;
+    // The json_metadata for the message
+    string json_metadata = 4;
+    // Language-specific template overrides. The key is the language code.
+    map<string,TemplateOverride> variants = 5;
+  }
 
   message MessageChannels {
     repeated MessageChannelType channels = 1;
