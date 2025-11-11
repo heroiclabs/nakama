@@ -264,13 +264,13 @@ func (g grpcCustomLogger) V(l int) bool {
 	return int(g.Level()) <= l
 }
 
-func LoggerWithTraceId(ctx context.Context, logger *zap.Logger) *zap.Logger {
+func LoggerWithTraceId(ctx context.Context, logger *zap.Logger) (*zap.Logger, string) {
 	traceId := ctx.Value(ctxTraceId{})
 	if traceId != nil {
 		if traceIdStr, ok := traceId.(string); ok && traceIdStr != "" {
-			return logger.With(zap.String("trace_id", traceIdStr))
+			return logger.With(zap.String("trace_id", traceIdStr)), traceIdStr
 		}
 	}
 
-	return logger
+	return logger, ""
 }

@@ -44,7 +44,7 @@ type consoleGroupCursor struct {
 }
 
 func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRequest) (*console.GroupList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	const defaultLimit = 50
 
 	// Validate cursor, if provided.
@@ -166,7 +166,7 @@ FROM groups ORDER BY id ASC LIMIT $1`
 }
 
 func (s *ConsoleServer) DeleteGroup(ctx context.Context, in *console.DeleteGroupRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	groupID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
@@ -181,7 +181,7 @@ func (s *ConsoleServer) DeleteGroup(ctx context.Context, in *console.DeleteGroup
 }
 
 func (s *ConsoleServer) GetGroup(ctx context.Context, in *console.GroupId) (*api.Group, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	groupID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
@@ -199,7 +199,7 @@ func (s *ConsoleServer) GetGroup(ctx context.Context, in *console.GroupId) (*api
 }
 
 func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*console.GroupExport, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	groupID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
@@ -228,7 +228,7 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 }
 
 func (s *ConsoleServer) UpdateGroup(ctx context.Context, in *console.UpdateGroupRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	groupID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
@@ -248,7 +248,7 @@ func (s *ConsoleServer) UpdateGroup(ctx context.Context, in *console.UpdateGroup
 }
 
 func (s *ConsoleServer) GetMembers(ctx context.Context, in *console.GroupId) (*api.GroupUserList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	groupID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid group ID.")
@@ -263,7 +263,7 @@ func (s *ConsoleServer) GetMembers(ctx context.Context, in *console.GroupId) (*a
 }
 
 func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.UpdateGroupUserStateRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -404,7 +404,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 }
 
 func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.UpdateGroupUserStateRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -546,7 +546,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 }
 
 func (s *ConsoleServer) AddGroupUsers(ctx context.Context, in *console.AddGroupUsersRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	groupUid, err := uuid.FromString(in.GroupId)
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "Invalid group ID format.")

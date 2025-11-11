@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gofrs/uuid/v5"
@@ -23,7 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) statusFollow(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetStatusFollow()
 
 	if len(incoming.UserIds) == 0 && len(incoming.Usernames) == 0 {
@@ -92,7 +93,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 
 		// See if all the users exist.
 		query := "SELECT id FROM users WHERE id = ANY($1::UUID[])"
-		rows, err := p.db.QueryContext(session.Context(), query, ids)
+		rows, err := p.db.QueryContext(ctx, query, ids)
 		if err != nil {
 			logger.Error("Error checking users in status follow", zap.Error(err))
 			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -140,7 +141,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 		query += fmt.Sprintf("username = ANY($%d::text[])", len(params))
 
 		// See if all the users exist.
-		rows, err := p.db.QueryContext(session.Context(), query, params...)
+		rows, err := p.db.QueryContext(ctx, query, params...)
 		if err != nil {
 			logger.Error("Error checking users in status follow", zap.Error(err))
 			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -219,7 +220,7 @@ func (p *Pipeline) statusFollow(logger *zap.Logger, session Session, envelope *r
 	return true, out
 }
 
-func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) statusUnfollow(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetStatusUnfollow()
 
 	if len(incoming.UserIds) == 0 {
@@ -254,7 +255,7 @@ func (p *Pipeline) statusUnfollow(logger *zap.Logger, session Session, envelope 
 	return true, out
 }
 
-func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) statusUpdate(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetStatusUpdate()
 
 	if incoming.Status == nil {
@@ -274,7 +275,7 @@ func (p *Pipeline) statusUpdate(logger *zap.Logger, session Session, envelope *r
 		return false, nil
 	}
 
-	success := p.tracker.Update(session.Context(), session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{
+	success := p.tracker.Update(ctx, session.ID(), PresenceStream{Mode: StreamModeStatus, Subject: session.UserID()}, session.UserID(), PresenceMeta{
 		Format:   session.Format(),
 		Username: session.Username(),
 		Status:   incoming.Status.Value,

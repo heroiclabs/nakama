@@ -35,7 +35,7 @@ type methodReflection struct {
 }
 
 func (s *ConsoleServer) CallRpcEndpoint(ctx context.Context, in *console.CallApiEndpointRequest) (*console.CallApiEndpointResponse, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	callCtx, err := s.extractApiCallContext(ctx, logger, in, true)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func (s *ConsoleServer) CallRpcEndpoint(ctx context.Context, in *console.CallApi
 }
 
 func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApiEndpointRequest) (*console.CallApiEndpointResponse, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	r, ok := s.rpcMethodCache.endpoints[MethodName(in.Method)]
 	if !ok {
 		return nil, fmt.Errorf("API method doesn't exist: %s", in.Method)
