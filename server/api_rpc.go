@@ -52,7 +52,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	var vars map[string]string
 	var expiry int64
 	requestCtx := r.Context()
-	logger := LoggerWithTraceId(requestCtx, s.logger)
+	logger, traceID := LoggerWithTraceId(requestCtx, s.logger)
 	if httpKey := queryParams.Get("http_key"); httpKey != "" {
 		if httpKey != s.config.GetRuntime().HTTPKey {
 			// HTTP key did not match.
@@ -214,7 +214,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute the function.
-	result, fnErr, code := fn(requestCtx, headers, queryParams, uid, username, vars, expiry, "", clientIP, clientPort, "", payload)
+	result, fnErr, code := fn(requestCtx, headers, queryParams, traceID, uid, username, vars, expiry, "", clientIP, clientPort, "", payload)
 	if fnErr != nil {
 		response, _ := json.Marshal(map[string]interface{}{"error": fnErr, "message": fnErr.Error(), "code": code})
 		w.Header().Set("content-type", "application/json")
@@ -314,7 +314,14 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 
 	clientIP, clientPort := extractClientAddressFromContext(s.logger, ctx)
 
-	result, fnErr, code := fn(ctx, headers, queryParams, uid, username, vars, expiry, "", clientIP, clientPort, "", in.Payload)
+	var traceID string
+	if traceId := ctx.Value(ctxTraceId{}); traceId != nil {
+		if traceIdStr, ok := traceId.(string); ok && traceIdStr != "" {
+			traceID = traceIdStr
+		}
+	}
+
+	result, fnErr, code := fn(ctx, headers, queryParams, traceID, uid, username, vars, expiry, "", clientIP, clientPort, "", in.Payload)
 	if fnErr != nil {
 		return nil, status.Error(code, fnErr.Error())
 	}

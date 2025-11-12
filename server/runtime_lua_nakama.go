@@ -608,7 +608,7 @@ func (n *RuntimeLuaNakamaModule) runOnce(l *lua.LState) int {
 			return
 		}
 
-		ctx := NewRuntimeLuaContext(l, n.config.GetName(), n.version, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, 0, "", "", nil, "", "", "", "")
+		ctx := NewRuntimeLuaContext(l, n.config.GetName(), n.version, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, "", 0, "", "", nil, "", "", "", "")
 
 		l.Push(LSentinel)
 		l.Push(fn)
@@ -632,7 +632,7 @@ func (n *RuntimeLuaNakamaModule) runOnce(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) getContext(l *lua.LState) int {
-	ctx := NewRuntimeLuaContext(l, n.config.GetName(), n.version, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, 0, "", "", nil, "", "", "", "")
+	ctx := NewRuntimeLuaContext(l, n.config.GetName(), n.version, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, "", 0, "", "", nil, "", "", "", "")
 	l.Push(ctx)
 	return 1
 }
@@ -11784,7 +11784,29 @@ func (n *RuntimeLuaNakamaModule) satoriMessagesList(l *lua.LState) int {
 
 	cursor := l.OptString(4, "")
 
-	messages, err := n.satori.MessagesList(l.Context(), identifier, limit, forward, cursor)
+	messageIDs := l.OptTable(5, nil)
+	messageIDsArray := make([]string, 0)
+	if messageIDs != nil {
+		var conversionError bool
+		messageIDs.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(5, "message id must be a string")
+				conversionError = true
+				return
+			}
+
+			messageIDsArray = append(messageIDsArray, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	messages, err := n.satori.MessagesList(l.Context(), identifier, limit, forward, cursor, messageIDsArray)
 	if err != nil {
 		l.RaiseError("failed to list satori messages: %v", err.Error())
 		return 0

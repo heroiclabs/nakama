@@ -17,7 +17,7 @@ import (
 )
 
 func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.ListChannelMessagesRequest) (*api.ChannelMessageList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	const limit = 50
 
 	stream, err := buildStream(in)
@@ -46,7 +46,7 @@ func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.Lis
 }
 
 func (s *ConsoleServer) DeleteChannelMessages(ctx context.Context, in *console.DeleteChannelMessagesRequest) (*console.DeleteChannelMessagesResponse, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	var affected int64
 	if in.Before != nil {
 		query := "DELETE FROM message WHERE create_time < $1::TIMESTAMPTZ"

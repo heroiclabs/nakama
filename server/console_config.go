@@ -31,7 +31,7 @@ import (
 const ObfuscationString = "REDACTED"
 
 func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*console.Config, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	cfg, err := s.config.Clone()
 	if err != nil {
 		logger.Error("Error cloning config.", zap.Error(err))
@@ -97,7 +97,7 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 }
 
 func (s *ConsoleServer) DeleteAllData(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	query := `TRUNCATE TABLE users, user_edge, user_device, user_tombstone, wallet_ledger, storage, purchase,
 			subscription, notification, message, leaderboard, leaderboard_record, groups, group_edge`
 	if _, err := s.db.ExecContext(ctx, query); err != nil {

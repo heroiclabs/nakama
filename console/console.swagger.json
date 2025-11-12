@@ -4935,6 +4935,10 @@
             "$ref": "#/definitions/MessageChannels"
           },
           "description": "If applicable, channels to send this message through, per integration."
+        },
+        "template_override": {
+          "$ref": "#/definitions/TemplateOverride",
+          "description": "A template for the message. If this value is provided then the 'template_id' will be ignored."
         }
       },
       "description": "The request to send direct messages."
@@ -5382,6 +5386,35 @@
         }
       },
       "description": "A template view."
+    },
+    "TemplateOverride": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The title to generate the message's title."
+        },
+        "value": {
+          "type": "string",
+          "description": "The template value to generate the message's content."
+        },
+        "image_url": {
+          "type": "string",
+          "description": "The image_url for the message."
+        },
+        "json_metadata": {
+          "type": "string",
+          "title": "The json_metadata for the message"
+        },
+        "variants": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/TemplateOverride"
+          },
+          "description": "Language-specific template overrides. The key is the language code."
+        }
+      },
+      "description": "An template override."
     },
     "UnlinkDeviceBody": {
       "type": "object",

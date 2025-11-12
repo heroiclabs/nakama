@@ -27,7 +27,7 @@ import (
 )
 
 func (s *ConsoleServer) GetStatus(ctx context.Context, in *emptypb.Empty) (*console.StatusList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	nodes, err := s.statusHandler.GetStatus(ctx)
 	if err != nil {
 		logger.Error("Error getting status.", zap.Error(err))

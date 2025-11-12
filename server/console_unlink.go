@@ -27,7 +27,7 @@ import (
 )
 
 func (s *ConsoleServer) UnlinkApple(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -59,7 +59,7 @@ AND ((custom_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkCustom(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -91,7 +91,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkDevice(ctx context.Context, in *console.UnlinkDeviceRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -146,7 +146,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 }
 
 func (s *ConsoleServer) UnlinkEmail(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -178,7 +178,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkFacebook(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -210,7 +210,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkFacebookInstantGame(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -242,7 +242,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkGameCenter(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -274,7 +274,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkGoogle(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -306,7 +306,7 @@ AND ((apple_id IS NOT NULL
 }
 
 func (s *ConsoleServer) UnlinkSteam(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
