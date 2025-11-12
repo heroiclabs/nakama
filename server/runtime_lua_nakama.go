@@ -10447,7 +10447,7 @@ func (n *RuntimeLuaNakamaModule) secureRandomBytes(l *lua.LState) int {
 	count := l.CheckInt(1)
 
 	if count < 1 || count > 1000 {
-		l.RaiseError("count must be 1-1000")
+		l.ArgError(1, "count must be 1-1000")
 		return 0
 	}
 
