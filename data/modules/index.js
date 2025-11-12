@@ -1,5 +1,15 @@
 // index.js - Main entry point for Nakama 3.x JavaScript runtime
 
+// Load Copilot Wallet Mapping modules
+// @ts-ignore
+var WalletUtils = require('./copilot/wallet_utils.js').WalletUtils;
+// @ts-ignore
+var WalletRegistry = require('./copilot/wallet_registry.js').WalletRegistry;
+// @ts-ignore
+var CognitoWalletMapper = require('./copilot/cognito_wallet_mapper.js').CognitoWalletMapper;
+// @ts-ignore
+var CopilotModule = require('./copilot/index.js').CopilotModule;
+
 // Define the RPC function first
 function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
     const tokenUrl = "https://api.intelli-verse-x.ai/api/admin/oauth/token";
@@ -186,6 +196,13 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
     logger.info('========================================');
+    
+    // Initialize Copilot Wallet Mapping Module
+    try {
+        CopilotModule.init(ctx, logger, nk, initializer);
+    } catch (err) {
+        logger.error('Failed to initialize Copilot module: ' + err.message);
+    }
     
     // Register RPC functions
     initializer.registerRpc('create_all_leaderboards_persistent', createAllLeaderboardsPersistent);
