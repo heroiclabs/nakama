@@ -314,6 +314,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_delete":                            n.friendsDelete,
 		"friends_block":                             n.friendsBlock,
 		"party_list":                                n.partyList,
+		"secure_random_bytes":                       n.secureRandomBytes,
 		"file_read":                                 n.fileRead,
 		"channel_message_send":                      n.channelMessageSend,
 		"channel_message_update":                    n.channelMessageUpdate,
@@ -10435,6 +10436,37 @@ func (n *RuntimeLuaNakamaModule) partyList(l *lua.LState) int {
 	}
 
 	return 2
+}
+
+// @group utils
+// @summary Generate cryptographically secure random bytes.
+// @param count(type=int) The number of bytes to generate, from 1 to 1000.
+// @return bytes(string) The cryptograpically secure bytes.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) secureRandomBytes(l *lua.LState) int {
+	count := l.CheckInt(1)
+
+	if count < 1 || count > 1000 {
+		l.ArgError(1, "count must be 1-1000")
+		return 0
+	}
+
+	bytes := make([]byte, count)
+
+	read, err := rand.Read(bytes)
+	if err != nil {
+		l.RaiseError("failed to read random bytes: %s", err.Error())
+		return 0
+	}
+
+	if read != int(count) {
+		l.RaiseError("expected %d bytes but only %d available", count, read)
+		return 0
+	}
+
+	l.Push(lua.LString(bytes))
+
+	return 1
 }
 
 // @group friends
