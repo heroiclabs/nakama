@@ -1,6 +1,11 @@
 # Multi-Game Backend System - Quick Reference
 
-## Available RPC Endpoints (16 Total)
+## Available RPC Endpoints (22 Total)
+
+### Leaderboards (3 RPCs)
+- `create_time_period_leaderboards` - Create daily/weekly/monthly/alltime leaderboards
+- `submit_score_to_time_periods` - Submit score to all time-period leaderboards
+- `get_time_period_leaderboard` - Get leaderboard for specific time period
 
 ### Daily Rewards (2 RPCs)
 - `daily_rewards_get_status` - Get reward status
@@ -28,9 +33,33 @@
 - `friends_challenge_user` - Challenge friend to match
 - `friends_spectate` - Spectate friend's match
 
+### Wallet Mapping (3 RPCs)
+- `get_user_wallet` - Get/create user wallet (Cognito integration)
+- `link_wallet_to_game` - Link wallet to game
+- `get_wallet_registry` - Get all wallets (admin)
+
 ## Quick Unity Integration
 
 ```csharp
+// Leaderboards - Create time-period leaderboards (one-time setup, admin only)
+var create = await client.RpcAsync(session, "create_time_period_leaderboards", "{}");
+
+// Leaderboards - Submit score to all time periods
+var submitScore = await client.RpcAsync(session, "submit_score_to_time_periods", 
+    JsonUtility.ToJson(new { 
+        gameId = "your-game-uuid", 
+        score = 1000,
+        subscore = 0 
+    }));
+
+// Leaderboards - Get leaderboard for a specific period
+var leaderboard = await client.RpcAsync(session, "get_time_period_leaderboard", 
+    JsonUtility.ToJson(new { 
+        gameId = "your-game-uuid",
+        period = "weekly", // "daily", "weekly", "monthly", or "alltime"
+        limit = 10 
+    }));
+
 // Daily Rewards
 var status = await client.RpcAsync(session, "daily_rewards_get_status", 
     JsonUtility.ToJson(new { gameId = "your-game-uuid" }));
