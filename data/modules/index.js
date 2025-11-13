@@ -1,5 +1,13 @@
 // index.js - Main entry point for Nakama 3.x JavaScript runtime
 
+// Load Copilot Wallet Mapping modules
+// @ts-ignore
+var WalletUtils = require('./copilot/wallet_utils.js').WalletUtils;
+// @ts-ignore
+var WalletRegistry = require('./copilot/wallet_registry.js').WalletRegistry;
+// @ts-ignore
+var CognitoWalletMapper = require('./copilot/cognito_wallet_mapper.js').CognitoWalletMapper;
+
 // Define the RPC function first
 function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
     const tokenUrl = "https://api.intelli-verse-x.ai/api/admin/oauth/token";
@@ -187,9 +195,30 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('Starting JavaScript Runtime Initialization');
     logger.info('========================================');
     
-    // Register RPC functions
+    // Register Copilot Wallet Mapping RPCs
+    try {
+        logger.info('[Copilot] Initializing Wallet Mapping Module...');
+        
+        // Register RPC: get_user_wallet
+        initializer.registerRpc('get_user_wallet', CognitoWalletMapper.getUserWallet);
+        logger.info('[Copilot] Registered RPC: get_user_wallet');
+        
+        // Register RPC: link_wallet_to_game
+        initializer.registerRpc('link_wallet_to_game', CognitoWalletMapper.linkWalletToGame);
+        logger.info('[Copilot] Registered RPC: link_wallet_to_game');
+        
+        // Register RPC: get_wallet_registry
+        initializer.registerRpc('get_wallet_registry', CognitoWalletMapper.getWalletRegistry);
+        logger.info('[Copilot] Registered RPC: get_wallet_registry');
+        
+        logger.info('[Copilot] Successfully registered 3 wallet RPC functions');
+    } catch (err) {
+        logger.error('[Copilot] Failed to initialize wallet module: ' + err.message);
+    }
+    
+    // Register Leaderboard RPC
     initializer.registerRpc('create_all_leaderboards_persistent', createAllLeaderboardsPersistent);
-    logger.info('Successfully registered RPC: create_all_leaderboards_persistent');
+    logger.info('[Leaderboards] Registered RPC: create_all_leaderboards_persistent');
     
     // Load copilot modules
     try {
@@ -201,5 +230,6 @@ function InitModule(ctx, logger, nk, initializer) {
     
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
+    logger.info('Total RPCs Registered: 4 (3 Wallet + 1 Leaderboard)');
     logger.info('========================================');
 }
