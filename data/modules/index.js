@@ -8,6 +8,18 @@ var WalletRegistry = require('./copilot/wallet_registry.js').WalletRegistry;
 // @ts-ignore
 var CognitoWalletMapper = require('./copilot/cognito_wallet_mapper.js').CognitoWalletMapper;
 
+// Load new modules
+// @ts-ignore
+var DailyRewards = require('./daily_rewards/daily_rewards.js');
+// @ts-ignore
+var DailyMissions = require('./daily_missions/daily_missions.js');
+// @ts-ignore
+var Wallet = require('./wallet/wallet.js');
+// @ts-ignore
+var Analytics = require('./analytics/analytics.js');
+// @ts-ignore
+var Friends = require('./friends/friends.js');
+
 // Define the RPC function first
 function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
     const tokenUrl = "https://api.intelli-verse-x.ai/api/admin/oauth/token";
@@ -220,6 +232,78 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc('create_all_leaderboards_persistent', createAllLeaderboardsPersistent);
     logger.info('[Leaderboards] Registered RPC: create_all_leaderboards_persistent');
     
+    // Register Daily Rewards RPCs
+    try {
+        logger.info('[DailyRewards] Initializing Daily Rewards Module...');
+        initializer.registerRpc('daily_rewards_get_status', DailyRewards.rpcDailyRewardsGetStatus);
+        logger.info('[DailyRewards] Registered RPC: daily_rewards_get_status');
+        initializer.registerRpc('daily_rewards_claim', DailyRewards.rpcDailyRewardsClaim);
+        logger.info('[DailyRewards] Registered RPC: daily_rewards_claim');
+        logger.info('[DailyRewards] Successfully registered 2 Daily Rewards RPCs');
+    } catch (err) {
+        logger.error('[DailyRewards] Failed to initialize: ' + err.message);
+    }
+    
+    // Register Daily Missions RPCs
+    try {
+        logger.info('[DailyMissions] Initializing Daily Missions Module...');
+        initializer.registerRpc('get_daily_missions', DailyMissions.rpcGetDailyMissions);
+        logger.info('[DailyMissions] Registered RPC: get_daily_missions');
+        initializer.registerRpc('submit_mission_progress', DailyMissions.rpcSubmitMissionProgress);
+        logger.info('[DailyMissions] Registered RPC: submit_mission_progress');
+        initializer.registerRpc('claim_mission_reward', DailyMissions.rpcClaimMissionReward);
+        logger.info('[DailyMissions] Registered RPC: claim_mission_reward');
+        logger.info('[DailyMissions] Successfully registered 3 Daily Missions RPCs');
+    } catch (err) {
+        logger.error('[DailyMissions] Failed to initialize: ' + err.message);
+    }
+    
+    // Register Enhanced Wallet RPCs
+    try {
+        logger.info('[Wallet] Initializing Enhanced Wallet Module...');
+        initializer.registerRpc('wallet_get_all', Wallet.rpcWalletGetAll);
+        logger.info('[Wallet] Registered RPC: wallet_get_all');
+        initializer.registerRpc('wallet_update_global', Wallet.rpcWalletUpdateGlobal);
+        logger.info('[Wallet] Registered RPC: wallet_update_global');
+        initializer.registerRpc('wallet_update_game_wallet', Wallet.rpcWalletUpdateGameWallet);
+        logger.info('[Wallet] Registered RPC: wallet_update_game_wallet');
+        initializer.registerRpc('wallet_transfer_between_game_wallets', Wallet.rpcWalletTransferBetweenGameWallets);
+        logger.info('[Wallet] Registered RPC: wallet_transfer_between_game_wallets');
+        logger.info('[Wallet] Successfully registered 4 Enhanced Wallet RPCs');
+    } catch (err) {
+        logger.error('[Wallet] Failed to initialize: ' + err.message);
+    }
+    
+    // Register Analytics RPCs
+    try {
+        logger.info('[Analytics] Initializing Analytics Module...');
+        initializer.registerRpc('analytics_log_event', Analytics.rpcAnalyticsLogEvent);
+        logger.info('[Analytics] Registered RPC: analytics_log_event');
+        logger.info('[Analytics] Successfully registered 1 Analytics RPC');
+    } catch (err) {
+        logger.error('[Analytics] Failed to initialize: ' + err.message);
+    }
+    
+    // Register Enhanced Friends RPCs
+    try {
+        logger.info('[Friends] Initializing Enhanced Friends Module...');
+        initializer.registerRpc('friends_block', Friends.rpcFriendsBlock);
+        logger.info('[Friends] Registered RPC: friends_block');
+        initializer.registerRpc('friends_unblock', Friends.rpcFriendsUnblock);
+        logger.info('[Friends] Registered RPC: friends_unblock');
+        initializer.registerRpc('friends_remove', Friends.rpcFriendsRemove);
+        logger.info('[Friends] Registered RPC: friends_remove');
+        initializer.registerRpc('friends_list', Friends.rpcFriendsList);
+        logger.info('[Friends] Registered RPC: friends_list');
+        initializer.registerRpc('friends_challenge_user', Friends.rpcFriendsChallengeUser);
+        logger.info('[Friends] Registered RPC: friends_challenge_user');
+        initializer.registerRpc('friends_spectate', Friends.rpcFriendsSpectate);
+        logger.info('[Friends] Registered RPC: friends_spectate');
+        logger.info('[Friends] Successfully registered 6 Enhanced Friends RPCs');
+    } catch (err) {
+        logger.error('[Friends] Failed to initialize: ' + err.message);
+    }
+    
     // Load copilot modules
     try {
         var copilot = require("./copilot/index");
@@ -230,6 +314,7 @@ function InitModule(ctx, logger, nk, initializer) {
     
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total RPCs Registered: 4 (3 Wallet + 1 Leaderboard)');
+    logger.info('Total New System RPCs: 16 (2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends)');
+    logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
