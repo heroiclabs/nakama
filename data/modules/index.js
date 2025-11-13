@@ -7,8 +7,6 @@ var WalletUtils = require('./copilot/wallet_utils.js').WalletUtils;
 var WalletRegistry = require('./copilot/wallet_registry.js').WalletRegistry;
 // @ts-ignore
 var CognitoWalletMapper = require('./copilot/cognito_wallet_mapper.js').CognitoWalletMapper;
-// @ts-ignore
-var CopilotModule = require('./copilot/index.js').CopilotModule;
 
 // Define the RPC function first
 function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
@@ -197,18 +195,33 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('Starting JavaScript Runtime Initialization');
     logger.info('========================================');
     
-    // Initialize Copilot Wallet Mapping Module
+    // Register Copilot Wallet Mapping RPCs
     try {
-        CopilotModule.init(ctx, logger, nk, initializer);
+        logger.info('[Copilot] Initializing Wallet Mapping Module...');
+        
+        // Register RPC: get_user_wallet
+        initializer.registerRpc('get_user_wallet', CognitoWalletMapper.getUserWallet);
+        logger.info('[Copilot] Registered RPC: get_user_wallet');
+        
+        // Register RPC: link_wallet_to_game
+        initializer.registerRpc('link_wallet_to_game', CognitoWalletMapper.linkWalletToGame);
+        logger.info('[Copilot] Registered RPC: link_wallet_to_game');
+        
+        // Register RPC: get_wallet_registry
+        initializer.registerRpc('get_wallet_registry', CognitoWalletMapper.getWalletRegistry);
+        logger.info('[Copilot] Registered RPC: get_wallet_registry');
+        
+        logger.info('[Copilot] Successfully registered 3 wallet RPC functions');
     } catch (err) {
-        logger.error('Failed to initialize Copilot module: ' + err.message);
+        logger.error('[Copilot] Failed to initialize wallet module: ' + err.message);
     }
     
-    // Register RPC functions
+    // Register Leaderboard RPC
     initializer.registerRpc('create_all_leaderboards_persistent', createAllLeaderboardsPersistent);
-    logger.info('Successfully registered RPC: create_all_leaderboards_persistent');
+    logger.info('[Leaderboards] Registered RPC: create_all_leaderboards_persistent');
     
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
+    logger.info('Total RPCs Registered: 4 (3 Wallet + 1 Leaderboard)');
     logger.info('========================================');
 }
