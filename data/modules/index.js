@@ -220,6 +220,14 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc('create_all_leaderboards_persistent', createAllLeaderboardsPersistent);
     logger.info('[Leaderboards] Registered RPC: create_all_leaderboards_persistent');
     
+    // Load copilot modules
+    try {
+        var copilot = require("./copilot/index");
+        copilot.initializeCopilotModules(ctx, logger, nk, initializer);
+    } catch (err) {
+        logger.error('Failed to load copilot modules: ' + err.message);
+    }
+    
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
     logger.info('Total RPCs Registered: 4 (3 Wallet + 1 Leaderboard)');
