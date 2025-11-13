@@ -4,6 +4,7 @@
 
 This comprehensive JavaScript backend system for Nakama 3.x provides a complete multi-game platform with support for:
 
+- **Time-Period Leaderboards** - Daily, weekly, monthly, and all-time leaderboards per game
 - **Daily Rewards & Streaks** - Per-game daily login rewards with streak tracking
 - **Daily Missions** - Configurable daily objectives with progress tracking
 - **Enhanced Wallet System** - Global + per-game wallets with multi-currency support
@@ -34,6 +35,7 @@ analytics_session_${userId}_${gameIdUUID}
 
 ```
 data/modules/
+├── leaderboards_timeperiod.js       # Time-period leaderboards (NEW)
 ├── copilot/
 │   ├── utils.js                    # Shared utilities (EXTENDED)
 │   ├── wallet_utils.js             # JWT utilities
@@ -42,19 +44,195 @@ data/modules/
 │   ├── leaderboard_*.js            # Leaderboard modules
 │   └── social_features.js          # Social features
 ├── daily_rewards/
-│   └── daily_rewards.js            # Daily rewards system (NEW)
+│   └── daily_rewards.js            # Daily rewards system
 ├── daily_missions/
-│   └── daily_missions.js           # Daily missions system (NEW)
+│   └── daily_missions.js           # Daily missions system
 ├── wallet/
-│   └── wallet.js                   # Enhanced wallet system (NEW)
+│   └── wallet.js                   # Enhanced wallet system
 ├── analytics/
-│   └── analytics.js                # Analytics system (NEW)
+│   └── analytics.js                # Analytics system
 ├── friends/
-│   └── friends.js                  # Enhanced friends system (NEW)
+│   └── friends.js                  # Enhanced friends system
 └── index.js                        # Main entry point (UPDATED)
 ```
 
 ## RPC Endpoints
+
+### Time-Period Leaderboards System
+
+#### 0. Leaderboard Overview
+
+The system provides **four time-period leaderboards** for each game:
+
+- **Daily**: Resets every day at midnight UTC (`0 0 * * *`)
+- **Weekly**: Resets every Sunday at midnight UTC (`0 0 * * 0`)
+- **Monthly**: Resets on the 1st of each month at midnight UTC (`0 0 1 * *`)
+- **All-Time**: Never resets (permanent rankings)
+
+Each game has both **per-game leaderboards** and **global leaderboards** across all games.
+
+**Leaderboard IDs:**
+- Per-Game: `leaderboard_{gameId}_{period}` (e.g., `leaderboard_7d4322ae_daily`)
+- Global: `leaderboard_global_{period}` (e.g., `leaderboard_global_weekly`)
+
+**See `LEADERBOARD_TIME_PERIODS_GUIDE.md` for complete documentation.**
+
+#### 0a. `create_time_period_leaderboards`
+
+Create all time-period leaderboards for all games (admin function, run once).
+
+**Request:**
+```json
+{}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "summary": {
+    "totalCreated": 28,
+    "totalSkipped": 0,
+    "totalErrors": 0,
+    "gamesProcessed": 6
+  },
+  "global": {
+    "created": [...],
+    "skipped": [],
+    "errors": []
+  },
+  "games": [...],
+  "timestamp": "2025-11-13T22:00:00.000Z"
+}
+```
+
+**Unity Example:**
+```csharp
+// Admin only - run once to create all leaderboards
+var result = await client.RpcAsync(session, "create_time_period_leaderboards", "{}");
+```
+
+#### 0b. `submit_score_to_time_periods`
+
+Submit a score to all time-period leaderboards for a game in one call.
+
+**Request:**
+```json
+{
+  "gameId": "7d4322ae-cd95-4cd9-b003-4ffad2dc31b4",
+  "score": 1000,
+  "subscore": 0,
+  "metadata": {
+    "level": 5,
+    "difficulty": "hard"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "gameId": "7d4322ae-cd95-4cd9-b003-4ffad2dc31b4",
+  "score": 1000,
+  "userId": "user-uuid",
+  "results": [
+    {
+      "leaderboardId": "leaderboard_7d4322ae_daily",
+      "period": "daily",
+      "scope": "game",
+      "success": true
+    }
+    // ... 7 more results (weekly, monthly, alltime, global x 4)
+  ],
+  "errors": [],
+  "timestamp": "2025-11-13T22:00:00.000Z"
+}
+```
+
+**Unity Example:**
+```csharp
+public async Task SubmitScore(IClient client, ISession session, string gameId, long score)
+{
+    var payload = new { gameId = gameId, score = score, subscore = 0 };
+    var result = await client.RpcAsync(session, "submit_score_to_time_periods", 
+        JsonUtility.ToJson(payload));
+    var response = JsonUtility.FromJson<ScoreSubmissionResponse>(result.Payload);
+    
+    if (response.success)
+    {
+        Debug.Log($"Score submitted to {response.results.Length} leaderboards");
+    }
+}
+```
+
+#### 0c. `get_time_period_leaderboard`
+
+Get leaderboard records for a specific time period.
+
+**Request (Per-Game):**
+```json
+{
+  "gameId": "7d4322ae-cd95-4cd9-b003-4ffad2dc31b4",
+  "period": "weekly",
+  "limit": 10,
+  "cursor": ""
+}
+```
+
+**Request (Global):**
+```json
+{
+  "scope": "global",
+  "period": "monthly",
+  "limit": 50
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "leaderboardId": "leaderboard_7d4322ae_weekly",
+  "period": "weekly",
+  "gameId": "7d4322ae-cd95-4cd9-b003-4ffad2dc31b4",
+  "scope": "game",
+  "records": [
+    {
+      "leaderboard_id": "leaderboard_7d4322ae_weekly",
+      "owner_id": "user-uuid-1",
+      "username": "player1",
+      "score": 5000,
+      "subscore": 0,
+      "rank": 1,
+      "metadata": "{\"level\":10}"
+    }
+  ],
+  "ownerRecords": [],
+  "prevCursor": "",
+  "nextCursor": "",
+  "rankCount": 150
+}
+```
+
+**Unity Example:**
+```csharp
+public async Task<LeaderboardData> GetWeeklyLeaderboard(
+    IClient client, ISession session, string gameId)
+{
+    var payload = new { 
+        gameId = gameId, 
+        period = "weekly", 
+        limit = 10 
+    };
+    
+    var result = await client.RpcAsync(session, "get_time_period_leaderboard", 
+        JsonUtility.ToJson(payload));
+    var response = JsonUtility.FromJson<LeaderboardDataResponse>(result.Payload);
+    
+    return new LeaderboardData { Records = response.records };
+}
+```
 
 ### Daily Rewards System
 
@@ -879,12 +1057,14 @@ curl -X POST "http://127.0.0.1:7350/v2/rpc/analytics_log_event" \
 Potential additions to the system:
 
 1. **Cron Jobs** - Automated daily resets for missions and streaks
-2. **Leaderboards** - Integration with reward/mission systems
+2. ~~**Leaderboards**~~ ✅ **IMPLEMENTED** - Time-period leaderboards (daily, weekly, monthly, all-time)
 3. **Push Notifications** - Remind users of unclaimed rewards
 4. **Economy Balancing** - Dynamic reward adjustment
 5. **Achievement System** - Long-term objectives beyond daily missions
 6. **Seasonal Events** - Time-limited missions and rewards
 7. **Cross-Game Rewards** - Unlock rewards in one game by playing another
+8. **Leaderboard Rewards** - Auto-grant rewards based on leaderboard rank
+9. **Regional Leaderboards** - Per-region rankings
 
 ## Support
 
