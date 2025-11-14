@@ -13,9 +13,10 @@
 9. [Wallet System](#wallet-system)
 10. [Analytics System](#analytics-system)
 11. [Friends & Social System](#friends--social-system)
-12. [Complete Integration Examples](#complete-integration-examples)
-13. [Troubleshooting](#troubleshooting)
-14. [API Reference](#api-reference)
+12. [Push Notifications (AWS SNS/Pinpoint)](#push-notifications)
+13. [Complete Integration Examples](#complete-integration-examples)
+14. [Troubleshooting](#troubleshooting)
+15. [API Reference](#api-reference)
 
 ---
 
@@ -31,6 +32,7 @@ This guide provides everything a Unity game developer needs to integrate their g
 - How to manage wallets and virtual currency
 - How to track analytics
 - How to implement social features
+- How to integrate push notifications (iOS, Android, Web, Windows)
 
 ### What You Need
 
@@ -1689,6 +1691,568 @@ public class ChallengeResponse
 
 ---
 
+## Push Notifications
+
+### Overview
+
+The push notification system integrates with **AWS SNS (Simple Notification Service)** and **AWS Pinpoint** to deliver cross-platform push notifications for iOS, Android, Web (PWA), and Windows.
+
+**Key Architecture Points:**
+- ✅ Unity does **NOT** use AWS SDK
+- ✅ Unity only sends raw device tokens to Nakama
+- ✅ Nakama forwards to AWS Lambda via Function URL
+- ✅ Lambda creates SNS endpoints and manages Pinpoint analytics
+- ✅ All platforms supported: APNS (iOS), FCM (Android/Web), WNS (Windows)
+
+### Architecture Flow
+
+```
+Unity Client → Get Push Token from OS → Nakama RPC
+              ↓
+Nakama → Lambda Function URL (HTTP POST)
+              ↓
+Lambda → SNS CreatePlatformEndpoint → Pinpoint Registration
+              ↓
+Lambda returns SNS Endpoint ARN
+              ↓
+Nakama stores ARN for future push sends
+```
+
+### Step 1: Obtain Device Token (Platform-Specific)
+
+#### iOS (APNS)
+
+```csharp
+using UnityEngine;
+using UnityEngine.iOS;
+#if UNITY_IOS
+using Unity.Notifications.iOS;
+#endif
+
+public class iOSPushManager : MonoBehaviour
+{
+    void Start()
+    {
+        #if UNITY_IOS
+        StartCoroutine(RequestAuthorization());
+        #endif
+    }
+
+    IEnumerator RequestAuthorization()
+    {
+        #if UNITY_IOS
+        var authorizationOption = AuthorizationOption.Alert | AuthorizationOption.Badge | AuthorizationOption.Sound;
+        
+        using (var req = new AuthorizationRequest(authorizationOption, true))
+        {
+            while (!req.IsFinished)
+            {
+                yield return null;
+            }
+
+            if (req.Granted && req.DeviceToken != "")
+            {
+                string deviceToken = req.DeviceToken;
+                Debug.Log($"iOS Device Token: {deviceToken}");
+                
+                // Register with Nakama
+                await RegisterPushToken("ios", deviceToken);
+            }
+            else
+            {
+                Debug.LogWarning("Push notification authorization denied");
+            }
+        }
+        #endif
+    }
+
+    async Task RegisterPushToken(string platform, string token)
+    {
+        // Implementation below
+    }
+}
+```
+
+#### Android (FCM)
+
+```csharp
+using Firebase.Messaging;
+using UnityEngine;
+
+public class AndroidPushManager : MonoBehaviour
+{
+    void Start()
+    {
+        #if UNITY_ANDROID
+        Firebase.FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task =>
+        {
+            if (task.Result == Firebase.DependencyStatus.Available)
+            {
+                InitializeFirebaseMessaging();
+            }
+            else
+            {
+                Debug.LogError("Could not resolve Firebase dependencies: " + task.Result);
+            }
+        });
+        #endif
+    }
+
+    void InitializeFirebaseMessaging()
+    {
+        #if UNITY_ANDROID
+        Firebase.Messaging.FirebaseMessaging.TokenReceived += OnTokenReceived;
+        Firebase.Messaging.FirebaseMessaging.MessageReceived += OnMessageReceived;
+        #endif
+    }
+
+    void OnTokenReceived(object sender, Firebase.Messaging.TokenReceivedEventArgs token)
+    {
+        Debug.Log($"Android FCM Token: {token.Token}");
+        
+        // Register with Nakama
+        _ = RegisterPushToken("android", token.Token);
+    }
+
+    void OnMessageReceived(object sender, Firebase.Messaging.MessageReceivedEventArgs e)
+    {
+        Debug.Log($"Push notification received: {e.Message.Notification.Title}");
+        
+        // Handle notification data
+        if (e.Message.Data != null && e.Message.Data.Count > 0)
+        {
+            HandlePushData(e.Message.Data);
+        }
+    }
+
+    async Task RegisterPushToken(string platform, string token)
+    {
+        // Implementation below
+    }
+
+    void HandlePushData(IDictionary<string, string> data)
+    {
+        if (data.ContainsKey("eventType"))
+        {
+            string eventType = data["eventType"];
+            Debug.Log($"Push event type: {eventType}");
+            
+            switch (eventType)
+            {
+                case "daily_reward_available":
+                    UIManager.Instance.ShowDailyRewardNotification();
+                    break;
+                case "friend_online":
+                    UIManager.Instance.ShowFriendOnlineNotification(data["friendUserId"]);
+                    break;
+                case "challenge_invite":
+                    UIManager.Instance.ShowChallengeInvite(data["challengeId"]);
+                    break;
+            }
+        }
+    }
+}
+```
+
+#### WebGL / PWA (FCM)
+
+```csharp
+using UnityEngine;
+using System.Runtime.InteropServices;
+
+public class WebPushManager : MonoBehaviour
+{
+    #if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void RequestPushPermission();
+    
+    [DllImport("__Internal")]
+    private static extern string GetFCMToken();
+    #endif
+
+    public void InitializeWebPush()
+    {
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        RequestPushPermission();
+        StartCoroutine(WaitForToken());
+        #endif
+    }
+
+    IEnumerator WaitForToken()
+    {
+        yield return new WaitForSeconds(2f);
+        
+        #if UNITY_WEBGL && !UNITY_EDITOR
+        string token = GetFCMToken();
+        if (!string.IsNullOrEmpty(token))
+        {
+            Debug.Log($"Web FCM Token: {token}");
+            _ = RegisterPushToken("web", token);
+        }
+        #endif
+    }
+
+    async Task RegisterPushToken(string platform, string token)
+    {
+        // Implementation below
+    }
+}
+```
+
+### Step 2: Register Token with Nakama
+
+**Universal method for all platforms:**
+
+```csharp
+using Nakama;
+using System.Threading.Tasks;
+using UnityEngine;
+
+public class PushNotificationManager : MonoBehaviour
+{
+    private IClient client;
+    private ISession session;
+    private string gameId = "YOUR-GAME-UUID";
+
+    /// <summary>
+    /// Register device push token with Nakama
+    /// Nakama forwards to Lambda which creates SNS endpoint
+    /// </summary>
+    public async Task<bool> RegisterPushToken(string platform, string deviceToken)
+    {
+        if (client == null || session == null)
+        {
+            Debug.LogError("Nakama client not initialized");
+            return false;
+        }
+
+        try
+        {
+            var payload = new PushTokenPayload
+            {
+                gameId = gameId,
+                platform = platform, // "ios", "android", "web", or "windows"
+                token = deviceToken
+            };
+
+            var result = await client.RpcAsync(
+                session,
+                "push_register_token",
+                JsonUtility.ToJson(payload)
+            );
+
+            var response = JsonUtility.FromJson<PushTokenResponse>(result.Payload);
+
+            if (response.success)
+            {
+                Debug.Log($"✓ Push token registered successfully");
+                Debug.Log($"Platform: {response.platform}");
+                Debug.Log($"Endpoint ARN: {response.endpointArn}");
+                
+                // Save registration status locally
+                PlayerPrefs.SetString($"push_registered_{platform}", "true");
+                PlayerPrefs.SetString($"push_token_{platform}", deviceToken);
+                PlayerPrefs.Save();
+                
+                return true;
+            }
+            else
+            {
+                Debug.LogError($"Failed to register push token: {response.error}");
+                return false;
+            }
+        }
+        catch (ApiResponseException ex)
+        {
+            Debug.LogError($"Push token registration failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Get all registered push endpoints for this user
+    /// </summary>
+    public async Task<PushEndpoint[]> GetRegisteredEndpoints()
+    {
+        try
+        {
+            var payload = new { gameId = gameId };
+            
+            var result = await client.RpcAsync(
+                session,
+                "push_get_endpoints",
+                JsonUtility.ToJson(payload)
+            );
+
+            var response = JsonUtility.FromJson<PushEndpointsResponse>(result.Payload);
+
+            if (response.success)
+            {
+                Debug.Log($"✓ Found {response.count} registered endpoints");
+                return response.endpoints;
+            }
+        }
+        catch (ApiResponseException ex)
+        {
+            Debug.LogError($"Failed to get endpoints: {ex.Message}");
+        }
+
+        return new PushEndpoint[0];
+    }
+}
+
+[System.Serializable]
+public class PushTokenPayload
+{
+    public string gameId;
+    public string platform;
+    public string token;
+}
+
+[System.Serializable]
+public class PushTokenResponse
+{
+    public bool success;
+    public string userId;
+    public string gameId;
+    public string platform;
+    public string endpointArn;
+    public string registeredAt;
+    public string error;
+}
+
+[System.Serializable]
+public class PushEndpointsResponse
+{
+    public bool success;
+    public string userId;
+    public string gameId;
+    public PushEndpoint[] endpoints;
+    public int count;
+}
+
+[System.Serializable]
+public class PushEndpoint
+{
+    public string userId;
+    public string gameId;
+    public string platform;
+    public string endpointArn;
+    public string createdAt;
+    public string updatedAt;
+}
+```
+
+### Step 3: Server-Side Push Triggers (Optional)
+
+While most push notifications are triggered server-side automatically (e.g., daily rewards, friend online), you can also trigger custom push events:
+
+```csharp
+/// <summary>
+/// Trigger a push notification to a specific user
+/// This is typically called server-side, but shown here for reference
+/// </summary>
+public async Task<bool> SendPushNotification(
+    string targetUserId,
+    string eventType,
+    string title,
+    string body,
+    Dictionary<string, object> customData = null)
+{
+    try
+    {
+        var payload = new PushEventPayload
+        {
+            targetUserId = targetUserId,
+            gameId = gameId,
+            eventType = eventType,
+            title = title,
+            body = body,
+            data = customData ?? new Dictionary<string, object>()
+        };
+
+        var result = await client.RpcAsync(
+            session,
+            "push_send_event",
+            JsonUtility.ToJson(payload)
+        );
+
+        var response = JsonUtility.FromJson<PushEventResponse>(result.Payload);
+
+        if (response.success)
+        {
+            Debug.Log($"✓ Push notification sent to {response.sentCount} devices");
+            return true;
+        }
+        else
+        {
+            Debug.LogWarning($"Push send failed: {response.error}");
+            return false;
+        }
+    }
+    catch (ApiResponseException ex)
+    {
+        Debug.LogError($"Failed to send push: {ex.Message}");
+        return false;
+    }
+}
+
+[System.Serializable]
+public class PushEventPayload
+{
+    public string targetUserId;
+    public string gameId;
+    public string eventType;
+    public string title;
+    public string body;
+    public Dictionary<string, object> data;
+}
+
+[System.Serializable]
+public class PushEventResponse
+{
+    public bool success;
+    public string targetUserId;
+    public string gameId;
+    public string eventType;
+    public int sentCount;
+    public int totalEndpoints;
+    public PushError[] errors;
+}
+
+[System.Serializable]
+public class PushError
+{
+    public string platform;
+    public string error;
+}
+```
+
+### Complete Push Notification Manager Example
+
+```csharp
+using Nakama;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using UnityEngine;
+
+public class CompletePushManager : MonoBehaviour
+{
+    [Header("References")]
+    [SerializeField] private NakamaBackend nakamaBackend;
+    
+    private string gameId = "YOUR-GAME-UUID";
+
+    void Start()
+    {
+        InitializePushNotifications();
+    }
+
+    async void InitializePushNotifications()
+    {
+        // Wait for Nakama to be ready
+        while (!nakamaBackend.IsConnected)
+        {
+            await Task.Delay(100);
+        }
+
+        // Platform-specific token retrieval
+        #if UNITY_IOS
+        await InitializeIOSPush();
+        #elif UNITY_ANDROID
+        await InitializeAndroidPush();
+        #elif UNITY_WEBGL
+        InitializeWebPush();
+        #elif UNITY_STANDALONE_WIN
+        await InitializeWindowsPush();
+        #endif
+    }
+
+    #if UNITY_IOS
+    async Task InitializeIOSPush()
+    {
+        // iOS-specific initialization (see iOS example above)
+        Debug.Log("Initializing iOS push notifications...");
+    }
+    #endif
+
+    #if UNITY_ANDROID
+    async Task InitializeAndroidPush()
+    {
+        // Android-specific initialization (see Android example above)
+        Debug.Log("Initializing Android push notifications...");
+    }
+    #endif
+
+    #if UNITY_WEBGL
+    void InitializeWebPush()
+    {
+        // Web-specific initialization (see Web example above)
+        Debug.Log("Initializing Web push notifications...");
+    }
+    #endif
+
+    /// <summary>
+    /// Called when user enables push notifications in settings
+    /// </summary>
+    public async void OnPushNotificationsEnabled()
+    {
+        Debug.Log("User enabled push notifications");
+        // Re-register token if needed
+    }
+
+    /// <summary>
+    /// Called when user disables push notifications in settings
+    /// </summary>
+    public async void OnPushNotificationsDisabled()
+    {
+        Debug.Log("User disabled push notifications");
+        // Optionally remove endpoints or mark as disabled
+    }
+}
+```
+
+### Push Notification Best Practices
+
+1. **Request Permission at the Right Time**
+   - Don't request on app launch
+   - Request after user completes tutorial or first match
+   - Explain the value proposition first
+
+2. **Handle Token Refreshes**
+   - FCM tokens can refresh
+   - Re-register when `OnTokenReceived` is called
+
+3. **Test on Real Devices**
+   - Push notifications don't work in Unity Editor
+   - Test on actual iOS/Android devices
+
+4. **Handle Deep Links**
+   - Include deep link data in push payload
+   - Navigate user to relevant screen when tapped
+
+5. **Respect User Preferences**
+   - Allow users to disable specific notification types
+   - Store preferences server-side
+
+### Automatic Push Event Triggers
+
+The following events automatically trigger push notifications (server-side):
+
+| Event | Trigger Condition | Title Example | Body Example |
+|-------|------------------|---------------|--------------|
+| `daily_reward_available` | 24h since last claim | "Daily Reward Ready!" | "Claim your day 3 bonus now!" |
+| `mission_completed` | Mission objectives met | "Mission Complete!" | "You've earned 100 XP + 50 tokens" |
+| `streak_warning` | 47h since last claim | "Streak Expiring Soon!" | "Claim reward to keep your 5-day streak" |
+| `friend_online` | Friend connects | "Friend Online" | "John is now online" |
+| `challenge_invite` | Friend sends challenge | "Challenge Received!" | "Sarah challenged you to a duel" |
+| `match_ready` | Matchmaking complete | "Match Found!" | "Your 2v2 match is ready" |
+| `wallet_reward` | Currency granted | "Reward Received!" | "You got 500 tokens" |
+| `new_content` | New season/quiz pack | "New Content!" | "Season 2 is now live" |
+
+---
+
 ## Complete Integration Examples
 
 ### Example 1: Complete Game Manager
@@ -1881,6 +2445,9 @@ if (session.IsExpired)
 | | `friends_list` | Get friends list |
 | | `friends_challenge_user` | Challenge friend |
 | | `friends_spectate` | Spectate friend's match |
+| **Push Notifications** | `push_register_token` | Register device push token |
+| | `push_send_event` | Send push notification event |
+| | `push_get_endpoints` | Get user's registered endpoints |
 | **Wallet Mapping** | `get_user_wallet` | Get/create user wallet (Cognito) |
 | | `link_wallet_to_game` | Link wallet to game |
 | | `get_wallet_registry` | Get all wallets (admin) |
@@ -1904,6 +2471,8 @@ if (session.IsExpired)
 | `transaction_logs` | Transaction history | `transaction_log_{userId}_{timestamp}` |
 | `analytics_events` | Event logs | `event_{userId}_{gameId}_{timestamp}` |
 | `leaderboards_registry` | Leaderboard metadata | `time_period_leaderboards` |
+| `push_endpoints` | Push notification endpoints | `push_endpoint_{userId}_{gameId}_{platform}` |
+| `push_notification_logs` | Push notification history | `push_log_{userId}_{timestamp}` |
 
 ---
 
