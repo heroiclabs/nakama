@@ -5021,93 +5021,6 @@ function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
 // INIT MODULE - ENTRY POINT
 // ============================================================================
 
-
-
-// ============================================================================
-// COPILOT INITIALIZATION
-// ============================================================================
-
-/**
- * Initialize copilot modules and register RPCs
- * This function is called from the parent InitModule
- */
-function initializeCopilotModules(ctx, logger, nk, initializer) {
-    logger.info('========================================');
-    logger.info('Initializing Copilot Leaderboard Modules');
-    logger.info('========================================');
-
-    // Register leaderboard_sync RPCs
-    try {
-        initializer.registerRpc('submit_score_sync', rpcSubmitScoreSync);
-        logger.info('✓ Registered RPC: submit_score_sync');
-    } catch (err) {
-        logger.error('✗ Failed to register submit_score_sync: ' + err.message);
-    }
-
-    // Register leaderboard_aggregate RPCs
-    try {
-        initializer.registerRpc('submit_score_with_aggregate', rpcSubmitScoreWithAggregate);
-        logger.info('✓ Registered RPC: submit_score_with_aggregate');
-    } catch (err) {
-        logger.error('✗ Failed to register submit_score_with_aggregate: ' + err.message);
-    }
-
-    // Register leaderboard_friends RPCs
-    try {
-        initializer.registerRpc('create_all_leaderboards_with_friends', rpcCreateAllLeaderboardsWithFriends);
-        logger.info('✓ Registered RPC: create_all_leaderboards_with_friends');
-    } catch (err) {
-        logger.error('✗ Failed to register create_all_leaderboards_with_friends: ' + err.message);
-    }
-
-    try {
-        initializer.registerRpc('submit_score_with_friends_sync', rpcSubmitScoreWithFriendsSync);
-        logger.info('✓ Registered RPC: submit_score_with_friends_sync');
-    } catch (err) {
-        logger.error('✗ Failed to register submit_score_with_friends_sync: ' + err.message);
-    }
-
-    try {
-        initializer.registerRpc('get_friend_leaderboard', rpcGetFriendLeaderboard);
-        logger.info('✓ Registered RPC: get_friend_leaderboard');
-    } catch (err) {
-        logger.error('✗ Failed to register get_friend_leaderboard: ' + err.message);
-    }
-
-    // Register social_features RPCs
-    try {
-        initializer.registerRpc('send_friend_invite', rpcSendFriendInvite);
-        logger.info('✓ Registered RPC: send_friend_invite');
-    } catch (err) {
-        logger.error('✗ Failed to register send_friend_invite: ' + err.message);
-    }
-
-    try {
-        initializer.registerRpc('accept_friend_invite', rpcAcceptFriendInvite);
-        logger.info('✓ Registered RPC: accept_friend_invite');
-    } catch (err) {
-        logger.error('✗ Failed to register accept_friend_invite: ' + err.message);
-    }
-
-    try {
-        initializer.registerRpc('decline_friend_invite', rpcDeclineFriendInvite);
-        logger.info('✓ Registered RPC: decline_friend_invite');
-    } catch (err) {
-        logger.error('✗ Failed to register decline_friend_invite: ' + err.message);
-    }
-
-    try {
-        initializer.registerRpc('get_notifications', rpcGetNotifications);
-        logger.info('✓ Registered RPC: get_notifications');
-    } catch (err) {
-        logger.error('✗ Failed to register get_notifications: ' + err.message);
-    }
-
-    logger.info('========================================');
-    logger.info('Copilot Leaderboard Modules Loaded Successfully');
-    logger.info('========================================');
-}
-
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
@@ -5118,15 +5031,15 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[Copilot] Initializing Wallet Mapping Module...');
         
         // Register RPC: get_user_wallet
-        initializer.registerRpc('get_user_wallet', getUserWallet);
+        initializer.registerRpc('get_user_wallet', CognitoWalletMapper.getUserWallet);
         logger.info('[Copilot] Registered RPC: get_user_wallet');
         
         // Register RPC: link_wallet_to_game
-        initializer.registerRpc('link_wallet_to_game', linkWalletToGame);
+        initializer.registerRpc('link_wallet_to_game', CognitoWalletMapper.linkWalletToGame);
         logger.info('[Copilot] Registered RPC: link_wallet_to_game');
         
         // Register RPC: get_wallet_registry
-        initializer.registerRpc('get_wallet_registry', getWalletRegistry);
+        initializer.registerRpc('get_wallet_registry', CognitoWalletMapper.getWalletRegistry);
         logger.info('[Copilot] Registered RPC: get_wallet_registry');
         
         logger.info('[Copilot] Successfully registered 3 wallet RPC functions');
@@ -5141,11 +5054,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Time-Period Leaderboard RPCs
     try {
         logger.info('[Leaderboards] Initializing Time-Period Leaderboard Module...');
-        initializer.registerRpc('create_time_period_leaderboards', rpcCreateTimePeriodLeaderboards);
+        initializer.registerRpc('create_time_period_leaderboards', LeaderboardsTimePeriod.rpcCreateTimePeriodLeaderboards);
         logger.info('[Leaderboards] Registered RPC: create_time_period_leaderboards');
-        initializer.registerRpc('submit_score_to_time_periods', rpcSubmitScoreToTimePeriods);
+        initializer.registerRpc('submit_score_to_time_periods', LeaderboardsTimePeriod.rpcSubmitScoreToTimePeriods);
         logger.info('[Leaderboards] Registered RPC: submit_score_to_time_periods');
-        initializer.registerRpc('get_time_period_leaderboard', rpcGetTimePeriodLeaderboard);
+        initializer.registerRpc('get_time_period_leaderboard', LeaderboardsTimePeriod.rpcGetTimePeriodLeaderboard);
         logger.info('[Leaderboards] Registered RPC: get_time_period_leaderboard');
         logger.info('[Leaderboards] Successfully registered 3 Time-Period Leaderboard RPCs');
     } catch (err) {
@@ -5155,9 +5068,9 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Daily Rewards RPCs
     try {
         logger.info('[DailyRewards] Initializing Daily Rewards Module...');
-        initializer.registerRpc('daily_rewards_get_status', rpcDailyRewardsGetStatus);
+        initializer.registerRpc('daily_rewards_get_status', DailyRewards.rpcDailyRewardsGetStatus);
         logger.info('[DailyRewards] Registered RPC: daily_rewards_get_status');
-        initializer.registerRpc('daily_rewards_claim', rpcDailyRewardsClaim);
+        initializer.registerRpc('daily_rewards_claim', DailyRewards.rpcDailyRewardsClaim);
         logger.info('[DailyRewards] Registered RPC: daily_rewards_claim');
         logger.info('[DailyRewards] Successfully registered 2 Daily Rewards RPCs');
     } catch (err) {
@@ -5167,11 +5080,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Daily Missions RPCs
     try {
         logger.info('[DailyMissions] Initializing Daily Missions Module...');
-        initializer.registerRpc('get_daily_missions', rpcGetDailyMissions);
+        initializer.registerRpc('get_daily_missions', DailyMissions.rpcGetDailyMissions);
         logger.info('[DailyMissions] Registered RPC: get_daily_missions');
-        initializer.registerRpc('submit_mission_progress', rpcSubmitMissionProgress);
+        initializer.registerRpc('submit_mission_progress', DailyMissions.rpcSubmitMissionProgress);
         logger.info('[DailyMissions] Registered RPC: submit_mission_progress');
-        initializer.registerRpc('claim_mission_reward', rpcClaimMissionReward);
+        initializer.registerRpc('claim_mission_reward', DailyMissions.rpcClaimMissionReward);
         logger.info('[DailyMissions] Registered RPC: claim_mission_reward');
         logger.info('[DailyMissions] Successfully registered 3 Daily Missions RPCs');
     } catch (err) {
@@ -5181,13 +5094,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Enhanced Wallet RPCs
     try {
         logger.info('[Wallet] Initializing Enhanced Wallet Module...');
-        initializer.registerRpc('wallet_get_all', rpcWalletGetAll);
+        initializer.registerRpc('wallet_get_all', Wallet.rpcWalletGetAll);
         logger.info('[Wallet] Registered RPC: wallet_get_all');
-        initializer.registerRpc('wallet_update_global', rpcWalletUpdateGlobal);
+        initializer.registerRpc('wallet_update_global', Wallet.rpcWalletUpdateGlobal);
         logger.info('[Wallet] Registered RPC: wallet_update_global');
-        initializer.registerRpc('wallet_update_game_wallet', rpcWalletUpdateGameWallet);
+        initializer.registerRpc('wallet_update_game_wallet', Wallet.rpcWalletUpdateGameWallet);
         logger.info('[Wallet] Registered RPC: wallet_update_game_wallet');
-        initializer.registerRpc('wallet_transfer_between_game_wallets', rpcWalletTransferBetweenGameWallets);
+        initializer.registerRpc('wallet_transfer_between_game_wallets', Wallet.rpcWalletTransferBetweenGameWallets);
         logger.info('[Wallet] Registered RPC: wallet_transfer_between_game_wallets');
         logger.info('[Wallet] Successfully registered 4 Enhanced Wallet RPCs');
     } catch (err) {
@@ -5197,7 +5110,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Analytics RPCs
     try {
         logger.info('[Analytics] Initializing Analytics Module...');
-        initializer.registerRpc('analytics_log_event', rpcAnalyticsLogEvent);
+        initializer.registerRpc('analytics_log_event', Analytics.rpcAnalyticsLogEvent);
         logger.info('[Analytics] Registered RPC: analytics_log_event');
         logger.info('[Analytics] Successfully registered 1 Analytics RPC');
     } catch (err) {
@@ -5207,17 +5120,17 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Enhanced Friends RPCs
     try {
         logger.info('[Friends] Initializing Enhanced Friends Module...');
-        initializer.registerRpc('friends_block', rpcFriendsBlock);
+        initializer.registerRpc('friends_block', Friends.rpcFriendsBlock);
         logger.info('[Friends] Registered RPC: friends_block');
-        initializer.registerRpc('friends_unblock', rpcFriendsUnblock);
+        initializer.registerRpc('friends_unblock', Friends.rpcFriendsUnblock);
         logger.info('[Friends] Registered RPC: friends_unblock');
-        initializer.registerRpc('friends_remove', rpcFriendsRemove);
+        initializer.registerRpc('friends_remove', Friends.rpcFriendsRemove);
         logger.info('[Friends] Registered RPC: friends_remove');
-        initializer.registerRpc('friends_list', rpcFriendsList);
+        initializer.registerRpc('friends_list', Friends.rpcFriendsList);
         logger.info('[Friends] Registered RPC: friends_list');
-        initializer.registerRpc('friends_challenge_user', rpcFriendsChallengeUser);
+        initializer.registerRpc('friends_challenge_user', Friends.rpcFriendsChallengeUser);
         logger.info('[Friends] Registered RPC: friends_challenge_user');
-        initializer.registerRpc('friends_spectate', rpcFriendsSpectate);
+        initializer.registerRpc('friends_spectate', Friends.rpcFriendsSpectate);
         logger.info('[Friends] Registered RPC: friends_spectate');
         logger.info('[Friends] Successfully registered 6 Enhanced Friends RPCs');
     } catch (err) {
@@ -5227,15 +5140,15 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Groups/Clans/Guilds RPCs
     try {
         logger.info('[Groups] Initializing Groups/Clans/Guilds Module...');
-        initializer.registerRpc('create_game_group', rpcCreateGameGroup);
+        initializer.registerRpc('create_game_group', Groups.rpcCreateGameGroup);
         logger.info('[Groups] Registered RPC: create_game_group');
-        initializer.registerRpc('update_group_xp', rpcUpdateGroupXP);
+        initializer.registerRpc('update_group_xp', Groups.rpcUpdateGroupXP);
         logger.info('[Groups] Registered RPC: update_group_xp');
-        initializer.registerRpc('get_group_wallet', rpcGetGroupWallet);
+        initializer.registerRpc('get_group_wallet', Groups.rpcGetGroupWallet);
         logger.info('[Groups] Registered RPC: get_group_wallet');
-        initializer.registerRpc('update_group_wallet', rpcUpdateGroupWallet);
+        initializer.registerRpc('update_group_wallet', Groups.rpcUpdateGroupWallet);
         logger.info('[Groups] Registered RPC: update_group_wallet');
-        initializer.registerRpc('get_user_groups', rpcGetUserGroups);
+        initializer.registerRpc('get_user_groups', Groups.rpcGetUserGroups);
         logger.info('[Groups] Registered RPC: get_user_groups');
         logger.info('[Groups] Successfully registered 5 Groups/Clans RPCs');
     } catch (err) {
@@ -5245,11 +5158,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Push Notifications RPCs
     try {
         logger.info('[PushNotifications] Initializing Push Notification Module...');
-        initializer.registerRpc('push_register_token', rpcPushRegisterToken);
+        initializer.registerRpc('push_register_token', PushNotifications.rpcPushRegisterToken);
         logger.info('[PushNotifications] Registered RPC: push_register_token');
-        initializer.registerRpc('push_send_event', rpcPushSendEvent);
+        initializer.registerRpc('push_send_event', PushNotifications.rpcPushSendEvent);
         logger.info('[PushNotifications] Registered RPC: push_send_event');
-        initializer.registerRpc('push_get_endpoints', rpcPushGetEndpoints);
+        initializer.registerRpc('push_get_endpoints', PushNotifications.rpcPushGetEndpoints);
         logger.info('[PushNotifications] Registered RPC: push_get_endpoints');
         logger.info('[PushNotifications] Successfully registered 3 Push Notification RPCs');
     } catch (err) {
@@ -5258,7 +5171,7 @@ function InitModule(ctx, logger, nk, initializer) {
     
     // Load copilot modules
     try {
-        initializeCopilotModules(ctx, logger, nk, initializer);
+        copilot.initializeCopilotModules(ctx, logger, nk, initializer);
     } catch (err) {
         logger.error('Failed to load copilot modules: ' + err.message);
     }
@@ -5269,3 +5182,5 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
+
+// Export InitModule as default (ES Module syntax - REQUIRED for Nakama)
