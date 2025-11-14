@@ -1,30 +1,22 @@
-// index.js - Main entry point for Nakama 3.x JavaScript runtime
+// index.js - Main entry point for Nakama 3.x JavaScript runtime (ES Module syntax)
 
-// Load Copilot Wallet Mapping modules
-// @ts-ignore
-var WalletUtils = require('./copilot/wallet_utils.js').WalletUtils;
-// @ts-ignore
-var WalletRegistry = require('./copilot/wallet_registry.js').WalletRegistry;
-// @ts-ignore
-var CognitoWalletMapper = require('./copilot/cognito_wallet_mapper.js').CognitoWalletMapper;
+// Import Copilot Wallet Mapping modules
+import * as WalletUtils from './copilot/wallet_utils.js';
+import * as WalletRegistry from './copilot/wallet_registry.js';
+import * as CognitoWalletMapper from './copilot/cognito_wallet_mapper.js';
 
-// Load new modules
-// @ts-ignore
-var DailyRewards = require('./daily_rewards/daily_rewards.js');
-// @ts-ignore
-var DailyMissions = require('./daily_missions/daily_missions.js');
-// @ts-ignore
-var Wallet = require('./wallet/wallet.js');
-// @ts-ignore
-var Analytics = require('./analytics/analytics.js');
-// @ts-ignore
-var Friends = require('./friends/friends.js');
-// @ts-ignore
-var LeaderboardsTimePeriod = require('./leaderboards_timeperiod.js');
-// @ts-ignore
-var Groups = require('./groups/groups.js');
-// @ts-ignore
-var PushNotifications = require('./push_notifications/push_notifications.js');
+// Import feature modules
+import * as DailyRewards from './daily_rewards/daily_rewards.js';
+import * as DailyMissions from './daily_missions/daily_missions.js';
+import * as Wallet from './wallet/wallet.js';
+import * as Analytics from './analytics/analytics.js';
+import * as Friends from './friends/friends.js';
+import * as LeaderboardsTimePeriod from './leaderboards_timeperiod.js';
+import * as Groups from './groups/groups.js';
+import * as PushNotifications from './push_notifications/push_notifications.js';
+
+// Import copilot modules
+import * as copilot from "./copilot/index.js";
 
 // Define the RPC function first
 function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
@@ -358,7 +350,6 @@ function InitModule(ctx, logger, nk, initializer) {
     
     // Load copilot modules
     try {
-        var copilot = require("./copilot/index");
         copilot.initializeCopilotModules(ctx, logger, nk, initializer);
     } catch (err) {
         logger.error('Failed to load copilot modules: ' + err.message);
@@ -370,3 +361,6 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
+
+// Export InitModule as default (ES Module syntax - REQUIRED for Nakama)
+export default InitModule;

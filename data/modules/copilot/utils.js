@@ -225,24 +225,22 @@ function writeStorage(nk, logger, collection, key, userId, value, permissionRead
     }
 }
 
-// Export functions for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        validatePayload: validatePayload,
-        readRegistry: readRegistry,
-        safeJsonParse: safeJsonParse,
-        handleError: handleError,
-        logInfo: logInfo,
-        logWarn: logWarn,
-        logError: logError,
-        isValidUUID: isValidUUID,
-        getCurrentTimestamp: getCurrentTimestamp,
-        getUnixTimestamp: getUnixTimestamp,
-        isWithinHours: isWithinHours,
-        getStartOfDay: getStartOfDay,
-        makeGameStorageKey: makeGameStorageKey,
-        makeGlobalStorageKey: makeGlobalStorageKey,
-        readStorage: readStorage,
-        writeStorage: writeStorage
-    };
-}
+// Export functions for use in other modules (ES Module syntax)
+export {
+    validatePayload,
+    readRegistry,
+    safeJsonParse,
+    handleError,
+    logInfo,
+    logWarn,
+    logError,
+    isValidUUID,
+    getCurrentTimestamp,
+    getUnixTimestamp,
+    isWithinHours,
+    getStartOfDay,
+    makeGameStorageKey,
+    makeGlobalStorageKey,
+    readStorage,
+    writeStorage
+};

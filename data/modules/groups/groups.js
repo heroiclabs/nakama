@@ -587,14 +587,12 @@ function getRoleName(state) {
     return "Unknown";
 }
 
-// Export functions
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        rpcCreateGameGroup: rpcCreateGameGroup,
-        rpcUpdateGroupXP: rpcUpdateGroupXP,
-        rpcGetGroupWallet: rpcGetGroupWallet,
-        rpcUpdateGroupWallet: rpcUpdateGroupWallet,
-        rpcGetUserGroups: rpcGetUserGroups,
-        GROUP_ROLES: GROUP_ROLES
-    };
-}
+// Export functions (ES Module syntax)
+export {
+    rpcCreateGameGroup,
+    rpcUpdateGroupXP,
+    rpcGetGroupWallet,
+    rpcUpdateGroupWallet,
+    rpcGetUserGroups,
+    GROUP_ROLES
+};

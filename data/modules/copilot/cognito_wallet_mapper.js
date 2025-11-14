@@ -1,5 +1,8 @@
 // cognito_wallet_mapper.js - Core RPC functions for Cognito ↔ Wallet mapping
 
+import * as WalletUtils from './wallet_utils.js';
+import * as WalletRegistry from './wallet_registry.js';
+
 /**
  * RPC: get_user_wallet
  * Retrieves or creates a wallet for a Cognito user
@@ -228,9 +231,9 @@ function getWalletRegistry(ctx, logger, nk, payload) {
     }
 }
 
-// Export RPC functions
-var CognitoWalletMapper = {
-    getUserWallet: getUserWallet,
-    linkWalletToGame: linkWalletToGame,
-    getWalletRegistry: getWalletRegistry
+// Export RPC functions (ES Module syntax)
+export {
+    getUserWallet,
+    linkWalletToGame,
+    getWalletRegistry
 };

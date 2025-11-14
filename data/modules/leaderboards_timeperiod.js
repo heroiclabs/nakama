@@ -611,15 +611,13 @@ function rpcGetTimePeriodLeaderboard(ctx, logger, nk, payload) {
     }
 }
 
-// Export functions
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        createGameLeaderboards: createGameLeaderboards,
-        createGlobalLeaderboards: createGlobalLeaderboards,
-        rpcCreateTimePeriodLeaderboards: rpcCreateTimePeriodLeaderboards,
-        rpcSubmitScoreToTimePeriods: rpcSubmitScoreToTimePeriods,
-        rpcGetTimePeriodLeaderboard: rpcGetTimePeriodLeaderboard,
-        RESET_SCHEDULES: RESET_SCHEDULES,
-        LEADERBOARD_CONFIG: LEADERBOARD_CONFIG
-    };
-}
+// Export functions (ES Module syntax)
+export {
+    createGameLeaderboards,
+    createGlobalLeaderboards,
+    rpcCreateTimePeriodLeaderboards,
+    rpcSubmitScoreToTimePeriods,
+    rpcGetTimePeriodLeaderboard,
+    RESET_SCHEDULES,
+    LEADERBOARD_CONFIG
+};

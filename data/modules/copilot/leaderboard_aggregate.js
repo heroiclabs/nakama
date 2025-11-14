@@ -1,36 +1,17 @@
 // leaderboard_aggregate.js - Aggregate player scores across all game leaderboards
 
-// Import utils if available
-var utils;
-try {
-    utils = require('./utils');
-} catch (e) {
-    utils = null;
-}
+// Import utils
+import * as utils from './utils.js';
 
 /**
  * RPC: submit_score_with_aggregate
  * Aggregates player scores across all game leaderboards to compute Global Power Rank
  */
 function submitScoreWithAggregate(ctx, logger, nk, payload) {
-    const validatePayload = utils ? utils.validatePayload : function(p, f) {
-        var m = [];
-        for (var i = 0; i < f.length; i++) {
-            if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
-        }
-        return { valid: m.length === 0, missing: m };
-    };
-    const readRegistry = utils ? utils.readRegistry : function(n, l) { return []; };
-    const logInfo = utils ? utils.logInfo : function(l, m) { l.info("[Copilot] " + m); };
-    const logError = utils ? utils.logError : function(l, m) { l.error("[Copilot] " + m); };
-    const handleError = utils ? utils.handleError : function(c, e, m) { 
-        return JSON.stringify({ success: false, error: m }); 
-    };
-
     try {
         // Validate authentication
         if (!ctx.userId) {
-            return handleError(ctx, null, "Authentication required");
+            return utils.utils.handleError(ctx, null, "Authentication required");
         }
 
         // Parse and validate payload
@@ -38,26 +19,26 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return handleError(ctx, err, "Invalid JSON payload");
+            return utils.utils.handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['gameId', 'score']);
+        const validation = utils.validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
-            return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
+            return utils.utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
 
         const gameId = data.gameId;
         const individualScore = parseInt(data.score);
         
         if (isNaN(individualScore)) {
-            return handleError(ctx, null, "Score must be a valid number");
+            return utils.handleError(ctx, null, "Score must be a valid number");
         }
 
         const userId = ctx.userId;
         const username = ctx.username || userId;
         const submittedAt = new Date().toISOString();
 
-        logInfo(logger, "Processing aggregate score for user " + username + " in game " + gameId);
+        utils.logInfo(logger, "Processing aggregate score for user " + username + " in game " + gameId);
 
         // Write individual score to game leaderboard
         const gameLeaderboardId = "leaderboard_" + gameId;
@@ -76,14 +57,14 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
                 0,
                 metadata
             );
-            logInfo(logger, "Individual score written to game leaderboard: " + gameLeaderboardId);
+            utils.logInfo(logger, "Individual score written to game leaderboard: " + gameLeaderboardId);
         } catch (err) {
-            logError(logger, "Failed to write individual score: " + err.message);
-            return handleError(ctx, err, "Failed to write score to game leaderboard");
+            utils.logError(logger, "Failed to write individual score: " + err.message);
+            return utils.handleError(ctx, err, "Failed to write score to game leaderboard");
         }
 
         // Retrieve all game leaderboards from registry
-        const registry = readRegistry(nk, logger);
+        const registry = utils.readRegistry(nk, logger);
         const gameLeaderboards = [];
         
         for (let i = 0; i < registry.length; i++) {
@@ -92,7 +73,7 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
             }
         }
 
-        logInfo(logger, "Found " + gameLeaderboards.length + " game leaderboards in registry");
+        utils.logInfo(logger, "Found " + gameLeaderboards.length + " game leaderboards in registry");
 
         // Query all game leaderboards for this user's scores
         let aggregateScore = 0;
@@ -106,15 +87,15 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
                     const userScore = records.records[0].score;
                     aggregateScore += userScore;
                     processedBoards++;
-                    logInfo(logger, "Found score " + userScore + " in leaderboard " + leaderboardId);
+                    utils.logInfo(logger, "Found score " + userScore + " in leaderboard " + leaderboardId);
                 }
             } catch (err) {
                 // Leaderboard might not exist, skip silently
-                logInfo(logger, "Skipping leaderboard " + leaderboardId + ": " + err.message);
+                utils.logInfo(logger, "Skipping leaderboard " + leaderboardId + ": " + err.message);
             }
         }
 
-        logInfo(logger, "Calculated aggregate score: " + aggregateScore + " from " + processedBoards + " leaderboards");
+        utils.logInfo(logger, "Calculated aggregate score: " + aggregateScore + " from " + processedBoards + " leaderboards");
 
         // Write aggregate score to global leaderboard
         const globalLeaderboardId = "leaderboard_global";
@@ -135,10 +116,10 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
                 0,
                 globalMetadata
             );
-            logInfo(logger, "Aggregate score written to global leaderboard");
+            utils.logInfo(logger, "Aggregate score written to global leaderboard");
         } catch (err) {
-            logError(logger, "Failed to write aggregate score: " + err.message);
-            return handleError(ctx, err, "Failed to write aggregate score to global leaderboard");
+            utils.logError(logger, "Failed to write aggregate score: " + err.message);
+            return utils.handleError(ctx, err, "Failed to write aggregate score to global leaderboard");
         }
 
         return JSON.stringify({
@@ -150,18 +131,16 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logError(logger, "Unexpected error in submitScoreWithAggregate: " + err.message);
-        return handleError(ctx, err, "An error occurred while processing your request");
+        utils.logError(logger, "Unexpected error in submitScoreWithAggregate: " + err.message);
+        return utils.handleError(ctx, err, "An error occurred while processing your request");
     }
 }
 
 // Register RPC in InitModule context if available
 var rpcSubmitScoreWithAggregate = submitScoreWithAggregate;
 
-// Export for module systems
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        submitScoreWithAggregate: submitScoreWithAggregate,
-        rpcSubmitScoreWithAggregate: rpcSubmitScoreWithAggregate
-    };
-}
+// Export for module systems (ES Module syntax)
+export {
+    submitScoreWithAggregate,
+    rpcSubmitScoreWithAggregate
+};

@@ -1,6 +1,6 @@
 // friends.js - Enhanced Friend System
 
-var utils = require("../copilot/utils");
+import * as utils from "../copilot/utils.js";
 
 /**
  * RPC: Block user
@@ -345,14 +345,12 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
     });
 }
 
-// Export RPC functions
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        rpcFriendsBlock: rpcFriendsBlock,
-        rpcFriendsUnblock: rpcFriendsUnblock,
-        rpcFriendsRemove: rpcFriendsRemove,
-        rpcFriendsList: rpcFriendsList,
-        rpcFriendsChallengeUser: rpcFriendsChallengeUser,
-        rpcFriendsSpectate: rpcFriendsSpectate
-    };
-}
+// Export RPC functions (ES Module syntax)
+export {
+    rpcFriendsBlock,
+    rpcFriendsUnblock,
+    rpcFriendsRemove,
+    rpcFriendsList,
+    rpcFriendsChallengeUser,
+    rpcFriendsSpectate
+};

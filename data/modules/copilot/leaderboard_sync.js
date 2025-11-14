@@ -1,36 +1,17 @@
 // leaderboard_sync.js - Base score synchronization between per-game and global leaderboards
 
-// Import utils if available
-var utils;
-try {
-    utils = require('./utils');
-} catch (e) {
-    // Fallback if module system not available
-    utils = null;
-}
+// Import utils
+import * as utils from './utils.js';
 
 /**
  * RPC: submit_score_sync
  * Synchronizes score between per-game and global leaderboards
  */
 function submitScoreSync(ctx, logger, nk, payload) {
-    const validatePayload = utils ? utils.validatePayload : function(p, f) {
-        var m = [];
-        for (var i = 0; i < f.length; i++) {
-            if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
-        }
-        return { valid: m.length === 0, missing: m };
-    };
-    const logInfo = utils ? utils.logInfo : function(l, m) { l.info("[Copilot] " + m); };
-    const logError = utils ? utils.logError : function(l, m) { l.error("[Copilot] " + m); };
-    const handleError = utils ? utils.handleError : function(c, e, m) { 
-        return JSON.stringify({ success: false, error: m }); 
-    };
-
     try {
         // Validate authentication
         if (!ctx.userId) {
-            return handleError(ctx, null, "Authentication required");
+            return utils.handleError(ctx, null, "Authentication required");
         }
 
         // Parse and validate payload
@@ -38,19 +19,19 @@ function submitScoreSync(ctx, logger, nk, payload) {
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return handleError(ctx, err, "Invalid JSON payload");
+            return utils.handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['gameId', 'score']);
+        const validation = utils.validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
-            return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
+            return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
 
         const gameId = data.gameId;
         const score = parseInt(data.score);
         
         if (isNaN(score)) {
-            return handleError(ctx, null, "Score must be a valid number");
+            return utils.handleError(ctx, null, "Score must be a valid number");
         }
 
         const userId = ctx.userId;
@@ -67,7 +48,7 @@ function submitScoreSync(ctx, logger, nk, payload) {
         const gameLeaderboardId = "leaderboard_" + gameId;
         const globalLeaderboardId = "leaderboard_global";
 
-        logInfo(logger, "Submitting score: " + score + " for user " + username + " to game " + gameId);
+        utils.logInfo(logger, "Submitting score: " + score + " for user " + username + " to game " + gameId);
 
         // Write to per-game leaderboard
         try {
@@ -79,10 +60,10 @@ function submitScoreSync(ctx, logger, nk, payload) {
                 0, // subscore
                 metadata
             );
-            logInfo(logger, "Score written to game leaderboard: " + gameLeaderboardId);
+            utils.logInfo(logger, "Score written to game leaderboard: " + gameLeaderboardId);
         } catch (err) {
-            logError(logger, "Failed to write to game leaderboard: " + err.message);
-            return handleError(ctx, err, "Failed to write score to game leaderboard");
+            utils.logError(logger, "Failed to write to game leaderboard: " + err.message);
+            return utils.handleError(ctx, err, "Failed to write score to game leaderboard");
         }
 
         // Write to global leaderboard
@@ -95,10 +76,10 @@ function submitScoreSync(ctx, logger, nk, payload) {
                 0, // subscore
                 metadata
             );
-            logInfo(logger, "Score written to global leaderboard: " + globalLeaderboardId);
+            utils.logInfo(logger, "Score written to global leaderboard: " + globalLeaderboardId);
         } catch (err) {
-            logError(logger, "Failed to write to global leaderboard: " + err.message);
-            return handleError(ctx, err, "Failed to write score to global leaderboard");
+            utils.logError(logger, "Failed to write to global leaderboard: " + err.message);
+            return utils.handleError(ctx, err, "Failed to write score to global leaderboard");
         }
 
         return JSON.stringify({
@@ -110,18 +91,16 @@ function submitScoreSync(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logError(logger, "Unexpected error in submitScoreSync: " + err.message);
-        return handleError(ctx, err, "An error occurred while processing your request");
+        utils.logError(logger, "Unexpected error in submitScoreSync: " + err.message);
+        return utils.handleError(ctx, err, "An error occurred while processing your request");
     }
 }
 
 // Register RPC in InitModule context if available
 var rpcSubmitScoreSync = submitScoreSync;
 
-// Export for module systems
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        submitScoreSync: submitScoreSync,
-        rpcSubmitScoreSync: rpcSubmitScoreSync
-    };
-}
+// Export for module systems (ES Module syntax)
+export {
+    submitScoreSync,
+    rpcSubmitScoreSync
+};

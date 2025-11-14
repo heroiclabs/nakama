@@ -1,31 +1,19 @@
 // leaderboard_friends.js - Friend-specific leaderboard features
 
-// Import utils if available
-var utils;
-try {
-    utils = require('./utils');
-} catch (e) {
-    utils = null;
-}
+// Import utils
+import * as utils from './utils.js';
 
 /**
  * RPC: create_all_leaderboards_with_friends
  * Creates parallel friend leaderboards for all games
  */
 function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
-    const readRegistry = utils ? utils.readRegistry : function(n, l) { return []; };
-    const logInfo = utils ? utils.logInfo : function(l, m) { l.info("[Copilot] " + m); };
-    const logError = utils ? utils.logError : function(l, m) { l.error("[Copilot] " + m); };
-    const handleError = utils ? utils.handleError : function(c, e, m) { 
-        return JSON.stringify({ success: false, error: m }); 
-    };
-
     try {
         if (!ctx.userId) {
-            return handleError(ctx, null, "Authentication required");
+            return utils.handleError(ctx, null, "Authentication required");
         }
 
-        logInfo(logger, "Creating friend leaderboards");
+        utils.logInfo(logger, "Creating friend leaderboards");
 
         const sort = "desc";
         const operator = "best";
@@ -45,14 +33,14 @@ function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
                 { scope: "friends_global", desc: "Global Friends Leaderboard" }
             );
             created.push(globalFriendsId);
-            logInfo(logger, "Created global friends leaderboard");
+            utils.logInfo(logger, "Created global friends leaderboard");
         } catch (err) {
-            logInfo(logger, "Global friends leaderboard may already exist: " + err.message);
+            utils.logInfo(logger, "Global friends leaderboard may already exist: " + err.message);
             skipped.push(globalFriendsId);
         }
 
         // Get all game leaderboards from registry
-        const registry = readRegistry(nk, logger);
+        const registry = utils.readRegistry(nk, logger);
         
         for (let i = 0; i < registry.length; i++) {
             const record = registry[i];
@@ -72,9 +60,9 @@ function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
                         }
                     );
                     created.push(friendsLeaderboardId);
-                    logInfo(logger, "Created friends leaderboard: " + friendsLeaderboardId);
+                    utils.logInfo(logger, "Created friends leaderboard: " + friendsLeaderboardId);
                 } catch (err) {
-                    logInfo(logger, "Friends leaderboard may already exist: " + friendsLeaderboardId);
+                    utils.logInfo(logger, "Friends leaderboard may already exist: " + friendsLeaderboardId);
                     skipped.push(friendsLeaderboardId);
                 }
             }
@@ -88,8 +76,8 @@ function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logError(logger, "Error in createAllLeaderboardsWithFriends: " + err.message);
-        return handleError(ctx, err, "An error occurred while creating friend leaderboards");
+        utils.logError(logger, "Error in createAllLeaderboardsWithFriends: " + err.message);
+        return utils.handleError(ctx, err, "An error occurred while creating friend leaderboards");
     }
 }
 
@@ -113,26 +101,26 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
 
     try {
         if (!ctx.userId) {
-            return handleError(ctx, null, "Authentication required");
+            return utils.handleError(ctx, null, "Authentication required");
         }
 
         let data;
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return handleError(ctx, err, "Invalid JSON payload");
+            return utils.handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['gameId', 'score']);
+        const validation = utils.validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
-            return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
+            return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
 
         const gameId = data.gameId;
         const score = parseInt(data.score);
         
         if (isNaN(score)) {
-            return handleError(ctx, null, "Score must be a valid number");
+            return utils.handleError(ctx, null, "Score must be a valid number");
         }
 
         const userId = ctx.userId;
@@ -145,7 +133,7 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
             submittedAt: submittedAt
         };
 
-        logInfo(logger, "Submitting score with friends sync for user " + username);
+        utils.logInfo(logger, "Submitting score with friends sync for user " + username);
 
         // Write to regular leaderboards
         const gameLeaderboardId = "leaderboard_" + gameId;
@@ -162,36 +150,36 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
         try {
             nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
             results.regular.game = true;
-            logInfo(logger, "Score written to game leaderboard");
+            utils.logInfo(logger, "Score written to game leaderboard");
         } catch (err) {
-            logError(logger, "Failed to write to game leaderboard: " + err.message);
+            utils.logError(logger, "Failed to write to game leaderboard: " + err.message);
         }
 
         // Write to global leaderboard
         try {
             nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
             results.regular.global = true;
-            logInfo(logger, "Score written to global leaderboard");
+            utils.logInfo(logger, "Score written to global leaderboard");
         } catch (err) {
-            logError(logger, "Failed to write to global leaderboard: " + err.message);
+            utils.logError(logger, "Failed to write to global leaderboard: " + err.message);
         }
 
         // Write to friends game leaderboard
         try {
             nk.leaderboardRecordWrite(friendsGameLeaderboardId, userId, username, score, 0, metadata);
             results.friends.game = true;
-            logInfo(logger, "Score written to friends game leaderboard");
+            utils.logInfo(logger, "Score written to friends game leaderboard");
         } catch (err) {
-            logError(logger, "Failed to write to friends game leaderboard: " + err.message);
+            utils.logError(logger, "Failed to write to friends game leaderboard: " + err.message);
         }
 
         // Write to friends global leaderboard
         try {
             nk.leaderboardRecordWrite(friendsGlobalLeaderboardId, userId, username, score, 0, metadata);
             results.friends.global = true;
-            logInfo(logger, "Score written to friends global leaderboard");
+            utils.logInfo(logger, "Score written to friends global leaderboard");
         } catch (err) {
-            logError(logger, "Failed to write to friends global leaderboard: " + err.message);
+            utils.logError(logger, "Failed to write to friends global leaderboard: " + err.message);
         }
 
         return JSON.stringify({
@@ -203,8 +191,8 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logError(logger, "Error in submitScoreWithFriendsSync: " + err.message);
-        return handleError(ctx, err, "An error occurred while submitting score");
+        utils.logError(logger, "Error in submitScoreWithFriendsSync: " + err.message);
+        return utils.handleError(ctx, err, "An error occurred while submitting score");
     }
 }
 
@@ -228,26 +216,26 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
 
     try {
         if (!ctx.userId) {
-            return handleError(ctx, null, "Authentication required");
+            return utils.handleError(ctx, null, "Authentication required");
         }
 
         let data;
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return handleError(ctx, err, "Invalid JSON payload");
+            return utils.handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['leaderboardId']);
+        const validation = utils.validatePayload(data, ['leaderboardId']);
         if (!validation.valid) {
-            return handleError(ctx, null, "Missing required field: leaderboardId");
+            return utils.handleError(ctx, null, "Missing required field: leaderboardId");
         }
 
         const leaderboardId = data.leaderboardId;
         const limit = data.limit || 100;
         const userId = ctx.userId;
 
-        logInfo(logger, "Getting friend leaderboard for user " + userId);
+        utils.logInfo(logger, "Getting friend leaderboard for user " + userId);
 
         // Get user's friends list
         let friends = [];
@@ -261,10 +249,10 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
                     }
                 }
             }
-            logInfo(logger, "Found " + friends.length + " friends");
+            utils.logInfo(logger, "Found " + friends.length + " friends");
         } catch (err) {
-            logError(logger, "Failed to get friends list: " + err.message);
-            return handleError(ctx, err, "Failed to retrieve friends list");
+            utils.logError(logger, "Failed to get friends list: " + err.message);
+            return utils.handleError(ctx, err, "Failed to retrieve friends list");
         }
 
         // Include the user themselves
@@ -277,10 +265,10 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
             if (leaderboardRecords && leaderboardRecords.records) {
                 records = leaderboardRecords.records;
             }
-            logInfo(logger, "Retrieved " + records.length + " friend records");
+            utils.logInfo(logger, "Retrieved " + records.length + " friend records");
         } catch (err) {
-            logError(logger, "Failed to query leaderboard: " + err.message);
-            return handleError(ctx, err, "Failed to retrieve leaderboard records");
+            utils.logError(logger, "Failed to query leaderboard: " + err.message);
+            return utils.handleError(ctx, err, "Failed to retrieve leaderboard records");
         }
 
         return JSON.stringify({
@@ -291,8 +279,8 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logError(logger, "Error in getFriendLeaderboard: " + err.message);
-        return handleError(ctx, err, "An error occurred while retrieving friend leaderboard");
+        utils.logError(logger, "Error in getFriendLeaderboard: " + err.message);
+        return utils.handleError(ctx, err, "An error occurred while retrieving friend leaderboard");
     }
 }
 
@@ -301,14 +289,12 @@ var rpcCreateAllLeaderboardsWithFriends = createAllLeaderboardsWithFriends;
 var rpcSubmitScoreWithFriendsSync = submitScoreWithFriendsSync;
 var rpcGetFriendLeaderboard = getFriendLeaderboard;
 
-// Export for module systems
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        createAllLeaderboardsWithFriends: createAllLeaderboardsWithFriends,
-        submitScoreWithFriendsSync: submitScoreWithFriendsSync,
-        getFriendLeaderboard: getFriendLeaderboard,
-        rpcCreateAllLeaderboardsWithFriends: rpcCreateAllLeaderboardsWithFriends,
-        rpcSubmitScoreWithFriendsSync: rpcSubmitScoreWithFriendsSync,
-        rpcGetFriendLeaderboard: rpcGetFriendLeaderboard
-    };
-}
+// Export for module systems (ES Module syntax)
+export {
+    createAllLeaderboardsWithFriends,
+    submitScoreWithFriendsSync,
+    getFriendLeaderboard,
+    rpcCreateAllLeaderboardsWithFriends,
+    rpcSubmitScoreWithFriendsSync,
+    rpcGetFriendLeaderboard
+};

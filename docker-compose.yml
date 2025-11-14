@@ -33,6 +33,9 @@ services:
       prometheus:
         condition: service_started
     volumes:
+      # IMPORTANT: JavaScript modules MUST use ES Module syntax (import/export)
+      # CommonJS (require/module.exports) is NOT supported
+      # See: ESM_MIGRATION_COMPLETE_GUIDE.md
       - ./:/nakama/data
     expose:
       - "7349"
