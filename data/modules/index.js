@@ -21,6 +21,8 @@ var Analytics = require('./analytics/analytics.js');
 var Friends = require('./friends/friends.js');
 // @ts-ignore
 var LeaderboardsTimePeriod = require('./leaderboards_timeperiod.js');
+// @ts-ignore
+var Groups = require('./groups/groups.js');
 
 // Define the RPC function first
 function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
@@ -320,6 +322,24 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[Friends] Failed to initialize: ' + err.message);
     }
     
+    // Register Groups/Clans/Guilds RPCs
+    try {
+        logger.info('[Groups] Initializing Groups/Clans/Guilds Module...');
+        initializer.registerRpc('create_game_group', Groups.rpcCreateGameGroup);
+        logger.info('[Groups] Registered RPC: create_game_group');
+        initializer.registerRpc('update_group_xp', Groups.rpcUpdateGroupXP);
+        logger.info('[Groups] Registered RPC: update_group_xp');
+        initializer.registerRpc('get_group_wallet', Groups.rpcGetGroupWallet);
+        logger.info('[Groups] Registered RPC: get_group_wallet');
+        initializer.registerRpc('update_group_wallet', Groups.rpcUpdateGroupWallet);
+        logger.info('[Groups] Registered RPC: update_group_wallet');
+        initializer.registerRpc('get_user_groups', Groups.rpcGetUserGroups);
+        logger.info('[Groups] Registered RPC: get_user_groups');
+        logger.info('[Groups] Successfully registered 5 Groups/Clans RPCs');
+    } catch (err) {
+        logger.error('[Groups] Failed to initialize: ' + err.message);
+    }
+    
     // Load copilot modules
     try {
         var copilot = require("./copilot/index");
@@ -330,7 +350,7 @@ function InitModule(ctx, logger, nk, initializer) {
     
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total New System RPCs: 19 (2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards)');
+    logger.info('Total New System RPCs: 24 (2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans)');
     logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
