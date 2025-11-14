@@ -64,7 +64,11 @@ All systems support multiple games through UUID-based `gameId` identifiers. Each
 │  │  • groups/groups.js                              │   │
 │  │  • analytics/analytics.js                        │   │
 │  │  • push_notifications/push_notifications.js      │   │
-│  │  • copilot/* (wallet mapping, social features)   │   │
+│  │  • copilot/leaderboard_sync.js                  │   │
+│  │  • copilot/leaderboard_aggregate.js             │   │
+│  │  • copilot/leaderboard_friends.js               │   │
+│  │  • copilot/social_features.js                   │   │
+│  │  • copilot/cognito_wallet_mapper.js             │   │
 │  └──────────────────────────────────────────────────┘   │
 │                                                          │
 │  Core Nakama Features:                                   │
@@ -247,6 +251,80 @@ All systems support multiple games through UUID-based `gameId` identifiers. Each
 | **Analytics** | `analytics_log_event` | Log custom events |
 | **Cognito** | `get_user_wallet` | Get/create Cognito-linked wallet |
 | | `link_wallet_to_game` | Link wallet to game |
+| **Copilot Leaderboards** | `submit_score_sync` | Sync score to per-game and global leaderboards |
+| | `submit_score_with_aggregate` | Submit score with aggregate Power Rank calculation |
+| | `create_all_leaderboards_with_friends` | Create friend-specific leaderboards |
+| | `submit_score_with_friends_sync` | Submit to both regular and friend leaderboards |
+| | `get_friend_leaderboard` | Get leaderboard filtered by friends |
+| **Copilot Social** | `send_friend_invite` | Send friend request with notification |
+| | `accept_friend_invite` | Accept friend request |
+| | `decline_friend_invite` | Decline friend request |
+| | `get_notifications` | Get user notifications |
+
+## Copilot Advanced Features
+
+The Copilot module provides advanced leaderboard synchronization and social features for multi-game platforms.
+
+### Score Synchronization & Aggregation
+
+**Single Score, Multiple Leaderboards**
+
+- `submit_score_sync` - Automatically syncs a single score to both per-game (`leaderboard_{gameId}`) and global (`leaderboard_global`) leaderboards
+- `submit_score_with_aggregate` - Calculates aggregate "Power Rank" across all games a player participates in
+
+**Use Cases:**
+- Track player performance in individual games AND across your entire game portfolio
+- Create cross-game competitive rankings
+- Award players for being top performers across multiple titles
+
+### Friend Leaderboards
+
+**Social Competitive Features**
+
+- `create_all_leaderboards_with_friends` - Sets up parallel friend-only leaderboards for all games
+- `submit_score_with_friends_sync` - Submit scores to both public and friend-only leaderboards
+- `get_friend_leaderboard` - Retrieve rankings filtered to user's social graph
+
+**Benefits:**
+- Players see how they rank against friends vs. global population
+- Increases engagement through social competition
+- Automatic friend list integration using Nakama's social graph
+
+### Enhanced Social System
+
+**Friend Management with Notifications**
+
+- `send_friend_invite` - Send friend requests with custom messages and notifications
+- `accept_friend_invite` - Accept requests and automatically add to Nakama friend system
+- `decline_friend_invite` - Decline requests with status tracking
+- `get_notifications` - Retrieve all user notifications (invites, achievements, etc.)
+
+**Features:**
+- Persistent friend invite storage
+- Real-time notification delivery
+- Status tracking (pending, accepted, declined)
+- Integrates with Nakama's built-in friend system
+
+### Integration Example
+
+```csharp
+// Submit score to game + global leaderboards (1 RPC call)
+var payload = new { gameId = "YOUR-UUID", score = 1500 };
+await client.RpcAsync(session, "submit_score_sync", JsonUtility.ToJson(payload));
+
+// Submit with Power Rank aggregation
+await client.RpcAsync(session, "submit_score_with_aggregate", JsonUtility.ToJson(payload));
+
+// Get friend-only rankings
+var friendPayload = new { leaderboardId = "leaderboard_friends_global", limit = 50 };
+var result = await client.RpcAsync(session, "get_friend_leaderboard", JsonUtility.ToJson(friendPayload));
+
+// Send friend invite
+var invitePayload = new { targetUserId = "friend-user-id", message = "Let's compete!" };
+await client.RpcAsync(session, "send_friend_invite", JsonUtility.ToJson(invitePayload));
+```
+
+See [UNITY_DEVELOPER_COMPLETE_GUIDE.md](./UNITY_DEVELOPER_COMPLETE_GUIDE.md) for complete integration documentation.
 
 ## Push Notifications (AWS SNS + Pinpoint)
 
