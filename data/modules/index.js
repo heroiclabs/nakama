@@ -7,7 +7,7 @@
 // COPILOT/UTILS.JS
 // ============================================================================
 
-// utils.js - Shared helper functions for leaderboard modules
+// js - Shared helper functions for leaderboard modules
 
 /**
  * Validate that required fields are present in payload
@@ -240,7 +240,7 @@ function writeStorage(nk, logger, collection, key, userId, value, permissionRead
 // COPILOT/WALLET_UTILS.JS
 // ============================================================================
 
-// wallet_utils.js - Helper utilities for Cognito JWT handling and validation
+// wallet_js - Helper utilities for Cognito JWT handling and validation
 
 /**
  * Decode a JWT token (simplified - extracts payload without verification)
@@ -523,7 +523,7 @@ function getAllWallets(nk, logger, limit) {
  */
 function getUserWallet(ctx, logger, nk, payload) {
     try {
-        WalletUtils.logWalletOperation(logger, 'get_user_wallet', { payload: payload });
+        logWalletOperation(logger, 'get_user_wallet', { payload: payload });
         
         // Parse input
         var input = {};
@@ -546,7 +546,7 @@ function getUserWallet(ctx, logger, nk, payload) {
         
         if (token) {
             // Validate JWT structure
-            if (!WalletUtils.validateJWTStructure(token)) {
+            if (!validateJWTStructure(token)) {
                 return JSON.stringify({
                     success: false,
                     error: 'Invalid JWT token format'
@@ -554,11 +554,11 @@ function getUserWallet(ctx, logger, nk, payload) {
             }
             
             // Extract user info from Cognito JWT
-            var userInfo = WalletUtils.extractUserInfo(token);
+            var userInfo = extractUserInfo(token);
             userId = userInfo.sub;
             username = userInfo.username;
             
-            WalletUtils.logWalletOperation(logger, 'extracted_user_info', {
+            logWalletOperation(logger, 'extracted_user_info', {
                 userId: userId,
                 username: username
             });
@@ -567,7 +567,7 @@ function getUserWallet(ctx, logger, nk, payload) {
             userId = ctx.userId;
             username = ctx.username || userId;
             
-            WalletUtils.logWalletOperation(logger, 'using_context_user', {
+            logWalletOperation(logger, 'using_context_user', {
                 userId: userId,
                 username: username
             });
@@ -579,16 +579,16 @@ function getUserWallet(ctx, logger, nk, payload) {
         }
         
         // Query wallet registry
-        var wallet = WalletRegistry.getWalletByUserId(nk, logger, userId);
+        var wallet = getWalletByUserId(nk, logger, userId);
         
         // Create wallet if not found
         if (!wallet) {
-            wallet = WalletRegistry.createWalletRecord(nk, logger, userId, username);
-            WalletUtils.logWalletOperation(logger, 'wallet_created', {
+            wallet = createWalletRecord(nk, logger, userId, username);
+            logWalletOperation(logger, 'wallet_created', {
                 walletId: wallet.walletId
             });
         } else {
-            WalletUtils.logWalletOperation(logger, 'wallet_found', {
+            logWalletOperation(logger, 'wallet_found', {
                 walletId: wallet.walletId,
                 gamesLinked: wallet.gamesLinked
             });
@@ -605,7 +605,7 @@ function getUserWallet(ctx, logger, nk, payload) {
         });
         
     } catch (err) {
-        return JSON.stringify(WalletUtils.handleWalletError(logger, 'get_user_wallet', err));
+        return JSON.stringify(handleWalletError(logger, 'get_user_wallet', err));
     }
 }
 
@@ -621,7 +621,7 @@ function getUserWallet(ctx, logger, nk, payload) {
  */
 function linkWalletToGame(ctx, logger, nk, payload) {
     try {
-        WalletUtils.logWalletOperation(logger, 'link_wallet_to_game', { payload: payload });
+        logWalletOperation(logger, 'link_wallet_to_game', { payload: payload });
         
         // Parse input
         var input = {};
@@ -651,14 +651,14 @@ function linkWalletToGame(ctx, logger, nk, payload) {
         var username;
         
         if (token) {
-            if (!WalletUtils.validateJWTStructure(token)) {
+            if (!validateJWTStructure(token)) {
                 return JSON.stringify({
                     success: false,
                     error: 'Invalid JWT token format'
                 });
             }
             
-            var userInfo = WalletUtils.extractUserInfo(token);
+            var userInfo = extractUserInfo(token);
             userId = userInfo.sub;
             username = userInfo.username;
         } else if (ctx.userId) {
@@ -672,15 +672,15 @@ function linkWalletToGame(ctx, logger, nk, payload) {
         }
         
         // Ensure wallet exists
-        var wallet = WalletRegistry.getWalletByUserId(nk, logger, userId);
+        var wallet = getWalletByUserId(nk, logger, userId);
         if (!wallet) {
-            wallet = WalletRegistry.createWalletRecord(nk, logger, userId, username);
+            wallet = createWalletRecord(nk, logger, userId, username);
         }
         
         // Link game to wallet
-        wallet = WalletRegistry.updateWalletGames(nk, logger, wallet.walletId, gameId);
+        wallet = updateWalletGames(nk, logger, wallet.walletId, gameId);
         
-        WalletUtils.logWalletOperation(logger, 'game_linked', {
+        logWalletOperation(logger, 'game_linked', {
             walletId: wallet.walletId,
             gameId: gameId,
             totalGames: wallet.gamesLinked.length
@@ -695,7 +695,7 @@ function linkWalletToGame(ctx, logger, nk, payload) {
         });
         
     } catch (err) {
-        return JSON.stringify(WalletUtils.handleWalletError(logger, 'link_wallet_to_game', err));
+        return JSON.stringify(handleWalletError(logger, 'link_wallet_to_game', err));
     }
 }
 
@@ -711,7 +711,7 @@ function linkWalletToGame(ctx, logger, nk, payload) {
  */
 function getWalletRegistry(ctx, logger, nk, payload) {
     try {
-        WalletUtils.logWalletOperation(logger, 'get_wallet_registry', { userId: ctx.userId });
+        logWalletOperation(logger, 'get_wallet_registry', { userId: ctx.userId });
         
         // Parse input
         var input = {};
@@ -726,7 +726,7 @@ function getWalletRegistry(ctx, logger, nk, payload) {
         var limit = input.limit || 100;
         
         // Get all wallets
-        var wallets = WalletRegistry.getAllWallets(nk, logger, limit);
+        var wallets = getAllWallets(nk, logger, limit);
         
         return JSON.stringify({
             success: true,
@@ -735,7 +735,7 @@ function getWalletRegistry(ctx, logger, nk, payload) {
         });
         
     } catch (err) {
-        return JSON.stringify(WalletUtils.handleWalletError(logger, 'get_wallet_registry', err));
+        return JSON.stringify(handleWalletError(logger, 'get_wallet_registry', err));
     }
 }
 
@@ -757,7 +757,7 @@ function submitScoreSync(ctx, logger, nk, payload) {
     try {
         // Validate authentication
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
         // Parse and validate payload
@@ -765,19 +765,19 @@ function submitScoreSync(ctx, logger, nk, payload) {
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return utils.handleError(ctx, err, "Invalid JSON payload");
+            return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = utils.validatePayload(data, ['gameId', 'score']);
+        const validation = validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
-            return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
+            return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
 
         const gameId = data.gameId;
         const score = parseInt(data.score);
         
         if (isNaN(score)) {
-            return utils.handleError(ctx, null, "Score must be a valid number");
+            return handleError(ctx, null, "Score must be a valid number");
         }
 
         const userId = ctx.userId;
@@ -794,7 +794,7 @@ function submitScoreSync(ctx, logger, nk, payload) {
         const gameLeaderboardId = "leaderboard_" + gameId;
         const globalLeaderboardId = "leaderboard_global";
 
-        utils.logInfo(logger, "Submitting score: " + score + " for user " + username + " to game " + gameId);
+        logInfo(logger, "Submitting score: " + score + " for user " + username + " to game " + gameId);
 
         // Write to per-game leaderboard
         try {
@@ -806,10 +806,10 @@ function submitScoreSync(ctx, logger, nk, payload) {
                 0, // subscore
                 metadata
             );
-            utils.logInfo(logger, "Score written to game leaderboard: " + gameLeaderboardId);
+            logInfo(logger, "Score written to game leaderboard: " + gameLeaderboardId);
         } catch (err) {
-            utils.logError(logger, "Failed to write to game leaderboard: " + err.message);
-            return utils.handleError(ctx, err, "Failed to write score to game leaderboard");
+            logError(logger, "Failed to write to game leaderboard: " + err.message);
+            return handleError(ctx, err, "Failed to write score to game leaderboard");
         }
 
         // Write to global leaderboard
@@ -822,10 +822,10 @@ function submitScoreSync(ctx, logger, nk, payload) {
                 0, // subscore
                 metadata
             );
-            utils.logInfo(logger, "Score written to global leaderboard: " + globalLeaderboardId);
+            logInfo(logger, "Score written to global leaderboard: " + globalLeaderboardId);
         } catch (err) {
-            utils.logError(logger, "Failed to write to global leaderboard: " + err.message);
-            return utils.handleError(ctx, err, "Failed to write score to global leaderboard");
+            logError(logger, "Failed to write to global leaderboard: " + err.message);
+            return handleError(ctx, err, "Failed to write score to global leaderboard");
         }
 
         return JSON.stringify({
@@ -837,8 +837,8 @@ function submitScoreSync(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Unexpected error in submitScoreSync: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while processing your request");
+        logError(logger, "Unexpected error in submitScoreSync: " + err.message);
+        return handleError(ctx, err, "An error occurred while processing your request");
     }
 }
 
@@ -863,7 +863,7 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
     try {
         // Validate authentication
         if (!ctx.userId) {
-            return utils.utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
         // Parse and validate payload
@@ -871,26 +871,26 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return utils.utils.handleError(ctx, err, "Invalid JSON payload");
+            return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = utils.validatePayload(data, ['gameId', 'score']);
+        const validation = validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
-            return utils.utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
+            return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
 
         const gameId = data.gameId;
         const individualScore = parseInt(data.score);
         
         if (isNaN(individualScore)) {
-            return utils.handleError(ctx, null, "Score must be a valid number");
+            return handleError(ctx, null, "Score must be a valid number");
         }
 
         const userId = ctx.userId;
         const username = ctx.username || userId;
         const submittedAt = new Date().toISOString();
 
-        utils.logInfo(logger, "Processing aggregate score for user " + username + " in game " + gameId);
+        logInfo(logger, "Processing aggregate score for user " + username + " in game " + gameId);
 
         // Write individual score to game leaderboard
         const gameLeaderboardId = "leaderboard_" + gameId;
@@ -909,14 +909,14 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
                 0,
                 metadata
             );
-            utils.logInfo(logger, "Individual score written to game leaderboard: " + gameLeaderboardId);
+            logInfo(logger, "Individual score written to game leaderboard: " + gameLeaderboardId);
         } catch (err) {
-            utils.logError(logger, "Failed to write individual score: " + err.message);
-            return utils.handleError(ctx, err, "Failed to write score to game leaderboard");
+            logError(logger, "Failed to write individual score: " + err.message);
+            return handleError(ctx, err, "Failed to write score to game leaderboard");
         }
 
         // Retrieve all game leaderboards from registry
-        const registry = utils.readRegistry(nk, logger);
+        const registry = readRegistry(nk, logger);
         const gameLeaderboards = [];
         
         for (let i = 0; i < registry.length; i++) {
@@ -925,7 +925,7 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
             }
         }
 
-        utils.logInfo(logger, "Found " + gameLeaderboards.length + " game leaderboards in registry");
+        logInfo(logger, "Found " + gameLeaderboards.length + " game leaderboards in registry");
 
         // Query all game leaderboards for this user's scores
         let aggregateScore = 0;
@@ -939,15 +939,15 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
                     const userScore = records.records[0].score;
                     aggregateScore += userScore;
                     processedBoards++;
-                    utils.logInfo(logger, "Found score " + userScore + " in leaderboard " + leaderboardId);
+                    logInfo(logger, "Found score " + userScore + " in leaderboard " + leaderboardId);
                 }
             } catch (err) {
                 // Leaderboard might not exist, skip silently
-                utils.logInfo(logger, "Skipping leaderboard " + leaderboardId + ": " + err.message);
+                logInfo(logger, "Skipping leaderboard " + leaderboardId + ": " + err.message);
             }
         }
 
-        utils.logInfo(logger, "Calculated aggregate score: " + aggregateScore + " from " + processedBoards + " leaderboards");
+        logInfo(logger, "Calculated aggregate score: " + aggregateScore + " from " + processedBoards + " leaderboards");
 
         // Write aggregate score to global leaderboard
         const globalLeaderboardId = "leaderboard_global";
@@ -968,10 +968,10 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
                 0,
                 globalMetadata
             );
-            utils.logInfo(logger, "Aggregate score written to global leaderboard");
+            logInfo(logger, "Aggregate score written to global leaderboard");
         } catch (err) {
-            utils.logError(logger, "Failed to write aggregate score: " + err.message);
-            return utils.handleError(ctx, err, "Failed to write aggregate score to global leaderboard");
+            logError(logger, "Failed to write aggregate score: " + err.message);
+            return handleError(ctx, err, "Failed to write aggregate score to global leaderboard");
         }
 
         return JSON.stringify({
@@ -983,8 +983,8 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Unexpected error in submitScoreWithAggregate: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while processing your request");
+        logError(logger, "Unexpected error in submitScoreWithAggregate: " + err.message);
+        return handleError(ctx, err, "An error occurred while processing your request");
     }
 }
 
@@ -1008,10 +1008,10 @@ var rpcSubmitScoreWithAggregate = submitScoreWithAggregate;
 function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
-        utils.logInfo(logger, "Creating friend leaderboards");
+        logInfo(logger, "Creating friend leaderboards");
 
         const sort = "desc";
         const operator = "best";
@@ -1031,14 +1031,14 @@ function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
                 { scope: "friends_global", desc: "Global Friends Leaderboard" }
             );
             created.push(globalFriendsId);
-            utils.logInfo(logger, "Created global friends leaderboard");
+            logInfo(logger, "Created global friends leaderboard");
         } catch (err) {
-            utils.logInfo(logger, "Global friends leaderboard may already exist: " + err.message);
+            logInfo(logger, "Global friends leaderboard may already exist: " + err.message);
             skipped.push(globalFriendsId);
         }
 
         // Get all game leaderboards from registry
-        const registry = utils.readRegistry(nk, logger);
+        const registry = readRegistry(nk, logger);
         
         for (let i = 0; i < registry.length; i++) {
             const record = registry[i];
@@ -1058,9 +1058,9 @@ function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
                         }
                     );
                     created.push(friendsLeaderboardId);
-                    utils.logInfo(logger, "Created friends leaderboard: " + friendsLeaderboardId);
+                    logInfo(logger, "Created friends leaderboard: " + friendsLeaderboardId);
                 } catch (err) {
-                    utils.logInfo(logger, "Friends leaderboard may already exist: " + friendsLeaderboardId);
+                    logInfo(logger, "Friends leaderboard may already exist: " + friendsLeaderboardId);
                     skipped.push(friendsLeaderboardId);
                 }
             }
@@ -1074,8 +1074,8 @@ function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Error in createAllLeaderboardsWithFriends: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while creating friend leaderboards");
+        logError(logger, "Error in createAllLeaderboardsWithFriends: " + err.message);
+        return handleError(ctx, err, "An error occurred while creating friend leaderboards");
     }
 }
 
@@ -1084,41 +1084,41 @@ function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
  * Submits score to both regular and friend-specific leaderboards
  */
 function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
-    const validatePayload = utils ? utils.validatePayload : function(p, f) {
+    const validatePayload = utils ? validatePayload : function(p, f) {
         var m = [];
         for (var i = 0; i < f.length; i++) {
             if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
         }
         return { valid: m.length === 0, missing: m };
     };
-    const logInfo = utils ? utils.logInfo : function(l, m) { l.info("[Copilot] " + m); };
-    const logError = utils ? utils.logError : function(l, m) { l.error("[Copilot] " + m); };
-    const handleError = utils ? utils.handleError : function(c, e, m) { 
+    const logInfo = utils ? logInfo : function(l, m) { l.info("[Copilot] " + m); };
+    const logError = utils ? logError : function(l, m) { l.error("[Copilot] " + m); };
+    const handleError = utils ? handleError : function(c, e, m) { 
         return JSON.stringify({ success: false, error: m }); 
     };
 
     try {
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
         let data;
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return utils.handleError(ctx, err, "Invalid JSON payload");
+            return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = utils.validatePayload(data, ['gameId', 'score']);
+        const validation = validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
-            return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
+            return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
 
         const gameId = data.gameId;
         const score = parseInt(data.score);
         
         if (isNaN(score)) {
-            return utils.handleError(ctx, null, "Score must be a valid number");
+            return handleError(ctx, null, "Score must be a valid number");
         }
 
         const userId = ctx.userId;
@@ -1131,7 +1131,7 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
             submittedAt: submittedAt
         };
 
-        utils.logInfo(logger, "Submitting score with friends sync for user " + username);
+        logInfo(logger, "Submitting score with friends sync for user " + username);
 
         // Write to regular leaderboards
         const gameLeaderboardId = "leaderboard_" + gameId;
@@ -1148,36 +1148,36 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
         try {
             nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
             results.regular.game = true;
-            utils.logInfo(logger, "Score written to game leaderboard");
+            logInfo(logger, "Score written to game leaderboard");
         } catch (err) {
-            utils.logError(logger, "Failed to write to game leaderboard: " + err.message);
+            logError(logger, "Failed to write to game leaderboard: " + err.message);
         }
 
         // Write to global leaderboard
         try {
             nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
             results.regular.global = true;
-            utils.logInfo(logger, "Score written to global leaderboard");
+            logInfo(logger, "Score written to global leaderboard");
         } catch (err) {
-            utils.logError(logger, "Failed to write to global leaderboard: " + err.message);
+            logError(logger, "Failed to write to global leaderboard: " + err.message);
         }
 
         // Write to friends game leaderboard
         try {
             nk.leaderboardRecordWrite(friendsGameLeaderboardId, userId, username, score, 0, metadata);
             results.friends.game = true;
-            utils.logInfo(logger, "Score written to friends game leaderboard");
+            logInfo(logger, "Score written to friends game leaderboard");
         } catch (err) {
-            utils.logError(logger, "Failed to write to friends game leaderboard: " + err.message);
+            logError(logger, "Failed to write to friends game leaderboard: " + err.message);
         }
 
         // Write to friends global leaderboard
         try {
             nk.leaderboardRecordWrite(friendsGlobalLeaderboardId, userId, username, score, 0, metadata);
             results.friends.global = true;
-            utils.logInfo(logger, "Score written to friends global leaderboard");
+            logInfo(logger, "Score written to friends global leaderboard");
         } catch (err) {
-            utils.logError(logger, "Failed to write to friends global leaderboard: " + err.message);
+            logError(logger, "Failed to write to friends global leaderboard: " + err.message);
         }
 
         return JSON.stringify({
@@ -1189,8 +1189,8 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Error in submitScoreWithFriendsSync: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while submitting score");
+        logError(logger, "Error in submitScoreWithFriendsSync: " + err.message);
+        return handleError(ctx, err, "An error occurred while submitting score");
     }
 }
 
@@ -1199,41 +1199,41 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
  * Retrieves leaderboard filtered by friends
  */
 function getFriendLeaderboard(ctx, logger, nk, payload) {
-    const validatePayload = utils ? utils.validatePayload : function(p, f) {
+    const validatePayload = utils ? validatePayload : function(p, f) {
         var m = [];
         for (var i = 0; i < f.length; i++) {
             if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
         }
         return { valid: m.length === 0, missing: m };
     };
-    const logInfo = utils ? utils.logInfo : function(l, m) { l.info("[Copilot] " + m); };
-    const logError = utils ? utils.logError : function(l, m) { l.error("[Copilot] " + m); };
-    const handleError = utils ? utils.handleError : function(c, e, m) { 
+    const logInfo = utils ? logInfo : function(l, m) { l.info("[Copilot] " + m); };
+    const logError = utils ? logError : function(l, m) { l.error("[Copilot] " + m); };
+    const handleError = utils ? handleError : function(c, e, m) { 
         return JSON.stringify({ success: false, error: m }); 
     };
 
     try {
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
         let data;
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return utils.handleError(ctx, err, "Invalid JSON payload");
+            return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = utils.validatePayload(data, ['leaderboardId']);
+        const validation = validatePayload(data, ['leaderboardId']);
         if (!validation.valid) {
-            return utils.handleError(ctx, null, "Missing required field: leaderboardId");
+            return handleError(ctx, null, "Missing required field: leaderboardId");
         }
 
         const leaderboardId = data.leaderboardId;
         const limit = data.limit || 100;
         const userId = ctx.userId;
 
-        utils.logInfo(logger, "Getting friend leaderboard for user " + userId);
+        logInfo(logger, "Getting friend leaderboard for user " + userId);
 
         // Get user's friends list
         let friends = [];
@@ -1247,10 +1247,10 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
                     }
                 }
             }
-            utils.logInfo(logger, "Found " + friends.length + " friends");
+            logInfo(logger, "Found " + friends.length + " friends");
         } catch (err) {
-            utils.logError(logger, "Failed to get friends list: " + err.message);
-            return utils.handleError(ctx, err, "Failed to retrieve friends list");
+            logError(logger, "Failed to get friends list: " + err.message);
+            return handleError(ctx, err, "Failed to retrieve friends list");
         }
 
         // Include the user themselves
@@ -1263,10 +1263,10 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
             if (leaderboardRecords && leaderboardRecords.records) {
                 records = leaderboardRecords.records;
             }
-            utils.logInfo(logger, "Retrieved " + records.length + " friend records");
+            logInfo(logger, "Retrieved " + records.length + " friend records");
         } catch (err) {
-            utils.logError(logger, "Failed to query leaderboard: " + err.message);
-            return utils.handleError(ctx, err, "Failed to retrieve leaderboard records");
+            logError(logger, "Failed to query leaderboard: " + err.message);
+            return handleError(ctx, err, "Failed to retrieve leaderboard records");
         }
 
         return JSON.stringify({
@@ -1277,8 +1277,8 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Error in getFriendLeaderboard: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while retrieving friend leaderboard");
+        logError(logger, "Error in getFriendLeaderboard: " + err.message);
+        return handleError(ctx, err, "An error occurred while retrieving friend leaderboard");
     }
 }
 
@@ -1304,19 +1304,19 @@ var rpcGetFriendLeaderboard = getFriendLeaderboard;
 function sendFriendInvite(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
         let data;
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return utils.handleError(ctx, err, "Invalid JSON payload");
+            return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = utils.validatePayload(data, ['targetUserId']);
+        const validation = validatePayload(data, ['targetUserId']);
         if (!validation.valid) {
-            return utils.handleError(ctx, null, "Missing required field: targetUserId");
+            return handleError(ctx, null, "Missing required field: targetUserId");
         }
 
         const fromUserId = ctx.userId;
@@ -1324,7 +1324,7 @@ function sendFriendInvite(ctx, logger, nk, payload) {
         const targetUserId = data.targetUserId;
         const message = data.message || "You have a new friend request";
 
-        utils.logInfo(logger, "User " + fromUsername + " sending friend invite to " + targetUserId);
+        logInfo(logger, "User " + fromUsername + " sending friend invite to " + targetUserId);
 
         // Store friend invite in storage
         const inviteId = fromUserId + "_" + targetUserId + "_" + Date.now();
@@ -1347,10 +1347,10 @@ function sendFriendInvite(ctx, logger, nk, payload) {
                 permissionRead: 1,
                 permissionWrite: 0
             }]);
-            utils.logInfo(logger, "Friend invite stored: " + inviteId);
+            logInfo(logger, "Friend invite stored: " + inviteId);
         } catch (err) {
-            utils.logError(logger, "Failed to store friend invite: " + err.message);
-            return utils.handleError(ctx, err, "Failed to store friend invite");
+            logError(logger, "Failed to store friend invite: " + err.message);
+            return handleError(ctx, err, "Failed to store friend invite");
         }
 
         // Send notification to target user
@@ -1371,9 +1371,9 @@ function sendFriendInvite(ctx, logger, nk, payload) {
                 fromUserId,
                 true
             );
-            utils.logInfo(logger, "Notification sent to " + targetUserId);
+            logInfo(logger, "Notification sent to " + targetUserId);
         } catch (err) {
-            utils.logError(logger, "Failed to send notification: " + err.message);
+            logError(logger, "Failed to send notification: " + err.message);
             // Don't fail the whole operation if notification fails
         }
 
@@ -1385,8 +1385,8 @@ function sendFriendInvite(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Error in sendFriendInvite: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while sending friend invite");
+        logError(logger, "Error in sendFriendInvite: " + err.message);
+        return handleError(ctx, err, "An error occurred while sending friend invite");
     }
 }
 
@@ -1395,40 +1395,40 @@ function sendFriendInvite(ctx, logger, nk, payload) {
  * Accepts a friend invite
  */
 function acceptFriendInvite(ctx, logger, nk, payload) {
-    const validatePayload = utils ? utils.validatePayload : function(p, f) {
+    const validatePayload = utils ? validatePayload : function(p, f) {
         var m = [];
         for (var i = 0; i < f.length; i++) {
             if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
         }
         return { valid: m.length === 0, missing: m };
     };
-    const logInfo = utils ? utils.logInfo : function(l, m) { l.info("[Copilot] " + m); };
-    const logError = utils ? utils.logError : function(l, m) { l.error("[Copilot] " + m); };
-    const handleError = utils ? utils.handleError : function(c, e, m) { 
+    const logInfo = utils ? logInfo : function(l, m) { l.info("[Copilot] " + m); };
+    const logError = utils ? logError : function(l, m) { l.error("[Copilot] " + m); };
+    const handleError = utils ? handleError : function(c, e, m) { 
         return JSON.stringify({ success: false, error: m }); 
     };
 
     try {
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
         let data;
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return utils.handleError(ctx, err, "Invalid JSON payload");
+            return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = utils.validatePayload(data, ['inviteId']);
+        const validation = validatePayload(data, ['inviteId']);
         if (!validation.valid) {
-            return utils.handleError(ctx, null, "Missing required field: inviteId");
+            return handleError(ctx, null, "Missing required field: inviteId");
         }
 
         const userId = ctx.userId;
         const inviteId = data.inviteId;
 
-        utils.logInfo(logger, "User " + userId + " accepting friend invite " + inviteId);
+        logInfo(logger, "User " + userId + " accepting friend invite " + inviteId);
 
         // Read invite from storage
         let inviteData;
@@ -1440,31 +1440,31 @@ function acceptFriendInvite(ctx, logger, nk, payload) {
             }]);
             
             if (!records || records.length === 0) {
-                return utils.handleError(ctx, null, "Friend invite not found");
+                return handleError(ctx, null, "Friend invite not found");
             }
             
             inviteData = records[0].value;
         } catch (err) {
-            utils.logError(logger, "Failed to read invite: " + err.message);
-            return utils.handleError(ctx, err, "Failed to retrieve friend invite");
+            logError(logger, "Failed to read invite: " + err.message);
+            return handleError(ctx, err, "Failed to retrieve friend invite");
         }
 
         // Verify invite is for this user and is pending
         if (inviteData.targetUserId !== userId) {
-            return utils.handleError(ctx, null, "This invite is not for you");
+            return handleError(ctx, null, "This invite is not for you");
         }
 
         if (inviteData.status !== "pending") {
-            return utils.handleError(ctx, null, "This invite has already been processed");
+            return handleError(ctx, null, "This invite has already been processed");
         }
 
         // Add friend using Nakama's built-in friend system
         try {
             nk.friendsAdd(userId, [inviteData.fromUserId], [inviteData.fromUsername]);
-            utils.logInfo(logger, "Friend added: " + inviteData.fromUserId);
+            logInfo(logger, "Friend added: " + inviteData.fromUserId);
         } catch (err) {
-            utils.logError(logger, "Failed to add friend: " + err.message);
-            return utils.handleError(ctx, err, "Failed to add friend");
+            logError(logger, "Failed to add friend: " + err.message);
+            return handleError(ctx, err, "Failed to add friend");
         }
 
         // Update invite status
@@ -1481,7 +1481,7 @@ function acceptFriendInvite(ctx, logger, nk, payload) {
                 permissionWrite: 0
             }]);
         } catch (err) {
-            utils.logError(logger, "Failed to update invite status: " + err.message);
+            logError(logger, "Failed to update invite status: " + err.message);
         }
 
         // Notify the sender
@@ -1501,7 +1501,7 @@ function acceptFriendInvite(ctx, logger, nk, payload) {
                 true
             );
         } catch (err) {
-            utils.logError(logger, "Failed to send notification to sender: " + err.message);
+            logError(logger, "Failed to send notification to sender: " + err.message);
         }
 
         return JSON.stringify({
@@ -1512,8 +1512,8 @@ function acceptFriendInvite(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Error in acceptFriendInvite: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while accepting friend invite");
+        logError(logger, "Error in acceptFriendInvite: " + err.message);
+        return handleError(ctx, err, "An error occurred while accepting friend invite");
     }
 }
 
@@ -1522,40 +1522,40 @@ function acceptFriendInvite(ctx, logger, nk, payload) {
  * Declines a friend invite
  */
 function declineFriendInvite(ctx, logger, nk, payload) {
-    const validatePayload = utils ? utils.validatePayload : function(p, f) {
+    const validatePayload = utils ? validatePayload : function(p, f) {
         var m = [];
         for (var i = 0; i < f.length; i++) {
             if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
         }
         return { valid: m.length === 0, missing: m };
     };
-    const logInfo = utils ? utils.logInfo : function(l, m) { l.info("[Copilot] " + m); };
-    const logError = utils ? utils.logError : function(l, m) { l.error("[Copilot] " + m); };
-    const handleError = utils ? utils.handleError : function(c, e, m) { 
+    const logInfo = utils ? logInfo : function(l, m) { l.info("[Copilot] " + m); };
+    const logError = utils ? logError : function(l, m) { l.error("[Copilot] " + m); };
+    const handleError = utils ? handleError : function(c, e, m) { 
         return JSON.stringify({ success: false, error: m }); 
     };
 
     try {
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
         let data;
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return utils.handleError(ctx, err, "Invalid JSON payload");
+            return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = utils.validatePayload(data, ['inviteId']);
+        const validation = validatePayload(data, ['inviteId']);
         if (!validation.valid) {
-            return utils.handleError(ctx, null, "Missing required field: inviteId");
+            return handleError(ctx, null, "Missing required field: inviteId");
         }
 
         const userId = ctx.userId;
         const inviteId = data.inviteId;
 
-        utils.logInfo(logger, "User " + userId + " declining friend invite " + inviteId);
+        logInfo(logger, "User " + userId + " declining friend invite " + inviteId);
 
         // Read invite from storage
         let inviteData;
@@ -1567,22 +1567,22 @@ function declineFriendInvite(ctx, logger, nk, payload) {
             }]);
             
             if (!records || records.length === 0) {
-                return utils.handleError(ctx, null, "Friend invite not found");
+                return handleError(ctx, null, "Friend invite not found");
             }
             
             inviteData = records[0].value;
         } catch (err) {
-            utils.logError(logger, "Failed to read invite: " + err.message);
-            return utils.handleError(ctx, err, "Failed to retrieve friend invite");
+            logError(logger, "Failed to read invite: " + err.message);
+            return handleError(ctx, err, "Failed to retrieve friend invite");
         }
 
         // Verify invite is for this user and is pending
         if (inviteData.targetUserId !== userId) {
-            return utils.handleError(ctx, null, "This invite is not for you");
+            return handleError(ctx, null, "This invite is not for you");
         }
 
         if (inviteData.status !== "pending") {
-            return utils.handleError(ctx, null, "This invite has already been processed");
+            return handleError(ctx, null, "This invite has already been processed");
         }
 
         // Update invite status
@@ -1598,10 +1598,10 @@ function declineFriendInvite(ctx, logger, nk, payload) {
                 permissionRead: 1,
                 permissionWrite: 0
             }]);
-            utils.logInfo(logger, "Friend invite declined: " + inviteId);
+            logInfo(logger, "Friend invite declined: " + inviteId);
         } catch (err) {
-            utils.logError(logger, "Failed to update invite status: " + err.message);
-            return utils.handleError(ctx, err, "Failed to decline friend invite");
+            logError(logger, "Failed to update invite status: " + err.message);
+            return handleError(ctx, err, "Failed to decline friend invite");
         }
 
         return JSON.stringify({
@@ -1611,8 +1611,8 @@ function declineFriendInvite(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Error in declineFriendInvite: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while declining friend invite");
+        logError(logger, "Error in declineFriendInvite: " + err.message);
+        return handleError(ctx, err, "An error occurred while declining friend invite");
     }
 }
 
@@ -1621,15 +1621,15 @@ function declineFriendInvite(ctx, logger, nk, payload) {
  * Retrieves notifications for the user
  */
 function getNotifications(ctx, logger, nk, payload) {
-    const logInfo = utils ? utils.logInfo : function(l, m) { l.info("[Copilot] " + m); };
-    const logError = utils ? utils.logError : function(l, m) { l.error("[Copilot] " + m); };
-    const handleError = utils ? utils.handleError : function(c, e, m) { 
+    const logInfo = utils ? logInfo : function(l, m) { l.info("[Copilot] " + m); };
+    const logError = utils ? logError : function(l, m) { l.error("[Copilot] " + m); };
+    const handleError = utils ? handleError : function(c, e, m) { 
         return JSON.stringify({ success: false, error: m }); 
     };
 
     try {
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return handleError(ctx, null, "Authentication required");
         }
 
         let data = {};
@@ -1644,7 +1644,7 @@ function getNotifications(ctx, logger, nk, payload) {
         const userId = ctx.userId;
         const limit = data.limit || 100;
 
-        utils.logInfo(logger, "Getting notifications for user " + userId);
+        logInfo(logger, "Getting notifications for user " + userId);
 
         // Get notifications using Nakama's built-in system
         let notifications = [];
@@ -1653,10 +1653,10 @@ function getNotifications(ctx, logger, nk, payload) {
             if (result && result.notifications) {
                 notifications = result.notifications;
             }
-            utils.logInfo(logger, "Retrieved " + notifications.length + " notifications");
+            logInfo(logger, "Retrieved " + notifications.length + " notifications");
         } catch (err) {
-            utils.logError(logger, "Failed to retrieve notifications: " + err.message);
-            return utils.handleError(ctx, err, "Failed to retrieve notifications");
+            logError(logger, "Failed to retrieve notifications: " + err.message);
+            return handleError(ctx, err, "Failed to retrieve notifications");
         }
 
         return JSON.stringify({
@@ -1666,8 +1666,8 @@ function getNotifications(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Error in getNotifications: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while retrieving notifications");
+        logError(logger, "Error in getNotifications: " + err.message);
+        return handleError(ctx, err, "An error occurred while retrieving notifications");
     }
 }
 
@@ -1713,9 +1713,9 @@ var REWARD_CONFIGS = {
  */
 function getStreakData(nk, logger, userId, gameId) {
     var collection = "daily_streaks";
-    var key = utils.makeGameStorageKey("user_daily_streak", userId, gameId);
+    var key = makeGameStorageKey("user_daily_streak", userId, gameId);
     
-    var data = utils.readStorage(nk, logger, collection, key, userId);
+    var data = readStorage(nk, logger, collection, key, userId);
     
     if (!data) {
         // Initialize new streak
@@ -1725,7 +1725,7 @@ function getStreakData(nk, logger, userId, gameId) {
             currentStreak: 0,
             lastClaimTimestamp: 0,
             totalClaims: 0,
-            createdAt: utils.getCurrentTimestamp()
+            createdAt: getCurrentTimestamp()
         };
     }
     
@@ -1743,8 +1743,8 @@ function getStreakData(nk, logger, userId, gameId) {
  */
 function saveStreakData(nk, logger, userId, gameId, data) {
     var collection = "daily_streaks";
-    var key = utils.makeGameStorageKey("user_daily_streak", userId, gameId);
-    return utils.writeStorage(nk, logger, collection, key, userId, data);
+    var key = makeGameStorageKey("user_daily_streak", userId, gameId);
+    return writeStorage(nk, logger, collection, key, userId, data);
 }
 
 /**
@@ -1753,7 +1753,7 @@ function saveStreakData(nk, logger, userId, gameId, data) {
  * @returns {object} { canClaim: boolean, reason: string }
  */
 function canClaimToday(streakData) {
-    var now = utils.getUnixTimestamp();
+    var now = getUnixTimestamp();
     var lastClaim = streakData.lastClaimTimestamp;
     
     // First claim ever
@@ -1761,8 +1761,8 @@ function canClaimToday(streakData) {
         return { canClaim: true, reason: "first_claim" };
     }
     
-    var lastClaimStartOfDay = utils.getStartOfDay(new Date(lastClaim * 1000));
-    var todayStartOfDay = utils.getStartOfDay();
+    var lastClaimStartOfDay = getStartOfDay(new Date(lastClaim * 1000));
+    var todayStartOfDay = getStartOfDay();
     
     // Already claimed today
     if (lastClaimStartOfDay === todayStartOfDay) {
@@ -1779,7 +1779,7 @@ function canClaimToday(streakData) {
  * @returns {object} Updated streak data
  */
 function updateStreakStatus(streakData) {
-    var now = utils.getUnixTimestamp();
+    var now = getUnixTimestamp();
     var lastClaim = streakData.lastClaimTimestamp;
     
     // First claim
@@ -1788,7 +1788,7 @@ function updateStreakStatus(streakData) {
     }
     
     // Check if more than 48 hours passed (streak broken)
-    if (!utils.isWithinHours(lastClaim, now, 48)) {
+    if (!isWithinHours(lastClaim, now, 48)) {
         streakData.currentStreak = 0;
     }
     
@@ -1824,27 +1824,27 @@ function getRewardForDay(gameId, day) {
  * @returns {string} JSON response
  */
 function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC daily_rewards_get_status called");
+    logInfo(logger, "RPC daily_rewards_get_status called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
+    var validation = validatePayload(data, ['gameId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     // Get current streak data
@@ -1868,7 +1868,7 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
         canClaimToday: claimCheck.canClaim,
         claimReason: claimCheck.reason,
         nextReward: nextReward,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -1881,27 +1881,27 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC daily_rewards_claim called");
+    logInfo(logger, "RPC daily_rewards_claim called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
+    var validation = validatePayload(data, ['gameId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     // Get current streak data
@@ -1920,31 +1920,31 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     
     // Update streak
     streakData.currentStreak += 1;
-    streakData.lastClaimTimestamp = utils.getUnixTimestamp();
+    streakData.lastClaimTimestamp = getUnixTimestamp();
     streakData.totalClaims += 1;
-    streakData.updatedAt = utils.getCurrentTimestamp();
+    streakData.updatedAt = getCurrentTimestamp();
     
     // Get reward for current day
     var reward = getRewardForDay(gameId, streakData.currentStreak);
     
     // Save updated streak
     if (!saveStreakData(nk, logger, userId, gameId, streakData)) {
-        return utils.handleError(ctx, null, "Failed to save streak data");
+        return handleError(ctx, null, "Failed to save streak data");
     }
     
     // Log reward claim for transaction history
-    var transactionKey = "transaction_log_" + userId + "_" + utils.getUnixTimestamp();
+    var transactionKey = "transaction_log_" + userId + "_" + getUnixTimestamp();
     var transactionData = {
         userId: userId,
         gameId: gameId,
         type: "daily_reward_claim",
         day: streakData.currentStreak,
         reward: reward,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     };
-    utils.writeStorage(nk, logger, "transaction_logs", transactionKey, userId, transactionData);
+    writeStorage(nk, logger, "transaction_logs", transactionKey, userId, transactionData);
     
-    utils.logInfo(logger, "User " + userId + " claimed day " + streakData.currentStreak + " reward for game " + gameId);
+    logInfo(logger, "User " + userId + " claimed day " + streakData.currentStreak + " reward for game " + gameId);
     
     return JSON.stringify({
         success: true,
@@ -1953,7 +1953,7 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
         currentStreak: streakData.currentStreak,
         totalClaims: streakData.totalClaims,
         reward: reward,
-        claimedAt: utils.getCurrentTimestamp()
+        claimedAt: getCurrentTimestamp()
     });
 }
 
@@ -2019,9 +2019,9 @@ function getMissionConfig(gameId) {
  */
 function getMissionProgress(nk, logger, userId, gameId) {
     var collection = "daily_missions";
-    var key = utils.makeGameStorageKey("mission_progress", userId, gameId);
+    var key = makeGameStorageKey("mission_progress", userId, gameId);
     
-    var data = utils.readStorage(nk, logger, collection, key, userId);
+    var data = readStorage(nk, logger, collection, key, userId);
     
     if (!data || !isToday(data.resetDate)) {
         // Initialize new daily missions
@@ -2040,9 +2040,9 @@ function getMissionProgress(nk, logger, userId, gameId) {
         data = {
             userId: userId,
             gameId: gameId,
-            resetDate: utils.getStartOfDay(),
+            resetDate: getStartOfDay(),
             progress: progress,
-            updatedAt: utils.getCurrentTimestamp()
+            updatedAt: getCurrentTimestamp()
         };
     }
     
@@ -2056,7 +2056,7 @@ function getMissionProgress(nk, logger, userId, gameId) {
  */
 function isToday(timestamp) {
     if (!timestamp) return false;
-    var todayStart = utils.getStartOfDay();
+    var todayStart = getStartOfDay();
     var tomorrowStart = todayStart + 86400; // +24 hours
     return timestamp >= todayStart && timestamp < tomorrowStart;
 }
@@ -2072,9 +2072,9 @@ function isToday(timestamp) {
  */
 function saveMissionProgress(nk, logger, userId, gameId, data) {
     var collection = "daily_missions";
-    var key = utils.makeGameStorageKey("mission_progress", userId, gameId);
-    data.updatedAt = utils.getCurrentTimestamp();
-    return utils.writeStorage(nk, logger, collection, key, userId, data);
+    var key = makeGameStorageKey("mission_progress", userId, gameId);
+    data.updatedAt = getCurrentTimestamp();
+    return writeStorage(nk, logger, collection, key, userId, data);
 }
 
 /**
@@ -2086,27 +2086,27 @@ function saveMissionProgress(nk, logger, userId, gameId, data) {
  * @returns {string} JSON response
  */
 function rpcGetDailyMissions(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC get_daily_missions called");
+    logInfo(logger, "RPC get_daily_missions called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
+    var validation = validatePayload(data, ['gameId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     // Get mission progress
@@ -2145,7 +2145,7 @@ function rpcGetDailyMissions(ctx, logger, nk, payload) {
         gameId: gameId,
         resetDate: progressData.resetDate,
         missions: missionsList,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -2158,27 +2158,27 @@ function rpcGetDailyMissions(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC submit_mission_progress called");
+    logInfo(logger, "RPC submit_mission_progress called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId', 'missionId', 'value']);
+    var validation = validatePayload(data, ['gameId', 'missionId', 'value']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var missionId = data.missionId;
@@ -2189,7 +2189,7 @@ function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
     
     // Check if mission exists
     if (!progressData.progress[missionId]) {
-        return utils.handleError(ctx, null, "Mission not found: " + missionId);
+        return handleError(ctx, null, "Mission not found: " + missionId);
     }
     
     var missionProgress = progressData.progress[missionId];
@@ -2200,12 +2200,12 @@ function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
     // Check if completed
     if (missionProgress.currentValue >= missionProgress.targetValue && !missionProgress.completed) {
         missionProgress.completed = true;
-        utils.logInfo(logger, "Mission " + missionId + " completed for user " + userId);
+        logInfo(logger, "Mission " + missionId + " completed for user " + userId);
     }
     
     // Save progress
     if (!saveMissionProgress(nk, logger, userId, gameId, progressData)) {
-        return utils.handleError(ctx, null, "Failed to save mission progress");
+        return handleError(ctx, null, "Failed to save mission progress");
     }
     
     return JSON.stringify({
@@ -2217,7 +2217,7 @@ function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
         targetValue: missionProgress.targetValue,
         completed: missionProgress.completed,
         claimed: missionProgress.claimed,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -2230,27 +2230,27 @@ function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcClaimMissionReward(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC claim_mission_reward called");
+    logInfo(logger, "RPC claim_mission_reward called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId', 'missionId']);
+    var validation = validatePayload(data, ['gameId', 'missionId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var missionId = data.missionId;
@@ -2260,7 +2260,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
     
     // Check if mission exists
     if (!progressData.progress[missionId]) {
-        return utils.handleError(ctx, null, "Mission not found: " + missionId);
+        return handleError(ctx, null, "Mission not found: " + missionId);
     }
     
     var missionProgress = progressData.progress[missionId];
@@ -2295,27 +2295,27 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
     }
     
     if (!missionConfig) {
-        return utils.handleError(ctx, null, "Mission configuration not found");
+        return handleError(ctx, null, "Mission configuration not found");
     }
     
     // Save progress
     if (!saveMissionProgress(nk, logger, userId, gameId, progressData)) {
-        return utils.handleError(ctx, null, "Failed to save mission progress");
+        return handleError(ctx, null, "Failed to save mission progress");
     }
     
     // Log reward claim for transaction history
-    var transactionKey = "transaction_log_" + userId + "_" + utils.getUnixTimestamp();
+    var transactionKey = "transaction_log_" + userId + "_" + getUnixTimestamp();
     var transactionData = {
         userId: userId,
         gameId: gameId,
         type: "mission_reward_claim",
         missionId: missionId,
         rewards: missionConfig.rewards,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     };
-    utils.writeStorage(nk, logger, "transaction_logs", transactionKey, userId, transactionData);
+    writeStorage(nk, logger, "transaction_logs", transactionKey, userId, transactionData);
     
-    utils.logInfo(logger, "User " + userId + " claimed mission reward for " + missionId);
+    logInfo(logger, "User " + userId + " claimed mission reward for " + missionId);
     
     return JSON.stringify({
         success: true,
@@ -2323,7 +2323,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
         gameId: gameId,
         missionId: missionId,
         rewards: missionConfig.rewards,
-        claimedAt: utils.getCurrentTimestamp()
+        claimedAt: getCurrentTimestamp()
     });
 }
 
@@ -2345,9 +2345,9 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
  */
 function getGlobalWallet(nk, logger, userId) {
     var collection = "wallets";
-    var key = utils.makeGlobalStorageKey("global_wallet", userId);
+    var key = makeGlobalStorageKey("global_wallet", userId);
     
-    var wallet = utils.readStorage(nk, logger, collection, key, userId);
+    var wallet = readStorage(nk, logger, collection, key, userId);
     
     if (!wallet) {
         // Initialize new global wallet
@@ -2359,7 +2359,7 @@ function getGlobalWallet(nk, logger, userId) {
             },
             items: {},
             nfts: [],
-            createdAt: utils.getCurrentTimestamp()
+            createdAt: getCurrentTimestamp()
         };
     }
     
@@ -2376,9 +2376,9 @@ function getGlobalWallet(nk, logger, userId) {
  */
 function getGameWallet(nk, logger, userId, gameId) {
     var collection = "wallets";
-    var key = utils.makeGameStorageKey("wallet", userId, gameId);
+    var key = makeGameStorageKey("wallet", userId, gameId);
     
-    var wallet = utils.readStorage(nk, logger, collection, key, userId);
+    var wallet = readStorage(nk, logger, collection, key, userId);
     
     if (!wallet) {
         // Initialize new game wallet
@@ -2392,7 +2392,7 @@ function getGameWallet(nk, logger, userId, gameId) {
             items: {},
             consumables: {},
             cosmetics: {},
-            createdAt: utils.getCurrentTimestamp()
+            createdAt: getCurrentTimestamp()
         };
     }
     
@@ -2409,9 +2409,9 @@ function getGameWallet(nk, logger, userId, gameId) {
  */
 function saveGlobalWallet(nk, logger, userId, wallet) {
     var collection = "wallets";
-    var key = utils.makeGlobalStorageKey("global_wallet", userId);
-    wallet.updatedAt = utils.getCurrentTimestamp();
-    return utils.writeStorage(nk, logger, collection, key, userId, wallet);
+    var key = makeGlobalStorageKey("global_wallet", userId);
+    wallet.updatedAt = getCurrentTimestamp();
+    return writeStorage(nk, logger, collection, key, userId, wallet);
 }
 
 /**
@@ -2425,9 +2425,9 @@ function saveGlobalWallet(nk, logger, userId, wallet) {
  */
 function saveGameWallet(nk, logger, userId, gameId, wallet) {
     var collection = "wallets";
-    var key = utils.makeGameStorageKey("wallet", userId, gameId);
-    wallet.updatedAt = utils.getCurrentTimestamp();
-    return utils.writeStorage(nk, logger, collection, key, userId, wallet);
+    var key = makeGameStorageKey("wallet", userId, gameId);
+    wallet.updatedAt = getCurrentTimestamp();
+    return writeStorage(nk, logger, collection, key, userId, wallet);
 }
 
 /**
@@ -2438,9 +2438,9 @@ function saveGameWallet(nk, logger, userId, gameId, wallet) {
  * @param {object} transaction - Transaction data
  */
 function logTransaction(nk, logger, userId, transaction) {
-    var key = "transaction_log_" + userId + "_" + utils.getUnixTimestamp();
-    transaction.timestamp = utils.getCurrentTimestamp();
-    utils.writeStorage(nk, logger, "transaction_logs", key, userId, transaction);
+    var key = "transaction_log_" + userId + "_" + getUnixTimestamp();
+    transaction.timestamp = getCurrentTimestamp();
+    writeStorage(nk, logger, "transaction_logs", key, userId, transaction);
 }
 
 /**
@@ -2452,11 +2452,11 @@ function logTransaction(nk, logger, userId, transaction) {
  * @returns {string} JSON response
  */
 function rpcWalletGetAll(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC wallet_get_all called");
+    logInfo(logger, "RPC wallet_get_all called");
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     // Get global wallet
@@ -2472,7 +2472,7 @@ function rpcWalletGetAll(ctx, logger, nk, payload) {
             }
         }
     } catch (err) {
-        utils.logWarn(logger, "Failed to list game wallets: " + err.message);
+        logWarn(logger, "Failed to list game wallets: " + err.message);
     }
     
     return JSON.stringify({
@@ -2480,7 +2480,7 @@ function rpcWalletGetAll(ctx, logger, nk, payload) {
         userId: userId,
         globalWallet: globalWallet,
         gameWallets: gameWallets,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -2493,22 +2493,22 @@ function rpcWalletGetAll(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC wallet_update_global called");
+    logInfo(logger, "RPC wallet_update_global called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['currency', 'amount', 'operation']);
+    var validation = validatePayload(data, ['currency', 'amount', 'operation']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var currency = data.currency;
@@ -2532,12 +2532,12 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
             wallet.currencies[currency] = 0;
         }
     } else {
-        return utils.handleError(ctx, null, "Invalid operation: " + operation);
+        return handleError(ctx, null, "Invalid operation: " + operation);
     }
     
     // Save wallet
     if (!saveGlobalWallet(nk, logger, userId, wallet)) {
-        return utils.handleError(ctx, null, "Failed to save global wallet");
+        return handleError(ctx, null, "Failed to save global wallet");
     }
     
     // Log transaction
@@ -2554,7 +2554,7 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
         userId: userId,
         currency: currency,
         newBalance: wallet.currencies[currency],
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -2567,27 +2567,27 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC wallet_update_game_wallet called");
+    logInfo(logger, "RPC wallet_update_game_wallet called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId', 'currency', 'amount', 'operation']);
+    var validation = validatePayload(data, ['gameId', 'currency', 'amount', 'operation']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var currency = data.currency;
@@ -2611,12 +2611,12 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
             wallet.currencies[currency] = 0;
         }
     } else {
-        return utils.handleError(ctx, null, "Invalid operation: " + operation);
+        return handleError(ctx, null, "Invalid operation: " + operation);
     }
     
     // Save wallet
     if (!saveGameWallet(nk, logger, userId, gameId, wallet)) {
-        return utils.handleError(ctx, null, "Failed to save game wallet");
+        return handleError(ctx, null, "Failed to save game wallet");
     }
     
     // Log transaction
@@ -2635,7 +2635,7 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
         gameId: gameId,
         currency: currency,
         newBalance: wallet.currencies[currency],
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -2648,29 +2648,29 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC wallet_transfer_between_game_wallets called");
+    logInfo(logger, "RPC wallet_transfer_between_game_wallets called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['fromGameId', 'toGameId', 'currency', 'amount']);
+    var validation = validatePayload(data, ['fromGameId', 'toGameId', 'currency', 'amount']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var fromGameId = data.fromGameId;
     var toGameId = data.toGameId;
     
-    if (!utils.isValidUUID(fromGameId) || !utils.isValidUUID(toGameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(fromGameId) || !isValidUUID(toGameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var currency = data.currency;
@@ -2697,10 +2697,10 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     
     // Save both wallets
     if (!saveGameWallet(nk, logger, userId, fromGameId, fromWallet)) {
-        return utils.handleError(ctx, null, "Failed to save source wallet");
+        return handleError(ctx, null, "Failed to save source wallet");
     }
     if (!saveGameWallet(nk, logger, userId, toGameId, toWallet)) {
-        return utils.handleError(ctx, null, "Failed to save destination wallet");
+        return handleError(ctx, null, "Failed to save destination wallet");
     }
     
     // Log transaction
@@ -2721,7 +2721,7 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
         amount: amount,
         fromBalance: fromWallet.currencies[currency],
         toBalance: toWallet.currencies[currency],
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -2743,27 +2743,27 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC analytics_log_event called");
+    logInfo(logger, "RPC analytics_log_event called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId', 'eventName']);
+    var validation = validatePayload(data, ['gameId', 'eventName']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var eventName = data.eventName;
@@ -2775,16 +2775,16 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
         gameId: gameId,
         eventName: eventName,
         eventData: eventData,
-        timestamp: utils.getCurrentTimestamp(),
-        unixTimestamp: utils.getUnixTimestamp()
+        timestamp: getCurrentTimestamp(),
+        unixTimestamp: getUnixTimestamp()
     };
     
     // Store event
     var collection = "analytics_events";
-    var key = "event_" + userId + "_" + gameId + "_" + utils.getUnixTimestamp();
+    var key = "event_" + userId + "_" + gameId + "_" + getUnixTimestamp();
     
-    if (!utils.writeStorage(nk, logger, collection, key, userId, event)) {
-        return utils.handleError(ctx, null, "Failed to log event");
+    if (!writeStorage(nk, logger, collection, key, userId, event)) {
+        return handleError(ctx, null, "Failed to log event");
     }
     
     // Track DAU (Daily Active Users)
@@ -2795,7 +2795,7 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
         trackSession(nk, logger, userId, gameId, eventName, eventData);
     }
     
-    utils.logInfo(logger, "Event logged: " + eventName + " for user " + userId + " in game " + gameId);
+    logInfo(logger, "Event logged: " + eventName + " for user " + userId + " in game " + gameId);
     
     return JSON.stringify({
         success: true,
@@ -2814,12 +2814,12 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
  * @param {string} gameId - Game ID (UUID)
  */
 function trackDAU(nk, logger, userId, gameId) {
-    var today = utils.getStartOfDay();
+    var today = getStartOfDay();
     var collection = "analytics_dau";
     var key = "dau_" + gameId + "_" + today;
     
     // Read existing DAU data
-    var dauData = utils.readStorage(nk, logger, collection, key, "00000000-0000-0000-0000-000000000000");
+    var dauData = readStorage(nk, logger, collection, key, "00000000-0000-0000-0000-000000000000");
     
     if (!dauData) {
         dauData = {
@@ -2836,7 +2836,7 @@ function trackDAU(nk, logger, userId, gameId) {
         dauData.count = dauData.users.length;
         
         // Save updated DAU data
-        utils.writeStorage(nk, logger, collection, key, "00000000-0000-0000-0000-000000000000", dauData);
+        writeStorage(nk, logger, collection, key, "00000000-0000-0000-0000-000000000000", dauData);
     }
 }
 
@@ -2851,33 +2851,33 @@ function trackDAU(nk, logger, userId, gameId) {
  */
 function trackSession(nk, logger, userId, gameId, eventName, eventData) {
     var collection = "analytics_sessions";
-    var key = utils.makeGameStorageKey("analytics_session", userId, gameId);
+    var key = makeGameStorageKey("analytics_session", userId, gameId);
     
     if (eventName === "session_start") {
         // Start new session
         var sessionData = {
             userId: userId,
             gameId: gameId,
-            startTime: utils.getUnixTimestamp(),
-            startTimestamp: utils.getCurrentTimestamp(),
+            startTime: getUnixTimestamp(),
+            startTimestamp: getCurrentTimestamp(),
             active: true
         };
-        utils.writeStorage(nk, logger, collection, key, userId, sessionData);
+        writeStorage(nk, logger, collection, key, userId, sessionData);
     } else if (eventName === "session_end") {
         // End session
-        var sessionData = utils.readStorage(nk, logger, collection, key, userId);
+        var sessionData = readStorage(nk, logger, collection, key, userId);
         if (sessionData && sessionData.active) {
-            sessionData.endTime = utils.getUnixTimestamp();
-            sessionData.endTimestamp = utils.getCurrentTimestamp();
+            sessionData.endTime = getUnixTimestamp();
+            sessionData.endTimestamp = getCurrentTimestamp();
             sessionData.duration = sessionData.endTime - sessionData.startTime;
             sessionData.active = false;
             
             // Save session summary
             var summaryKey = "session_summary_" + userId + "_" + gameId + "_" + sessionData.startTime;
-            utils.writeStorage(nk, logger, "analytics_session_summaries", summaryKey, userId, sessionData);
+            writeStorage(nk, logger, "analytics_session_summaries", summaryKey, userId, sessionData);
             
             // Clear active session
-            utils.writeStorage(nk, logger, collection, key, userId, { active: false });
+            writeStorage(nk, logger, collection, key, userId, { active: false });
         }
     }
 }
@@ -2900,22 +2900,22 @@ function trackSession(nk, logger, userId, gameId, eventName, eventData) {
  * @returns {string} JSON response
  */
 function rpcFriendsBlock(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_block called");
+    logInfo(logger, "RPC friends_block called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['targetUserId']);
+    var validation = validatePayload(data, ['targetUserId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var targetUserId = data.targetUserId;
@@ -2926,18 +2926,18 @@ function rpcFriendsBlock(ctx, logger, nk, payload) {
     var blockData = {
         userId: userId,
         blockedUserId: targetUserId,
-        blockedAt: utils.getCurrentTimestamp()
+        blockedAt: getCurrentTimestamp()
     };
     
-    if (!utils.writeStorage(nk, logger, collection, key, userId, blockData)) {
-        return utils.handleError(ctx, null, "Failed to block user");
+    if (!writeStorage(nk, logger, collection, key, userId, blockData)) {
+        return handleError(ctx, null, "Failed to block user");
     }
     
     // Remove from friends if exists
     try {
         nk.friendsDelete(userId, [targetUserId]);
     } catch (err) {
-        utils.logWarn(logger, "Could not remove friend relationship: " + err.message);
+        logWarn(logger, "Could not remove friend relationship: " + err.message);
     }
     
     return JSON.stringify({
@@ -2957,22 +2957,22 @@ function rpcFriendsBlock(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcFriendsUnblock(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_unblock called");
+    logInfo(logger, "RPC friends_unblock called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['targetUserId']);
+    var validation = validatePayload(data, ['targetUserId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var targetUserId = data.targetUserId;
@@ -2988,14 +2988,14 @@ function rpcFriendsUnblock(ctx, logger, nk, payload) {
             userId: userId
         }]);
     } catch (err) {
-        utils.logWarn(logger, "Failed to unblock user: " + err.message);
+        logWarn(logger, "Failed to unblock user: " + err.message);
     }
     
     return JSON.stringify({
         success: true,
         userId: userId,
         unblockedUserId: targetUserId,
-        unblockedAt: utils.getCurrentTimestamp()
+        unblockedAt: getCurrentTimestamp()
     });
 }
 
@@ -3008,22 +3008,22 @@ function rpcFriendsUnblock(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcFriendsRemove(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_remove called");
+    logInfo(logger, "RPC friends_remove called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['friendUserId']);
+    var validation = validatePayload(data, ['friendUserId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var friendUserId = data.friendUserId;
@@ -3031,14 +3031,14 @@ function rpcFriendsRemove(ctx, logger, nk, payload) {
     try {
         nk.friendsDelete(userId, [friendUserId]);
     } catch (err) {
-        return utils.handleError(ctx, err, "Failed to remove friend");
+        return handleError(ctx, err, "Failed to remove friend");
     }
     
     return JSON.stringify({
         success: true,
         userId: userId,
         removedFriendUserId: friendUserId,
-        removedAt: utils.getCurrentTimestamp()
+        removedAt: getCurrentTimestamp()
     });
 }
 
@@ -3051,16 +3051,16 @@ function rpcFriendsRemove(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcFriendsList(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_list called");
+    logInfo(logger, "RPC friends_list called");
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var limit = 100;
     if (payload) {
-        var parsed = utils.safeJsonParse(payload);
+        var parsed = safeJsonParse(payload);
         if (parsed.success && parsed.data.limit) {
             limit = parsed.data.limit;
         }
@@ -3080,7 +3080,7 @@ function rpcFriendsList(ctx, logger, nk, payload) {
             });
         }
     } catch (err) {
-        return utils.handleError(ctx, err, "Failed to list friends");
+        return handleError(ctx, err, "Failed to list friends");
     }
     
     return JSON.stringify({
@@ -3088,7 +3088,7 @@ function rpcFriendsList(ctx, logger, nk, payload) {
         userId: userId,
         friends: friends,
         count: friends.length,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -3101,34 +3101,34 @@ function rpcFriendsList(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_challenge_user called");
+    logInfo(logger, "RPC friends_challenge_user called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['friendUserId', 'gameId']);
+    var validation = validatePayload(data, ['friendUserId', 'gameId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var friendUserId = data.friendUserId;
     var challengeData = data.challengeData || {};
     
     // Create challenge
-    var challengeId = "challenge_" + userId + "_" + friendUserId + "_" + utils.getUnixTimestamp();
+    var challengeId = "challenge_" + userId + "_" + friendUserId + "_" + getUnixTimestamp();
     var challenge = {
         challengeId: challengeId,
         fromUserId: userId,
@@ -3136,13 +3136,13 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
         gameId: gameId,
         challengeData: challengeData,
         status: "pending",
-        createdAt: utils.getCurrentTimestamp()
+        createdAt: getCurrentTimestamp()
     };
     
     // Store challenge
     var collection = "challenges";
-    if (!utils.writeStorage(nk, logger, collection, challengeId, userId, challenge)) {
-        return utils.handleError(ctx, null, "Failed to create challenge");
+    if (!writeStorage(nk, logger, collection, challengeId, userId, challenge)) {
+        return handleError(ctx, null, "Failed to create challenge");
     }
     
     // Send notification to friend
@@ -3154,7 +3154,7 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
             gameId: gameId
         }, 1);
     } catch (err) {
-        utils.logWarn(logger, "Failed to send challenge notification: " + err.message);
+        logWarn(logger, "Failed to send challenge notification: " + err.message);
     }
     
     return JSON.stringify({
@@ -3164,7 +3164,7 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
         toUserId: friendUserId,
         gameId: gameId,
         status: "pending",
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -3177,22 +3177,22 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcFriendsSpectate(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_spectate called");
+    logInfo(logger, "RPC friends_spectate called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['friendUserId']);
+    var validation = validatePayload(data, ['friendUserId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var friendUserId = data.friendUserId;
@@ -3205,7 +3205,7 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
             presences = statuses[0].presences;
         }
     } catch (err) {
-        return utils.handleError(ctx, err, "Failed to get friend presence");
+        return handleError(ctx, err, "Failed to get friend presence");
     }
     
     // Find if friend is in a match
@@ -3230,7 +3230,7 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
         friendUserId: friendUserId,
         matchId: matchId,
         spectateReady: true,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -3880,11 +3880,11 @@ function storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn) {
         gameId: gameId,
         platform: platform,
         endpointArn: endpointArn,
-        createdAt: utils.getCurrentTimestamp(),
-        updatedAt: utils.getCurrentTimestamp()
+        createdAt: getCurrentTimestamp(),
+        updatedAt: getCurrentTimestamp()
     };
     
-    return utils.writeStorage(nk, logger, collection, key, userId, data);
+    return writeStorage(nk, logger, collection, key, userId, data);
 }
 
 /**
@@ -3899,7 +3899,7 @@ function storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn) {
 function getEndpointArn(nk, logger, userId, gameId, platform) {
     var collection = "push_endpoints";
     var key = "push_endpoint_" + userId + "_" + gameId + "_" + platform;
-    return utils.readStorage(nk, logger, collection, key, userId);
+    return readStorage(nk, logger, collection, key, userId);
 }
 
 /**
@@ -3923,7 +3923,7 @@ function getAllEndpointArns(nk, logger, userId, gameId) {
             }
         }
     } catch (err) {
-        utils.logWarn(logger, "Failed to list endpoints: " + err.message);
+        logWarn(logger, "Failed to list endpoints: " + err.message);
     }
     
     return endpoints;
@@ -3946,27 +3946,27 @@ function getAllEndpointArns(nk, logger, userId, gameId) {
  * @returns {string} JSON response
  */
 function rpcPushRegisterToken(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC push_register_token called");
+    logInfo(logger, "RPC push_register_token called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId', 'platform', 'token']);
+    var validation = validatePayload(data, ['gameId', 'platform', 'token']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var platform = data.platform;
@@ -3974,10 +3974,10 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
     
     // Validate platform
     if (!PLATFORM_TYPES[platform]) {
-        return utils.handleError(ctx, null, "Invalid platform. Must be: ios, android, web, or windows");
+        return handleError(ctx, null, "Invalid platform. Must be: ios, android, web, or windows");
     }
     
-    utils.logInfo(logger, "Registering " + platform + " push token for user " + userId);
+    logInfo(logger, "Registering " + platform + " push token for user " + userId);
     
     // Call Lambda to create SNS endpoint
     var lambdaPayload = {
@@ -4000,34 +4000,34 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
             JSON.stringify(lambdaPayload)
         );
     } catch (err) {
-        utils.logError(logger, "Lambda request failed: " + err.message);
-        return utils.handleError(ctx, err, "Failed to register push token with Lambda");
+        logError(logger, "Lambda request failed: " + err.message);
+        return handleError(ctx, err, "Failed to register push token with Lambda");
     }
     
     if (lambdaResponse.code !== 200 && lambdaResponse.code !== 201) {
-        utils.logError(logger, "Lambda returned code " + lambdaResponse.code);
-        return utils.handleError(ctx, null, "Lambda endpoint registration failed with code " + lambdaResponse.code);
+        logError(logger, "Lambda returned code " + lambdaResponse.code);
+        return handleError(ctx, null, "Lambda endpoint registration failed with code " + lambdaResponse.code);
     }
     
     var lambdaData;
     try {
         lambdaData = JSON.parse(lambdaResponse.body);
     } catch (err) {
-        return utils.handleError(ctx, null, "Invalid Lambda response JSON");
+        return handleError(ctx, null, "Invalid Lambda response JSON");
     }
     
     if (!lambdaData.success || !lambdaData.snsEndpointArn) {
-        return utils.handleError(ctx, null, "Lambda did not return endpoint ARN: " + (lambdaData.error || "Unknown error"));
+        return handleError(ctx, null, "Lambda did not return endpoint ARN: " + (lambdaData.error || "Unknown error"));
     }
     
     var endpointArn = lambdaData.snsEndpointArn;
     
     // Store endpoint ARN
     if (!storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn)) {
-        return utils.handleError(ctx, null, "Failed to store endpoint ARN");
+        return handleError(ctx, null, "Failed to store endpoint ARN");
     }
     
-    utils.logInfo(logger, "Successfully registered push endpoint: " + endpointArn);
+    logInfo(logger, "Successfully registered push endpoint: " + endpointArn);
     
     return JSON.stringify({
         success: true,
@@ -4035,7 +4035,7 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
         gameId: gameId,
         platform: platform,
         endpointArn: endpointArn,
-        registeredAt: utils.getCurrentTimestamp()
+        registeredAt: getCurrentTimestamp()
     });
 }
 
@@ -4058,22 +4058,22 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcPushSendEvent(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC push_send_event called");
+    logInfo(logger, "RPC push_send_event called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['targetUserId', 'gameId', 'eventType', 'title', 'body']);
+    var validation = validatePayload(data, ['targetUserId', 'gameId', 'eventType', 'title', 'body']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var targetUserId = data.targetUserId;
@@ -4082,7 +4082,7 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
     var body = data.body;
     var customData = data.data || {};
     
-    utils.logInfo(logger, "Sending push notification to user " + targetUserId + " for event " + eventType);
+    logInfo(logger, "Sending push notification to user " + targetUserId + " for event " + eventType);
     
     // Get all endpoints for target user
     var endpoints = getAllEndpointArns(nk, logger, targetUserId, gameId);
@@ -4124,7 +4124,7 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
             
             if (lambdaResponse.code === 200 || lambdaResponse.code === 201) {
                 sentCount++;
-                utils.logInfo(logger, "Push sent to " + endpoint.platform + " endpoint");
+                logInfo(logger, "Push sent to " + endpoint.platform + " endpoint");
             } else {
                 errors.push({
                     platform: endpoint.platform,
@@ -4136,7 +4136,7 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
                 platform: endpoint.platform,
                 error: err.message
             });
-            utils.logWarn(logger, "Failed to send push to " + endpoint.platform + ": " + err.message);
+            logWarn(logger, "Failed to send push to " + endpoint.platform + ": " + err.message);
         }
     }
     
@@ -4149,11 +4149,11 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
         body: body,
         sentCount: sentCount,
         totalEndpoints: endpoints.length,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     };
     
-    var logKey = "push_log_" + targetUserId + "_" + utils.getUnixTimestamp();
-    utils.writeStorage(nk, logger, "push_notification_logs", logKey, targetUserId, notificationLog);
+    var logKey = "push_log_" + targetUserId + "_" + getUnixTimestamp();
+    writeStorage(nk, logger, "push_notification_logs", logKey, targetUserId, notificationLog);
     
     return JSON.stringify({
         success: sentCount > 0,
@@ -4163,7 +4163,7 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
         sentCount: sentCount,
         totalEndpoints: endpoints.length,
         errors: errors.length > 0 ? errors : undefined,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
@@ -4176,27 +4176,27 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
  * @returns {string} JSON response
  */
 function rpcPushGetEndpoints(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC push_get_endpoints called");
+    logInfo(logger, "RPC push_get_endpoints called");
     
-    var parsed = utils.safeJsonParse(payload);
+    var parsed = safeJsonParse(payload);
     if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+        return handleError(ctx, null, "Invalid JSON payload");
     }
     
     var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
+    var validation = validatePayload(data, ['gameId']);
     if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
     }
     
     var userId = ctx.userId;
     if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
+        return handleError(ctx, null, "User not authenticated");
     }
     
     var endpoints = getAllEndpointArns(nk, logger, userId, gameId);
@@ -4207,7 +4207,7 @@ function rpcPushGetEndpoints(ctx, logger, nk, payload) {
         gameId: gameId,
         endpoints: endpoints,
         count: endpoints.length,
-        timestamp: utils.getCurrentTimestamp()
+        timestamp: getCurrentTimestamp()
     });
 }
 
