@@ -29,12 +29,12 @@ import (
 
 func (s *ApiServer) GetAccount(ctx context.Context, in *emptypb.Empty) (*api.Account, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeGetAccount(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
+			err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -63,7 +63,7 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *emptypb.Empty) (*api.Acc
 	// After hook.
 	if fn := s.runtime.AfterGetAccount(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, account)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, account)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -75,12 +75,12 @@ func (s *ApiServer) GetAccount(ctx context.Context, in *emptypb.Empty) (*api.Acc
 
 func (s *ApiServer) DeleteAccount(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeDeleteAccount(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
+			err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -105,7 +105,7 @@ func (s *ApiServer) DeleteAccount(ctx context.Context, in *emptypb.Empty) (*empt
 	// After hook.
 	if fn := s.runtime.AfterDeleteAccount(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -117,12 +117,12 @@ func (s *ApiServer) DeleteAccount(ctx context.Context, in *emptypb.Empty) (*empt
 
 func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeUpdateAccount(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -170,7 +170,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 	// After hook.
 	if fn := s.runtime.AfterUpdateAccount(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

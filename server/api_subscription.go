@@ -27,12 +27,12 @@ import (
 
 func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.ValidateSubscriptionAppleRequest) (*api.ValidateSubscriptionResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeValidateSubscriptionApple(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -73,7 +73,7 @@ func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.Valid
 	// After hook.
 	if fn := s.runtime.AfterValidateSubscriptionApple(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -85,12 +85,12 @@ func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.Valid
 
 func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.ValidateSubscriptionGoogleRequest) (*api.ValidateSubscriptionResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeValidateSubscriptionGoogle(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -131,7 +131,7 @@ func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.Vali
 	// After hook.
 	if fn := s.runtime.AfterValidateSubscriptionGoogle(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -143,12 +143,12 @@ func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.Vali
 
 func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscriptionsRequest) (*api.SubscriptionList, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeListSubscriptions(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -184,7 +184,7 @@ func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscript
 	// After hook.
 	if fn := s.runtime.AfterListSubscriptions(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, subscriptions, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, subscriptions, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -196,12 +196,12 @@ func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscript
 
 func (s *ApiServer) GetSubscription(ctx context.Context, in *api.GetSubscriptionRequest) (*api.ValidatedSubscription, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeGetSubscription(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -232,7 +232,7 @@ func (s *ApiServer) GetSubscription(ctx context.Context, in *api.GetSubscription
 	// After hook.
 	if fn := s.runtime.AfterGetSubscription(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, sub, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, sub, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

@@ -46,7 +46,7 @@ type consoleStorageCursor struct {
 var collectionSetCache = &atomic.Value{}
 
 func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	_, err := s.db.ExecContext(ctx, "TRUNCATE TABLE storage")
 	if err != nil {
 		logger.Error("Failed to truncate Storage table.", zap.Error(err))
@@ -56,7 +56,7 @@ func (s *ConsoleServer) DeleteStorage(ctx context.Context, in *emptypb.Empty) (*
 }
 
 func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.DeleteStorageObjectRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}
@@ -93,7 +93,7 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 }
 
 func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjectId) (*api.StorageObject, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}
@@ -120,7 +120,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 }
 
 func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *emptypb.Empty) (*console.StorageCollectionsList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	collectionSetCache := collectionSetCache.Load()
 	if collectionSetCache == nil {
 		return &console.StorageCollectionsList{
@@ -142,7 +142,7 @@ func (s *ConsoleServer) ListStorageCollections(ctx context.Context, in *emptypb.
 }
 
 func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorageRequest) (*console.StorageList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	const defaultLimit = 100
 
 	// Validate user ID, if provided.
@@ -335,7 +335,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 }
 
 func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*api.StorageObjectAck, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Collection == "" {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid collection.")
 	}

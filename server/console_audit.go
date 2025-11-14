@@ -67,7 +67,7 @@ type AuditLogEntry struct {
 }
 
 func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogRequest) (*console.AuditLogList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Limit == 0 {
 		in.Limit = 20
 	}
@@ -101,7 +101,7 @@ func (s *ConsoleServer) ListAuditLogs(ctx context.Context, in *console.AuditLogR
 }
 
 func (s *ConsoleServer) ListAuditLogsUsers(ctx context.Context, in *emptypb.Empty) (*console.AuditLogUsersList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	users, err := s.dbListConsoleUsers(ctx, nil)
 	if err != nil {
 		logger.Error("failed to list console users", zap.Error(err))

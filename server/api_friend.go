@@ -29,12 +29,12 @@ import (
 
 func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest) (*api.FriendList, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeListFriends(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -80,7 +80,7 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest)
 	// After hook.
 	if fn := s.runtime.AfterListFriends(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, friends)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, friends)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -92,12 +92,12 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest)
 
 func (s *ApiServer) ListFriendsOfFriends(ctx context.Context, in *api.ListFriendsOfFriendsRequest) (*api.FriendsOfFriendsList, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeListFriendsOfFriends(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -136,7 +136,7 @@ func (s *ApiServer) ListFriendsOfFriends(ctx context.Context, in *api.ListFriend
 	// After hook.
 	if fn := s.runtime.AfterListFriendsOfFriends(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, friendsOfFriends)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, friendsOfFriends)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -148,12 +148,12 @@ func (s *ApiServer) ListFriendsOfFriends(ctx context.Context, in *api.ListFriend
 
 func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeAddFriends(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -218,7 +218,7 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 	// After hook.
 	if fn := s.runtime.AfterAddFriends(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -230,12 +230,12 @@ func (s *ApiServer) AddFriends(ctx context.Context, in *api.AddFriendsRequest) (
 
 func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeDeleteFriends(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -300,7 +300,7 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 	// After hook.
 	if fn := s.runtime.AfterDeleteFriends(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -312,12 +312,12 @@ func (s *ApiServer) DeleteFriends(ctx context.Context, in *api.DeleteFriendsRequ
 
 func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeBlockFriends(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -381,7 +381,7 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 	// After hook.
 	if fn := s.runtime.AfterBlockFriends(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -392,11 +392,11 @@ func (s *ApiServer) BlockFriends(ctx context.Context, in *api.BlockFriendsReques
 }
 
 func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFacebookFriendsRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeImportFacebookFriends(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -429,7 +429,7 @@ func (s *ApiServer) ImportFacebookFriends(ctx context.Context, in *api.ImportFac
 	// After hook.
 	if fn := s.runtime.AfterImportFacebookFriends(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			return fn(ctx, logger, traceID, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -443,12 +443,12 @@ func (s *ApiServer) ImportSteamFriends(ctx context.Context, in *api.ImportSteamF
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	username := ctx.Value(ctxUsernameKey{}).(string)
 	vars := ctx.Value(ctxVarsKey{}).(map[string]string)
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
 	if fn := s.runtime.BeforeImportSteamFriends(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -492,7 +492,7 @@ func (s *ApiServer) ImportSteamFriends(ctx context.Context, in *api.ImportSteamF
 	// After hook.
 	if fn := s.runtime.AfterImportSteamFriends(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, userID.String(), username, vars, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			return fn(ctx, logger, traceID, userID.String(), username, vars, ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

@@ -28,7 +28,7 @@ type jsLogger struct {
 }
 
 func NewJsLogger(ctx context.Context, r *goja.Runtime, logger *zap.Logger, fields ...zap.Field) (goja.Value, error) {
-	logger = LoggerWithTraceId(ctx, logger.With(fields...))
+	logger, _ = LoggerWithTraceId(ctx, logger.With(fields...))
 	l := &jsLogger{logger: logger}
 	jsl, err := l.Constructor(r)
 	if err != nil {

@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -25,7 +26,7 @@ import (
 
 var partyStreamMode = map[uint8]struct{}{StreamModeParty: {}}
 
-func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyCreate(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyCreate()
 
 	// Validate party creation parameters.
@@ -61,7 +62,7 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 	}
 
 	// If successful, the creator becomes the first user to join the party.
-	success, _ := p.tracker.Track(session.Context(), session.ID(), ph.Stream, session.UserID(), PresenceMeta{
+	success, _ := p.tracker.Track(ctx, session.ID(), ph.Stream, session.UserID(), PresenceMeta{
 		Format:   session.Format(),
 		Username: session.Username(),
 		Status:   "",
@@ -94,7 +95,7 @@ func (p *Pipeline) partyCreate(logger *zap.Logger, session Session, envelope *rt
 	return true, out
 }
 
-func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyJoin(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyJoin()
 
 	// Validate the party ID.
@@ -117,7 +118,7 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	autoJoin, err := p.partyRegistry.PartyJoinRequest(session.Context(), partyID, node, &Presence{
+	autoJoin, err := p.partyRegistry.PartyJoinRequest(ctx, partyID, node, &Presence{
 		ID: PresenceID{
 			Node:      p.node,
 			SessionID: session.ID(),
@@ -140,7 +141,7 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 	// If the party was open and the join was successful, track the new member immediately.
 	if autoJoin {
 		stream := PresenceStream{Mode: StreamModeParty, Subject: partyID, Label: node}
-		success, _ := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), PresenceMeta{
+		success, _ := p.tracker.Track(ctx, session.ID(), stream, session.UserID(), PresenceMeta{
 			Format:   session.Format(),
 			Username: session.Username(),
 			Status:   "",
@@ -165,7 +166,7 @@ func (p *Pipeline) partyJoin(logger *zap.Logger, session Session, envelope *rtap
 	return true, out
 }
 
-func (p *Pipeline) partyLeave(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyLeave(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyLeave()
 
 	// Validate the party ID.
@@ -196,7 +197,7 @@ func (p *Pipeline) partyLeave(logger *zap.Logger, session Session, envelope *rta
 	return true, nil
 }
 
-func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyPromote(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyPromote()
 
 	// Validate presence info.
@@ -228,7 +229,7 @@ func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *r
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	err = p.partyRegistry.PartyPromote(session.Context(), partyID, node, session.ID().String(), p.node, incoming.Presence)
+	err = p.partyRegistry.PartyPromote(ctx, partyID, node, session.ID().String(), p.node, incoming.Presence)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -243,7 +244,7 @@ func (p *Pipeline) partyPromote(logger *zap.Logger, session Session, envelope *r
 	return true, out
 }
 
-func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyAccept(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyAccept()
 
 	// Validate presence info.
@@ -275,7 +276,7 @@ func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rt
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	err = p.partyRegistry.PartyAccept(session.Context(), partyID, node, session.ID().String(), p.node, incoming.Presence)
+	err = p.partyRegistry.PartyAccept(ctx, partyID, node, session.ID().String(), p.node, incoming.Presence)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -290,7 +291,7 @@ func (p *Pipeline) partyAccept(logger *zap.Logger, session Session, envelope *rt
 	return true, out
 }
 
-func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyRemove(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyRemove()
 
 	// Validate presence info.
@@ -322,7 +323,7 @@ func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rt
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	err = p.partyRegistry.PartyRemove(session.Context(), partyID, node, session.ID().String(), p.node, incoming.Presence)
+	err = p.partyRegistry.PartyRemove(ctx, partyID, node, session.ID().String(), p.node, incoming.Presence)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -337,7 +338,7 @@ func (p *Pipeline) partyRemove(logger *zap.Logger, session Session, envelope *rt
 	return true, out
 }
 
-func (p *Pipeline) partyClose(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyClose(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyClose()
 
 	// Validate the party ID.
@@ -360,7 +361,7 @@ func (p *Pipeline) partyClose(logger *zap.Logger, session Session, envelope *rta
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	err = p.partyRegistry.PartyClose(session.Context(), partyID, node, session.ID().String(), p.node)
+	err = p.partyRegistry.PartyClose(ctx, partyID, node, session.ID().String(), p.node)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -375,7 +376,7 @@ func (p *Pipeline) partyClose(logger *zap.Logger, session Session, envelope *rta
 	return true, out
 }
 
-func (p *Pipeline) partyJoinRequestList(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyJoinRequestList(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyJoinRequestList()
 
 	// Validate the party ID.
@@ -398,7 +399,7 @@ func (p *Pipeline) partyJoinRequestList(logger *zap.Logger, session Session, env
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	presences, err := p.partyRegistry.PartyJoinRequestList(session.Context(), partyID, node, session.ID().String(), p.node)
+	presences, err := p.partyRegistry.PartyJoinRequestList(ctx, partyID, node, session.ID().String(), p.node)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -416,7 +417,7 @@ func (p *Pipeline) partyJoinRequestList(logger *zap.Logger, session Session, env
 	return true, out
 }
 
-func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyMatchmakerAdd(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyMatchmakerAdd()
 
 	// Minimum count.
@@ -491,7 +492,7 @@ func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envel
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	ticket, memberPresenceIDs, err := p.partyRegistry.PartyMatchmakerAdd(session.Context(), partyID, node, session.ID().String(), p.node, query, minCount, maxCount, countMultiple, incoming.StringProperties, incoming.NumericProperties)
+	ticket, memberPresenceIDs, err := p.partyRegistry.PartyMatchmakerAdd(ctx, partyID, node, session.ID().String(), p.node, query, minCount, maxCount, countMultiple, incoming.StringProperties, incoming.NumericProperties)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -523,7 +524,7 @@ func (p *Pipeline) partyMatchmakerAdd(logger *zap.Logger, session Session, envel
 	return true, out
 }
 
-func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyMatchmakerRemove(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyMatchmakerRemove()
 
 	// Ticket is required.
@@ -555,7 +556,7 @@ func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, en
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	err = p.partyRegistry.PartyMatchmakerRemove(session.Context(), partyID, node, session.ID().String(), p.node, incoming.Ticket)
+	err = p.partyRegistry.PartyMatchmakerRemove(ctx, partyID, node, session.ID().String(), p.node, incoming.Ticket)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -570,7 +571,7 @@ func (p *Pipeline) partyMatchmakerRemove(logger *zap.Logger, session Session, en
 	return true, out
 }
 
-func (p *Pipeline) partyDataSend(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyDataSend(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyDataSend()
 
 	// Validate the party ID.
@@ -593,7 +594,7 @@ func (p *Pipeline) partyDataSend(logger *zap.Logger, session Session, envelope *
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	err = p.partyRegistry.PartyDataSend(session.Context(), partyID, node, session.ID().String(), p.node, incoming.OpCode, incoming.Data)
+	err = p.partyRegistry.PartyDataSend(ctx, partyID, node, session.ID().String(), p.node, incoming.OpCode, incoming.Data)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
@@ -608,7 +609,7 @@ func (p *Pipeline) partyDataSend(logger *zap.Logger, session Session, envelope *
 	return true, out
 }
 
-func (p *Pipeline) partyUpdate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) partyUpdate(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetPartyUpdate()
 
 	// Validate the party ID.
@@ -631,7 +632,7 @@ func (p *Pipeline) partyUpdate(logger *zap.Logger, session Session, envelope *rt
 	node := partyIDComponents[1]
 
 	// Handle through the party registry.
-	err = p.partyRegistry.PartyUpdate(session.Context(), partyID, node, session.ID().String(), p.node, incoming.Label, incoming.Open, incoming.Hidden)
+	err = p.partyRegistry.PartyUpdate(ctx, partyID, node, session.ID().String(), p.node, incoming.Label, incoming.Open, incoming.Hidden)
 	if err != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),

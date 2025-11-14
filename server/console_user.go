@@ -71,7 +71,7 @@ func (s *UserInvitationClaims) GetSubject() (string, error) {
 }
 
 func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*console.AddUserResponse, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 	if uname == in.Username {
 		return nil, status.Error(codes.FailedPrecondition, "Cannot change own configuration")
@@ -210,7 +210,7 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, logger *zap.Log
 }
 
 func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*console.User, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	users, err := s.dbListConsoleUsers(ctx, []string{in.Username})
 	if err != nil {
 		logger.Error("failed to list console users", zap.Error(err))
@@ -225,7 +225,7 @@ func (s *ConsoleServer) GetUser(ctx context.Context, in *console.Username) (*con
 }
 
 func (s *ConsoleServer) UpdateUser(ctx context.Context, in *console.UpdateUserRequest) (*console.User, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	creatorRole := ctx.Value(ctxConsoleUserAclKey{}).(acl.Permission)
 	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 
@@ -308,7 +308,7 @@ func updateUser(ctx context.Context, logger *zap.Logger, tx *sql.Tx, in *console
 }
 
 func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Username) (*console.ResetUserResponse, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 
 	var token, email string
 
@@ -360,7 +360,7 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 }
 
 func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 
 	if in.Username == uname {
@@ -380,7 +380,7 @@ func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*
 }
 
 func (s *ConsoleServer) ListUsers(ctx context.Context, in *emptypb.Empty) (*console.UserList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	users, err := s.dbListConsoleUsers(ctx, nil)
 	if err != nil {
 		logger.Error("failed to list console users", zap.Error(err))
@@ -452,7 +452,7 @@ func isValidPassword(pwd string) bool {
 }
 
 func (s *ConsoleServer) RequireUserMfa(ctx context.Context, in *console.RequireUserMfaRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if _, err := s.db.ExecContext(ctx, "UPDATE console_user SET mfa_required = $1 WHERE username = $2", in.Required, in.Username); err != nil {
 		logger.Error("failed to change required value for user MFA", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Internal Server Error")
@@ -462,7 +462,7 @@ func (s *ConsoleServer) RequireUserMfa(ctx context.Context, in *console.RequireU
 }
 
 func (s *ConsoleServer) ResetUserMfa(ctx context.Context, in *console.ResetUserMfaRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if _, err := s.db.ExecContext(ctx, "UPDATE console_user SET mfa_secret = NULL, mfa_recovery_codes = NULL WHERE username = $1", in.Username); err != nil {
 		logger.Error("failed to reset user MFA", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Internal Server Error")

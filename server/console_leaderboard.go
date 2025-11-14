@@ -34,7 +34,7 @@ import (
 )
 
 func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.LeaderboardListRequest) (*console.LeaderboardList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	var cursor *LeaderboardAllCursor
 	if in.Cursor != "" {
 		cb, err := base64.RawURLEncoding.DecodeString(in.Cursor)
@@ -79,7 +79,7 @@ func (s *ConsoleServer) ListLeaderboards(ctx context.Context, in *console.Leader
 }
 
 func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.LeaderboardRequest) (*console.Leaderboard, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Tournament ID must be set.")
 	}
@@ -146,7 +146,7 @@ func (s *ConsoleServer) GetLeaderboard(ctx context.Context, in *console.Leaderbo
 }
 
 func (s *ConsoleServer) ListLeaderboardRecords(ctx context.Context, in *api.ListLeaderboardRecordsRequest) (*api.LeaderboardRecordList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	var limit *wrapperspb.Int32Value
 	if in.GetLimit() != nil {
 		if in.GetLimit().Value < 1 || in.GetLimit().Value > 100 {
@@ -197,7 +197,7 @@ func (s *ConsoleServer) DeleteLeaderboard(ctx context.Context, in *console.Leade
 }
 
 func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console.DeleteLeaderboardRecordRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Invalid leaderboard ID.")
 	}

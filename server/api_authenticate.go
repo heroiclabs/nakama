@@ -64,11 +64,11 @@ func (s *SessionTokenClaims) GetSubject() (string, error) {
 }
 
 func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateAppleRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateApple(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -128,7 +128,7 @@ func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateA
 	if fn := s.runtime.AfterAuthenticateApple(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
 			ctx = populateCtx(ctx, uid, dbUsername, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -139,11 +139,11 @@ func (s *ApiServer) AuthenticateApple(ctx context.Context, in *api.AuthenticateA
 }
 
 func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.AuthenticateCustomRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateCustom(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -203,7 +203,7 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 		afterFn := func(clientIP, clientPort string) error {
 			uid := uuid.Must(uuid.FromString(dbUserID))
 			ctx = populateCtx(ctx, uid, dbUsername, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -214,11 +214,11 @@ func (s *ApiServer) AuthenticateCustom(ctx context.Context, in *api.Authenticate
 }
 
 func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.AuthenticateDeviceRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateDevice(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -278,7 +278,7 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 		afterFn := func(clientIP, clientPort string) error {
 			uid := uuid.Must(uuid.FromString(dbUserID))
 			ctx = populateCtx(ctx, uid, dbUsername, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -289,11 +289,11 @@ func (s *ApiServer) AuthenticateDevice(ctx context.Context, in *api.Authenticate
 }
 
 func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateEmailRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateEmail(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -383,7 +383,7 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 		afterFn := func(clientIP, clientPort string) error {
 			uid := uuid.Must(uuid.FromString(dbUserID))
 			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, username, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, username, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -394,11 +394,11 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 }
 
 func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.AuthenticateFacebookRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateFacebook(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -459,7 +459,7 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 		afterFn := func(clientIP, clientPort string) error {
 			uid := uuid.Must(uuid.FromString(dbUserID))
 			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -470,11 +470,11 @@ func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.Authentica
 }
 
 func (s *ApiServer) AuthenticateFacebookInstantGame(ctx context.Context, in *api.AuthenticateFacebookInstantGameRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateFacebookInstantGame(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -530,7 +530,7 @@ func (s *ApiServer) AuthenticateFacebookInstantGame(ctx context.Context, in *api
 		afterFn := func(clientIP, clientPort string) error {
 			uid := uuid.Must(uuid.FromString(dbUserID))
 			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -541,11 +541,11 @@ func (s *ApiServer) AuthenticateFacebookInstantGame(ctx context.Context, in *api
 }
 
 func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.AuthenticateGameCenterRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateGameCenter(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -613,7 +613,7 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 		afterFn := func(clientIP, clientPort string) error {
 			uid := uuid.Must(uuid.FromString(dbUserID))
 			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -624,11 +624,11 @@ func (s *ApiServer) AuthenticateGameCenter(ctx context.Context, in *api.Authenti
 }
 
 func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateGoogle(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -684,7 +684,7 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 		afterFn := func(clientIP, clientPort string) error {
 			uid := uuid.Must(uuid.FromString(dbUserID))
 			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
@@ -695,11 +695,11 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 }
 
 func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest) (*api.Session, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
 	if fn := s.runtime.BeforeAuthenticateSteam(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, "", "", nil, 0, clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -764,7 +764,7 @@ func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateS
 		afterFn := func(clientIP, clientPort string) error {
 			uid := uuid.Must(uuid.FromString(dbUserID))
 			ctx = populateCtx(ctx, uid, username, tokenID, in.Account.Vars, exp, tokenIssuedAt)
-			return fn(ctx, logger, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, in.Account.Vars, exp, clientIP, clientPort, session, in)
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.

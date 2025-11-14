@@ -981,9 +981,10 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 // @param limit(type=int) The max number of messages to return.
 // @param forward(type=bool) True if listing should be older messages to newer, false if reverse.
 // @param cursor(type=string) A pagination cursor, if any.
+// @param messageIDs(type=[]string, optional=true, default=[]) Optional list of exact message identifiers to fetch instead.
 // @return messages(*runtime.MessageList) The messages list.
 // @return error(error) An optional error value if an error occurred.
-func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*runtime.MessageList, error) {
+func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string, messageIDs []string) (*runtime.MessageList, error) {
 	if s.invalidConfig {
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
@@ -1009,6 +1010,9 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 	q.Set("forward", strconv.FormatBool(forward))
 	if cursor != "" {
 		q.Set("cursor", cursor)
+	}
+	for _, messageID := range messageIDs {
+		q.Add("message_ids", messageID)
 	}
 	req.URL.RawQuery = q.Encode()
 
@@ -1217,19 +1221,143 @@ func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *cons
 	}
 }
 
-func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, in *console.SendDirectMessageRequest) (*console.SendDirectMessageResponse, error) {
+func convertTemplateOverride(templateOverride *runtime.SatoriMessageTemplateOverride, seen map[*runtime.SatoriMessageTemplateOverride]struct{}) *console.SendDirectMessageRequest_TemplateOverride {
+	if templateOverride == nil {
+		return nil
+	}
+	if _, seenBefore := seen[templateOverride]; seenBefore {
+		// Prevent circular references.
+		return nil
+	}
+	seen[templateOverride] = struct{}{}
+	override := &console.SendDirectMessageRequest_TemplateOverride{
+		Title:        templateOverride.Title,
+		Value:        templateOverride.Value,
+		ImageUrl:     templateOverride.ImageURL,
+		JsonMetadata: templateOverride.JsonMetadata,
+		//Variants:     nil,
+	}
+	if templateOverride.Variants != nil {
+		override.Variants = make(map[string]*console.SendDirectMessageRequest_TemplateOverride, len(templateOverride.Variants))
+		for key, variant := range templateOverride.Variants {
+			override.Variants[key] = convertTemplateOverride(variant, seen)
+		}
+	}
+	return override
+}
+
+func ConvertIntegrationToConsole(integration runtime.SatoriMessageIntegration) console.MessageIntegrationType {
+	switch integration {
+	case runtime.SatoriMessageIntegrationFCM:
+		return console.MessageIntegrationType_FCM
+	case runtime.SatoriMessageIntegrationAPNS:
+		return console.MessageIntegrationType_APNS
+	case runtime.SatoriMessageIntegrationFacebookNotification:
+		return console.MessageIntegrationType_FACEBOOK_NOTIFICATION
+	case runtime.SatoriMessageIntegrationOneSignalNotification:
+		return console.MessageIntegrationType_ONESIGNAL_NOTIFICATION
+	case runtime.SatoriMessageIntegrationWebhookNotification:
+		return console.MessageIntegrationType_WEBHOOK_NOTIFICATION
+	case runtime.SatoriMessageIntegrationUnknown:
+		fallthrough
+	default:
+		return console.MessageIntegrationType_UNKNOWN_MESSAGE_TYPE
+	}
+}
+
+func ConvertIntegrationToRuntime(integration console.MessageIntegrationType) runtime.SatoriMessageIntegration {
+	switch integration {
+	case console.MessageIntegrationType_FCM:
+		return runtime.SatoriMessageIntegrationFCM
+	case console.MessageIntegrationType_APNS:
+		return runtime.SatoriMessageIntegrationAPNS
+	case console.MessageIntegrationType_FACEBOOK_NOTIFICATION:
+		return runtime.SatoriMessageIntegrationFacebookNotification
+	case console.MessageIntegrationType_ONESIGNAL_NOTIFICATION:
+		return runtime.SatoriMessageIntegrationOneSignalNotification
+	case console.MessageIntegrationType_WEBHOOK_NOTIFICATION:
+		return runtime.SatoriMessageIntegrationWebhookNotification
+	case console.MessageIntegrationType_UNKNOWN_MESSAGE_TYPE:
+		fallthrough
+	default:
+		return runtime.SatoriMessageIntegrationUnknown
+	}
+}
+
+func ConvertChannelToConsole(channel runtime.SatoriMessageIntegrationChannel) console.MessageChannelType {
+	switch channel {
+	case runtime.SatoriMessageIntegrationChannelPush:
+		return console.MessageChannelType_PUSH
+	case runtime.SatoriMessageIntegrationChannelEmail:
+		return console.MessageChannelType_EMAIL
+	case runtime.SatoriMessageIntegrationChannelDefault:
+		fallthrough
+	default:
+		return console.MessageChannelType_DEFAULT
+	}
+}
+
+func ConvertChannelToRuntime(channel console.MessageChannelType) runtime.SatoriMessageIntegrationChannel {
+	switch channel {
+	case console.MessageChannelType_PUSH:
+		return runtime.SatoriMessageIntegrationChannelPush
+	case console.MessageChannelType_EMAIL:
+		return runtime.SatoriMessageIntegrationChannelEmail
+	case console.MessageChannelType_DEFAULT:
+		fallthrough
+	default:
+		return runtime.SatoriMessageIntegrationChannelDefault
+	}
+}
+
+func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, templateId string, recipientIDs []string, integrations []runtime.SatoriMessageIntegration, persist bool, channels map[runtime.SatoriMessageIntegration]*runtime.SatoriMessageIntegrationChannels, templateOverride *runtime.SatoriMessageTemplateOverride) (*runtime.SatoriMessageSendResults, error) {
 	if s.serverKey == "" {
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
 	url := s.url.String() + "/v1/console/message-direct"
 
-	json, err := protojson.Marshal(in)
+	request := &console.SendDirectMessageRequest{
+		TemplateId:  templateId,
+		IdentityIds: recipientIDs,
+		//Integrations:     nil,
+		Persist: persist,
+		//Channels:         nil,
+		//TemplateOverride: nil,
+	}
+	if integrations != nil {
+		request.Integrations = make([]console.MessageIntegrationType, 0, len(integrations))
+		for _, integration := range integrations {
+			request.Integrations = append(request.Integrations, ConvertIntegrationToConsole(integration))
+		}
+	}
+	if channels != nil {
+		request.Channels = make(map[int32]*console.SendDirectMessageRequest_MessageChannels, len(channels))
+		for integration, channel := range channels {
+			var consoleChannels *console.SendDirectMessageRequest_MessageChannels
+			if channel != nil {
+				consoleChannels = &console.SendDirectMessageRequest_MessageChannels{}
+				if channel.Channels != nil {
+					consoleChannels.Channels = make([]console.MessageChannelType, 0, len(channel.Channels))
+					for _, ch := range channel.Channels {
+						consoleChannels.Channels = append(consoleChannels.Channels, ConvertChannelToConsole(ch))
+					}
+				}
+			}
+
+			request.Channels[int32(ConvertIntegrationToConsole(integration))] = consoleChannels
+		}
+	}
+	if templateOverride != nil {
+		request.TemplateOverride = convertTemplateOverride(templateOverride, make(map[*runtime.SatoriMessageTemplateOverride]struct{}, 1))
+	}
+
+	jsonBytes, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(json))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -1249,8 +1377,8 @@ func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, in *console
 			return nil, err
 		}
 
-		var out console.SendDirectMessageResponse
-		if err = protojson.Unmarshal(resBody, &out); err != nil {
+		var out runtime.SatoriMessageSendResults
+		if err = json.Unmarshal(resBody, &out); err != nil {
 			return nil, err
 		}
 

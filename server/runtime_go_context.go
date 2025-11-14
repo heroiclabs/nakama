@@ -23,7 +23,7 @@ import (
 // ignore warnings about strings being used as ctx keys
 //
 //nolint:staticcheck
-func NewRuntimeGoContext(ctx context.Context, node, version string, env map[string]string, mode RuntimeExecutionMode, headers, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) context.Context {
+func NewRuntimeGoContext(ctx context.Context, node, version string, env map[string]string, mode RuntimeExecutionMode, headers, queryParams map[string][]string, traceID string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) context.Context {
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_ENV, env)
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_MODE, mode.String())
 	ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_NODE, node)
@@ -57,7 +57,9 @@ func NewRuntimeGoContext(ctx context.Context, node, version string, env map[stri
 		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_CLIENT_PORT, clientPort)
 	}
 
-	// TODO: Add trace_id to the context?
+	if traceID != "" {
+		ctx = context.WithValue(ctx, runtime.RUNTIME_CTX_TRACE_ID, traceID)
+	}
 
 	return ctx
 }

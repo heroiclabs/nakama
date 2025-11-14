@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"strings"
 
 	"github.com/heroiclabs/nakama-common/api"
@@ -22,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) rpc(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	rpcMessage := envelope.GetRpc()
 	if rpcMessage.Id == "" {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -43,7 +44,14 @@ func (p *Pipeline) rpc(logger *zap.Logger, session Session, envelope *rtapi.Enve
 		return false, nil
 	}
 
-	result, fnErr, _ := fn(session.Context(), nil, nil, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
+	var traceID string
+	if traceId := ctx.Value(ctxTraceId{}); traceId != nil {
+		if traceIdStr, ok := traceId.(string); ok && traceIdStr != "" {
+			traceID = traceIdStr
+		}
+	}
+
+	result, fnErr, _ := fn(session.Context(), nil, nil, traceID, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
 	if fnErr != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),

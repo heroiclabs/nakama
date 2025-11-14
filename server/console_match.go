@@ -28,7 +28,7 @@ import (
 )
 
 func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatchesRequest) (*console.MatchList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	matchID := in.MatchId
 	// Try to get match ID for authoritative query.
 	if in.Authoritative != nil && in.Authoritative.Value && in.Query != nil {
@@ -96,7 +96,7 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatches
 }
 
 func (s *ConsoleServer) GetMatchState(ctx context.Context, in *console.MatchStateRequest) (*console.MatchState, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	// Validate the match ID.
 	matchIDComponents := strings.SplitN(in.GetId(), ".", 2)
 	if len(matchIDComponents) != 2 {

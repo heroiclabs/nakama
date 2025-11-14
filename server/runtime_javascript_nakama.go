@@ -311,6 +311,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"stringToBinary":                       n.stringToBinary(r),
 		"storageIndexList":                     n.storageIndexList(r),
 		"partyList":                            n.partyList(r),
+		"secureRandomBytes":                    n.secureRandomBytes(r),
 	}
 }
 
@@ -509,6 +510,34 @@ func (n *RuntimeJavascriptNakamaModule) partyList(r *goja.Runtime) func(goja.Fun
 		}
 
 		return r.ToValue(partyList)
+	}
+}
+
+// @group utils
+// @summary Generate cryptographically secure random bytes.
+// @param count(type=int) The number of bytes to generate, from 1 to 1000.
+// @return bytes(string) The cryptograpically secure bytes.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) secureRandomBytes(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		count := getJsInt(r, f.Argument(0))
+
+		if count < 1 || count > 1000 {
+			panic(r.NewTypeError("count must be 1-1000"))
+		}
+
+		bytes := make([]byte, count)
+
+		read, err := rand.Read(bytes)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to read random bytes: %s", err.Error())))
+		}
+
+		if read != int(count) {
+			panic(r.NewGoError(fmt.Errorf("expected %d bytes but only %d available", count, read)))
+		}
+
+		return r.ToValue(r.NewArrayBuffer(bytes))
 	}
 }
 
@@ -9556,7 +9585,17 @@ func (n *RuntimeJavascriptNakamaModule) satoriMessagesList(r *goja.Runtime) func
 			cursor = getJsString(r, f.Argument(3))
 		}
 
-		messagesList, err := n.satori.MessagesList(n.ctx, identifier, int(limit), forward, cursor)
+		messageIDsArray := make([]string, 0)
+		messageIDs := f.Argument(4)
+		if !goja.IsUndefined(messageIDs) && !goja.IsNull(messageIDs) {
+			var err error
+			messageIDsArray, err = exportToSlice[[]string](messageIDs)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+		}
+
+		messagesList, err := n.satori.MessagesList(n.ctx, identifier, int(limit), forward, cursor, messageIDsArray)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to list satori messages %s:", err.Error())))
 		}

@@ -40,9 +40,10 @@ const (
 	__RUNTIME_LUA_CTX_MATCH_NODE       = "match_node"
 	__RUNTIME_LUA_CTX_MATCH_LABEL      = "match_label"
 	__RUNTIME_LUA_CTX_MATCH_TICK_RATE  = "match_tick_rate"
+	__RUNTIME_LUA_CTX_TRACE_ID         = "trace_id"
 )
 
-func NewRuntimeLuaContext(l *lua.LState, node, version string, env *lua.LTable, mode RuntimeExecutionMode, headers, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *lua.LTable {
+func NewRuntimeLuaContext(l *lua.LState, node, version string, env *lua.LTable, mode RuntimeExecutionMode, headers, queryParams map[string][]string, traceID string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *lua.LTable {
 	size := 4
 	if userID != "" {
 		size += 3
@@ -55,6 +56,10 @@ func NewRuntimeLuaContext(l *lua.LState, node, version string, env *lua.LTable, 
 		size++
 	}
 	if clientPort != "" {
+		size++
+	}
+
+	if traceID != "" {
 		size++
 	}
 
@@ -97,6 +102,10 @@ func NewRuntimeLuaContext(l *lua.LState, node, version string, env *lua.LTable, 
 	}
 	if clientPort != "" {
 		lt.RawSetString(__RUNTIME_LUA_CTX_CLIENT_PORT, lua.LString(clientPort))
+	}
+
+	if traceID != "" {
+		lt.RawSetString(__RUNTIME_LUA_CTX_TRACE_ID, lua.LString(traceID))
 	}
 
 	return lt

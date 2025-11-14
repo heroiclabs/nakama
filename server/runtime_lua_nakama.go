@@ -314,6 +314,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"friends_delete":                            n.friendsDelete,
 		"friends_block":                             n.friendsBlock,
 		"party_list":                                n.partyList,
+		"secure_random_bytes":                       n.secureRandomBytes,
 		"file_read":                                 n.fileRead,
 		"channel_message_send":                      n.channelMessageSend,
 		"channel_message_update":                    n.channelMessageUpdate,
@@ -608,7 +609,7 @@ func (n *RuntimeLuaNakamaModule) runOnce(l *lua.LState) int {
 			return
 		}
 
-		ctx := NewRuntimeLuaContext(l, n.config.GetName(), n.version, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, 0, "", "", nil, "", "", "", "")
+		ctx := NewRuntimeLuaContext(l, n.config.GetName(), n.version, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, "", 0, "", "", nil, "", "", "", "")
 
 		l.Push(LSentinel)
 		l.Push(fn)
@@ -632,7 +633,7 @@ func (n *RuntimeLuaNakamaModule) runOnce(l *lua.LState) int {
 }
 
 func (n *RuntimeLuaNakamaModule) getContext(l *lua.LState) int {
-	ctx := NewRuntimeLuaContext(l, n.config.GetName(), n.version, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, 0, "", "", nil, "", "", "", "")
+	ctx := NewRuntimeLuaContext(l, n.config.GetName(), n.version, RuntimeLuaConvertMapString(l, n.config.GetRuntime().Environment), RuntimeExecutionModeRunOnce, nil, nil, "", 0, "", "", nil, "", "", "", "")
 	l.Push(ctx)
 	return 1
 }
@@ -10437,6 +10438,37 @@ func (n *RuntimeLuaNakamaModule) partyList(l *lua.LState) int {
 	return 2
 }
 
+// @group utils
+// @summary Generate cryptographically secure random bytes.
+// @param count(type=int) The number of bytes to generate, from 1 to 1000.
+// @return bytes(string) The cryptograpically secure bytes.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) secureRandomBytes(l *lua.LState) int {
+	count := l.CheckInt(1)
+
+	if count < 1 || count > 1000 {
+		l.ArgError(1, "count must be 1-1000")
+		return 0
+	}
+
+	bytes := make([]byte, count)
+
+	read, err := rand.Read(bytes)
+	if err != nil {
+		l.RaiseError("failed to read random bytes: %s", err.Error())
+		return 0
+	}
+
+	if read != int(count) {
+		l.RaiseError("expected %d bytes but only %d available", count, read)
+		return 0
+	}
+
+	l.Push(lua.LString(bytes))
+
+	return 1
+}
+
 // @group friends
 // @summary Update friend metadata.
 // @param userID(type=string) The ID of the user.
@@ -11784,7 +11816,29 @@ func (n *RuntimeLuaNakamaModule) satoriMessagesList(l *lua.LState) int {
 
 	cursor := l.OptString(4, "")
 
-	messages, err := n.satori.MessagesList(l.Context(), identifier, limit, forward, cursor)
+	messageIDs := l.OptTable(5, nil)
+	messageIDsArray := make([]string, 0)
+	if messageIDs != nil {
+		var conversionError bool
+		messageIDs.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(5, "message id must be a string")
+				conversionError = true
+				return
+			}
+
+			messageIDsArray = append(messageIDsArray, v.String())
+		})
+
+		if conversionError {
+			return 0
+		}
+	}
+
+	messages, err := n.satori.MessagesList(l.Context(), identifier, limit, forward, cursor, messageIDsArray)
 	if err != nil {
 		l.RaiseError("failed to list satori messages: %v", err.Error())
 		return 0

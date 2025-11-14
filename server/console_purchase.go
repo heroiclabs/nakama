@@ -27,7 +27,7 @@ import (
 )
 
 func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurchasesRequest) (*api.PurchaseList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Filter != "" {
 		purchase, err := GetPurchaseByTransactionId(ctx, logger, s.db, in.Filter)
 		if err != nil {
@@ -72,7 +72,7 @@ func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurch
 }
 
 func (s *ConsoleServer) GetPurchase(ctx context.Context, in *console.GetPurchaseRequest) (*api.ValidatedPurchase, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.GetTransactionId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "transaction id is required")
 	}

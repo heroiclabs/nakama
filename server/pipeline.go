@@ -15,10 +15,12 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -61,6 +63,10 @@ func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, protojsonMarshal
 }
 
 func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi.Envelope) bool {
+	traceID := uuid.Must(uuid.NewV4()).String()
+	logger = logger.With(zap.String("trace_id", traceID))
+	ctx := context.WithValue(session.Context(), ctxTraceId{}, traceID)
+
 	if logger.Core().Enabled(zap.DebugLevel) { // remove extra heavy reflection processing
 		logger.Debug(fmt.Sprintf("Received %T message", in.Message), zap.Any("message", in.Message))
 	}
@@ -73,7 +79,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 		return false
 	}
 
-	var pipelineFn func(*zap.Logger, Session, *rtapi.Envelope) (bool, *rtapi.Envelope)
+	var pipelineFn func(context.Context, *zap.Logger, Session, *rtapi.Envelope) (bool, *rtapi.Envelope)
 
 	switch in.Message.(type) {
 	case *rtapi.Envelope_ChannelJoin:
@@ -155,7 +161,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 		messageNameID = strings.ToLower(messageName)
 
 		if fn := p.runtime.BeforeRt(messageNameID); fn != nil {
-			hookResult, hookErr := fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), in)
+			hookResult, hookErr := fn(ctx, logger, traceID, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), in)
 
 			if hookErr != nil {
 				// Errors from before hooks do not close the session.
@@ -178,12 +184,12 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 		}
 	}
 
-	success, out := pipelineFn(logger, session, in)
+	success, out := pipelineFn(ctx, logger, session, in)
 
 	if success && messageName != "" {
 		// Unsuccessful operations do not trigger after hooks.
 		if fn := p.runtime.AfterRt(messageNameID); fn != nil {
-			_ = fn(session.Context(), logger, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), out, in)
+			_ = fn(ctx, logger, traceID, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), out, in)
 		}
 	}
 

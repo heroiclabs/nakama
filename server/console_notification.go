@@ -42,7 +42,7 @@ type notificationsCursor struct {
 }
 
 func (s *ConsoleServer) ListNotifications(ctx context.Context, in *console.ListNotificationsRequest) (*console.NotificationList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	var nc *notificationsCursor
 	if in.Cursor != "" {
 		nc = &notificationsCursor{}
@@ -220,7 +220,7 @@ LIMIT $4`
 }
 
 func (s *ConsoleServer) GetNotification(ctx context.Context, in *console.GetNotificationRequest) (*console.Notification, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "notification id is required.")
 	}
@@ -270,7 +270,7 @@ WHERE
 }
 
 func (s *ConsoleServer) DeleteNotification(ctx context.Context, in *console.DeleteNotificationRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM notification WHERE id = $1", in.Id); err != nil {
 		logger.Error("Error deleting notification.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to delete notification")
@@ -280,7 +280,7 @@ func (s *ConsoleServer) DeleteNotification(ctx context.Context, in *console.Dele
 }
 
 func (s *ConsoleServer) SendNotification(ctx context.Context, in *console.SendNotificationRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if l := len(in.UserIds); l == 0 {
 		senderId := uuid.Nil.String()
 		if in.SenderId != "" {

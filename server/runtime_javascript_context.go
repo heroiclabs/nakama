@@ -39,9 +39,10 @@ const (
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_NODE       = "matchNode"
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_LABEL      = "matchLabel"
 	__RUNTIME_JAVASCRIPT_CTX_MATCH_TICK_RATE  = "matchTickRate"
+	__RUNTIME_JAVASCRIPT_CTX_TRACE_ID         = "traceId"
 )
 
-func NewRuntimeJsContext(r *goja.Runtime, node, version string, env goja.Value, mode RuntimeExecutionMode, httpHeaders, queryParams map[string][]string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *goja.Object {
+func NewRuntimeJsContext(r *goja.Runtime, node, version string, env goja.Value, mode RuntimeExecutionMode, httpHeaders, queryParams map[string][]string, traceID string, sessionExpiry int64, userID, username string, vars map[string]string, sessionID, clientIP, clientPort, lang string) *goja.Object {
 	ctxObj := r.NewObject()
 	_ = ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_NODE, node)
 	_ = ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_VERSION, version)
@@ -75,6 +76,9 @@ func NewRuntimeJsContext(r *goja.Runtime, node, version string, env goja.Value, 
 	}
 	if clientPort != "" {
 		_ = ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_CLIENT_PORT, clientPort)
+	}
+	if traceID != "" {
+		_ = ctxObj.Set(__RUNTIME_JAVASCRIPT_CTX_TRACE_ID, traceID)
 	}
 
 	return ctxObj

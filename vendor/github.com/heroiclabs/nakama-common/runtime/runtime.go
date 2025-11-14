@@ -157,6 +157,9 @@ const (
 
 	// Tick rate defined for this match. Only applicable to server authoritative multiplayer.
 	RUNTIME_CTX_MATCH_TICK_RATE = "match_tick_rate"
+
+	// Trace identifier serves to distinguish requests for debugging purposes.
+	RUNTIME_CTX_TRACE_ID = "trace_id"
 )
 
 var (
@@ -1358,9 +1361,69 @@ type Satori interface {
 	FlagsList(ctx context.Context, id string, names, labels []string) (*FlagList, error)
 	FlagsOverridesList(ctx context.Context, id string, names, labels []string) (*FlagOverridesList, error)
 	LiveEventsList(ctx context.Context, id string, names, labels []string) (*LiveEventList, error)
-	MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string) (*MessageList, error)
+	MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string, messageIDs []string) (*MessageList, error)
 	MessageUpdate(ctx context.Context, id, messageId string, readTime, consumeTime int64) error
 	MessageDelete(ctx context.Context, id, messageId string) error
+	ConsoleDirectMessageSend(ctx context.Context, templateId string, recipientIDs []string, integrations []SatoriMessageIntegration, persist bool, channels map[SatoriMessageIntegration]*SatoriMessageIntegrationChannels, templateOverride *SatoriMessageTemplateOverride) (*SatoriMessageSendResults, error)
+}
+
+type SatoriMessageIntegration int
+
+const (
+	SatoriMessageIntegrationUnknown SatoriMessageIntegration = 0
+	// The variant for Google's Firebase Cloud Messaging.
+	SatoriMessageIntegrationFCM SatoriMessageIntegration = 1
+	// The variant for Apple's Message system.
+	SatoriMessageIntegrationAPNS SatoriMessageIntegration = 2
+	// The variant for Facebook App-to-User Notifications.
+	SatoriMessageIntegrationFacebookNotification SatoriMessageIntegration = 3
+	// The variant for OneSignal Notifications.
+	SatoriMessageIntegrationOneSignalNotification SatoriMessageIntegration = 4
+	// The variant for Webhook Notifications.
+	SatoriMessageIntegrationWebhookNotification SatoriMessageIntegration = 5
+)
+
+type SatoriMessageIntegrationChannel int
+
+const (
+	SatoriMessageIntegrationChannelDefault SatoriMessageIntegrationChannel = 0
+	// Push notification.
+	SatoriMessageIntegrationChannelPush SatoriMessageIntegrationChannel = 1
+	// Email.
+	SatoriMessageIntegrationChannelEmail SatoriMessageIntegrationChannel = 2
+)
+
+type SatoriMessageIntegrationChannels struct {
+	Channels []SatoriMessageIntegrationChannel `json:"channels,omitempty"`
+}
+
+type SatoriMessageTemplateOverride struct {
+	// Message title.
+	Title string `json:"title,omitempty"`
+	// Message template contents.
+	Value string `json:"value,omitempty"`
+	// Image URL.
+	ImageURL string `json:"image_url,omitempty"`
+	// JSON-encoded metadata.
+	JsonMetadata string `json:"json_metadata,omitempty"`
+	// Optional language-specific override template values.
+	Variants map[string]*SatoriMessageTemplateOverride `json:"variants,omitempty"`
+}
+
+type SatoriMessageSendResults struct {
+	DeliveryResults []*SatoriMessageSendResult `json:"delivery_results,omitempty"`
+}
+
+type SatoriMessageSendResult struct {
+	RecipientID        string                                `json:"recipient_id,omitempty"`
+	IntegrationResults []*SatoriMessageSendIntegrationResult `json:"integration_results,omitempty"`
+}
+
+type SatoriMessageSendIntegrationResult struct {
+	IntegrationType SatoriMessageIntegration        `json:"integration_type,omitempty"`
+	Success         bool                            `json:"success,omitempty"`
+	ErrorMessage    string                          `json:"error_message,omitempty"`
+	ChannelType     SatoriMessageIntegrationChannel `json:"channel_type,omitempty"`
 }
 
 type SatoriLabeled interface {

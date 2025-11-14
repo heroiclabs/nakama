@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,10 +46,10 @@ const (
 
 var controlCharsRegex = regexp.MustCompilePOSIX("[[:cntrl:]]+")
 
-func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) channelJoin(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetChannelJoin()
 
-	channelID, stream, err := BuildChannelId(session.Context(), logger, p.db, session.UserID(), incoming.Target, rtapi.ChannelJoin_Type(incoming.Type))
+	channelID, stream, err := BuildChannelId(ctx, logger, p.db, session.UserID(), incoming.Target, rtapi.ChannelJoin_Type(incoming.Type))
 	if err != nil {
 		if errors.Is(err, runtime.ErrInvalidChannelTarget) || errors.Is(err, runtime.ErrInvalidChannelType) {
 			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -71,7 +72,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 		Persistence: incoming.Persistence == nil || incoming.Persistence.Value,
 		Username:    session.Username(),
 	}
-	success, isNew := p.tracker.Track(session.Context(), session.ID(), stream, session.UserID(), meta)
+	success, isNew := p.tracker.Track(ctx, session.ID(), stream, session.UserID(), meta)
 	if !success {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
@@ -120,7 +121,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 				}
 
 				// Any error is already logged before it's returned here.
-				_ = NotificationSend(session.Context(), logger, p.db, p.tracker, p.router, notifications)
+				_ = NotificationSend(ctx, logger, p.db, p.tracker, p.router, notifications)
 			}
 		}
 	}
@@ -166,7 +167,7 @@ func (p *Pipeline) channelJoin(logger *zap.Logger, session Session, envelope *rt
 	return true, out
 }
 
-func (p *Pipeline) channelLeave(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) channelLeave(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetChannelLeave()
 
 	streamConversionResult, err := ChannelIdToStream(incoming.ChannelId)
@@ -186,7 +187,7 @@ func (p *Pipeline) channelLeave(logger *zap.Logger, session Session, envelope *r
 	return true, out
 }
 
-func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) channelMessageSend(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetChannelMessageSend()
 
 	streamConversionResult, err := ChannelIdToStream(incoming.ChannelId)
@@ -215,7 +216,7 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 		return false, nil
 	}
 
-	ack, err := ChannelMessageSend(session.Context(), p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.Content, session.UserID().String(), session.Username(), meta.Persistence)
+	ack, err := ChannelMessageSend(ctx, p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.Content, session.UserID().String(), session.Username(), meta.Persistence)
 	switch err {
 	case errChannelMessagePersist:
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -231,7 +232,7 @@ func (p *Pipeline) channelMessageSend(logger *zap.Logger, session Session, envel
 	return true, out
 }
 
-func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) channelMessageUpdate(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetChannelMessageUpdate()
 
 	if _, err := uuid.FromString(incoming.MessageId); err != nil {
@@ -268,7 +269,7 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 		return false, nil
 	}
 
-	ack, err := ChannelMessageUpdate(session.Context(), p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.MessageId, incoming.Content, session.UserID().String(), session.Username(), meta.Persistence)
+	ack, err := ChannelMessageUpdate(ctx, p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.MessageId, incoming.Content, session.UserID().String(), session.Username(), meta.Persistence)
 	switch err {
 	case errChannelMessageNotFound:
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
@@ -289,7 +290,7 @@ func (p *Pipeline) channelMessageUpdate(logger *zap.Logger, session Session, env
 	return true, out
 }
 
-func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
+func (p *Pipeline) channelMessageRemove(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
 	incoming := envelope.GetChannelMessageRemove()
 
 	if _, err := uuid.FromString(incoming.MessageId); err != nil {
@@ -318,7 +319,7 @@ func (p *Pipeline) channelMessageRemove(logger *zap.Logger, session Session, env
 		return false, nil
 	}
 
-	ack, err := ChannelMessageRemove(session.Context(), p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.MessageId, session.UserID().String(), session.Username(), meta.Persistence)
+	ack, err := ChannelMessageRemove(ctx, p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.MessageId, session.UserID().String(), session.Username(), meta.Persistence)
 	switch err {
 	case errChannelMessageNotFound:
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{

@@ -86,7 +86,7 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username,
 }
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	ip, _ := extractClientAddressFromContext(logger, ctx)
 	if !s.loginAttemptCache.Allow(in.Username, ip) {
 		return nil, status.Error(codes.ResourceExhausted, "Try again later.")
@@ -289,7 +289,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 }
 
 func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.AuthenticateLogoutRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	token, err := jwt.Parse(in.Token, func(token *jwt.Token) (interface{}, error) {
 		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -316,7 +316,7 @@ func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.Auth
 }
 
 func (s *ConsoleServer) AuthenticateMFASetup(ctx context.Context, in *console.AuthenticateMFASetupRequest) (*console.AuthenticateMFASetupResponse, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	var claims UserMFASetupToken
 	if err := parseJWTToken(s.config.GetConsole().SigningKey, in.GetMfa(), &claims); err != nil {
 		logger.Warn("Failed to parse the JTW provided as code.", zap.Error(err))

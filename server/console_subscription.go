@@ -27,7 +27,7 @@ import (
 )
 
 func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListSubscriptionsRequest) (*api.SubscriptionList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Filter != "" {
 		subscription, err := getSubscriptionByOriginalTransactionId(ctx, logger, s.db, in.Filter)
 		if err != nil {
@@ -72,7 +72,7 @@ func (s *ConsoleServer) ListSubscriptions(ctx context.Context, in *console.ListS
 }
 
 func (s *ConsoleServer) GetSubscription(ctx context.Context, in *console.GetSubscriptionRequest) (*api.ValidatedSubscription, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.GetOriginalTransactionId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "original transaction id is required")
 	}

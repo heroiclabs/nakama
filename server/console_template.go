@@ -29,7 +29,7 @@ import (
 )
 
 func (s *ConsoleServer) AddAclTemplate(ctx context.Context, in *console.AddAclTemplateRequest) (*console.AclTemplate, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	query := `
 		INSERT INTO console_acl_template
 			(id, name, description, acl)
@@ -73,7 +73,7 @@ func (s *ConsoleServer) AddAclTemplate(ctx context.Context, in *console.AddAclTe
 }
 
 func (s *ConsoleServer) UpdateAclTemplate(ctx context.Context, in *console.UpdateAclTemplateRequest) (*console.AclTemplate, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	query := `
 		UPDATE console_acl_template SET
 			name = $1,
@@ -118,7 +118,7 @@ func (s *ConsoleServer) UpdateAclTemplate(ctx context.Context, in *console.Updat
 }
 
 func (s *ConsoleServer) ListAclTemplates(ctx context.Context, in *emptypb.Empty) (*console.AclTemplateList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	query := `
 		SELECT
 			id, name, description, acl, create_time, update_time
@@ -167,7 +167,7 @@ func (s *ConsoleServer) ListAclTemplates(ctx context.Context, in *emptypb.Empty)
 }
 
 func (s *ConsoleServer) DeleteAclTemplate(ctx context.Context, in *console.DeleteAclTemplateRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if _, err := s.db.ExecContext(ctx, "DELETE from console_acl_template WHERE id = $1", in.Id); err != nil {
 		logger.Error("Error deleting acl template", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error deleting ACL template.")

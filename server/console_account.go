@@ -53,7 +53,7 @@ type consoleAccountNotesCursor struct {
 }
 
 func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -71,7 +71,7 @@ func (s *ConsoleServer) BanAccount(ctx context.Context, in *console.AccountId) (
 }
 
 func (s *ConsoleServer) UnbanAccount(ctx context.Context, in *console.AccountId) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -89,7 +89,7 @@ func (s *ConsoleServer) UnbanAccount(ctx context.Context, in *console.AccountId)
 }
 
 func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDeleteRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -106,7 +106,7 @@ func (s *ConsoleServer) DeleteAccount(ctx context.Context, in *console.AccountDe
 // Deprecated: replaced by DeleteAllData
 func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	// Delete all but the system user. Related data will be removed by cascading constraints.
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	_, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id <> '00000000-0000-0000-0000-000000000000'")
 	if err != nil {
 		logger.Error("Error deleting all user accounts.", zap.Error(err))
@@ -116,7 +116,7 @@ func (s *ConsoleServer) DeleteAccounts(ctx context.Context, in *emptypb.Empty) (
 }
 
 func (s *ConsoleServer) DeleteFriend(ctx context.Context, in *console.DeleteFriendRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -143,7 +143,7 @@ func (s *ConsoleServer) DeleteFriend(ctx context.Context, in *console.DeleteFrie
 }
 
 func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteGroupUserRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -165,7 +165,7 @@ func (s *ConsoleServer) DeleteGroupUser(ctx context.Context, in *console.DeleteG
 }
 
 func (s *ConsoleServer) DeleteWalletLedger(ctx context.Context, in *console.DeleteWalletLedgerRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -185,7 +185,7 @@ func (s *ConsoleServer) DeleteWalletLedger(ctx context.Context, in *console.Dele
 }
 
 func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId) (*console.AccountExport, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -202,7 +202,7 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 }
 
 func (s *ConsoleServer) ImportAccount(ctx context.Context, in *console.AccountImport) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -219,7 +219,7 @@ func (s *ConsoleServer) ImportAccount(ctx context.Context, in *console.AccountIm
 }
 
 func (s *ConsoleServer) ImportAccountFull(ctx context.Context, in *console.AccountImport) (*console.Account, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	account, err := ImportAccount(ctx, logger, s.db, s.statusRegistry, uuid.Nil, in.Data)
 	if err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ func (s *ConsoleServer) ImportAccountFull(ctx context.Context, in *console.Accou
 }
 
 func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (*console.Account, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -251,7 +251,7 @@ func (s *ConsoleServer) GetAccount(ctx context.Context, in *console.AccountId) (
 }
 
 func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (*api.FriendList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -267,7 +267,7 @@ func (s *ConsoleServer) GetFriends(ctx context.Context, in *console.AccountId) (
 }
 
 func (s *ConsoleServer) GetGroups(ctx context.Context, in *console.AccountId) (*api.UserGroupList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -283,7 +283,7 @@ func (s *ConsoleServer) GetGroups(ctx context.Context, in *console.AccountId) (*
 }
 
 func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.GetWalletLedgerRequest) (*console.WalletLedgerList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.AccountId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -336,7 +336,7 @@ func (s *ConsoleServer) GetWalletLedger(ctx context.Context, in *console.GetWall
 }
 
 func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccountsRequest) (*console.AccountList, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	const defaultLimit = 50
 
 	// Searching only through tombstone records.
@@ -598,7 +598,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 }
 
 func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAccountRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -894,7 +894,7 @@ AND ((facebook_id IS NOT NULL
 }
 
 func (s *ConsoleServer) AddAccountNote(ctx context.Context, in *console.AddAccountNoteRequest) (*console.AccountNote, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	consoleUserID, ok := ctx.Value(ctxConsoleUserIdKey{}).(uuid.UUID)
 	if !ok {
 		return nil, status.Error(codes.FailedPrecondition, "Console user identifier not found in request context.")
@@ -958,7 +958,7 @@ LEFT JOIN console_user AS cu ON c.create_id = cu.id
 }
 
 func (s *ConsoleServer) ListAccountNotes(ctx context.Context, in *console.ListAccountNotesRequest) (*console.ListAccountNotesResponse, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.AccountId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
@@ -1062,7 +1062,7 @@ WHERE user_id = $1`
 }
 
 func (s *ConsoleServer) DeleteAccountNote(ctx context.Context, in *console.DeleteAccountNoteRequest) (*emptypb.Empty, error) {
-	logger := LoggerWithTraceId(ctx, s.logger)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM users_notes WHERE id = $1", in.NoteId); err != nil {
 		logger.Error("Could not delete note.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to delete the user note.")

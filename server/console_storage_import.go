@@ -44,7 +44,7 @@ type importStorageObject struct {
 }
 
 func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
-	logger := LoggerWithTraceId(context.WithValue(r.Context(), ctxTraceId{}, uuid.Must(uuid.NewV4()).String()), s.logger)
+	logger, _ := LoggerWithTraceId(context.WithValue(r.Context(), ctxTraceId{}, uuid.Must(uuid.NewV4()).String()), s.logger)
 	// Check authentication.
 	auth := r.Header.Get("authorization")
 	if len(auth) == 0 {
