@@ -1,6 +1,6 @@
 // daily_missions.js - Daily Missions System (Per gameId UUID)
 
-var utils = require("../copilot/utils");
+import * as utils from "../copilot/utils.js";
 
 /**
  * Mission configurations per gameId UUID
@@ -363,11 +363,9 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
     });
 }
 
-// Export RPC functions
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        rpcGetDailyMissions: rpcGetDailyMissions,
-        rpcSubmitMissionProgress: rpcSubmitMissionProgress,
-        rpcClaimMissionReward: rpcClaimMissionReward
-    };
-}
+// Export RPC functions (ES Module syntax)
+export {
+    rpcGetDailyMissions,
+    rpcSubmitMissionProgress,
+    rpcClaimMissionReward
+};

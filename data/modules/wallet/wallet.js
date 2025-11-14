@@ -1,6 +1,6 @@
 // wallet.js - Enhanced Wallet System (Global + Per-Game Sub-Wallets)
 
-var utils = require("../copilot/utils");
+import * as utils from "../copilot/utils.js";
 
 /**
  * Get or create global wallet for user
@@ -391,12 +391,10 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     });
 }
 
-// Export RPC functions
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        rpcWalletGetAll: rpcWalletGetAll,
-        rpcWalletUpdateGlobal: rpcWalletUpdateGlobal,
-        rpcWalletUpdateGameWallet: rpcWalletUpdateGameWallet,
-        rpcWalletTransferBetweenGameWallets: rpcWalletTransferBetweenGameWallets
-    };
-}
+// Export RPC functions (ES Module syntax)
+export {
+    rpcWalletGetAll,
+    rpcWalletUpdateGlobal,
+    rpcWalletUpdateGameWallet,
+    rpcWalletTransferBetweenGameWallets
+};

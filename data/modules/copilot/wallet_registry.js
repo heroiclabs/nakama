@@ -151,10 +151,10 @@ function getAllWallets(nk, logger, limit) {
     }
 }
 
-// Export functions for use in other modules
-var WalletRegistry = {
-    getWalletByUserId: getWalletByUserId,
-    createWalletRecord: createWalletRecord,
-    updateWalletGames: updateWalletGames,
-    getAllWallets: getAllWallets
+// Export functions for use in other modules (ES Module syntax)
+export {
+    getWalletByUserId,
+    createWalletRecord,
+    updateWalletGames,
+    getAllWallets
 };

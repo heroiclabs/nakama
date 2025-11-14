@@ -101,12 +101,12 @@ function handleWalletError(logger, operation, error) {
     };
 }
 
-// Export functions for use in other modules
-var WalletUtils = {
-    decodeJWT: decodeJWT,
-    extractUserInfo: extractUserInfo,
-    validateJWTStructure: validateJWTStructure,
-    generateWalletId: generateWalletId,
-    logWalletOperation: logWalletOperation,
-    handleWalletError: handleWalletError
+// Export functions for use in other modules (ES Module syntax)
+export {
+    decodeJWT,
+    extractUserInfo,
+    validateJWTStructure,
+    generateWalletId,
+    logWalletOperation,
+    handleWalletError
 };

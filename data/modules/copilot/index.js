@@ -1,10 +1,10 @@
 // copilot/index.js - Main entry point for copilot leaderboard modules
 
-// Import all modules
-var leaderboardSync = require("./leaderboard_sync");
-var leaderboardAggregate = require("./leaderboard_aggregate");
-var leaderboardFriends = require("./leaderboard_friends");
-var socialFeatures = require("./social_features");
+// Import all modules (ES Module syntax)
+import * as leaderboardSync from "./leaderboard_sync.js";
+import * as leaderboardAggregate from "./leaderboard_aggregate.js";
+import * as leaderboardFriends from "./leaderboard_friends.js";
+import * as socialFeatures from "./social_features.js";
 
 /**
  * Initialize copilot modules and register RPCs
@@ -87,9 +87,7 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
     logger.info('========================================');
 }
 
-// Export the initialization function
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        initializeCopilotModules: initializeCopilotModules
-    };
-}
+// Export the initialization function (ES Module syntax)
+export {
+    initializeCopilotModules
+};

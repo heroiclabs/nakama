@@ -1,6 +1,6 @@
 // analytics.js - Analytics System (Per gameId UUID)
 
-var utils = require("../copilot/utils");
+import * as utils from "../copilot/utils.js";
 
 /**
  * RPC: Log analytics event
@@ -150,9 +150,7 @@ function trackSession(nk, logger, userId, gameId, eventName, eventData) {
     }
 }
 
-// Export RPC functions
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        rpcAnalyticsLogEvent: rpcAnalyticsLogEvent
-    };
-}
+// Export RPC functions (ES Module syntax)
+export {
+    rpcAnalyticsLogEvent
+};
