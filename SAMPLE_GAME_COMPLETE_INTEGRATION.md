@@ -24,7 +24,7 @@ This comprehensive guide demonstrates how to build a complete Unity game using A
 1. [Project Setup](#project-setup)
 2. [Core Architecture](#core-architecture)
 3. [Feature 1: Automated Leaderboards](#feature-1-automated-leaderboards)
-4. [Feature 2: Groups/Clans/Guilds](#feature-2-groupsclans guilds)
+4. [Feature 2: Groups/Clans/Guilds](#feature-2-groupsclansguilds)
 5. [Feature 3: Seasonal Tournaments](#feature-3-seasonal-tournaments)
 6. [Feature 4: Battle System](#feature-4-battle-system)
 7. [Feature 5: Notifications](#feature-5-notifications)
