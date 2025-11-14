@@ -8,6 +8,29 @@
 
 A production-ready, self-hosted Nakama server deployment with comprehensive game backend features for Unity developers. This platform provides everything needed to build engaging, social, competitive games with minimal backend development.
 
+## ⚠️ Important: JavaScript Runtime Uses ES Modules
+
+**If you're getting this error:**
+```
+ReferenceError: require is not defined
+Failed to eval JavaScript modules
+```
+
+**Your JavaScript modules are using CommonJS syntax, which Nakama 3.x does NOT support.**
+
+Nakama's JavaScript runtime only supports **ES Modules (ESM)**:
+- ✅ Use `import` and `export`, NOT `require()` and `module.exports`
+- ✅ See **[ESM_MIGRATION_COMPLETE_GUIDE.md](./ESM_MIGRATION_COMPLETE_GUIDE.md)** for the complete solution
+
+**Quick Links:**
+- 📘 [Complete ESM Migration Guide](./ESM_MIGRATION_COMPLETE_GUIDE.md) - Start here if you have the error
+- 📘 [JavaScript ESM Guide](./NAKAMA_JAVASCRIPT_ESM_GUIDE.md) - Detailed JavaScript guide
+- 📘 [TypeScript ESM Build Guide](./NAKAMA_TYPESCRIPT_ESM_BUILD.md) - TypeScript configuration
+- 📘 [Docker ESM Deployment Guide](./NAKAMA_DOCKER_ESM_DEPLOYMENT.md) - Docker setup
+- 📁 [Working Examples](./examples/esm-modules/) - Copy-paste ready code
+
+---
+
 ## Overview
 
 This is a customized Nakama 3.x deployment that includes pre-built JavaScript runtime modules providing:
