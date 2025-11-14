@@ -19,6 +19,7 @@ This is a customized Nakama 3.x deployment that includes pre-built JavaScript ru
 - ✅ **Groups/Clans/Guilds** - Community features with roles, shared wallets, and group chat
 - ✅ **Friend System & Social Graph** - Add friends, block users, challenges, spectating
 - ✅ **Economy & Wallet System** - Multi-currency support (global + per-game wallets)
+- ✅ **Push Notifications** - AWS SNS/Pinpoint integration for iOS, Android, Web, Windows
 - ✅ **In-App Notifications** - Real-time and persistent messaging
 - ✅ **Battle Pass/Seasonal Progression** - Tiered rewards and XP systems
 - ✅ **Analytics & Metrics** - Event tracking, DAU, session analytics
@@ -62,6 +63,7 @@ All systems support multiple games through UUID-based `gameId` identifiers. Each
 │  │  • friends/friends.js                            │   │
 │  │  • groups/groups.js                              │   │
 │  │  • analytics/analytics.js                        │   │
+│  │  • push_notifications/push_notifications.js      │   │
 │  │  • copilot/* (wallet mapping, social features)   │   │
 │  └──────────────────────────────────────────────────┘   │
 │                                                          │
@@ -90,6 +92,7 @@ All systems support multiple games through UUID-based `gameId` identifiers. Each
 | **Groups/Clans/Guilds** | ⭐⭐⭐⭐☆ | Both | - | Community building with shared wallets |
 | **Friend System** | ⭐⭐⭐⭐☆ | Both | - | Social graph, blocking, challenges |
 | **Wallet & Economy** | ⭐⭐⭐⭐☆ | Both | - | Multi-currency (XUT, XP, tokens) |
+| **Push Notifications** | ⭐⭐⭐⭐⭐ | Both | - | AWS SNS/Pinpoint for iOS/Android/Web/Windows |
 | **In-App Notifications** | ⭐⭐⭐⭐☆ | Both | - | Real-time + persistent messaging |
 | **Battle Pass** | ⭐⭐⭐⭐☆ | Both | - | Seasonal progression system |
 | **Analytics** | ⭐⭐⭐☆☆ | Both | - | Event tracking and metrics |
@@ -238,9 +241,94 @@ All systems support multiple games through UUID-based `gameId` identifiers. Each
 | | `get_user_groups` | Get user's groups |
 | | `update_group_xp` | Add XP to group |
 | | `get_group_wallet` | Get group shared wallet |
+| **Push Notifications** | `push_register_token` | Register device push token (Unity → Lambda) |
+| | `push_send_event` | Send push notification event |
+| | `push_get_endpoints` | Get user's registered devices |
 | **Analytics** | `analytics_log_event` | Log custom events |
 | **Cognito** | `get_user_wallet` | Get/create Cognito-linked wallet |
 | | `link_wallet_to_game` | Link wallet to game |
+
+## Push Notifications (AWS SNS + Pinpoint)
+
+### Architecture Overview
+
+The push notification system integrates **AWS SNS (Simple Notification Service)** and **AWS Pinpoint** to deliver push notifications across all major platforms:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Unity Game Client                         │
+│  (iOS / Android / WebGL / Windows)                          │
+│  - Obtains push token from OS                               │
+│  - NO AWS SDK required                                      │
+└──────────────────┬──────────────────────────────────────────┘
+                   │ Send raw device token
+                   ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Nakama Server                            │
+│  RPC: push_register_token                                   │
+│  - Receives: { gameId, platform, token }                    │
+│  - Stores metadata                                          │
+└──────────────────┬──────────────────────────────────────────┘
+                   │ HTTP POST to Lambda Function URL
+                   ▼
+┌─────────────────────────────────────────────────────────────┐
+│              AWS Lambda (Function URL)                      │
+│  - Creates/Updates SNS Platform Endpoint                    │
+│  - Registers with Pinpoint for analytics                    │
+│  - Returns: { snsEndpointArn }                             │
+└──────────────────┬──────────────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────────────┐
+│         AWS SNS Platform Application                        │
+│  - APNS (iOS)                                               │
+│  - FCM (Android, Web)                                       │
+│  - WNS (Windows)                                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Server Configuration
+
+Set environment variables for Lambda Function URLs:
+
+```bash
+# Lambda URL for registering push endpoints
+export PUSH_LAMBDA_URL="https://xxxxx.lambda-url.us-east-1.on.aws/register-endpoint"
+
+# Lambda URL for sending push notifications
+export PUSH_SEND_URL="https://xxxxx.lambda-url.us-east-1.on.aws/send-push"
+```
+
+### Supported Platforms
+
+| Platform | Token Type | AWS Service |
+|----------|-----------|-------------|
+| **iOS** | APNS Token | AWS SNS APNS Platform Application |
+| **Android** | FCM Token | AWS SNS FCM Platform Application |
+| **Web (PWA)** | FCM Token | AWS SNS FCM Platform Application |
+| **Windows** | WNS Token | AWS SNS WNS Platform Application |
+
+### Push Event Types
+
+The system automatically triggers push notifications for:
+
+- ✅ **Daily Reward Available** - Remind users to claim daily login bonus
+- ✅ **Mission Completed** - Notify when objectives are achieved
+- ✅ **Streak Break Warning** - Alert before streak expires (47h mark)
+- ✅ **Friend Request** - New friend request received
+- ✅ **Friend Online** - Friend comes online
+- ✅ **Challenge Invite** - Friend challenges you to a match
+- ✅ **Match Ready** - Matchmaking found opponents
+- ✅ **Wallet Reward Drop** - Currency or items received
+- ✅ **New Season / Quiz Pack** - New content available
+
+### Unity Integration
+
+See [UNITY_DEVELOPER_COMPLETE_GUIDE.md](./UNITY_DEVELOPER_COMPLETE_GUIDE.md) for complete C# examples showing how to:
+1. Obtain device tokens (APNS/FCM/WNS)
+2. Register tokens with `push_register_token` RPC
+3. Handle incoming push notifications
+4. Trigger server-side push events
 
 ## Engagement Loop Design
 

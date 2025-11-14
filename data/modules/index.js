@@ -23,6 +23,8 @@ var Friends = require('./friends/friends.js');
 var LeaderboardsTimePeriod = require('./leaderboards_timeperiod.js');
 // @ts-ignore
 var Groups = require('./groups/groups.js');
+// @ts-ignore
+var PushNotifications = require('./push_notifications/push_notifications.js');
 
 // Define the RPC function first
 function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
@@ -340,6 +342,20 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[Groups] Failed to initialize: ' + err.message);
     }
     
+    // Register Push Notifications RPCs
+    try {
+        logger.info('[PushNotifications] Initializing Push Notification Module...');
+        initializer.registerRpc('push_register_token', PushNotifications.rpcPushRegisterToken);
+        logger.info('[PushNotifications] Registered RPC: push_register_token');
+        initializer.registerRpc('push_send_event', PushNotifications.rpcPushSendEvent);
+        logger.info('[PushNotifications] Registered RPC: push_send_event');
+        initializer.registerRpc('push_get_endpoints', PushNotifications.rpcPushGetEndpoints);
+        logger.info('[PushNotifications] Registered RPC: push_get_endpoints');
+        logger.info('[PushNotifications] Successfully registered 3 Push Notification RPCs');
+    } catch (err) {
+        logger.error('[PushNotifications] Failed to initialize: ' + err.message);
+    }
+    
     // Load copilot modules
     try {
         var copilot = require("./copilot/index");
@@ -350,7 +366,7 @@ function InitModule(ctx, logger, nk, initializer) {
     
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total New System RPCs: 24 (2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans)');
+    logger.info('Total New System RPCs: 27 (2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications)');
     logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
