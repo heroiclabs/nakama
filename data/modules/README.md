@@ -16,21 +16,46 @@ This directory contains all JavaScript runtime modules for the Nakama game serve
 
 All features are accessible through RPC (Remote Procedure Call) functions from your game client.
 
-### 1. Wallet Mapping (Cognito Integration)
+### 1. Copilot Module (Advanced Leaderboards & Social)
 Located in: `copilot/` directory
 
-**Purpose:** Create a one-to-one mapping between AWS Cognito users and global wallets shared across all IntelliVerse X games.
+**Purpose:** Advanced leaderboard synchronization, aggregate scoring, friend leaderboards, and social features for multi-game ecosystems.
 
-**RPCs:**
-- `get_user_wallet` - Retrieve or create a wallet for a Cognito user
-- `link_wallet_to_game` - Link a wallet to a specific game
+**Leaderboard RPCs:**
+- `submit_score_sync` - Submit score to game and global leaderboards
+- `submit_score_with_aggregate` - Calculate and update Global Power Rank
+- `create_all_leaderboards_with_friends` - Create friend-specific leaderboards
+- `submit_score_with_friends_sync` - Submit to regular and friend leaderboards
+- `get_friend_leaderboard` - Get leaderboard filtered by friends
+
+**Social RPCs:**
+- `send_friend_invite` - Send friend invite with notification
+- `accept_friend_invite` - Accept pending friend invite
+- `decline_friend_invite` - Decline pending friend invite
+- `get_notifications` - Get user notifications
+
+**Wallet RPCs:**
+- `get_user_wallet` - Get or create user wallet (Cognito integration)
+- `link_wallet_to_game` - Link wallet to specific game
 - `get_wallet_registry` - Admin function to view all wallets
 
+**Documentation:**
+- `copilot/README.md` - Module overview and API reference
+- `copilot/UNITY_INTEGRATION_GUIDE.md` - Complete Unity C# implementation guide
+- `copilot/QUICK_REFERENCE.md` - Developer quick reference card
+- `copilot/IMPLEMENTATION_STATUS.md` - Feature verification report
+- `copilot/SECURITY_SUMMARY.md` - Security features
+
 **Files:**
-- `copilot/cognito_wallet_mapper.js` - RPC implementations
-- `copilot/wallet_registry.js` - Storage operations
+- `copilot/index.js` - Module initialization and RPC registration
+- `copilot/leaderboard_sync.js` - Score synchronization
+- `copilot/leaderboard_aggregate.js` - Aggregate scoring
+- `copilot/leaderboard_friends.js` - Friend leaderboards
+- `copilot/social_features.js` - Social graph and notifications
+- `copilot/cognito_wallet_mapper.js` - Wallet mapping
+- `copilot/wallet_registry.js` - Wallet storage
 - `copilot/wallet_utils.js` - JWT utilities
-- `copilot/README.md` - Technical documentation
+- `copilot/utils.js` - Shared helper functions
 
 ### 2. Leaderboards
 Located in: `index.js` (main entry point)
@@ -90,9 +115,22 @@ When Nakama starts, these RPCs are automatically registered:
 
 | RPC Name | Module | Description |
 |----------|--------|-------------|
+| **Copilot Leaderboards** | | |
+| `submit_score_sync` | Copilot | Submit score to game & global leaderboards |
+| `submit_score_with_aggregate` | Copilot | Calculate Global Power Rank |
+| `create_all_leaderboards_with_friends` | Copilot | Create friend leaderboards |
+| `submit_score_with_friends_sync` | Copilot | Submit to regular & friend boards |
+| `get_friend_leaderboard` | Copilot | Get friend-filtered leaderboard |
+| **Copilot Social** | | |
+| `send_friend_invite` | Copilot | Send friend invite |
+| `accept_friend_invite` | Copilot | Accept friend invite |
+| `decline_friend_invite` | Copilot | Decline friend invite |
+| `get_notifications` | Copilot | Get user notifications |
+| **Copilot Wallet** | | |
 | `get_user_wallet` | Copilot | Get or create user wallet |
 | `link_wallet_to_game` | Copilot | Link wallet to game |
 | `get_wallet_registry` | Copilot | Admin: list all wallets |
+| **Base Leaderboards** | | |
 | `create_all_leaderboards_persistent` | Leaderboards | Setup game leaderboards |
 
 ## Quick Start for Developers
@@ -144,6 +182,7 @@ The modules use these Nakama storage collections:
 |------------|-----|---------|
 | `wallet_registry` | `{user_id}` | User wallet records |
 | `leaderboards_registry` | `all_created` | Tracks created leaderboards |
+| `friend_invites` | `{invite_id}` | Friend invite data |
 
 ## Deployment
 
@@ -155,7 +194,8 @@ The modules use these Nakama storage collections:
 3. Check logs for successful initialization:
    ```
    [INFO] JavaScript Runtime Initialization Complete
-   [INFO] Total RPCs Registered: 4 (3 Wallet + 1 Leaderboard)
+   [INFO] Copilot Leaderboard Modules Loaded Successfully
+   [INFO] Total RPCs Registered: 35+ (including Copilot features)
    ```
 
 ## Development
@@ -174,6 +214,9 @@ The modules use these Nakama storage collections:
 ## Documentation
 
 - **For Game Developers:** [NAKAMA_FEATURES_GUIDE.md](./NAKAMA_FEATURES_GUIDE.md)
+- **For Unity Developers (Copilot Features):** [copilot/UNITY_INTEGRATION_GUIDE.md](./copilot/UNITY_INTEGRATION_GUIDE.md)
+- **Copilot Module:** [copilot/README.md](./copilot/README.md)
+- **Copilot Quick Reference:** [copilot/QUICK_REFERENCE.md](./copilot/QUICK_REFERENCE.md)
 - **Wallet System:** [copilot/README.md](./copilot/README.md)
 - **Leaderboards:** [README_LEADERBOARD_RPC.md](./README_LEADERBOARD_RPC.md)
 - **Nakama Docs:** https://heroiclabs.com/docs
