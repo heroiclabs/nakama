@@ -1,70 +1,103 @@
-# Copilot Wallet Mapping Module
+# Copilot Module - Advanced Leaderboards & Social Features
 
 ## Overview
 
-The Copilot Wallet Mapping module provides a **one-to-one, permanent mapping** between AWS Cognito users and global wallets shared across all IntelliVerse X games. Each Cognito user's `sub` (UUID) serves as the unique wallet ID reference.
+The Copilot module extends Nakama with advanced leaderboard and social features for multi-game ecosystems:
 
-## Architecture
+- **Leaderboard Synchronization**: Automatic sync between per-game and global leaderboards
+- **Aggregate Scoring**: Calculate "Global Power Rank" across all games
+- **Friend Leaderboards**: Dedicated leaderboards for friends-only competition
+- **Social Features**: Friend invites, notifications, and social graph management
+- **Wallet Mapping**: AWS Cognito integration for cross-game wallets
 
-### Single Source of Truth
-- Each Cognito user corresponds to **exactly one wallet**
-- Wallet ID = Cognito `sub` claim from JWT token
-- Mapping stored in Nakama storage under `wallet_registry` collection
+## 📚 Documentation
 
-### Global Wallet System
-- Shared wallet accessible from all IntelliVerse X games
-- Games retrieve wallets via Cognito-authenticated JWT
-- No duplicate wallets - registry ensures uniqueness
-
-## File Structure
-
-```
-copilot/
-├── index.js                      # Module initialization and RPC registration
-├── cognito_wallet_mapper.js      # Core RPC implementations
-├── wallet_registry.js            # CRUD operations for wallet storage
-├── wallet_utils.js               # JWT decoding and validation utilities
-└── test_wallet_mapping.js        # Automated test suite
-```
-
-## Registered RPCs
-
-### 1. `get_user_wallet`
-
-Retrieves or creates a wallet for a Cognito user.
-# Copilot Leaderboard System
-
-A modular, extensible leaderboard and social feature system for Nakama, implementing advanced scoring, friend-based leaderboards, and social graph features.
+- **[Unity Integration Guide](./UNITY_INTEGRATION_GUIDE.md)** - Complete Unity C# implementation guide with examples
+- **[Security Summary](./SECURITY_SUMMARY.md)** - Security features and considerations
 
 ## 📁 File Structure
 
 ```
 copilot/
-├── index.js                    # Main entry point - registers all RPCs
-├── utils.js                    # Shared helper functions
-├── leaderboard_sync.js         # Base score synchronization
-├── leaderboard_aggregate.js    # Aggregate scoring across games
-├── leaderboard_friends.js      # Friend-specific leaderboards
-├── social_features.js          # Social graph and notifications
-└── test_rpcs.sh               # Shell script for testing
+├── index.js                      # Module initialization and RPC registration
+├── utils.js                      # Shared helper functions
+│
+├── leaderboard_sync.js          # Score synchronization RPCs
+├── leaderboard_aggregate.js     # Aggregate scoring RPCs
+├── leaderboard_friends.js       # Friend leaderboard RPCs
+├── social_features.js           # Social graph and notifications
+│
+├── cognito_wallet_mapper.js     # Wallet mapping RPCs
+├── wallet_registry.js           # Wallet storage operations
+├── wallet_utils.js              # JWT utilities
+│
+└── UNITY_INTEGRATION_GUIDE.md   # Unity developer documentation
 ```
 
-## 🔧 Installation
+---
 
-The copilot modules are automatically loaded when Nakama starts. The parent `index.js` imports and initializes all copilot modules.
+## 🚀 Quick Start
+
+### For Unity Developers
+
+See the **[Unity Integration Guide](./UNITY_INTEGRATION_GUIDE.md)** for complete implementation examples.
+
+### Basic Usage
+
+```javascript
+// Client-side (Unity, JavaScript, etc.)
+const payload = {
+  gameId: "your-game-uuid",
+  score: 4200
+};
+
+// Submit score with automatic sync
+const response = await client.rpc(session, "submit_score_sync", JSON.stringify(payload));
+```
+
+---
 
 ## 📡 RPC Endpoints
 
-### 1. submit_score_sync
+### Leaderboard RPCs
 
-Synchronizes score between per-game and global leaderboards.
+| RPC | Description | Auth Required |
+|-----|-------------|---------------|
+| `submit_score_sync` | Submit score to game & global leaderboards | ✅ |
+| `submit_score_with_aggregate` | Submit score with aggregate calculation | ✅ |
+| `create_all_leaderboards_with_friends` | Create friend leaderboards | ✅ |
+| `submit_score_with_friends_sync` | Submit to regular & friend leaderboards | ✅ |
+| `get_friend_leaderboard` | Get leaderboard filtered by friends | ✅ |
 
-**Endpoint:** `submit_score_sync`
+### Social RPCs
+
+| RPC | Description | Auth Required |
+|-----|-------------|---------------|
+| `send_friend_invite` | Send friend invite with notification | ✅ |
+| `accept_friend_invite` | Accept pending friend invite | ✅ |
+| `decline_friend_invite` | Decline pending friend invite | ✅ |
+| `get_notifications` | Get user notifications | ✅ |
+
+### Wallet RPCs
+
+| RPC | Description | Auth Required |
+|-----|-------------|---------------|
+| `get_user_wallet` | Get or create user wallet | ✅ |
+| `link_wallet_to_game` | Link wallet to specific game | ✅ |
+| `get_wallet_registry` | Get all wallets (admin) | ✅ |
+
+---
+
+## 🎯 Key Features
+
+### 1. Score Synchronization
+
+Submit a score once, automatically sync to both per-game and global leaderboards.
 
 **Request:**
 ```json
 {
-  "gameId": "test_game",
+  "gameId": "abc-123",
   "score": 4200
 }
 ```
@@ -73,24 +106,21 @@ Synchronizes score between per-game and global leaderboards.
 ```json
 {
   "success": true,
-  "gameId": "test_game",
+  "gameId": "abc-123",
   "score": 4200,
   "userId": "user-uuid",
-  "submittedAt": "2025-11-12T06:00:00.000Z"
+  "submittedAt": "2025-11-14T01:00:00.000Z"
 }
 ```
 
-### 2. submit_score_with_aggregate
+### 2. Aggregate Power Rank
 
-Aggregates player scores across all game leaderboards to compute Global Power Rank.
-
-**Endpoint:** `submit_score_with_aggregate`
+Calculate user's total score across all games for a "Global Power Rank".
 
 **Request:**
 ```json
 {
-  "token": "<cognito_jwt>"
-  "gameId": "test_game",
+  "gameId": "abc-123",
   "score": 4200
 }
 ```
@@ -99,68 +129,22 @@ Aggregates player scores across all game leaderboards to compute Global Power Ra
 ```json
 {
   "success": true,
-  "walletId": "550e8400-e29b-41d4-a716-446655440000",
-  "userId": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "active",
-  "gamesLinked": ["game1", "game2"],
-  "createdAt": "2025-11-12T15:30:00Z"
-}
-```
-
-**Behavior:**
-- Decodes Cognito JWT and extracts `sub` and `email`
-- Queries wallet registry by `walletId = sub`
-- Creates new wallet if not found
-- Returns wallet information
-
-### 2. `link_wallet_to_game`
-
-Links a wallet to a specific game context.
-
-**Request:**
-```json
-{
-  "token": "<cognito_jwt>",
-  "gameId": "fc3db911-42e8-4f95-96d1-41c3e7b9812d"
-  "gameId": "test_game",
+  "gameId": "abc-123",
   "individualScore": 4200,
   "aggregateScore": 12500,
   "leaderboardsProcessed": 3
 }
 ```
 
-### 3. create_all_leaderboards_with_friends
+### 3. Friend Leaderboards
 
-Creates parallel friend leaderboards for all games in the registry.
-
-**Endpoint:** `create_all_leaderboards_with_friends`
-
-**Request:**
-```json
-{}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "created": ["leaderboard_friends_global", "leaderboard_friends_abc123"],
-  "skipped": ["leaderboard_friends_xyz789"],
-  "totalProcessed": 5
-}
-```
-
-### 4. submit_score_with_friends_sync
-
-Submits score to both regular and friend-specific leaderboards.
-
-**Endpoint:** `submit_score_with_friends_sync`
+Compete with friends on dedicated leaderboards.
 
 **Request:**
 ```json
 {
-  "gameId": "test_game",
-  "score": 3500
+  "leaderboardId": "leaderboard_abc-123",
+  "limit": 50
 }
 ```
 
@@ -168,230 +152,7 @@ Submits score to both regular and friend-specific leaderboards.
 ```json
 {
   "success": true,
-  "walletId": "550e8400-e29b-41d4-a716-446655440000",
-  "gameId": "fc3db911-42e8-4f95-96d1-41c3e7b9812d",
-  "gamesLinked": ["game1", "game2", "fc3db911-42e8-4f95-96d1-41c3e7b9812d"],
-  "message": "Game successfully linked to wallet"
-}
-```
-
-**Behavior:**
-- Ensures wallet exists for the user
-- Adds game to `gamesLinked` array (if not already present)
-- Updates wallet record in storage
-
-### 3. `get_wallet_registry`
-
-Returns all wallets in the registry (admin function).
-  "gameId": "test_game",
-  "score": 3500,
-  "results": {
-    "regular": { "game": true, "global": true },
-    "friends": { "game": true, "global": true }
-  },
-  "submittedAt": "2025-11-12T06:00:00.000Z"
-}
-```
-
-### 5. get_friend_leaderboard
-
-Retrieves leaderboard filtered by the user's friends.
-
-**Endpoint:** `get_friend_leaderboard`
-
-**Request:**
-```json
-{
-  "limit": 100
-  "leaderboardId": "leaderboard_test_game",
-  "limit": 10
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "wallets": [
-    {
-      "walletId": "550e8400-e29b-41d4-a716-446655440000",
-      "userId": "550e8400-e29b-41d4-a716-446655440000",
-      "username": "user@example.com",
-      "createdAt": "2025-11-12T15:30:00Z",
-      "gamesLinked": ["game1", "game2"],
-      "status": "active"
-    }
-  ],
-  "count": 1
-}
-```
-
-## Wallet Storage Schema
-
-Wallets are stored in Nakama storage with the following structure:
-
-```json
-{
-  "walletId": "uuid-from-cognito",
-  "userId": "uuid-from-cognito",
-  "username": "player@example.com",
-  "createdAt": "2025-11-12T15:30:00Z",
-  "gamesLinked": ["game1", "game2", "game3"],
-  "status": "active"
-}
-```
-
-**Storage Details:**
-- **Collection:** `wallet_registry`
-- **Key:** User's Cognito `sub` (UUID)
-- **User ID:** System user (`00000000-0000-0000-0000-000000000000`)
-- **Permissions:** Public read (1), No public write (0)
-
-## Usage Example
-
-### Game Client Integration
-
-1. **User authenticates via Cognito** and obtains JWT token
-2. **Client sends request** to Nakama:
-
-```javascript
-// Using Nakama JavaScript client
-const payload = {
-  token: "<cognito_jwt>",
-  gameId: "fc3db911-42e8-4f95-96d1-41c3e7b9812d"
-};
-
-// Get or create wallet
-const walletResponse = await client.rpc(
-  session,
-  "get_user_wallet",
-  JSON.stringify(payload)
-);
-
-console.log("Wallet ID:", walletResponse.walletId);
-
-// Link wallet to current game
-const linkResponse = await client.rpc(
-  session,
-  "link_wallet_to_game",
-  JSON.stringify(payload)
-);
-
-console.log("Games linked:", linkResponse.gamesLinked);
-```
-
-### Using Nakama Context (Alternative)
-
-If the user is already authenticated with Nakama, the RPCs can use `ctx.userId` instead of requiring a JWT token:
-
-```javascript
-// No token needed if user is authenticated with Nakama
-const payload = {
-  gameId: "fc3db911-42e8-4f95-96d1-41c3e7b9812d"
-};
-
-const response = await client.rpc(
-  session,
-  "get_user_wallet",
-  JSON.stringify(payload)
-);
-```
-
-## Security Features
-
-### JWT Validation
-- Validates JWT structure (header.payload.signature)
-- Extracts and validates required claims (`sub`, `email`)
-- Error handling for invalid tokens
-
-### Storage Security
-- Wallets stored with system user ID for centralized management
-- Public read permissions allow games to query wallets
-- No public write permissions prevent unauthorized modifications
-- One-wallet-per-user invariant enforced
-
-### Audit Logging
-- All wallet operations logged with context
-- Creates audit trail for wallet creation and game linkage
-- Error logging for debugging and security monitoring
-
-## Testing
-
-Run automated tests:
-
-```bash
-cd /home/runner/work/nakama/nakama/data/modules/copilot
-node test_wallet_mapping.js
-```
-
-**Test Coverage:**
-- Mock Cognito token generation
-- JWT decoding and validation
-- Wallet creation for new users
-- Wallet reuse on re-login
-- Multiple game linkage
-- One-to-one mapping validation
-- Error handling for invalid tokens
-
-## Integration with IntelliVerse X
-
-The central wallet enables:
-- **Cross-game tokens and rewards** - Shared currency across all games
-- **Unified inventory & NFTs** - Items accessible in multiple games
-- **Global player profile** - Single identity across ecosystem
-- **Blockchain sync layer** - Future-ready for token integration
-
-## Module Initialization
-
-The module is automatically initialized when Nakama starts via the main `index.js`:
-
-```javascript
-// Main index.js loads copilot module
-var CopilotModule = require('./copilot/index.js').CopilotModule;
-
-function InitModule(ctx, logger, nk, initializer) {
-    // Initialize Copilot Wallet Mapping Module
-    CopilotModule.init(ctx, logger, nk, initializer);
-    // ... rest of initialization
-}
-```
-
-The module registers all RPCs and logs successful initialization.
-
-## Error Handling
-
-All RPCs return standardized error responses:
-
-```json
-{
-  "success": false,
-  "error": "Error message description",
-  "operation": "operation_name"
-}
-```
-
-Common error scenarios:
-- Invalid JWT format
-- Missing required fields
-- Storage operation failures
-- Missing authentication context
-
-## Future Enhancements
-
-- JWT signature verification with Cognito public keys
-- Wallet balance tracking
-- Transaction history
-- Integration with blockchain wallets
-- Multi-signature support for high-value operations
-- Rate limiting and abuse prevention
-
-## Support
-
-For issues or questions about the wallet mapping system, refer to:
-- Nakama documentation: https://heroiclabs.com/docs
-- IntelliVerse X API documentation
-- Module source code in `/data/modules/copilot/`
-  "leaderboardId": "leaderboard_test_game",
+  "leaderboardId": "leaderboard_abc-123",
   "records": [
     {
       "ownerId": "user-uuid",
@@ -400,20 +161,18 @@ For issues or questions about the wallet mapping system, refer to:
       "rank": 1
     }
   ],
-  "totalFriends": 5
+  "totalFriends": 10
 }
 ```
 
-### 6. send_friend_invite
+### 4. Social Features
 
-Sends a friend invite to another user with notifications.
+Send friend invites with automatic notifications.
 
-**Endpoint:** `send_friend_invite`
-
-**Request:**
+**Send Invite:**
 ```json
 {
-  "targetUserId": "00000000-0000-0000-0000-000000000001",
+  "targetUserId": "friend-uuid",
   "message": "Let's be friends!"
 }
 ```
@@ -422,223 +181,330 @@ Sends a friend invite to another user with notifications.
 ```json
 {
   "success": true,
-  "inviteId": "user1_user2_1699776000000",
-  "targetUserId": "00000000-0000-0000-0000-000000000001",
+  "inviteId": "invite-uuid",
+  "targetUserId": "friend-uuid",
   "status": "sent"
 }
 ```
 
-### 7. accept_friend_invite
+---
 
-Accepts a friend invite and adds the friend.
+## 💾 Data Storage
 
-**Endpoint:** `accept_friend_invite`
+### Collections
 
-**Request:**
-```json
-{
-  "inviteId": "user1_user2_1699776000000"
-}
+1. **leaderboards_registry**
+   - Stores all created leaderboard records
+   - Used for discovering game leaderboards
+
+2. **friend_invites**
+   - Stores friend invite data
+   - Tracks invite states: pending, accepted, declined
+
+3. **wallet_registry**
+   - Stores Cognito ↔ Wallet mappings
+   - One-to-one mapping per user
+
+### Leaderboard Naming Conventions
+
+- **Per-game**: `leaderboard_{gameId}`
+- **Global**: `leaderboard_global`
+- **Friends per-game**: `leaderboard_friends_{gameId}`
+- **Friends global**: `leaderboard_friends_global`
+
+---
+
+## 🔧 Installation & Setup
+
+The copilot module is automatically loaded when Nakama starts via the main `index.js`:
+
+```javascript
+// Main index.js loads copilot module
+var copilot = require("./copilot/index");
+copilot.initializeCopilotModules(ctx, logger, nk, initializer);
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "inviteId": "user1_user2_1699776000000",
-  "friendUserId": "sender-uuid",
-  "friendUsername": "player1"
-}
+### Initialization Log
+
+```
+========================================
+Initializing Copilot Leaderboard Modules
+========================================
+✓ Registered RPC: submit_score_sync
+✓ Registered RPC: submit_score_with_aggregate
+✓ Registered RPC: create_all_leaderboards_with_friends
+✓ Registered RPC: submit_score_with_friends_sync
+✓ Registered RPC: get_friend_leaderboard
+✓ Registered RPC: send_friend_invite
+✓ Registered RPC: accept_friend_invite
+✓ Registered RPC: decline_friend_invite
+✓ Registered RPC: get_notifications
+========================================
+Copilot Leaderboard Modules Loaded Successfully
+========================================
 ```
 
-### 8. decline_friend_invite
-
-Declines a friend invite.
-
-**Endpoint:** `decline_friend_invite`
-
-**Request:**
-```json
-{
-  "inviteId": "user1_user2_1699776000000"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "inviteId": "user1_user2_1699776000000",
-  "status": "declined"
-}
-```
-
-### 9. get_notifications
-
-Retrieves notifications for the authenticated user.
-
-**Endpoint:** `get_notifications`
-
-**Request:**
-```json
-{
-  "limit": 20
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "notifications": [
-    {
-      "id": "notification-uuid",
-      "subject": "Friend Request",
-      "content": { "type": "friend_invite", "fromUsername": "player1" },
-      "code": 1,
-      "senderId": "sender-uuid",
-      "createTime": "2025-11-12T06:00:00.000Z"
-    }
-  ],
-  "count": 1
-}
-```
+---
 
 ## 🧪 Testing
 
-Use the provided test script to test all RPCs:
+### Using curl
 
 ```bash
-cd data/modules/copilot
-./test_rpcs.sh "your_bearer_token_here"
-```
-
-Or test individual RPCs using curl:
-
-```bash
+# Submit score
 curl -X POST "http://127.0.0.1:7350/v2/rpc/submit_score_sync" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"gameId":"test_game","score":4200}'
+  -d '{"gameId":"test-game","score":4200}'
+
+# Get friend leaderboard
+curl -X POST "http://127.0.0.1:7350/v2/rpc/get_friend_leaderboard" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"leaderboardId":"leaderboard_test-game","limit":50}'
+
+# Send friend invite
+curl -X POST "http://127.0.0.1:7350/v2/rpc/send_friend_invite" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"targetUserId":"friend-uuid","message":"Lets play!"}'
 ```
 
-## 🔐 Security
+### Test Script
 
-- **Authentication Required:** All RPCs require a valid authentication token
-- **Input Validation:** All payloads are validated for required fields
-- **Error Handling:** Try/catch blocks around all Nakama API calls
-- **OWASP Compliance:** Generic error messages to prevent information disclosure
-- **Safe Parsing:** JSON parsing uses safe wrappers to prevent crashes
+```bash
+cd data/modules/copilot
+./test_rpcs.sh "<your_bearer_token>"
+```
+
+---
 
 ## 🏗️ Architecture
 
 ### Module Responsibilities
 
 #### utils.js
-Provides shared helper functions:
-- `validatePayload(payload, fields)` - Validate required fields
-- `readRegistry()` - Read leaderboards registry from storage
-- `safeJsonParse(payload)` - Safely parse JSON strings
-- `handleError(ctx, err, message)` - Standardized error responses
-- `logInfo/logWarn/logError(msg)` - Centralized logging
+- Shared helper functions
+- Payload validation
+- Error handling
+- Logging utilities
 
 #### leaderboard_sync.js
-- Implements base score synchronization
-- Writes to both per-game and global leaderboards
-- Includes metadata: `{ source, gameId, submittedAt }`
+- Base score synchronization
+- Writes to per-game and global leaderboards
+- Metadata tracking
 
 #### leaderboard_aggregate.js
-- Queries all game leaderboards for user's scores
-- Calculates aggregate score (sum of all game scores)
-- Writes aggregate to global leaderboard
-- Returns both individual and aggregate scores
+- Queries all game leaderboards for user
+- Calculates aggregate score
+- Updates global Power Rank
 
 #### leaderboard_friends.js
-- Creates friend-specific leaderboards using naming convention `leaderboard_friends_<gameId>`
-- Filters leaderboard results by user's friend list using `nk.friendsList()`
-- Supports parallel writes to both regular and friend leaderboards
+- Creates friend-specific leaderboards
+- Filters by user's friend list
+- Parallel writes to regular and friend boards
 
 #### social_features.js
-- Manages friend invites using Nakama storage
-- Sends notifications using `nk.notificationSend()`
-- Tracks invite states: `pending`, `accepted`, `declined`
-- Uses Nakama's built-in friend system via `nk.friendsAdd()`
+- Friend invite management
+- Notification system
+- Uses Nakama's built-in friend API
 
-## 💾 Data Storage
+#### cognito_wallet_mapper.js
+- AWS Cognito integration
+- JWT token validation
+- Wallet creation and linking
 
-### Collections Used
+---
 
-1. **leaderboards_registry** (from parent module)
-   - Stores all created leaderboard records
-   - Used to discover game leaderboards for aggregation
+## 🔐 Security Features
 
-2. **friend_invites**
-   - Stores friend invite data
-   - Keys: `{fromUserId}_{targetUserId}_{timestamp}`
-   - Permissions: Read=1 (owner), Write=0 (owner only)
+### Authentication
+- All RPCs require valid Nakama session
+- JWT token validation for Cognito integration
+- User context isolation
 
-### Leaderboard Naming Conventions
+### Input Validation
+- Required field validation
+- Type checking
+- Safe JSON parsing
 
-- **Regular Game:** `leaderboard_<gameId>`
-- **Global:** `leaderboard_global`
-- **Friends Game:** `leaderboard_friends_<gameId>`
-- **Friends Global:** `leaderboard_friends_global`
+### Error Handling
+- Try/catch around all Nakama API calls
+- Generic error messages (no info disclosure)
+- Comprehensive logging
 
-## 🔄 Backward Compatibility
+### Storage Security
+- Read/write permissions enforced
+- System user for registry storage
+- One-to-one wallet mapping invariant
 
-The copilot modules are fully backward compatible:
-- Maintains existing `create_all_leaderboards_persistent` RPC
-- Uses existing `leaderboards_registry` collection
-- Does not modify existing leaderboard structures
-- New modules are isolated and can be disabled without affecting existing functionality
+See **[Security Summary](./SECURITY_SUMMARY.md)** for detailed security information.
+
+---
 
 ## 📊 Metadata
 
-All score submissions include metadata:
+All score submissions include metadata for analytics:
 
 ```json
 {
   "source": "submit_score_sync",
-  "gameId": "abc123",
-  "submittedAt": "2025-11-12T06:00:00.000Z"
+  "gameId": "abc-123",
+  "submittedAt": "2025-11-14T01:00:00.000Z"
 }
 ```
 
-Aggregate submissions include additional metadata:
+Aggregate submissions include additional fields:
 
 ```json
 {
   "source": "submit_score_with_aggregate",
   "aggregateScore": 12500,
   "individualScore": 4200,
-  "gameId": "abc123",
-  "submittedAt": "2025-11-12T06:00:00.000Z"
+  "gameId": "abc-123",
+  "submittedAt": "2025-11-14T01:00:00.000Z"
 }
 ```
 
+---
+
 ## 🐛 Troubleshooting
 
-### Module Not Loading
+### Common Issues
 
-Check Nakama logs for initialization errors:
-```
+**Module Not Loading**
+```bash
+# Check Nakama logs
 docker-compose logs nakama | grep -i copilot
 ```
 
-### RPC Not Found
-
-Ensure the module is loaded:
-```
+**RPC Not Found**
+```bash
+# List registered RPCs
 curl -X GET "http://127.0.0.1:7350/v2/rpc" \
   -H "Authorization: Bearer <token>"
 ```
 
-### Invalid Token Error
+**Authentication Errors**
+- Ensure session is valid and not expired
+- Refresh session if needed
 
-Ensure you're using a valid authentication token from Nakama's authentication system.
+**Empty Friend Leaderboard**
+- Ensure friends are added
+- Friends must have submitted scores
 
-## 📝 License
+**Aggregate Score is 0**
+- Submit scores to at least one game leaderboard first
 
-Copyright 2025 The Nakama Authors
+---
 
-Licensed under the Apache License, Version 2.0
+## 🔄 Backward Compatibility
+
+The copilot module is fully backward compatible:
+- Maintains existing leaderboard RPCs
+- Uses existing storage collections
+- Does not modify existing structures
+- Can be disabled without affecting other features
+
+---
+
+## 📝 API Workflow Examples
+
+### Typical Game Flow
+
+```
+1. User authenticates with Nakama
+   ↓
+2. User plays game and achieves score
+   ↓
+3. Game calls submit_score_with_aggregate
+   ↓
+4. Server writes to:
+   - leaderboard_{gameId}
+   - leaderboard_global (with aggregate)
+   - leaderboard_friends_{gameId}
+   - leaderboard_friends_global
+   ↓
+5. User views friend leaderboard
+   ↓
+6. Server queries friends list
+   ↓
+7. Server returns filtered leaderboard
+```
+
+### Social Workflow
+
+```
+1. User A sends friend invite to User B
+   ↓
+2. Server stores invite in storage
+   ↓
+3. Server sends notification to User B
+   ↓
+4. User B calls get_notifications
+   ↓
+5. User B accepts invite
+   ↓
+6. Server adds friend relationship
+   ↓
+7. Server sends acceptance notification to User A
+   ↓
+8. Both users can now see each other on friend leaderboards
+```
+
+---
+
+## 📈 Performance Considerations
+
+### Optimization Tips
+
+1. **Cache friend lists**: Avoid repeated friend list queries
+2. **Batch operations**: Use parallel async operations when possible
+3. **Limit leaderboard queries**: Use pagination and reasonable limits
+4. **Cache leaderboard data**: Client-side caching for frequently accessed data
+
+### Scalability
+
+- Storage reads/writes are atomic
+- Leaderboard writes use Nakama's optimized engine
+- Friend list queries scale with Nakama's social graph
+- Notification system uses Nakama's built-in delivery
+
+---
+
+## 🚀 Future Enhancements
+
+Potential future features:
+- [ ] Real-time leaderboard updates via WebSocket
+- [ ] Seasonal/time-period friend leaderboards
+- [ ] Team/clan friend leaderboards
+- [ ] Leaderboard webhooks for external integrations
+- [ ] Advanced notification filtering
+- [ ] Friend recommendation system
+
+---
+
+## 📚 Additional Resources
+
+- [Nakama Documentation](https://heroiclabs.com/docs)
+- [Unity SDK Guide](https://heroiclabs.com/docs/unity-client-guide/)
+- [Leaderboards Overview](https://heroiclabs.com/docs/gameplay-leaderboards/)
+- [Social Features](https://heroiclabs.com/docs/social-friends/)
+- [Main System Documentation](../SYSTEM_README.md)
+
+---
+
+## 📞 Support
+
+For issues or questions:
+1. Check the [troubleshooting section](#troubleshooting)
+2. Review Nakama server logs
+3. Consult the [Unity Integration Guide](./UNITY_INTEGRATION_GUIDE.md)
+4. Contact your system administrator
+
+---
+
+**Version**: 1.0.0  
+**Last Updated**: 2025-11-14  
+**Compatible with**: Nakama 3.x  
+**Language**: JavaScript (ES5)
