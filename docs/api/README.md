@@ -191,6 +191,8 @@ Submits a score to all relevant leaderboards and updates the game wallet balance
 - `leaderboards_updated`: Array of leaderboard IDs that were updated
 - `game_id`: The game UUID
 
+⚠️ **Important Note**: This RPC updates both leaderboards AND wallet balance. For production games where you want leaderboard scores and wallet economy to be independent, see [Keeping Scores and Wallets Separate](../wallets.md#keeping-leaderboard-scores-and-wallet-balances-separate) for recommended patterns.
+
 #### Response (Error - Invalid Score)
 
 ```json

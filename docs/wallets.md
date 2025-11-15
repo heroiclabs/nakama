@@ -217,12 +217,153 @@ var changeset = new Dictionary<string, long>
 await client.UpdateWalletAsync(session, changeset);
 ```
 
+## Keeping Leaderboard Scores and Wallet Balances Separate
+
+### Important: Score vs. Wallet Balance Independence
+
+**Leaderboard scores** and **wallet balances** serve different purposes and should be managed independently:
+
+| Aspect | Leaderboard Score | Wallet Balance |
+|--------|------------------|----------------|
+| **Purpose** | Competition ranking | In-game currency |
+| **Storage** | Nakama leaderboard system | `quizverse:wallet:*` storage |
+| **Updates** | Via `submit_score_and_sync` | Manual management recommended |
+| **Visibility** | Public (all players) | Private (per player) |
+| **Reset** | Based on leaderboard type | Persistent |
+
+### Current Implementation Behavior
+
+By default, `submit_score_and_sync` does **two things**:
+1. ✅ Writes the score to leaderboards (this is the primary purpose)
+2. ⚠️ Sets the game wallet balance to match the score (this is a **side effect**)
+
+### How to Manage Them Separately
+
+#### Option 1: Ignore Wallet Balance from Score Submission
+
+If you want wallet balance to be independent from scores:
+
+```csharp
+// Submit score (updates leaderboards)
+await client.RpcAsync(session, "submit_score_and_sync", 
+    JsonUtility.ToJson(new {score, device_id, game_id}));
+
+// Manage wallet separately using Nakama's built-in wallet
+var changeset = new Dictionary<string, long>
+{
+    { "coins", 100 },  // Award coins separately from score
+    { "gems", 5 }
+};
+await client.UpdateWalletAsync(session, changeset);
+```
+
+#### Option 2: Use Score for Leaderboard Only
+
+Create a custom RPC that submits scores without modifying wallets (recommended for production):
+
+**Server-side (add to `data/modules/index.js`):**
+```javascript
+function submitScoreOnly(ctx, logger, nk, payload) {
+    var data = JSON.parse(payload);
+    var score = parseInt(data.score);
+    var deviceId = data.device_id;
+    var gameId = data.game_id;
+    
+    // Get identity
+    var records = nk.storageRead([{
+        collection: "quizverse",
+        key: "identity:" + deviceId + ":" + gameId,
+        userId: "00000000-0000-0000-0000-000000000000"
+    }]);
+    
+    var identity = records[0].value;
+    var userId = ctx.userId || deviceId;
+    
+    // Write to leaderboards ONLY (no wallet update)
+    var leaderboardsUpdated = writeToAllLeaderboards(nk, logger, userId, identity.username, gameId, score);
+    
+    return JSON.stringify({
+        success: true,
+        score: score,
+        leaderboards_updated: leaderboardsUpdated,
+        game_id: gameId
+    });
+}
+```
+
+**Unity client:**
+```csharp
+// Submit score to leaderboards only
+await client.RpcAsync(session, "submit_score_only", 
+    JsonUtility.ToJson(new {score, device_id, game_id}));
+
+// Award wallet currency based on game logic
+int coinsEarned = CalculateCoinsFromGameplay(); // Your custom logic
+await client.UpdateWalletAsync(session, new Dictionary<string, long> {
+    { "coins", coinsEarned }
+});
+```
+
+#### Option 3: Use Different Currency for Wallet
+
+Keep the wallet balance in a different currency than the score:
+
+```csharp
+// Leaderboard score: 1500 points
+await client.RpcAsync(session, "submit_score_and_sync", 
+    JsonUtility.ToJson(new {score = 1500, device_id, game_id}));
+
+// Wallet: 150 coins (different from score)
+await client.UpdateWalletAsync(session, new Dictionary<string, long> {
+    { "coins", 150 }  // 10% of score as coins
+});
+```
+
+### Recommended Approach for Production
+
+**Best Practice**: Keep leaderboard scores and wallet balances completely separate:
+
+1. **For Leaderboards**: Use `submit_score_and_sync` or create `submit_score_only`
+2. **For Wallets**: Use Nakama's built-in `UpdateWalletAsync` with custom logic
+3. **For Rewards**: Calculate rewards based on game events, not just scores
+
+**Example: Complete Separation**
+
+```csharp
+public class GameEndHandler : MonoBehaviour
+{
+    public async Task OnGameEnd(int finalScore, int starsEarned, bool levelComplete)
+    {
+        // 1. Submit score to leaderboards (competitive ranking)
+        await client.RpcAsync(session, "submit_score_and_sync",
+            JsonUtility.ToJson(new {
+                score = finalScore,
+                device_id = deviceId,
+                game_id = gameId
+            }));
+        
+        // 2. Award coins based on game logic (NOT score)
+        int coinsEarned = 0;
+        if (levelComplete) coinsEarned += 50;
+        coinsEarned += starsEarned * 10;
+        
+        await client.UpdateWalletAsync(session, new Dictionary<string, long> {
+            { "coins", coinsEarned }
+        });
+        
+        // 3. Update UI separately
+        UpdateLeaderboardUI();
+        UpdateWalletUI();
+    }
+}
+```
+
 ## Balance Sync Logic
 
 ### Game Wallet
-- **Updated by**: Score submissions via `submit_score_and_sync`
-- **Value**: Set to the most recent score
-- **Purpose**: Tracks player's game performance
+- **Updated by**: `submit_score_and_sync` (sets to score value) OR manual updates
+- **Recommendation**: Use Nakama's built-in wallet system for true currency management
+- **Purpose**: Can track score OR be used as independent currency
 
 ### Global Wallet
 - **Updated by**: Custom logic (not automatically updated by score submissions)

@@ -77,9 +77,22 @@ All leaderboards created through the system are tracked in the registry and auto
 
 ## Score Submission
 
+### Important: Leaderboard Scores vs. Wallet Balances
+
+**Leaderboard scores** and **wallet balances** are distinct concepts:
+
+- **Leaderboard Score**: Your ranking position for competition (stored in Nakama's leaderboard system)
+- **Wallet Balance**: Your in-game currency (stored in `quizverse:wallet:*`)
+
+⚠️ **Note**: The `submit_score_and_sync` RPC updates BOTH by default. For production games, consider keeping them separate. See [Wallet Documentation](./wallets.md#keeping-leaderboard-scores-and-wallet-balances-separate) for detailed guidance.
+
 ### RPC: submit_score_and_sync
 
 Submits a score to **all relevant leaderboards** automatically.
+
+**What it does**:
+1. ✅ Writes score to 12+ leaderboards (primary purpose)
+2. ⚠️ Sets game wallet balance to score value (side effect)
 
 **Input**:
 ```json
@@ -369,8 +382,10 @@ When you call `submit_score_and_sync`, the system:
    - Friends game leaderboard
    - Friends global leaderboard
    - Any existing leaderboards from registry matching the game or global scope
-4. **Updates** the game wallet balance to match the score
+4. **Updates** the game wallet balance to match the score (see warning below)
 5. **Returns** the list of updated leaderboards
+
+⚠️ **Important**: Step 4 sets the wallet balance equal to the score. For production games where you want independent economy, see [Keeping Scores and Wallets Separate](./wallets.md#keeping-leaderboard-scores-and-wallet-balances-separate).
 
 ## Best Practices
 
@@ -383,7 +398,26 @@ void OnGameEnd(int finalScore)
 }
 ```
 
-### 2. Show Feedback to Players
+### 2. Separate Score Submission from Economy (Recommended)
+
+For production games, keep leaderboard scores and wallet economy separate:
+
+```csharp
+async Task OnGameEnd(int finalScore, GameStats stats)
+{
+    // Submit score to leaderboards
+    await client.RpcAsync(session, "submit_score_and_sync",
+        JsonUtility.ToJson(new {score = finalScore, device_id, game_id}));
+    
+    // Award coins based on game logic (NOT score)
+    int coinsEarned = CalculateReward(stats);
+    await client.UpdateWalletAsync(session, new Dictionary<string, long> {
+        { "coins", coinsEarned }
+    });
+}
+```
+
+### 3. Show Feedback to Players
 
 ```csharp
 async Task SubmitScore(int score)
@@ -407,7 +441,7 @@ async Task SubmitScore(int score)
 }
 ```
 
-### 3. Cache Leaderboard Data
+### 4. Cache Leaderboard Data
 
 ```csharp
 private Dictionary<string, IApiLeaderboardRecordList> cachedLeaderboards = new Dictionary<string, IApiLeaderboardRecordList>();
@@ -425,7 +459,7 @@ async Task<IApiLeaderboardRecordList> GetCachedLeaderboard(string leaderboardId,
 }
 ```
 
-### 4. Handle Player's Rank
+### 5. Handle Player's Rank
 
 ```csharp
 async Task ShowPlayerRank(string leaderboardId)
