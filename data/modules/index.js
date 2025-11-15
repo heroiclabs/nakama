@@ -5018,6 +5018,757 @@ function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
 
 
 // ============================================================================
+// IDENTITY MODULE HELPERS (from identity.js)
+// ============================================================================
+
+/**
+ * Get or create identity for a device + game combination
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} deviceId - Device identifier
+ * @param {string} gameId - Game UUID
+ * @param {string} username - Username to assign
+ * @returns {object} Identity object with wallet_id and global_wallet_id
+ */
+function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
+    var collection = "quizverse";
+    var key = "identity:" + deviceId + ":" + gameId;
+    
+    logger.info("[NAKAMA] Looking for identity: " + key);
+    
+    // Try to read existing identity
+    try {
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            logger.info("[NAKAMA] Found existing identity for device " + deviceId + " game " + gameId);
+            return {
+                exists: true,
+                identity: records[0].value
+            };
+        }
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to read identity: " + err.message);
+    }
+    
+    // Create new identity
+    logger.info("[NAKAMA] Creating new identity for device " + deviceId + " game " + gameId);
+    
+    // Generate wallet IDs
+    var walletId = generateUUID();
+    var globalWalletId = "global:" + deviceId;
+    
+    var identity = {
+        username: username,
+        device_id: deviceId,
+        game_id: gameId,
+        wallet_id: walletId,
+        global_wallet_id: globalWalletId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    };
+    
+    // Write identity to storage
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000",
+            value: identity,
+            permissionRead: 1,
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        logger.info("[NAKAMA] Created identity with wallet_id " + walletId);
+    } catch (err) {
+        logger.error("[NAKAMA] Failed to write identity: " + err.message);
+        throw err;
+    }
+    
+    return {
+        exists: false,
+        identity: identity
+    };
+}
+
+/**
+ * Simple UUID v4 generator
+ * @returns {string} UUID
+ */
+function generateUUID() {
+    var d = new Date().getTime();
+    var d2 = (typeof performance !== 'undefined' && performance.now && (performance.now() * 1000)) || 0;
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16;
+        if (d > 0) {
+            r = (d + r) % 16 | 0;
+            d = Math.floor(d / 16);
+        } else {
+            r = (d2 + r) % 16 | 0;
+            d2 = Math.floor(d2 / 16);
+        }
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+/**
+ * Update Nakama username for user
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} userId - User ID
+ * @param {string} username - New username
+ */
+function updateNakamaUsername(nk, logger, userId, username) {
+    try {
+        nk.accountUpdateId(userId, username, null, null, null, null, null);
+        logger.info("[NAKAMA] Updated username to " + username + " for user " + userId);
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to update username: " + err.message);
+    }
+}
+
+// ============================================================================
+// WALLET MODULE HELPERS (from wallet.js)
+// ============================================================================
+
+/**
+ * Get or create a per-game wallet
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} deviceId - Device identifier
+ * @param {string} gameId - Game UUID
+ * @param {string} walletId - Wallet ID from identity
+ * @returns {object} Wallet object
+ */
+function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId) {
+    var collection = "quizverse";
+    var key = "wallet:" + deviceId + ":" + gameId;
+    
+    logger.info("[NAKAMA] Looking for game wallet: " + key);
+    
+    // Try to read existing wallet
+    try {
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            logger.info("[NAKAMA] Found existing game wallet");
+            return records[0].value;
+        }
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to read game wallet: " + err.message);
+    }
+    
+    // Create new game wallet
+    logger.info("[NAKAMA] Creating new game wallet");
+    
+    var wallet = {
+        wallet_id: walletId,
+        device_id: deviceId,
+        game_id: gameId,
+        balance: 0,
+        currency: "coins",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    };
+    
+    // Write wallet to storage
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000",
+            value: wallet,
+            permissionRead: 1,
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        logger.info("[NAKAMA] Created game wallet with balance 0");
+    } catch (err) {
+        logger.error("[NAKAMA] Failed to write game wallet: " + err.message);
+        throw err;
+    }
+    
+    return wallet;
+}
+
+/**
+ * Get or create a global wallet (shared across all games)
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} deviceId - Device identifier
+ * @param {string} globalWalletId - Global wallet ID
+ * @returns {object} Global wallet object
+ */
+function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
+    var collection = "quizverse";
+    var key = "wallet:" + deviceId + ":global";
+    
+    logger.info("[NAKAMA] Looking for global wallet: " + key);
+    
+    // Try to read existing wallet
+    try {
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            logger.info("[NAKAMA] Found existing global wallet");
+            return records[0].value;
+        }
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to read global wallet: " + err.message);
+    }
+    
+    // Create new global wallet
+    logger.info("[NAKAMA] Creating new global wallet");
+    
+    var wallet = {
+        wallet_id: globalWalletId,
+        device_id: deviceId,
+        game_id: "global",
+        balance: 0,
+        currency: "global_coins",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    };
+    
+    // Write wallet to storage
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000",
+            value: wallet,
+            permissionRead: 1,
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        logger.info("[NAKAMA] Created global wallet with balance 0");
+    } catch (err) {
+        logger.error("[NAKAMA] Failed to write global wallet: " + err.message);
+        throw err;
+    }
+    
+    return wallet;
+}
+
+/**
+ * Update game wallet balance
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} deviceId - Device identifier
+ * @param {string} gameId - Game UUID
+ * @param {number} newBalance - New balance value
+ * @returns {object} Updated wallet
+ */
+function updateGameWalletBalance(nk, logger, deviceId, gameId, newBalance) {
+    var collection = "quizverse";
+    var key = "wallet:" + deviceId + ":" + gameId;
+    
+    logger.info("[NAKAMA] Updating game wallet balance to " + newBalance);
+    
+    // Read current wallet
+    var wallet;
+    try {
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            wallet = records[0].value;
+        } else {
+            logger.error("[NAKAMA] Wallet not found for update");
+            throw new Error("Wallet not found");
+        }
+    } catch (err) {
+        logger.error("[NAKAMA] Failed to read wallet for update: " + err.message);
+        throw err;
+    }
+    
+    // Update balance
+    wallet.balance = newBalance;
+    wallet.updated_at = new Date().toISOString();
+    
+    // Write updated wallet
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000",
+            value: wallet,
+            permissionRead: 1,
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        logger.info("[NAKAMA] Updated wallet balance to " + newBalance);
+    } catch (err) {
+        logger.error("[NAKAMA] Failed to write updated wallet: " + err.message);
+        throw err;
+    }
+    
+    return wallet;
+}
+
+// ============================================================================
+// LEADERBOARD MODULE HELPERS (from leaderboard.js)
+// ============================================================================
+
+/**
+ * Get user's friends list
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} userId - User ID
+ * @returns {array} Array of friend user IDs
+ */
+function getUserFriends(nk, logger, userId) {
+    var friends = [];
+    
+    try {
+        var friendsList = nk.friendsList(userId, 1000, null, null);
+        if (friendsList && friendsList.friends) {
+            for (var i = 0; i < friendsList.friends.length; i++) {
+                var friend = friendsList.friends[i];
+                if (friend.user && friend.user.id) {
+                    friends.push(friend.user.id);
+                }
+            }
+        }
+        logger.info("[NAKAMA] Found " + friends.length + " friends for user " + userId);
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to get friends list: " + err.message);
+    }
+    
+    return friends;
+}
+
+/**
+ * Get all existing leaderboards from registry
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @returns {array} Array of leaderboard IDs
+ */
+function getAllLeaderboardIds(nk, logger) {
+    var leaderboardIds = [];
+    
+    // Read from leaderboards_registry
+    try {
+        var records = nk.storageRead([{
+            collection: "leaderboards_registry",
+            key: "all_created",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            var registry = records[0].value;
+            for (var i = 0; i < registry.length; i++) {
+                if (registry[i].leaderboardId) {
+                    leaderboardIds.push(registry[i].leaderboardId);
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to read leaderboards registry: " + err.message);
+    }
+    
+    // Also read from time_period_leaderboards registry
+    try {
+        var timePeriodRecords = nk.storageRead([{
+            collection: "leaderboards_registry",
+            key: "time_period_leaderboards",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (timePeriodRecords && timePeriodRecords.length > 0 && timePeriodRecords[0].value) {
+            var timePeriodRegistry = timePeriodRecords[0].value;
+            if (timePeriodRegistry.leaderboards) {
+                for (var i = 0; i < timePeriodRegistry.leaderboards.length; i++) {
+                    var lb = timePeriodRegistry.leaderboards[i];
+                    if (lb.leaderboardId && leaderboardIds.indexOf(lb.leaderboardId) === -1) {
+                        leaderboardIds.push(lb.leaderboardId);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to read time period leaderboards registry: " + err.message);
+    }
+    
+    logger.info("[NAKAMA] Found " + leaderboardIds.length + " existing leaderboards in registry");
+    return leaderboardIds;
+}
+
+/**
+ * Write score to all relevant leaderboards
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} userId - User ID
+ * @param {string} username - Username
+ * @param {string} gameId - Game UUID
+ * @param {number} score - Score value
+ * @returns {array} Array of leaderboards updated
+ */
+function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
+    var leaderboardsUpdated = [];
+    var metadata = {
+        source: "submit_score_and_sync",
+        gameId: gameId,
+        submittedAt: new Date().toISOString()
+    };
+    
+    // 1. Write to main game leaderboard
+    var gameLeaderboardId = "leaderboard_" + gameId;
+    try {
+        nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
+        leaderboardsUpdated.push(gameLeaderboardId);
+        logger.info("[NAKAMA] Score written to " + gameLeaderboardId);
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to write to " + gameLeaderboardId + ": " + err.message);
+    }
+    
+    // 2. Write to time-period game leaderboards
+    var timePeriods = ["daily", "weekly", "monthly", "alltime"];
+    for (var i = 0; i < timePeriods.length; i++) {
+        var period = timePeriods[i];
+        var periodLeaderboardId = "leaderboard_" + gameId + "_" + period;
+        try {
+            nk.leaderboardRecordWrite(periodLeaderboardId, userId, username, score, 0, metadata);
+            leaderboardsUpdated.push(periodLeaderboardId);
+            logger.info("[NAKAMA] Score written to " + periodLeaderboardId);
+        } catch (err) {
+            logger.warn("[NAKAMA] Failed to write to " + periodLeaderboardId + ": " + err.message);
+        }
+    }
+    
+    // 3. Write to global leaderboards
+    var globalLeaderboardId = "leaderboard_global";
+    try {
+        nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
+        leaderboardsUpdated.push(globalLeaderboardId);
+        logger.info("[NAKAMA] Score written to " + globalLeaderboardId);
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to write to " + globalLeaderboardId + ": " + err.message);
+    }
+    
+    // 4. Write to time-period global leaderboards
+    for (var i = 0; i < timePeriods.length; i++) {
+        var period = timePeriods[i];
+        var globalPeriodId = "leaderboard_global_" + period;
+        try {
+            nk.leaderboardRecordWrite(globalPeriodId, userId, username, score, 0, metadata);
+            leaderboardsUpdated.push(globalPeriodId);
+            logger.info("[NAKAMA] Score written to " + globalPeriodId);
+        } catch (err) {
+            logger.warn("[NAKAMA] Failed to write to " + globalPeriodId + ": " + err.message);
+        }
+    }
+    
+    // 5. Write to friends leaderboards
+    var friendsGameId = "leaderboard_friends_" + gameId;
+    try {
+        nk.leaderboardRecordWrite(friendsGameId, userId, username, score, 0, metadata);
+        leaderboardsUpdated.push(friendsGameId);
+        logger.info("[NAKAMA] Score written to " + friendsGameId);
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to write to " + friendsGameId + ": " + err.message);
+    }
+    
+    var friendsGlobalId = "leaderboard_friends_global";
+    try {
+        nk.leaderboardRecordWrite(friendsGlobalId, userId, username, score, 0, metadata);
+        leaderboardsUpdated.push(friendsGlobalId);
+        logger.info("[NAKAMA] Score written to " + friendsGlobalId);
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to write to " + friendsGlobalId + ": " + err.message);
+    }
+    
+    // 6. Write to all other existing leaderboards found in registry
+    var allLeaderboards = getAllLeaderboardIds(nk, logger);
+    for (var i = 0; i < allLeaderboards.length; i++) {
+        var lbId = allLeaderboards[i];
+        // Skip if already written
+        if (leaderboardsUpdated.indexOf(lbId) !== -1) {
+            continue;
+        }
+        // Only write to leaderboards related to this game or global
+        if (lbId.indexOf(gameId) !== -1 || lbId.indexOf("global") !== -1) {
+            try {
+                nk.leaderboardRecordWrite(lbId, userId, username, score, 0, metadata);
+                leaderboardsUpdated.push(lbId);
+                logger.info("[NAKAMA] Score written to registry leaderboard " + lbId);
+            } catch (err) {
+                logger.warn("[NAKAMA] Failed to write to " + lbId + ": " + err.message);
+            }
+        }
+    }
+    
+    logger.info("[NAKAMA] Total leaderboards updated: " + leaderboardsUpdated.length);
+    return leaderboardsUpdated;
+}
+
+
+// ============================================================================
+// NEW MULTI-GAME IDENTITY, WALLET, AND LEADERBOARD RPCs
+// ============================================================================
+
+/**
+ * RPC: create_or_sync_user
+ * Creates or retrieves user identity with per-game and global wallets
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ * @param {string} payload - JSON with username, device_id, game_id
+ * @returns {string} JSON response
+ */
+function createOrSyncUser(ctx, logger, nk, payload) {
+    logger.info("[NAKAMA] RPC create_or_sync_user called");
+    
+    // Parse payload
+    var data;
+    try {
+        data = JSON.parse(payload);
+    } catch (err) {
+        return JSON.stringify({
+            success: false,
+            error: "Invalid JSON payload"
+        });
+    }
+    
+    // Validate required fields
+    if (!data.username || !data.device_id || !data.game_id) {
+        return JSON.stringify({
+            success: false,
+            error: "Missing required fields: username, device_id, game_id"
+        });
+    }
+    
+    var username = data.username;
+    var deviceId = data.device_id;
+    var gameId = data.game_id;
+    
+    try {
+        // Get or create identity
+        var identityResult = getOrCreateIdentity(nk, logger, deviceId, gameId, username);
+        var identity = identityResult.identity;
+        var created = !identityResult.exists;
+        
+        // Ensure per-game wallet exists
+        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id);
+        
+        // Ensure global wallet exists
+        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id);
+        
+        // Update Nakama username if this is a new identity
+        if (created && ctx.userId) {
+            updateNakamaUsername(nk, logger, ctx.userId, username);
+        }
+        
+        return JSON.stringify({
+            success: true,
+            created: created,
+            username: identity.username,
+            device_id: identity.device_id,
+            game_id: identity.game_id,
+            wallet_id: identity.wallet_id,
+            global_wallet_id: identity.global_wallet_id
+        });
+        
+    } catch (err) {
+        logger.error("[NAKAMA] Error in create_or_sync_user: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to create or sync user: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: create_or_get_wallet
+ * Ensures per-game and global wallets exist
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ * @param {string} payload - JSON with device_id, game_id
+ * @returns {string} JSON response
+ */
+function createOrGetWallet(ctx, logger, nk, payload) {
+    logger.info("[NAKAMA] RPC create_or_get_wallet called");
+    
+    // Parse payload
+    var data;
+    try {
+        data = JSON.parse(payload);
+    } catch (err) {
+        return JSON.stringify({
+            success: false,
+            error: "Invalid JSON payload"
+        });
+    }
+    
+    // Validate required fields
+    if (!data.device_id || !data.game_id) {
+        return JSON.stringify({
+            success: false,
+            error: "Missing required fields: device_id, game_id"
+        });
+    }
+    
+    var deviceId = data.device_id;
+    var gameId = data.game_id;
+    
+    try {
+        // Read identity to get wallet IDs
+        var collection = "quizverse";
+        var key = "identity:" + deviceId + ":" + gameId;
+        
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (!records || records.length === 0 || !records[0].value) {
+            return JSON.stringify({
+                success: false,
+                error: "Identity not found. Please call create_or_sync_user first."
+            });
+        }
+        
+        var identity = records[0].value;
+        
+        // Ensure wallets exist
+        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id);
+        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id);
+        
+        return JSON.stringify({
+            success: true,
+            game_wallet: {
+                wallet_id: gameWallet.wallet_id,
+                balance: gameWallet.balance,
+                currency: gameWallet.currency,
+                game_id: gameWallet.game_id
+            },
+            global_wallet: {
+                wallet_id: globalWallet.wallet_id,
+                balance: globalWallet.balance,
+                currency: globalWallet.currency
+            }
+        });
+        
+    } catch (err) {
+        logger.error("[NAKAMA] Error in create_or_get_wallet: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to get wallets: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: submit_score_and_sync
+ * Submits score to all relevant leaderboards and updates game wallet
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ * @param {string} payload - JSON with score, device_id, game_id
+ * @returns {string} JSON response
+ */
+function submitScoreAndSync(ctx, logger, nk, payload) {
+    logger.info("[NAKAMA] RPC submit_score_and_sync called");
+    
+    // Parse payload
+    var data;
+    try {
+        data = JSON.parse(payload);
+    } catch (err) {
+        return JSON.stringify({
+            success: false,
+            error: "Invalid JSON payload"
+        });
+    }
+    
+    // Validate required fields
+    if (data.score === null || data.score === undefined || !data.device_id || !data.game_id) {
+        return JSON.stringify({
+            success: false,
+            error: "Missing required fields: score, device_id, game_id"
+        });
+    }
+    
+    var score = parseInt(data.score);
+    var deviceId = data.device_id;
+    var gameId = data.game_id;
+    
+    if (isNaN(score)) {
+        return JSON.stringify({
+            success: false,
+            error: "Score must be a valid number"
+        });
+    }
+    
+    try {
+        // Get identity to find userId
+        var collection = "quizverse";
+        var key = "identity:" + deviceId + ":" + gameId;
+        
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (!records || records.length === 0 || !records[0].value) {
+            return JSON.stringify({
+                success: false,
+                error: "Identity not found. Please call create_or_sync_user first."
+            });
+        }
+        
+        var identity = records[0].value;
+        var username = identity.username;
+        
+        // Use context userId if available, otherwise use device_id as userId
+        var userId = ctx.userId || deviceId;
+        
+        // Write score to all leaderboards
+        var leaderboardsUpdated = writeToAllLeaderboards(nk, logger, userId, username, gameId, score);
+        
+        // Update game wallet balance
+        var updatedWallet = updateGameWalletBalance(nk, logger, deviceId, gameId, score);
+        
+        return JSON.stringify({
+            success: true,
+            score: score,
+            wallet_balance: updatedWallet.balance,
+            leaderboards_updated: leaderboardsUpdated,
+            game_id: gameId
+        });
+        
+    } catch (err) {
+        logger.error("[NAKAMA] Error in submit_score_and_sync: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to submit score: " + err.message
+        });
+    }
+}
+
+// ============================================================================
 // INIT MODULE - ENTRY POINT
 // ============================================================================
 
@@ -5263,9 +6014,23 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('Failed to load copilot modules: ' + err.message);
     }
     
+    // Register New Multi-Game Identity, Wallet, and Leaderboard RPCs
+    try {
+        logger.info('[MultiGame] Initializing Multi-Game Identity, Wallet, and Leaderboard Module...');
+        initializer.registerRpc('create_or_sync_user', createOrSyncUser);
+        logger.info('[MultiGame] Registered RPC: create_or_sync_user');
+        initializer.registerRpc('create_or_get_wallet', createOrGetWallet);
+        logger.info('[MultiGame] Registered RPC: create_or_get_wallet');
+        initializer.registerRpc('submit_score_and_sync', submitScoreAndSync);
+        logger.info('[MultiGame] Registered RPC: submit_score_and_sync');
+        logger.info('[MultiGame] Successfully registered 3 Multi-Game RPCs');
+    } catch (err) {
+        logger.error('[MultiGame] Failed to initialize: ' + err.message);
+    }
+    
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total New System RPCs: 27 (2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications)');
+    logger.info('Total New System RPCs: 30 (3 Multi-Game + 2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications)');
     logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
