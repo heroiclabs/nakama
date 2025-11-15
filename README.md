@@ -52,6 +52,111 @@ This is a customized Nakama 3.x deployment that includes pre-built JavaScript ru
 
 ## Architecture
 
+### Multi-Game Identity, Wallet, and Leaderboard System
+
+This platform now includes a **comprehensive multi-game architecture** supporting:
+
+- **Device-Based Identity**: Each player is identified by `device_id` + `game_id` combination
+- **Dual-Wallet System**: Per-game wallets + shared global wallet across all games
+- **Comprehensive Leaderboards**: Automatic score submission to ALL leaderboard types
+
+#### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Unity Game Client                          │
+│                  (device_id + game_id)                      │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ├── 1. create_or_sync_user
+                     │   Input: {username, device_id, game_id}
+                     │   Output: {wallet_id, global_wallet_id}
+                     │
+┌────────────────────▼────────────────────────────────────────┐
+│              Identity Management Layer                      │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │ Storage: "quizverse"                                 │  │
+│  │ Key: "identity:<device_id>:<game_id>"               │  │
+│  │ Value: {username, wallet_id, global_wallet_id}      │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                     │
+                     ├── 2. create_or_get_wallet
+                     │   Input: {device_id, game_id}
+                     │   Output: {game_wallet, global_wallet}
+                     │
+┌────────────────────▼────────────────────────────────────────┐
+│                 Wallet Management Layer                     │
+│  ┌─────────────────────────┬──────────────────────────┐    │
+│  │  Per-Game Wallet        │   Global Wallet          │    │
+│  │  Key: wallet:<device>:  │   Key: wallet:<device>:  │    │
+│  │       <game_id>         │       global             │    │
+│  │  Balance: game score    │   Balance: cross-game    │    │
+│  └─────────────────────────┴──────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+                     │
+                     ├── 3. submit_score_and_sync
+                     │   Input: {score, device_id, game_id}
+                     │   Output: {leaderboards_updated[], wallet_balance}
+                     │
+┌────────────────────▼────────────────────────────────────────┐
+│            Comprehensive Leaderboard System                 │
+│                                                              │
+│  Per-Game Leaderboards:                                     │
+│  ├── leaderboard_<game_id>                (main)           │
+│  ├── leaderboard_<game_id>_daily          (resets daily)   │
+│  ├── leaderboard_<game_id>_weekly         (resets weekly)  │
+│  ├── leaderboard_<game_id>_monthly        (resets monthly) │
+│  └── leaderboard_<game_id>_alltime        (never resets)   │
+│                                                              │
+│  Global Leaderboards (cross-game):                          │
+│  ├── leaderboard_global                   (main)           │
+│  ├── leaderboard_global_daily                              │
+│  ├── leaderboard_global_weekly                             │
+│  ├── leaderboard_global_monthly                            │
+│  └── leaderboard_global_alltime                            │
+│                                                              │
+│  Friends Leaderboards:                                      │
+│  ├── leaderboard_friends_<game_id>                         │
+│  └── leaderboard_friends_global                            │
+│                                                              │
+│  Registry Leaderboards:                                     │
+│  └── All leaderboards from registry matching game/global   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Data Flow: Player Journey
+
+```
+1. Game Launch
+   ├── Generate/Retrieve device_id
+   └── Call create_or_sync_user(username, device_id, game_id)
+       ├── Creates identity if new
+       ├── Creates per-game wallet (balance: 0)
+       ├── Creates global wallet (balance: 0)
+       └── Returns wallet IDs
+
+2. Load Wallets
+   └── Call create_or_get_wallet(device_id, game_id)
+       └── Returns {game_wallet, global_wallet}
+
+3. Game Play
+   └── Player achieves score
+
+4. Submit Score
+   └── Call submit_score_and_sync(score, device_id, game_id)
+       ├── Writes to 12+ leaderboards automatically:
+       │   ├── Game leaderboards (5 types)
+       │   ├── Global leaderboards (5 types)
+       │   ├── Friends leaderboards (2 types)
+       │   └── Registry leaderboards (auto-detected)
+       ├── Updates game wallet balance = score
+       └── Returns leaderboards_updated[]
+
+5. View Leaderboards
+   └── Read from any leaderboard using Nakama SDK
+```
+
 ### Multi-Game Support
 
 All systems support multiple games through UUID-based `gameId` identifiers. Each game has isolated:
@@ -128,6 +233,77 @@ All systems support multiple games through UUID-based `gameId` identifiers. Each
 | **Matchmaking** | ⭐⭐⭐⭐☆ | Both | - | Real-time 1v1, 2v2, 3v3, 4v4 |
 
 ## Quick Start
+
+### For Unity Developers (3-Step Integration)
+
+This platform provides a simple 3-RPC integration for any Unity game:
+
+#### Step 1: Create or Sync User Identity
+
+```csharp
+using Nakama;
+
+var client = new Client("http", "your-server.com", 7350, "defaultkey");
+var session = await client.AuthenticateDeviceAsync(
+    SystemInfo.deviceUniqueIdentifier, null, true);
+
+// Create/sync user with your game
+var payload = new {
+    username = "PlayerName",
+    device_id = SystemInfo.deviceUniqueIdentifier,
+    game_id = "your-game-uuid"  // YOUR GAME ID
+};
+var result = await client.RpcAsync(session, "create_or_sync_user", JsonUtility.ToJson(payload));
+// Returns: {wallet_id, global_wallet_id}
+```
+
+#### Step 2: Get Wallets
+
+```csharp
+var walletPayload = new {
+    device_id = SystemInfo.deviceUniqueIdentifier,
+    game_id = "your-game-uuid"
+};
+var wallets = await client.RpcAsync(session, "create_or_get_wallet", JsonUtility.ToJson(walletPayload));
+// Returns: {game_wallet: {balance: 0}, global_wallet: {balance: 0}}
+```
+
+#### Step 3: Submit Score
+
+```csharp
+var scorePayload = new {
+    score = 1500,
+    device_id = SystemInfo.deviceUniqueIdentifier,
+    game_id = "your-game-uuid"
+};
+var scoreResult = await client.RpcAsync(session, "submit_score_and_sync", JsonUtility.ToJson(scorePayload));
+// Automatically updates 12+ leaderboards + wallet balance
+```
+
+**That's it!** Your game now has:
+- ✅ Per-game and global wallets
+- ✅ 5 time-period game leaderboards (main, daily, weekly, monthly, all-time)
+- ✅ 5 time-period global leaderboards
+- ✅ 2 friends leaderboards
+- ✅ All registry leaderboards auto-detected
+
+### Complete Documentation
+
+📚 **Start Here**: [Unity Quick Start Guide](./docs/unity/Unity-Quick-Start.md)
+
+**Core Concepts**:
+- [Identity System](./docs/identity.md) - Device-based identity with game segmentation
+- [Wallet System](./docs/wallets.md) - Per-game and global wallet architecture
+- [Leaderboards](./docs/leaderboards.md) - All leaderboard types explained
+
+**Tutorials**:
+- [Sample Game Tutorial](./docs/sample-game/README.md) - Complete quiz game with full integration
+- [Integration Checklist](./docs/integration-checklist.md) - Step-by-step checklist for developers
+
+**API Reference**:
+- [API Documentation](./docs/api/README.md) - Complete RPC reference with examples
+
+### Traditional Quick Start
 
 ### For Unity Developers
 
