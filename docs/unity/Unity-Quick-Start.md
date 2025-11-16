@@ -340,6 +340,135 @@ public class LeaderboardDisplay : MonoBehaviour
 }
 ```
 
+### Step 4.5: Get All Leaderboards at Once
+
+For a complete leaderboard view showing all types (daily, weekly, monthly, friends, global), use the `get_all_leaderboards` RPC:
+
+Create `AllLeaderboardsManager.cs`:
+
+```csharp
+using Nakama;
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+[Serializable]
+public class AllLeaderboardsResponse
+{
+    public bool success;
+    public string device_id;
+    public string game_id;
+    public int total_leaderboards;
+    public int successful_queries;
+    public int failed_queries;
+    public Dictionary<string, LeaderboardData> leaderboards;
+}
+
+[Serializable]
+public class LeaderboardData
+{
+    public string leaderboard_id;
+    public LeaderboardRecord[] records;
+    public LeaderboardRecord user_record;
+    public string next_cursor;
+    public string prev_cursor;
+}
+
+[Serializable]
+public class LeaderboardRecord
+{
+    public string owner_id;
+    public string username;
+    public long score;
+    public long rank;
+}
+
+public class AllLeaderboardsManager : MonoBehaviour
+{
+    public async Task<AllLeaderboardsResponse> GetAllLeaderboards(int limit = 10)
+    {
+        var client = NakamaConnection.Instance.Client;
+        var session = NakamaConnection.Instance.Session;
+        var deviceId = NakamaConnection.Instance.DeviceId;
+        var gameId = NakamaConnection.Instance.CurrentGameId;
+        
+        var payload = new Dictionary<string, object>
+        {
+            { "device_id", deviceId },
+            { "game_id", gameId },
+            { "limit", limit }
+        };
+        
+        try
+        {
+            var payloadJson = JsonUtility.ToJson(payload);
+            var result = await client.RpcAsync(session, "get_all_leaderboards", payloadJson);
+            
+            var response = JsonUtility.FromJson<AllLeaderboardsResponse>(result.Payload);
+            
+            if (response.success)
+            {
+                Debug.Log($"Retrieved {response.total_leaderboards} leaderboards");
+                Debug.Log($"Successful queries: {response.successful_queries}");
+                
+                // Access specific leaderboards
+                if (response.leaderboards.ContainsKey($"leaderboard_{gameId}_daily"))
+                {
+                    var dailyBoard = response.leaderboards[$"leaderboard_{gameId}_daily"];
+                    Debug.Log($"Daily leaderboard has {dailyBoard.records.Length} records");
+                    
+                    if (dailyBoard.user_record != null)
+                    {
+                        Debug.Log($"Your daily rank: #{dailyBoard.user_record.rank} with score {dailyBoard.user_record.score}");
+                    }
+                }
+            }
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to get all leaderboards: {ex.Message}");
+            return null;
+        }
+    }
+    
+    // Example: Display summary of all leaderboards
+    public async void ShowAllLeaderboardsSummary()
+    {
+        var response = await GetAllLeaderboards(5);
+        
+        if (response == null || !response.success)
+            return;
+        
+        foreach (var kvp in response.leaderboards)
+        {
+            string leaderboardId = kvp.Key;
+            LeaderboardData data = kvp.Value;
+            
+            Debug.Log($"\n=== {leaderboardId} ===");
+            
+            if (data.user_record != null)
+            {
+                Debug.Log($"Your Rank: #{data.user_record.rank} - Score: {data.user_record.score}");
+            }
+            else
+            {
+                Debug.Log("You haven't submitted a score yet");
+            }
+            
+            Debug.Log($"Top {data.records.Length} players:");
+            for (int i = 0; i < data.records.Length && i < 3; i++)
+            {
+                var record = data.records[i];
+                Debug.Log($"  {record.rank}. {record.username}: {record.score}");
+            }
+        }
+    }
+}
+```
+
 ### Step 5: Manage Wallets
 
 Create `WalletManager.cs`:

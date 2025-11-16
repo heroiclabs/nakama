@@ -127,6 +127,84 @@ Submits a score to **all relevant leaderboards** automatically.
 }
 ```
 
+### RPC: get_all_leaderboards
+
+Retrieves all leaderboard records for a player across all leaderboard types.
+
+**What it does**:
+1. ✅ Fetches records from ALL relevant leaderboards (12+ types)
+2. ✅ Returns user's own record for each leaderboard
+3. ✅ Provides top N records for each leaderboard
+4. ✅ Includes pagination cursors for each leaderboard
+
+**Input**:
+```json
+{
+  "device_id": "unique-device-identifier",
+  "game_id": "your-game-uuid",
+  "limit": 10
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "device_id": "unique-device-identifier",
+  "game_id": "your-game-uuid",
+  "total_leaderboards": 16,
+  "successful_queries": 16,
+  "failed_queries": 0,
+  "leaderboards": {
+    "leaderboard_your-game-uuid": {
+      "leaderboard_id": "leaderboard_your-game-uuid",
+      "records": [
+        {
+          "leaderboard_id": "leaderboard_your-game-uuid",
+          "owner_id": "user-id",
+          "username": "PlayerName",
+          "score": 1500,
+          "subscore": 0,
+          "num_score": 1,
+          "metadata": "{...}",
+          "create_time": "2024-01-01T12:00:00Z",
+          "update_time": "2024-01-01T12:00:00Z",
+          "rank": 1
+        }
+      ],
+      "user_record": {
+        "leaderboard_id": "leaderboard_your-game-uuid",
+        "owner_id": "current-user-id",
+        "username": "CurrentPlayer",
+        "score": 1200,
+        "rank": 5
+      },
+      "next_cursor": "cursor-string",
+      "prev_cursor": ""
+    },
+    "leaderboard_your-game-uuid_daily": { ... },
+    "leaderboard_your-game-uuid_weekly": { ... },
+    "leaderboard_your-game-uuid_monthly": { ... },
+    "leaderboard_your-game-uuid_alltime": { ... },
+    "leaderboard_global": { ... },
+    "leaderboard_global_daily": { ... },
+    "leaderboard_global_weekly": { ... },
+    "leaderboard_global_monthly": { ... },
+    "leaderboard_global_alltime": { ... },
+    "leaderboard_friends_your-game-uuid": { ... },
+    "leaderboard_friends_global": { ... }
+  }
+}
+```
+
+**Error Response (Identity Not Found)**:
+```json
+{
+  "success": false,
+  "error": "Identity not found. Please call create_or_sync_user first."
+}
+```
+
 ## Unity Implementation
 
 ### Score Submission Class
@@ -178,6 +256,70 @@ public class LeaderboardManager : MonoBehaviour
         
         return response;
     }
+    
+    public async Task<AllLeaderboardsResponse> GetAllLeaderboards(int limit = 10)
+    {
+        string deviceId = DeviceIdentity.GetDeviceId();
+        
+        var payload = new Dictionary<string, object>
+        {
+            { "device_id", deviceId },
+            { "game_id", gameId },
+            { "limit", limit }
+        };
+        
+        var payloadJson = JsonUtility.ToJson(payload);
+        var result = await client.RpcAsync(session, "get_all_leaderboards", payloadJson);
+        
+        var response = JsonUtility.FromJson<AllLeaderboardsResponse>(result.Payload);
+        
+        if (response.success)
+        {
+            Debug.Log($"Retrieved {response.total_leaderboards} leaderboards");
+            Debug.Log($"Successful queries: {response.successful_queries}");
+            Debug.Log($"Failed queries: {response.failed_queries}");
+        }
+        
+        return response;
+    }
+}
+
+[Serializable]
+public class AllLeaderboardsResponse
+{
+    public bool success;
+    public string device_id;
+    public string game_id;
+    public int total_leaderboards;
+    public int successful_queries;
+    public int failed_queries;
+    public Dictionary<string, LeaderboardData> leaderboards;
+}
+
+[Serializable]
+public class LeaderboardData
+{
+    public string leaderboard_id;
+    public LeaderboardRecord[] records;
+    public LeaderboardRecord user_record;
+    public string next_cursor;
+    public string prev_cursor;
+    public string error;
+}
+
+[Serializable]
+public class LeaderboardRecord
+{
+    public string leaderboard_id;
+    public string owner_id;
+    public string username;
+    public long score;
+    public long subscore;
+    public int num_score;
+    public string metadata;
+    public string create_time;
+    public string update_time;
+    public long rank;
 }
 ```
 
