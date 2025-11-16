@@ -5607,16 +5607,16 @@ function createOrSyncUser(ctx, logger, nk, payload) {
     var gameId = data.game_id;
     
     try {
-        // Get or create identity
-        var identityResult = getOrCreateIdentity(nk, logger, deviceId, gameId, username);
+        // Get or create identity - pass userId from context
+        var identityResult = getOrCreateIdentity(nk, logger, deviceId, gameId, username, ctx.userId);
         var identity = identityResult.identity;
         var created = !identityResult.exists;
         
-        // Ensure per-game wallet exists
-        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id);
+        // Ensure per-game wallet exists - pass userId from context
+        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id, ctx.userId);
         
-        // Ensure global wallet exists
-        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id);
+        // Ensure global wallet exists - pass userId from context
+        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id, ctx.userId);
         
         // Update Nakama username if this is a new identity
         if (created && ctx.userId) {
@@ -5696,9 +5696,9 @@ function createOrGetWallet(ctx, logger, nk, payload) {
         
         var identity = records[0].value;
         
-        // Ensure wallets exist
-        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id);
-        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id);
+        // Ensure wallets exist - pass userId from context
+        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id, ctx.userId);
+        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id, ctx.userId);
         
         return JSON.stringify({
             success: true,
@@ -5793,8 +5793,8 @@ function submitScoreAndSync(ctx, logger, nk, payload) {
         // Write score to all leaderboards
         var leaderboardsUpdated = writeToAllLeaderboards(nk, logger, userId, username, gameId, score);
         
-        // Update game wallet balance
-        var updatedWallet = updateGameWalletBalance(nk, logger, deviceId, gameId, score);
+        // Update game wallet balance - pass userId from context
+        var updatedWallet = updateGameWalletBalance(nk, logger, deviceId, gameId, score, ctx.userId);
         
         return JSON.stringify({
             success: true,
@@ -6408,6 +6408,525 @@ function rpcGetLeaderboard(ctx, logger, nk, payload) {
     }
 }
 
+// ============================================================================
+// CHAT MODULE - Group Chat, Direct Chat, and Chat Rooms
+// ============================================================================
+
+/**
+ * RPC: send_group_chat_message
+ * Send a message in a group chat
+ */
+function rpcSendGroupChatMessage(ctx, logger, nk, payload) {
+    logger.info('[RPC] send_group_chat_message called');
+    
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.group_id || !data.message) {
+            return JSON.stringify({
+                success: false,
+                error: 'group_id and message are required'
+            });
+        }
+        
+        var groupId = data.group_id;
+        var message = data.message;
+        var username = ctx.username || 'User';
+        var metadata = data.metadata || {};
+        
+        // Send message using chat helper (inline implementation)
+        var collection = "group_chat";
+        var key = "msg:" + groupId + ":" + Date.now() + ":" + ctx.userId;
+        
+        var messageData = {
+            message_id: key,
+            group_id: groupId,
+            user_id: ctx.userId,
+            username: username,
+            message: message,
+            metadata: metadata,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: ctx.userId,
+            value: messageData,
+            permissionRead: 2,
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        logger.info('[RPC] Group message sent: ' + key);
+        
+        return JSON.stringify({
+            success: true,
+            message_id: key,
+            group_id: groupId,
+            timestamp: messageData.created_at
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] send_group_chat_message - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: send_direct_message
+ * Send a direct message to another user
+ */
+function rpcSendDirectMessage(ctx, logger, nk, payload) {
+    logger.info('[RPC] send_direct_message called');
+    
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.to_user_id || !data.message) {
+            return JSON.stringify({
+                success: false,
+                error: 'to_user_id and message are required'
+            });
+        }
+        
+        var toUserId = data.to_user_id;
+        var message = data.message;
+        var username = ctx.username || 'User';
+        var metadata = data.metadata || {};
+        
+        // Create conversation ID (consistent ordering)
+        var conversationId = ctx.userId < toUserId ? 
+            ctx.userId + ":" + toUserId : 
+            toUserId + ":" + ctx.userId;
+        
+        var collection = "direct_chat";
+        var key = "msg:" + conversationId + ":" + Date.now() + ":" + ctx.userId;
+        
+        var messageData = {
+            message_id: key,
+            conversation_id: conversationId,
+            from_user_id: ctx.userId,
+            from_username: username,
+            to_user_id: toUserId,
+            message: message,
+            metadata: metadata,
+            read: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: ctx.userId,
+            value: messageData,
+            permissionRead: 2,
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        // Send notification
+        try {
+            var notificationContent = {
+                type: "direct_message",
+                from_user_id: ctx.userId,
+                from_username: username,
+                message: message,
+                conversation_id: conversationId
+            };
+            
+            nk.notificationSend(
+                toUserId,
+                "New Direct Message",
+                notificationContent,
+                100,
+                ctx.userId,
+                true
+            );
+        } catch (notifErr) {
+            logger.warn('[RPC] Failed to send notification: ' + notifErr.message);
+        }
+        
+        logger.info('[RPC] Direct message sent: ' + key);
+        
+        return JSON.stringify({
+            success: true,
+            message_id: key,
+            conversation_id: conversationId,
+            timestamp: messageData.created_at
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] send_direct_message - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: send_chat_room_message
+ * Send a message in a public chat room
+ */
+function rpcSendChatRoomMessage(ctx, logger, nk, payload) {
+    logger.info('[RPC] send_chat_room_message called');
+    
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.room_id || !data.message) {
+            return JSON.stringify({
+                success: false,
+                error: 'room_id and message are required'
+            });
+        }
+        
+        var roomId = data.room_id;
+        var message = data.message;
+        var username = ctx.username || 'User';
+        var metadata = data.metadata || {};
+        
+        var collection = "chat_room";
+        var key = "msg:" + roomId + ":" + Date.now() + ":" + ctx.userId;
+        
+        var messageData = {
+            message_id: key,
+            room_id: roomId,
+            user_id: ctx.userId,
+            username: username,
+            message: message,
+            metadata: metadata,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: ctx.userId,
+            value: messageData,
+            permissionRead: 2,
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        logger.info('[RPC] Chat room message sent: ' + key);
+        
+        return JSON.stringify({
+            success: true,
+            message_id: key,
+            room_id: roomId,
+            timestamp: messageData.created_at
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] send_chat_room_message - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: get_group_chat_history
+ * Get chat history for a group
+ */
+function rpcGetGroupChatHistory(ctx, logger, nk, payload) {
+    logger.info('[RPC] get_group_chat_history called');
+    
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.group_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'group_id is required'
+            });
+        }
+        
+        var groupId = data.group_id;
+        var limit = data.limit || 50;
+        
+        var collection = "group_chat";
+        var records = nk.storageList(null, collection, limit * 2, null);
+        
+        var messages = [];
+        if (records && records.objects) {
+            for (var i = 0; i < records.objects.length; i++) {
+                var record = records.objects[i];
+                if (record.value && record.value.group_id === groupId) {
+                    messages.push(record.value);
+                }
+            }
+        }
+        
+        // Sort by created_at descending
+        messages.sort(function(a, b) {
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
+        
+        logger.info('[RPC] Retrieved ' + messages.length + ' group messages');
+        
+        return JSON.stringify({
+            success: true,
+            group_id: groupId,
+            messages: messages.slice(0, limit),
+            total: messages.length
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] get_group_chat_history - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: get_direct_message_history
+ * Get direct message history between two users
+ */
+function rpcGetDirectMessageHistory(ctx, logger, nk, payload) {
+    logger.info('[RPC] get_direct_message_history called');
+    
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.other_user_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'other_user_id is required'
+            });
+        }
+        
+        var otherUserId = data.other_user_id;
+        var limit = data.limit || 50;
+        
+        // Create conversation ID
+        var conversationId = ctx.userId < otherUserId ? 
+            ctx.userId + ":" + otherUserId : 
+            otherUserId + ":" + ctx.userId;
+        
+        var collection = "direct_chat";
+        var records = nk.storageList(null, collection, limit * 2, null);
+        
+        var messages = [];
+        if (records && records.objects) {
+            for (var i = 0; i < records.objects.length; i++) {
+                var record = records.objects[i];
+                if (record.value && record.value.conversation_id === conversationId) {
+                    messages.push(record.value);
+                }
+            }
+        }
+        
+        // Sort by created_at descending
+        messages.sort(function(a, b) {
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
+        
+        logger.info('[RPC] Retrieved ' + messages.length + ' direct messages');
+        
+        return JSON.stringify({
+            success: true,
+            conversation_id: conversationId,
+            messages: messages.slice(0, limit),
+            total: messages.length
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] get_direct_message_history - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: get_chat_room_history
+ * Get chat room message history
+ */
+function rpcGetChatRoomHistory(ctx, logger, nk, payload) {
+    logger.info('[RPC] get_chat_room_history called');
+    
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.room_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'room_id is required'
+            });
+        }
+        
+        var roomId = data.room_id;
+        var limit = data.limit || 50;
+        
+        var collection = "chat_room";
+        var records = nk.storageList(null, collection, limit * 2, null);
+        
+        var messages = [];
+        if (records && records.objects) {
+            for (var i = 0; i < records.objects.length; i++) {
+                var record = records.objects[i];
+                if (record.value && record.value.room_id === roomId) {
+                    messages.push(record.value);
+                }
+            }
+        }
+        
+        // Sort by created_at descending
+        messages.sort(function(a, b) {
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
+        
+        logger.info('[RPC] Retrieved ' + messages.length + ' room messages');
+        
+        return JSON.stringify({
+            success: true,
+            room_id: roomId,
+            messages: messages.slice(0, limit),
+            total: messages.length
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] get_chat_room_history - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: mark_direct_messages_read
+ * Mark direct messages as read
+ */
+function rpcMarkDirectMessagesRead(ctx, logger, nk, payload) {
+    logger.info('[RPC] mark_direct_messages_read called');
+    
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.conversation_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'conversation_id is required'
+            });
+        }
+        
+        var conversationId = data.conversation_id;
+        var collection = "direct_chat";
+        
+        var records = nk.storageList(null, collection, 100, null);
+        var updatedCount = 0;
+        
+        if (records && records.objects) {
+            var toUpdate = [];
+            
+            for (var i = 0; i < records.objects.length; i++) {
+                var record = records.objects[i];
+                if (record.value && 
+                    record.value.conversation_id === conversationId &&
+                    record.value.to_user_id === ctx.userId &&
+                    !record.value.read) {
+                    
+                    record.value.read = true;
+                    record.value.read_at = new Date().toISOString();
+                    
+                    toUpdate.push({
+                        collection: collection,
+                        key: record.key,
+                        userId: record.userId,
+                        value: record.value,
+                        permissionRead: 2,
+                        permissionWrite: 0,
+                        version: "*"
+                    });
+                }
+            }
+            
+            if (toUpdate.length > 0) {
+                nk.storageWrite(toUpdate);
+                updatedCount = toUpdate.length;
+            }
+        }
+        
+        logger.info('[RPC] Marked ' + updatedCount + ' messages as read');
+        
+        return JSON.stringify({
+            success: true,
+            conversation_id: conversationId,
+            messages_marked: updatedCount
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] mark_direct_messages_read - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
@@ -6597,9 +7116,31 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[PlayerRPCs] Failed to initialize: ' + err.message);
     }
     
+    // Register Chat RPCs (Group Chat, Direct Chat, Chat Rooms)
+    try {
+        logger.info('[Chat] Initializing Chat Module...');
+        initializer.registerRpc('send_group_chat_message', rpcSendGroupChatMessage);
+        logger.info('[Chat] Registered RPC: send_group_chat_message');
+        initializer.registerRpc('send_direct_message', rpcSendDirectMessage);
+        logger.info('[Chat] Registered RPC: send_direct_message');
+        initializer.registerRpc('send_chat_room_message', rpcSendChatRoomMessage);
+        logger.info('[Chat] Registered RPC: send_chat_room_message');
+        initializer.registerRpc('get_group_chat_history', rpcGetGroupChatHistory);
+        logger.info('[Chat] Registered RPC: get_group_chat_history');
+        initializer.registerRpc('get_direct_message_history', rpcGetDirectMessageHistory);
+        logger.info('[Chat] Registered RPC: get_direct_message_history');
+        initializer.registerRpc('get_chat_room_history', rpcGetChatRoomHistory);
+        logger.info('[Chat] Registered RPC: get_chat_room_history');
+        initializer.registerRpc('mark_direct_messages_read', rpcMarkDirectMessagesRead);
+        logger.info('[Chat] Registered RPC: mark_direct_messages_read');
+        logger.info('[Chat] Successfully registered 7 Chat RPCs');
+    } catch (err) {
+        logger.error('[Chat] Failed to initialize: ' + err.message);
+    }
+    
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total New System RPCs: 36 (4 Multi-Game + 5 Standard Player + 2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications)');
+    logger.info('Total New System RPCs: 43 (4 Multi-Game + 5 Standard Player + 2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications + 7 Chat)');
     logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
