@@ -425,6 +425,11 @@ var scoreResult = await client.RpcAsync(session, "submit_score_and_sync", JsonUt
 
 | Category | RPC Endpoint | Description |
 |----------|-------------|-------------|
+| **Standard Player RPCs** | `create_player_wallet` | **NEW** - Create player wallet (game + global) |
+| | `update_wallet_balance` | **NEW** - Update wallet balance |
+| | `get_wallet_balance` | **NEW** - Get wallet balances |
+| | `submit_leaderboard_score` | **NEW** - Submit score to all leaderboards |
+| | `get_leaderboard` | **NEW** - Get leaderboard records |
 | **Leaderboards** | `create_time_period_leaderboards` | Initialize all leaderboards (admin) |
 | | `submit_score_to_time_periods` | Submit to all time-period leaderboards |
 | | `get_time_period_leaderboard` | Get rankings for specific period |
@@ -459,6 +464,11 @@ var scoreResult = await client.RpcAsync(session, "submit_score_and_sync", JsonUt
 | | `accept_friend_invite` | Accept friend request |
 | | `decline_friend_invite` | Decline friend request |
 | | `get_notifications` | Get user notifications |
+
+**📘 NEW: Standard Player RPCs Documentation**  
+For detailed documentation on the new standard player RPCs, see:
+- [Player RPC Documentation](./docs/RPC_DOCUMENTATION.md) - Complete API reference with Unity examples
+- [Missing RPCs Status](./docs/MISSING_RPCS_STATUS.md) - Quick implementation status guide
 
 ## Copilot Advanced Features
 

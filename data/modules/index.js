@@ -5859,6 +5859,357 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
     logger.info('========================================');
 }
 
+// ============================================================================
+// PLAYER RPCs - Standard naming conventions for common player operations
+// ============================================================================
+
+/**
+ * RPC: create_player_wallet
+ * Creates both game-specific and global wallets for a player
+ */
+function rpcCreatePlayerWallet(ctx, logger, nk, payload) {
+    logger.info('[RPC] create_player_wallet called');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.device_id || !data.game_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'device_id and game_id are required'
+            });
+        }
+        
+        var deviceId = data.device_id;
+        var gameId = data.game_id;
+        var username = data.username || ctx.username || 'Player';
+        
+        // Create or sync user identity first
+        var identityPayload = JSON.stringify({
+            username: username,
+            device_id: deviceId,
+            game_id: gameId
+        });
+        
+        var identityResultStr = createOrSyncUser(ctx, logger, nk, identityPayload);
+        var identity = JSON.parse(identityResultStr);
+        
+        if (!identity.success) {
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to create/sync user identity: ' + (identity.error || 'Unknown error')
+            });
+        }
+        
+        // Create or get wallets
+        var walletPayload = JSON.stringify({
+            device_id: deviceId,
+            game_id: gameId
+        });
+        
+        var walletResultStr = createOrGetWallet(ctx, logger, nk, walletPayload);
+        var wallets = JSON.parse(walletResultStr);
+        
+        if (!wallets.success) {
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to create/get wallets: ' + (wallets.error || 'Unknown error')
+            });
+        }
+        
+        logger.info('[RPC] create_player_wallet - Successfully created wallet for device: ' + deviceId);
+        
+        return JSON.stringify({
+            success: true,
+            wallet_id: identity.wallet_id,
+            global_wallet_id: identity.global_wallet_id,
+            game_wallet: wallets.game_wallet,
+            global_wallet: wallets.global_wallet,
+            message: 'Player wallet created successfully'
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] create_player_wallet - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: update_wallet_balance
+ * Updates a player's wallet balance
+ */
+function rpcUpdateWalletBalance(ctx, logger, nk, payload) {
+    logger.info('[RPC] update_wallet_balance called');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.device_id || !data.game_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'device_id and game_id are required'
+            });
+        }
+        
+        if (data.balance === undefined || data.balance === null) {
+            return JSON.stringify({
+                success: false,
+                error: 'balance is required'
+            });
+        }
+        
+        var deviceId = data.device_id;
+        var gameId = data.game_id;
+        var balance = Number(data.balance);
+        var walletType = data.wallet_type || 'game';
+        
+        if (isNaN(balance) || balance < 0) {
+            return JSON.stringify({
+                success: false,
+                error: 'balance must be a non-negative number'
+            });
+        }
+        
+        // Call appropriate wallet update function
+        var updatePayload = JSON.stringify({
+            device_id: deviceId,
+            game_id: gameId,
+            balance: balance
+        });
+        
+        var resultStr;
+        if (walletType === 'global') {
+            resultStr = rpcWalletUpdateGlobal(ctx, logger, nk, updatePayload);
+        } else {
+            resultStr = rpcWalletUpdateGameWallet(ctx, logger, nk, updatePayload);
+        }
+        
+        var wallet = JSON.parse(resultStr);
+        
+        if (!wallet.success) {
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to update wallet: ' + (wallet.error || 'Unknown error')
+            });
+        }
+        
+        logger.info('[RPC] update_wallet_balance - Updated ' + walletType + ' wallet to balance: ' + balance);
+        
+        return JSON.stringify({
+            success: true,
+            wallet: wallet.wallet || wallet,
+            wallet_type: walletType,
+            message: 'Wallet balance updated successfully'
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] update_wallet_balance - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: get_wallet_balance
+ * Gets a player's wallet balance
+ */
+function rpcGetWalletBalance(ctx, logger, nk, payload) {
+    logger.info('[RPC] get_wallet_balance called');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.device_id || !data.game_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'device_id and game_id are required'
+            });
+        }
+        
+        var deviceId = data.device_id;
+        var gameId = data.game_id;
+        
+        // Get wallets using existing function
+        var walletPayload = JSON.stringify({
+            device_id: deviceId,
+            game_id: gameId
+        });
+        
+        var resultStr = createOrGetWallet(ctx, logger, nk, walletPayload);
+        var wallets = JSON.parse(resultStr);
+        
+        if (!wallets.success) {
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to get wallet: ' + (wallets.error || 'Unknown error')
+            });
+        }
+        
+        logger.info('[RPC] get_wallet_balance - Retrieved wallets for device: ' + deviceId);
+        
+        return JSON.stringify({
+            success: true,
+            game_wallet: wallets.game_wallet,
+            global_wallet: wallets.global_wallet,
+            device_id: deviceId,
+            game_id: gameId
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] get_wallet_balance - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: submit_leaderboard_score
+ * Submits a score to leaderboards
+ */
+function rpcSubmitLeaderboardScore(ctx, logger, nk, payload) {
+    logger.info('[RPC] submit_leaderboard_score called');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.device_id || !data.game_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'device_id and game_id are required'
+            });
+        }
+        
+        if (data.score === undefined || data.score === null) {
+            return JSON.stringify({
+                success: false,
+                error: 'score is required'
+            });
+        }
+        
+        var deviceId = data.device_id;
+        var gameId = data.game_id;
+        var score = Number(data.score);
+        
+        if (isNaN(score)) {
+            return JSON.stringify({
+                success: false,
+                error: 'score must be a number'
+            });
+        }
+        
+        // Submit score using existing function
+        var scorePayload = JSON.stringify({
+            device_id: deviceId,
+            game_id: gameId,
+            score: score,
+            metadata: data.metadata || {}
+        });
+        
+        var resultStr = submitScoreAndSync(ctx, logger, nk, scorePayload);
+        var scoreResult = JSON.parse(resultStr);
+        
+        if (!scoreResult.success) {
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to submit score: ' + (scoreResult.error || 'Unknown error')
+            });
+        }
+        
+        logger.info('[RPC] submit_leaderboard_score - Submitted score ' + score + ' for device: ' + deviceId);
+        
+        return JSON.stringify({
+            success: true,
+            leaderboards_updated: scoreResult.leaderboards_updated || [],
+            score: score,
+            wallet_updated: scoreResult.wallet_updated || false,
+            message: 'Score submitted successfully to all leaderboards'
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] submit_leaderboard_score - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: get_leaderboard
+ * Gets leaderboard records
+ */
+function rpcGetLeaderboard(ctx, logger, nk, payload) {
+    logger.info('[RPC] get_leaderboard called');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.game_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'game_id is required'
+            });
+        }
+        
+        var gameId = data.game_id;
+        var period = data.period || '';
+        var limit = data.limit || 10;
+        var cursor = data.cursor || '';
+        
+        // Validate limit
+        if (limit < 1 || limit > 100) {
+            return JSON.stringify({
+                success: false,
+                error: 'limit must be between 1 and 100'
+            });
+        }
+        
+        // Get leaderboard using existing function
+        var leaderboardPayload = JSON.stringify({
+            gameId: gameId,
+            period: period,
+            limit: limit,
+            cursor: cursor
+        });
+        
+        var resultStr = rpcGetTimePeriodLeaderboard(ctx, logger, nk, leaderboardPayload);
+        var leaderboard = JSON.parse(resultStr);
+        
+        if (!leaderboard.success) {
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to get leaderboard: ' + (leaderboard.error || 'Unknown error')
+            });
+        }
+        
+        logger.info('[RPC] get_leaderboard - Retrieved ' + period + ' leaderboard for game: ' + gameId);
+        
+        return JSON.stringify({
+            success: true,
+            leaderboard_id: leaderboard.leaderboard_id,
+            records: leaderboard.records || [],
+            next_cursor: leaderboard.next_cursor || '',
+            prev_cursor: leaderboard.prev_cursor || '',
+            period: period || 'main',
+            game_id: gameId
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] get_leaderboard - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
@@ -6028,9 +6379,27 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[MultiGame] Failed to initialize: ' + err.message);
     }
     
+    // Register Standard Player RPCs (simplified naming conventions)
+    try {
+        logger.info('[PlayerRPCs] Initializing Standard Player RPCs...');
+        initializer.registerRpc('create_player_wallet', rpcCreatePlayerWallet);
+        logger.info('[PlayerRPCs] Registered RPC: create_player_wallet');
+        initializer.registerRpc('update_wallet_balance', rpcUpdateWalletBalance);
+        logger.info('[PlayerRPCs] Registered RPC: update_wallet_balance');
+        initializer.registerRpc('get_wallet_balance', rpcGetWalletBalance);
+        logger.info('[PlayerRPCs] Registered RPC: get_wallet_balance');
+        initializer.registerRpc('submit_leaderboard_score', rpcSubmitLeaderboardScore);
+        logger.info('[PlayerRPCs] Registered RPC: submit_leaderboard_score');
+        initializer.registerRpc('get_leaderboard', rpcGetLeaderboard);
+        logger.info('[PlayerRPCs] Registered RPC: get_leaderboard');
+        logger.info('[PlayerRPCs] Successfully registered 5 Standard Player RPCs');
+    } catch (err) {
+        logger.error('[PlayerRPCs] Failed to initialize: ' + err.message);
+    }
+    
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total New System RPCs: 30 (3 Multi-Game + 2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications)');
+    logger.info('Total New System RPCs: 35 (3 Multi-Game + 5 Standard Player + 2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications)');
     logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
