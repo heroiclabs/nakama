@@ -8099,6 +8099,789 @@ function lasttoliveLoadPlayerData(context, logger, nk, payload) {
     return quizverseLoadPlayerData(context, logger, nk, payload);
 }
 
+// ============================================================================
+// ADDITIONAL MEGA CODEX FEATURES
+// ============================================================================
+
+// ============================================================================
+// STORAGE INDEXING + CATALOG SYSTEMS
+// ============================================================================
+
+/**
+ * RPC: quizverse_get_item_catalog
+ * Get item catalog for the game
+ */
+function quizverseGetItemCatalog(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        
+        var collection = getCollection(data.gameID, "catalog");
+        var limit = data.limit || 100;
+        
+        // Read catalog items
+        var records = nk.storageList("00000000-0000-0000-0000-000000000000", collection, limit, null);
+        
+        var items = [];
+        if (records && records.objects) {
+            for (var i = 0; i < records.objects.length; i++) {
+                items.push(records.objects[i].value);
+            }
+        }
+        
+        logger.info("[" + data.gameID + "] Retrieved " + items.length + " catalog items");
+        
+        return JSON.stringify({
+            success: true,
+            data: { items: items }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_get_item_catalog error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_get_item_catalog
+ */
+function lasttoliveGetItemCatalog(context, logger, nk, payload) {
+    return quizverseGetItemCatalog(context, logger, nk, payload);
+}
+
+/**
+ * RPC: quizverse_search_items
+ * Search items in catalog
+ */
+function quizverseSearchItems(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID", "query"]);
+        
+        var collection = getCollection(data.gameID, "catalog");
+        var query = data.query.toLowerCase();
+        
+        // Read all catalog items
+        var records = nk.storageList("00000000-0000-0000-0000-000000000000", collection, 100, null);
+        
+        var results = [];
+        if (records && records.objects) {
+            for (var i = 0; i < records.objects.length; i++) {
+                var item = records.objects[i].value;
+                if (item.name && item.name.toLowerCase().indexOf(query) !== -1) {
+                    results.push(item);
+                }
+            }
+        }
+        
+        logger.info("[" + data.gameID + "] Search for '" + query + "' found " + results.length + " items");
+        
+        return JSON.stringify({
+            success: true,
+            data: { results: results, query: query }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_search_items error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_search_items
+ */
+function lasttoliveSearchItems(context, logger, nk, payload) {
+    return quizverseSearchItems(context, logger, nk, payload);
+}
+
+/**
+ * RPC: quizverse_get_quiz_categories
+ * Get quiz categories for QuizVerse
+ */
+function quizverseGetQuizCategories(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        
+        var collection = getCollection(data.gameID, "categories");
+        
+        // Read categories
+        var records = nk.storageList("00000000-0000-0000-0000-000000000000", collection, 50, null);
+        
+        var categories = [];
+        if (records && records.objects) {
+            for (var i = 0; i < records.objects.length; i++) {
+                categories.push(records.objects[i].value);
+            }
+        }
+        
+        logger.info("[quizverse] Retrieved " + categories.length + " quiz categories");
+        
+        return JSON.stringify({
+            success: true,
+            data: { categories: categories }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_get_quiz_categories error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_get_weapon_stats
+ * Get weapon stats for LastToLive
+ */
+function lasttoliveGetWeaponStats(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        
+        var collection = getCollection(data.gameID, "weapon_stats");
+        
+        // Read weapon stats
+        var records = nk.storageList("00000000-0000-0000-0000-000000000000", collection, 100, null);
+        
+        var weapons = [];
+        if (records && records.objects) {
+            for (var i = 0; i < records.objects.length; i++) {
+                weapons.push(records.objects[i].value);
+            }
+        }
+        
+        logger.info("[lasttolive] Retrieved " + weapons.length + " weapon stats");
+        
+        return JSON.stringify({
+            success: true,
+            data: { weapons: weapons }
+        });
+        
+    } catch (err) {
+        logger.error("lasttolive_get_weapon_stats error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: quizverse_refresh_server_cache
+ * Refresh server cache
+ */
+function quizverseRefreshServerCache(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        
+        logger.info("[" + data.gameID + "] Server cache refresh requested");
+        
+        // In a real implementation, this would refresh various caches
+        // For now, just acknowledge the request
+        
+        return JSON.stringify({
+            success: true,
+            data: { 
+                refreshed: true,
+                timestamp: new Date().toISOString()
+            }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_refresh_server_cache error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_refresh_server_cache
+ */
+function lasttoliveRefreshServerCache(context, logger, nk, payload) {
+    return quizverseRefreshServerCache(context, logger, nk, payload);
+}
+
+// ============================================================================
+// GROUPS / CLANS / GUILDS
+// ============================================================================
+
+/**
+ * RPC: quizverse_guild_create
+ * Create a guild/clan
+ */
+function quizverseGuildCreate(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID", "name"]);
+        var userId = getUserId(data, context);
+        
+        var guildName = data.name;
+        var description = data.description || "";
+        var avatarUrl = data.avatarUrl || "";
+        var open = data.open !== undefined ? data.open : true;
+        var maxCount = data.maxCount || 100;
+        
+        // Create group
+        var group = nk.groupCreate(
+            userId,
+            guildName,
+            description,
+            avatarUrl,
+            "en",
+            JSON.stringify({ gameID: data.gameID }),
+            open,
+            maxCount
+        );
+        
+        logger.info("[" + data.gameID + "] Guild created: " + group.id);
+        
+        return JSON.stringify({
+            success: true,
+            data: {
+                guildId: group.id,
+                name: group.name,
+                description: group.description
+            }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_guild_create error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_guild_create
+ */
+function lasttoliveGuildCreate(context, logger, nk, payload) {
+    return quizverseGuildCreate(context, logger, nk, payload);
+}
+
+/**
+ * RPC: quizverse_guild_join
+ * Join a guild
+ */
+function quizverseGuildJoin(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID", "guildId"]);
+        var userId = getUserId(data, context);
+        
+        // Join group
+        nk.groupUserJoin(data.guildId, userId, context.username || userId);
+        
+        logger.info("[" + data.gameID + "] User " + userId + " joined guild: " + data.guildId);
+        
+        return JSON.stringify({
+            success: true,
+            data: {
+                guildId: data.guildId,
+                userId: userId
+            }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_guild_join error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_guild_join
+ */
+function lasttoliveGuildJoin(context, logger, nk, payload) {
+    return quizverseGuildJoin(context, logger, nk, payload);
+}
+
+/**
+ * RPC: quizverse_guild_leave
+ * Leave a guild
+ */
+function quizverseGuildLeave(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID", "guildId"]);
+        var userId = getUserId(data, context);
+        
+        // Leave group
+        nk.groupUserLeave(data.guildId, userId);
+        
+        logger.info("[" + data.gameID + "] User " + userId + " left guild: " + data.guildId);
+        
+        return JSON.stringify({
+            success: true,
+            data: {
+                guildId: data.guildId,
+                userId: userId
+            }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_guild_leave error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_guild_leave
+ */
+function lasttoliveGuildLeave(context, logger, nk, payload) {
+    return quizverseGuildLeave(context, logger, nk, payload);
+}
+
+/**
+ * RPC: quizverse_guild_list
+ * List guilds
+ */
+function quizverseGuildList(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var limit = data.limit || 20;
+        
+        // List groups
+        var groups = nk.groupsList("", null, limit);
+        
+        var guilds = [];
+        if (groups) {
+            for (var i = 0; i < groups.length; i++) {
+                var group = groups[i];
+                try {
+                    var metadata = JSON.parse(group.metadata);
+                    if (metadata.gameID === data.gameID) {
+                        guilds.push({
+                            guildId: group.id,
+                            name: group.name,
+                            description: group.description,
+                            memberCount: group.edgeCount || 0
+                        });
+                    }
+                } catch (e) {
+                    // Skip groups with invalid metadata
+                }
+            }
+        }
+        
+        logger.info("[" + data.gameID + "] Listed " + guilds.length + " guilds");
+        
+        return JSON.stringify({
+            success: true,
+            data: { guilds: guilds }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_guild_list error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_guild_list
+ */
+function lasttoliveGuildList(context, logger, nk, payload) {
+    return quizverseGuildList(context, logger, nk, payload);
+}
+
+// ============================================================================
+// CHAT / CHANNELS / MESSAGING
+// ============================================================================
+
+/**
+ * RPC: quizverse_send_channel_message
+ * Send message to a channel
+ */
+function quizverseSendChannelMessage(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID", "channelId", "content"]);
+        var userId = getUserId(data, context);
+        
+        // Send channel message
+        var ack = nk.channelMessageSend(
+            data.channelId,
+            JSON.stringify({
+                content: data.content,
+                userId: userId,
+                username: context.username || userId
+            }),
+            userId,
+            context.username || userId,
+            true
+        );
+        
+        logger.info("[" + data.gameID + "] Message sent to channel: " + data.channelId);
+        
+        return JSON.stringify({
+            success: true,
+            data: {
+                channelId: data.channelId,
+                messageId: ack.messageId,
+                timestamp: ack.createTime
+            }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_send_channel_message error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_send_channel_message
+ */
+function lasttolliveSendChannelMessage(context, logger, nk, payload) {
+    return quizverseSendChannelMessage(context, logger, nk, payload);
+}
+
+// ============================================================================
+// TELEMETRY / ANALYTICS
+// ============================================================================
+
+/**
+ * RPC: quizverse_log_event
+ * Log analytics event
+ */
+function quizverseLogEvent(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID", "eventName"]);
+        var userId = getUserId(data, context);
+        
+        var eventData = {
+            eventName: data.eventName,
+            properties: data.properties || {},
+            userId: userId,
+            timestamp: new Date().toISOString(),
+            gameID: data.gameID
+        };
+        
+        // Store event
+        var collection = getCollection(data.gameID, "analytics");
+        var key = "event_" + userId + "_" + Date.now();
+        
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000",
+            value: eventData,
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+        
+        logger.info("[" + data.gameID + "] Event logged: " + data.eventName);
+        
+        return JSON.stringify({
+            success: true,
+            data: { logged: true }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_log_event error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_log_event
+ */
+function lasttoliveLogEvent(context, logger, nk, payload) {
+    return quizverseLogEvent(context, logger, nk, payload);
+}
+
+/**
+ * RPC: quizverse_track_session_start
+ * Track session start
+ */
+function quizverseTrackSessionStart(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var userId = getUserId(data, context);
+        
+        var sessionData = {
+            userId: userId,
+            startTime: new Date().toISOString(),
+            gameID: data.gameID,
+            deviceInfo: data.deviceInfo || {}
+        };
+        
+        var collection = getCollection(data.gameID, "sessions");
+        var key = "session_" + userId + "_" + Date.now();
+        
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: userId,
+            value: sessionData,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        
+        logger.info("[" + data.gameID + "] Session started for user: " + userId);
+        
+        return JSON.stringify({
+            success: true,
+            data: { sessionKey: key }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_track_session_start error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_track_session_start
+ */
+function lasttoliveTrackSessionStart(context, logger, nk, payload) {
+    return quizverseTrackSessionStart(context, logger, nk, payload);
+}
+
+/**
+ * RPC: quizverse_track_session_end
+ * Track session end
+ */
+function quizverseTrackSessionEnd(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID", "sessionKey"]);
+        var userId = getUserId(data, context);
+        
+        var collection = getCollection(data.gameID, "sessions");
+        
+        // Read session
+        var sessionData = null;
+        try {
+            var records = nk.storageRead([{
+                collection: collection,
+                key: data.sessionKey,
+                userId: userId
+            }]);
+            if (records && records.length > 0 && records[0].value) {
+                sessionData = records[0].value;
+            }
+        } catch (err) {
+            throw new Error("Session not found");
+        }
+        
+        if (sessionData) {
+            sessionData.endTime = new Date().toISOString();
+            sessionData.duration = data.duration || 0;
+            
+            nk.storageWrite([{
+                collection: collection,
+                key: data.sessionKey,
+                userId: userId,
+                value: sessionData,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+        }
+        
+        logger.info("[" + data.gameID + "] Session ended for user: " + userId);
+        
+        return JSON.stringify({
+            success: true,
+            data: { sessionKey: data.sessionKey }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_track_session_end error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_track_session_end
+ */
+function lasttoliveTrackSessionEnd(context, logger, nk, payload) {
+    return quizverseTrackSessionEnd(context, logger, nk, payload);
+}
+
+// ============================================================================
+// ADMIN / CONFIG RPCs
+// ============================================================================
+
+/**
+ * RPC: quizverse_get_server_config
+ * Get server configuration
+ */
+function quizverseGetServerConfig(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        
+        var collection = getCollection(data.gameID, "config");
+        var key = "server_config";
+        
+        var config = {};
+        try {
+            var records = nk.storageRead([{
+                collection: collection,
+                key: key,
+                userId: "00000000-0000-0000-0000-000000000000"
+            }]);
+            if (records && records.length > 0 && records[0].value) {
+                config = records[0].value;
+            }
+        } catch (err) {
+            // Return default config
+            config = {
+                maxPlayersPerMatch: 10,
+                matchDuration: 300,
+                enableChat: true
+            };
+        }
+        
+        logger.info("[" + data.gameID + "] Server config retrieved");
+        
+        return JSON.stringify({
+            success: true,
+            data: { config: config }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_get_server_config error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_get_server_config
+ */
+function lasttoliveGetServerConfig(context, logger, nk, payload) {
+    return quizverseGetServerConfig(context, logger, nk, payload);
+}
+
+/**
+ * RPC: quizverse_admin_grant_item
+ * Admin function to grant item to user
+ */
+function quizverseAdminGrantItem(context, logger, nk, payload) {
+    try {
+        var data = parseAndValidateGamePayload(payload, ["gameID", "targetUserId", "itemId", "quantity"]);
+        
+        // In production, add admin permission check here
+        
+        var quantity = parseInt(data.quantity);
+        if (isNaN(quantity) || quantity <= 0) {
+            throw new Error("Invalid quantity");
+        }
+        
+        var collection = getCollection(data.gameID, "inventory");
+        var key = "inv_" + data.targetUserId;
+        
+        // Read inventory
+        var inventory = { items: [] };
+        try {
+            var records = nk.storageRead([{
+                collection: collection,
+                key: key,
+                userId: data.targetUserId
+            }]);
+            if (records && records.length > 0 && records[0].value) {
+                inventory = records[0].value;
+            }
+        } catch (err) {
+            logger.debug("Creating new inventory for admin grant");
+        }
+        
+        // Add item
+        var itemFound = false;
+        for (var i = 0; i < inventory.items.length; i++) {
+            if (inventory.items[i].itemId === data.itemId) {
+                inventory.items[i].quantity = (inventory.items[i].quantity || 0) + quantity;
+                itemFound = true;
+                break;
+            }
+        }
+        
+        if (!itemFound) {
+            inventory.items.push({
+                itemId: data.itemId,
+                quantity: quantity,
+                grantedBy: "admin",
+                createdAt: new Date().toISOString()
+            });
+        }
+        
+        // Write inventory
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: data.targetUserId,
+            value: inventory,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        
+        logger.info("[" + data.gameID + "] Admin granted " + quantity + "x " + data.itemId + " to user: " + data.targetUserId);
+        
+        return JSON.stringify({
+            success: true,
+            data: {
+                targetUserId: data.targetUserId,
+                itemId: data.itemId,
+                quantity: quantity
+            }
+        });
+        
+    } catch (err) {
+        logger.error("quizverse_admin_grant_item error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: lasttolive_admin_grant_item
+ */
+function lasttoliveAdminGrantItem(context, logger, nk, payload) {
+    return quizverseAdminGrantItem(context, logger, nk, payload);
+}
+
+
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
@@ -8320,7 +9103,7 @@ function InitModule(ctx, logger, nk, initializer) {
         }
         
         var mgRpcs = [
-            // QuizVerse RPCs
+            // QuizVerse RPCs - Core
             { id: 'quizverse_update_user_profile', handler: quizverseUpdateUserProfile },
             { id: 'quizverse_grant_currency', handler: quizverseGrantCurrency },
             { id: 'quizverse_spend_currency', handler: quizverseSpendCurrency },
@@ -8336,7 +9119,31 @@ function InitModule(ctx, logger, nk, initializer) {
             { id: 'quizverse_save_player_data', handler: quizverseSavePlayerData },
             { id: 'quizverse_load_player_data', handler: quizverseLoadPlayerData },
             
-            // LastToLive RPCs
+            // QuizVerse RPCs - Catalog & Search
+            { id: 'quizverse_get_item_catalog', handler: quizverseGetItemCatalog },
+            { id: 'quizverse_search_items', handler: quizverseSearchItems },
+            { id: 'quizverse_get_quiz_categories', handler: quizverseGetQuizCategories },
+            { id: 'quizverse_refresh_server_cache', handler: quizverseRefreshServerCache },
+            
+            // QuizVerse RPCs - Guilds
+            { id: 'quizverse_guild_create', handler: quizverseGuildCreate },
+            { id: 'quizverse_guild_join', handler: quizverseGuildJoin },
+            { id: 'quizverse_guild_leave', handler: quizverseGuildLeave },
+            { id: 'quizverse_guild_list', handler: quizverseGuildList },
+            
+            // QuizVerse RPCs - Chat
+            { id: 'quizverse_send_channel_message', handler: quizverseSendChannelMessage },
+            
+            // QuizVerse RPCs - Analytics
+            { id: 'quizverse_log_event', handler: quizverseLogEvent },
+            { id: 'quizverse_track_session_start', handler: quizverseTrackSessionStart },
+            { id: 'quizverse_track_session_end', handler: quizverseTrackSessionEnd },
+            
+            // QuizVerse RPCs - Admin
+            { id: 'quizverse_get_server_config', handler: quizverseGetServerConfig },
+            { id: 'quizverse_admin_grant_item', handler: quizverseAdminGrantItem },
+            
+            // LastToLive RPCs - Core
             { id: 'lasttolive_update_user_profile', handler: lasttoliveUpdateUserProfile },
             { id: 'lasttolive_grant_currency', handler: lasttoliveGrantCurrency },
             { id: 'lasttolive_spend_currency', handler: lasttoliveSpendCurrency },
@@ -8350,7 +9157,31 @@ function InitModule(ctx, logger, nk, initializer) {
             { id: 'lasttolive_claim_daily_reward', handler: lasttoliveClaimDailyReward },
             { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
             { id: 'lasttolive_save_player_data', handler: lasttolliveSavePlayerData },
-            { id: 'lasttolive_load_player_data', handler: lasttoliveLoadPlayerData }
+            { id: 'lasttolive_load_player_data', handler: lasttoliveLoadPlayerData },
+            
+            // LastToLive RPCs - Catalog & Search
+            { id: 'lasttolive_get_item_catalog', handler: lasttoliveGetItemCatalog },
+            { id: 'lasttolive_search_items', handler: lasttoliveSearchItems },
+            { id: 'lasttolive_get_weapon_stats', handler: lasttoliveGetWeaponStats },
+            { id: 'lasttolive_refresh_server_cache', handler: lasttoliveRefreshServerCache },
+            
+            // LastToLive RPCs - Guilds
+            { id: 'lasttolive_guild_create', handler: lasttoliveGuildCreate },
+            { id: 'lasttolive_guild_join', handler: lasttoliveGuildJoin },
+            { id: 'lasttolive_guild_leave', handler: lasttoliveGuildLeave },
+            { id: 'lasttolive_guild_list', handler: lasttoliveGuildList },
+            
+            // LastToLive RPCs - Chat
+            { id: 'lasttolive_send_channel_message', handler: lasttolliveSendChannelMessage },
+            
+            // LastToLive RPCs - Analytics
+            { id: 'lasttolive_log_event', handler: lasttoliveLogEvent },
+            { id: 'lasttolive_track_session_start', handler: lasttoliveTrackSessionStart },
+            { id: 'lasttolive_track_session_end', handler: lasttoliveTrackSessionEnd },
+            
+            // LastToLive RPCs - Admin
+            { id: 'lasttolive_get_server_config', handler: lasttoliveGetServerConfig },
+            { id: 'lasttolive_admin_grant_item', handler: lasttoliveAdminGrantItem }
         ];
         
         var mgRegistered = 0;
