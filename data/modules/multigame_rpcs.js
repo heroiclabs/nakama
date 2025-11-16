@@ -1132,7 +1132,7 @@ function quizverseSavePlayerData(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_save_player_data
  */
-function lasttolive SavePlayerData(context, logger, nk, payload) {
+function lasttolliveSavePlayerData(context, logger, nk, payload) {
     return quizverseSavePlayerData(context, logger, nk, payload);
 }
 
