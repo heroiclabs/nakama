@@ -5768,6 +5768,159 @@ function submitScoreAndSync(ctx, logger, nk, payload) {
     }
 }
 
+/**
+ * RPC: get_all_leaderboards
+ * Retrieves all leaderboard records for a player across all types
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ * @param {string} payload - JSON with device_id, game_id
+ * @returns {string} JSON response with all leaderboard records
+ */
+function getAllLeaderboards(ctx, logger, nk, payload) {
+    logger.info("[NAKAMA] RPC get_all_leaderboards called");
+    
+    // Parse payload
+    var data;
+    try {
+        data = JSON.parse(payload);
+    } catch (err) {
+        return JSON.stringify({
+            success: false,
+            error: "Invalid JSON payload"
+        });
+    }
+    
+    // Validate required fields
+    if (!data.device_id || !data.game_id) {
+        return JSON.stringify({
+            success: false,
+            error: "Missing required fields: device_id, game_id"
+        });
+    }
+    
+    var deviceId = data.device_id;
+    var gameId = data.game_id;
+    var limit = data.limit || 10;
+    
+    try {
+        // Get identity to find userId
+        var collection = "quizverse";
+        var key = "identity:" + deviceId + ":" + gameId;
+        
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (!records || records.length === 0 || !records[0].value) {
+            return JSON.stringify({
+                success: false,
+                error: "Identity not found. Please call create_or_sync_user first."
+            });
+        }
+        
+        var identity = records[0].value;
+        var userId = ctx.userId || deviceId;
+        
+        // Build list of all leaderboard IDs to query
+        var leaderboardIds = [];
+        
+        // 1. Main game leaderboard
+        leaderboardIds.push("leaderboard_" + gameId);
+        
+        // 2. Time-period game leaderboards
+        var timePeriods = ["daily", "weekly", "monthly", "alltime"];
+        for (var i = 0; i < timePeriods.length; i++) {
+            leaderboardIds.push("leaderboard_" + gameId + "_" + timePeriods[i]);
+        }
+        
+        // 3. Global leaderboards
+        leaderboardIds.push("leaderboard_global");
+        for (var i = 0; i < timePeriods.length; i++) {
+            leaderboardIds.push("leaderboard_global_" + timePeriods[i]);
+        }
+        
+        // 4. Friends leaderboards
+        leaderboardIds.push("leaderboard_friends_" + gameId);
+        leaderboardIds.push("leaderboard_friends_global");
+        
+        // 5. Get all registry leaderboards and filter relevant ones
+        var allRegistryIds = getAllLeaderboardIds(nk, logger);
+        for (var i = 0; i < allRegistryIds.length; i++) {
+            var lbId = allRegistryIds[i];
+            if (leaderboardIds.indexOf(lbId) === -1) {
+                // Only include if related to this game or global
+                if (lbId.indexOf(gameId) !== -1 || lbId.indexOf("global") !== -1) {
+                    leaderboardIds.push(lbId);
+                }
+            }
+        }
+        
+        // Query all leaderboards and collect records
+        var leaderboards = {};
+        var successCount = 0;
+        var errorCount = 0;
+        
+        for (var i = 0; i < leaderboardIds.length; i++) {
+            var leaderboardId = leaderboardIds[i];
+            
+            try {
+                var leaderboardRecords = nk.leaderboardRecordsList(leaderboardId, null, limit, null, 0);
+                
+                // Also get user's own record
+                var userRecord = null;
+                try {
+                    var userRecords = nk.leaderboardRecordsList(leaderboardId, [userId], 1, null, 0);
+                    if (userRecords && userRecords.records && userRecords.records.length > 0) {
+                        userRecord = userRecords.records[0];
+                    }
+                } catch (err) {
+                    logger.warn("[NAKAMA] Failed to get user record from " + leaderboardId + ": " + err.message);
+                }
+                
+                leaderboards[leaderboardId] = {
+                    leaderboard_id: leaderboardId,
+                    records: leaderboardRecords.records || [],
+                    user_record: userRecord,
+                    next_cursor: leaderboardRecords.nextCursor || "",
+                    prev_cursor: leaderboardRecords.prevCursor || ""
+                };
+                
+                successCount++;
+                logger.info("[NAKAMA] Retrieved " + leaderboardRecords.records.length + " records from " + leaderboardId);
+            } catch (err) {
+                logger.warn("[NAKAMA] Failed to query leaderboard " + leaderboardId + ": " + err.message);
+                leaderboards[leaderboardId] = {
+                    leaderboard_id: leaderboardId,
+                    error: err.message,
+                    records: [],
+                    user_record: null
+                };
+                errorCount++;
+            }
+        }
+        
+        return JSON.stringify({
+            success: true,
+            device_id: deviceId,
+            game_id: gameId,
+            leaderboards: leaderboards,
+            total_leaderboards: leaderboardIds.length,
+            successful_queries: successCount,
+            failed_queries: errorCount
+        });
+        
+    } catch (err) {
+        logger.error("[NAKAMA] Error in get_all_leaderboards: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to retrieve leaderboards: " + err.message
+        });
+    }
+}
+
 // ============================================================================
 // INIT MODULE - ENTRY POINT
 // ============================================================================
@@ -6374,7 +6527,9 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[MultiGame] Registered RPC: create_or_get_wallet');
         initializer.registerRpc('submit_score_and_sync', submitScoreAndSync);
         logger.info('[MultiGame] Registered RPC: submit_score_and_sync');
-        logger.info('[MultiGame] Successfully registered 3 Multi-Game RPCs');
+        initializer.registerRpc('get_all_leaderboards', getAllLeaderboards);
+        logger.info('[MultiGame] Registered RPC: get_all_leaderboards');
+        logger.info('[MultiGame] Successfully registered 4 Multi-Game RPCs');
     } catch (err) {
         logger.error('[MultiGame] Failed to initialize: ' + err.message);
     }
@@ -6399,7 +6554,7 @@ function InitModule(ctx, logger, nk, initializer) {
     
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total New System RPCs: 35 (3 Multi-Game + 5 Standard Player + 2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications)');
+    logger.info('Total New System RPCs: 36 (4 Multi-Game + 5 Standard Player + 2 Daily Rewards + 3 Daily Missions + 4 Wallet + 1 Analytics + 6 Friends + 3 Time-Period Leaderboards + 5 Groups/Clans + 3 Push Notifications)');
     logger.info('Plus existing Copilot RPCs (Wallet Mapping + Leaderboards + Social)');
     logger.info('========================================');
 }
