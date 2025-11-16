@@ -911,3 +911,511 @@ Common errors:
 - Add achievements system
 - Implement battle pass/seasonal progression
 - Add clan/guild features
+# MEGA NAKAMA CODEX v3 - Additional Features Guide
+
+## New RPC Groups (Added in Latest Update)
+
+### Storage Indexing + Catalog Systems
+
+#### `${gameID}_get_item_catalog`
+Retrieve the item catalog for the game.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "limit": 100
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "itemId": "powerup_001",
+        "name": "Speed Boost",
+        "price": 100,
+        "description": "Increases speed by 50%"
+      }
+    ]
+  }
+}
+```
+
+#### `${gameID}_search_items`
+Search for items in the catalog.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "query": "boost"
+}
+```
+
+#### `quizverse_get_quiz_categories`
+Get available quiz categories (QuizVerse only).
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "categories": [
+      {
+        "id": "science",
+        "name": "Science",
+        "questionCount": 100
+      },
+      {
+        "id": "history",
+        "name": "History",
+        "questionCount": 150
+      }
+    ]
+  }
+}
+```
+
+#### `lasttolive_get_weapon_stats`
+Get weapon statistics (LastToLive only).
+
+**Payload:**
+```json
+{
+  "gameID": "lasttolive"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "weapons": [
+      {
+        "weaponId": "rifle_001",
+        "name": "Assault Rifle",
+        "damage": 35,
+        "fireRate": 600,
+        "range": 50
+      }
+    ]
+  }
+}
+```
+
+### Guild/Clan System
+
+#### `${gameID}_guild_create`
+Create a new guild.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "name": "Quiz Masters",
+  "description": "The best quiz players",
+  "open": true,
+  "maxCount": 50
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "guildId": "guild_uuid",
+    "name": "Quiz Masters",
+    "description": "The best quiz players"
+  }
+}
+```
+
+#### `${gameID}_guild_join`
+Join an existing guild.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "guildId": "guild_uuid"
+}
+```
+
+#### `${gameID}_guild_leave`
+Leave a guild.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "guildId": "guild_uuid"
+}
+```
+
+#### `${gameID}_guild_list`
+List available guilds.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "limit": 20
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "guilds": [
+      {
+        "guildId": "guild_uuid",
+        "name": "Quiz Masters",
+        "description": "The best quiz players",
+        "memberCount": 25
+      }
+    ]
+  }
+}
+```
+
+### Chat & Messaging
+
+#### `${gameID}_send_channel_message`
+Send a message to a channel.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "channelId": "channel_uuid",
+  "content": "Hello everyone!"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "channelId": "channel_uuid",
+    "messageId": "msg_uuid",
+    "timestamp": "2023-11-16T10:00:00Z"
+  }
+}
+```
+
+### Analytics & Telemetry
+
+#### `${gameID}_log_event`
+Log an analytics event.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "eventName": "quiz_completed",
+  "properties": {
+    "category": "science",
+    "score": 850,
+    "duration": 120
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "logged": true
+  }
+}
+```
+
+#### `${gameID}_track_session_start`
+Track when a user starts a session.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "deviceInfo": {
+    "platform": "iOS",
+    "version": "1.0.0"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "sessionKey": "session_user_12345"
+  }
+}
+```
+
+#### `${gameID}_track_session_end`
+Track when a user ends a session.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "sessionKey": "session_user_12345",
+  "duration": 1800
+}
+```
+
+### Admin & Configuration
+
+#### `${gameID}_get_server_config`
+Get server configuration.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "config": {
+      "maxPlayersPerMatch": 10,
+      "matchDuration": 300,
+      "enableChat": true
+    }
+  }
+}
+```
+
+#### `${gameID}_admin_grant_item`
+Admin function to grant items to users.
+
+**Payload:**
+```json
+{
+  "gameID": "quizverse",
+  "targetUserId": "user_uuid",
+  "itemId": "powerup_001",
+  "quantity": 5
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "targetUserId": "user_uuid",
+    "itemId": "powerup_001",
+    "quantity": 5
+  }
+}
+```
+
+## Unity C# Examples for New Features
+
+### Catalog & Search
+```csharp
+// Get item catalog
+var catalog = await client.CallRPC<RPCResponse<CatalogData>>(
+    $"{currentGameID}_get_item_catalog",
+    new { limit = 100 }
+);
+
+// Search items
+var searchResults = await client.CallRPC<RPCResponse<SearchResults>>(
+    $"{currentGameID}_search_items",
+    new { query = "boost" }
+);
+
+// QuizVerse: Get categories
+var categories = await quizverseClient.CallRPC<RPCResponse<CategoriesData>>(
+    "quizverse_get_quiz_categories",
+    new { }
+);
+
+// LastToLive: Get weapon stats
+var weapons = await lasttoliveClient.CallRPC<RPCResponse<WeaponsData>>(
+    "lasttolive_get_weapon_stats",
+    new { }
+);
+```
+
+### Guilds
+```csharp
+// Create guild
+var guild = await client.CallRPC<RPCResponse<GuildData>>(
+    $"{currentGameID}_guild_create",
+    new { 
+        name = "Quiz Masters",
+        description = "Best players",
+        open = true,
+        maxCount = 50
+    }
+);
+
+// Join guild
+await client.CallRPC<RPCResponse<object>>(
+    $"{currentGameID}_guild_join",
+    new { guildId = "guild_uuid" }
+);
+
+// List guilds
+var guilds = await client.CallRPC<RPCResponse<GuildListData>>(
+    $"{currentGameID}_guild_list",
+    new { limit = 20 }
+);
+```
+
+### Analytics
+```csharp
+// Log event
+await client.CallRPC<RPCResponse<object>>(
+    $"{currentGameID}_log_event",
+    new {
+        eventName = "quiz_completed",
+        properties = new {
+            category = "science",
+            score = 850
+        }
+    }
+);
+
+// Track session
+var session = await client.CallRPC<RPCResponse<SessionData>>(
+    $"{currentGameID}_track_session_start",
+    new {
+        deviceInfo = new {
+            platform = "iOS",
+            version = "1.0.0"
+        }
+    }
+);
+
+// End session
+await client.CallRPC<RPCResponse<object>>(
+    $"{currentGameID}_track_session_end",
+    new {
+        sessionKey = session.data.sessionKey,
+        duration = 1800
+    }
+);
+```
+
+### Admin Functions
+```csharp
+// Get server config
+var config = await client.CallRPC<RPCResponse<ServerConfig>>(
+    $"{currentGameID}_get_server_config",
+    new { }
+);
+
+// Admin grant item (requires admin permissions)
+await client.CallRPC<RPCResponse<object>>(
+    $"{currentGameID}_admin_grant_item",
+    new {
+        targetUserId = "user_uuid",
+        itemId = "powerup_001",
+        quantity = 5
+    }
+);
+```
+
+## Data Models for New Features
+
+```csharp
+[System.Serializable]
+public class CatalogData
+{
+    public CatalogItem[] items;
+}
+
+[System.Serializable]
+public class CatalogItem
+{
+    public string itemId;
+    public string name;
+    public int price;
+    public string description;
+}
+
+[System.Serializable]
+public class SearchResults
+{
+    public CatalogItem[] results;
+    public string query;
+}
+
+[System.Serializable]
+public class GuildData
+{
+    public string guildId;
+    public string name;
+    public string description;
+}
+
+[System.Serializable]
+public class GuildListData
+{
+    public GuildInfo[] guilds;
+}
+
+[System.Serializable]
+public class GuildInfo
+{
+    public string guildId;
+    public string name;
+    public string description;
+    public int memberCount;
+}
+
+[System.Serializable]
+public class SessionData
+{
+    public string sessionKey;
+}
+
+[System.Serializable]
+public class ServerConfig
+{
+    public ConfigData config;
+}
+
+[System.Serializable]
+public class ConfigData
+{
+    public int maxPlayersPerMatch;
+    public int matchDuration;
+    public bool enableChat;
+}
+```
+
+## Total RPC Count
+
+**QuizVerse RPCs**: 28
+**LastToLive RPCs**: 28
+**Total**: 56 RPCs
+
+All following MEGA NAKAMA CODEX v3 requirements!
