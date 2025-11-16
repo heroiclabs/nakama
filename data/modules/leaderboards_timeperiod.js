@@ -63,14 +63,15 @@ function createGameLeaderboards(nk, logger, gameId, gameTitle) {
                 // Leaderboard doesn't exist, proceed to create
             }
 
-            // Create leaderboard
+            // Create leaderboard with both gameId (UUID) and gameTitle (name)
             var metadata = {
-                gameId: gameId,
-                gameTitle: gameTitle || "Untitled Game",
+                gameId: gameId,                    // Game UUID from external API
+                gameTitle: gameTitle || "Untitled Game",  // Game name from external API
                 scope: "game",
                 timePeriod: period,
                 resetSchedule: resetSchedule,
-                description: period.charAt(0).toUpperCase() + period.slice(1) + " Leaderboard for " + (gameTitle || gameId)
+                description: period.charAt(0).toUpperCase() + period.slice(1) + " Leaderboard for " + (gameTitle || gameId),
+                createdAt: new Date().toISOString()
             };
 
             nk.leaderboardCreate(
@@ -282,10 +283,47 @@ function rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload) {
 
         logger.info("[Leaderboards] Found " + games.length + " games");
 
-        // Step 3: Create global leaderboards
+        // Step 3: Store game registry with metadata
+        var gameRegistry = [];
+        for (var i = 0; i < games.length; i++) {
+            var game = games[i];
+            if (game.id) {
+                gameRegistry.push({
+                    gameId: game.id,  // UUID from external API
+                    gameTitle: game.gameTitle || game.name || "Untitled Game",
+                    gameDescription: game.gameDescription || "",
+                    logoUrl: game.logoUrl || "",
+                    status: game.status || "active",
+                    categories: game.gameCategories || [],
+                    createdAt: game.createdAt || new Date().toISOString(),
+                    updatedAt: game.updatedAt || new Date().toISOString()
+                });
+            }
+        }
+        
+        // Save game registry to storage
+        try {
+            nk.storageWrite([{
+                collection: "game_registry",
+                key: "all_games",
+                userId: "00000000-0000-0000-0000-000000000000",
+                value: {
+                    games: gameRegistry,
+                    lastUpdated: new Date().toISOString(),
+                    totalGames: gameRegistry.length
+                },
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+            logger.info("[GameRegistry] Stored " + gameRegistry.length + " game records");
+        } catch (err) {
+            logger.error("[GameRegistry] Failed to store game registry: " + err.message);
+        }
+
+        // Step 4: Create global leaderboards
         var globalResult = createGlobalLeaderboards(nk, logger);
 
-        // Step 4: Create per-game leaderboards
+        // Step 5: Create per-game leaderboards
         var gameResults = [];
         var totalCreated = globalResult.created.length;
         var totalSkipped = globalResult.skipped.length;
@@ -311,7 +349,7 @@ function rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload) {
             totalErrors += gameResult.errors.length;
         }
 
-        // Step 5: Store leaderboard registry
+        // Step 6: Store leaderboard registry
         var allLeaderboards = [];
         
         // Add global leaderboards
@@ -432,9 +470,9 @@ function rpcSubmitScoreToTimePeriods(ctx, logger, nk, payload) {
         var userId = ctx.userId;
         var username = ctx.username || userId;
 
-        // Add submission metadata
+        // Add submission metadata with gameId (UUID)
         metadata.submittedAt = new Date().toISOString();
-        metadata.gameId = gameId;
+        metadata.gameId = gameId;  // UUID from game registry
         metadata.source = "submit_score_to_time_periods";
 
         // Submit to all time-period leaderboards
@@ -611,6 +649,141 @@ function rpcGetTimePeriodLeaderboard(ctx, logger, nk, payload) {
     }
 }
 
+/**
+ * RPC: get_game_registry
+ * Get all registered games with their metadata
+ */
+function rpcGetGameRegistry(ctx, logger, nk, payload) {
+    try {
+        logger.info("[GameRegistry] Fetching game registry");
+        
+        // Read game registry from storage
+        var gameRegistry = null;
+        try {
+            var records = nk.storageRead([{
+                collection: "game_registry",
+                key: "all_games",
+                userId: "00000000-0000-0000-0000-000000000000"
+            }]);
+            
+            if (records && records.length > 0 && records[0].value) {
+                gameRegistry = records[0].value;
+            }
+        } catch (err) {
+            logger.error("[GameRegistry] Failed to read game registry: " + err.message);
+            return JSON.stringify({
+                success: false,
+                error: "Failed to read game registry: " + err.message
+            });
+        }
+        
+        if (!gameRegistry) {
+            return JSON.stringify({
+                success: false,
+                error: "Game registry not found. Please run create_time_period_leaderboards first."
+            });
+        }
+        
+        return JSON.stringify({
+            success: true,
+            games: gameRegistry.games || [],
+            totalGames: gameRegistry.totalGames || 0,
+            lastUpdated: gameRegistry.lastUpdated
+        });
+        
+    } catch (err) {
+        logger.error("[GameRegistry] Unexpected error in rpcGetGameRegistry: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "An unexpected error occurred: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: get_game_by_id
+ * Get a specific game by its ID (UUID)
+ */
+function rpcGetGameById(ctx, logger, nk, payload) {
+    try {
+        // Parse payload
+        var data;
+        try {
+            data = JSON.parse(payload);
+        } catch (err) {
+            return JSON.stringify({
+                success: false,
+                error: "Invalid JSON payload"
+            });
+        }
+        
+        if (!data.gameId) {
+            return JSON.stringify({
+                success: false,
+                error: "Missing required field: gameId"
+            });
+        }
+        
+        var gameId = data.gameId;
+        logger.info("[GameRegistry] Fetching game: " + gameId);
+        
+        // Read game registry
+        var gameRegistry = null;
+        try {
+            var records = nk.storageRead([{
+                collection: "game_registry",
+                key: "all_games",
+                userId: "00000000-0000-0000-0000-000000000000"
+            }]);
+            
+            if (records && records.length > 0 && records[0].value) {
+                gameRegistry = records[0].value;
+            }
+        } catch (err) {
+            logger.error("[GameRegistry] Failed to read game registry: " + err.message);
+            return JSON.stringify({
+                success: false,
+                error: "Failed to read game registry: " + err.message
+            });
+        }
+        
+        if (!gameRegistry || !gameRegistry.games) {
+            return JSON.stringify({
+                success: false,
+                error: "Game registry not found"
+            });
+        }
+        
+        // Find game by ID
+        var game = null;
+        for (var i = 0; i < gameRegistry.games.length; i++) {
+            if (gameRegistry.games[i].gameId === gameId) {
+                game = gameRegistry.games[i];
+                break;
+            }
+        }
+        
+        if (!game) {
+            return JSON.stringify({
+                success: false,
+                error: "Game not found: " + gameId
+            });
+        }
+        
+        return JSON.stringify({
+            success: true,
+            game: game
+        });
+        
+    } catch (err) {
+        logger.error("[GameRegistry] Unexpected error in rpcGetGameById: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "An unexpected error occurred: " + err.message
+        });
+    }
+}
+
 // Export functions (ES Module syntax)
 export {
     createGameLeaderboards,
@@ -618,6 +791,8 @@ export {
     rpcCreateTimePeriodLeaderboards,
     rpcSubmitScoreToTimePeriods,
     rpcGetTimePeriodLeaderboard,
+    rpcGetGameRegistry,
+    rpcGetGameById,
     RESET_SCHEDULES,
     LEADERBOARD_CONFIG
 };

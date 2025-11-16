@@ -1,22 +1,28 @@
 // wallet.js - Per-game and global wallet management
 // Compatible with Nakama JavaScript runtime (no ES modules)
+//
+// IMPORTANT:
+// - gameId parameter can be either:
+//   1. Legacy game name ("quizverse", "lasttolive") for backward compatibility
+//   2. Game UUID from external registry for new games
+// - Storage keys use the gameId as-is to maintain compatibility
 
 /**
  * Get or create a per-game wallet
  * @param {object} nk - Nakama runtime
  * @param {object} logger - Logger instance
  * @param {string} deviceId - Device identifier
- * @param {string} gameId - Game UUID
+ * @param {string} gameId - Game identifier (legacy name or UUID)
  * @param {string} walletId - Wallet ID from identity
  * @param {string} userId - Optional authenticated user ID
  * @returns {object} Wallet object
  */
 function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
-    var collection = "quizverse";
+    var collection = "game_wallets";  // Updated to more generic collection name
     var key = "wallet:" + deviceId + ":" + gameId;
     var storageUserId = userId || "00000000-0000-0000-0000-000000000000";
     
-    logger.info("[NAKAMA] Looking for game wallet: " + key + " (userId: " + storageUserId + ")");
+    logger.info("[Wallet] Looking for game wallet: " + key + " (userId: " + storageUserId + ", gameId: " + gameId + ")");
     
     // Try to read existing wallet with actual userId first
     try {
@@ -27,7 +33,7 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
         }]);
         
         if (records && records.length > 0 && records[0].value) {
-            logger.info("[NAKAMA] Found existing game wallet");
+            logger.info("[Wallet] Found existing game wallet for gameId: " + gameId);
             return records[0].value;
         }
         
@@ -40,7 +46,7 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
             }]);
             
             if (records && records.length > 0 && records[0].value) {
-                logger.info("[NAKAMA] Found existing game wallet with system userId, migrating");
+                logger.info("[Wallet] Found existing game wallet with system userId, migrating");
                 var existingWallet = records[0].value;
                 existingWallet.user_id = userId;
                 
@@ -59,11 +65,11 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
             }
         }
     } catch (err) {
-        logger.warn("[NAKAMA] Failed to read game wallet: " + err.message);
+        logger.warn("[Wallet] Failed to read game wallet: " + err.message);
     }
     
     // Create new game wallet
-    logger.info("[NAKAMA] Creating new game wallet");
+    logger.info("[Wallet] Creating new game wallet for gameId: " + gameId);
     
     var wallet = {
         wallet_id: walletId,
@@ -88,9 +94,9 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
             version: "*"
         }]);
         
-        logger.info("[NAKAMA] Created game wallet with balance 0 for userId " + storageUserId);
+        logger.info("[Wallet] Created game wallet with balance 0 for userId " + storageUserId + ", gameId: " + gameId);
     } catch (err) {
-        logger.error("[NAKAMA] Failed to write game wallet: " + err.message);
+        logger.error("[Wallet] Failed to write game wallet: " + err.message);
         throw err;
     }
     

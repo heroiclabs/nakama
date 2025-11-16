@@ -8926,6 +8926,18 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[Leaderboards] Failed to initialize time-period leaderboards: ' + err.message);
     }
     
+    // Register Game Registry RPCs
+    try {
+        logger.info('[GameRegistry] Initializing Game Registry Module...');
+        initializer.registerRpc('get_game_registry', rpcGetGameRegistry);
+        logger.info('[GameRegistry] Registered RPC: get_game_registry');
+        initializer.registerRpc('get_game_by_id', rpcGetGameById);
+        logger.info('[GameRegistry] Registered RPC: get_game_by_id');
+        logger.info('[GameRegistry] Successfully registered 2 Game Registry RPCs');
+    } catch (err) {
+        logger.error('[GameRegistry] Failed to initialize game registry: ' + err.message);
+    }
+    
     // Register Daily Rewards RPCs
     try {
         logger.info('[DailyRewards] Initializing Daily Rewards Module...');
