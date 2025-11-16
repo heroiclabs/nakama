@@ -153,7 +153,14 @@ This platform now includes a **comprehensive multi-game architecture** supportin
        ├── Updates game wallet balance = score
        └── Returns leaderboards_updated[]
 
-5. View Leaderboards
+5. View All Leaderboards
+   └── Call get_all_leaderboards(device_id, game_id, limit)
+       ├── Retrieves records from all leaderboard types
+       ├── Returns user's own record for each leaderboard
+       ├── Includes pagination cursors
+       └── Returns {leaderboards: {...}, total_leaderboards, ...}
+
+6. View Individual Leaderboards
    └── Read from any leaderboard using Nakama SDK
 ```
 
@@ -280,12 +287,35 @@ var scoreResult = await client.RpcAsync(session, "submit_score_and_sync", JsonUt
 // Automatically updates 12+ leaderboards + wallet balance
 ```
 
+#### Step 4: Get All Leaderboards
+
+```csharp
+var leaderboardPayload = new {
+    device_id = SystemInfo.deviceUniqueIdentifier,
+    game_id = "your-game-uuid",
+    limit = 10  // Top 10 per leaderboard
+};
+var allLeaderboards = await client.RpcAsync(session, "get_all_leaderboards", JsonUtility.ToJson(leaderboardPayload));
+// Returns: All leaderboards with records, user's rank, pagination cursors
+```
+
 **That's it!** Your game now has:
 - ✅ Per-game and global wallets
 - ✅ 5 time-period game leaderboards (main, daily, weekly, monthly, all-time)
 - ✅ 5 time-period global leaderboards
 - ✅ 2 friends leaderboards
 - ✅ All registry leaderboards auto-detected
+
+### Core RPCs Summary
+
+This platform provides 4 essential RPCs for multi-game integration:
+
+| RPC | Purpose | Input | Output |
+|-----|---------|-------|--------|
+| **create_or_sync_user** | Create/retrieve player identity | `{username, device_id, game_id}` | `{wallet_id, global_wallet_id}` |
+| **create_or_get_wallet** | Get per-game + global wallets | `{device_id, game_id}` | `{game_wallet, global_wallet}` |
+| **submit_score_and_sync** | Submit score to ALL leaderboards | `{score, device_id, game_id}` | `{leaderboards_updated[], wallet_balance}` |
+| **get_all_leaderboards** | Retrieve all leaderboard data | `{device_id, game_id, limit}` | `{leaderboards: {...}, total_leaderboards}` |
 
 ### Complete Documentation
 
