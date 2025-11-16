@@ -86,6 +86,106 @@ function getAllLeaderboardIds(nk, logger) {
 }
 
 /**
+ * Leaderboard configuration constants
+ */
+var LEADERBOARD_CONFIG = {
+    authoritative: true,
+    sort: "desc",
+    operator: "best"
+};
+
+var RESET_SCHEDULES = {
+    daily: "0 0 * * *",      // Every day at midnight UTC
+    weekly: "0 0 * * 0",     // Every Sunday at midnight UTC
+    monthly: "0 0 1 * *",    // 1st of every month at midnight UTC
+    alltime: ""              // No reset
+};
+
+/**
+ * Ensure a leaderboard exists, creating it if necessary
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} leaderboardId - Leaderboard ID
+ * @param {string} resetSchedule - Optional cron reset schedule
+ * @param {object} metadata - Optional metadata
+ * @returns {boolean} true if leaderboard exists or was created
+ */
+function ensureLeaderboardExists(nk, logger, leaderboardId, resetSchedule, metadata) {
+    try {
+        // Try to create the leaderboard - if it exists, this will fail silently
+        nk.leaderboardCreate(
+            leaderboardId,
+            LEADERBOARD_CONFIG.authoritative,
+            LEADERBOARD_CONFIG.sort,
+            LEADERBOARD_CONFIG.operator,
+            resetSchedule || "",
+            metadata || {}
+        );
+        logger.info("[NAKAMA] Created leaderboard: " + leaderboardId);
+        return true;
+    } catch (err) {
+        // Leaderboard likely already exists, which is fine
+        return true;
+    }
+}
+
+/**
+ * Get all existing leaderboards from registry
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @returns {array} Array of leaderboard IDs
+ */
+function getAllLeaderboardIds(nk, logger) {
+    var leaderboardIds = [];
+    
+    // Read from leaderboards_registry
+    try {
+        var records = nk.storageRead([{
+            collection: "leaderboards_registry",
+            key: "all_created",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            var registry = records[0].value;
+            for (var i = 0; i < registry.length; i++) {
+                if (registry[i].leaderboardId) {
+                    leaderboardIds.push(registry[i].leaderboardId);
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to read leaderboards registry: " + err.message);
+    }
+    
+    // Also read from time_period_leaderboards registry
+    try {
+        var timePeriodRecords = nk.storageRead([{
+            collection: "leaderboards_registry",
+            key: "time_period_leaderboards",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (timePeriodRecords && timePeriodRecords.length > 0 && timePeriodRecords[0].value) {
+            var timePeriodRegistry = timePeriodRecords[0].value;
+            if (timePeriodRegistry.leaderboards) {
+                for (var i = 0; i < timePeriodRegistry.leaderboards.length; i++) {
+                    var lb = timePeriodRegistry.leaderboards[i];
+                    if (lb.leaderboardId && leaderboardIds.indexOf(lb.leaderboardId) === -1) {
+                        leaderboardIds.push(lb.leaderboardId);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn("[NAKAMA] Failed to read time period leaderboards registry: " + err.message);
+    }
+    
+    logger.info("[NAKAMA] Found " + leaderboardIds.length + " existing leaderboards in registry");
+    return leaderboardIds;
+}
+
+/**
  * Write score to all relevant leaderboards
  * @param {object} nk - Nakama runtime
  * @param {object} logger - Logger instance
@@ -105,6 +205,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     
     // 1. Write to main game leaderboard
     var gameLeaderboardId = "leaderboard_" + gameId;
+    ensureLeaderboardExists(nk, logger, gameLeaderboardId, "", { scope: "game", gameId: gameId, description: "Main leaderboard for game " + gameId });
     try {
         nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
         leaderboardsUpdated.push(gameLeaderboardId);
@@ -118,6 +219,13 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     for (var i = 0; i < timePeriods.length; i++) {
         var period = timePeriods[i];
         var periodLeaderboardId = "leaderboard_" + gameId + "_" + period;
+        var resetSchedule = RESET_SCHEDULES[period];
+        ensureLeaderboardExists(nk, logger, periodLeaderboardId, resetSchedule, { 
+            scope: "game", 
+            gameId: gameId, 
+            timePeriod: period,
+            description: period.charAt(0).toUpperCase() + period.slice(1) + " leaderboard for game " + gameId
+        });
         try {
             nk.leaderboardRecordWrite(periodLeaderboardId, userId, username, score, 0, metadata);
             leaderboardsUpdated.push(periodLeaderboardId);
@@ -129,6 +237,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     
     // 3. Write to global leaderboards
     var globalLeaderboardId = "leaderboard_global";
+    ensureLeaderboardExists(nk, logger, globalLeaderboardId, "", { scope: "global", description: "Global all-time leaderboard" });
     try {
         nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
         leaderboardsUpdated.push(globalLeaderboardId);
@@ -141,6 +250,12 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     for (var i = 0; i < timePeriods.length; i++) {
         var period = timePeriods[i];
         var globalPeriodId = "leaderboard_global_" + period;
+        var resetSchedule = RESET_SCHEDULES[period];
+        ensureLeaderboardExists(nk, logger, globalPeriodId, resetSchedule, { 
+            scope: "global", 
+            timePeriod: period,
+            description: period.charAt(0).toUpperCase() + period.slice(1) + " global leaderboard"
+        });
         try {
             nk.leaderboardRecordWrite(globalPeriodId, userId, username, score, 0, metadata);
             leaderboardsUpdated.push(globalPeriodId);
@@ -152,6 +267,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     
     // 5. Write to friends leaderboards
     var friendsGameId = "leaderboard_friends_" + gameId;
+    ensureLeaderboardExists(nk, logger, friendsGameId, "", { scope: "friends_game", gameId: gameId, description: "Friends leaderboard for game " + gameId });
     try {
         nk.leaderboardRecordWrite(friendsGameId, userId, username, score, 0, metadata);
         leaderboardsUpdated.push(friendsGameId);
@@ -161,6 +277,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     }
     
     var friendsGlobalId = "leaderboard_friends_global";
+    ensureLeaderboardExists(nk, logger, friendsGlobalId, "", { scope: "friends_global", description: "Global friends leaderboard" });
     try {
         nk.leaderboardRecordWrite(friendsGlobalId, userId, username, score, 0, metadata);
         leaderboardsUpdated.push(friendsGlobalId);

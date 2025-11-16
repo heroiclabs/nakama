@@ -8,28 +8,65 @@
  * @param {string} deviceId - Device identifier
  * @param {string} gameId - Game UUID
  * @param {string} username - Username to assign
+ * @param {string} userId - Optional authenticated user ID from context
  * @returns {object} Identity object with wallet_id and global_wallet_id
  */
-function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
+function getOrCreateIdentity(nk, logger, deviceId, gameId, username, userId) {
     var collection = "quizverse";
     var key = "identity:" + deviceId + ":" + gameId;
     
-    logger.info("[NAKAMA] Looking for identity: " + key);
+    // Use provided userId or fallback to system userId for device-based lookups
+    var storageUserId = userId || "00000000-0000-0000-0000-000000000000";
     
-    // Try to read existing identity
+    logger.info("[NAKAMA] Looking for identity: " + key + " (userId: " + storageUserId + ")");
+    
+    // Try to read existing identity - first try with actual userId, then fallback to system userId for backward compatibility
     try {
         var records = nk.storageRead([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000"
+            userId: storageUserId
         }]);
         
         if (records && records.length > 0 && records[0].value) {
             logger.info("[NAKAMA] Found existing identity for device " + deviceId + " game " + gameId);
             return {
                 exists: true,
-                identity: records[0].value
+                identity: records[0].value,
+                userId: storageUserId
             };
+        }
+        
+        // If not found with userId, try with system userId for backward compatibility
+        if (userId && storageUserId !== "00000000-0000-0000-0000-000000000000") {
+            records = nk.storageRead([{
+                collection: collection,
+                key: key,
+                userId: "00000000-0000-0000-0000-000000000000"
+            }]);
+            
+            if (records && records.length > 0 && records[0].value) {
+                logger.info("[NAKAMA] Found existing identity with system userId, migrating to user-scoped storage");
+                var existingIdentity = records[0].value;
+                
+                // Migrate to user-scoped storage
+                nk.storageWrite([{
+                    collection: collection,
+                    key: key,
+                    userId: userId,
+                    value: existingIdentity,
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                    version: "*"
+                }]);
+                
+                return {
+                    exists: true,
+                    identity: existingIdentity,
+                    userId: userId,
+                    migrated: true
+                };
+            }
         }
     } catch (err) {
         logger.warn("[NAKAMA] Failed to read identity: " + err.message);
@@ -48,23 +85,24 @@ function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
         game_id: gameId,
         wallet_id: walletId,
         global_wallet_id: globalWalletId,
+        user_id: userId || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
     
-    // Write identity to storage
+    // Write identity to storage with proper userId
     try {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000",
+            userId: storageUserId,
             value: identity,
             permissionRead: 1,
             permissionWrite: 0,
             version: "*"
         }]);
         
-        logger.info("[NAKAMA] Created identity with wallet_id " + walletId);
+        logger.info("[NAKAMA] Created identity with wallet_id " + walletId + " for userId " + storageUserId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write identity: " + err.message);
         throw err;
@@ -72,7 +110,8 @@ function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
     
     return {
         exists: false,
-        identity: identity
+        identity: identity,
+        userId: storageUserId
     };
 }
 
