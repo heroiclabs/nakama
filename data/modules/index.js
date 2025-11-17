@@ -5424,20 +5424,40 @@ function getAllLeaderboardIds(nk, logger) {
  */
 function ensureLeaderboardExists(nk, logger, leaderboardId, resetSchedule, metadata) {
     try {
-        // Try to create the leaderboard - if it exists, this will fail silently
+        // Check if leaderboard already exists
+        try {
+            var existing = nk.leaderboardsGetId([leaderboardId]);
+            if (existing && existing.length > 0) {
+                logger.debug("[NAKAMA] Leaderboard already exists: " + leaderboardId);
+                return true;
+            }
+        } catch (checkErr) {
+            // Leaderboard doesn't exist, proceed to create
+        }
+        
+        // Nakama leaderboardCreate expects metadata as object, NOT JSON string
+        var metadataObj = metadata || {};
+        
+        // Try to create the leaderboard
         nk.leaderboardCreate(
             leaderboardId,
             LEADERBOARD_CONFIG.authoritative,
             LEADERBOARD_CONFIG.sort,
             LEADERBOARD_CONFIG.operator,
             resetSchedule || "",
-            metadata || {}
+            metadataObj
         );
-        logger.info("[NAKAMA] Created leaderboard: " + leaderboardId);
+        logger.info("[NAKAMA] ✓ Created leaderboard: " + leaderboardId);
         return true;
     } catch (err) {
-        // Leaderboard likely already exists, which is fine
-        return true;
+        // Log actual error for debugging
+        logger.error("[NAKAMA] ✗ Failed to create leaderboard " + leaderboardId + ": " + err.message);
+        // Still return true if it's a "leaderboard already exists" error
+        if (err.message && err.message.indexOf("already exists") !== -1) {
+            logger.info("[NAKAMA] Leaderboard already exists (from error): " + leaderboardId);
+            return true;
+        }
+        return false;
     }
 }
 
@@ -5461,13 +5481,17 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     
     // 1. Write to main game leaderboard
     var gameLeaderboardId = "leaderboard_" + gameId;
-    ensureLeaderboardExists(nk, logger, gameLeaderboardId, "", { scope: "game", gameId: gameId, description: "Main leaderboard for game " + gameId });
-    try {
-        nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
-        leaderboardsUpdated.push(gameLeaderboardId);
-        logger.info("[NAKAMA] Score written to " + gameLeaderboardId);
-    } catch (err) {
-        logger.warn("[NAKAMA] Failed to write to " + gameLeaderboardId + ": " + err.message);
+    var created = ensureLeaderboardExists(nk, logger, gameLeaderboardId, "", { scope: "game", gameId: gameId, description: "Main leaderboard for game " + gameId });
+    if (created) {
+        try {
+            nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
+            leaderboardsUpdated.push(gameLeaderboardId);
+            logger.info("[NAKAMA] ✓ Score written to " + gameLeaderboardId + " (Rank updated)");
+        } catch (err) {
+            logger.error("[NAKAMA] ✗ Failed to write to " + gameLeaderboardId + ": " + err.message);
+        }
+    } else {
+        logger.error("[NAKAMA] ✗ Skipping score write - leaderboard creation failed: " + gameLeaderboardId);
     }
     
     // 2. Write to time-period game leaderboards
@@ -5476,30 +5500,38 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         var period = timePeriods[i];
         var periodLeaderboardId = "leaderboard_" + gameId + "_" + period;
         var resetSchedule = RESET_SCHEDULES[period];
-        ensureLeaderboardExists(nk, logger, periodLeaderboardId, resetSchedule, { 
+        var created = ensureLeaderboardExists(nk, logger, periodLeaderboardId, resetSchedule, { 
             scope: "game", 
             gameId: gameId, 
             timePeriod: period,
             description: period.charAt(0).toUpperCase() + period.slice(1) + " leaderboard for game " + gameId
         });
-        try {
-            nk.leaderboardRecordWrite(periodLeaderboardId, userId, username, score, 0, metadata);
-            leaderboardsUpdated.push(periodLeaderboardId);
-            logger.info("[NAKAMA] Score written to " + periodLeaderboardId);
-        } catch (err) {
-            logger.warn("[NAKAMA] Failed to write to " + periodLeaderboardId + ": " + err.message);
+        if (created) {
+            try {
+                nk.leaderboardRecordWrite(periodLeaderboardId, userId, username, score, 0, metadata);
+                leaderboardsUpdated.push(periodLeaderboardId);
+                logger.info("[NAKAMA] ✓ Score written to " + periodLeaderboardId);
+            } catch (err) {
+                logger.error("[NAKAMA] ✗ Failed to write to " + periodLeaderboardId + ": " + err.message);
+            }
+        } else {
+            logger.error("[NAKAMA] ✗ Skipping score write - leaderboard creation failed: " + periodLeaderboardId);
         }
     }
     
     // 3. Write to global leaderboards
     var globalLeaderboardId = "leaderboard_global";
-    ensureLeaderboardExists(nk, logger, globalLeaderboardId, "", { scope: "global", description: "Global all-time leaderboard" });
-    try {
-        nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
-        leaderboardsUpdated.push(globalLeaderboardId);
-        logger.info("[NAKAMA] Score written to " + globalLeaderboardId);
-    } catch (err) {
-        logger.warn("[NAKAMA] Failed to write to " + globalLeaderboardId + ": " + err.message);
+    var created = ensureLeaderboardExists(nk, logger, globalLeaderboardId, "", { scope: "global", description: "Global all-time leaderboard" });
+    if (created) {
+        try {
+            nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
+            leaderboardsUpdated.push(globalLeaderboardId);
+            logger.info("[NAKAMA] ✓ Score written to " + globalLeaderboardId);
+        } catch (err) {
+            logger.error("[NAKAMA] ✗ Failed to write to " + globalLeaderboardId + ": " + err.message);
+        }
+    } else {
+        logger.error("[NAKAMA] ✗ Skipping score write - leaderboard creation failed: " + globalLeaderboardId);
     }
     
     // 4. Write to time-period global leaderboards
@@ -5507,39 +5539,45 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         var period = timePeriods[i];
         var globalPeriodId = "leaderboard_global_" + period;
         var resetSchedule = RESET_SCHEDULES[period];
-        ensureLeaderboardExists(nk, logger, globalPeriodId, resetSchedule, { 
+        var created = ensureLeaderboardExists(nk, logger, globalPeriodId, resetSchedule, { 
             scope: "global", 
             timePeriod: period,
             description: period.charAt(0).toUpperCase() + period.slice(1) + " global leaderboard"
         });
-        try {
-            nk.leaderboardRecordWrite(globalPeriodId, userId, username, score, 0, metadata);
-            leaderboardsUpdated.push(globalPeriodId);
-            logger.info("[NAKAMA] Score written to " + globalPeriodId);
-        } catch (err) {
-            logger.warn("[NAKAMA] Failed to write to " + globalPeriodId + ": " + err.message);
+        if (created) {
+            try {
+                nk.leaderboardRecordWrite(globalPeriodId, userId, username, score, 0, metadata);
+                leaderboardsUpdated.push(globalPeriodId);
+                logger.info("[NAKAMA] ✓ Score written to " + globalPeriodId);
+            } catch (err) {
+                logger.error("[NAKAMA] ✗ Failed to write to " + globalPeriodId + ": " + err.message);
+            }
         }
     }
     
     // 5. Write to friends leaderboards
     var friendsGameId = "leaderboard_friends_" + gameId;
-    ensureLeaderboardExists(nk, logger, friendsGameId, "", { scope: "friends_game", gameId: gameId, description: "Friends leaderboard for game " + gameId });
-    try {
-        nk.leaderboardRecordWrite(friendsGameId, userId, username, score, 0, metadata);
-        leaderboardsUpdated.push(friendsGameId);
-        logger.info("[NAKAMA] Score written to " + friendsGameId);
-    } catch (err) {
-        logger.warn("[NAKAMA] Failed to write to " + friendsGameId + ": " + err.message);
+    var created = ensureLeaderboardExists(nk, logger, friendsGameId, "", { scope: "friends_game", gameId: gameId, description: "Friends leaderboard for game " + gameId });
+    if (created) {
+        try {
+            nk.leaderboardRecordWrite(friendsGameId, userId, username, score, 0, metadata);
+            leaderboardsUpdated.push(friendsGameId);
+            logger.info("[NAKAMA] ✓ Score written to " + friendsGameId);
+        } catch (err) {
+            logger.error("[NAKAMA] ✗ Failed to write to " + friendsGameId + ": " + err.message);
+        }
     }
     
     var friendsGlobalId = "leaderboard_friends_global";
-    ensureLeaderboardExists(nk, logger, friendsGlobalId, "", { scope: "friends_global", description: "Global friends leaderboard" });
-    try {
-        nk.leaderboardRecordWrite(friendsGlobalId, userId, username, score, 0, metadata);
-        leaderboardsUpdated.push(friendsGlobalId);
-        logger.info("[NAKAMA] Score written to " + friendsGlobalId);
-    } catch (err) {
-        logger.warn("[NAKAMA] Failed to write to " + friendsGlobalId + ": " + err.message);
+    var created = ensureLeaderboardExists(nk, logger, friendsGlobalId, "", { scope: "friends_global", description: "Global friends leaderboard" });
+    if (created) {
+        try {
+            nk.leaderboardRecordWrite(friendsGlobalId, userId, username, score, 0, metadata);
+            leaderboardsUpdated.push(friendsGlobalId);
+            logger.info("[NAKAMA] ✓ Score written to " + friendsGlobalId);
+        } catch (err) {
+            logger.error("[NAKAMA] ✗ Failed to write to " + friendsGlobalId + ": " + err.message);
+        }
     }
     
     // 6. Write to all other existing leaderboards found in registry
