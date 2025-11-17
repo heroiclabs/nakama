@@ -68,13 +68,38 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
         logger.warn("[Wallet] Failed to read game wallet: " + err.message);
     }
     
-    // Create new game wallet
+    // Create new game wallet with enhanced metadata
     logger.info("[Wallet] Creating new game wallet for gameId: " + gameId);
+    
+    // Try to get game metadata from registry
+    var gameTitle = null;
+    try {
+        var registryRecords = nk.storageRead([{
+            collection: "game_registry",
+            key: "all_games",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        
+        if (registryRecords && registryRecords.length > 0 && registryRecords[0].value) {
+            var registry = registryRecords[0].value;
+            if (registry.games) {
+                for (var i = 0; i < registry.games.length; i++) {
+                    if (registry.games[i].gameId === gameId) {
+                        gameTitle = registry.games[i].gameTitle;
+                        break;
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        logger.debug("[Wallet] Could not fetch game title from registry: " + err.message);
+    }
     
     var wallet = {
         wallet_id: walletId,
         device_id: deviceId,
         game_id: gameId,
+        game_title: gameTitle || "Unknown Game",  // Add game title for admin visibility
         user_id: userId || null,
         balance: 0,
         currency: "coins",
@@ -113,11 +138,11 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
  * @returns {object} Global wallet object
  */
 function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId, userId) {
-    var collection = "quizverse";
+    var collection = "global_wallets";  // Use dedicated collection for global wallets
     var key = "wallet:" + deviceId + ":global";
     var storageUserId = userId || "00000000-0000-0000-0000-000000000000";
     
-    logger.info("[NAKAMA] Looking for global wallet: " + key + " (userId: " + storageUserId + ")");
+    logger.info("[Wallet] Looking for global wallet: " + key + " (userId: " + storageUserId + ")");
     
     // Try to read existing wallet with actual userId first
     try {
@@ -128,7 +153,7 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId, userId) {
         }]);
         
         if (records && records.length > 0 && records[0].value) {
-            logger.info("[NAKAMA] Found existing global wallet");
+            logger.info("[Wallet] Found existing global wallet");
             return records[0].value;
         }
         
@@ -141,7 +166,7 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId, userId) {
             }]);
             
             if (records && records.length > 0 && records[0].value) {
-                logger.info("[NAKAMA] Found existing global wallet with system userId, migrating");
+                logger.info("[Wallet] Found existing global wallet with system userId, migrating");
                 var existingWallet = records[0].value;
                 existingWallet.user_id = userId;
                 
@@ -160,19 +185,40 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId, userId) {
             }
         }
     } catch (err) {
-        logger.warn("[NAKAMA] Failed to read global wallet: " + err.message);
+        logger.warn("[Wallet] Failed to read global wallet: " + err.message);
     }
     
-    // Create new global wallet
-    logger.info("[NAKAMA] Creating new global wallet");
+    // Create new global wallet with enhanced metadata
+    logger.info("[Wallet] Creating new global wallet for user");
+    
+    // Get user's linked games for metadata
+    var linkedGames = [];
+    try {
+        var gameWalletRecords = nk.storageList(storageUserId, "game_wallets", 100, null);
+        if (gameWalletRecords && gameWalletRecords.objects) {
+            for (var i = 0; i < gameWalletRecords.objects.length; i++) {
+                var gw = gameWalletRecords.objects[i].value;
+                if (gw.game_id) {
+                    linkedGames.push({
+                        gameId: gw.game_id,
+                        gameTitle: gw.game_title || "Unknown"
+                    });
+                }
+            }
+        }
+    } catch (err) {
+        logger.debug("[Wallet] Could not fetch linked games: " + err.message);
+    }
     
     var wallet = {
         wallet_id: globalWalletId,
         device_id: deviceId,
         game_id: "global",
+        game_title: "Global Ecosystem Wallet",  // Add descriptive title
         user_id: userId || null,
         balance: 0,
         currency: "global_coins",
+        linked_games: linkedGames,  // Track which games this user plays
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
@@ -189,9 +235,9 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId, userId) {
             version: "*"
         }]);
         
-        logger.info("[NAKAMA] Created global wallet with balance 0 for userId " + storageUserId);
+        logger.info("[Wallet] Created global wallet with balance 0 for userId " + storageUserId);
     } catch (err) {
-        logger.error("[NAKAMA] Failed to write global wallet: " + err.message);
+        logger.error("[Wallet] Failed to write global wallet: " + err.message);
         throw err;
     }
     

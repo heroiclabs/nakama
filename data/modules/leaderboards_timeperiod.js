@@ -784,6 +784,137 @@ function rpcGetGameById(ctx, logger, nk, payload) {
     }
 }
 
+/**
+ * RPC: sync_game_registry
+ * Manually trigger game registry sync from external API
+ * Can be called at deployment, restart, or on-demand
+ */
+function rpcSyncGameRegistry(ctx, logger, nk, payload) {
+    try {
+        logger.info("[GameRegistry] Manual sync triggered");
+        
+        // Reuse the sync logic from create_time_period_leaderboards
+        var tokenUrl = "https://api.intelli-verse-x.ai/api/admin/oauth/token";
+        var gamesUrl = "https://api.intelli-verse-x.ai/api/games/games/all";
+        var client_id = "54clc0uaqvr1944qvkas63o0rb";
+        var client_secret = "1eb7ooua6ft832nh8dpmi37mos4juqq27svaqvmkt5grc3b7e377";
+        
+        // Get OAuth token
+        logger.info("[GameRegistry] Requesting IntelliVerse OAuth token...");
+        var tokenResponse = nk.httpRequest(tokenUrl, "post", {
+            "accept": "application/json",
+            "Content-Type": "application/json"
+        }, JSON.stringify({
+            client_id: client_id,
+            client_secret: client_secret
+        }));
+        
+        if (tokenResponse.code !== 200 && tokenResponse.code !== 201) {
+            return JSON.stringify({ 
+                success: false, 
+                error: "Token request failed with status code " + tokenResponse.code 
+            });
+        }
+        
+        var tokenData = JSON.parse(tokenResponse.body);
+        var accessToken = tokenData.access_token;
+        
+        // Fetch game list
+        logger.info("[GameRegistry] Fetching game list from IntelliVerse...");
+        var gameResponse = nk.httpRequest(gamesUrl, "get", {
+            "accept": "application/json",
+            "Authorization": "Bearer " + accessToken
+        });
+        
+        if (gameResponse.code !== 200) {
+            return JSON.stringify({ 
+                success: false, 
+                error: "Games API responded with status code " + gameResponse.code 
+            });
+        }
+        
+        var parsed = JSON.parse(gameResponse.body);
+        var games = parsed.data || [];
+        
+        logger.info("[GameRegistry] Found " + games.length + " games");
+        
+        // Store game registry
+        var gameRegistry = [];
+        for (var i = 0; i < games.length; i++) {
+            var game = games[i];
+            if (game.id) {
+                gameRegistry.push({
+                    gameId: game.id,
+                    gameTitle: game.gameTitle || game.name || "Untitled Game",
+                    gameDescription: game.gameDescription || "",
+                    logoUrl: game.logoUrl || "",
+                    videoUrl: game.videoUrl || "",
+                    coverPhotos: game.coverPhotos || [],
+                    status: game.status || "active",
+                    categories: game.gameCategories || [],
+                    revenueSources: game.revenueSources || [],
+                    adsPlacementTypes: game.adsPlacementTypes || "",
+                    userId: game.userId || "",
+                    userName: game.userName || "",
+                    createdAt: game.createdAt || new Date().toISOString(),
+                    updatedAt: game.updatedAt || new Date().toISOString()
+                });
+            }
+        }
+        
+        // Save to storage
+        nk.storageWrite([{
+            collection: "game_registry",
+            key: "all_games",
+            userId: "00000000-0000-0000-0000-000000000000",
+            value: {
+                games: gameRegistry,
+                lastUpdated: new Date().toISOString(),
+                totalGames: gameRegistry.length
+            },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        
+        logger.info("[GameRegistry] Successfully synced " + gameRegistry.length + " games");
+        
+        return JSON.stringify({
+            success: true,
+            gamesSync: gameRegistry.length,
+            lastUpdated: new Date().toISOString()
+        });
+        
+    } catch (err) {
+        logger.error("[GameRegistry] Sync failed: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Sync failed: " + err.message
+        });
+    }
+}
+
+/**
+ * Scheduled function to sync game registry daily
+ * Called automatically by Nakama scheduler
+ */
+function scheduledSyncGameRegistry(ctx, logger, nk) {
+    try {
+        logger.info("[GameRegistry] Daily scheduled sync started");
+        
+        // Call the sync RPC
+        var result = rpcSyncGameRegistry(ctx, logger, nk, "{}");
+        var parsed = JSON.parse(result);
+        
+        if (parsed.success) {
+            logger.info("[GameRegistry] Daily sync completed: " + parsed.gamesSync + " games synced");
+        } else {
+            logger.error("[GameRegistry] Daily sync failed: " + parsed.error);
+        }
+    } catch (err) {
+        logger.error("[GameRegistry] Scheduled sync error: " + err.message);
+    }
+}
+
 // Export functions (ES Module syntax)
 export {
     createGameLeaderboards,
@@ -793,6 +924,8 @@ export {
     rpcGetTimePeriodLeaderboard,
     rpcGetGameRegistry,
     rpcGetGameById,
+    rpcSyncGameRegistry,
+    scheduledSyncGameRegistry,
     RESET_SCHEDULES,
     LEADERBOARD_CONFIG
 };
