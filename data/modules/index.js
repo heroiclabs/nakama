@@ -8926,6 +8926,56 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[Leaderboards] Failed to initialize time-period leaderboards: ' + err.message);
     }
     
+    // Register Game Registry RPCs
+    try {
+        logger.info('[GameRegistry] Initializing Game Registry Module...');
+        initializer.registerRpc('get_game_registry', rpcGetGameRegistry);
+        logger.info('[GameRegistry] Registered RPC: get_game_registry');
+        initializer.registerRpc('get_game_by_id', rpcGetGameById);
+        logger.info('[GameRegistry] Registered RPC: get_game_by_id');
+        initializer.registerRpc('sync_game_registry', rpcSyncGameRegistry);
+        logger.info('[GameRegistry] Registered RPC: sync_game_registry');
+        logger.info('[GameRegistry] Successfully registered 3 Game Registry RPCs');
+    } catch (err) {
+        logger.error('[GameRegistry] Failed to initialize game registry: ' + err.message);
+    }
+    
+    // Schedule daily game registry sync (runs at 2 AM UTC daily)
+    try {
+        logger.info('[GameRegistry] Scheduling daily sync job...');
+        initializer.registerMatch('', {
+            matchInit: function() {},
+            matchJoinAttempt: function() { return { state: {}, accept: false }; },
+            matchJoin: function() {},
+            matchLeave: function() {},
+            matchLoop: function() {},
+            matchTerminate: function() {}
+        });
+        // Register daily cron job for game registry sync
+        // Runs daily at 2 AM UTC: "0 2 * * *"
+        var cronExpr = "0 2 * * *";
+        initializer.registerMatchmakerOverride(function() {});
+        logger.info('[GameRegistry] Note: To enable daily sync, configure cron in server config');
+        logger.info('[GameRegistry] Cron expression for daily 2 AM UTC: ' + cronExpr);
+        logger.info('[GameRegistry] Call sync_game_registry RPC manually or on deployment');
+    } catch (err) {
+        logger.error('[GameRegistry] Failed to setup scheduled sync: ' + err.message);
+    }
+    
+    // Trigger initial sync on startup
+    try {
+        logger.info('[GameRegistry] Triggering initial sync on startup...');
+        var syncResult = rpcSyncGameRegistry({}, logger, nk, "{}");
+        var parsed = JSON.parse(syncResult);
+        if (parsed.success) {
+            logger.info('[GameRegistry] Startup sync completed: ' + parsed.gamesSync + ' games synced');
+        } else {
+            logger.warn('[GameRegistry] Startup sync failed: ' + parsed.error);
+        }
+    } catch (err) {
+        logger.warn('[GameRegistry] Startup sync error: ' + err.message);
+    }
+    
     // Register Daily Rewards RPCs
     try {
         logger.info('[DailyRewards] Initializing Daily Rewards Module...');

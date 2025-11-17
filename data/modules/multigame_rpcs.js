@@ -1,13 +1,23 @@
-// multigame_rpcs.js - Multi-Game RPCs for QuizVerse and LastToLive
+// multigame_rpcs.js - Multi-Game RPCs for QuizVerse, LastToLive, and Custom Games
 // Pure JavaScript - No TypeScript
 // Compatible with Nakama V8 JavaScript runtime (No ES Modules)
+//
+// IMPORTANT TERMINOLOGY:
+// - gameID: Legacy identifier for built-in games ("quizverse", "lasttolive")
+// - gameUUID: Unique identifier (UUID) from external game registry API
+// - gameTitle: Human-readable game name from external API
+//
+// This module supports both:
+// 1. Legacy built-in games using gameID (backward compatibility)
+// 2. New games using gameUUID from external registry
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
 /**
- * Parse and validate payload with gameID
+ * Parse and validate payload with gameID or gameUUID
+ * Supports both legacy gameID ("quizverse", "lasttolive") and new gameUUID (UUID)
  */
 function parseAndValidateGamePayload(payload, requiredFields) {
     var data = {};
@@ -17,9 +27,24 @@ function parseAndValidateGamePayload(payload, requiredFields) {
         throw Error("Invalid JSON payload");
     }
 
-    var gameID = data.gameID;
-    if (!gameID || !["quizverse", "lasttolive"].includes(gameID)) {
-        throw Error("Unsupported gameID: " + gameID);
+    // Support both gameID (legacy) and gameUUID (new)
+    var gameIdentifier = data.gameID || data.gameUUID;
+    
+    if (!gameIdentifier) {
+        throw Error("Missing game identifier: provide either 'gameID' (for built-in games) or 'gameUUID' (for custom games)");
+    }
+    
+    // Normalize to gameID field for backward compatibility
+    if (!data.gameID && data.gameUUID) {
+        data.gameID = data.gameUUID;
+    }
+    
+    // Legacy validation for built-in games
+    var isLegacyGame = ["quizverse", "lasttolive"].includes(data.gameID);
+    var isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(data.gameID);
+    
+    if (!isLegacyGame && !isUUID) {
+        throw Error("Invalid game identifier. Must be 'quizverse', 'lasttolive', or a valid UUID");
     }
 
     // Validate required fields
@@ -1107,7 +1132,7 @@ function quizverseSavePlayerData(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_save_player_data
  */
-function lasttolive SavePlayerData(context, logger, nk, payload) {
+function lasttolliveSavePlayerData(context, logger, nk, payload) {
     return quizverseSavePlayerData(context, logger, nk, payload);
 }
 
