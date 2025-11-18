@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Fix migration script to correctly revert console fine-grained access control changes.
 
 ## [3.34.1] - 2025-11-12
 ### Added
