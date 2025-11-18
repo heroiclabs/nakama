@@ -7124,6 +7124,297 @@ function rpcGetLeaderboard(ctx, logger, nk, payload) {
     }
 }
 
+/**
+ * RPC: check_geo_and_update_profile
+ * Validates geolocation, calls Google Maps Reverse Geocoding API, 
+ * applies business logic, and updates user metadata
+ * 
+ * @param {object} ctx - Nakama context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime API
+ * @param {string} payload - JSON: { latitude: float, longitude: float }
+ * @returns {string} JSON response with allowed status and location details
+ * 
+ * Example payload:
+ * {
+ *   "latitude": 29.7604,
+ *   "longitude": -95.3698
+ * }
+ * 
+ * Example response (allowed):
+ * {
+ *   "allowed": true,
+ *   "country": "US",
+ *   "region": "Texas",
+ *   "city": "Houston",
+ *   "reason": null
+ * }
+ * 
+ * Example response (blocked):
+ * {
+ *   "allowed": false,
+ *   "country": "DE",
+ *   "region": "Berlin",
+ *   "city": "Berlin",
+ *   "reason": "Region not supported"
+ * }
+ */
+function rpcCheckGeoAndUpdateProfile(ctx, logger, nk, payload) {
+    logger.info('[RPC] check_geo_and_update_profile called');
+    
+    try {
+        // 2.1 Validate input
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Authentication required'
+            });
+        }
+        
+        var data = JSON.parse(payload || '{}');
+        
+        // Ensure latitude and longitude exist
+        if (data.latitude === undefined || data.latitude === null) {
+            return JSON.stringify({
+                success: false,
+                error: 'latitude is required'
+            });
+        }
+        
+        if (data.longitude === undefined || data.longitude === null) {
+            return JSON.stringify({
+                success: false,
+                error: 'longitude is required'
+            });
+        }
+        
+        // Ensure values are numeric
+        var latitude = Number(data.latitude);
+        var longitude = Number(data.longitude);
+        
+        if (isNaN(latitude) || isNaN(longitude)) {
+            return JSON.stringify({
+                success: false,
+                error: 'latitude and longitude must be numeric values'
+            });
+        }
+        
+        // Ensure they fall within valid GPS ranges
+        if (latitude < -90 || latitude > 90) {
+            return JSON.stringify({
+                success: false,
+                error: 'latitude must be between -90 and 90'
+            });
+        }
+        
+        if (longitude < -180 || longitude > 180) {
+            return JSON.stringify({
+                success: false,
+                error: 'longitude must be between -180 and 180'
+            });
+        }
+        
+        logger.info('[RPC] check_geo_and_update_profile - Valid coordinates: ' + latitude + ', ' + longitude);
+        
+        // 2.2 Call Google Maps Reverse Geocoding API
+        var apiKey = ctx.env["GOOGLE_MAPS_API_KEY"];
+        
+        if (!apiKey) {
+            logger.error('[RPC] check_geo_and_update_profile - GOOGLE_MAPS_API_KEY not configured');
+            return JSON.stringify({
+                success: false,
+                error: 'Geocoding service not configured'
+            });
+        }
+        
+        var geocodeUrl = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=' + 
+                        latitude + ',' + longitude + '&key=' + apiKey;
+        
+        var geocodeResponse;
+        try {
+            geocodeResponse = nk.httpRequest(
+                geocodeUrl,
+                'get',
+                {
+                    'Accept': 'application/json'
+                }
+            );
+        } catch (err) {
+            logger.error('[RPC] check_geo_and_update_profile - Geocoding API request failed: ' + err.message);
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to connect to geocoding service'
+            });
+        }
+        
+        if (geocodeResponse.code !== 200) {
+            logger.error('[RPC] check_geo_and_update_profile - Geocoding API returned code ' + geocodeResponse.code);
+            return JSON.stringify({
+                success: false,
+                error: 'Geocoding service returned error code ' + geocodeResponse.code
+            });
+        }
+        
+        // 2.3 Parse Response
+        var geocodeData;
+        try {
+            geocodeData = JSON.parse(geocodeResponse.body);
+        } catch (err) {
+            logger.error('[RPC] check_geo_and_update_profile - Failed to parse geocoding response: ' + err.message);
+            return JSON.stringify({
+                success: false,
+                error: 'Invalid response from geocoding service'
+            });
+        }
+        
+        if (geocodeData.status !== 'OK' || !geocodeData.results || geocodeData.results.length === 0) {
+            logger.warn('[RPC] check_geo_and_update_profile - No results from geocoding API: ' + geocodeData.status);
+            return JSON.stringify({
+                success: false,
+                error: 'Could not determine location from coordinates'
+            });
+        }
+        
+        // Extract country, region, and city from address_components
+        var country = null;
+        var region = null;
+        var city = null;
+        var countryCode = null;
+        
+        var addressComponents = geocodeData.results[0].address_components;
+        
+        for (var i = 0; i < addressComponents.length; i++) {
+            var component = addressComponents[i];
+            var types = component.types;
+            
+            // Country
+            if (types.indexOf('country') !== -1) {
+                country = component.long_name;
+                countryCode = component.short_name;
+            }
+            
+            // Region/State
+            if (types.indexOf('administrative_area_level_1') !== -1) {
+                region = component.long_name;
+            }
+            
+            // City
+            if (types.indexOf('locality') !== -1) {
+                city = component.long_name;
+            }
+        }
+        
+        logger.info('[RPC] check_geo_and_update_profile - Parsed location: ' + 
+                   'Country=' + (country || 'N/A') + 
+                   ', Region=' + (region || 'N/A') + 
+                   ', City=' + (city || 'N/A'));
+        
+        // 2.4 Apply Business Logic
+        var blockedCountries = ['FR', 'DE'];
+        var allowed = true;
+        var reason = null;
+        
+        if (countryCode && blockedCountries.indexOf(countryCode) !== -1) {
+            allowed = false;
+            reason = 'Region not supported';
+            logger.info('[RPC] check_geo_and_update_profile - Country ' + countryCode + ' is blocked');
+        }
+        
+        // 2.5 Update Nakama User Metadata
+        var userId = ctx.userId;
+        
+        // Read existing metadata
+        var collection = "player_data";
+        var key = "player_metadata";
+        var playerMeta;
+        
+        try {
+            var records = nk.storageRead([{
+                collection: collection,
+                key: key,
+                userId: userId
+            }]);
+            
+            if (records && records.length > 0 && records[0].value) {
+                playerMeta = records[0].value;
+                logger.info('[RPC] check_geo_and_update_profile - Found existing metadata for user');
+            } else {
+                playerMeta = {
+                    user_id: userId,
+                    created_at: new Date().toISOString()
+                };
+                logger.info('[RPC] check_geo_and_update_profile - Creating new metadata for user');
+            }
+        } catch (err) {
+            logger.warn('[RPC] check_geo_and_update_profile - Failed to read metadata: ' + err.message);
+            playerMeta = {
+                user_id: userId,
+                created_at: new Date().toISOString()
+            };
+        }
+        
+        // Update location fields
+        playerMeta.latitude = latitude;
+        playerMeta.longitude = longitude;
+        playerMeta.country = country;
+        playerMeta.region = region;
+        playerMeta.city = city;
+        playerMeta.location_updated_at = new Date().toISOString();
+        
+        // Write updated metadata
+        try {
+            nk.storageWrite([{
+                collection: collection,
+                key: key,
+                userId: userId,
+                value: playerMeta,
+                permissionRead: 1,
+                permissionWrite: 0,
+                version: "*"
+            }]);
+            
+            logger.info('[RPC] check_geo_and_update_profile - Updated metadata for user ' + userId);
+            
+            // Also update account metadata for quick access
+            try {
+                nk.accountUpdateId(userId, null, {
+                    latitude: latitude,
+                    longitude: longitude,
+                    country: country,
+                    region: region,
+                    city: city
+                }, null, null, null, null);
+            } catch (acctErr) {
+                logger.warn('[RPC] check_geo_and_update_profile - Could not update account: ' + acctErr.message);
+            }
+        } catch (err) {
+            logger.error('[RPC] check_geo_and_update_profile - Failed to write metadata: ' + err.message);
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to update user profile with location data'
+            });
+        }
+        
+        logger.info('[RPC] check_geo_and_update_profile - Complete. Allowed: ' + allowed);
+        
+        // Return result
+        return JSON.stringify({
+            allowed: allowed,
+            country: countryCode,
+            region: region,
+            city: city,
+            reason: reason
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] check_geo_and_update_profile - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
 // ============================================================================
 // CHAT MODULE - Group Chat, Direct Chat, and Chat Rooms
 // ============================================================================
@@ -9832,6 +10123,8 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[PlayerRPCs] Registered RPC: submit_leaderboard_score');
         initializer.registerRpc('get_leaderboard', rpcGetLeaderboard);
         logger.info('[PlayerRPCs] Registered RPC: get_leaderboard');
+        initializer.registerRpc('check_geo_and_update_profile', rpcCheckGeoAndUpdateProfile);
+        logger.info('[PlayerRPCs] Registered RPC: check_geo_and_update_profile');
         
         // Player Metadata & Portfolio RPCs
         initializer.registerRpc('update_player_metadata', rpcUpdatePlayerMetadata);
@@ -9845,7 +10138,7 @@ function InitModule(ctx, logger, nk, initializer) {
         initializer.registerRpc('update_game_reward_config', rpcUpdateGameRewardConfig);
         logger.info('[PlayerRPCs] Registered RPC: update_game_reward_config (admin)');
         
-        logger.info('[PlayerRPCs] Successfully registered 9 Standard Player RPCs');
+        logger.info('[PlayerRPCs] Successfully registered 10 Standard Player RPCs');
     } catch (err) {
         logger.error('[PlayerRPCs] Failed to initialize: ' + err.message);
     }
@@ -10066,7 +10359,7 @@ function InitModule(ctx, logger, nk, initializer) {
     
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 122');
+    logger.info('Total System RPCs: 123');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');

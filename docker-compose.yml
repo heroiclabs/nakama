@@ -32,6 +32,8 @@ services:
         condition: service_healthy
       prometheus:
         condition: service_started
+    environment:
+      - GOOGLE_MAPS_API_KEY=AIzaSyBaMnk9y9GBkPxZFBq0bmslxpJoBuuQMIY
     volumes:
       # IMPORTANT: JavaScript modules MUST use ES Module syntax (import/export)
       # CommonJS (require/module.exports) is NOT supported
