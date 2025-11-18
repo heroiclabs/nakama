@@ -31,7 +31,7 @@ ALTER TABLE console_user ADD COLUMN IF NOT EXISTS role SMALLINT NOT NULL DEFAULT
 
 UPDATE console_user
     SET role = CASE
-        WHEN acl->'admin' = true THEN 1
+        WHEN (acl->'admin')::bool = true THEN 1
         ELSE 4
     END;
 
