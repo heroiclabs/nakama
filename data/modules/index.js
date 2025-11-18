@@ -36,11 +36,12 @@ function validatePayload(payload, fields) {
  */
 function readRegistry(nk, logger) {
     const collection = "leaderboards_registry";
+    const REGISTRY_SYSTEM_USER = "00000000-0000-0000-0000-000000000000"; // Only for registry metadata
     try {
         const records = nk.storageRead([{
             collection: collection,
             key: "all_created",
-            userId: "00000000-0000-0000-0000-000000000000"
+            userId: REGISTRY_SYSTEM_USER
         }]);
         if (records && records.length > 0 && records[0].value) {
             return records[0].value;
@@ -5037,11 +5038,13 @@ function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
     logger.info("[NAKAMA] Looking for identity: " + key);
     
     // Try to read existing identity
+    // Note: For backward compatibility, check both old (SYSTEM_USER) and new (deviceId) storage
+    var userId = deviceId; // Use deviceId as userId for identity storage
     try {
         var records = nk.storageRead([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000"
+            userId: userId
         }]);
         
         if (records && records.length > 0 && records[0].value) {
@@ -5072,19 +5075,20 @@ function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
         updated_at: new Date().toISOString()
     };
     
-    // Write identity to storage
+    // Write identity to storage with real userId
+    var userId = deviceId; // Use deviceId as userId for identity storage
     try {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000",
+            userId: userId,
             value: identity,
             permissionRead: 1,
             permissionWrite: 0,
             version: "*"
         }]);
         
-        logger.info("[NAKAMA] Created identity with wallet_id " + walletId);
+        logger.info("[NAKAMA] Created identity with wallet_id " + walletId + " for user " + userId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write identity: " + err.message);
         throw err;
@@ -5180,19 +5184,33 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId) {
         updated_at: new Date().toISOString()
     };
     
-    // Write wallet to storage
+    // Write wallet to storage with real userId
+    var userId = deviceId; // Use deviceId as userId for wallet storage
     try {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000",
+            userId: userId,
             value: wallet,
             permissionRead: 1,
             permissionWrite: 0,
             version: "*"
         }]);
         
-        logger.info("[NAKAMA] Created game wallet with balance 0");
+        // Create Nakama wallet entry for admin visibility
+        try {
+            var walletMetadata = {
+                game_id: gameId,
+                wallet_type: "game_wallet",
+                currency: wallet.currency
+            };
+            nk.walletUpdate(userId, {[wallet.currency]: 0}, walletMetadata, false);
+            logger.info("[NAKAMA] Created Nakama wallet entry for " + wallet.currency);
+        } catch (walletErr) {
+            logger.warn("[NAKAMA] Could not create Nakama wallet entry: " + walletErr.message);
+        }
+        
+        logger.info("[NAKAMA] Created game wallet with balance 0 for user " + userId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write game wallet: " + err.message);
         throw err;
@@ -5215,16 +5233,17 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
     
     logger.info("[NAKAMA] Looking for global wallet: " + key);
     
-    // Try to read existing wallet
+    // Try to read existing global wallet
+    var userId = deviceId; // Use deviceId as userId for wallet storage
     try {
         var records = nk.storageRead([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000"
+            userId: userId
         }]);
         
         if (records && records.length > 0 && records[0].value) {
-            logger.info("[NAKAMA] Found existing global wallet");
+            logger.info("[NAKAMA] Found existing global wallet for device " + deviceId);
             return records[0].value;
         }
     } catch (err) {
@@ -5232,7 +5251,7 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
     }
     
     // Create new global wallet
-    logger.info("[NAKAMA] Creating new global wallet");
+    logger.info("[NAKAMA] Creating new global wallet for user " + userId);
     
     var wallet = {
         wallet_id: globalWalletId,
@@ -5244,19 +5263,32 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
         updated_at: new Date().toISOString()
     };
     
-    // Write wallet to storage
+    // Write wallet to storage with real userId
+    var userId = deviceId; // Use deviceId as userId for wallet storage
     try {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000",
+            userId: userId,
             value: wallet,
             permissionRead: 1,
             permissionWrite: 0,
             version: "*"
         }]);
         
-        logger.info("[NAKAMA] Created global wallet with balance 0");
+        // Create Nakama wallet entry for admin visibility
+        try {
+            var walletMetadata = {
+                wallet_type: "global_wallet",
+                currency: wallet.currency
+            };
+            nk.walletUpdate(userId, {[wallet.currency]: 0}, walletMetadata, false);
+            logger.info("[NAKAMA] Created Nakama wallet entry for global currency");
+        } catch (walletErr) {
+            logger.warn("[NAKAMA] Could not create Nakama wallet entry: " + walletErr.message);
+        }
+        
+        logger.info("[NAKAMA] Created global wallet with balance 0 for user " + userId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write global wallet: " + err.message);
         throw err;
@@ -5265,28 +5297,295 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
     return wallet;
 }
 
+// ============================================================================
+// ADAPTIVE REWARD SYSTEM - Per-Game Reward Configuration
+// ============================================================================
+
 /**
- * Update game wallet balance
+ * Game-specific reward configurations
+ * Each game can have custom multipliers, currencies, and reward rules
+ */
+var GAME_REWARD_CONFIGS = {
+    // QuizVerse
+    "126bf539-dae2-4bcf-964d-316c0fa1f92b": {
+        game_name: "QuizVerse",
+        score_to_coins_multiplier: 0.1,        // 1000 score = 100 coins
+        min_score_for_reward: 10,              // Minimum score to get any reward
+        max_reward_per_match: 10000,           // Cap on single match rewards
+        currency: "coins",
+        bonus_thresholds: [                     // Bonus rewards for milestones
+            { score: 1000, bonus: 50, type: "milestone_1k" },
+            { score: 5000, bonus: 250, type: "milestone_5k" },
+            { score: 10000, bonus: 1000, type: "milestone_10k" }
+        ],
+        streak_multipliers: {                   // Consecutive wins bonus
+            3: 1.1,   // 10% bonus for 3 wins
+            5: 1.25,  // 25% bonus for 5 wins
+            10: 1.5   // 50% bonus for 10 wins
+        }
+    },
+    
+    // LastToLive
+    "8f3b1c2a-5d6e-4f7a-9b8c-1d2e3f4a5b6c": {
+        game_name: "LastToLive",
+        score_to_coins_multiplier: 0.05,       // 1000 score = 50 coins (harder)
+        min_score_for_reward: 50,
+        max_reward_per_match: 5000,
+        currency: "survival_tokens",
+        bonus_thresholds: [
+            { score: 2000, bonus: 100, type: "survivor" },
+            { score: 5000, bonus: 500, type: "elite" }
+        ],
+        streak_multipliers: {
+            5: 1.2,
+            10: 1.5,
+            20: 2.0
+        }
+    },
+    
+    // Default config for any game not explicitly configured
+    "default": {
+        game_name: "Default",
+        score_to_coins_multiplier: 0.1,
+        min_score_for_reward: 0,
+        max_reward_per_match: 100000,
+        currency: "coins",
+        bonus_thresholds: [],
+        streak_multipliers: {}
+    }
+};
+
+/**
+ * Calculate reward amount based on game-specific rules
+ * CRITICAL: This ensures wallet balance is NEVER set equal to score
+ * Instead, it calculates a DERIVED reward based on score
+ * 
+ * @param {string} gameId - Game UUID
+ * @param {number} score - Player's score
+ * @param {number} currentStreak - Current win streak (optional)
+ * @returns {object} { reward: number, currency: string, bonuses: array, details: object }
+ */
+function calculateScoreReward(gameId, score, currentStreak) {
+    // Get game config (fallback to default)
+    var config = GAME_REWARD_CONFIGS[gameId] || GAME_REWARD_CONFIGS["default"];
+    
+    // Check minimum score
+    if (score < config.min_score_for_reward) {
+        return {
+            reward: 0,
+            currency: config.currency,
+            bonuses: [],
+            details: {
+                reason: "below_minimum",
+                min_required: config.min_score_for_reward
+            }
+        };
+    }
+    
+    // Calculate base reward using multiplier
+    var baseReward = Math.floor(score * config.score_to_coins_multiplier);
+    
+    // Apply streak multiplier if applicable
+    var streakMultiplier = 1.0;
+    if (currentStreak && config.streak_multipliers) {
+        // Find highest applicable streak bonus
+        var streakKeys = Object.keys(config.streak_multipliers).map(Number).sort(function(a, b) { return b - a; });
+        for (var i = 0; i < streakKeys.length; i++) {
+            if (currentStreak >= streakKeys[i]) {
+                streakMultiplier = config.streak_multipliers[streakKeys[i]];
+                break;
+            }
+        }
+    }
+    
+    var rewardWithStreak = Math.floor(baseReward * streakMultiplier);
+    
+    // Check for milestone bonuses
+    var bonuses = [];
+    var totalBonus = 0;
+    if (config.bonus_thresholds) {
+        for (var j = 0; j < config.bonus_thresholds.length; j++) {
+            var threshold = config.bonus_thresholds[j];
+            if (score >= threshold.score) {
+                bonuses.push({
+                    type: threshold.type,
+                    amount: threshold.bonus,
+                    threshold: threshold.score
+                });
+                totalBonus += threshold.bonus;
+            }
+        }
+    }
+    
+    // Calculate final reward
+    var finalReward = rewardWithStreak + totalBonus;
+    
+    // Apply max cap
+    if (finalReward > config.max_reward_per_match) {
+        finalReward = config.max_reward_per_match;
+    }
+    
+    return {
+        reward: finalReward,
+        currency: config.currency,
+        bonuses: bonuses,
+        details: {
+            game_name: config.game_name,
+            score: score,
+            base_reward: baseReward,
+            multiplier: config.score_to_coins_multiplier,
+            streak: currentStreak || 0,
+            streak_multiplier: streakMultiplier,
+            milestone_bonus: totalBonus,
+            final_reward: finalReward,
+            capped: finalReward === config.max_reward_per_match
+        }
+    };
+}
+
+/**
+ * RPC: calculate_score_reward
+ * Calculate reward for a score without applying it
+ * Useful for showing players their potential earnings
+ */
+function rpcCalculateScoreReward(ctx, logger, nk, payload) {
+    logger.info('[RPC] calculate_score_reward called');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.game_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'game_id is required'
+            });
+        }
+        
+        if (data.score === undefined || data.score === null) {
+            return JSON.stringify({
+                success: false,
+                error: 'score is required'
+            });
+        }
+        
+        var result = calculateScoreReward(
+            data.game_id,
+            parseInt(data.score),
+            data.current_streak ? parseInt(data.current_streak) : 0
+        );
+        
+        return JSON.stringify({
+            success: true,
+            reward: result.reward,
+            currency: result.currency,
+            bonuses: result.bonuses,
+            details: result.details
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] calculate_score_reward - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: update_game_reward_config
+ * Admin RPC to update reward configuration for a game
+ */
+function rpcUpdateGameRewardConfig(ctx, logger, nk, payload) {
+    logger.info('[RPC] update_game_reward_config called');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        
+        if (!data.game_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'game_id is required'
+            });
+        }
+        
+        if (!data.config) {
+            return JSON.stringify({
+                success: false,
+                error: 'config object is required'
+            });
+        }
+        
+        // Validate config structure
+        var config = data.config;
+        if (config.score_to_coins_multiplier === undefined ||
+            config.min_score_for_reward === undefined ||
+            config.max_reward_per_match === undefined ||
+            !config.currency) {
+            return JSON.stringify({
+                success: false,
+                error: 'Invalid config structure. Required: score_to_coins_multiplier, min_score_for_reward, max_reward_per_match, currency'
+            });
+        }
+        
+        // Store config in storage for persistence
+        var collection = "game_configs";
+        var key = "reward_config:" + data.game_id;
+        
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: ctx.userId,
+            value: config,
+            permissionRead: 2, // Public read
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        // Update in-memory config
+        GAME_REWARD_CONFIGS[data.game_id] = config;
+        
+        logger.info('[RPC] Reward config updated for game: ' + data.game_id);
+        
+        return JSON.stringify({
+            success: true,
+            game_id: data.game_id,
+            config: config,
+            message: 'Reward configuration updated successfully'
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] update_game_reward_config - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * Update game wallet balance by incrementing with score
+ * FIXED: Now increments wallet instead of setting it to score value
  * @param {object} nk - Nakama runtime
  * @param {object} logger - Logger instance
  * @param {string} deviceId - Device identifier
  * @param {string} gameId - Game UUID
- * @param {number} newBalance - New balance value
+ * @param {number} scoreToAdd - Score to add to current balance
  * @returns {object} Updated wallet
  */
-function updateGameWalletBalance(nk, logger, deviceId, gameId, newBalance) {
+function updateGameWalletBalance(nk, logger, deviceId, gameId, scoreToAdd) {
     var collection = "quizverse";
     var key = "wallet:" + deviceId + ":" + gameId;
     
-    logger.info("[NAKAMA] Updating game wallet balance to " + newBalance);
+    logger.info("[NAKAMA] Incrementing game wallet balance by " + scoreToAdd);
     
-    // Read current wallet
+    // Read current wallet with real userId
+    var userId = deviceId; // Use deviceId as userId for wallet storage
     var wallet;
     try {
         var records = nk.storageRead([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000"
+            userId: userId
         }]);
         
         if (records && records.length > 0 && records[0].value) {
@@ -5300,8 +5599,9 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, newBalance) {
         throw err;
     }
     
-    // Update balance
-    wallet.balance = newBalance;
+    // BUG FIX: Increment balance instead of setting it
+    var oldBalance = wallet.balance || 0;
+    wallet.balance = oldBalance + scoreToAdd;
     wallet.updated_at = new Date().toISOString();
     
     // Write updated wallet
@@ -5309,14 +5609,56 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, newBalance) {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: "00000000-0000-0000-0000-000000000000",
+            userId: userId,
             value: wallet,
             permissionRead: 1,
             permissionWrite: 0,
             version: "*"
         }]);
         
-        logger.info("[NAKAMA] Updated wallet balance to " + newBalance);
+        // Update Nakama wallet for admin visibility
+        try {
+            var changeset = {};
+            changeset[wallet.currency] = scoreToAdd;
+            var walletMetadata = {
+                game_id: gameId,
+                transaction_type: "score_reward",
+                old_balance: oldBalance,
+                new_balance: wallet.balance
+            };
+            nk.walletUpdate(userId, changeset, walletMetadata, false);
+            logger.info("[NAKAMA] Updated Nakama wallet: +" + scoreToAdd + " " + wallet.currency);
+        } catch (walletErr) {
+            logger.warn("[NAKAMA] Could not update Nakama wallet: " + walletErr.message);
+        }
+        
+        // Log transaction for history
+        try {
+            var transactionLog = {
+                user_id: userId,
+                game_id: gameId,
+                transaction_type: "score_reward",
+                currency: wallet.currency,
+                amount: scoreToAdd,
+                old_balance: oldBalance,
+                new_balance: wallet.balance,
+                timestamp: wallet.updated_at
+            };
+            var txKey = "transaction:" + userId + ":" + gameId + ":" + Date.now();
+            nk.storageWrite([{
+                collection: collection,
+                key: txKey,
+                userId: userId,
+                value: transactionLog,
+                permissionRead: 1,
+                permissionWrite: 0,
+                version: "*"
+            }]);
+        } catch (txErr) {
+            logger.warn("[NAKAMA] Could not log transaction: " + txErr.message);
+        }
+        
+        logger.info("[NAKAMA] Wallet balance updated: " + oldBalance + " + " + scoreToAdd + " = " + wallet.balance + " for user " + userId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write updated wallet: " + err.message);
         throw err;
@@ -5645,20 +5987,31 @@ function createOrSyncUser(ctx, logger, nk, payload) {
     var gameId = data.game_id;
     
     try {
-        // Get or create identity - pass userId from context
-        var identityResult = getOrCreateIdentity(nk, logger, deviceId, gameId, username, ctx.userId);
+        // Determine userId - prefer ctx.userId, fallback to deviceId
+        var userId = ctx.userId || deviceId;
+        
+        // Get or create identity
+        var identityResult = getOrCreateIdentity(nk, logger, deviceId, gameId, username);
         var identity = identityResult.identity;
         var created = !identityResult.exists;
         
-        // Ensure per-game wallet exists - pass userId from context
-        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id, ctx.userId);
+        // Ensure per-game wallet exists
+        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id);
         
-        // Ensure global wallet exists - pass userId from context
-        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id, ctx.userId);
+        // Ensure global wallet exists
+        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id);
         
         // Update Nakama username if this is a new identity
-        if (created && ctx.userId) {
-            updateNakamaUsername(nk, logger, ctx.userId, username);
+        if (created && userId) {
+            updateNakamaUsername(nk, logger, userId, username);
+        }
+        
+        // Update player metadata with gameId tracking and cognito info
+        try {
+            updatePlayerMetadata(nk, logger, userId, gameId, data);
+            logger.info("[NAKAMA] Updated player metadata for user " + userId);
+        } catch (metaErr) {
+            logger.warn("[NAKAMA] Could not update player metadata: " + metaErr.message);
         }
         
         return JSON.stringify({
@@ -5828,15 +6181,28 @@ function submitScoreAndSync(ctx, logger, nk, payload) {
         // Use context userId if available, otherwise use device_id as userId
         var userId = ctx.userId || deviceId;
         
+        // CRITICAL: Calculate adaptive reward based on game-specific rules
+        // This ensures wallet is NEVER set equal to score
+        var rewardCalc = calculateScoreReward(gameId, score, data.current_streak || 0);
+        
+        logger.info("[NAKAMA] Score: " + score + ", Calculated Reward: " + rewardCalc.reward + " " + rewardCalc.currency);
+        if (rewardCalc.bonuses && rewardCalc.bonuses.length > 0) {
+            logger.info("[NAKAMA] Bonuses applied: " + JSON.stringify(rewardCalc.bonuses));
+        }
+        
         // Write score to all leaderboards
         var leaderboardsUpdated = writeToAllLeaderboards(nk, logger, userId, username, gameId, score);
         
-        // Update game wallet balance - pass userId from context
-        var updatedWallet = updateGameWalletBalance(nk, logger, deviceId, gameId, score, ctx.userId);
+        // Update game wallet balance with CALCULATED REWARD (not raw score)
+        var updatedWallet = updateGameWalletBalance(nk, logger, deviceId, gameId, rewardCalc.reward);
         
         return JSON.stringify({
             success: true,
             score: score,
+            reward_earned: rewardCalc.reward,
+            reward_currency: rewardCalc.currency,
+            reward_details: rewardCalc.details,
+            bonuses: rewardCalc.bonuses,
             wallet_balance: updatedWallet.balance,
             leaderboards_updated: leaderboardsUpdated,
             game_id: gameId
@@ -6139,6 +6505,272 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Copilot Leaderboard Modules Loaded Successfully');
     logger.info('========================================');
+}
+
+// ============================================================================
+// PLAYER METADATA SYSTEM - Track user identity across games
+// ============================================================================
+
+/**
+ * Update or create player metadata with cognito info and game tracking
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} userId - User ID (from ctx.userId or deviceId)
+ * @param {string} gameId - Game ID (UUID)
+ * @param {object} metadata - Player metadata from client (cognito_user_id, email, etc.)
+ * @returns {object} Updated player metadata
+ */
+function updatePlayerMetadata(nk, logger, userId, gameId, metadata) {
+    var collection = "player_data";
+    var key = "player_metadata";
+    
+    logger.info("[PlayerMetadata] Updating metadata for user: " + userId + " game: " + gameId);
+    
+    // Read existing metadata
+    var playerMeta;
+    try {
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: userId
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            playerMeta = records[0].value;
+            logger.info("[PlayerMetadata] Found existing metadata for user " + userId);
+        } else {
+            // Create new metadata
+            playerMeta = {
+                user_id: userId,
+                created_at: new Date().toISOString(),
+                games: []
+            };
+            logger.info("[PlayerMetadata] Creating new metadata for user " + userId);
+        }
+    } catch (err) {
+        logger.warn("[PlayerMetadata] Failed to read metadata: " + err.message);
+        playerMeta = {
+            user_id: userId,
+            created_at: new Date().toISOString(),
+            games: []
+        };
+    }
+    
+    // Update cognito and account info if provided
+    if (metadata) {
+        if (metadata.cognito_user_id) playerMeta.cognito_user_id = metadata.cognito_user_id;
+        if (metadata.email) playerMeta.email = metadata.email;
+        if (metadata.first_name) playerMeta.first_name = metadata.first_name;
+        if (metadata.last_name) playerMeta.last_name = metadata.last_name;
+        if (metadata.role) playerMeta.role = metadata.role;
+        if (metadata.login_type) playerMeta.login_type = metadata.login_type;
+        if (metadata.idp_username) playerMeta.idp_username = metadata.idp_username;
+        if (metadata.account_status) playerMeta.account_status = metadata.account_status;
+        if (metadata.wallet_address) playerMeta.wallet_address = metadata.wallet_address;
+        if (metadata.is_adult) playerMeta.is_adult = metadata.is_adult;
+    }
+    
+    // Track gameId
+    if (!playerMeta.games) playerMeta.games = [];
+    var gameIndex = -1;
+    for (var i = 0; i < playerMeta.games.length; i++) {
+        if (playerMeta.games[i].game_id === gameId) {
+            gameIndex = i;
+            break;
+        }
+    }
+    
+    var now = new Date().toISOString();
+    if (gameIndex >= 0) {
+        // Update existing game entry
+        playerMeta.games[gameIndex].last_played = now;
+        playerMeta.games[gameIndex].play_count = (playerMeta.games[gameIndex].play_count || 0) + 1;
+    } else {
+        // Add new game entry
+        playerMeta.games.push({
+            game_id: gameId,
+            first_played: now,
+            last_played: now,
+            play_count: 1
+        });
+    }
+    
+    playerMeta.updated_at = now;
+    playerMeta.total_games = playerMeta.games.length;
+    
+    // Write metadata to storage
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: userId,
+            value: playerMeta,
+            permissionRead: 2, // Public read for admin visibility
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        
+        logger.info("[PlayerMetadata] Saved metadata for user " + userId + " (" + playerMeta.total_games + " games)");
+        
+        // Also update account metadata for quick access
+        try {
+            nk.accountUpdateId(userId, null, {
+                cognito_user_id: playerMeta.cognito_user_id || "",
+                email: playerMeta.email || "",
+                total_games: playerMeta.total_games || 0,
+                last_game_id: gameId
+            }, null, null, null, null);
+        } catch (acctErr) {
+            logger.warn("[PlayerMetadata] Could not update account: " + acctErr.message);
+        }
+    } catch (err) {
+        logger.error("[PlayerMetadata] Failed to write metadata: " + err.message);
+        throw err;
+    }
+    
+    return playerMeta;
+}
+
+/**
+ * RPC: get_player_portfolio
+ * Get all games played by user with wallet balances and stats
+ */
+function rpcGetPlayerPortfolio(ctx, logger, nk, payload) {
+    logger.info('[RPC] get_player_portfolio called');
+    
+    try {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'User not authenticated'
+            });
+        }
+        
+        // Get player metadata
+        var metadata;
+        try {
+            var records = nk.storageRead([{
+                collection: "player_data",
+                key: "player_metadata",
+                userId: userId
+            }]);
+            
+            if (records && records.length > 0 && records[0].value) {
+                metadata = records[0].value;
+            } else {
+                return JSON.stringify({
+                    success: false,
+                    error: 'No player metadata found'
+                });
+            }
+        } catch (err) {
+            return JSON.stringify({
+                success: false,
+                error: 'Failed to read metadata: ' + err.message
+            });
+        }
+        
+        // Get wallet balances for each game
+        var gamesWithWallets = [];
+        for (var i = 0; i < metadata.games.length; i++) {
+            var game = metadata.games[i];
+            var walletKey = "wallet:" + userId + ":" + game.game_id;
+            
+            try {
+                var walletRecords = nk.storageRead([{
+                    collection: "quizverse",
+                    key: walletKey,
+                    userId: userId
+                }]);
+                
+                if (walletRecords && walletRecords.length > 0) {
+                    game.wallet = walletRecords[0].value;
+                }
+            } catch (walletErr) {
+                logger.warn("[Portfolio] Could not read wallet for game " + game.game_id);
+            }
+            
+            gamesWithWallets.push(game);
+        }
+        
+        // Get global wallet
+        var globalWallet;
+        try {
+            var globalRecords = nk.storageRead([{
+                collection: "quizverse",
+                key: "wallet:" + userId + ":global",
+                userId: userId
+            }]);
+            
+            if (globalRecords && globalRecords.length > 0) {
+                globalWallet = globalRecords[0].value;
+            }
+        } catch (globalErr) {
+            logger.warn("[Portfolio] Could not read global wallet");
+        }
+        
+        return JSON.stringify({
+            success: true,
+            user_id: userId,
+            cognito_user_id: metadata.cognito_user_id,
+            email: metadata.email,
+            account_status: metadata.account_status,
+            total_games: metadata.total_games,
+            games: gamesWithWallets,
+            global_wallet: globalWallet,
+            created_at: metadata.created_at,
+            updated_at: metadata.updated_at
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] get_player_portfolio - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
+}
+
+/**
+ * RPC: update_player_metadata
+ * Update player metadata with cognito info
+ */
+function rpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
+    logger.info('[RPC] update_player_metadata called');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        var userId = ctx.userId || data.device_id;
+        
+        if (!userId) {
+            return JSON.stringify({
+                success: false,
+                error: 'user_id or device_id required'
+            });
+        }
+        
+        if (!data.game_id) {
+            return JSON.stringify({
+                success: false,
+                error: 'game_id is required'
+            });
+        }
+        
+        var metadata = updatePlayerMetadata(nk, logger, userId, data.game_id, data);
+        
+        return JSON.stringify({
+            success: true,
+            metadata: metadata
+        });
+        
+    } catch (err) {
+        logger.error('[RPC] update_player_metadata - Error: ' + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message
+        });
+    }
 }
 
 // ============================================================================
@@ -9200,7 +9832,20 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[PlayerRPCs] Registered RPC: submit_leaderboard_score');
         initializer.registerRpc('get_leaderboard', rpcGetLeaderboard);
         logger.info('[PlayerRPCs] Registered RPC: get_leaderboard');
-        logger.info('[PlayerRPCs] Successfully registered 5 Standard Player RPCs');
+        
+        // Player Metadata & Portfolio RPCs
+        initializer.registerRpc('update_player_metadata', rpcUpdatePlayerMetadata);
+        logger.info('[PlayerRPCs] Registered RPC: update_player_metadata');
+        initializer.registerRpc('get_player_portfolio', rpcGetPlayerPortfolio);
+        logger.info('[PlayerRPCs] Registered RPC: get_player_portfolio');
+        
+        // Adaptive Reward System RPCs
+        initializer.registerRpc('calculate_score_reward', rpcCalculateScoreReward);
+        logger.info('[PlayerRPCs] Registered RPC: calculate_score_reward');
+        initializer.registerRpc('update_game_reward_config', rpcUpdateGameRewardConfig);
+        logger.info('[PlayerRPCs] Registered RPC: update_game_reward_config (admin)');
+        
+        logger.info('[PlayerRPCs] Successfully registered 9 Standard Player RPCs');
     } catch (err) {
         logger.error('[PlayerRPCs] Failed to initialize: ' + err.message);
     }
