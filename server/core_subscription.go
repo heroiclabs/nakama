@@ -1357,7 +1357,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				}
 				if s == nil || s.UserId == "" {
 					// No subscription or user found, we do not want to upsert.
-					loggerWithNotification.Warn("No userId found for this Google IAP notification", zap.Any("notification_payload", googleNotification), zap.Any("provider_payload", gSubscription))
+					loggerWithNotification.Warn("No userId found for this Google IAP notification", zap.Any("provider_payload", gSubscription))
 					w.WriteHeader(http.StatusOK)
 					return
 				} else {
@@ -1461,7 +1461,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					return
 				}
 
-				loggerWithNotification.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gSubscription))
+				loggerWithNotification.Debug("Google IAP subscription notification received", zap.Any("api_response", gSubscription))
 
 				uid, err := extractAccountIdentifier(gSubscription)
 				if err != nil {
@@ -1484,7 +1484,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					}
 					if s == nil || s.UserId == "" {
 						// No subscription found, we do not want to upsert.
-						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("notification_payload", googleNotification), zap.Any("google_subscription", gSubscription))
+						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("google_subscription", gSubscription))
 						w.WriteHeader(http.StatusOK)
 						return
 					} else {
@@ -1571,7 +1571,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					return
 				}
 
-				loggerWithNotification.Debug("Google IAP purchase notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gPurchase))
+				loggerWithNotification.Debug("Google IAP purchase notification received", zap.Any("api_response", gPurchase))
 
 				uid, err := extractAccountIdentifier(gPurchase)
 				if err != nil {
@@ -1591,7 +1591,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					}
 					if s == nil || s.UserId == "" {
 						// No purchase found, we do not want to upsert.
-						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("notification_payload", googleNotification), zap.Any("purchase", gPurchase))
+						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("purchase", gPurchase))
 						w.WriteHeader(http.StatusOK)
 						return
 					} else {
