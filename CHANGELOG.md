@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Fixed
 - Fix migration script to correctly revert console fine-grained access control changes.
+- Fix an issue that would prevent the console data reset operation from completing successfully.
 
 ## [3.34.1] - 2025-11-12
 ### Added
