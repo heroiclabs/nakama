@@ -1559,7 +1559,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				}
 			} else {
 				// This is a purchase related refund/voided notification.
-				gPurchase, err := iap.GetPurchaseV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.OneTimeProductNotification.PurchaseToken)
+				gPurchase, err := iap.GetPurchaseV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.VoidedPurchaseNotification.PurchaseToken)
 				if err != nil {
 					var vErr *iap.ValidationError
 					if errors.As(err, &vErr) {
