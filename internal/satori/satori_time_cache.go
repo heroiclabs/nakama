@@ -35,7 +35,6 @@ func newSatoriTimeCache[T runtime.SatoriLabeled](ctx context.Context, enabled bo
 
 	sc := &satoriTimeCache[T]{
 		enabled: true,
-		RWMutex: sync.RWMutex{},
 		entries: make(map[string]*satoriTimeCacheEntry[T]),
 		ttl:     ttl,
 	}
