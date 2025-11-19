@@ -70,7 +70,7 @@ type SatoriClient struct {
 	experimentsCache     satoriCache[*runtime.Experiment]
 }
 
-func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, serverKey, signingKey string, nakamaTokenExpirySec, httpTimeoutMs int64, cacheEnabled bool) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, serverKey, signingKey string, nakamaTokenExpirySec, httpTimeoutMs int64, cacheEnabled bool, cacheMode string, cacheTTLSec int64) *SatoriClient {
 	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
 	// the server.
 	parsedUrl, _ := url.Parse(satoriUrl)
@@ -90,10 +90,25 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
 		propertiesCache:      make(map[context.Context]*runtime.Properties),
-		flagsCache:           newSatoriCache[flagCacheEntry](ctx, cacheEnabled),
-		flagsOverridesCache:  newSatoriCache[flagOverridesCacheEntry](ctx, cacheEnabled),
-		liveEventsCache:      newSatoriCache[*runtime.LiveEvent](ctx, cacheEnabled),
-		experimentsCache:     newSatoriCache[*runtime.Experiment](ctx, cacheEnabled),
+		flagsCache:           newSatoriContextCache[flagCacheEntry](ctx, cacheEnabled),
+		flagsOverridesCache:  newSatoriContextCache[flagOverridesCacheEntry](ctx, cacheEnabled),
+		liveEventsCache:      newSatoriContextCache[*runtime.LiveEvent](ctx, cacheEnabled),
+		experimentsCache:     newSatoriContextCache[*runtime.Experiment](ctx, cacheEnabled),
+	}
+
+	switch cacheMode {
+	case "time":
+		sc.flagsCache = newSatoriTimeCache[flagCacheEntry](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.flagsOverridesCache = newSatoriTimeCache[flagOverridesCacheEntry](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.liveEventsCache = newSatoriTimeCache[*runtime.LiveEvent](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.experimentsCache = newSatoriTimeCache[*runtime.Experiment](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+	case "context":
+		fallthrough
+	default:
+		sc.flagsCache = newSatoriContextCache[flagCacheEntry](ctx, cacheEnabled)
+		sc.flagsOverridesCache = newSatoriContextCache[flagOverridesCacheEntry](ctx, cacheEnabled)
+		sc.liveEventsCache = newSatoriContextCache[*runtime.LiveEvent](ctx, cacheEnabled)
+		sc.experimentsCache = newSatoriContextCache[*runtime.Experiment](ctx, cacheEnabled)
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {

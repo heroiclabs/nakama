@@ -24,7 +24,7 @@ type satoriContextCache[T runtime.SatoriLabeled] struct {
 	entries map[context.Context]*satoriContextCacheEntry[T]
 }
 
-func newSatoriCache[T runtime.SatoriLabeled](ctx context.Context, enabled bool) *satoriContextCache[T] {
+func newSatoriContextCache[T runtime.SatoriLabeled](ctx context.Context, enabled bool) *satoriContextCache[T] {
 	if !enabled {
 		return &satoriContextCache[T]{
 			enabled: false,

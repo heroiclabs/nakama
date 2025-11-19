@@ -145,6 +145,8 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			config.GetSession().TokenExpirySec,
 			int64(config.GetSatori().HttpTimeoutMs),
 			false,
+			config.GetSatori().CacheMode,
+			int64(config.GetSatori().CacheTTLSec),
 		)
 	}
 
