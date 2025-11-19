@@ -143,7 +143,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			config.GetSatori().ServerKey,
 			config.GetSatori().SigningKey,
 			config.GetSession().TokenExpirySec,
-			int64(config.GetSatori().HttpTimeoutSec),
+			int64(config.GetSatori().HttpTimeoutMs),
 			false,
 		)
 	}

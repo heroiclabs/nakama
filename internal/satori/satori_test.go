@@ -36,7 +36,7 @@ func TestSatoriClient_EventsPublish(t *testing.T) {
 
 	logger := NewConsoleLogger(os.Stdout, true)
 	ctx := context.Background()
-	client := NewSatoriClient(ctx, logger, "<URL>", "<API KEY NAME>", "<API KEY>", "<SERVER KEY>", "<SIGNING KEY>", 0, 2, false)
+	client := NewSatoriClient(ctx, logger, "<URL>", "<API KEY NAME>", "<API KEY>", "<SERVER KEY>", "<SIGNING KEY>", 0, 10_000, false)
 
 	ctx, ctxCancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer ctxCancelFn()
@@ -72,7 +72,7 @@ func TestSatoriClientMemory(t *testing.T) {
 
 	logger := NewConsoleLogger(os.Stdout, true)
 	ctx := context.Background()
-	client := NewSatoriClient(ctx, logger, "<SATORI_URL>", "<SATORI_API_KEY_NAME", "<SATORI_API_KEY>", "<SERVER KEY>", "<SIGNING_KEY>", 3600, 2, true)
+	client := NewSatoriClient(ctx, logger, "<SATORI_URL>", "<SATORI_API_KEY_NAME", "<SATORI_API_KEY>", "<SERVER KEY>", "<SIGNING_KEY>", 3600, 10_000, true)
 
 	samples := []metrics.Sample{{
 		Name: "/memory/classes/heap/objects:bytes",

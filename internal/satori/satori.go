@@ -70,7 +70,7 @@ type SatoriClient struct {
 	experimentsCache     satoriCache[*runtime.Experiment]
 }
 
-func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, serverKey, signingKey string, nakamaTokenExpirySec, httpTimeoutSec int64, cacheEnabled bool) *SatoriClient {
+func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, serverKey, signingKey string, nakamaTokenExpirySec, httpTimeoutMs int64, cacheEnabled bool) *SatoriClient {
 	// NOTE: If the cache is enabled, any calls done within InitModule will remain cached for the lifetime of
 	// the server.
 	parsedUrl, _ := url.Parse(satoriUrl)
@@ -78,7 +78,7 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 	sc := &SatoriClient{
 		logger:               logger,
 		urlString:            satoriUrl,
-		httpc:                &http.Client{Timeout: time.Duration(httpTimeoutSec) * time.Second},
+		httpc:                &http.Client{Timeout: time.Duration(httpTimeoutMs) * time.Millisecond},
 		url:                  parsedUrl,
 		apiKeyName:           strings.TrimSpace(apiKeyName),
 		apiKey:               strings.TrimSpace(apiKey),
