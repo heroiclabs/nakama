@@ -6176,10 +6176,20 @@ function submitScoreAndSync(ctx, logger, nk, payload) {
         }
         
         var identity = records[0].value;
-        var username = identity.username;
         
         // Use context userId if available, otherwise use device_id as userId
         var userId = ctx.userId || deviceId;
+        
+        // Fetch actual username from Nakama account (players tab) instead of using identity.username
+        var username = identity.username; // Fallback to identity username
+        try {
+            var users = nk.usersGetId([userId]);
+            if (users && users.length > 0 && users[0].username) {
+                username = users[0].username;
+            }
+        } catch (userErr) {
+            logger.warn("[NAKAMA] Could not fetch user account, using identity username: " + userErr.message);
+        }
         
         // CRITICAL: Calculate adaptive reward based on game-specific rules
         // This ensures wallet is NEVER set equal to score
