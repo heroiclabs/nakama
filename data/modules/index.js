@@ -6381,6 +6381,152 @@ function getAllLeaderboards(ctx, logger, nk, payload) {
 }
 
 // ============================================================================
+// QUIZVERSE MULTIPLAYER-SPECIFIC RPCs
+// ============================================================================
+
+/**
+ * RPC: quizverse_submit_score
+ * Submit score with quiz-specific validation and metadata
+ */
+function rpcQuizVerseSubmitScore(context, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload);
+        var userId = context.userId;
+        var username = context.username || "Anonymous";
+        
+        if (typeof data.score !== 'number') {
+            return JSON.stringify({ success: false, error: "Score is required and must be a number" });
+        }
+        
+        var score = data.score;
+        var leaderboardId = data.leaderboard_id || "quizverse_global";
+        var subscore = data.subscore || 0;
+        var metadata = data.metadata || {};
+        
+        metadata.submittedAt = new Date().toISOString();
+        metadata.userId = userId;
+        metadata.username = username;
+        
+        logger.info("[QuizVerse-MP] Score submission: " + username + " => " + score + " pts (LB: " + leaderboardId + ")");
+        if (metadata.isMultiplayer) {
+            logger.info("[QuizVerse-MP] Multiplayer match: Room=" + metadata.roomCode + ", Players=" + metadata.playerCount);
+        }
+        
+        try {
+            nk.leaderboardCreate(leaderboardId, true, "desc", "best", "", { gameId: "quizverse" });
+        } catch (err) { /* Leaderboard exists */ }
+        
+        nk.leaderboardRecordWrite(leaderboardId, userId, username, score, subscore, metadata);
+        logger.info("[QuizVerse-MP] ✓ Score written successfully");
+        
+        return JSON.stringify({ success: true, data: { score: score, leaderboardId: leaderboardId, userId: userId, username: username } });
+    } catch (err) {
+        logger.error("[QuizVerse-MP] quizverse_submit_score error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quizverse_get_leaderboard
+ * Get leaderboard records for QuizVerse
+ */
+function rpcQuizVerseGetLeaderboard(context, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload);
+        var leaderboardId = data.leaderboard_id || "quizverse_global";
+        var limit = data.limit || 10;
+        var cursor = data.cursor || null;
+        var ownerIds = data.owner_ids || null;
+        
+        logger.info("[QuizVerse-MP] Fetching leaderboard: " + leaderboardId + " (limit: " + limit + ")");
+        
+        var records = nk.leaderboardRecordsList(leaderboardId, ownerIds, limit, cursor, 0);
+        
+        var transformedRecords = [];
+        if (records && records.records) {
+            for (var i = 0; i < records.records.length; i++) {
+                var record = records.records[i];
+                transformedRecords.push({
+                    user_id: record.ownerId,
+                    username: record.username || "Unknown",
+                    score: record.score,
+                    subscore: record.subscore,
+                    rank: record.rank,
+                    metadata: record.metadata || {},
+                    create_time: record.createTime,
+                    update_time: record.updateTime
+                });
+            }
+        }
+        
+        logger.info("[QuizVerse-MP] ✓ Fetched " + transformedRecords.length + " records");
+        
+        return JSON.stringify({
+            success: true,
+            data: {
+                leaderboard_id: leaderboardId,
+                records: transformedRecords,
+                prev_cursor: records.prevCursor || "",
+                next_cursor: records.nextCursor || ""
+            }
+        });
+    } catch (err) {
+        logger.error("[QuizVerse-MP] quizverse_get_leaderboard error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quizverse_submit_multiplayer_match
+ * Submit complete multiplayer match data with all participants
+ */
+function rpcQuizVerseSubmitMultiplayerMatch(context, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload);
+        var userId = context.userId;
+        var username = context.username || "Anonymous";
+        
+        if (!data.roomCode || !data.participants || data.participants.length === 0) {
+            return JSON.stringify({ success: false, error: "roomCode and participants required" });
+        }
+        
+        var roomCode = data.roomCode;
+        var matchDuration = data.matchDuration || 0;
+        var topics = data.topics || [];
+        var participants = data.participants;
+        
+        logger.info("[QuizVerse-MP] Match: Room=" + roomCode + ", Duration=" + matchDuration + "s, Players=" + participants.length);
+        
+        var matchData = {
+            roomCode: roomCode,
+            matchDuration: matchDuration,
+            topics: topics,
+            participants: participants,
+            submittedBy: userId,
+            submittedByUsername: username,
+            submittedAt: new Date().toISOString()
+        };
+        
+        var key = "match_" + roomCode + "_" + Date.now();
+        nk.storageWrite([{
+            collection: "quizverse_matches",
+            key: key,
+            userId: userId,
+            value: matchData,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        
+        logger.info("[QuizVerse-MP] ✓ Match data stored: " + key);
+        
+        return JSON.stringify({ success: true, data: { matchKey: key, roomCode: roomCode, participantsCount: participants.length } });
+    } catch (err) {
+        logger.error("[QuizVerse-MP] quizverse_submit_multiplayer_match error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
 // INIT MODULE - ENTRY POINT
 // ============================================================================
 
@@ -10367,14 +10513,29 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[Infrastructure] Failed to initialize: ' + err.message);
     }
     
+    // Register QuizVerse Multiplayer-Specific RPCs
+    try {
+        logger.info('[QuizVerse-MP] Initializing QuizVerse Multiplayer Module...');
+        initializer.registerRpc('quizverse_submit_score', rpcQuizVerseSubmitScore);
+        logger.info('[QuizVerse-MP] Registered RPC: quizverse_submit_score');
+        initializer.registerRpc('quizverse_get_leaderboard', rpcQuizVerseGetLeaderboard);
+        logger.info('[QuizVerse-MP] Registered RPC: quizverse_get_leaderboard');
+        initializer.registerRpc('quizverse_submit_multiplayer_match', rpcQuizVerseSubmitMultiplayerMatch);
+        logger.info('[QuizVerse-MP] Registered RPC: quizverse_submit_multiplayer_match');
+        logger.info('[QuizVerse-MP] Successfully registered 3 QuizVerse Multiplayer RPCs');
+    } catch (err) {
+        logger.error('[QuizVerse-MP] Failed to initialize: ' + err.message);
+    }
+    
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 123');
+    logger.info('Total System RPCs: 126');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
     logger.info('  - Tournament System: 6');
     logger.info('  - Infrastructure (Batch/Cache/Rate): 6');
+    logger.info('  - QuizVerse Multiplayer: 3');
     logger.info('  - Plus existing Copilot RPCs');
     logger.info('========================================');
     logger.info('✓ All server gaps have been filled!');

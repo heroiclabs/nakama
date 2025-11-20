@@ -23,11 +23,23 @@ Nakama's JavaScript runtime only supports **ES Modules (ESM)**:
 - ✅ See **[ESM_MIGRATION_COMPLETE_GUIDE.md](./ESM_MIGRATION_COMPLETE_GUIDE.md)** for the complete solution
 
 **Quick Links:**
-- 📘 [Complete ESM Migration Guide](./ESM_MIGRATION_COMPLETE_GUIDE.md) - Start here if you have the error
-- 📘 [JavaScript ESM Guide](./NAKAMA_JAVASCRIPT_ESM_GUIDE.md) - Detailed JavaScript guide
-- 📘 [TypeScript ESM Build Guide](./NAKAMA_TYPESCRIPT_ESM_BUILD.md) - TypeScript configuration
-- 📘 [Docker ESM Deployment Guide](./NAKAMA_DOCKER_ESM_DEPLOYMENT.md) - Docker setup
+- 📘 [Complete ESM Migration Guide](./_archived_docs/esm_guides/ESM_MIGRATION_COMPLETE_GUIDE.md) - Start here if you have the error
+- 📘 [JavaScript ESM Guide](./_archived_docs/esm_guides/NAKAMA_JAVASCRIPT_ESM_GUIDE.md) - Detailed JavaScript guide
+- 📘 [TypeScript ESM Build Guide](./_archived_docs/esm_guides/NAKAMA_TYPESCRIPT_ESM_BUILD.md) - TypeScript configuration
+- 📘 [Docker ESM Deployment Guide](./_archived_docs/esm_guides/NAKAMA_DOCKER_ESM_DEPLOYMENT.md) - Docker setup
 - 📁 [Working Examples](./examples/esm-modules/) - Copy-paste ready code
+
+---
+
+## 📚 Documentation
+
+**Start Here:**
+- 📖 **[DOCS_INDEX.md](./DOCS_INDEX.md)** - Complete documentation index
+- 📖 **[NAKAMA_COMPLETE_DOCUMENTATION.md](./NAKAMA_COMPLETE_DOCUMENTATION.md)** - Master documentation
+- 🎮 **[GAME_ONBOARDING_GUIDE.md](./GAME_ONBOARDING_GUIDE.md)** - Add new games
+- 🎯 **[UNITY_DEVELOPER_COMPLETE_GUIDE.md](./UNITY_DEVELOPER_COMPLETE_GUIDE.md)** - Unity integration
+
+**All documentation has been consolidated. See [DOCS_INDEX.md](./DOCS_INDEX.md) for the complete list.**
 
 ---
 
