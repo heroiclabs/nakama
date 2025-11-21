@@ -4,6 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add runtime Satori client additional filters for live-events listing.
+- Add runtime Satori client live-event join function.
+
 ### Fixed
 - Fix migration script to correctly revert console fine-grained access control changes.
 - Fix an issue that would prevent the console data reset operation from completing successfully.
