@@ -35,6 +35,8 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -913,13 +915,36 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names,
 // @summary List live events.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
-// @param names(type=[]string, optional=true, default=[]) Optional list of live event names to filter.
-// @param labels(type=[]string, optional=true, default=[]) Optional list of live event labels to filter.
+// @param names(type=[]string) Optional list of live event names to filter.
+// @param labels(type=[]string) Optional list of live event labels to filter.
+// @param pastRunCount(type=int, optional=true, default=0) The maximum number of past event runs to return for each live event.
+// @param futureRunCount(type=int, optional=true, default=0) The maximum number of future event runs to return for each live event.
+// @param startTimeSec(type=int64, optional=true, default=0) Start time of the time window filter to apply.
+// @param endTimeSec(type=int64, optional=true, default=0) End time of the time window filter to apply.
 // @return liveEvents(*runtime.LiveEventsList) The live event list.
 // @return error(error) An optional error value if an error occurred.
-func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, labels []string) (*runtime.LiveEventList, error) {
+func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, labels []string, pastRunCount, futureRunCount int32, startTimeSec, endTimeSec int64) (*runtime.LiveEventList, error) {
 	if s.invalidConfig {
 		return nil, runtime.ErrSatoriConfigurationInvalid
+	}
+
+	if pastRunCount < 0 {
+		return nil, errors.New("pastRunCount cannot be negative")
+	}
+	if futureRunCount < 0 {
+		return nil, errors.New("futureRunCount cannot be negative")
+	}
+	if startTimeSec < 0 {
+		return nil, errors.New("startTimeSec cannot be negative")
+	}
+	if endTimeSec < 0 {
+		return nil, errors.New("endTimeSec cannot be negative")
+	}
+	if startTimeSec > endTimeSec {
+		return nil, errors.New("endTimeSec cannot be after endTimeSec")
+	}
+	if (startTimeSec > 0 && endTimeSec <= 0) || (startTimeSec <= 0 && endTimeSec > 0) {
+		return nil, status.Errorf(codes.InvalidArgument, "start_time_sec and end_time_sec must be greater than 0")
 	}
 
 	entry, missingNames, missingLabels := s.liveEventsCache.Get(ctx, id, names, labels)
@@ -941,20 +966,30 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 		names = missingNames
 		labels = missingLabels
 
+		q := req.URL.Query()
 		if len(names) > 0 {
-			q := req.URL.Query()
 			for _, n := range names {
 				q.Add("names", n)
 			}
-			req.URL.RawQuery = q.Encode()
 		}
 		if len(labels) > 0 {
-			q := req.URL.Query()
-			for _, n := range labels {
-				q.Add("labels", n)
+			for _, l := range labels {
+				q.Add("labels", l)
 			}
-			req.URL.RawQuery = q.Encode()
 		}
+		if pastRunCount > 0 {
+			q.Set("past_run_count", fmt.Sprintf("%d", pastRunCount))
+		}
+		if futureRunCount > 0 {
+			q.Set("future_run_count", fmt.Sprintf("%d", futureRunCount))
+		}
+		if startTimeSec > 0 {
+			q.Set("start_time_sec", fmt.Sprintf("%d", startTimeSec))
+		}
+		if endTimeSec > 0 {
+			q.Set("end_time_sec", fmt.Sprintf("%d", endTimeSec))
+		}
+		req.URL.RawQuery = q.Encode()
 
 		res, err := s.httpc.Do(req)
 		if err != nil {
@@ -996,6 +1031,58 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 	}
 
 	return &runtime.LiveEventList{LiveEvents: entry}, nil
+}
+
+// @group satori
+// @summary Join live event.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @param liveEventId(type=string) The identifier of the live event.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) LiveEventJoin(ctx context.Context, id, liveEventId string) error {
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
+	}
+
+	if liveEventId == "" {
+		return errors.New("liveEventId cannot be empty")
+	}
+
+	url := s.url.JoinPath("/v1/live-event/", liveEventId, "participation").String()
+
+	sessionToken, err := s.generateToken(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	switch res.StatusCode {
+	case 200:
+		return nil
+	default:
+		if len(resBody) > 0 {
+			return fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		}
+		return fmt.Errorf("%d status code", res.StatusCode)
+	}
+
+	return nil
 }
 
 // @group satori
