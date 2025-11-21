@@ -1297,28 +1297,28 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 		}
 		defer r.Body.Close()
 
-		logger = logger.With(zap.String("notification_body", string(body)))
-
 		var notification *googleStoreNotification
 		if err := json.Unmarshal(body, &notification); err != nil {
-			logger.Error("Failed to unmarshal Google Play Billing notification", zap.Error(err))
+			logger.With(zap.String("notification_body", string(body))).Error("Failed to unmarshal Google Play Billing notification", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		jsonData, err := base64.URLEncoding.DecodeString(notification.Message.Data)
 		if err != nil {
-			logger.Error("Failed to base64 decode Google Play Billing notification data")
+			logger.With(zap.String("notification_body", string(body))).Error("Failed to base64 decode Google Play Billing notification data")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		var googleNotification *runtime.GoogleDeveloperNotificationData
 		if err = json.Unmarshal(jsonData, &googleNotification); err != nil {
-			logger.Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
+			logger.With(zap.String("notification_body", string(body))).Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
+		loggerWithNotification := logger.With(zap.String("notification_payload", string(jsonData)))
 
 		switch {
 		case googleNotification.SubscriptionNotification != nil:
@@ -1326,19 +1326,19 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			if err != nil {
 				var vErr *iap.ValidationError
 				if errors.As(err, &vErr) {
-					logger.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+					loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				} else {
-					logger.Error("Error validating Google receipt in notification callback", zap.Error(err))
+					loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))
 				}
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
-			logger.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gSubscription))
+			loggerWithNotification.Debug("Google IAP subscription notification received", zap.Any("api_response", gSubscription))
 
 			uid, err := extractAccountIdentifier(gSubscription)
 			if err != nil {
-				logger.Error("failed to extract account id", zap.Error(err))
+				loggerWithNotification.Error("failed to extract account id", zap.Error(err))
 				w.WriteHeader(http.StatusOK)
 				return
 			}
@@ -1349,15 +1349,15 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			}
 
 			if uid == nil {
-				s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, transactionId)
+				s, err := getSubscriptionByOriginalTransactionId(r.Context(), loggerWithNotification, db, transactionId)
 				if err != nil {
-					logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+					loggerWithNotification.Error("Failed to get subscription by original transaction id", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
 				}
 				if s == nil || s.UserId == "" {
 					// No subscription or user found, we do not want to upsert.
-					logger.Warn("No userId found for this Google IAP notification", zap.Any("notification_payload", googleNotification), zap.Any("provider_payload", gSubscription))
+					loggerWithNotification.Warn("No userId found for this Google IAP notification", zap.Any("provider_payload", gSubscription))
 					w.WriteHeader(http.StatusOK)
 					return
 				} else {
@@ -1411,7 +1411,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					w.WriteHeader(http.StatusOK)
 					return
 				}
-				logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+				loggerWithNotification.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -1438,7 +1438,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				}
 
 				if err := subscriptionNotificationCallback(r.Context(), notificationType, validatedSub, gSubscription); err != nil {
-					logger.Error("Error invoking Google IAP subscription notification function", zap.Error(err), zap.String("notification_type", notificationType.String()), zap.Any("google_subscription", gSubscription))
+					loggerWithNotification.Error("Error invoking Google IAP subscription notification function", zap.Error(err), zap.String("notification_type", notificationType.String()), zap.Any("google_subscription", gSubscription))
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -1453,19 +1453,19 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				if err != nil {
 					var vErr *iap.ValidationError
 					if errors.As(err, &vErr) {
-						logger.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 					} else {
-						logger.Error("Error validating Google receipt in notification callback", zap.Error(err))
+						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))
 					}
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 
-				logger.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gSubscription))
+				loggerWithNotification.Debug("Google IAP subscription notification received", zap.Any("api_response", gSubscription))
 
 				uid, err := extractAccountIdentifier(gSubscription)
 				if err != nil {
-					logger.Error("failed to extract account id", zap.Error(err))
+					loggerWithNotification.Error("failed to extract account id", zap.Error(err))
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -1476,15 +1476,15 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				}
 
 				if uid == nil {
-					s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, transactionId)
+					s, err := getSubscriptionByOriginalTransactionId(r.Context(), loggerWithNotification, db, transactionId)
 					if err != nil {
-						logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+						loggerWithNotification.Error("Failed to get subscription by original transaction id", zap.Error(err))
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 						return
 					}
 					if s == nil || s.UserId == "" {
 						// No subscription found, we do not want to upsert.
-						logger.Warn("No userId found for this Google IAP refund notification", zap.Any("notification_payload", googleNotification), zap.Any("google_subscription", gSubscription))
+						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("google_subscription", gSubscription))
 						w.WriteHeader(http.StatusOK)
 						return
 					} else {
@@ -1525,7 +1525,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 						w.WriteHeader(http.StatusOK)
 						return
 					}
-					logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+					loggerWithNotification.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -1552,30 +1552,30 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					}
 
 					if err := subscriptionNotificationCallback(r.Context(), runtime.IAPNotificationRefunded, validatedSub, gSubscription); err != nil {
-						logger.Error("Error invoking Google IAP subscription notification function", zap.Error(err), zap.String("notification_type", runtime.IAPNotificationRefunded.String()), zap.Any("google_subscription", gSubscription))
+						loggerWithNotification.Error("Error invoking Google IAP subscription notification function", zap.Error(err), zap.String("notification_type", runtime.IAPNotificationRefunded.String()), zap.Any("google_subscription", gSubscription))
 						w.WriteHeader(http.StatusOK)
 						return
 					}
 				}
 			} else {
 				// This is a purchase related refund/voided notification.
-				gPurchase, err := iap.GetPurchaseV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.OneTimeProductNotification.PurchaseToken)
+				gPurchase, err := iap.GetPurchaseV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.VoidedPurchaseNotification.PurchaseToken)
 				if err != nil {
 					var vErr *iap.ValidationError
 					if errors.As(err, &vErr) {
-						logger.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 					} else {
-						logger.Error("Error validating Google receipt in notification callback", zap.Error(err))
+						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))
 					}
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 
-				logger.Debug("Google IAP purchase notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gPurchase))
+				loggerWithNotification.Debug("Google IAP purchase notification received", zap.Any("api_response", gPurchase))
 
 				uid, err := extractAccountIdentifier(gPurchase)
 				if err != nil {
-					logger.Error("failed to extract account id", zap.Error(err))
+					loggerWithNotification.Error("failed to extract account id", zap.Error(err))
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -1583,15 +1583,15 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				transactionId := googleNotification.OneTimeProductNotification.PurchaseToken
 
 				if uid == nil {
-					s, err := GetPurchaseByTransactionId(r.Context(), logger, db, transactionId)
+					s, err := GetPurchaseByTransactionId(r.Context(), loggerWithNotification, db, transactionId)
 					if err != nil {
-						logger.Error("Failed to get purchase by transaction id", zap.Error(err))
+						loggerWithNotification.Error("Failed to get purchase by transaction id", zap.Error(err))
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 						return
 					}
 					if s == nil || s.UserId == "" {
 						// No purchase found, we do not want to upsert.
-						logger.Warn("No userId found for this Google IAP refund notification", zap.Any("notification_payload", googleNotification), zap.Any("purchase", gPurchase))
+						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("purchase", gPurchase))
 						w.WriteHeader(http.StatusOK)
 						return
 					} else {
@@ -1622,7 +1622,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 						w.WriteHeader(http.StatusOK)
 						return
 					}
-					logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+					loggerWithNotification.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -1646,7 +1646,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					}
 
 					if err := purchaseNotificationCallback(r.Context(), runtime.IAPNotificationRefunded, validatedPurchase, gPurchase); err != nil {
-						logger.Error("Error invoking Google IAP purchase notification function", zap.Error(err), zap.String("notification_type", runtime.IAPNotificationRefunded.String()), zap.Any("google_purchase", gPurchase))
+						loggerWithNotification.Error("Error invoking Google IAP purchase notification function", zap.Error(err), zap.String("notification_type", runtime.IAPNotificationRefunded.String()), zap.Any("google_purchase", gPurchase))
 						w.WriteHeader(http.StatusInternalServerError)
 						return
 					}
