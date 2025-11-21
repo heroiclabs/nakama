@@ -4,8 +4,15 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- New runtime Satori client options for time-based caching.
+
+### Changed
+- Adjust unit of measure for Satori client timeout.
+
 ### Fixed
 - Fix migration script to correctly revert console fine-grained access control changes.
+- Avoid unnecessary cache check in runtime Satori client Properties lookup.
 - Fix an issue that would prevent the console data reset operation from completing successfully.
 
 ## [3.34.1] - 2025-11-12

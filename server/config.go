@@ -1447,10 +1447,12 @@ type SatoriConfig struct {
 	ApiKey     string `yaml:"api_key" json:"api_key" usage:"Satori Api key."`
 	SigningKey string `yaml:"signing_key" json:"signing_key" usage:"Key used to sign Satori session tokens."`
 	// Deprecated: This is longer observed, use CacheDisabled instead.
-	CacheEnabled   bool   `yaml:"cache_enabled" json:"cache_enabled" usage:"Enable caching of responses throughout the lifetime of a request. Deprecated, use 'cache_disabled' instead."`
-	CacheDisabled  bool   `yaml:"cache_disabled" json:"cache_disabled" usage:"Disable caching of responses throughout the lifetime of a request. Default is enabled."`
-	HttpTimeoutSec int    `yaml:"http_timeout_sec" json:"http_timeout_sec" usage:"Timeout for HTTP requests to Satori in seconds. Default 2s."`
-	ServerKey      string `yaml:"server_key" json:"server_key" usage:"Satori server key."`
+	CacheEnabled  bool   `yaml:"cache_enabled" json:"cache_enabled" usage:"Enable caching of responses throughout the lifetime of a request. Deprecated, use 'cache_disabled' instead."`
+	CacheDisabled bool   `yaml:"cache_disabled" json:"cache_disabled" usage:"Disable caching of responses throughout the lifetime of a request. Default is enabled."`
+	CacheMode     string `yaml:"cache_mode" json:"cache_mode" usage:"Cache mode to be used if caching is enabled, values: 'context', 'time'. Default is 'context'."`
+	CacheTTLSec   int    `yaml:"cache_ttl_sec" json:"cache_ttl_sec" usage:"Cache TTL in seconds. Only used if caching is enabled and cache mode is 'time'. Default is 300 (5 minutes)."`
+	HttpTimeoutMs int    `yaml:"http_timeout_ms" json:"http_timeout_ms" usage:"Timeout for HTTP requests to Satori in milliseconds. Default 10000 (10 seconds)."`
+	ServerKey     string `yaml:"server_key" json:"server_key" usage:"Satori server key."`
 }
 
 func (sc *SatoriConfig) GetUrl() string {
@@ -1480,7 +1482,9 @@ func (sc *SatoriConfig) Clone() *SatoriConfig {
 
 func NewSatoriConfig() *SatoriConfig {
 	return &SatoriConfig{
-		HttpTimeoutSec: 2,
+		HttpTimeoutMs: 10_000,
+		CacheMode:     "context",
+		CacheTTLSec:   300,
 	}
 }
 
@@ -1504,8 +1508,14 @@ func (sc *SatoriConfig) Validate(logger *zap.Logger) {
 		logger.Fatal("Satori configuration incomplete: url not set")
 	}
 
-	if sc.HttpTimeoutSec < 1 {
-		logger.Fatal("Satori configuration invalid: http_timeout_sec must be greater than 0")
+	if sc.HttpTimeoutMs < 1 {
+		logger.Fatal("Satori configuration invalid: http_timeout_ms must be greater than 0")
+	}
+	if sc.CacheMode != "context" && sc.CacheMode != "time" {
+		logger.Fatal("Satori configuration invalid: cache_mode must be 'context' or 'time'")
+	}
+	if sc.CacheTTLSec < 1 {
+		logger.Fatal("Satori configuration invalid: cache_ttl_sec must be greater than 0")
 	}
 }
 
