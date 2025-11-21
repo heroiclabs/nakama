@@ -758,13 +758,14 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			return
 		}
 
+		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedNotificationPayload))
+
 		notificationPayload, notificationData, err := decodeAppleNotificationSignedPayload(signedNotificationPayload)
 		if err != nil {
 			logger.Error("Failed to decode App Store notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
-
-		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", notificationData))
 
 		switch notificationType := strings.ToUpper(notificationPayload.NotificationType); notificationType {
 		case "DID_RENEW", "SUBSCRIBED", "DID_CHANGE_RENEWAL_PREF", "OFFER_REDEEMED":
@@ -1230,43 +1231,48 @@ func decodeAppleNotificationSignedPayload(appleNotificationSigned *appleNotifica
 		return nil, nil, err
 	}
 
-	tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
-	if len(tokens) < 3 {
-		return nil, nil, fmt.Errorf("unexpected apple signedTransactionInfo jws length: %d", len(tokens))
-	}
-
-	seg = tokens[1]
-	if l := len(seg) % 4; l > 0 {
-		seg += strings.Repeat("=", 4-l)
-	}
-
-	jsonPayload, err = base64.StdEncoding.DecodeString(seg)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	var signedTransactionInfo *runtime.AppleNotificationTransactionInfo
-	if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
-		return nil, nil, err
+	if notificationPayload.Data.SignedTransactionInfo != "" {
+		tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
+		if len(tokens) < 3 {
+			return nil, nil, fmt.Errorf("unexpected apple signedTransactionInfo jws length: %d", len(tokens))
+		}
+
+		seg = tokens[1]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		jsonPayload, err = base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
+			return nil, nil, err
+		}
 	}
 
-	tokens = strings.Split(notificationPayload.Data.SignedRenewalInfo, ".")
-	if len(tokens) < 3 {
-		return nil, nil, fmt.Errorf("unexpected apple signedRenewalInfo jws length: %d", len(tokens))
-	}
-
-	seg = tokens[1]
-	if l := len(seg) % 4; l > 0 {
-		seg += strings.Repeat("=", 4-l)
-	}
-
-	renewalJsonPayload, err := base64.StdEncoding.DecodeString(seg)
-	if err != nil {
-		return nil, nil, err
-	}
 	var signedRenewalInfo *runtime.AppleNotificationRenewalInfo
-	if err = json.Unmarshal(renewalJsonPayload, &signedRenewalInfo); err != nil {
-		return nil, nil, err
+	if notificationPayload.Data.SignedRenewalInfo != "" {
+		tokens = strings.Split(notificationPayload.Data.SignedRenewalInfo, ".")
+		if len(tokens) < 3 {
+			return nil, nil, fmt.Errorf("unexpected apple signedRenewalInfo jws length: %d", len(tokens))
+		}
+
+		seg = tokens[1]
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+
+		renewalJsonPayload, err := base64.StdEncoding.DecodeString(seg)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err = json.Unmarshal(renewalJsonPayload, &signedRenewalInfo); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	data := notificationPayload.Data
