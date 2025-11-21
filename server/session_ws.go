@@ -531,7 +531,7 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 				// This may not be possible if the socket was already fully closed by an error.
 				s.logger.Debug("Could not send close message", zap.Error(err))
 			} else {
-				t := time.NewTimer(10 * time.Second)
+				t := time.NewTimer(2 * time.Second)
 				defer t.Stop()
 				select {
 				case <-s.closeWaitCh:
