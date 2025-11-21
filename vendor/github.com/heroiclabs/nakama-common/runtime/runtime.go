@@ -1360,7 +1360,8 @@ type Satori interface {
 	ExperimentsList(ctx context.Context, id string, names, labels []string) (*ExperimentList, error)
 	FlagsList(ctx context.Context, id string, names, labels []string) (*FlagList, error)
 	FlagsOverridesList(ctx context.Context, id string, names, labels []string) (*FlagOverridesList, error)
-	LiveEventsList(ctx context.Context, id string, names, labels []string) (*LiveEventList, error)
+	LiveEventsList(ctx context.Context, id string, names, labels []string, pastRunCount, futureRunCount int32, startTimeSec, endTimeSec int64) (*LiveEventList, error)
+	LiveEventJoin(ctx context.Context, id, liveEventId string) error
 	MessagesList(ctx context.Context, id string, limit int, forward bool, cursor string, messageIDs []string) (*MessageList, error)
 	MessageUpdate(ctx context.Context, id, messageId string, readTime, consumeTime int64) error
 	MessageDelete(ctx context.Context, id, messageId string) error
@@ -1566,22 +1567,48 @@ func (ft FlagType) String() string {
 	}
 }
 
-type LiveEventList struct {
-	LiveEvents []*LiveEvent `json:"live_events,omitempty"`
+type LiveEvent struct {
+	Name               string          `json:"name,omitempty"`
+	Description        string          `json:"description,omitempty"`
+	Value              string          `json:"value,omitempty"`
+	Labels             []string        `json:"labels,omitempty"`
+	ActiveStartTimeSec int64           `json:"active_start_time_sec,string,omitempty"`
+	ActiveEndTimeSec   int64           `json:"active_end_time_sec,string,omitempty"`
+	Id                 string          `json:"id,omitempty"`
+	StartTimeSec       int64           `json:"start_time_sec,string,omitempty"`
+	EndTimeSec         int64           `json:"end_time_sec,string,omitempty"`
+	DurationSec        int64           `json:"duration_sec,string,omitempty"`
+	ResetCronExpr      string          `json:"reset_cron,omitempty"`
+	Status             LiveEventStatus `json:"status,omitempty"`
 }
 
-type LiveEvent struct {
-	Name               string   `json:"name,omitempty"`
-	Description        string   `json:"description,omitempty"`
-	Value              string   `json:"value,omitempty"`
-	Labels             []string `json:"labels,omitempty"`
-	ActiveStartTimeSec int64    `json:"active_start_time_sec,string,omitempty"`
-	ActiveEndTimeSec   int64    `json:"active_end_time_sec,string,omitempty"`
-	Id                 string   `json:"id,omitempty"`
-	StartTimeSec       int64    `json:"start_time_sec,string,omitempty"`
-	EndTimeSec         int64    `json:"end_time_sec,string,omitempty"`
-	DurationSec        int64    `json:"duration_sec,string,omitempty"`
-	ResetCronExpr      string   `json:"reset_cron,omitempty"`
+type LiveEventList struct {
+	LiveEvents             []*LiveEvent `json:"live_events,omitempty"`
+	ExplicitJoinLiveEvents []*LiveEvent `json:"explicit_join_live_events"`
+}
+
+type LiveEventStatus int
+
+const (
+	LiveEventUnknown    LiveEventStatus = 0
+	LiveEventActive     LiveEventStatus = 1
+	LiveEventUpcoming   LiveEventStatus = 2
+	LiveEventTerminated LiveEventStatus = 3
+)
+
+func (ls LiveEventStatus) String() string {
+	switch ls {
+	case LiveEventUnknown:
+		return "UNKNOWN"
+	case LiveEventActive:
+		return "ACTIVE"
+	case LiveEventUpcoming:
+		return "UPCOMING"
+	case LiveEventTerminated:
+		return "TERMINATED"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 func (le *LiveEvent) GetLabels() []string {
