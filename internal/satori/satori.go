@@ -1057,8 +1057,6 @@ func (s *SatoriClient) LiveEventJoin(ctx context.Context, id, liveEventId string
 		}
 		return fmt.Errorf("%d status code", res.StatusCode)
 	}
-
-	return nil
 }
 
 // @group satori
