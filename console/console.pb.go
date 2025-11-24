@@ -7853,7 +7853,9 @@ type StatusList_Status struct {
 	// Average input bandwidth usage.
 	AvgInputKbs float64 `protobuf:"fixed64,9,opt,name=avg_input_kbs,json=avgInputKbs,proto3" json:"avg_input_kbs,omitempty"`
 	// Average output bandwidth usage.
-	AvgOutputKbs  float64 `protobuf:"fixed64,10,opt,name=avg_output_kbs,json=avgOutputKbs,proto3" json:"avg_output_kbs,omitempty"`
+	AvgOutputKbs float64 `protobuf:"fixed64,10,opt,name=avg_output_kbs,json=avgOutputKbs,proto3" json:"avg_output_kbs,omitempty"`
+	// Current number of active parties.
+	PartyCount    int32 `protobuf:"varint,11,opt,name=party_count,json=partyCount,proto3" json:"party_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7954,6 +7956,13 @@ func (x *StatusList_Status) GetAvgInputKbs() float64 {
 func (x *StatusList_Status) GetAvgOutputKbs() float64 {
 	if x != nil {
 		return x.AvgOutputKbs
+	}
+	return 0
+}
+
+func (x *StatusList_Status) GetPartyCount() int32 {
+	if x != nil {
+		return x.PartyCount
 	}
 	return 0
 }
@@ -9805,11 +9814,11 @@ const file_console_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
 	"\x05value\x18\x02 \x01(\v2\x1b.nakama.console.PermissionsR\x05value:\x028\x01\"6\n" +
 	"\bUserList\x12*\n" +
-	"\x05users\x18\x01 \x03(\v2\x14.nakama.console.UserR\x05users\"\xfc\x03\n" +
+	"\x05users\x18\x01 \x03(\v2\x14.nakama.console.UserR\x05users\"\x9d\x04\n" +
 	"\n" +
 	"StatusList\x127\n" +
 	"\x05nodes\x18\x01 \x03(\v2!.nakama.console.StatusList.StatusR\x05nodes\x128\n" +
-	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x1a\xfa\x02\n" +
+	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x1a\x9b\x03\n" +
 	"\x06Status\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x124\n" +
 	"\x06health\x18\x02 \x01(\x0e2\x1c.nakama.console.StatusHealthR\x06health\x12#\n" +
@@ -9823,7 +9832,9 @@ const file_console_proto_rawDesc = "" +
 	"avgRateSec\x12\"\n" +
 	"\ravg_input_kbs\x18\t \x01(\x01R\vavgInputKbs\x12$\n" +
 	"\x0eavg_output_kbs\x18\n" +
-	" \x01(\x01R\favgOutputKbs\"\xbd\x03\n" +
+	" \x01(\x01R\favgOutputKbs\x12\x1f\n" +
+	"\vparty_count\x18\v \x01(\x05R\n" +
+	"partyCount\"\xbd\x03\n" +
 	"\vRuntimeInfo\x12*\n" +
 	"\x11lua_rpc_functions\x18\x01 \x03(\tR\x0fluaRpcFunctions\x12(\n" +
 	"\x10go_rpc_functions\x18\x02 \x03(\tR\x0egoRpcFunctions\x12(\n" +

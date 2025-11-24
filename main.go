@@ -197,7 +197,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to initialize storage index", zap.Error(err))
 	}
-	partyRegistry := server.NewLocalPartyRegistry(ctx, logger, startupLogger, config, config.GetName())
+	partyRegistry := server.NewLocalPartyRegistry(ctx, logger, startupLogger, config, config.GetName(), metrics)
 	runtime, runtimeInfo, err := server.NewRuntime(ctx, logger, startupLogger, db, jsonpbMarshaler, jsonpbUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, fmCallbackHandler)
 	if err != nil {
 		startupLogger.Fatal("Failed initializing runtime modules", zap.Error(err))
@@ -217,7 +217,7 @@ func main() {
 	leaderboardScheduler.Start(runtime)
 
 	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, statusRegistry, matchRegistry, partyRegistry, matchmaker, tracker, router, runtime)
-	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, tracker, metrics, config.GetName())
+	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, partyRegistry, tracker, metrics, config.GetName())
 
 	telemetryEnabled := os.Getenv("NAKAMA_TELEMETRY") != "0"
 	console.UIFS.Nt = !telemetryEnabled

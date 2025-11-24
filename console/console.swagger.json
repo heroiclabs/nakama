@@ -5131,6 +5131,11 @@
           "type": "number",
           "format": "double",
           "description": "Average output bandwidth usage."
+        },
+        "party_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Current number of active parties."
         }
       },
       "description": "The status of a Nakama node."

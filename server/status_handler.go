@@ -31,16 +31,18 @@ type LocalStatusHandler struct {
 	logger          *zap.Logger
 	sessionRegistry SessionRegistry
 	matchRegistry   MatchRegistry
+	partyRegistry   PartyRegistry
 	tracker         Tracker
 	metrics         Metrics
 	node            string
 }
 
-func NewLocalStatusHandler(logger *zap.Logger, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, tracker Tracker, metrics Metrics, node string) StatusHandler {
+func NewLocalStatusHandler(logger *zap.Logger, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, node string) StatusHandler {
 	return &LocalStatusHandler{
 		logger:          logger,
 		sessionRegistry: sessionRegistry,
 		matchRegistry:   matchRegistry,
+		partyRegistry:   partyRegistry,
 		tracker:         tracker,
 		metrics:         metrics,
 		node:            node,
@@ -60,6 +62,7 @@ func (s *LocalStatusHandler) GetStatus(ctx context.Context) ([]*console.StatusLi
 			AvgRateSec:     math.Floor(s.metrics.SnapshotRateSec()*100) / 100,
 			AvgInputKbs:    math.Floor(s.metrics.SnapshotRecvKbSec()*100) / 100,
 			AvgOutputKbs:   math.Floor(s.metrics.SnapshotSentKbSec()*100) / 100,
+			PartyCount:     int32(s.partyRegistry.Count()),
 		},
 	}, nil
 }

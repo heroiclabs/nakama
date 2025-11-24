@@ -50,6 +50,7 @@ type Metrics interface {
 	GaugeLuaRuntimes(value float64)
 	GaugeJsRuntimes(value float64)
 	GaugeAuthoritativeMatches(value float64)
+	GaugeParties(value float64)
 	CountDroppedEvents(delta int64)
 	CountWebsocketOpened(delta int64)
 	CountWebsocketClosed(delta int64)
@@ -392,6 +393,11 @@ func (m *LocalMetrics) GaugeJsRuntimes(value float64) {
 // Set the absolute value of currently running authoritative matches.
 func (m *LocalMetrics) GaugeAuthoritativeMatches(value float64) {
 	m.PrometheusScope.Gauge("authoritative_matches").Update(value)
+}
+
+// Set the absolute value of currently running parties.
+func (m *LocalMetrics) GaugeParties(value float64) {
+	m.PrometheusScope.Gauge("parties").Update(value)
 }
 
 // Increment the number of dropped events.
