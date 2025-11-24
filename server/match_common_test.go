@@ -171,6 +171,7 @@ func (m *testMetrics) GaugeRuntimes(value float64)                              
 func (m *testMetrics) GaugeLuaRuntimes(value float64)                                       {}
 func (m *testMetrics) GaugeJsRuntimes(value float64)                                        {}
 func (m *testMetrics) GaugeAuthoritativeMatches(value float64)                              {}
+func (m *testMetrics) GaugeParties(value float64)                                           {}
 func (m *testMetrics) GaugeStorageIndexEntries(indexName string, value float64)             {}
 func (m *testMetrics) CountDroppedEvents(delta int64)                                       {}
 func (m *testMetrics) CountWebsocketOpened(delta int64)                                     {}
