@@ -42,9 +42,9 @@ import (
 
 const satoriCacheCleanupInterval = 5 * time.Second
 
-type satoriCache[T any] interface {
-	Get(ctx context.Context, userID string, names, labels []string) (values []T, missingNames, missingLabels []string)
-	Add(ctx context.Context, userID string, names, labels []string, values map[string]T)
+type satoriCache[T any, O comparable] interface {
+	Get(ctx context.Context, userID string, names, labels []string, optFilters ...O) (values []T, missingNames, missingLabels []string)
+	Add(ctx context.Context, userID string, names, labels []string, values map[string]T, optFilters ...O)
 	SetAll(ctx context.Context, userID string, values map[string]T)
 }
 
@@ -66,10 +66,10 @@ type SatoriClient struct {
 	cacheEnabled         bool
 	propertiesCacheMutex sync.RWMutex
 	propertiesCache      map[context.Context]*runtime.Properties
-	flagsCache           satoriCache[flagCacheEntry]
-	flagsOverridesCache  satoriCache[flagOverridesCacheEntry]
-	liveEventsCache      satoriCache[*runtime.LiveEvent]
-	experimentsCache     satoriCache[*runtime.Experiment]
+	flagsCache           satoriCache[flagCacheEntry, struct{}]
+	flagsOverridesCache  satoriCache[flagOverridesCacheEntry, struct{}]
+	liveEventsCache      satoriCache[*runtime.LiveEvent, liveEventFilters]
+	experimentsCache     satoriCache[*runtime.Experiment, struct{}]
 }
 
 func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, serverKey, signingKey string, nakamaTokenExpirySec, httpTimeoutMs int64, cacheEnabled bool, cacheMode string, cacheTTLSec int64) *SatoriClient {
@@ -92,25 +92,25 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
 		propertiesCache:      make(map[context.Context]*runtime.Properties),
-		flagsCache:           newSatoriContextCache[flagCacheEntry](ctx, cacheEnabled),
-		flagsOverridesCache:  newSatoriContextCache[flagOverridesCacheEntry](ctx, cacheEnabled),
-		liveEventsCache:      newSatoriContextCache[*runtime.LiveEvent](ctx, cacheEnabled),
-		experimentsCache:     newSatoriContextCache[*runtime.Experiment](ctx, cacheEnabled),
+		flagsCache:           newSatoriContextCache[flagCacheEntry, struct{}](ctx, cacheEnabled),
+		flagsOverridesCache:  newSatoriContextCache[flagOverridesCacheEntry, struct{}](ctx, cacheEnabled),
+		liveEventsCache:      newSatoriContextCache[*runtime.LiveEvent, liveEventFilters](ctx, cacheEnabled),
+		experimentsCache:     newSatoriContextCache[*runtime.Experiment, struct{}](ctx, cacheEnabled),
 	}
 
 	switch cacheMode {
 	case "time":
-		sc.flagsCache = newSatoriTimeCache[flagCacheEntry](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
-		sc.flagsOverridesCache = newSatoriTimeCache[flagOverridesCacheEntry](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
-		sc.liveEventsCache = newSatoriTimeCache[*runtime.LiveEvent](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
-		sc.experimentsCache = newSatoriTimeCache[*runtime.Experiment](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.flagsCache = newSatoriTimeCache[flagCacheEntry, struct{}](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.flagsOverridesCache = newSatoriTimeCache[flagOverridesCacheEntry, struct{}](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.liveEventsCache = newSatoriTimeCache[*runtime.LiveEvent, liveEventFilters](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.experimentsCache = newSatoriTimeCache[*runtime.Experiment, struct{}](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
 	case "context":
 		fallthrough
 	default:
-		sc.flagsCache = newSatoriContextCache[flagCacheEntry](ctx, cacheEnabled)
-		sc.flagsOverridesCache = newSatoriContextCache[flagOverridesCacheEntry](ctx, cacheEnabled)
-		sc.liveEventsCache = newSatoriContextCache[*runtime.LiveEvent](ctx, cacheEnabled)
-		sc.experimentsCache = newSatoriContextCache[*runtime.Experiment](ctx, cacheEnabled)
+		sc.flagsCache = newSatoriContextCache[flagCacheEntry, struct{}](ctx, cacheEnabled)
+		sc.flagsOverridesCache = newSatoriContextCache[flagOverridesCacheEntry, struct{}](ctx, cacheEnabled)
+		sc.liveEventsCache = newSatoriContextCache[*runtime.LiveEvent, liveEventFilters](ctx, cacheEnabled)
+		sc.experimentsCache = newSatoriContextCache[*runtime.Experiment, struct{}](ctx, cacheEnabled)
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -947,7 +947,14 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 		return nil, status.Errorf(codes.InvalidArgument, "start_time_sec and end_time_sec must be greater than 0")
 	}
 
-	entry, missingNames, missingLabels := s.liveEventsCache.Get(ctx, id, names, labels)
+	optFilters := liveEventFilters{
+		pastRunCount:   pastRunCount,
+		futureRunCount: futureRunCount,
+		startTimeSec:   startTimeSec,
+		endTimeSec:     endTimeSec,
+	}
+
+	entry, missingNames, missingLabels := s.liveEventsCache.Get(ctx, id, names, labels, optFilters)
 
 	if !s.cacheEnabled || entry == nil || len(missingNames) > 0 || len(missingLabels) > 0 {
 		url := s.url.JoinPath("/v1/live-event").String()
@@ -1015,11 +1022,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 				entry = append(entry, le)
 			}
 
-			if len(names) > 0 {
-				s.liveEventsCache.Add(ctx, id, names, labels, entries)
-			} else {
-				s.liveEventsCache.SetAll(ctx, id, entries)
-			}
+			s.liveEventsCache.Add(ctx, id, names, labels, entries, optFilters)
 
 			return liveEvents, nil
 		default:

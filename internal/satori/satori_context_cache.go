@@ -9,31 +9,39 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
-var _ satoriCache[runtime.SatoriLabeled] = (*satoriContextCache[runtime.SatoriLabeled])(nil)
+var _ satoriCache[runtime.SatoriLabeled, struct{}] = (*satoriContextCache[runtime.SatoriLabeled, struct{}])(nil)
 
-type satoriContextCacheEntry[T runtime.SatoriLabeled] struct {
+type liveEventFilters struct {
+	startTimeSec   int64
+	endTimeSec     int64
+	pastRunCount   int32
+	futureRunCount int32
+}
+
+type satoriContextCacheEntry[T runtime.SatoriLabeled, O comparable] struct {
 	containsAll bool
 	names       map[string]struct{}
 	labels      map[string]struct{}
+	optFilter   O
 	entryData   map[string]T
 }
 
-type satoriContextCache[T runtime.SatoriLabeled] struct {
+type satoriContextCache[T runtime.SatoriLabeled, O comparable] struct {
 	sync.RWMutex
 	enabled bool
-	entries map[context.Context]*satoriContextCacheEntry[T]
+	entries map[context.Context]*satoriContextCacheEntry[T, O]
 }
 
-func newSatoriContextCache[T runtime.SatoriLabeled](ctx context.Context, enabled bool) *satoriContextCache[T] {
+func newSatoriContextCache[T runtime.SatoriLabeled, O comparable](ctx context.Context, enabled bool) *satoriContextCache[T, O] {
 	if !enabled {
-		return &satoriContextCache[T]{
+		return &satoriContextCache[T, O]{
 			enabled: false,
 		}
 	}
 
-	sc := &satoriContextCache[T]{
+	sc := &satoriContextCache[T, O]{
 		enabled: true,
-		entries: make(map[context.Context]*satoriContextCacheEntry[T]),
+		entries: make(map[context.Context]*satoriContextCacheEntry[T, O]),
 	}
 
 	go func() {
@@ -58,13 +66,20 @@ func newSatoriContextCache[T runtime.SatoriLabeled](ctx context.Context, enabled
 	return sc
 }
 
-func (s *satoriContextCache[T]) Get(ctx context.Context, userID string, names, labels []string) (values []T, missingNames, missingLabels []string) {
+func (s *satoriContextCache[T, O]) Get(ctx context.Context, userID string, names, labels []string, optFilters ...O) (values []T, missingNames, missingLabels []string) {
 	if !s.enabled {
 		return nil, names, labels
 	}
 	s.RLock()
 	entry, found := s.entries[ctx]
 	defer s.RUnlock()
+
+	if found && len(optFilters) > 0 {
+		if entry.optFilter != optFilters[0] {
+			// The cached entry exists but was created with different optional filters, force a cache miss.
+			return nil, names, labels
+		}
+	}
 
 	if !found || (len(names) == 0 && len(labels) == 0 && !entry.containsAll) {
 		// Asked for all keys, but they were never fetched, or no cache entries exist for the context.
@@ -177,14 +192,14 @@ func (s *satoriContextCache[T]) Get(ctx context.Context, userID string, names, l
 	return values, missingNames, missingLabels
 }
 
-func (s *satoriContextCache[T]) Add(ctx context.Context, userID string, names, labels []string, values map[string]T) {
+func (s *satoriContextCache[T, O]) Add(ctx context.Context, userID string, names, labels []string, values map[string]T, optFilters ...O) {
 	if !s.enabled {
 		return
 	}
 	s.Lock()
 	entry, ok := s.entries[ctx]
 	if !ok {
-		entry = &satoriContextCacheEntry[T]{
+		entry = &satoriContextCacheEntry[T, O]{
 			containsAll: false,
 			names:       map[string]struct{}{},
 			labels:      map[string]struct{}{},
@@ -199,16 +214,20 @@ func (s *satoriContextCache[T]) Add(ctx context.Context, userID string, names, l
 		entry.labels[label] = struct{}{}
 	}
 	maps.Copy(entry.entryData, values)
+	if len(optFilters) > 0 {
+		entry.optFilter = optFilters[0]
+	}
+
 	s.Unlock()
 }
 
-func (s *satoriContextCache[T]) SetAll(ctx context.Context, userID string, values map[string]T) {
+func (s *satoriContextCache[T, O]) SetAll(ctx context.Context, userID string, values map[string]T) {
 	if !s.enabled {
 		return
 	}
 
 	s.Lock()
-	s.entries[ctx] = &satoriContextCacheEntry[T]{
+	s.entries[ctx] = &satoriContextCacheEntry[T, O]{
 		containsAll: true,
 		entryData:   values,
 	}
