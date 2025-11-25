@@ -189,8 +189,8 @@ func ValidateConfig(logger *zap.Logger, c Config) map[string]string {
 	if c.GetConsole().SigningKey == "" {
 		logger.Fatal("Console signing key must be set", zap.String("param", "console.signing_key"))
 	}
-	if c.GetSocket().CloseAckWait < 1 {
-		logger.Fatal("Socket close ack timeout milliseconds must be >= 1", zap.Int("socket.close_ack_wait", c.GetSocket().CloseAckWait))
+	if c.GetSocket().CloseAckWaitMs < 1 {
+		logger.Fatal("Socket close ack timeout milliseconds must be >= 1", zap.Int("socket.close_ack_wait", c.GetSocket().CloseAckWaitMs))
 	}
 	if p := c.GetSocket().Protocol; p != "tcp" && p != "tcp4" && p != "tcp6" {
 		logger.Fatal("Socket protocol must be one of: tcp, tcp4, tcp6", zap.String("socket.protocol", c.GetSocket().Protocol))
@@ -830,7 +830,7 @@ type SocketConfig struct {
 	PongWaitMs           int               `yaml:"pong_wait_ms" json:"pong_wait_ms" usage:"Time in milliseconds to wait between pong messages received from the client. Used for real-time connections."`
 	PingPeriodMs         int               `yaml:"ping_period_ms" json:"ping_period_ms" usage:"Time in milliseconds to wait between sending ping messages to the client. This value must be less than the pong_wait_ms. Used for real-time connections."`
 	PingBackoffThreshold int               `yaml:"ping_backoff_threshold" json:"ping_backoff_threshold" usage:"Minimum number of messages received from the client during a single ping period that will delay the sending of a ping until the next ping period, to avoid sending unnecessary pings on regularly active connections. Default 20."`
-	CloseAckWait         int               `yaml:"close_ack_wait" json:"close_ack_wait" usage:"Time in milliseconds to wait for a close ack from the client when closing the connection. Used for real-time connections."`
+	CloseAckWaitMs       int               `yaml:"close_ack_wait_ms" json:"close_ack_wait_ms" usage:"Time in milliseconds to wait for a close ack from the client when closing the connection. Used for real-time connections."`
 	OutgoingQueueSize    int               `yaml:"outgoing_queue_size" json:"outgoing_queue_size" usage:"The maximum number of messages waiting to be sent to the client. If this is exceeded the client is considered too slow and will disconnect. Used when processing real-time connections."`
 	SSLCertificate       string            `yaml:"ssl_certificate" json:"ssl_certificate" usage:"Path to certificate file if you want the server to use SSL directly. Must also supply ssl_private_key. NOT recommended for production use."`
 	SSLPrivateKey        string            `yaml:"ssl_private_key" json:"ssl_private_key" usage:"Path to private key file if you want the server to use SSL directly. Must also supply ssl_certificate. NOT recommended for production use."`
@@ -907,7 +907,7 @@ func NewSocketConfig() *SocketConfig {
 		WriteTimeoutMs:       10 * 1000,
 		IdleTimeoutMs:        60 * 1000,
 		WriteWaitMs:          5000,
-		CloseAckWait:         2000,
+		CloseAckWaitMs:       2000,
 		PongWaitMs:           25000,
 		PingPeriodMs:         15000,
 		PingBackoffThreshold: 20,

@@ -113,7 +113,7 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessi
 		pingPeriodDuration:   time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond,
 		pongWaitDuration:     time.Duration(config.GetSocket().PongWaitMs) * time.Millisecond,
 		writeWaitDuration:    time.Duration(config.GetSocket().WriteWaitMs) * time.Millisecond,
-		closeAckWaitDuration: time.Duration(config.GetSocket().CloseAckWait) * time.Millisecond,
+		closeAckWaitDuration: time.Duration(config.GetSocket().CloseAckWaitMs) * time.Millisecond,
 
 		sessionRegistry: sessionRegistry,
 		statusRegistry:  statusRegistry,
