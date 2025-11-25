@@ -110,3 +110,50 @@ func TestTournamentNowIsBeforeStart(t *testing.T) {
 	// 12 October 2023, 9:00:00
 	require.Equal(t, int64(1697101200), endActiveUnix, "End active times should be equal.")
 }
+
+func TestTournamentWeeklyNonUTCTimezoneCronAlwaysUTC(t *testing.T) {
+	sched, err := cronexpr.Parse("0 0 * * 1")
+	if err != nil {
+		t.Fatal("Invalid cron schedule", err)
+		return
+	}
+
+	// Some non-UTC timezone with UTC+8 offset.
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal("Failed to load Asia/Shanghai location", err)
+		return
+	}
+
+	var (
+		// 15 August 2023, 09:00:00 in a UTC+8 zone == 2023-08-15 01:00:00 UTC
+		now int64 = 1692061200
+
+		// Start/end time unset
+		startTime int64 = 0
+		duration  int64 = 604800 // 1 week
+	)
+
+	// Simulate server running in a non-UTC time zone.
+	nowLocal := time.Unix(now, 0).In(loc)
+
+	// Your implementation should internally convert to UTC
+	// when using the cron expression.
+	startActiveUnix, endActiveUnix, _ := calculateTournamentDeadlines(startTime, 0, duration, sched, nowLocal)
+
+	// For direct cron checks, we also use UTC explicitly:
+	nowUTC := time.Unix(now, 0).UTC()
+	nextResetUnix := sched.Next(nowUTC).Unix()
+
+	// Expectation (cron in UTC):
+	// - Last reset before "now" is Monday 14 August 2023, 00:00:00 UTC
+	// - Duration is 1 week, so end is Monday 21 August 2023, 00:00:00 UTC
+	// - Next cron reset is also Monday 21 August 2023, 00:00:00 UTC
+
+	// 14 August 2023, 00:00:00 UTC (Monday)
+	require.Equal(t, int64(1691971200), startActiveUnix, "Start active times should be equal.")
+	// 21 August 2023, 00:00:00 UTC (next Monday, 1 week later)
+	require.Equal(t, int64(1692576000), endActiveUnix, "End active times should be equal.")
+	// 21 August 2023, 00:00:00 UTC (next reset)
+	require.Equal(t, int64(1692576000), nextResetUnix, "Next reset times should be equal.")
+}
