@@ -11,9 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Adjust unit of measure for Satori client timeout.
 - Add runtime Satori client additional filters for live-events listing.
 - Add runtime Satori client live-event join function.
-
-### Changed
-- Reduced the timeout for server initiated socket disconnects graceful wait period.
+- Configurable timeout for server initiated socket disconnects graceful close wait period.
 
 ### Fixed
 - Fix migration script to correctly revert console fine-grained access control changes.
