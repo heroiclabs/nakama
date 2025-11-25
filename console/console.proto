@@ -1450,6 +1450,8 @@ message StatusList {
     double avg_input_kbs = 9;
     // Average output bandwidth usage.
     double avg_output_kbs = 10;
+    // Current number of active parties.
+    int32 party_count = 11;
   }
 
   // List of nodes and their stats.
