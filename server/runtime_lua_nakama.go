@@ -11845,7 +11845,7 @@ func (n *RuntimeLuaNakamaModule) satoriLiveEventJoin(l *lua.LState) int {
 
 	err := n.satori.LiveEventJoin(l.Context(), identifier, liveEventId)
 	if err != nil {
-		l.RaiseError("failed to satori list live-events: %v", err.Error())
+		l.RaiseError("failed to join satori live-event: %v", err.Error())
 		return 0
 	}
 

@@ -941,7 +941,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 		return nil, errors.New("endTimeSec cannot be negative")
 	}
 	if startTimeSec > endTimeSec {
-		return nil, errors.New("endTimeSec cannot be after endTimeSec")
+		return nil, errors.New("startTimeSec cannot be after endTimeSec")
 	}
 	if (startTimeSec > 0 && endTimeSec <= 0) || (startTimeSec <= 0 && endTimeSec > 0) {
 		return nil, status.Errorf(codes.InvalidArgument, "start_time_sec and end_time_sec must be greater than 0")

@@ -5,7 +5,6 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 ### Added
-<<<<<<< HEAD
 - New runtime Satori client options for time-based caching.
 
 ### Changed

@@ -9579,7 +9579,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) fu
 		}
 
 		liveEventsWithJoin := make([]any, 0, len(liveEventsList.ExplicitJoinLiveEvents))
-		for _, le := range liveEventsList.LiveEvents {
+		for _, le := range liveEventsList.ExplicitJoinLiveEvents {
 			liveEventsWithJoin = append(liveEventsWithJoin, map[string]any{
 				"name":            le.Name,
 				"description":     le.Description,
@@ -9615,7 +9615,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriLiveEventJoin(r *goja.Runtime) fun
 		liveEventId := getJsString(r, f.Argument(1))
 
 		if err := n.satori.LiveEventJoin(n.ctx, identifier, liveEventId); err != nil {
-			panic(r.NewGoError(fmt.Errorf("failed to list satori live-events: %s", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("failed to join satori live-event: %s", err.Error())))
 		}
 
 		return goja.Undefined()
