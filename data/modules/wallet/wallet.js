@@ -224,14 +224,6 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     });
 }
 
-/**
- * RPC: Update game wallet
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { gameId: "uuid", currency: "tokens", amount: 100, operation: "add" }
- * @returns {string} JSON response
- */
 function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     utils.logInfo(logger, "RPC wallet_update_game_wallet called");
     
@@ -240,67 +232,84 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
         return utils.handleError(ctx, null, "Invalid JSON payload");
     }
     
-    var data = parsed.data;
+    var data = parsed. data;
     var validation = utils.validatePayload(data, ['gameId', 'currency', 'amount', 'operation']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    if (! validation.valid) {
+        return utils. handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
+    if (!utils. isValidUUID(gameId)) {
         return utils.handleError(ctx, null, "Invalid gameId UUID format");
     }
     
-    var userId = ctx.userId;
+    var userId = ctx. userId;
     if (!userId) {
         return utils.handleError(ctx, null, "User not authenticated");
     }
     
     var currency = data.currency;
-    var amount = data.amount;
+    var amount = Number(data.amount);
     var operation = data.operation;
+    
+    //  NORMALIZE CURRENCY KEY - Map client aliases to storage keys
+    var storageCurrency = currency;
+    if (currency === "game") {
+        storageCurrency = "game";  // Keep as "game" for consistency
+    } else if (currency === "global") {
+        storageCurrency = "global";
+    }
     
     // Get game wallet
     var wallet = getGameWallet(nk, logger, userId, gameId);
     
     // Initialize currency if not exists
-    if (!wallet.currencies[currency]) {
-        wallet.currencies[currency] = 0;
+    if (wallet.currencies[storageCurrency] === undefined || wallet.currencies[storageCurrency] === null) {
+        wallet.currencies[storageCurrency] = 0;
     }
     
     // Update currency
     if (operation === "add") {
-        wallet.currencies[currency] += amount;
+        wallet.currencies[storageCurrency] += amount;
     } else if (operation === "subtract") {
-        wallet.currencies[currency] -= amount;
-        if (wallet.currencies[currency] < 0) {
-            wallet.currencies[currency] = 0;
+        wallet.currencies[storageCurrency] -= amount;
+        if (wallet.currencies[storageCurrency] < 0) {
+            wallet. currencies[storageCurrency] = 0;
         }
     } else {
         return utils.handleError(ctx, null, "Invalid operation: " + operation);
     }
     
-    // Save wallet
-    if (!saveGameWallet(nk, logger, userId, gameId, wallet)) {
+    //  CRITICAL: Save wallet - ensure this succeeds
+    var saveResult = saveGameWallet(nk, logger, userId, gameId, wallet);
+    if (!saveResult) {
+        utils.logError(logger, "Failed to save game wallet for user: " + userId + ", game: " + gameId);
         return utils.handleError(ctx, null, "Failed to save game wallet");
     }
+    
+    utils.logInfo(logger, "Successfully saved wallet.  New balance for " + storageCurrency + ": " + wallet. currencies[storageCurrency]);
     
     // Log transaction
     logTransaction(nk, logger, userId, {
         type: "game_wallet_update",
         gameId: gameId,
-        currency: currency,
+        currency: storageCurrency,
         amount: amount,
         operation: operation,
-        newBalance: wallet.currencies[currency]
+        newBalance: wallet.currencies[storageCurrency]
     });
     
+    // Return both the specific currency AND the common aliases
     return JSON.stringify({
         success: true,
         userId: userId,
         gameId: gameId,
-        currency: currency,
-        newBalance: wallet.currencies[currency],
+        currency: storageCurrency,
+        newBalance: wallet.currencies[storageCurrency],
+        // Also return as game_balance/global_balance for Unity compatibility
+        game_balance: wallet. currencies["game"] || wallet.currencies["tokens"] || 0,
+        global_balance: wallet.currencies["global"] || wallet.currencies["xut"] || 0,
+        currencies: wallet.currencies,
         timestamp: utils.getCurrentTimestamp()
     });
 }

@@ -769,7 +769,7 @@ function rpcWalletGetBalances(ctx, logger, nk, payload) {
     var data = parsed.data;
     var validation = validatePayload(data, ['gameId']);
     if (!validation.valid) {
-        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+        return handleError(ctx, null, "Missing required fields: " + validation.missing. join(", "));
     }
 
     var gameId = data.gameId;
@@ -778,20 +778,23 @@ function rpcWalletGetBalances(ctx, logger, nk, payload) {
     }
 
     var userId = ctx.userId;
-    if (!userId) {
+    if (! userId) {
         return handleError(ctx, null, "User not authenticated");
     }
 
-    // Reuse existing helpers in this file
+    // Get game wallet
     var wallet = getGameWallet(nk, logger, userId, gameId);
     var currencies = wallet.currencies || {};
 
-    // Decide how to map currencies to “game” and “global”
-    // Here we assume:
-    //   - "tokens" = per‑game soft currency
-    //   - "xut" or "global_coins" live in the global wallet, but we only expose per‑game here.
-    var gameBalance   = currencies.tokens || 0;
-    var globalBalance = 0; // If you want to surface global from getGlobalWallet, you can extend this.
+    // Get global wallet too for global_balance
+    var globalWallet = getGlobalWallet(nk, logger, userId);
+    var globalCurrencies = globalWallet.currencies || {};
+
+    // Return BOTH key formats for maximum compatibility
+    var gameBalance = currencies.game || currencies.tokens || 0;
+    var globalBalance = globalCurrencies.global || globalCurrencies.xut || 0;
+
+    logInfo(logger, "Returning balances - game: " + gameBalance + ", global: " + globalBalance);
 
     return JSON.stringify({
         success:        true,
@@ -2418,17 +2421,28 @@ function getGlobalWallet(nk, logger, userId) {
     var wallet = readStorage(nk, logger, collection, key, userId);
     
     if (!wallet) {
-        // Initialize new global wallet
+        // Initialize new global wallet with BOTH key formats
         wallet = {
             userId: userId,
             currencies: {
-                xut: 0,
+                global: 0,  // Unity client key
+                xut: 0,     // Legacy/XUT token key
                 xp: 0
             },
             items: {},
             nfts: [],
             createdAt: getCurrentTimestamp()
         };
+    }
+    
+    // Ensure both keys exist (migration for existing wallets)
+    if (wallet.currencies) {
+        if (wallet.currencies.global === undefined) {
+            wallet.currencies.global = wallet.currencies.xut || 0;
+        }
+        if (wallet.currencies.xut === undefined) {
+            wallet.currencies.xut = wallet.currencies.global || 0;
+        }
     }
     
     return wallet;
@@ -2449,12 +2463,13 @@ function getGameWallet(nk, logger, userId, gameId) {
     var wallet = readStorage(nk, logger, collection, key, userId);
     
     if (!wallet) {
-        // Initialize new game wallet
+        // Initialize new game wallet with BOTH key formats
         wallet = {
             userId: userId,
             gameId: gameId,
             currencies: {
-                tokens: 0,
+                game: 0,    // Unity client key
+                tokens: 0,  // Legacy key
                 xp: 0
             },
             items: {},
@@ -2462,6 +2477,16 @@ function getGameWallet(nk, logger, userId, gameId) {
             cosmetics: {},
             createdAt: getCurrentTimestamp()
         };
+    }
+    
+    // Ensure both keys exist (migration for existing wallets)
+    if (wallet.currencies) {
+        if (wallet. currencies.game === undefined) {
+            wallet.currencies.game = wallet.currencies.tokens || 0;
+        }
+        if (wallet.currencies. tokens === undefined) {
+            wallet.currencies.tokens = wallet. currencies.game || 0;
+        }
     }
     
     return wallet;
@@ -2644,8 +2669,8 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     
     var data = parsed.data;
     var validation = validatePayload(data, ['gameId', 'currency', 'amount', 'operation']);
-    if (!validation.valid) {
-        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    if (! validation.valid) {
+        return handleError(ctx, null, "Missing required fields: " + validation.missing. join(", "));
     }
     
     var gameId = data.gameId;
@@ -2659,31 +2684,51 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     }
     
     var currency = data.currency;
-    var amount = data.amount;
+    var amount = Number(data.amount);
     var operation = data.operation;
+    
+    if (isNaN(amount)) {
+        return handleError(ctx, null, "Amount must be a valid number");
+    }
     
     // Get game wallet
     var wallet = getGameWallet(nk, logger, userId, gameId);
     
-    // Initialize currency if not exists
-    if (!wallet.currencies[currency]) {
-        wallet.currencies[currency] = 0;
+    // NORMALIZE: Map client currency keys to storage keys
+    // "game" -> updates both "game" and "tokens"
+    // "tokens" -> updates both "game" and "tokens"
+    var currenciesToUpdate = [];
+    if (currency === "game" || currency === "tokens") {
+        currenciesToUpdate = ["game", "tokens"];
+    } else {
+        currenciesToUpdate = [currency];
     }
     
-    // Update currency
-    if (operation === "add") {
-        wallet.currencies[currency] += amount;
-    } else if (operation === "subtract") {
-        wallet.currencies[currency] -= amount;
-        if (wallet.currencies[currency] < 0) {
-            wallet.currencies[currency] = 0;
+    // Initialize currencies if not exists
+    for (var i = 0; i < currenciesToUpdate.length; i++) {
+        var curr = currenciesToUpdate[i];
+        if (wallet.currencies[curr] === undefined || wallet.currencies[curr] === null) {
+            wallet.currencies[curr] = 0;
         }
-    } else {
-        return handleError(ctx, null, "Invalid operation: " + operation);
+    }
+    
+    // Update all mapped currencies
+    for (var i = 0; i < currenciesToUpdate.length; i++) {
+        var curr = currenciesToUpdate[i];
+        if (operation === "add") {
+            wallet.currencies[curr] += amount;
+        } else if (operation === "subtract") {
+            wallet.currencies[curr] -= amount;
+            if (wallet.currencies[curr] < 0) {
+                wallet.currencies[curr] = 0;
+            }
+        } else {
+            return handleError(ctx, null, "Invalid operation: " + operation);
+        }
     }
     
     // Save wallet
-    if (!saveGameWallet(nk, logger, userId, gameId, wallet)) {
+    if (! saveGameWallet(nk, logger, userId, gameId, wallet)) {
         return handleError(ctx, null, "Failed to save game wallet");
     }
     
@@ -2694,15 +2739,22 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
         currency: currency,
         amount: amount,
         operation: operation,
-        newBalance: wallet.currencies[currency]
+        newBalance: wallet.currencies[currency] || wallet.currencies.game || 0
     });
+    
+    logInfo(logger, "Wallet updated successfully.  New balances - game: " + 
+            wallet.currencies.game + ", tokens: " + wallet. currencies.tokens);
     
     return JSON.stringify({
         success: true,
         userId: userId,
         gameId: gameId,
         currency: currency,
-        newBalance: wallet.currencies[currency],
+        newBalance: wallet.currencies[currency] || wallet.currencies.game || 0,
+        // Include all balances for Unity compatibility
+        game_balance: wallet.currencies.game || 0,
+        global_balance: wallet. currencies.global || wallet.currencies.xut || 0,
+        currencies: wallet.currencies,
         timestamp: getCurrentTimestamp()
     });
 }
