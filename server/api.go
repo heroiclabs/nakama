@@ -247,6 +247,9 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		if handler == nil {
 			continue
 		}
+		if !strings.HasPrefix(handler.PathPattern, "/") {
+			logger.Fatal("Failed to register custom HTTP handler, path pattern must start with '/'", zap.String("path_pattern", handler.PathPattern))
+		}
 		route := grpcGatewayMux.HandleFunc(handler.PathPattern, handler.Handler)
 		if len(handler.Methods) > 0 {
 			route.Methods(handler.Methods...)

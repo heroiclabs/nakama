@@ -9,6 +9,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Adjust unit of measure for Satori client timeout.
+- Nakama will not start if attempting to register custom HTTP handlers without a '/' prefix in the path pattern.
+- Nakama will not start if attempting to register custom console HTTP handlers without a '/' prefix in the path pattern.
 
 ### Fixed
 - Fix migration script to correctly revert console fine-grained access control changes.
