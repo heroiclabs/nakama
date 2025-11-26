@@ -57,6 +57,7 @@ type sessionWS struct {
 	pingPeriodDuration   time.Duration
 	pongWaitDuration     time.Duration
 	writeWaitDuration    time.Duration
+	closeAckWaitDuration time.Duration
 
 	sessionRegistry SessionRegistry
 	statusRegistry  StatusRegistry
@@ -112,6 +113,7 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessi
 		pingPeriodDuration:   time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond,
 		pongWaitDuration:     time.Duration(config.GetSocket().PongWaitMs) * time.Millisecond,
 		writeWaitDuration:    time.Duration(config.GetSocket().WriteWaitMs) * time.Millisecond,
+		closeAckWaitDuration: time.Duration(config.GetSocket().CloseAckWaitMs) * time.Millisecond,
 
 		sessionRegistry: sessionRegistry,
 		statusRegistry:  statusRegistry,
@@ -531,7 +533,7 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 				// This may not be possible if the socket was already fully closed by an error.
 				s.logger.Debug("Could not send close message", zap.Error(err))
 			} else {
-				t := time.NewTimer(10 * time.Second)
+				t := time.NewTimer(s.closeAckWaitDuration)
 				defer t.Stop()
 				select {
 				case <-s.closeWaitCh:

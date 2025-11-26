@@ -35,14 +35,16 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/ctxkeys"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const satoriCacheCleanupInterval = 5 * time.Second
 
-type satoriCache[T any] interface {
-	Get(ctx context.Context, userID string, names, labels []string) (values []T, missingNames, missingLabels []string)
-	Add(ctx context.Context, userID string, names, labels []string, values map[string]T)
+type satoriCache[T any, O comparable] interface {
+	Get(ctx context.Context, userID string, names, labels []string, optFilters ...O) (values []T, missingNames, missingLabels []string)
+	Add(ctx context.Context, userID string, names, labels []string, values map[string]T, optFilters ...O)
 	SetAll(ctx context.Context, userID string, values map[string]T)
 }
 
@@ -64,10 +66,10 @@ type SatoriClient struct {
 	cacheEnabled         bool
 	propertiesCacheMutex sync.RWMutex
 	propertiesCache      map[context.Context]*runtime.Properties
-	flagsCache           satoriCache[flagCacheEntry]
-	flagsOverridesCache  satoriCache[flagOverridesCacheEntry]
-	liveEventsCache      satoriCache[*runtime.LiveEvent]
-	experimentsCache     satoriCache[*runtime.Experiment]
+	flagsCache           satoriCache[flagCacheEntry, struct{}]
+	flagsOverridesCache  satoriCache[flagOverridesCacheEntry, struct{}]
+	liveEventsCache      satoriCache[*runtime.LiveEvent, liveEventFilters]
+	experimentsCache     satoriCache[*runtime.Experiment, struct{}]
 }
 
 func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyName, apiKey, serverKey, signingKey string, nakamaTokenExpirySec, httpTimeoutMs int64, cacheEnabled bool, cacheMode string, cacheTTLSec int64) *SatoriClient {
@@ -90,25 +92,25 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
 		propertiesCache:      make(map[context.Context]*runtime.Properties),
-		flagsCache:           newSatoriContextCache[flagCacheEntry](ctx, cacheEnabled),
-		flagsOverridesCache:  newSatoriContextCache[flagOverridesCacheEntry](ctx, cacheEnabled),
-		liveEventsCache:      newSatoriContextCache[*runtime.LiveEvent](ctx, cacheEnabled),
-		experimentsCache:     newSatoriContextCache[*runtime.Experiment](ctx, cacheEnabled),
+		flagsCache:           newSatoriContextCache[flagCacheEntry, struct{}](ctx, cacheEnabled),
+		flagsOverridesCache:  newSatoriContextCache[flagOverridesCacheEntry, struct{}](ctx, cacheEnabled),
+		liveEventsCache:      newSatoriContextCache[*runtime.LiveEvent, liveEventFilters](ctx, cacheEnabled),
+		experimentsCache:     newSatoriContextCache[*runtime.Experiment, struct{}](ctx, cacheEnabled),
 	}
 
 	switch cacheMode {
 	case "time":
-		sc.flagsCache = newSatoriTimeCache[flagCacheEntry](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
-		sc.flagsOverridesCache = newSatoriTimeCache[flagOverridesCacheEntry](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
-		sc.liveEventsCache = newSatoriTimeCache[*runtime.LiveEvent](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
-		sc.experimentsCache = newSatoriTimeCache[*runtime.Experiment](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.flagsCache = newSatoriTimeCache[flagCacheEntry, struct{}](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.flagsOverridesCache = newSatoriTimeCache[flagOverridesCacheEntry, struct{}](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.liveEventsCache = newSatoriTimeCache[*runtime.LiveEvent, liveEventFilters](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
+		sc.experimentsCache = newSatoriTimeCache[*runtime.Experiment, struct{}](ctx, cacheEnabled, time.Duration(cacheTTLSec)*time.Second)
 	case "context":
 		fallthrough
 	default:
-		sc.flagsCache = newSatoriContextCache[flagCacheEntry](ctx, cacheEnabled)
-		sc.flagsOverridesCache = newSatoriContextCache[flagOverridesCacheEntry](ctx, cacheEnabled)
-		sc.liveEventsCache = newSatoriContextCache[*runtime.LiveEvent](ctx, cacheEnabled)
-		sc.experimentsCache = newSatoriContextCache[*runtime.Experiment](ctx, cacheEnabled)
+		sc.flagsCache = newSatoriContextCache[flagCacheEntry, struct{}](ctx, cacheEnabled)
+		sc.flagsOverridesCache = newSatoriContextCache[flagOverridesCacheEntry, struct{}](ctx, cacheEnabled)
+		sc.liveEventsCache = newSatoriContextCache[*runtime.LiveEvent, liveEventFilters](ctx, cacheEnabled)
+		sc.experimentsCache = newSatoriContextCache[*runtime.Experiment, struct{}](ctx, cacheEnabled)
 	}
 
 	if sc.urlString == "" && sc.apiKeyName == "" && sc.apiKey == "" && sc.signingKey == "" {
@@ -913,16 +915,46 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names,
 // @summary List live events.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
-// @param names(type=[]string, optional=true, default=[]) Optional list of live event names to filter.
-// @param labels(type=[]string, optional=true, default=[]) Optional list of live event labels to filter.
+// @param names(type=[]string) Optional list of live event names to filter.
+// @param labels(type=[]string) Optional list of live event labels to filter.
+// @param pastRunCount(type=int, optional=true, default=0) The maximum number of past event runs to return for each live event.
+// @param futureRunCount(type=int, optional=true, default=0) The maximum number of future event runs to return for each live event.
+// @param startTimeSec(type=int64, optional=true, default=0) Start time of the time window filter to apply.
+// @param endTimeSec(type=int64, optional=true, default=0) End time of the time window filter to apply.
 // @return liveEvents(*runtime.LiveEventsList) The live event list.
 // @return error(error) An optional error value if an error occurred.
-func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, labels []string) (*runtime.LiveEventList, error) {
+func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, labels []string, pastRunCount, futureRunCount int32, startTimeSec, endTimeSec int64) (*runtime.LiveEventList, error) {
 	if s.invalidConfig {
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	entry, missingNames, missingLabels := s.liveEventsCache.Get(ctx, id, names, labels)
+	if pastRunCount < 0 {
+		return nil, errors.New("pastRunCount cannot be negative")
+	}
+	if futureRunCount < 0 {
+		return nil, errors.New("futureRunCount cannot be negative")
+	}
+	if startTimeSec < 0 {
+		return nil, errors.New("startTimeSec cannot be negative")
+	}
+	if endTimeSec < 0 {
+		return nil, errors.New("endTimeSec cannot be negative")
+	}
+	if startTimeSec > endTimeSec {
+		return nil, errors.New("startTimeSec cannot be after endTimeSec")
+	}
+	if (startTimeSec > 0 && endTimeSec <= 0) || (startTimeSec <= 0 && endTimeSec > 0) {
+		return nil, status.Errorf(codes.InvalidArgument, "start_time_sec and end_time_sec must be greater than 0")
+	}
+
+	optFilters := liveEventFilters{
+		pastRunCount:   pastRunCount,
+		futureRunCount: futureRunCount,
+		startTimeSec:   startTimeSec,
+		endTimeSec:     endTimeSec,
+	}
+
+	entry, missingNames, missingLabels := s.liveEventsCache.Get(ctx, id, names, labels, optFilters)
 
 	if !s.cacheEnabled || entry == nil || len(missingNames) > 0 || len(missingLabels) > 0 {
 		url := s.url.JoinPath("/v1/live-event").String()
@@ -941,20 +973,30 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 		names = missingNames
 		labels = missingLabels
 
+		q := req.URL.Query()
 		if len(names) > 0 {
-			q := req.URL.Query()
 			for _, n := range names {
 				q.Add("names", n)
 			}
-			req.URL.RawQuery = q.Encode()
 		}
 		if len(labels) > 0 {
-			q := req.URL.Query()
-			for _, n := range labels {
-				q.Add("labels", n)
+			for _, l := range labels {
+				q.Add("labels", l)
 			}
-			req.URL.RawQuery = q.Encode()
 		}
+		if pastRunCount > 0 {
+			q.Set("past_run_count", fmt.Sprintf("%d", pastRunCount))
+		}
+		if futureRunCount > 0 {
+			q.Set("future_run_count", fmt.Sprintf("%d", futureRunCount))
+		}
+		if startTimeSec > 0 {
+			q.Set("start_time_sec", fmt.Sprintf("%d", startTimeSec))
+		}
+		if endTimeSec > 0 {
+			q.Set("end_time_sec", fmt.Sprintf("%d", endTimeSec))
+		}
+		req.URL.RawQuery = q.Encode()
 
 		res, err := s.httpc.Do(req)
 		if err != nil {
@@ -980,11 +1022,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 				entry = append(entry, le)
 			}
 
-			if len(names) > 0 {
-				s.liveEventsCache.Add(ctx, id, names, labels, entries)
-			} else {
-				s.liveEventsCache.SetAll(ctx, id, entries)
-			}
+			s.liveEventsCache.Add(ctx, id, names, labels, entries, optFilters)
 
 			return liveEvents, nil
 		default:
@@ -996,6 +1034,56 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 	}
 
 	return &runtime.LiveEventList{LiveEvents: entry}, nil
+}
+
+// @group satori
+// @summary Join live event.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @param liveEventId(type=string) The identifier of the live event.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) LiveEventJoin(ctx context.Context, id, liveEventId string) error {
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
+	}
+
+	if liveEventId == "" {
+		return errors.New("liveEventId cannot be empty")
+	}
+
+	url := s.url.JoinPath("/v1/live-event/", liveEventId, "participation").String()
+
+	sessionToken, err := s.generateToken(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	switch res.StatusCode {
+	case 200:
+		return nil
+	default:
+		if len(resBody) > 0 {
+			return fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+		}
+		return fmt.Errorf("%d status code", res.StatusCode)
+	}
 }
 
 // @group satori
