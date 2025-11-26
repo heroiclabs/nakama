@@ -740,6 +740,73 @@ function getWalletRegistry(ctx, logger, nk, payload) {
     }
 }
 
+/**
+ * RPC: Get balances for a specific game wallet
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ * @param {string} payload - JSON payload with { gameId: "uuid" }
+ * @returns {string} JSON response
+ *
+ * Response shape matches what your Unity client expects:
+ * {
+ *   "success": true,
+ *   "game_balance":   <number>,
+ *   "global_balance": <number>,
+ *   "currencies": { ... },
+ *   "gameId": "uuid",
+ *   "userId": "uuid"
+ * }
+ */
+function rpcWalletGetBalances(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC wallet_get_balances called");
+
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success) {
+        return handleError(ctx, null, "Invalid JSON payload");
+    }
+
+    var data = parsed.data;
+    var validation = validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+
+    var gameId = data.gameId;
+    if (!isValidUUID(gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
+    }
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return handleError(ctx, null, "User not authenticated");
+    }
+
+    // Reuse existing helpers in this file
+    var wallet = getGameWallet(nk, logger, userId, gameId);
+    var currencies = wallet.currencies || {};
+
+    // Decide how to map currencies to “game” and “global”
+    // Here we assume:
+    //   - "tokens" = per‑game soft currency
+    //   - "xut" or "global_coins" live in the global wallet, but we only expose per‑game here.
+    var gameBalance   = currencies.tokens || 0;
+    var globalBalance = 0; // If you want to surface global from getGlobalWallet, you can extend this.
+
+    return JSON.stringify({
+        success:        true,
+        userId:         userId,
+        gameId:         gameId,
+        game_balance:   gameBalance,
+        global_balance: globalBalance,
+        currencies:     currencies,
+        timestamp:      getCurrentTimestamp()
+    });
+}
+
+
+
+
 // Export RPC functions (ES Module syntax)
 
 // ============================================================================
@@ -10165,21 +10232,27 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[DailyMissions] Failed to initialize: ' + err.message);
     }
     
+    
     // Register Enhanced Wallet RPCs
-    try {
-        logger.info('[Wallet] Initializing Enhanced Wallet Module...');
-        initializer.registerRpc('wallet_get_all', rpcWalletGetAll);
-        logger.info('[Wallet] Registered RPC: wallet_get_all');
-        initializer.registerRpc('wallet_update_global', rpcWalletUpdateGlobal);
-        logger.info('[Wallet] Registered RPC: wallet_update_global');
-        initializer.registerRpc('wallet_update_game_wallet', rpcWalletUpdateGameWallet);
-        logger.info('[Wallet] Registered RPC: wallet_update_game_wallet');
-        initializer.registerRpc('wallet_transfer_between_game_wallets', rpcWalletTransferBetweenGameWallets);
-        logger.info('[Wallet] Registered RPC: wallet_transfer_between_game_wallets');
-        logger.info('[Wallet] Successfully registered 4 Enhanced Wallet RPCs');
-    } catch (err) {
-        logger.error('[Wallet] Failed to initialize: ' + err.message);
-    }
+try {
+    logger.info('[Wallet] Initializing Enhanced Wallet Module...');
+    initializer.registerRpc('wallet_get_all', rpcWalletGetAll);
+    logger.info('[Wallet] Registered RPC: wallet_get_all');
+    initializer.registerRpc('wallet_update_global', rpcWalletUpdateGlobal);
+    logger.info('[Wallet] Registered RPC: wallet_update_global');
+    initializer.registerRpc('wallet_update_game_wallet', rpcWalletUpdateGameWallet);
+    logger.info('[Wallet] Registered RPC: wallet_update_game_wallet');
+    initializer.registerRpc('wallet_transfer_between_game_wallets', rpcWalletTransferBetweenGameWallets);
+    logger.info('[Wallet] Registered RPC: wallet_transfer_between_game_wallets');
+
+    // NEW:
+    initializer.registerRpc('wallet_get_balances', rpcWalletGetBalances);
+    logger.info('[Wallet] Registered RPC: wallet_get_balances');
+
+    logger.info('[Wallet] Successfully registered 5 Enhanced Wallet RPCs');
+} catch (err) {
+    logger.error('[Wallet] Failed to initialize: ' + err.message);
+}
     
     // Register Analytics RPCs
     try {

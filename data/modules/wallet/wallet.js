@@ -390,11 +390,62 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
         timestamp: utils.getCurrentTimestamp()
     });
 }
+// At top, make sure you have access to utils and getGameWallet
+// (these are already used in other functions in this file)
+
+// RPC: Get balances for a specific game wallet
+// Payload: { gameId: "uuid" }
+// Response: { success, game_balance, global_balance, currencies }
+function rpcWalletGetBalances(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC wallet_get_balances called");
+
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+
+    var gameId = data.gameId;
+    if (!utils.isValidUUID(gameId)) {
+        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    }
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+
+    // Reuse existing helper – this is how wallet_update_game_wallet works
+    var wallet = getGameWallet(nk, logger, userId, gameId);
+
+    var currencies = wallet.currencies || {};
+
+    // Convention: treat "game" and "global" as main ones, if present
+    var gameBalance   = currencies["game"]   || 0;
+    var globalBalance = currencies["global"] || 0;
+
+    return JSON.stringify({
+        success:        true,
+        userId:         userId,
+        gameId:         gameId,
+        game_balance:   gameBalance,
+        global_balance: globalBalance,
+        currencies:     currencies,
+        timestamp:      utils.getCurrentTimestamp()
+    });
+}
+
 
 // Export RPC functions (ES Module syntax)
 export {
     rpcWalletGetAll,
     rpcWalletUpdateGlobal,
     rpcWalletUpdateGameWallet,
-    rpcWalletTransferBetweenGameWallets
+    rpcWalletTransferBetweenGameWallets,
+    rpcWalletGetBalances  
 };
