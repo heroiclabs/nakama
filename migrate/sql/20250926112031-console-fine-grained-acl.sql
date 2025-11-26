@@ -17,7 +17,9 @@
 -- +migrate Up
 ALTER TABLE console_user ADD COLUMN IF NOT EXISTS acl JSONB NOT NULL DEFAULT '{"admin":false}'::JSONB;
 
--- unused(0), admin(1), developer(2), maintainer(3), readonly(4)
+-- Needed because CockroachDB does not allow ALTER TABLE ... UPDATE in a transaction block.
+COMMIT;
+BEGIN;
 
 UPDATE console_user
     SET acl = CASE
@@ -28,6 +30,10 @@ ALTER TABLE console_user DROP COLUMN IF EXISTS role;
 
 -- +migrate Down
 ALTER TABLE console_user ADD COLUMN IF NOT EXISTS role SMALLINT NOT NULL DEFAULT 4;
+
+-- Needed because CockroachDB does not allow ALTER TABLE ... UPDATE in a transaction block.
+COMMIT;
+BEGIN;
 
 UPDATE console_user
     SET role = CASE
