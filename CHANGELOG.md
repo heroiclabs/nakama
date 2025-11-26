@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add runtime Satori client additional filters for live-events listing.
 - Add runtime Satori client live-event join function.
 - Configurable timeout for server initiated socket disconnects graceful close wait period.
+- Fix an issue in the console ACL database schema migration that would prevent it from being applied in CockroachDB.
 
 ### Fixed
 - Fix migration script to correctly revert console fine-grained access control changes.
