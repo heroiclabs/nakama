@@ -329,6 +329,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		if handler == nil {
 			continue
 		}
+		if !strings.HasPrefix(handler.PathPattern, "/") {
+			logger.Fatal("Failed to register custom console HTTP handler, path pattern must start with '/'", zap.String("path_pattern", handler.PathPattern))
+		}
 		handlerFunc := handler.Handler
 		if strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/") {
 			// Handlers in reverse order of priority.

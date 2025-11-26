@@ -9,6 +9,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Adjust unit of measure for Satori client timeout.
+- Nakama will not start if attempting to register custom HTTP handlers without a '/' prefix in the path pattern.
+- Nakama will not start if attempting to register custom console HTTP handlers without a '/' prefix in the path pattern.
 - Add runtime Satori client additional filters for live-events listing.
 - Add runtime Satori client live-event join function.
 - Configurable timeout for server initiated socket disconnects graceful close wait period.
