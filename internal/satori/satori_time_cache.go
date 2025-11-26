@@ -9,33 +9,34 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
-var _ satoriCache[runtime.SatoriLabeled] = (*satoriTimeCache[runtime.SatoriLabeled])(nil)
+var _ satoriCache[runtime.SatoriLabeled, struct{}] = (*satoriTimeCache[runtime.SatoriLabeled, struct{}])(nil)
 
-type satoriTimeCacheEntry[T runtime.SatoriLabeled] struct {
+type satoriTimeCacheEntry[T runtime.SatoriLabeled, O comparable] struct {
 	containsAll bool
 	names       map[string]struct{}
 	labels      map[string]struct{}
+	optFilter   O
 	entryData   map[string]T
 	expiryTime  time.Time
 }
 
-type satoriTimeCache[T runtime.SatoriLabeled] struct {
+type satoriTimeCache[T runtime.SatoriLabeled, O comparable] struct {
 	sync.RWMutex
 	enabled bool
-	entries map[string]*satoriTimeCacheEntry[T]
+	entries map[string]*satoriTimeCacheEntry[T, O]
 	ttl     time.Duration
 }
 
-func newSatoriTimeCache[T runtime.SatoriLabeled](ctx context.Context, enabled bool, ttl time.Duration) *satoriTimeCache[T] {
+func newSatoriTimeCache[T runtime.SatoriLabeled, O comparable](ctx context.Context, enabled bool, ttl time.Duration) *satoriTimeCache[T, O] {
 	if !enabled {
-		return &satoriTimeCache[T]{
+		return &satoriTimeCache[T, O]{
 			enabled: false,
 		}
 	}
 
-	sc := &satoriTimeCache[T]{
+	sc := &satoriTimeCache[T, O]{
 		enabled: true,
-		entries: make(map[string]*satoriTimeCacheEntry[T]),
+		entries: make(map[string]*satoriTimeCacheEntry[T, O]),
 		ttl:     ttl,
 	}
 
@@ -61,7 +62,7 @@ func newSatoriTimeCache[T runtime.SatoriLabeled](ctx context.Context, enabled bo
 	return sc
 }
 
-func (s *satoriTimeCache[T]) Get(ctx context.Context, userID string, names, labels []string) (values []T, missingNames, missingLabels []string) {
+func (s *satoriTimeCache[T, O]) Get(ctx context.Context, userID string, names, labels []string, optFilters ...O) (values []T, missingNames, missingLabels []string) {
 	if !s.enabled {
 		return nil, names, labels
 	}
@@ -71,6 +72,13 @@ func (s *satoriTimeCache[T]) Get(ctx context.Context, userID string, names, labe
 	s.RLock()
 	entry, found := s.entries[userID]
 	defer s.RUnlock()
+
+	if found && len(optFilters) > 0 {
+		if entry.optFilter != optFilters[0] {
+			// The cached entry exists but was created with different optional filters, force a cache miss.
+			return nil, names, labels
+		}
+	}
 
 	if !found || t.After(entry.expiryTime) || (len(names) == 0 && len(labels) == 0 && !entry.containsAll) {
 		// Asked for all keys, but they were never fetched, or no cache entries exist for the context.
@@ -183,7 +191,7 @@ func (s *satoriTimeCache[T]) Get(ctx context.Context, userID string, names, labe
 	return values, missingNames, missingLabels
 }
 
-func (s *satoriTimeCache[T]) Add(ctx context.Context, userID string, names, labels []string, values map[string]T) {
+func (s *satoriTimeCache[T, O]) Add(ctx context.Context, userID string, names, labels []string, values map[string]T, optFilters ...O) {
 	if !s.enabled {
 		return
 	}
@@ -193,7 +201,7 @@ func (s *satoriTimeCache[T]) Add(ctx context.Context, userID string, names, labe
 	s.Lock()
 	entry, ok := s.entries[userID]
 	if !ok || t.After(entry.expiryTime) {
-		entry = &satoriTimeCacheEntry[T]{
+		entry = &satoriTimeCacheEntry[T, O]{
 			containsAll: false,
 			names:       map[string]struct{}{},
 			labels:      map[string]struct{}{},
@@ -209,10 +217,13 @@ func (s *satoriTimeCache[T]) Add(ctx context.Context, userID string, names, labe
 		entry.labels[label] = struct{}{}
 	}
 	maps.Copy(entry.entryData, values)
+	if len(optFilters) > 0 {
+		entry.optFilter = optFilters[0]
+	}
 	s.Unlock()
 }
 
-func (s *satoriTimeCache[T]) SetAll(ctx context.Context, userID string, values map[string]T) {
+func (s *satoriTimeCache[T, O]) SetAll(ctx context.Context, userID string, values map[string]T) {
 	if !s.enabled {
 		return
 	}
@@ -220,7 +231,7 @@ func (s *satoriTimeCache[T]) SetAll(ctx context.Context, userID string, values m
 	t := time.Now().UTC()
 
 	s.Lock()
-	s.entries[userID] = &satoriTimeCacheEntry[T]{
+	s.entries[userID] = &satoriTimeCacheEntry[T, O]{
 		containsAll: true,
 		entryData:   values,
 		expiryTime:  t.Add(s.ttl),

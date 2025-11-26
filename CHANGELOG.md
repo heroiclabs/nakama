@@ -11,11 +11,15 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Adjust unit of measure for Satori client timeout.
 - Nakama will not start if attempting to register custom HTTP handlers without a '/' prefix in the path pattern.
 - Nakama will not start if attempting to register custom console HTTP handlers without a '/' prefix in the path pattern.
+- Add runtime Satori client additional filters for live-events listing.
+- Add runtime Satori client live-event join function.
+- Configurable timeout for server initiated socket disconnects graceful close wait period.
 
 ### Fixed
 - Fix migration script to correctly revert console fine-grained access control changes.
 - Avoid unnecessary cache check in runtime Satori client Properties lookup.
 - Fix an issue that would prevent the console data reset operation from completing successfully.
+- Fix an issue with Apple In-App Purchase notification handling that would prevent the notification from being processed.
 
 ## [3.34.1] - 2025-11-12
 ### Added
