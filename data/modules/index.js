@@ -207,6 +207,163 @@ function readStorage(nk, logger, collection, key, userId) {
 }
 
 /**
+ * RPC: rpc_update_player_metadata
+ * 
+ * Stores or updates per-user metadata in Nakama Storage.
+ * 
+ * Storage:
+ *   collection: "player_metadata"
+ *   key: "metadata"
+ *   userId: ctx.userId (authenticated user)
+ * 
+ * Behavior:
+ * - If a record exists, merge new fields on top (new values override).
+ * - If no record exists, create one with provided payload.
+ * - Always ensure only one record per (collection, key, userId).
+ * 
+ * Expected payload (example):
+ * {
+ *   "role": "guest",
+ *   "email": "...",
+ *   "game_id": "uuid",
+ *   "is_adult": "True",
+ *   "last_name": "User",
+ *   "first_name": "Guest",
+ *   "login_type": "guest",
+ *   "idp_username": "...",
+ *   "account_status": "active",
+ *   "wallet_address": "global:...",
+ *   "cognito_user_id": "...",
+ *   "geo_location": "IN",
+ *   "device_id": "example-device-id-123"
+ * }
+ */
+function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({
+            success: false,
+            error: "User not authenticated"
+        });
+    }
+
+    var userId = ctx.userId;
+    var meta;
+
+    // Parse JSON
+    try {
+        meta = JSON.parse(payload || "{}");
+    } catch (err) {
+        logger.error("[PlayerMetadata] Invalid JSON payload: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Invalid JSON payload"
+        });
+    }
+
+    // Light validation of core fields (log-only, do not reject)
+    var requiredFields = [
+        "role",
+        "email",
+        "game_id",
+        "is_adult",
+        "last_name",
+        "first_name",
+        "login_type",
+        "idp_username",
+        "account_status",
+        "wallet_address",
+        "cognito_user_id",
+        "geo_location",
+        "device_id"
+    ];
+
+    var missing = [];
+    for (var i = 0; i < requiredFields.length; i++) {
+        var f = requiredFields[i];
+        if (!Object.prototype.hasOwnProperty.call(meta, f)) {
+            missing.push(f);
+        }
+    }
+
+    if (missing.length > 0) {
+        logger.warn("[PlayerMetadata] Missing recommended fields for user " + userId + ": " + missing.join(", "));
+    }
+
+    // Read existing metadata
+    var collection = "player_metadata";
+    var key = "metadata";
+
+    var existing = null;
+    try {
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: userId
+        }]);
+
+        if (records && records.length > 0 && records[0].value) {
+            existing = records[0].value;
+        }
+    } catch (err) {
+        logger.error("[PlayerMetadata] Error reading existing metadata for user " + userId + ": " + err.message);
+    }
+
+    // Merge: new fields override existing ones
+    var merged = {};
+
+    if (existing && typeof existing === "object") {
+        for (var prop in existing) {
+            if (Object.prototype.hasOwnProperty.call(existing, prop)) {
+                merged[prop] = existing[prop];
+            }
+        }
+    }
+
+    if (meta && typeof meta === "object") {
+        for (var prop2 in meta) {
+            if (Object.prototype.hasOwnProperty.call(meta, prop2)) {
+                merged[prop2] = meta[prop2];
+            }
+        }
+    }
+
+    // Optionally enrich with system fields
+    merged.updated_at = new Date().toISOString();
+    if (!merged.created_at && existing == null) {
+        merged.created_at = merged.updated_at;
+    }
+
+    // Build storage write
+    var write = {
+        collection: collection,
+        key: key,
+        userId: userId,
+        value: merged,
+        permissionRead: 2,  // public read
+        permissionWrite: 1, // owner write
+        version: "*"        // last-write-wins upsert
+    };
+
+    try {
+        nk.storageWrite([write]);
+    } catch (err) {
+        logger.error("[PlayerMetadata] Error writing metadata for user " + userId + ": " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to save metadata"
+        });
+    }
+
+    logger.info("[PlayerMetadata] Metadata updated for user " + userId);
+
+    return JSON.stringify({
+        success: true,
+        metadata: merged
+    });
+}
+
+
+/**
  * Write to storage with error handling
  * @param {object} nk - Nakama runtime context
  * @param {object} logger - Logger instance
@@ -912,6 +1069,7 @@ function submitScoreSync(ctx, logger, nk, payload) {
         return handleError(ctx, err, "An error occurred while processing your request");
     }
 }
+
 
 // Register RPC in InitModule context if available
 var rpcSubmitScoreSync = submitScoreSync;
@@ -7461,7 +7619,7 @@ function rpcGetPlayerPortfolio(ctx, logger, nk, payload) {
  * RPC: update_player_metadata
  * Update player metadata with cognito info
  */
-function rpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
+function OldrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     logger.info('[RPC] update_player_metadata called');
     
     try {
@@ -10858,11 +11016,12 @@ try {
         logger.info('[PlayerRPCs] Registered RPC: check_geo_and_update_profile');
         
         // Player Metadata & Portfolio RPCs
-        initializer.registerRpc('update_player_metadata', rpcUpdatePlayerMetadata);
+        initializer.registerRpc('update_player_metadata', OldrpcUpdatePlayerMetadata);
         logger.info('[PlayerRPCs] Registered RPC: update_player_metadata');
         initializer.registerRpc('get_player_portfolio', rpcGetPlayerPortfolio);
         logger.info('[PlayerRPCs] Registered RPC: get_player_portfolio');
-        
+        initializer.registerRpc('rpc_update_player_metadata', NewrpcUpdatePlayerMetadata);
+        logger.info('[PlayerRPCs] Registered RPC: rpc_update_player_metadata');
         // Adaptive Reward System RPCs
         initializer.registerRpc('calculate_score_reward', rpcCalculateScoreReward);
         logger.info('[PlayerRPCs] Registered RPC: calculate_score_reward');
