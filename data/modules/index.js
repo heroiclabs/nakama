@@ -5311,17 +5311,18 @@ function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
 function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
     var collection = "quizverse";
     var key = "identity:" + deviceId + ":" + gameId;
+
+    // System user used for identity documents
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
     
     logger.info("[NAKAMA] Looking for identity: " + key);
-    
+
     // Try to read existing identity
-    // Note: For backward compatibility, check both old (SYSTEM_USER) and new (deviceId) storage
-    var userId = deviceId; // Use deviceId as userId for identity storage
     try {
         var records = nk.storageRead([{
             collection: collection,
             key: key,
-            userId: userId
+            userId: SYSTEM_USER_ID
         }]);
         
         if (records && records.length > 0 && records[0].value) {
@@ -5334,14 +5335,14 @@ function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
     } catch (err) {
         logger.warn("[NAKAMA] Failed to read identity: " + err.message);
     }
-    
+
     // Create new identity
     logger.info("[NAKAMA] Creating new identity for device " + deviceId + " game " + gameId);
-    
+
     // Generate wallet IDs
     var walletId = generateUUID();
     var globalWalletId = "global:" + deviceId;
-    
+
     var identity = {
         username: username,
         device_id: deviceId,
@@ -5351,26 +5352,24 @@ function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
-    
-    // Write identity to storage with real userId
-    var userId = deviceId; // Use deviceId as userId for identity storage
+
     try {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: userId,
+            userId: SYSTEM_USER_ID,
             value: identity,
             permissionRead: 1,
             permissionWrite: 0,
             version: "*"
         }]);
-        
-        logger.info("[NAKAMA] Created identity with wallet_id " + walletId + " for user " + userId);
+
+        logger.info("[NAKAMA] Created identity with wallet_id " + walletId + " for device " + deviceId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write identity: " + err.message);
         throw err;
     }
-    
+
     return {
         exists: false,
         identity: identity
