@@ -270,6 +270,7 @@ var PERMISSION_WRITE_NONE = 0;   // NO_WRITE (server only)
 // Rate limiting: minimum seconds between updates
 var MIN_UPDATE_INTERVAL_SECONDS = 5;
 
+
 // Maximum lengths for string fields (prevent abuse)
 var MAX_STRING_LENGTHS = {
     email: 254,
@@ -286,13 +287,18 @@ var MAX_STRING_LENGTHS = {
     platform: 50,
     app_version: 50,
     device_model: 100,
-    os_version: 50,
+    device_name: 100,
+    os_version: 100,
+    unity_version: 50,
     city: 100,
     region: 100,
     country: 100,
     country_code: 5,
-    timezone: 50,
-    locale: 20
+    timezone: 100,
+    locale: 20,
+    screen_dpi: 20,
+    graphics_device: 150,
+    processor_type: 150
 };
 
 // Valid account statuses
@@ -519,8 +525,9 @@ function isValidUUIDFormat(str) {
 function isValidEmail(email) {
     if (!email || typeof email !== 'string') return false;
     var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email) && email.length <= MAX_STRING_LENGTHS. email;
+    return emailRegex. test(email) && email.length <= MAX_STRING_LENGTHS.email;
 }
+
 
 /**
  * Validate latitude
@@ -528,7 +535,7 @@ function isValidEmail(email) {
 function isValidLatitude(lat) {
     if (lat === null || lat === undefined) return false;
     var num = Number(lat);
-    return ! isNaN(num) && num >= -90 && num <= 90;
+    return !isNaN(num) && num >= -90 && num <= 90;
 }
 
 /**
@@ -537,15 +544,15 @@ function isValidLatitude(lat) {
 function isValidLongitude(lon) {
     if (lon === null || lon === undefined) return false;
     var num = Number(lon);
-    return ! isNaN(num) && num >= -180 && num <= 180;
+    return !isNaN(num) && num >= -180 && num <= 180;
 }
 
 /**
  * Sanitize string field
  */
-function sanitizeString(value, maxLength, defaultValue) {
+function sanitizeString(value, maxLength) {
     if (value === null || value === undefined) {
-        return defaultValue !== undefined ? defaultValue : null;
+        return null;
     }
     
     if (typeof value !== 'string') {
@@ -555,8 +562,8 @@ function sanitizeString(value, maxLength, defaultValue) {
     // Trim whitespace
     value = value.trim();
     
-    // Remove control characters
-    value = value.replace(/[\x00-\x1F\x7F]/g, '');
+    // Remove control characters (except newlines and tabs for some fields)
+    value = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     
     // Truncate if too long
     if (maxLength && value.length > maxLength) {
@@ -566,34 +573,50 @@ function sanitizeString(value, maxLength, defaultValue) {
     return value;
 }
 
+
 /**
  * Sanitize the entire metadata payload
  */
 function sanitizeMetadataPayload(meta, logger, requestId) {
     var sanitized = {};
     
-    // String fields with max lengths
-    var stringFields = [
+    // Identity string fields
+    var identityFields = [
         'role', 'email', 'first_name', 'last_name', 'login_type',
         'idp_username', 'account_status', 'wallet_address', 'cognito_user_id',
-        'geo_location', 'device_id', 'platform', 'app_version', 'device_model',
-        'os_version', 'city', 'region', 'country', 'country_code', 'timezone', 'locale'
+        'geo_location', 'device_id'
     ];
     
-    for (var i = 0; i < stringFields.length; i++) {
-        var field = stringFields[i];
-        if (meta. hasOwnProperty(field) && meta[field] !== null && meta[field] !== undefined) {
-            sanitized[field] = sanitizeString(meta[field], MAX_STRING_LENGTHS[field] || 256);
+    for (var i = 0; i < identityFields.length; i++) {
+        var field = identityFields[i];
+        if (meta.hasOwnProperty(field) && meta[field] !== null && meta[field] !== undefined) {
+            var maxLen = MAX_STRING_LENGTHS[field] || 256;
+            sanitized[field] = sanitizeString(meta[field], maxLen);
+        }
+    }
+    
+    // Device info string fields
+    var deviceStringFields = [
+        'platform', 'device_model', 'device_name', 'os_version',
+        'app_version', 'unity_version', 'locale', 'timezone',
+        'screen_dpi', 'graphics_device', 'processor_type'
+    ];
+    
+    for (var j = 0; j < deviceStringFields. length; j++) {
+        var deviceField = deviceStringFields[j];
+        if (meta.hasOwnProperty(deviceField) && meta[deviceField] !== null && meta[deviceField] !== undefined) {
+            var deviceMaxLen = MAX_STRING_LENGTHS[deviceField] || 256;
+            sanitized[deviceField] = sanitizeString(meta[deviceField], deviceMaxLen);
         }
     }
     
     // Special handling for game_id (UUID validation)
     if (meta.game_id) {
-        var gameIdStr = sanitizeString(meta.game_id, 36);
-        if (isValidUUIDFormat(gameIdStr)) {
+        var gameIdStr = sanitizeString(meta. game_id, 36);
+        if (gameIdStr && isValidUUIDFormat(gameIdStr)) {
             sanitized.game_id = gameIdStr. toLowerCase();
-        } else {
-            logger.warn("[PlayerMetadata:" + requestId + "] Invalid game_id format: " + gameIdStr);
+        } else if (gameIdStr) {
+            logger. warn("[PlayerMetadata:" + requestId + "] Invalid game_id format: " + gameIdStr);
         }
     }
     
@@ -618,16 +641,46 @@ function sanitizeMetadataPayload(meta, logger, requestId) {
         }
     }
     
+    // Numeric device fields
+    if (meta.screen_width !== undefined) {
+        var sw = parseInt(meta.screen_width, 10);
+        if (! isNaN(sw) && sw > 0 && sw < 10000) {
+            sanitized. screen_width = sw;
+        }
+    }
+    
+    if (meta. screen_height !== undefined) {
+        var sh = parseInt(meta.screen_height, 10);
+        if (!isNaN(sh) && sh > 0 && sh < 10000) {
+            sanitized.screen_height = sh;
+        }
+    }
+    
+    if (meta.system_memory_mb !== undefined) {
+        var mem = parseInt(meta. system_memory_mb, 10);
+        if (!isNaN(mem) && mem > 0 && mem < 1000000) {
+            sanitized.system_memory_mb = mem;
+        }
+    }
+    
+    if (meta.processor_count !== undefined) {
+        var pc = parseInt(meta. processor_count, 10);
+        if (!isNaN(pc) && pc > 0 && pc < 1000) {
+            sanitized.processor_count = pc;
+        }
+    }
+    
     // Optional numeric fields
     if (meta.age !== undefined) {
         var age = parseInt(meta.age, 10);
         if (!isNaN(age) && age >= 0 && age <= 150) {
-            sanitized.age = age;
+            sanitized. age = age;
         }
     }
     
     return sanitized;
 }
+
 
 /**
  * Validate the sanitized payload
@@ -642,23 +695,41 @@ function validateMetadataPayload(sanitized, logger, requestId) {
     }
     
     // Validate account_status if provided
-    if (sanitized. account_status && VALID_ACCOUNT_STATUSES.indexOf(sanitized.account_status. toLowerCase()) === -1) {
-        warnings.push("Unknown account_status: " + sanitized. account_status);
+    if (sanitized. account_status) {
+        var statusLower = sanitized. account_status.toLowerCase();
+        if (VALID_ACCOUNT_STATUSES.indexOf(statusLower) === -1) {
+            warnings.push("Unknown account_status: " + sanitized. account_status);
+        }
     }
     
     // Validate login_type if provided
-    if (sanitized.login_type && VALID_LOGIN_TYPES.indexOf(sanitized.login_type.toLowerCase()) === -1) {
-        warnings.push("Unknown login_type: " + sanitized. login_type);
+    if (sanitized.login_type) {
+        var loginLower = sanitized. login_type.toLowerCase();
+        if (VALID_LOGIN_TYPES.indexOf(loginLower) === -1) {
+            warnings.push("Unknown login_type: " + sanitized. login_type);
+        }
     }
     
     // Validate role if provided
-    if (sanitized.role && VALID_ROLES.indexOf(sanitized.role.toLowerCase()) === -1) {
-        warnings. push("Unknown role: " + sanitized. role);
+    if (sanitized.role) {
+        var roleLower = sanitized. role.toLowerCase();
+        if (VALID_ROLES.indexOf(roleLower) === -1) {
+            warnings.push("Unknown role: " + sanitized.role);
+        }
     }
     
     // Validate coordinates consistency
-    if ((sanitized.latitude !== undefined) !== (sanitized. longitude !== undefined)) {
+    var hasLat = sanitized.latitude !== undefined;
+    var hasLon = sanitized. longitude !== undefined;
+    if (hasLat !== hasLon) {
         warnings.push("Latitude and longitude should be provided together");
+    }
+    
+    // Validate screen dimensions consistency
+    var hasWidth = sanitized.screen_width !== undefined;
+    var hasHeight = sanitized.screen_height !== undefined;
+    if (hasWidth !== hasHeight) {
+        warnings. push("Screen width and height should be provided together");
     }
     
     return {
@@ -668,16 +739,17 @@ function validateMetadataPayload(sanitized, logger, requestId) {
     };
 }
 
+
 /**
  * Build merged metadata object
  */
 function buildMergedMetadata(existing, sanitized, now, isNewUser, userId, ctx) {
     var merged = {};
     
-    // Start with existing data
+    // Start with existing data (preserve all existing fields)
     if (existing && typeof existing === "object") {
         for (var prop in existing) {
-            if (Object.prototype. hasOwnProperty. call(existing, prop)) {
+            if (Object.prototype.hasOwnProperty.call(existing, prop)) {
                 merged[prop] = existing[prop];
             }
         }
@@ -693,12 +765,13 @@ function buildMergedMetadata(existing, sanitized, now, isNewUser, userId, ctx) {
         }
     }
     
-    // System fields
+    // System fields (always update)
     merged. user_id = userId;
     merged.updated_at = now;
     
+    // First-time fields
     if (isNewUser) {
-        merged. created_at = now;
+        merged.created_at = now;
         merged.first_seen_at = now;
     }
     
@@ -710,12 +783,13 @@ function buildMergedMetadata(existing, sanitized, now, isNewUser, userId, ctx) {
     return merged;
 }
 
+
 /**
  * Update game history
  */
 function updateGameHistory(merged, gameId, now) {
     // Initialize games array if not exists
-    if (!merged.games || !Array.isArray(merged.games)) {
+    if (!merged. games || !Array.isArray(merged.games)) {
         merged. games = [];
     }
     
@@ -735,7 +809,7 @@ function updateGameHistory(merged, gameId, now) {
         merged.games[gameIndex].session_count = (merged.games[gameIndex].session_count || 0) + 1;
     } else {
         // Add new game entry
-        merged.games. push({
+        merged.games.push({
             game_id: gameId,
             first_played: now,
             last_played: now,
@@ -759,7 +833,6 @@ function updateGameHistory(merged, gameId, now) {
     
     return merged;
 }
-
 /**
  * Update geolocation data
  */
@@ -768,21 +841,21 @@ function updateGeolocation(merged, sanitized, now) {
     
     if (hasNewCoords) {
         merged.latitude = sanitized.latitude;
-        merged. longitude = sanitized. longitude;
+        merged.longitude = sanitized.longitude;
         merged.location_updated_at = now;
         merged.location_source = "client_gps";
         
-        // Store location history (last 5 locations)
+        // Store location history (last 5 unique locations)
         if (! merged.location_history || ! Array.isArray(merged.location_history)) {
             merged.location_history = [];
         }
         
-        // Add to history (avoid duplicates within 100m)
+        // Add to history (avoid duplicates within ~100m)
         var shouldAdd = true;
         if (merged.location_history.length > 0) {
             var lastLoc = merged.location_history[merged. location_history.length - 1];
             var distance = calculateDistance(
-                lastLoc. latitude, lastLoc.longitude,
+                lastLoc.latitude, lastLoc.longitude,
                 sanitized.latitude, sanitized.longitude
             );
             if (distance < 0.1) { // Less than 100 meters
@@ -799,7 +872,7 @@ function updateGeolocation(merged, sanitized, now) {
             
             // Keep only last 5 locations
             if (merged.location_history. length > 5) {
-                merged. location_history = merged.location_history. slice(-5);
+                merged. location_history = merged.location_history.slice(-5);
             }
         }
     }
@@ -812,7 +885,7 @@ function updateGeolocation(merged, sanitized, now) {
     if (sanitized. country_code) merged. country_code = sanitized.country_code. toUpperCase();
     if (sanitized.region) merged.region = sanitized.region;
     if (sanitized.city) merged.city = sanitized.city;
-    if (sanitized. timezone) merged.timezone = sanitized.timezone;
+    if (sanitized.timezone) merged.timezone = sanitized.timezone;
     
     return merged;
 }
@@ -824,16 +897,16 @@ function updateGeolocation(merged, sanitized, now) {
 function calculateDistance(lat1, lon1, lat2, lon2) {
     var R = 6371; // Earth's radius in km
     var dLat = (lat2 - lat1) * Math.PI / 180;
-    var dLon = (lon2 - lon1) * Math. PI / 180;
-    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
             Math.cos(lat1 * Math. PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math. sqrt(1 - a));
     return R * c;
 }
 
 /**
- * Update device information
+ * Update device information - tracks all devices used
  */
 function updateDeviceInfo(merged, sanitized, now) {
     // Initialize devices array if tracking multiple devices
@@ -851,48 +924,82 @@ function updateDeviceInfo(merged, sanitized, now) {
             }
         }
         
+        // Build device info object
         var deviceInfo = {
             device_id: sanitized.device_id,
             last_seen: now,
-            platform: sanitized.platform || merged.platform,
-            device_model: sanitized.device_model || merged. device_model,
-            os_version: sanitized.os_version || merged.os_version,
-            app_version: sanitized.app_version || merged.app_version
+            platform: sanitized.platform || merged.platform || null,
+            device_model: sanitized.device_model || merged.device_model || null,
+            device_name: sanitized.device_name || merged.device_name || null,
+            os_version: sanitized.os_version || merged.os_version || null,
+            app_version: sanitized.app_version || merged.app_version || null,
+            unity_version: sanitized.unity_version || merged.unity_version || null,
+            locale: sanitized.locale || merged.locale || null,
+            timezone: sanitized.timezone || merged.timezone || null,
+            screen_width: sanitized.screen_width || null,
+            screen_height: sanitized. screen_height || null,
+            screen_dpi: sanitized.screen_dpi || null,
+            graphics_device: sanitized.graphics_device || null,
+            system_memory_mb: sanitized.system_memory_mb || null,
+            processor_type: sanitized.processor_type || null,
+            processor_count: sanitized.processor_count || null
         };
+        
+        // Clean null values from device info
+        for (var key in deviceInfo) {
+            if (deviceInfo[key] === null) {
+                delete deviceInfo[key];
+            }
+        }
         
         if (deviceIndex >= 0) {
             // Update existing device
+            var existingDevice = merged. devices[deviceIndex];
+            deviceInfo.first_seen = existingDevice.first_seen || now;
+            deviceInfo.session_count = (existingDevice.session_count || 0) + 1;
             merged.devices[deviceIndex] = deviceInfo;
-            merged.devices[deviceIndex].first_seen = merged.devices[deviceIndex].first_seen || now;
-            merged.devices[deviceIndex].session_count = (merged.devices[deviceIndex].session_count || 0) + 1;
         } else {
             // Add new device
             deviceInfo.first_seen = now;
             deviceInfo.session_count = 1;
-            merged.devices. push(deviceInfo);
+            merged.devices.push(deviceInfo);
         }
         
-        // Update current device fields
-        merged.current_device_id = sanitized.device_id;
+        // Update current device fields at top level
+        merged. current_device_id = sanitized. device_id;
         merged.device_id = sanitized.device_id;
         merged.total_devices = merged. devices.length;
         
-        // Keep only last 10 devices
-        if (merged.devices. length > 10) {
-            // Sort by last_seen and keep most recent
-            merged. devices.sort(function(a, b) {
+        // Keep only last 10 devices (sorted by last_seen)
+        if (merged.devices.length > 10) {
+            merged.devices. sort(function(a, b) {
                 return new Date(b.last_seen) - new Date(a.last_seen);
             });
             merged. devices = merged.devices.slice(0, 10);
         }
     }
     
-    // Update top-level device fields
+    // Update top-level device fields (for quick access)
     if (sanitized.platform) merged.platform = sanitized.platform;
     if (sanitized. device_model) merged.device_model = sanitized.device_model;
-    if (sanitized.os_version) merged. os_version = sanitized.os_version;
-    if (sanitized.app_version) merged.app_version = sanitized.app_version;
-    if (sanitized.locale) merged.locale = sanitized.locale;
+    if (sanitized.device_name) merged. device_name = sanitized.device_name;
+    if (sanitized.os_version) merged.os_version = sanitized.os_version;
+    if (sanitized.app_version) merged.app_version = sanitized. app_version;
+    if (sanitized.unity_version) merged.unity_version = sanitized.unity_version;
+    if (sanitized. locale) merged.locale = sanitized.locale;
+    if (sanitized.timezone) merged.timezone = sanitized.timezone;
+    if (sanitized.screen_width) merged.screen_width = sanitized.screen_width;
+    if (sanitized. screen_height) merged.screen_height = sanitized.screen_height;
+    if (sanitized.screen_dpi) merged.screen_dpi = sanitized.screen_dpi;
+    if (sanitized.graphics_device) merged.graphics_device = sanitized.graphics_device;
+    if (sanitized. system_memory_mb) merged.system_memory_mb = sanitized.system_memory_mb;
+    if (sanitized. processor_type) merged.processor_type = sanitized.processor_type;
+    if (sanitized.processor_count) merged. processor_count = sanitized.processor_count;
+    
+    // Calculate screen resolution string
+    if (merged.screen_width && merged.screen_height) {
+        merged.screen_resolution = merged.screen_width + "x" + merged.screen_height;
+    }
     
     return merged;
 }
@@ -901,17 +1008,22 @@ function updateDeviceInfo(merged, sanitized, now) {
  * Update session analytics
  */
 function updateSessionAnalytics(merged, now, isNewUser) {
-    // Session tracking
-    if (!merged.analytics) {
+    // Initialize analytics object
+    if (!merged. analytics) {
         merged.analytics = {
             first_session: now,
             total_sessions: 0,
             last_session: null,
             days_since_first_session: 0,
-            average_sessions_per_day: 0
+            average_sessions_per_day: 0,
+            days_active: 0,
+            current_streak: 0,
+            longest_streak: 0,
+            last_active_date: null
         };
     }
     
+    // Update session count
     merged.analytics.total_sessions = (merged.analytics.total_sessions || 0) + 1;
     merged.analytics.last_session = now;
     
@@ -920,46 +1032,67 @@ function updateSessionAnalytics(merged, now, isNewUser) {
         var firstDate = new Date(merged.analytics.first_session);
         var nowDate = new Date(now);
         var diffTime = Math.abs(nowDate - firstDate);
-        var diffDays = Math. ceil(diffTime / (1000 * 60 * 60 * 24));
+        var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         merged.analytics.days_since_first_session = diffDays;
         
+        // Calculate average sessions per day
         if (diffDays > 0) {
             merged.analytics. average_sessions_per_day = 
                 Math.round((merged.analytics.total_sessions / diffDays) * 100) / 100;
+        } else {
+            merged.analytics.average_sessions_per_day = merged.analytics.total_sessions;
         }
     }
     
-    // Daily active tracking
-    var today = now.split('T')[0]; // YYYY-MM-DD
-    if (merged.analytics. last_active_date !== today) {
-        merged.analytics.last_active_date = today;
-        merged.analytics.days_active = (merged.analytics.days_active || 0) + 1;
-    }
+    // Daily active tracking and streak calculation
+    var today = now.split('T')[0]; // YYYY-MM-DD format
+    var previousActiveDate = merged.analytics.last_active_date;
     
-    // Streak tracking
-    if (merged.analytics.last_active_date) {
-        var lastActiveDate = new Date(merged.analytics.last_active_date);
-        var currentDate = new Date(today);
-        var daysDiff = Math. floor((currentDate - lastActiveDate) / (1000 * 60 * 60 * 24));
+    if (previousActiveDate !== today) {
+        // New day - update days active
+        merged. analytics.days_active = (merged.analytics.days_active || 0) + 1;
         
-        if (daysDiff <= 1) {
-            merged.analytics.current_streak = (merged.analytics.current_streak || 0) + (daysDiff === 1 ? 1 : 0);
-            if (merged.analytics. current_streak > (merged.analytics.longest_streak || 0)) {
-                merged.analytics.longest_streak = merged.analytics.current_streak;
+        // Streak calculation
+        if (previousActiveDate) {
+            var prevDate = new Date(previousActiveDate);
+            var currentDate = new Date(today);
+            var daysDiff = Math. floor((currentDate - prevDate) / (1000 * 60 * 60 * 24));
+            
+            if (daysDiff === 1) {
+                // Consecutive day - increase streak
+                merged. analytics.current_streak = (merged.analytics. current_streak || 0) + 1;
+            } else if (daysDiff > 1) {
+                // Streak broken - reset to 1
+                merged.analytics.current_streak = 1;
             }
+            // daysDiff === 0 means same day, don't change streak
         } else {
+            // First time tracking - start streak at 1
             merged.analytics.current_streak = 1;
         }
-    } else {
+        
+        // Update longest streak
+        if ((merged.analytics.current_streak || 0) > (merged.analytics.longest_streak || 0)) {
+            merged.analytics.longest_streak = merged.analytics.current_streak;
+        }
+        
+        merged.analytics.last_active_date = today;
+    }
+    
+    // For new users, ensure first session is set
+    if (isNewUser) {
+        merged. analytics.first_session = now;
         merged.analytics.current_streak = 1;
-        merged.analytics.longest_streak = 1;
+        merged. analytics.longest_streak = 1;
+        merged.analytics.days_active = 1;
+        merged. analytics.last_active_date = today;
     }
     
     return merged;
 }
 
 /**
- * Cleanup legacy metadata (non-blocking)
+ * Cleanup legacy metadata documents (non-blocking)
  */
 function cleanupLegacyMetadataAsync(nk, logger, userId, requestId) {
     for (var i = 0; i < LEGACY_STORAGE_LOCATIONS.length; i++) {
@@ -996,11 +1129,200 @@ function cleanupLegacyMetadataAsync(nk, logger, userId, requestId) {
  * RPC: get_player_metadata
  * Retrieves the unified player metadata for the authenticated user
  */
+function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
+    var startTime = Date.now();
+    var requestId = generateShortUUID();
+    
+    logger.info("[PlayerMetadata:" + requestId + "] RPC called");
+    
+    // -------------------------------------------------------------------------
+    // Step 1: Authentication Check
+    // -------------------------------------------------------------------------
+    if (!ctx.userId) {
+        logger.error("[PlayerMetadata:" + requestId + "] User not authenticated");
+        return buildErrorResponse("User not authenticated", "AUTH_REQUIRED", requestId);
+    }
+    
+    var userId = ctx.userId;
+    
+    // -------------------------------------------------------------------------
+    // Step 2: Parse and Validate Payload
+    // -------------------------------------------------------------------------
+    var meta;
+    try {
+        meta = JSON.parse(payload || "{}");
+    } catch (err) {
+        logger.error("[PlayerMetadata:" + requestId + "] Invalid JSON: " + err.message);
+        return buildErrorResponse("Invalid JSON payload", "INVALID_JSON", requestId);
+    }
+    
+    // Validate payload is an object
+    if (meta === null || typeof meta !== "object" || Array.isArray(meta)) {
+        logger.error("[PlayerMetadata:" + requestId + "] Payload must be an object");
+        return buildErrorResponse("Payload must be a JSON object", "INVALID_PAYLOAD", requestId);
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 3: Read Existing Metadata
+    // -------------------------------------------------------------------------
+    var existing = null;
+    var isNewUser = false;
+    
+    try {
+        var records = nk.storageRead([{
+            collection: PLAYER_METADATA_COLLECTION,
+            key: PLAYER_METADATA_KEY,
+            userId: userId
+        }]);
+        
+        if (records && records.length > 0 && records[0]. value) {
+            existing = records[0].value;
+            logger.debug("[PlayerMetadata:" + requestId + "] Found existing metadata");
+            
+            // Rate limiting check (log only, don't reject)
+            if (existing.updated_at) {
+                var lastUpdate = new Date(existing.updated_at). getTime();
+                var now = Date. now();
+                var secondsSinceUpdate = (now - lastUpdate) / 1000;
+                
+                if (secondsSinceUpdate < MIN_UPDATE_INTERVAL_SECONDS) {
+                    logger.warn("[PlayerMetadata:" + requestId + "] Rapid update detected.  Last: " + 
+                               secondsSinceUpdate. toFixed(1) + "s ago");
+                }
+            }
+        } else {
+            isNewUser = true;
+            logger.info("[PlayerMetadata:" + requestId + "] New user, creating metadata");
+        }
+    } catch (err) {
+        logger.warn("[PlayerMetadata:" + requestId + "] Error reading existing: " + err.message);
+        isNewUser = true;
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 4: Sanitize and Validate Input Fields
+    // -------------------------------------------------------------------------
+    var sanitized = sanitizeMetadataPayload(meta, logger, requestId);
+    var validationResult = validateMetadataPayload(sanitized, logger, requestId);
+    
+    if (validationResult.warnings.length > 0) {
+        logger.warn("[PlayerMetadata:" + requestId + "] Validation warnings: " + 
+                   validationResult.warnings.join("; "));
+    }
+    
+    if (validationResult.errors.length > 0) {
+        logger.error("[PlayerMetadata:" + requestId + "] Validation errors: " + 
+                    validationResult.errors.join("; "));
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 5: Build Merged Metadata Object
+    // -------------------------------------------------------------------------
+    var now = new Date().toISOString();
+    var merged = buildMergedMetadata(existing, sanitized, now, isNewUser, userId, ctx);
+    
+    // -------------------------------------------------------------------------
+    // Step 6: Handle Game Tracking
+    // -------------------------------------------------------------------------
+    if (sanitized.game_id && isValidUUIDFormat(sanitized.game_id)) {
+        merged = updateGameHistory(merged, sanitized.game_id, now);
+        logger.debug("[PlayerMetadata:" + requestId + "] Updated game history for: " + sanitized.game_id);
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 7: Handle Geolocation
+    // -------------------------------------------------------------------------
+    merged = updateGeolocation(merged, sanitized, now);
+    
+    if (sanitized.latitude !== undefined && sanitized.longitude !== undefined) {
+        logger.debug("[PlayerMetadata:" + requestId + "] Updated geolocation: " + 
+                    sanitized.latitude. toFixed(4) + ", " + sanitized.longitude. toFixed(4));
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 8: Handle Device Information
+    // -------------------------------------------------------------------------
+    merged = updateDeviceInfo(merged, sanitized, now);
+    
+    if (sanitized.device_id) {
+        logger.debug("[PlayerMetadata:" + requestId + "] Updated device info: " + 
+                    (sanitized.platform || "unknown") + " | " + 
+                    (sanitized.device_model || "unknown"));
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 9: Handle Session Analytics
+    // -------------------------------------------------------------------------
+    merged = updateSessionAnalytics(merged, now, isNewUser);
+    
+    // -------------------------------------------------------------------------
+    // Step 10: Write to Storage
+    // -------------------------------------------------------------------------
+    try {
+        nk.storageWrite([{
+            collection: PLAYER_METADATA_COLLECTION,
+            key: PLAYER_METADATA_KEY,
+            userId: userId,
+            value: merged,
+            permissionRead: PERMISSION_READ_OWNER,
+            permissionWrite: PERMISSION_WRITE_NONE,
+            version: "*"
+        }]);
+        
+        logger.info("[PlayerMetadata:" + requestId + "] Metadata saved successfully");
+    } catch (err) {
+        logger. error("[PlayerMetadata:" + requestId + "] Write failed: " + err.message);
+        return buildErrorResponse("Failed to save metadata", "STORAGE_ERROR", requestId);
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 11: Cleanup Legacy Data (non-blocking)
+    // -------------------------------------------------------------------------
+    cleanupLegacyMetadataAsync(nk, logger, userId, requestId);
+    
+    // -------------------------------------------------------------------------
+    // Step 12: Build Success Response
+    // -------------------------------------------------------------------------
+    var executionTime = Date. now() - startTime;
+    
+    logger.info("[PlayerMetadata:" + requestId + "] Completed in " + executionTime + "ms" +
+               " | Games: " + (merged.total_games || 0) +
+               " | Devices: " + (merged.total_devices || 0) +
+               " | Sessions: " + (merged. analytics ?  merged.analytics.total_sessions : 0) +
+               " | Streak: " + (merged.analytics ? merged. analytics.current_streak : 0) +
+               " | New: " + isNewUser);
+    
+    return JSON.stringify({
+        success: true,
+        metadata: merged,
+        is_new_user: isNewUser,
+        execution_time_ms: executionTime,
+        request_id: requestId,
+        storage: {
+            collection: PLAYER_METADATA_COLLECTION,
+            key: PLAYER_METADATA_KEY,
+            permission_read: "OWNER_READ",
+            permission_write: "NO_WRITE"
+        }
+    });
+}
+
+// ============================================================================
+// ADDITIONAL RPC: Get Player Metadata
+// ============================================================================
+
+/**
+ * RPC: get_player_metadata
+ * Retrieves the unified player metadata for the authenticated user
+ */
 function rpcGetPlayerMetadata(ctx, logger, nk, payload) {
+    var requestId = generateShortUUID();
+    
     if (!ctx.userId) {
         return JSON.stringify({
             success: false,
-            error: "User not authenticated"
+            error: "User not authenticated",
+            error_code: "AUTH_REQUIRED"
         });
     }
     
@@ -1008,10 +1330,12 @@ function rpcGetPlayerMetadata(ctx, logger, nk, payload) {
         var records = nk.storageRead([{
             collection: PLAYER_METADATA_COLLECTION,
             key: PLAYER_METADATA_KEY,
-            userId: ctx.userId
+            userId: ctx. userId
         }]);
         
-        if (records && records.length > 0 && records[0]. value) {
+        if (records && records. length > 0 && records[0]. value) {
+            logger.info("[GetPlayerMetadata:" + requestId + "] Retrieved for user: " + ctx.userId);
+            
             return JSON.stringify({
                 success: true,
                 metadata: records[0].value,
@@ -1022,14 +1346,16 @@ function rpcGetPlayerMetadata(ctx, logger, nk, payload) {
             });
         }
         
-        return JSON.stringify({
+        logger.warn("[GetPlayerMetadata:" + requestId + "] No metadata found for user: " + ctx.userId);
+        
+        return JSON. stringify({
             success: false,
             error: "No metadata found for user",
             error_code: "NOT_FOUND"
         });
     } catch (err) {
-        logger.error("[GetPlayerMetadata] Error: " + err.message);
-        return JSON.stringify({
+        logger.error("[GetPlayerMetadata:" + requestId + "] Error: " + err.message);
+        return JSON. stringify({
             success: false,
             error: "Failed to read metadata",
             error_code: "STORAGE_ERROR"
@@ -1038,7 +1364,7 @@ function rpcGetPlayerMetadata(ctx, logger, nk, payload) {
 }
 
 // ============================================================================
-// ADDITIONAL HELPER RPC: Delete Player Metadata (Admin only)
+// ADDITIONAL RPC: Delete Player Metadata (Admin/Testing)
 // ============================================================================
 
 /**
@@ -1046,10 +1372,13 @@ function rpcGetPlayerMetadata(ctx, logger, nk, payload) {
  * Deletes all player metadata (for testing/admin purposes)
  */
 function rpcAdminDeletePlayerMetadata(ctx, logger, nk, payload) {
-    if (!ctx.userId) {
+    var requestId = generateShortUUID();
+    
+    if (!ctx. userId) {
         return JSON.stringify({
             success: false,
-            error: "User not authenticated"
+            error: "User not authenticated",
+            error_code: "AUTH_REQUIRED"
         });
     }
     
@@ -1062,34 +1391,23 @@ function rpcAdminDeletePlayerMetadata(ctx, logger, nk, payload) {
         }]);
         
         // Cleanup legacy locations
-        for (var i = 0; i < LEGACY_STORAGE_LOCATIONS.length; i++) {
-            var loc = LEGACY_STORAGE_LOCATIONS[i];
-            try {
-                nk.storageDelete([{
-                    collection: loc. collection,
-                    key: loc.key,
-                    userId: ctx.userId
-                }]);
-            } catch (err) {
-                // Ignore
-            }
-        }
+        cleanupLegacyMetadataAsync(nk, logger, ctx. userId, requestId);
         
-        logger.info("[AdminDeletePlayerMetadata] Deleted metadata for user: " + ctx.userId);
+        logger.info("[AdminDeletePlayerMetadata:" + requestId + "] Deleted metadata for user: " + ctx.userId);
         
-        return JSON.stringify({
+        return JSON. stringify({
             success: true,
-            message: "Player metadata deleted"
+            message: "Player metadata deleted successfully"
         });
     } catch (err) {
-        logger. error("[AdminDeletePlayerMetadata] Error: " + err.message);
+        logger.error("[AdminDeletePlayerMetadata:" + requestId + "] Error: " + err.message);
         return JSON.stringify({
             success: false,
-            error: "Failed to delete metadata"
+            error: "Failed to delete metadata",
+            error_code: "STORAGE_ERROR"
         });
     }
 }
-
     /**
      * RPC: rpc_update_player_metadata
      * 
