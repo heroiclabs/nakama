@@ -847,55 +847,243 @@ function updateGameHistory(merged, gameId, now) {
  * Update geolocation data
  */
 function updateGeolocation(merged, sanitized, now) {
-    var hasNewCoords = sanitized.latitude !== undefined && sanitized.longitude !== undefined;
+
+    // -------------------------------------------------------------------------
+    // Step 1: Handle Coordinates (latitude/longitude)
+    // -------------------------------------------------------------------------
+    var hasNewCoords = sanitized.latitude !== undefined &&
+        sanitized.longitude !== undefined &&
+        sanitized.latitude !== null &&
+        sanitized.longitude !== null;
 
     if (hasNewCoords) {
-        merged.latitude = sanitized.latitude;
-        merged.longitude = sanitized.longitude;
-        merged.location_updated_at = now;
-        merged.location_source = "client_gps";
+        // Validate coordinates are within valid range
+        var lat = Number(sanitized.latitude);
+        var lon = Number(sanitized.longitude);
 
-        // Store location history (last 5 unique locations)
-        if (!merged.location_history || !Array.isArray(merged.location_history)) {
-            merged.location_history = [];
-        }
+        if (!isNaN(lat) && !isNaN(lon) &&
+            lat >= -90 && lat <= 90 &&
+            lon >= -180 && lon <= 180) {
 
-        // Add to history (avoid duplicates within ~100m)
-        var shouldAdd = true;
-        if (merged.location_history.length > 0) {
-            var lastLoc = merged.location_history[merged.location_history.length - 1];
-            var distance = calculateDistance(
-                lastLoc.latitude, lastLoc.longitude,
-                sanitized.latitude, sanitized.longitude
-            );
-            if (distance < 0.1) { // Less than 100 meters
-                shouldAdd = false;
+            merged.latitude = lat;
+            merged.longitude = lon;
+            merged.location_updated_at = now;
+
+            // Determine location source
+            if (sanitized.location_source) {
+                merged.location_source = sanitized.location_source;
+            } else if (Math.abs(lat) > 0.001 && Math.abs(lon) > 0.001) {
+                // If coordinates are precise, likely from GPS; otherwise IP
+                merged.location_source = "client";
             }
-        }
-
-        if (shouldAdd) {
-            merged.location_history.push({
-                latitude: sanitized.latitude,
-                longitude: sanitized.longitude,
-                timestamp: now
-            });
-
-            // Keep only last 5 locations
-            if (merged.location_history.length > 5) {
-                merged.location_history = merged.location_history.slice(-5);
+            else {
+                merged.location_source = "unknown";
             }
+
+            // -------------------------------------------------------------------------
+            // Step 2: Maintain Location History (last 10 unique locations)
+            // -------------------------------------------------------------------------
+            if (!merged.location_history || !Array.isArray(merged.location_history)) {
+                merged.location_history = [];
+            }
+
+            // Check if we should add this location to history
+            var shouldAddToHistory = true;
+            var minDistanceKm = 0.1; // 100 meters minimum distance
+
+            if (merged.location_history.length > 0) {
+                var lastLoc = merged.location_history[merged.location_history.length - 1];
+
+                if (lastLoc && lastLoc.latitude !== undefined && lastLoc.longitude !== undefined) {
+                    var distance = calculateDistance(
+                        lastLoc.latitude,
+                        lastLoc.longitude,
+                        lat,
+                        lon
+                    );
+
+                    // Don't add if within 100 meters of last location
+                    if (distance < minDistanceKm) {
+                        shouldAddToHistory = false;
+
+                        // But update the timestamp of the last location
+                        lastLoc.last_seen = now;
+                        lastLoc.visit_count = (lastLoc.visit_count || 1) + 1;
+                    }
+                }
+            }
+
+            if (shouldAddToHistory) {
+                var locationEntry = {
+                    latitude: lat,
+                    longitude: lon,
+                    timestamp: now,
+                    first_seen: now,
+                    last_seen: now,
+                    visit_count: 1
+                };
+
+                // Add country/city if available
+                if (sanitized.country_code) {
+                    locationEntry.country_code = sanitized.country_code.toUpperCase();
+                }
+                if (sanitized.city) {
+                    locationEntry.city = sanitized.city;
+                }
+                if (sanitized.region) {
+                    locationEntry.region = sanitized.region;
+                }
+
+                merged.location_history.push(locationEntry);
+
+                // Keep only last 10 locations
+                if (merged.location_history.length > 10) {
+                    merged.location_history = merged.location_history.slice(-10);
+                }
+            }
+
+            // Update total unique locations count
+            merged.total_unique_locations = merged.location_history.length;
         }
     }
 
-    // Update geo_location, country, city, region if provided
-    if (sanitized.geo_location) {
-        merged.geo_location = sanitized.geo_location.toUpperCase();
+    // -------------------------------------------------------------------------
+    // Step 3: Handle Country Information
+    // -------------------------------------------------------------------------
+    if (sanitized.country && sanitized.country !== "") {
+        merged.country = sanitized.country.trim();
     }
-    if (sanitized.country) merged.country = sanitized.country;
-    if (sanitized.country_code) merged.country_code = sanitized.country_code.toUpperCase();
-    if (sanitized.region) merged.region = sanitized.region;
-    if (sanitized.city) merged.city = sanitized.city;
-    if (sanitized.timezone) merged.timezone = sanitized.timezone;
+
+    if (sanitized.country_code && sanitized.country_code !== "") {
+        var countryCode = sanitized.country_code.trim().toUpperCase();
+
+        // Validate country code format (2-3 characters)
+        if (countryCode.length >= 2 && countryCode.length <= 3) {
+            merged.country_code = countryCode;
+            merged.geo_location = countryCode; // Also set geo_location for compatibility
+        }
+    }
+
+    // Fallback: if geo_location provided but not country_code
+    if (sanitized.geo_location && sanitized.geo_location !== "" && !merged.country_code) {
+        var geoLoc = sanitized.geo_location.trim().toUpperCase();
+        if (geoLoc.length >= 2 && geoLoc.length <= 3) {
+            merged.geo_location = geoLoc;
+            merged.country_code = geoLoc;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 4: Handle Region/State Information
+    // -------------------------------------------------------------------------
+    if (sanitized.region && sanitized.region !== "") {
+        merged.region = sanitized.region.trim();
+
+        // Also store as state for compatibility
+        merged.state = merged.region;
+    }
+
+    if (sanitized.regionName && sanitized.regionName !== "") {
+        merged.region = sanitized.regionName.trim();
+        merged.state = merged.region;
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 5: Handle City Information
+    // -------------------------------------------------------------------------
+    if (sanitized.city && sanitized.city !== "") {
+        merged.city = sanitized.city.trim();
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 6: Handle Timezone Information
+    // -------------------------------------------------------------------------
+    if (sanitized.timezone && sanitized.timezone !== "") {
+        merged.timezone = sanitized.timezone.trim();
+    }
+
+    if (sanitized.location_timezone && sanitized.location_timezone !== "") {
+        merged.location_timezone = sanitized.location_timezone.trim();
+
+        // Use location_timezone as primary if timezone not set
+        if (!merged.timezone) {
+            merged.timezone = merged.location_timezone;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 7: Build Formatted Location String
+    // -------------------------------------------------------------------------
+    var locationParts = [];
+    if (merged.city) locationParts.push(merged.city);
+    if (merged.region) locationParts.push(merged.region);
+    if (merged.country) locationParts.push(merged.country);
+
+    if (locationParts.length > 0) {
+        merged.formatted_location = locationParts.join(", ");
+    }
+
+    // Short format: "City, Country Code"
+    if (merged.city && merged.country_code) {
+        merged.location_short = merged.city + ", " + merged.country_code;
+    } else if (merged.country_code) {
+        merged.location_short = merged.country_code;
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 8: Calculate Location Statistics
+    // -------------------------------------------------------------------------
+    if (merged.location_history && merged.location_history.length > 0) {
+        // Find most visited location
+        var mostVisited = merged.location_history.reduce(function (max, loc) {
+            return (loc.visit_count || 1) > (max.visit_count || 1) ? loc : max;
+        }, merged.location_history[0]);
+
+        if (mostVisited) {
+            merged.most_visited_location = {
+                latitude: mostVisited.latitude,
+                longitude: mostVisited.longitude,
+                city: mostVisited.city || merged.city,
+                country_code: mostVisited.country_code || merged.country_code,
+                visit_count: mostVisited.visit_count || 1
+            };
+        }
+
+        // Count unique countries
+        var uniqueCountries = {};
+        for (var i = 0; i < merged.location_history.length; i++) {
+            var loc = merged.location_history[i];
+            if (loc.country_code) {
+                uniqueCountries[loc.country_code] = true;
+            }
+        }
+        merged.unique_countries_visited = Object.keys(uniqueCountries).length;
+
+        // Count unique cities
+        var uniqueCities = {};
+        for (var j = 0; j < merged.location_history.length; j++) {
+            var loc2 = merged.location_history[j];
+            if (loc2.city) {
+                uniqueCities[loc2.city] = true;
+            }
+        }
+        merged.unique_cities_visited = Object.keys(uniqueCities).length;
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 9: Set Location Availability Flag
+    // -------------------------------------------------------------------------
+    merged.has_location_data = ! !(
+        merged.latitude !== undefined &&
+        merged.longitude !== undefined &&
+        merged.latitude !== null &&
+        merged.longitude !== null
+    );
+
+    merged.has_resolved_location = !!(
+        merged.country_code &&
+        merged.country_code !== ""
+    );
 
     return merged;
 }
@@ -905,14 +1093,33 @@ function updateGeolocation(merged, sanitized, now) {
  * Returns distance in kilometers
  */
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    var R = 6371; // Earth's radius in km
+    // Validate inputs
+    if (lat1 === undefined || lon1 === undefined ||
+        lat2 === undefined || lon2 === undefined) {
+        return 999999; // Return large distance if invalid
+    }
+
+    lat1 = Number(lat1);
+    lon1 = Number(lon1);
+    lat2 = Number(lat2);
+    lon2 = Number(lon2);
+
+    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
+        return 999999;
+    }
+
+    var R = 6371; // Earth's radius in kilometers
     var dLat = (lat2 - lat1) * Math.PI / 180;
     var dLon = (lon2 - lon1) * Math.PI / 180;
+
     var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
     var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+    var distance = R * c;
+
+    return distance;
 }
 
 /**
