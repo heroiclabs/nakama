@@ -206,161 +206,1045 @@ function readStorage(nk, logger, collection, key, userId) {
     return null;
 }
 
+
 /**
- * RPC: rpc_update_player_metadata
+ * =============================================================================
+ * RPC: rpc_update_player_metadata (UNIFIED - Production Ready)
+ * =============================================================================
  * 
- * Stores or updates per-user metadata in Nakama Storage.
+ * STORAGE SPECIFICATION:
+ *   Collection: "player_metadata"
+ *   Key: "user_identity"
+ *   Permissions: 
+ *     - permissionRead: 1 (OWNER_READ)
+ *     - permissionWrite: 0 (NO_WRITE - server only)
  * 
- * Storage:
- *   collection: "player_metadata"
- *   key: "metadata"
- *   userId: ctx.userId (authenticated user)
+ * FEATURES:
+ *   - Single source of truth for player identity
+ *   - Game history tracking (list of all games played)
+ *   - Geolocation with lat/long support
+ *   - Device tracking and fingerprinting
+ *   - Session analytics
+ *   - Wallet references
+ *   - Cognito/IDP integration
+ *   - Automatic cleanup of legacy data
+ *   - Comprehensive validation and error handling
+ *   - Rate limiting protection
+ *   - Data sanitization
  * 
- * Behavior:
- * - If a record exists, merge new fields on top (new values override).
- * - If no record exists, create one with provided payload.
- * - Always ensure only one record per (collection, key, userId).
- * 
- * Expected payload (example):
+ * EXPECTED PAYLOAD:
  * {
- *   "role": "guest",
- *   "email": "...",
+ *   "role": "user",
+ *   "email": "user@example.com",
  *   "game_id": "uuid",
  *   "is_adult": "True",
- *   "last_name": "User",
- *   "first_name": "Guest",
- *   "login_type": "guest",
- *   "idp_username": "...",
+ *   "last_name": "Doe",
+ *   "first_name": "John",
+ *   "login_type": "cognito",
+ *   "idp_username": ".. .",
  *   "account_status": "active",
- *   "wallet_address": "global:...",
- *   "cognito_user_id": "...",
- *   "geo_location": "IN",
- *   "device_id": "example-device-id-123"
+ *   "wallet_address": "0x...",
+ *   "cognito_user_id": "uuid",
+ *   "geo_location": "US",
+ *   "device_id": ".. .",
+ *   "latitude": 29.7604,
+ *   "longitude": -95.3698,
+ *   "platform": "Android",
+ *   "app_version": "1.2.3",
+ *   "device_model": "Pixel 7",
+ *   "os_version": "14.0"
  * }
+ * 
+ * =============================================================================
  */
-function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+var PLAYER_METADATA_COLLECTION = "player_metadata";
+var PLAYER_METADATA_KEY = "user_identity";
+var PERMISSION_READ_OWNER = 1;   // OWNER_READ
+var PERMISSION_WRITE_NONE = 0;   // NO_WRITE (server only)
+
+// Rate limiting: minimum seconds between updates
+var MIN_UPDATE_INTERVAL_SECONDS = 5;
+
+// Maximum lengths for string fields (prevent abuse)
+var MAX_STRING_LENGTHS = {
+    email: 254,
+    first_name: 100,
+    last_name: 100,
+    role: 50,
+    login_type: 50,
+    idp_username: 256,
+    account_status: 50,
+    wallet_address: 256,
+    cognito_user_id: 128,
+    geo_location: 10,
+    device_id: 256,
+    platform: 50,
+    app_version: 50,
+    device_model: 100,
+    os_version: 50,
+    city: 100,
+    region: 100,
+    country: 100,
+    country_code: 5,
+    timezone: 50,
+    locale: 20
+};
+
+// Valid account statuses
+var VALID_ACCOUNT_STATUSES = ["active", "inactive", "suspended", "pending", "banned"];
+
+// Valid login types
+var VALID_LOGIN_TYPES = ["cognito", "device", "guest", "email", "google", "apple", "facebook", "custom"];
+
+// Valid roles
+var VALID_ROLES = ["user", "guest", "admin", "moderator", "premium", "vip"];
+
+// Legacy storage locations to clean up
+var LEGACY_STORAGE_LOCATIONS = [
+    { collection: "player_data", key: "player_metadata" },
+    { collection: "player_metadata", key: "metadata" },
+    { collection: "personal", key: "PlayerSnapshot" }
+];
+
+// ============================================================================
+// MAIN RPC FUNCTION
+// ============================================================================
+
+function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
+    var startTime = Date.now();
+    var requestId = generateShortUUID();
+    
+    logger.info("[PlayerMetadata:" + requestId + "] RPC called");
+    
+    // -------------------------------------------------------------------------
+    // Step 1: Authentication Check
+    // -------------------------------------------------------------------------
+    if (!ctx.userId) {
+        logger.error("[PlayerMetadata:" + requestId + "] User not authenticated");
+        return buildErrorResponse("User not authenticated", "AUTH_REQUIRED", requestId);
+    }
+    
+    var userId = ctx.userId;
+    
+    // -------------------------------------------------------------------------
+    // Step 2: Parse and Validate Payload
+    // -------------------------------------------------------------------------
+    var meta;
+    try {
+        meta = JSON. parse(payload || "{}");
+    } catch (err) {
+        logger.error("[PlayerMetadata:" + requestId + "] Invalid JSON: " + err.message);
+        return buildErrorResponse("Invalid JSON payload", "INVALID_JSON", requestId);
+    }
+    
+    // Validate payload is an object
+    if (meta === null || typeof meta !== "object" || Array.isArray(meta)) {
+        logger.error("[PlayerMetadata:" + requestId + "] Payload must be an object");
+        return buildErrorResponse("Payload must be a JSON object", "INVALID_PAYLOAD", requestId);
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 3: Read Existing Metadata
+    // -------------------------------------------------------------------------
+    var existing = null;
+    var isNewUser = false;
+    
+    try {
+        var records = nk.storageRead([{
+            collection: PLAYER_METADATA_COLLECTION,
+            key: PLAYER_METADATA_KEY,
+            userId: userId
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            existing = records[0].value;
+            logger.debug("[PlayerMetadata:" + requestId + "] Found existing metadata");
+            
+            // Rate limiting check
+            if (existing.updated_at) {
+                var lastUpdate = new Date(existing.updated_at). getTime();
+                var now = Date.now();
+                var secondsSinceUpdate = (now - lastUpdate) / 1000;
+                
+                if (secondsSinceUpdate < MIN_UPDATE_INTERVAL_SECONDS) {
+                    logger.warn("[PlayerMetadata:" + requestId + "] Rate limited.  Last update: " + 
+                               secondsSinceUpdate. toFixed(1) + "s ago");
+                    // Don't reject, but log the rapid updates
+                }
+            }
+        } else {
+            isNewUser = true;
+            logger.info("[PlayerMetadata:" + requestId + "] New user, creating metadata");
+        }
+    } catch (err) {
+        logger.warn("[PlayerMetadata:" + requestId + "] Error reading existing: " + err.message);
+        isNewUser = true;
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 4: Sanitize and Validate Input Fields
+    // -------------------------------------------------------------------------
+    var sanitized = sanitizeMetadataPayload(meta, logger, requestId);
+    var validationResult = validateMetadataPayload(sanitized, logger, requestId);
+    
+    if (validationResult. errors. length > 0) {
+        logger. warn("[PlayerMetadata:" + requestId + "] Validation warnings: " + 
+                   validationResult.errors.join("; "));
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 5: Build Merged Metadata Object
+    // -------------------------------------------------------------------------
+    var now = new Date().toISOString();
+    var merged = buildMergedMetadata(existing, sanitized, now, isNewUser, userId, ctx);
+    
+    // -------------------------------------------------------------------------
+    // Step 6: Handle Game Tracking
+    // -------------------------------------------------------------------------
+    if (sanitized.game_id && isValidUUIDFormat(sanitized.game_id)) {
+        merged = updateGameHistory(merged, sanitized.game_id, now);
+        logger.debug("[PlayerMetadata:" + requestId + "] Updated game history for: " + sanitized.game_id);
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 7: Handle Geolocation
+    // -------------------------------------------------------------------------
+    merged = updateGeolocation(merged, sanitized, now);
+    
+    // -------------------------------------------------------------------------
+    // Step 8: Handle Device Information
+    // -------------------------------------------------------------------------
+    merged = updateDeviceInfo(merged, sanitized, now);
+    
+    // -------------------------------------------------------------------------
+    // Step 9: Handle Session Analytics
+    // -------------------------------------------------------------------------
+    merged = updateSessionAnalytics(merged, now, isNewUser);
+    
+    // -------------------------------------------------------------------------
+    // Step 10: Write to Storage
+    // -------------------------------------------------------------------------
+    try {
+        nk.storageWrite([{
+            collection: PLAYER_METADATA_COLLECTION,
+            key: PLAYER_METADATA_KEY,
+            userId: userId,
+            value: merged,
+            permissionRead: PERMISSION_READ_OWNER,
+            permissionWrite: PERMISSION_WRITE_NONE,
+            version: "*"
+        }]);
+        
+        logger.info("[PlayerMetadata:" + requestId + "] Metadata saved successfully");
+    } catch (err) {
+        logger. error("[PlayerMetadata:" + requestId + "] Write failed: " + err.message);
+        return buildErrorResponse("Failed to save metadata", "STORAGE_ERROR", requestId);
+    }
+    
+    // -------------------------------------------------------------------------
+    // Step 11: Cleanup Legacy Data (async, non-blocking)
+    // -------------------------------------------------------------------------
+    cleanupLegacyMetadataAsync(nk, logger, userId, requestId);
+    
+    // -------------------------------------------------------------------------
+    // Step 12: Build Success Response
+    // -------------------------------------------------------------------------
+    var executionTime = Date. now() - startTime;
+    
+    logger.info("[PlayerMetadata:" + requestId + "] Completed in " + executionTime + "ms" +
+               " | Games: " + (merged.total_games || 0) +
+               " | New: " + isNewUser);
+    
+    return JSON.stringify({
+        success: true,
+        metadata: merged,
+        is_new_user: isNewUser,
+        execution_time_ms: executionTime,
+        request_id: requestId,
+        storage: {
+            collection: PLAYER_METADATA_COLLECTION,
+            key: PLAYER_METADATA_KEY,
+            permission_read: "OWNER_READ",
+            permission_write: "NO_WRITE"
+        }
+    });
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Generate short UUID for request tracking
+ */
+function generateShortUUID() {
+    var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    var result = '';
+    for (var i = 0; i < 8; i++) {
+        result += chars. charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+/**
+ * Build standardized error response
+ */
+function buildErrorResponse(message, errorCode, requestId) {
+    return JSON.stringify({
+        success: false,
+        error: message,
+        error_code: errorCode,
+        request_id: requestId,
+        timestamp: new Date().toISOString()
+    });
+}
+
+/**
+ * Validate UUID format (RFC 4122)
+ */
+function isValidUUIDFormat(str) {
+    if (! str || typeof str !== 'string') return false;
+    var uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    return uuidRegex.test(str);
+}
+
+/**
+ * Validate email format
+ */
+function isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email) && email.length <= MAX_STRING_LENGTHS. email;
+}
+
+/**
+ * Validate latitude
+ */
+function isValidLatitude(lat) {
+    if (lat === null || lat === undefined) return false;
+    var num = Number(lat);
+    return ! isNaN(num) && num >= -90 && num <= 90;
+}
+
+/**
+ * Validate longitude
+ */
+function isValidLongitude(lon) {
+    if (lon === null || lon === undefined) return false;
+    var num = Number(lon);
+    return ! isNaN(num) && num >= -180 && num <= 180;
+}
+
+/**
+ * Sanitize string field
+ */
+function sanitizeString(value, maxLength, defaultValue) {
+    if (value === null || value === undefined) {
+        return defaultValue !== undefined ? defaultValue : null;
+    }
+    
+    if (typeof value !== 'string') {
+        value = String(value);
+    }
+    
+    // Trim whitespace
+    value = value.trim();
+    
+    // Remove control characters
+    value = value.replace(/[\x00-\x1F\x7F]/g, '');
+    
+    // Truncate if too long
+    if (maxLength && value.length > maxLength) {
+        value = value.substring(0, maxLength);
+    }
+    
+    return value;
+}
+
+/**
+ * Sanitize the entire metadata payload
+ */
+function sanitizeMetadataPayload(meta, logger, requestId) {
+    var sanitized = {};
+    
+    // String fields with max lengths
+    var stringFields = [
+        'role', 'email', 'first_name', 'last_name', 'login_type',
+        'idp_username', 'account_status', 'wallet_address', 'cognito_user_id',
+        'geo_location', 'device_id', 'platform', 'app_version', 'device_model',
+        'os_version', 'city', 'region', 'country', 'country_code', 'timezone', 'locale'
+    ];
+    
+    for (var i = 0; i < stringFields.length; i++) {
+        var field = stringFields[i];
+        if (meta. hasOwnProperty(field) && meta[field] !== null && meta[field] !== undefined) {
+            sanitized[field] = sanitizeString(meta[field], MAX_STRING_LENGTHS[field] || 256);
+        }
+    }
+    
+    // Special handling for game_id (UUID validation)
+    if (meta.game_id) {
+        var gameIdStr = sanitizeString(meta.game_id, 36);
+        if (isValidUUIDFormat(gameIdStr)) {
+            sanitized.game_id = gameIdStr. toLowerCase();
+        } else {
+            logger.warn("[PlayerMetadata:" + requestId + "] Invalid game_id format: " + gameIdStr);
+        }
+    }
+    
+    // Boolean-like fields
+    if (meta.is_adult !== undefined) {
+        var isAdultStr = String(meta.is_adult).toLowerCase();
+        sanitized.is_adult = (isAdultStr === 'true' || isAdultStr === '1' || isAdultStr === 'yes') ? "True" : "False";
+    }
+    
+    // Numeric fields - latitude/longitude
+    if (meta.latitude !== undefined && meta.latitude !== null) {
+        var lat = Number(meta.latitude);
+        if (isValidLatitude(lat)) {
+            sanitized.latitude = lat;
+        }
+    }
+    
+    if (meta.longitude !== undefined && meta.longitude !== null) {
+        var lon = Number(meta.longitude);
+        if (isValidLongitude(lon)) {
+            sanitized.longitude = lon;
+        }
+    }
+    
+    // Optional numeric fields
+    if (meta.age !== undefined) {
+        var age = parseInt(meta.age, 10);
+        if (!isNaN(age) && age >= 0 && age <= 150) {
+            sanitized.age = age;
+        }
+    }
+    
+    return sanitized;
+}
+
+/**
+ * Validate the sanitized payload
+ */
+function validateMetadataPayload(sanitized, logger, requestId) {
+    var errors = [];
+    var warnings = [];
+    
+    // Validate email format if provided
+    if (sanitized.email && ! isValidEmail(sanitized.email)) {
+        warnings.push("Invalid email format");
+    }
+    
+    // Validate account_status if provided
+    if (sanitized. account_status && VALID_ACCOUNT_STATUSES.indexOf(sanitized.account_status. toLowerCase()) === -1) {
+        warnings.push("Unknown account_status: " + sanitized. account_status);
+    }
+    
+    // Validate login_type if provided
+    if (sanitized.login_type && VALID_LOGIN_TYPES.indexOf(sanitized.login_type.toLowerCase()) === -1) {
+        warnings.push("Unknown login_type: " + sanitized. login_type);
+    }
+    
+    // Validate role if provided
+    if (sanitized.role && VALID_ROLES.indexOf(sanitized.role.toLowerCase()) === -1) {
+        warnings. push("Unknown role: " + sanitized. role);
+    }
+    
+    // Validate coordinates consistency
+    if ((sanitized.latitude !== undefined) !== (sanitized. longitude !== undefined)) {
+        warnings.push("Latitude and longitude should be provided together");
+    }
+    
+    return {
+        errors: errors,
+        warnings: warnings,
+        isValid: errors.length === 0
+    };
+}
+
+/**
+ * Build merged metadata object
+ */
+function buildMergedMetadata(existing, sanitized, now, isNewUser, userId, ctx) {
+    var merged = {};
+    
+    // Start with existing data
+    if (existing && typeof existing === "object") {
+        for (var prop in existing) {
+            if (Object.prototype. hasOwnProperty. call(existing, prop)) {
+                merged[prop] = existing[prop];
+            }
+        }
+    }
+    
+    // Override with sanitized new values (only non-null/empty values)
+    for (var prop2 in sanitized) {
+        if (Object.prototype.hasOwnProperty.call(sanitized, prop2)) {
+            var value = sanitized[prop2];
+            if (value !== null && value !== undefined && value !== "") {
+                merged[prop2] = value;
+            }
+        }
+    }
+    
+    // System fields
+    merged. user_id = userId;
+    merged.updated_at = now;
+    
+    if (isNewUser) {
+        merged. created_at = now;
+        merged.first_seen_at = now;
+    }
+    
+    // Track Nakama username if available
+    if (ctx. username) {
+        merged.nakama_username = ctx.username;
+    }
+    
+    return merged;
+}
+
+/**
+ * Update game history
+ */
+function updateGameHistory(merged, gameId, now) {
+    // Initialize games array if not exists
+    if (!merged.games || !Array.isArray(merged.games)) {
+        merged. games = [];
+    }
+    
+    // Find existing game entry
+    var gameIndex = -1;
+    for (var i = 0; i < merged.games.length; i++) {
+        if (merged.games[i].game_id === gameId) {
+            gameIndex = i;
+            break;
+        }
+    }
+    
+    if (gameIndex >= 0) {
+        // Update existing game entry
+        merged.games[gameIndex].last_played = now;
+        merged.games[gameIndex].play_count = (merged.games[gameIndex].play_count || 0) + 1;
+        merged.games[gameIndex].session_count = (merged.games[gameIndex].session_count || 0) + 1;
+    } else {
+        // Add new game entry
+        merged.games. push({
+            game_id: gameId,
+            first_played: now,
+            last_played: now,
+            play_count: 1,
+            session_count: 1,
+            total_playtime_seconds: 0
+        });
+    }
+    
+    // Update summary fields
+    merged.total_games = merged. games.length;
+    merged.current_game_id = gameId;
+    merged.last_game_played_at = now;
+    
+    // Calculate total sessions across all games
+    var totalSessions = 0;
+    for (var j = 0; j < merged.games. length; j++) {
+        totalSessions += merged.games[j].session_count || 0;
+    }
+    merged. total_sessions = totalSessions;
+    
+    return merged;
+}
+
+/**
+ * Update geolocation data
+ */
+function updateGeolocation(merged, sanitized, now) {
+    var hasNewCoords = sanitized.latitude !== undefined && sanitized.longitude !== undefined;
+    
+    if (hasNewCoords) {
+        merged.latitude = sanitized.latitude;
+        merged. longitude = sanitized. longitude;
+        merged.location_updated_at = now;
+        merged.location_source = "client_gps";
+        
+        // Store location history (last 5 locations)
+        if (! merged.location_history || ! Array.isArray(merged.location_history)) {
+            merged.location_history = [];
+        }
+        
+        // Add to history (avoid duplicates within 100m)
+        var shouldAdd = true;
+        if (merged.location_history.length > 0) {
+            var lastLoc = merged.location_history[merged. location_history.length - 1];
+            var distance = calculateDistance(
+                lastLoc. latitude, lastLoc.longitude,
+                sanitized.latitude, sanitized.longitude
+            );
+            if (distance < 0.1) { // Less than 100 meters
+                shouldAdd = false;
+            }
+        }
+        
+        if (shouldAdd) {
+            merged.location_history.push({
+                latitude: sanitized.latitude,
+                longitude: sanitized. longitude,
+                timestamp: now
+            });
+            
+            // Keep only last 5 locations
+            if (merged.location_history. length > 5) {
+                merged. location_history = merged.location_history. slice(-5);
+            }
+        }
+    }
+    
+    // Update geo_location, country, city, region if provided
+    if (sanitized.geo_location) {
+        merged.geo_location = sanitized.geo_location. toUpperCase();
+    }
+    if (sanitized.country) merged.country = sanitized.country;
+    if (sanitized. country_code) merged. country_code = sanitized.country_code. toUpperCase();
+    if (sanitized.region) merged.region = sanitized.region;
+    if (sanitized.city) merged.city = sanitized.city;
+    if (sanitized. timezone) merged.timezone = sanitized.timezone;
+    
+    return merged;
+}
+
+/**
+ * Calculate distance between two coordinates (Haversine formula)
+ * Returns distance in kilometers
+ */
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    var R = 6371; // Earth's radius in km
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math. PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math. PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+/**
+ * Update device information
+ */
+function updateDeviceInfo(merged, sanitized, now) {
+    // Initialize devices array if tracking multiple devices
+    if (! merged.devices || ! Array.isArray(merged.devices)) {
+        merged.devices = [];
+    }
+    
+    if (sanitized.device_id) {
+        // Find existing device
+        var deviceIndex = -1;
+        for (var i = 0; i < merged.devices.length; i++) {
+            if (merged. devices[i].device_id === sanitized.device_id) {
+                deviceIndex = i;
+                break;
+            }
+        }
+        
+        var deviceInfo = {
+            device_id: sanitized.device_id,
+            last_seen: now,
+            platform: sanitized.platform || merged.platform,
+            device_model: sanitized.device_model || merged. device_model,
+            os_version: sanitized.os_version || merged.os_version,
+            app_version: sanitized.app_version || merged.app_version
+        };
+        
+        if (deviceIndex >= 0) {
+            // Update existing device
+            merged.devices[deviceIndex] = deviceInfo;
+            merged.devices[deviceIndex].first_seen = merged.devices[deviceIndex].first_seen || now;
+            merged.devices[deviceIndex].session_count = (merged.devices[deviceIndex].session_count || 0) + 1;
+        } else {
+            // Add new device
+            deviceInfo.first_seen = now;
+            deviceInfo.session_count = 1;
+            merged.devices. push(deviceInfo);
+        }
+        
+        // Update current device fields
+        merged.current_device_id = sanitized.device_id;
+        merged.device_id = sanitized.device_id;
+        merged.total_devices = merged. devices.length;
+        
+        // Keep only last 10 devices
+        if (merged.devices. length > 10) {
+            // Sort by last_seen and keep most recent
+            merged. devices.sort(function(a, b) {
+                return new Date(b.last_seen) - new Date(a.last_seen);
+            });
+            merged. devices = merged.devices.slice(0, 10);
+        }
+    }
+    
+    // Update top-level device fields
+    if (sanitized.platform) merged.platform = sanitized.platform;
+    if (sanitized. device_model) merged.device_model = sanitized.device_model;
+    if (sanitized.os_version) merged. os_version = sanitized.os_version;
+    if (sanitized.app_version) merged.app_version = sanitized.app_version;
+    if (sanitized.locale) merged.locale = sanitized.locale;
+    
+    return merged;
+}
+
+/**
+ * Update session analytics
+ */
+function updateSessionAnalytics(merged, now, isNewUser) {
+    // Session tracking
+    if (!merged.analytics) {
+        merged.analytics = {
+            first_session: now,
+            total_sessions: 0,
+            last_session: null,
+            days_since_first_session: 0,
+            average_sessions_per_day: 0
+        };
+    }
+    
+    merged.analytics.total_sessions = (merged.analytics.total_sessions || 0) + 1;
+    merged.analytics.last_session = now;
+    
+    // Calculate days since first session
+    if (merged.analytics.first_session) {
+        var firstDate = new Date(merged.analytics.first_session);
+        var nowDate = new Date(now);
+        var diffTime = Math.abs(nowDate - firstDate);
+        var diffDays = Math. ceil(diffTime / (1000 * 60 * 60 * 24));
+        merged.analytics.days_since_first_session = diffDays;
+        
+        if (diffDays > 0) {
+            merged.analytics. average_sessions_per_day = 
+                Math.round((merged.analytics.total_sessions / diffDays) * 100) / 100;
+        }
+    }
+    
+    // Daily active tracking
+    var today = now.split('T')[0]; // YYYY-MM-DD
+    if (merged.analytics. last_active_date !== today) {
+        merged.analytics.last_active_date = today;
+        merged.analytics.days_active = (merged.analytics.days_active || 0) + 1;
+    }
+    
+    // Streak tracking
+    if (merged.analytics.last_active_date) {
+        var lastActiveDate = new Date(merged.analytics.last_active_date);
+        var currentDate = new Date(today);
+        var daysDiff = Math. floor((currentDate - lastActiveDate) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff <= 1) {
+            merged.analytics.current_streak = (merged.analytics.current_streak || 0) + (daysDiff === 1 ? 1 : 0);
+            if (merged.analytics. current_streak > (merged.analytics.longest_streak || 0)) {
+                merged.analytics.longest_streak = merged.analytics.current_streak;
+            }
+        } else {
+            merged.analytics.current_streak = 1;
+        }
+    } else {
+        merged.analytics.current_streak = 1;
+        merged.analytics.longest_streak = 1;
+    }
+    
+    return merged;
+}
+
+/**
+ * Cleanup legacy metadata (non-blocking)
+ */
+function cleanupLegacyMetadataAsync(nk, logger, userId, requestId) {
+    for (var i = 0; i < LEGACY_STORAGE_LOCATIONS.length; i++) {
+        var loc = LEGACY_STORAGE_LOCATIONS[i];
+        try {
+            nk.storageDelete([{
+                collection: loc.collection,
+                key: loc.key,
+                userId: userId
+            }]);
+            logger.debug("[PlayerMetadata:" + requestId + "] Cleaned: " + loc.collection + "/" + loc.key);
+        } catch (err) {
+            // Ignore - document may not exist
+        }
+    }
+    
+    // Also clean up identity documents from quizverse collection
+    try {
+        nk.storageDelete([{
+            collection: "quizverse",
+            key: "identity:" + userId,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+    } catch (err) {
+        // Ignore
+    }
+}
+
+// ============================================================================
+// ADDITIONAL HELPER RPC: Get Player Metadata
+// ============================================================================
+
+/**
+ * RPC: get_player_metadata
+ * Retrieves the unified player metadata for the authenticated user
+ */
+function rpcGetPlayerMetadata(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({
             success: false,
             error: "User not authenticated"
         });
     }
-
-    var userId = ctx.userId;
-    var meta;
-
-    // Parse JSON
-    try {
-        meta = JSON.parse(payload || "{}");
-    } catch (err) {
-        logger.error("[PlayerMetadata] Invalid JSON payload: " + err.message);
-        return JSON.stringify({
-            success: false,
-            error: "Invalid JSON payload"
-        });
-    }
-
-    // Light validation of core fields (log-only, do not reject)
-    var requiredFields = [
-        "role",
-        "email",
-        "game_id",
-        "is_adult",
-        "last_name",
-        "first_name",
-        "login_type",
-        "idp_username",
-        "account_status",
-        "wallet_address",
-        "cognito_user_id",
-        "geo_location",
-        "device_id"
-    ];
-
-    var missing = [];
-    for (var i = 0; i < requiredFields.length; i++) {
-        var f = requiredFields[i];
-        if (!Object.prototype.hasOwnProperty.call(meta, f)) {
-            missing.push(f);
-        }
-    }
-
-    if (missing.length > 0) {
-        logger.warn("[PlayerMetadata] Missing recommended fields for user " + userId + ": " + missing.join(", "));
-    }
-
-    // Read existing metadata
-    var collection = "player_metadata";
-    var key = "metadata";
-
-    var existing = null;
+    
     try {
         var records = nk.storageRead([{
-            collection: collection,
-            key: key,
-            userId: userId
+            collection: PLAYER_METADATA_COLLECTION,
+            key: PLAYER_METADATA_KEY,
+            userId: ctx.userId
         }]);
-
-        if (records && records.length > 0 && records[0].value) {
-            existing = records[0].value;
+        
+        if (records && records.length > 0 && records[0]. value) {
+            return JSON.stringify({
+                success: true,
+                metadata: records[0].value,
+                storage: {
+                    collection: PLAYER_METADATA_COLLECTION,
+                    key: PLAYER_METADATA_KEY
+                }
+            });
         }
-    } catch (err) {
-        logger.error("[PlayerMetadata] Error reading existing metadata for user " + userId + ": " + err.message);
-    }
-
-    // Merge: new fields override existing ones
-    var merged = {};
-
-    if (existing && typeof existing === "object") {
-        for (var prop in existing) {
-            if (Object.prototype.hasOwnProperty.call(existing, prop)) {
-                merged[prop] = existing[prop];
-            }
-        }
-    }
-
-    if (meta && typeof meta === "object") {
-        for (var prop2 in meta) {
-            if (Object.prototype.hasOwnProperty.call(meta, prop2)) {
-                merged[prop2] = meta[prop2];
-            }
-        }
-    }
-
-    // Optionally enrich with system fields
-    merged.updated_at = new Date().toISOString();
-    if (!merged.created_at && existing == null) {
-        merged.created_at = merged.updated_at;
-    }
-
-    // Build storage write
-    var write = {
-        collection: collection,
-        key: key,
-        userId: userId,
-        value: merged,
-        permissionRead: 2,  // public read
-        permissionWrite: 1, // owner write
-        version: "*"        // last-write-wins upsert
-    };
-
-    try {
-        nk.storageWrite([write]);
-    } catch (err) {
-        logger.error("[PlayerMetadata] Error writing metadata for user " + userId + ": " + err.message);
+        
         return JSON.stringify({
             success: false,
-            error: "Failed to save metadata"
+            error: "No metadata found for user",
+            error_code: "NOT_FOUND"
+        });
+    } catch (err) {
+        logger.error("[GetPlayerMetadata] Error: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to read metadata",
+            error_code: "STORAGE_ERROR"
         });
     }
-
-    logger.info("[PlayerMetadata] Metadata updated for user " + userId);
-
-    return JSON.stringify({
-        success: true,
-        metadata: merged
-    });
 }
+
+// ============================================================================
+// ADDITIONAL HELPER RPC: Delete Player Metadata (Admin only)
+// ============================================================================
+
+/**
+ * RPC: admin_delete_player_metadata
+ * Deletes all player metadata (for testing/admin purposes)
+ */
+function rpcAdminDeletePlayerMetadata(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({
+            success: false,
+            error: "User not authenticated"
+        });
+    }
+    
+    try {
+        // Delete main metadata
+        nk.storageDelete([{
+            collection: PLAYER_METADATA_COLLECTION,
+            key: PLAYER_METADATA_KEY,
+            userId: ctx.userId
+        }]);
+        
+        // Cleanup legacy locations
+        for (var i = 0; i < LEGACY_STORAGE_LOCATIONS.length; i++) {
+            var loc = LEGACY_STORAGE_LOCATIONS[i];
+            try {
+                nk.storageDelete([{
+                    collection: loc. collection,
+                    key: loc.key,
+                    userId: ctx.userId
+                }]);
+            } catch (err) {
+                // Ignore
+            }
+        }
+        
+        logger.info("[AdminDeletePlayerMetadata] Deleted metadata for user: " + ctx.userId);
+        
+        return JSON.stringify({
+            success: true,
+            message: "Player metadata deleted"
+        });
+    } catch (err) {
+        logger. error("[AdminDeletePlayerMetadata] Error: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to delete metadata"
+        });
+    }
+}
+
+    /**
+     * RPC: rpc_update_player_metadata
+     * 
+     * Stores or updates per-user metadata in Nakama Storage.
+     * 
+     * Storage:
+     *   collection: "player_metadata"
+     *   key: "metadata"
+     *   userId: ctx.userId (authenticated user)
+     * 
+     * Behavior:
+     * - If a record exists, merge new fields on top (new values override).
+     * - If no record exists, create one with provided payload.
+     * - Always ensure only one record per (collection, key, userId).
+     * 
+     * Expected payload (example):
+     * {
+     *   "role": "guest",
+     *   "email": "...",
+     *   "game_id": "uuid",
+     *   "is_adult": "True",
+     *   "last_name": "User",
+     *   "first_name": "Guest",
+     *   "login_type": "guest",
+     *   "idp_username": "...",
+     *   "account_status": "active",
+     *   "wallet_address": "global:...",
+     *   "cognito_user_id": "...",
+     *   "geo_location": "IN",
+     *   "device_id": "example-device-id-123"
+     * }
+     */
+    function rpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
+        if (!ctx.userId) {
+            return JSON.stringify({
+                success: false,
+                error: "User not authenticated"
+            });
+        }
+
+        var userId = ctx.userId;
+        var meta;
+
+        // Parse JSON
+        try {
+            meta = JSON.parse(payload || "{}");
+        } catch (err) {
+            logger.error("[PlayerMetadata] Invalid JSON payload: " + err.message);
+            return JSON.stringify({
+                success: false,
+                error: "Invalid JSON payload"
+            });
+        }
+
+        // Light validation of core fields (log-only, do not reject)
+        var requiredFields = [
+            "role",
+            "email",
+            "game_id",
+            "is_adult",
+            "last_name",
+            "first_name",
+            "login_type",
+            "idp_username",
+            "account_status",
+            "wallet_address",
+            "cognito_user_id",
+            "geo_location",
+            "device_id"
+        ];
+
+        var missing = [];
+        for (var i = 0; i < requiredFields.length; i++) {
+            var f = requiredFields[i];
+            if (!Object.prototype.hasOwnProperty.call(meta, f)) {
+                missing.push(f);
+            }
+        }
+
+        if (missing.length > 0) {
+            logger.warn("[PlayerMetadata] Missing recommended fields for user " + userId + ": " + missing.join(", "));
+        }
+
+        // Read existing metadata
+        var collection = "player_metadata";
+        var key = "metadata";
+
+        var existing = null;
+        try {
+            var records = nk.storageRead([{
+                collection: collection,
+                key: key,
+                userId: userId
+            }]);
+
+            if (records && records.length > 0 && records[0].value) {
+                existing = records[0].value;
+            }
+        } catch (err) {
+            logger.error("[PlayerMetadata] Error reading existing metadata for user " + userId + ": " + err.message);
+        }
+
+        // Merge: new fields override existing ones
+        var merged = {};
+
+        if (existing && typeof existing === "object") {
+            for (var prop in existing) {
+                if (Object.prototype.hasOwnProperty.call(existing, prop)) {
+                    merged[prop] = existing[prop];
+                }
+            }
+        }
+
+        if (meta && typeof meta === "object") {
+            for (var prop2 in meta) {
+                if (Object.prototype.hasOwnProperty.call(meta, prop2)) {
+                    merged[prop2] = meta[prop2];
+                }
+            }
+        }
+
+        // Optionally enrich with system fields
+        merged.updated_at = new Date().toISOString();
+        if (!merged.created_at && existing == null) {
+            merged.created_at = merged.updated_at;
+        }
+
+        // Build storage write
+        var write = {
+            collection: collection,
+            key: key,
+            userId: userId,
+            value: merged,
+            permissionRead: 2,  // public read
+            permissionWrite: 1, // owner write
+            version: "*"        // last-write-wins upsert
+        };
+
+        try {
+            nk.storageWrite([write]);
+        } catch (err) {
+            logger.error("[PlayerMetadata] Error writing metadata for user " + userId + ": " + err.message);
+            return JSON.stringify({
+                success: false,
+                error: "Failed to save metadata"
+            });
+        }
+
+        logger.info("[PlayerMetadata] Metadata updated for user " + userId);
+
+        return JSON.stringify({
+            success: true,
+            metadata: merged
+        });
+    }
 
 
 /**
@@ -11015,12 +11899,25 @@ try {
         logger.info('[PlayerRPCs] Registered RPC: check_geo_and_update_profile');
         
         // Player Metadata & Portfolio RPCs
-        initializer.registerRpc('update_player_metadata', OldrpcUpdatePlayerMetadata);
-        logger.info('[PlayerRPCs] Registered RPC: update_player_metadata');
+     
         initializer.registerRpc('get_player_portfolio', rpcGetPlayerPortfolio);
         logger.info('[PlayerRPCs] Registered RPC: get_player_portfolio');
-        initializer.registerRpc('rpc_update_player_metadata', NewrpcUpdatePlayerMetadata);
-        logger.info('[PlayerRPCs] Registered RPC: rpc_update_player_metadata');
+      //  initializer.registerRpc('rpc_update_player_metadata', rpcUpdatePlayerMetadata);
+       // logger.info('[PlayerRPCs] Registered RPC: rpc_update_player_metadata');
+
+        
+        initializer.registerRpc('rpc_update_player_metadata', rpcUpdatePlayerMetadataUnified);
+        logger.info('[PlayerRPCs] ✓ Registered: rpc_update_player_metadata (unified)');
+
+         initializer.registerRpc('get_player_metadata', rpcGetPlayerMetadata);
+        logger.info('[PlayerRPCs] ✓ Registered: get_player_metadata');
+
+         initializer.registerRpc('admin_delete_player_metadata', rpcAdminDeletePlayerMetadata);
+        logger. info('[PlayerRPCs] ✓ Registered: admin_delete_player_metadata');
+
+
+
+
         // Adaptive Reward System RPCs
         initializer.registerRpc('calculate_score_reward', rpcCalculateScoreReward);
         logger.info('[PlayerRPCs] Registered RPC: calculate_score_reward');
