@@ -67,7 +67,7 @@ func (s *LocalStatusHandler) GetStatus(ctx context.Context) ([]*console.StatusLi
 			AvgInputKbs:    math.Floor(s.metrics.SnapshotRecvKbSec()*100) / 100,
 			AvgOutputKbs:   math.Floor(s.metrics.SnapshotSentKbSec()*100) / 100,
 			PartyCount:     int32(s.partyRegistry.Count()),
-			CreateTime:     &timestamppb.Timestamp{Seconds: s.createTime.Unix()},
+			CreateTime:     timestamppb.New(s.createTime),
 		},
 	}, nil
 }
