@@ -5136,6 +5136,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Current number of active parties."
+        },
+        "create_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Time when the node was created and started up."
         }
       },
       "description": "The status of a Nakama node."

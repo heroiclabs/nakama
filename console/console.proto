@@ -1452,6 +1452,8 @@ message StatusList {
     double avg_output_kbs = 10;
     // Current number of active parties.
     int32 party_count = 11;
+    // Time when the node was created and started up.
+    google.protobuf.Timestamp create_time = 12;
   }
 
   // List of nodes and their stats.
