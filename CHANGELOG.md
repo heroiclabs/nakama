@@ -11,7 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Additional information for transactions in console UI details side panel.
 - Console API status endpoint now returns number of active Parties per node.
 - Console UI status view now displays number of active Parties per node and total.
-- Console API status endpoint now return the startup time when each node was created.
+- Console API status endpoint now returns the startup time when each node was created.
 - Console UI status view now displays time since each node was started.
 
 ### Changed
