@@ -1586,7 +1586,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					return
 				}
 
-				transactionId := googleNotification.OneTimeProductNotification.PurchaseToken
+				transactionId := googleNotification.VoidedPurchaseNotification.PurchaseToken
 
 				if uid == nil {
 					s, err := GetPurchaseByTransactionId(r.Context(), loggerWithNotification, db, transactionId)
