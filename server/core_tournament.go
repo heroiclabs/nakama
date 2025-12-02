@@ -863,7 +863,7 @@ func DisableTournamentRanks(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	leaderboardCache.Insert(l.Id, l.Authoritative, l.SortOrder, l.Operator, l.ResetScheduleStr, l.Metadata, l.CreateTime, false)
 
-	_, _, expiryUnix := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, time.Now())
+	_, _, expiryUnix := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, time.Now().UTC())
 	rankCache.DeleteLeaderboard(l.Id, expiryUnix)
 
 	return nil

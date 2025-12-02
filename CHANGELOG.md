@@ -4,8 +4,15 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.35.0] - 2025-12-02
 ### Added
 - New runtime Satori client options for time-based caching.
+- Additional information for transactions in console UI details side panel.
+- Console API status endpoint now returns number of active Parties per node.
+- Console UI status view now displays number of active Parties per node and total.
+- Console API status endpoint now return the startup time when each node was created.
+- Console UI status view now displays time since each node was started.
 
 ### Changed
 - Adjust unit of measure for Satori client timeout.
@@ -15,6 +22,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add runtime Satori client live-event join function.
 - Configurable timeout for server initiated socket disconnects graceful close wait period.
 - Fix an issue in the console ACL database schema migration that would prevent it from being applied in CockroachDB.
+- Better display for long transaction identifiers in console UI.
 
 ### Fixed
 - Fix migration script to correctly revert console fine-grained access control changes.
@@ -22,6 +30,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix an issue that would prevent the console data reset operation from completing successfully.
 - Fix an issue with Apple In-App Purchase notification handling that would prevent the notification from being processed.
 - Fix an issue with Google In-App Purchase notification handling that would prevent refund/voided types from being processed.
+- Fix incorrect error message in the console UI when storage import operations actually succeed.
+- Fix incorrect display of ascending/descending leaderboard indicator in console UI.
+- Fix incorrect display of pagination indicators for filtered storage lookups in console UI.
+- Fix issue where disabling tournament ranks might not use the correct timezone for lookups.
 
 ## [3.34.1] - 2025-11-12
 ### Added
