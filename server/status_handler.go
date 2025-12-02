@@ -18,9 +18,11 @@ import (
 	"context"
 	"math"
 	"runtime"
+	"time"
 
 	"github.com/heroiclabs/nakama/v3/console"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type StatusHandler interface {
@@ -35,9 +37,10 @@ type LocalStatusHandler struct {
 	tracker         Tracker
 	metrics         Metrics
 	node            string
+	createTime      time.Time
 }
 
-func NewLocalStatusHandler(logger *zap.Logger, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, node string) StatusHandler {
+func NewLocalStatusHandler(logger *zap.Logger, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, node string, createTime time.Time) StatusHandler {
 	return &LocalStatusHandler{
 		logger:          logger,
 		sessionRegistry: sessionRegistry,
@@ -46,6 +49,7 @@ func NewLocalStatusHandler(logger *zap.Logger, sessionRegistry SessionRegistry, 
 		tracker:         tracker,
 		metrics:         metrics,
 		node:            node,
+		createTime:      createTime,
 	}
 }
 
@@ -63,6 +67,7 @@ func (s *LocalStatusHandler) GetStatus(ctx context.Context) ([]*console.StatusLi
 			AvgInputKbs:    math.Floor(s.metrics.SnapshotRecvKbSec()*100) / 100,
 			AvgOutputKbs:   math.Floor(s.metrics.SnapshotSentKbSec()*100) / 100,
 			PartyCount:     int32(s.partyRegistry.Count()),
+			CreateTime:     timestamppb.New(s.createTime),
 		},
 	}, nil
 }
