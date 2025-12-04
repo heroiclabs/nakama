@@ -545,6 +545,9 @@ func consoleAuthInterceptor(logger *zap.Logger, config Config, sessionCache Sess
 		if info.FullMethod == "/nakama.console.Console/AuthenticateLogout" {
 			return handler(ctx, req)
 		}
+		if info.FullMethod == "/nakama.console.Console/AuthenticatePasswordChange" {
+			return handler(ctx, req)
+		}
 
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {

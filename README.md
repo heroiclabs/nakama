@@ -145,7 +145,7 @@ All dependencies required for a build are vendored as part of the Go project. We
 
 ### Full Source Builds
 
-The codebase uses Protocol Buffers, GRPC, GRPC-Gateway, and the OpenAPI spec as part of the project. These dependencies are generated as sources and committed to the repository to simplify builds for contributors.
+The codebase uses Protocol Buffers, GRPC, GRPC-Gateway, buf, and the OpenAPI spec as part of the project. These dependencies are generated as sources and committed to the repository to simplify builds for contributors.
 
 To build the codebase and generate all sources follow these steps.
 
@@ -158,15 +158,15 @@ To build the codebase and generate all sources follow these steps.
        "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway" \
        "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2"
    ```
+2. Install [buf](https://buf.build/docs/cli/installation/).
 
-2. Re-generate the protocol buffers and gateway code.
-
+3. Re-generate the protocol buffers and gateway code.
    ```shell
-   buf generate apigrpc -o apigrpc
-   buf generate console -o console
+   # Run the shell script:
+   ./buf.sh
    ```
 
-3. Build the codebase.
+4. Build the codebase.
 
    ```shell
    go build -trimpath -mod=vendor

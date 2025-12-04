@@ -39,6 +39,11 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+const (
+	passwordMinLength = 8
+	passwordMaxLength = 128
+)
+
 type ConsoleTokenClaims struct {
 	ID        string `json:"id,omitempty"`
 	Username  string `json:"usn,omitempty"`
@@ -372,6 +377,51 @@ func (s *ConsoleServer) AuthenticateMFASetup(ctx context.Context, in *console.Au
 	}
 
 	return &console.AuthenticateMFASetupResponse{RecoveryCodes: recoveryCodes}, nil
+}
+
+func (s *ConsoleServer) AuthenticatePasswordChange(ctx context.Context, in *console.AuthenticatePasswordChangeRequest) (*emptypb.Empty, error) {
+	if strings.TrimSpace(in.Password) == "" {
+		return nil, status.Error(codes.InvalidArgument, "Password must be set.")
+	}
+
+	if len(in.Password) < passwordMinLength || len(in.Password) > passwordMaxLength {
+		return nil, status.Error(codes.InvalidArgument, "Password must be between 8 and 128 characters long.")
+	}
+
+	var claims UserInvitationClaims
+	if err := parseJWTToken(s.config.GetConsole().SigningKey, in.Code, &claims); err != nil {
+		s.logger.Warn("Failed to parse the JWT provided as code.", zap.Error(err))
+		return nil, status.Errorf(codes.Unauthenticated, "The code provided is invalid.")
+	}
+
+	logger := s.logger.With(zap.String("user_id", claims.Id))
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Error("Failed to hash the password for the user.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to hash the password for the user.")
+	}
+
+	query := `UPDATE console_user SET password = $1, update_time = NOW() WHERE id = $2 AND date_trunc('second', update_time) <= $3`
+
+	res, err := s.db.ExecContext(ctx, query, hashedPassword, claims.Id, time.Unix(claims.IssuedAt, 0).UTC())
+	if err != nil {
+		logger.Error("Failed to update the console user record with a new password.", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "Failed to update the console user record with a new password.")
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		logger.Error("Failed to get the number of rows affected.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to update user password.")
+	}
+
+	if rowsAffected < 1 {
+		s.logger.Warn("The token provided was created before the last update of the user data.")
+		return nil, status.Error(codes.Unauthenticated, "The token is outdated. Please ask your administrator for a new password reset.")
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, logger *zap.Logger, unameOrEmail, password, ip string) (id uuid.UUID, uname string, email string, role acl.Permission, mfaRequired bool, mfaSecret, mfaRecoveryCodes []byte, err error) {
