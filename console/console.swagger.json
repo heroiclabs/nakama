@@ -25,15 +25,16 @@
     "application/json"
   ],
   "paths": {
-    "/v1/console/user/{username}/reset/password": {
+    "/v1/console/authenticate/password_change": {
       "post": {
-        "summary": "Reset a user's password.",
-        "operationId": "ResetUserPassword",
+        "summary": "Change an account's password using a code, usually delivered over email.",
+        "operationId": "AuthenticatePasswordChange",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/ResetUserResponse"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -45,15 +46,22 @@
         },
         "parameters": [
           {
-            "name": "username",
-            "description": "The unique username of the user account.",
-            "in": "path",
+            "name": "body",
+            "description": "Request to change a password.",
+            "in": "body",
             "required": true,
-            "type": "string"
+            "schema": {
+              "$ref": "#/definitions/AuthenticatePasswordChangeRequest"
+            }
           }
         ],
         "tags": [
           "Console"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
         ]
       }
     },
@@ -3497,6 +3505,38 @@
           "Console"
         ]
       }
+    },
+    "/v2/console/user/{username}/reset/password": {
+      "post": {
+        "summary": "Reset a user's password.",
+        "operationId": "ResetUserPassword",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ResetUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "username",
+            "description": "The unique username of the user account.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
     }
   },
   "definitions": {
@@ -4010,6 +4050,20 @@
         }
       },
       "description": "Response to change MFA."
+    },
+    "AuthenticatePasswordChangeRequest": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Code."
+        },
+        "password": {
+          "type": "string",
+          "description": "New password."
+        }
+      },
+      "description": "Request to change a password."
     },
     "AuthenticateRequest": {
       "type": "object",
