@@ -10247,16 +10247,14 @@ const file_console_proto_rawDesc = "" +
 	"\n" +
 	"\x06IMPORT\x10\x05\x12\n" +
 	"\n" +
-	"\x06EXPORT\x10\x062\xceW\n" +
+	"\x06EXPORT\x10\x062\xbaW\n" +
 	"\aConsole\x12\x83\x01\n" +
 	"\fAuthenticate\x12#.nakama.console.AuthenticateRequest\x1a\x1e.nakama.console.ConsoleSession\".\x92A\bb\x06\n" +
 	"\x04\n" +
 	"\x00\x12\x00\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/console/authenticate\x12\x83\x01\n" +
 	"\x12AuthenticateLogout\x12).nakama.console.AuthenticateLogoutRequest\x1a\x16.google.protobuf.Empty\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v2/console/authenticate/logout\x12\x9a\x01\n" +
-	"\x14AuthenticateMFASetup\x12+.nakama.console.AuthenticateMFASetupRequest\x1a,.nakama.console.AuthenticateMFASetupResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v2/console/authenticate/mfa\x12\xb0\x01\n" +
-	"\x1aAuthenticatePasswordChange\x121.nakama.console.AuthenticatePasswordChangeRequest\x1a\x16.google.protobuf.Empty\"G\x92A\x11b\x0f\n" +
-	"\r\n" +
-	"\tBasicAuth\x12\x00\x82\xd3\xe4\x93\x02-:\x01*\"(/v1/console/authenticate/password_change\x12\x86\x01\n" +
+	"\x14AuthenticateMFASetup\x12+.nakama.console.AuthenticateMFASetupRequest\x1a,.nakama.console.AuthenticateMFASetupResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v2/console/authenticate/mfa\x12\x9c\x01\n" +
+	"\x1aAuthenticatePasswordChange\x121.nakama.console.AuthenticatePasswordChangeRequest\x1a\x16.google.protobuf.Empty\"3\x82\xd3\xe4\x93\x02-:\x01*\"(/v2/console/authenticate/password_change\x12\x86\x01\n" +
 	"\x0eAddAccountNote\x12%.nakama.console.AddAccountNoteRequest\x1a\x1b.nakama.console.AccountNote\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v2/console/account/{account_id}/note\x12\x94\x01\n" +
 	"\x10ListAccountNotes\x12'.nakama.console.ListAccountNotesRequest\x1a(.nakama.console.ListAccountNotesResponse\"-\x82\xd3\xe4\x93\x02'\x12%/v2/console/account/{account_id}/note\x12y\n" +
 	"\x0eAddAclTemplate\x12%.nakama.console.AddAclTemplateRequest\x1a\x1b.nakama.console.AclTemplate\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/console/acl/template\x12\x84\x01\n" +

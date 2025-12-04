@@ -25,46 +25,6 @@
     "application/json"
   ],
   "paths": {
-    "/v1/console/authenticate/password_change": {
-      "post": {
-        "summary": "Change an account's password using a code, usually delivered over email.",
-        "operationId": "AuthenticatePasswordChange",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "type": "object",
-              "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "description": "Request to change a password.",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/AuthenticatePasswordChangeRequest"
-            }
-          }
-        ],
-        "tags": [
-          "Console"
-        ],
-        "security": [
-          {
-            "BasicAuth": []
-          }
-        ]
-      }
-    },
     "/v2/console/account": {
       "get": {
         "summary": "List (and optionally filter) accounts.",
@@ -1545,6 +1505,41 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/AuthenticateMFASetupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/authenticate/password_change": {
+      "post": {
+        "summary": "Change an account's password using a code, usually delivered over email.",
+        "operationId": "AuthenticatePasswordChange",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request to change a password.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AuthenticatePasswordChangeRequest"
             }
           }
         ],

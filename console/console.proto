@@ -109,16 +109,8 @@ service Console {
   // Change an account's password using a code, usually delivered over email.
   rpc AuthenticatePasswordChange (AuthenticatePasswordChangeRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v1/console/authenticate/password_change",
+      post: "/v2/console/authenticate/password_change",
       body: "*"
-    };
-    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
-      security: {
-        security_requirement: {
-          key: "BasicAuth";
-          value: {};
-        }
-      }
     };
   }
 
