@@ -207,7 +207,7 @@ function readStorage(nk, logger, collection, key, userId) {
 }
 
 /**
- * RPC: rpc_update_player_metadata
+ * RPC:     
  * 
  * Stores or updates per-user metadata in Nakama Storage.
  * 
@@ -238,25 +238,43 @@ function readStorage(nk, logger, collection, key, userId) {
  *   "device_id": "example-device-id-123"
  * }
  */
+/**
+ * RPC: rpc_update_player_metadata
+ * 
+ * Stores or updates per-user metadata in Nakama Storage. 
+ * Properly handles geolocation fields (latitude, longitude, country, city, region)
+ * and isGuest from the Unity client.
+ * 
+ * Storage:
+ *   collection: "player_metadata"
+ *   key: "metadata"
+ *   userId: ctx.userId (authenticated user)
+ */
 function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({
             success: false,
-            error: "User not authenticated"
+            error: "User not authenticated",
+            error_code: "AUTH_REQUIRED"
         });
     }
 
     var userId = ctx.userId;
+    var requestId = generateUUID(). substring(0, 8);
     var meta;
+
+    logger.info("[PlayerMetadata:" + requestId + "] Processing metadata update for user " + userId);
 
     // Parse JSON
     try {
         meta = JSON.parse(payload || "{}");
     } catch (err) {
-        logger.error("[PlayerMetadata] Invalid JSON payload: " + err.message);
+        logger.error("[PlayerMetadata:" + requestId + "] Invalid JSON payload: " + err.message);
         return JSON.stringify({
             success: false,
-            error: "Invalid JSON payload"
+            error: "Invalid JSON payload",
+            error_code: "INVALID_JSON",
+            request_id: requestId
         });
     }
 
@@ -266,6 +284,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
         "email",
         "game_id",
         "is_adult",
+        "is_guest",
         "last_name",
         "first_name",
         "login_type",
@@ -278,16 +297,30 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     ];
 
     var missing = [];
-    for (var i = 0; i < requiredFields.length; i++) {
+    for (var i = 0; i < requiredFields. length; i++) {
         var f = requiredFields[i];
-        if (!Object.prototype.hasOwnProperty.call(meta, f)) {
-            missing.push(f);
+        if (! Object.prototype.hasOwnProperty.call(meta, f)) {
+            missing. push(f);
         }
     }
 
     if (missing.length > 0) {
-        logger.warn("[PlayerMetadata] Missing recommended fields for user " + userId + ": " + missing.join(", "));
+        logger.warn("[PlayerMetadata:" + requestId + "] Missing recommended fields for user " + userId + ": " + missing.join(", "));
     }
+
+    // Log received geolocation data for debugging
+    if (meta.latitude !== undefined || meta.longitude !== undefined) {
+        logger. info("[PlayerMetadata:" + requestId + "] Received geolocation: lat=" + 
+            meta.latitude + ", lon=" + meta.longitude + 
+            ", country=" + (meta.country_code || meta.geo_location || "N/A") +
+            ", city=" + (meta.city || "N/A") +
+            ", source=" + (meta. location_source || "N/A"));
+    } else {
+        logger.warn("[PlayerMetadata:" + requestId + "] No geolocation coordinates in payload");
+    }
+
+    // Log isGuest status
+    logger.info("[PlayerMetadata:" + requestId + "] is_guest received: " + (meta.is_guest !== undefined ? meta.is_guest : "not provided"));
 
     // Read existing metadata
     var collection = "player_metadata";
@@ -303,14 +336,19 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
 
         if (records && records.length > 0 && records[0].value) {
             existing = records[0].value;
+            logger.info("[PlayerMetadata:" + requestId + "] Found existing metadata for user");
         }
     } catch (err) {
-        logger.error("[PlayerMetadata] Error reading existing metadata for user " + userId + ": " + err.message);
+        logger.error("[PlayerMetadata:" + requestId + "] Error reading existing metadata for user " + userId + ": " + err.message);
     }
+
+    var isNewUser = (existing === null);
+    var now = new Date().toISOString();
 
     // Merge: new fields override existing ones
     var merged = {};
 
+    // Copy existing fields first
     if (existing && typeof existing === "object") {
         for (var prop in existing) {
             if (Object.prototype.hasOwnProperty.call(existing, prop)) {
@@ -319,46 +357,433 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
         }
     }
 
+    // Merge new fields from payload (only non-null/undefined values)
     if (meta && typeof meta === "object") {
         for (var prop2 in meta) {
             if (Object.prototype.hasOwnProperty.call(meta, prop2)) {
-                merged[prop2] = meta[prop2];
+                if (meta[prop2] !== null && meta[prop2] !== undefined) {
+                    merged[prop2] = meta[prop2];
+                }
             }
         }
     }
 
-    // Optionally enrich with system fields
-    merged.updated_at = new Date().toISOString();
-    if (!merged.created_at && existing == null) {
-        merged.created_at = merged.updated_at;
+    // Ensure user_id is set
+    merged.user_id = userId;
+
+    // ============================================================================
+    // HANDLE isGuest EXPLICITLY - Convert string "True"/"False" to boolean
+    // ============================================================================
+    if (meta.is_guest !== undefined && meta.is_guest !== null) {
+        if (typeof meta.is_guest === "string") {
+            merged.is_guest = (meta.is_guest. toLowerCase() === "true");
+        } else if (typeof meta.is_guest === "boolean") {
+            merged.is_guest = meta. is_guest;
+        } else {
+            merged.is_guest = !!meta.is_guest;
+        }
+        logger.info("[PlayerMetadata:" + requestId + "] is_guest parsed as: " + merged. is_guest);
+    } else if (merged.is_guest === undefined) {
+        merged.is_guest = false;
     }
 
-    // Build storage write
+    // ============================================================================
+    // HANDLE GEOLOCATION FIELDS EXPLICITLY
+    // ============================================================================
+    
+    // Latitude - ensure it's stored as a number with validation
+    if (meta.latitude !== undefined && meta.latitude !== null && meta.latitude !== "") {
+        var lat = parseFloat(meta.latitude);
+        if (! isNaN(lat) && lat >= -90 && lat <= 90) {
+            merged.latitude = lat;
+            merged.has_location_data = true;
+            logger.info("[PlayerMetadata:" + requestId + "] ✓ Stored latitude: " + lat);
+        } else {
+            logger. warn("[PlayerMetadata:" + requestId + "] ✗ Invalid latitude value: " + meta. latitude);
+        }
+    }
+    
+    // Longitude - ensure it's stored as a number with validation
+    if (meta.longitude !== undefined && meta.longitude !== null && meta.longitude !== "") {
+        var lon = parseFloat(meta.longitude);
+        if (!isNaN(lon) && lon >= -180 && lon <= 180) {
+            merged.longitude = lon;
+            merged. has_location_data = true;
+            logger.info("[PlayerMetadata:" + requestId + "] ✓ Stored longitude: " + lon);
+        } else {
+            logger. warn("[PlayerMetadata:" + requestId + "] ✗ Invalid longitude value: " + meta.longitude);
+        }
+    }
+    
+    // Country code (prefer country_code, fallback to geo_location)
+    if (meta.country_code && meta.country_code !== "") {
+        merged.country_code = meta.country_code;
+        merged.geo_location = meta. country_code; // Keep both for compatibility
+    } else if (meta.geo_location && meta.geo_location !== "" && ! merged.country_code) {
+        merged.country_code = meta.geo_location;
+        merged.geo_location = meta.geo_location;
+    }
+    
+    // Country name
+    if (meta. country && meta.country !== "") {
+        merged.country = meta.country;
+    }
+    
+    // Region/State
+    if (meta.region && meta. region !== "") {
+        merged.region = meta.region;
+    }
+    
+    // City
+    if (meta.city && meta.city !== "") {
+        merged.city = meta. city;
+    }
+    
+    // Timezone from location
+    if (meta. location_timezone && meta.location_timezone !== "") {
+        merged.location_timezone = meta. location_timezone;
+    }
+    
+    // Location source (gps, ip, etc.)
+    if (meta.location_source && meta. location_source !== "") {
+        merged. location_source = meta.location_source;
+    }
+
+    // Track if location was fully resolved
+    if (merged.latitude !== undefined && merged.longitude !== undefined && merged.country_code) {
+        merged.has_resolved_location = true;
+        merged.location_updated_at = now;
+        logger.info("[PlayerMetadata:" + requestId + "] ✓ Location fully resolved: " + 
+            (merged.city || "Unknown") + ", " + (merged.region || "Unknown") + ", " + 
+            (merged.country || merged.country_code) + " (" + merged.country_code + ") via " + 
+            (merged.location_source || "unknown"));
+    } else if (merged.latitude !== undefined && merged. longitude !== undefined) {
+        merged.has_resolved_location = false;
+        merged. has_location_data = true;
+        merged.location_updated_at = now;
+        logger.info("[PlayerMetadata:" + requestId + "] Location coords only: lat=" + 
+            merged.latitude + ", lon=" + merged. longitude);
+    } else if (merged.country_code || merged.geo_location) {
+        merged.has_resolved_location = false;
+        merged.has_location_data = true;
+        logger.info("[PlayerMetadata:" + requestId + "] Country code only: " + (merged.country_code || merged.geo_location));
+    } else {
+        merged.has_resolved_location = false;
+        if (merged.has_location_data === undefined) {
+            merged.has_location_data = false;
+        }
+        logger.warn("[PlayerMetadata:" + requestId + "] No valid location data received");
+    }
+
+    // ============================================================================
+    // HANDLE DEVICE INFO
+    // ============================================================================
+    if (meta.device_id) merged.device_id = meta.device_id;
+    if (meta.platform) merged.platform = meta.platform;
+    if (meta. device_model) merged.device_model = meta.device_model;
+    if (meta.device_name) merged.device_name = meta.device_name;
+    if (meta.os_version) merged. os_version = meta.os_version;
+    if (meta.app_version) merged. app_version = meta.app_version;
+    if (meta.unity_version) merged. unity_version = meta.unity_version;
+    if (meta.locale) merged.locale = meta.locale;
+    if (meta. timezone) merged.timezone = meta.timezone;
+    if (meta. screen_width) merged.screen_width = meta.screen_width;
+    if (meta.screen_height) merged. screen_height = meta.screen_height;
+    if (meta.screen_dpi) merged.screen_dpi = meta.screen_dpi;
+    if (meta.graphics_device) merged.graphics_device = meta.graphics_device;
+    if (meta.system_memory_mb) merged.system_memory_mb = meta.system_memory_mb;
+    if (meta.processor_type) merged.processor_type = meta.processor_type;
+    if (meta.processor_count) merged. processor_count = meta.processor_count;
+
+    // Screen resolution helper
+    if (meta.screen_width && meta.screen_height) {
+        merged.screen_resolution = meta.screen_width + "x" + meta.screen_height;
+    }
+
+    // ============================================================================
+    // HANDLE IDENTITY FIELDS
+    // ============================================================================
+    if (meta.role) merged.role = meta. role;
+    if (meta.email) merged.email = meta.email;
+    if (meta.first_name) merged. first_name = meta.first_name;
+    if (meta.last_name) merged.last_name = meta.last_name;
+    if (meta.login_type) merged.login_type = meta. login_type;
+    if (meta. idp_username) merged.idp_username = meta.idp_username;
+    if (meta. account_status) merged.account_status = meta.account_status;
+    if (meta.wallet_address) merged.wallet_address = meta.wallet_address;
+    if (meta.cognito_user_id) merged.cognito_user_id = meta.cognito_user_id;
+    
+    // Handle is_adult (keep as string for compatibility)
+    if (meta.is_adult !== undefined && meta. is_adult !== null) {
+        if (typeof meta.is_adult === "string") {
+            merged.is_adult = meta.is_adult;
+        } else {
+            merged.is_adult = meta. is_adult ?  "True" : "False";
+        }
+    }
+
+    // Nakama username
+    if (ctx.username) {
+        merged.nakama_username = ctx.username;
+    }
+
+    // ============================================================================
+    // TRACK GAMES PLAYED
+    // ============================================================================
+    var gameId = meta.game_id || meta.current_game_id;
+    if (gameId) {
+        merged.current_game_id = gameId;
+        merged.game_id = gameId;
+        
+        if (! merged.games) merged.games = [];
+        
+        var gameIndex = -1;
+        for (var g = 0; g < merged.games. length; g++) {
+            if (merged.games[g]. game_id === gameId) {
+                gameIndex = g;
+                break;
+            }
+        }
+        
+        if (gameIndex >= 0) {
+            merged.games[gameIndex].last_played = now;
+            merged.games[gameIndex].session_count = (merged.games[gameIndex].session_count || 0) + 1;
+        } else {
+            merged.games.push({
+                game_id: gameId,
+                first_played: now,
+                last_played: now,
+                play_count: 1,
+                session_count: 1,
+                total_playtime_seconds: 0
+            });
+        }
+        
+        merged.total_games = merged.games.length;
+        merged.last_game_played_at = now;
+    }
+
+    // ============================================================================
+    // TRACK DEVICES
+    // ============================================================================
+    if (meta.device_id) {
+        merged.current_device_id = meta.device_id;
+        
+        if (!merged. devices) merged.devices = [];
+        
+        var deviceIndex = -1;
+        for (var d = 0; d < merged.devices.length; d++) {
+            if (merged. devices[d].device_id === meta. device_id) {
+                deviceIndex = d;
+                break;
+            }
+        }
+        
+        if (deviceIndex >= 0) {
+            merged.devices[deviceIndex].last_seen = now;
+            merged.devices[deviceIndex].session_count = (merged.devices[deviceIndex].session_count || 0) + 1;
+            if (meta.platform) merged.devices[deviceIndex].platform = meta.platform;
+            if (meta.device_model) merged. devices[deviceIndex]. device_model = meta.device_model;
+            if (meta.os_version) merged. devices[deviceIndex]. os_version = meta.os_version;
+            if (meta.app_version) merged.devices[deviceIndex].app_version = meta.app_version;
+        } else {
+            merged.devices.push({
+                device_id: meta.device_id,
+                platform: meta.platform || "",
+                device_model: meta.device_model || "",
+                device_name: meta. device_name || "",
+                os_version: meta.os_version || "",
+                app_version: meta.app_version || "",
+                unity_version: meta. unity_version || "",
+                locale: meta.locale || "",
+                timezone: meta. timezone || "",
+                screen_width: meta.screen_width || 0,
+                screen_height: meta. screen_height || 0,
+                screen_dpi: meta.screen_dpi || "",
+                graphics_device: meta.graphics_device || "",
+                system_memory_mb: meta.system_memory_mb || 0,
+                processor_type: meta. processor_type || "",
+                processor_count: meta.processor_count || 0,
+                first_seen: now,
+                last_seen: now,
+                session_count: 1
+            });
+        }
+        
+        merged.total_devices = merged. devices.length;
+    }
+
+    // ============================================================================
+    // ANALYTICS TRACKING
+    // ============================================================================
+    if (! merged.analytics) {
+        merged.analytics = {
+            first_session: now,
+            last_session: now,
+            total_sessions: 1,
+            days_active: 1,
+            current_streak: 1,
+            longest_streak: 1,
+            last_active_date: now. split('T')[0],
+            days_since_first_session: 0,
+            average_sessions_per_day: 1
+        };
+    } else {
+        merged.analytics.last_session = now;
+        merged.analytics.total_sessions = (merged.analytics. total_sessions || 0) + 1;
+        
+        var today = now.split('T')[0];
+        var lastActiveDate = merged.analytics.last_active_date;
+        
+        if (lastActiveDate !== today) {
+            merged.analytics.days_active = (merged.analytics.days_active || 0) + 1;
+            
+            // Check streak
+            var yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            var yesterdayStr = yesterday.toISOString().split('T')[0];
+            
+            if (lastActiveDate === yesterdayStr) {
+                merged.analytics. current_streak = (merged.analytics. current_streak || 0) + 1;
+                if (merged.analytics. current_streak > (merged.analytics.longest_streak || 0)) {
+                    merged.analytics.longest_streak = merged. analytics.current_streak;
+                }
+            } else {
+                merged.analytics.current_streak = 1;
+            }
+            
+            merged.analytics.last_active_date = today;
+        }
+        
+        // Calculate days since first session
+        if (merged.analytics.first_session) {
+            var firstDate = new Date(merged.analytics.first_session);
+            var nowDate = new Date(now);
+            var diffTime = Math.abs(nowDate - firstDate);
+            var diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            merged.analytics.days_since_first_session = diffDays;
+            
+            if (diffDays > 0) {
+                merged.analytics.average_sessions_per_day = 
+                    Math.round((merged.analytics.total_sessions / diffDays) * 100) / 100;
+            }
+        }
+    }
+
+    // Track total_sessions at top level for easy access
+    merged. total_sessions = merged.analytics ?  merged.analytics.total_sessions : 1;
+
+    // ============================================================================
+    // SET TIMESTAMPS
+    // ============================================================================
+    merged. updated_at = now;
+    if (! merged.created_at && isNewUser) {
+        merged.created_at = now;
+        merged.first_seen_at = now;
+    }
+
+    // ============================================================================
+    // WRITE TO STORAGE
+    // ============================================================================
     var write = {
         collection: collection,
         key: key,
         userId: userId,
         value: merged,
-        permissionRead: 2,  // public read
+        permissionRead: 2,  // public read (for admin visibility)
         permissionWrite: 1, // owner write
         version: "*"        // last-write-wins upsert
     };
 
     try {
         nk.storageWrite([write]);
+        logger.info("[PlayerMetadata:" + requestId + "] ✓ Metadata saved successfully for user " + userId);
+        
+        // Log final status
+        if (merged.has_resolved_location) {
+            logger. info("[PlayerMetadata:" + requestId + "] ✓ Location: " + 
+                (merged.city || "") + ", " + (merged.region || "") + ", " + 
+                (merged. country || merged.country_code) + 
+                " | Coords: " + merged.latitude + ", " + merged.longitude +
+                " | Source: " + (merged.location_source || "unknown"));
+        }
+        logger.info("[PlayerMetadata:" + requestId + "] ✓ is_guest: " + merged.is_guest + 
+            " | Games: " + (merged.total_games || 0) + 
+            " | Sessions: " + (merged.total_sessions || 1));
+        
     } catch (err) {
-        logger.error("[PlayerMetadata] Error writing metadata for user " + userId + ": " + err.message);
+        logger. error("[PlayerMetadata:" + requestId + "] ✗ Error writing metadata for user " + userId + ": " + err.message);
         return JSON.stringify({
             success: false,
-            error: "Failed to save metadata"
+            error: "Failed to save metadata",
+            error_code: "STORAGE_ERROR",
+            request_id: requestId
         });
     }
 
-    logger.info("[PlayerMetadata] Metadata updated for user " + userId);
-
+    // ============================================================================
+    // RETURN SUCCESS RESPONSE
+    // ============================================================================
     return JSON.stringify({
         success: true,
-        metadata: merged
+        is_new_user: isNewUser,
+        request_id: requestId,
+        metadata: {
+            // Identity
+            user_id: merged.user_id,
+            role: merged.role,
+            email: merged.email,
+            game_id: merged.current_game_id,
+            is_adult: merged. is_adult,
+            is_guest: merged.is_guest,
+            last_name: merged.last_name,
+            first_name: merged.first_name,
+            login_type: merged.login_type,
+            account_status: merged. account_status,
+            nakama_username: merged.nakama_username,
+            
+            // Geolocation
+            latitude: merged.latitude,
+            longitude: merged.longitude,
+            country: merged. country,
+            country_code: merged. country_code,
+            geo_location: merged. geo_location,
+            region: merged.region,
+            city: merged.city,
+            timezone: merged.timezone,
+            location_timezone: merged.location_timezone,
+            location_source: merged. location_source,
+            location_updated_at: merged.location_updated_at,
+            has_location_data: merged. has_location_data,
+            has_resolved_location: merged.has_resolved_location,
+            
+            // Device
+            device_id: merged.current_device_id,
+            platform: merged.platform,
+            device_model: merged.device_model,
+            os_version: merged. os_version,
+            app_version: merged.app_version,
+            locale: merged.locale,
+            total_devices: merged. total_devices,
+            
+            // Games & Analytics
+            games: merged.games,
+            total_games: merged.total_games,
+            total_sessions: merged. total_sessions,
+            last_game_played_at: merged.last_game_played_at,
+            analytics: merged.analytics,
+            
+            // Timestamps
+            created_at: merged.created_at,
+            updated_at: merged. updated_at,
+            first_seen_at: merged.first_seen_at
+        },
+        storage: {
+            collection: collection,
+            key: key,
+            permission_read: "public",
+            permission_write: "owner"
+        }
     });
 }
 
