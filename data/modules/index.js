@@ -1657,23 +1657,9 @@ function rpcAdminDeletePlayerMetadata(ctx, logger, nk, payload) {
  *   "device_id": "example-device-id-123"
  * }
  */
-<<<<<<< HEAD
-/**
- * RPC: rpc_update_player_metadata
- * 
- * Stores or updates per-user metadata in Nakama Storage. 
- * Properly handles geolocation fields (latitude, longitude, country, city, region)
- * and isGuest from the Unity client.
- * 
- * Storage:
- *   collection: "player_metadata"
- *   key: "metadata"
- *   userId: ctx.userId (authenticated user)
- */
+
+
 function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
-=======
-function rpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
->>>>>>> 63d6a4375307a90a27fc42cd9a8e4aeee790052a
     if (!ctx.userId) {
         return JSON.stringify({
             success: false,
