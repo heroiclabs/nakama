@@ -759,16 +759,14 @@ message MatchList {
 message AddUserRequest {
   // The username of the user.
   string username = 1;
-  // The password of the user.
-  string password = 2;
   // Email address of the user.
-  string email = 3;
+  string email = 2;
   // ACL.
-  map<string,Permissions> acl = 4;
+  map<string,Permissions> acl = 3;
   // Require MFA
-  bool mfa_required = 5;
+  bool mfa_required = 4;
   // Subscribe to newsletters
-  bool newsletter_subscription = 6;
+  bool newsletter_subscription = 5;
 }
 
 // Add/join users to a group.

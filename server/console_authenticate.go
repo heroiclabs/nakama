@@ -444,6 +444,12 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, logger *zap.Logge
 		return
 	}
 
+	if dbPassword == nil {
+		// The user has not yet set his password.
+		err = status.Error(codes.Unauthenticated, "Invalid credentials.")
+		return
+	}
+
 	// Check lockout again as the login attempt may have been through email.
 	if !s.loginAttemptCache.Allow(uname, ip) {
 		err = status.Error(codes.ResourceExhausted, "Try again later.")

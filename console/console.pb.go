@@ -1367,16 +1367,14 @@ type AddUserRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The username of the user.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
-	// The password of the user.
-	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	// Email address of the user.
-	Email string `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	Email string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	// ACL.
-	Acl map[string]*Permissions `protobuf:"bytes,4,rep,name=acl,proto3" json:"acl,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Acl map[string]*Permissions `protobuf:"bytes,3,rep,name=acl,proto3" json:"acl,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Require MFA
-	MfaRequired bool `protobuf:"varint,5,opt,name=mfa_required,json=mfaRequired,proto3" json:"mfa_required,omitempty"`
+	MfaRequired bool `protobuf:"varint,4,opt,name=mfa_required,json=mfaRequired,proto3" json:"mfa_required,omitempty"`
 	// Subscribe to newsletters
-	NewsletterSubscription bool `protobuf:"varint,6,opt,name=newsletter_subscription,json=newsletterSubscription,proto3" json:"newsletter_subscription,omitempty"`
+	NewsletterSubscription bool `protobuf:"varint,5,opt,name=newsletter_subscription,json=newsletterSubscription,proto3" json:"newsletter_subscription,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -1414,13 +1412,6 @@ func (*AddUserRequest) Descriptor() ([]byte, []int) {
 func (x *AddUserRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
-	}
-	return ""
-}
-
-func (x *AddUserRequest) GetPassword() string {
-	if x != nil {
-		return x.Password
 	}
 	return ""
 }
@@ -9534,14 +9525,13 @@ const file_console_proto_rawDesc = "" +
 	"\amatches\x18\x01 \x03(\v2\x1f.nakama.console.MatchList.MatchR\amatches\x1aK\n" +
 	"\x05Match\x12.\n" +
 	"\tapi_match\x18\x01 \x01(\v2\x11.nakama.api.MatchR\bapiMatch\x12\x12\n" +
-	"\x04node\x18\x02 \x01(\tR\x04node\"\xca\x02\n" +
+	"\x04node\x18\x02 \x01(\tR\x04node\"\xae\x02\n" +
 	"\x0eAddUserRequest\x12\x1a\n" +
-	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\x129\n" +
-	"\x03acl\x18\x04 \x03(\v2'.nakama.console.AddUserRequest.AclEntryR\x03acl\x12!\n" +
-	"\fmfa_required\x18\x05 \x01(\bR\vmfaRequired\x127\n" +
-	"\x17newsletter_subscription\x18\x06 \x01(\bR\x16newsletterSubscription\x1aS\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x129\n" +
+	"\x03acl\x18\x03 \x03(\v2'.nakama.console.AddUserRequest.AclEntryR\x03acl\x12!\n" +
+	"\fmfa_required\x18\x04 \x01(\bR\vmfaRequired\x127\n" +
+	"\x17newsletter_subscription\x18\x05 \x01(\bR\x16newsletterSubscription\x1aS\n" +
 	"\bAclEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
 	"\x05value\x18\x02 \x01(\v2\x1b.nakama.console.PermissionsR\x05value:\x028\x01\"f\n" +

@@ -3839,10 +3839,6 @@
           "type": "string",
           "description": "The username of the user."
         },
-        "password": {
-          "type": "string",
-          "description": "The password of the user."
-        },
         "email": {
           "type": "string",
           "description": "Email address of the user."
