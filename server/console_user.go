@@ -123,9 +123,8 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 
 	user, err := s.dbInsertConsoleUser(ctx, logger, in)
 	if err != nil {
-		var statusErr *statusError
-		if errors.As(err, &statusErr) {
-			return nil, statusErr
+		if _, ok := status.FromError(err); ok {
+			return nil, err
 		} else {
 			logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
 			return nil, status.Error(codes.Internal, "Internal Server Error")
