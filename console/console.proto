@@ -106,6 +106,15 @@ service Console {
     };
   }
 
+  // Change an account's password using a code, usually delivered over email.
+  rpc AuthenticatePasswordChange (AuthenticatePasswordChangeRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/authenticate/password_change",
+      body: "*"
+    };
+  }
+
+
   rpc AddAccountNote (AddAccountNoteRequest) returns (AccountNote) {
     option (google.api.http) = {
       post: "/v2/console/account/{account_id}/note",
@@ -153,7 +162,7 @@ service Console {
 
   // Reset a user's password.
   rpc ResetUserPassword (Username) returns (ResetUserResponse) {
-    option (google.api.http).post = "/v1/console/user/{username}/reset/password";
+    option (google.api.http).post = "/v2/console/user/{username}/reset/password";
   }
 
   // Add/join members to a group.
@@ -750,16 +759,14 @@ message MatchList {
 message AddUserRequest {
   // The username of the user.
   string username = 1;
-  // The password of the user.
-  string password = 2;
   // Email address of the user.
-  string email = 3;
+  string email = 2;
   // ACL.
-  map<string,Permissions> acl = 4;
+  map<string,Permissions> acl = 3;
   // Require MFA
-  bool mfa_required = 5;
+  bool mfa_required = 4;
   // Subscribe to newsletters
-  bool newsletter_subscription = 6;
+  bool newsletter_subscription = 5;
 }
 
 // Add/join users to a group.
@@ -918,6 +925,14 @@ message AuthenticateMFASetupResponse {
 message AuthenticateLogoutRequest {
   // Session token to log out.
   string token = 1;
+}
+
+// Request to change a password.
+message AuthenticatePasswordChangeRequest {
+  // Code.
+  string code = 1;
+  // New password.
+  string password = 2;
 }
 
 // API Explorer request definition for CallApiEndpoint

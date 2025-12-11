@@ -6,6 +6,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 
 ## [3.35.1] - 2025-12-03
+
+### Changed
+- Improvements to Console user setup and management.
+
 ### Fixed
 - Correctly wire context propagation in Session Start/End runtime event hooks.
 
