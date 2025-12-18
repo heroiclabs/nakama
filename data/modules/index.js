@@ -270,6 +270,10 @@ var PERMISSION_WRITE_NONE = 0;   // NO_WRITE (server only)
 // Rate limiting: minimum seconds between updates
 var MIN_UPDATE_INTERVAL_SECONDS = 5;
 
+// Guest user cleanup constants
+var GUEST_USER_USERNAME_PREFIX = "guest_test_";
+var GUEST_CLEANUP_DEFAULT_LIMIT = 10000;
+
 
 // Maximum lengths for string fields (prevent abuse)
 var MAX_STRING_LENGTHS = {
@@ -12682,9 +12686,9 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                         var users = nk.usersGetId([obj.userId]);
                         if (users && users.length > 0) {
                             var username = users[0].username;
-                            if (username && username.indexOf("guest_test_") === 0) {
+                            if (username && username.indexOf(GUEST_USER_USERNAME_PREFIX) === 0) {
                                 isGuestUser = true;
-                                guestReason = "username pattern (guest_test_*)";
+                                guestReason = "username pattern (" + GUEST_USER_USERNAME_PREFIX + "*)";
                             }
                         }
                     } catch (userErr) {
@@ -12763,8 +12767,12 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
 
 /**
  * Scheduled function to clean up guest user metadata daily.
- * This function is intended to be called by a cron job.
+ * This function is intended to be called by a cron job configured externally.
  * Cron expression for daily at 3 AM UTC: "0 3 * * *"
+ * 
+ * Note: In Nakama, scheduled tasks are typically configured in the server config
+ * or via external schedulers. This function provides the implementation that
+ * can be invoked via the RPC cleanup_guest_user_metadata.
  * 
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
@@ -12774,7 +12782,7 @@ function scheduledCleanupGuestUserMetadata(ctx, logger, nk) {
     logger.info("[GuestCleanup] Daily scheduled cleanup started");
     
     try {
-        var result = rpcCleanupGuestUserMetadata(ctx, logger, nk, JSON.stringify({ dryRun: false, limit: 10000 }));
+        var result = rpcCleanupGuestUserMetadata(ctx, logger, nk, JSON.stringify({ dryRun: false, limit: GUEST_CLEANUP_DEFAULT_LIMIT }));
         var parsed = JSON.parse(result);
         
         if (parsed.success) {
