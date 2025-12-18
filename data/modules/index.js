@@ -273,6 +273,8 @@ var MIN_UPDATE_INTERVAL_SECONDS = 5;
 // Guest user cleanup constants
 var GUEST_USER_USERNAME_PREFIX = "guest_test_";
 var GUEST_CLEANUP_DEFAULT_LIMIT = 10000;
+var DEVICE_USER_MAPPINGS_COLLECTION = "device_user_mappings";
+var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 
 // Maximum lengths for string fields (prevent abuse)
@@ -12613,10 +12615,15 @@ function lasttoliveAdminGrantItem(context, logger, nk, payload) {
 // ============================================================================
 
 /**
- * Clean up player metadata for guest users.
+ * Clean up player metadata and device mappings for guest users.
  * Guest users are identified by:
  * - is_guest flag set to true in their metadata
  * - Username starting with "guest_test_" pattern
+ * - role === "guest" in metadata
+ * - login_type === "guest" in metadata
+ * 
+ * This function also cleans up:
+ * - device_user_mappings entries for guest users
  * 
  * This function should be called daily to clean up guest user data.
  * 
@@ -12649,6 +12656,7 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
     
     var collection = PLAYER_METADATA_COLLECTION;
     var deletedCount = 0;
+    var deviceMappingsDeleted = 0;
     var processedCount = 0;
     var guestUsersFound = [];
     var errors = [];
@@ -12673,6 +12681,7 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                 
                 var isGuestUser = false;
                 var guestReason = "";
+                var deviceIds = [];
                 
                 // Check if metadata has is_guest flag
                 if (obj.value && obj.value.is_guest === true) {
@@ -12680,7 +12689,19 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                     guestReason = "is_guest flag";
                 }
                 
-                // If not identified by flag, check username pattern
+                // Check if role === "guest" in metadata
+                if (!isGuestUser && obj.value && obj.value.role === "guest") {
+                    isGuestUser = true;
+                    guestReason = "role=guest";
+                }
+                
+                // Check if login_type === "guest" in metadata
+                if (!isGuestUser && obj.value && obj.value.login_type === "guest") {
+                    isGuestUser = true;
+                    guestReason = "login_type=guest";
+                }
+                
+                // If not identified by metadata flags, check username pattern
                 if (!isGuestUser && obj.userId) {
                     try {
                         var users = nk.usersGetId([obj.userId]);
@@ -12696,14 +12717,36 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                     }
                 }
                 
+                // Collect device IDs from metadata for cleanup
+                if (isGuestUser && obj.value) {
+                    // Get device_id from metadata
+                    if (obj.value.device_id) {
+                        deviceIds.push(obj.value.device_id);
+                    }
+                    if (obj.value.current_device_id && obj.value.current_device_id !== obj.value.device_id) {
+                        deviceIds.push(obj.value.current_device_id);
+                    }
+                    // Get device IDs from devices array
+                    if (obj.value.devices && Array.isArray(obj.value.devices)) {
+                        for (var d = 0; d < obj.value.devices.length; d++) {
+                            var dev = obj.value.devices[d];
+                            if (dev.device_id && deviceIds.indexOf(dev.device_id) === -1) {
+                                deviceIds.push(dev.device_id);
+                            }
+                        }
+                    }
+                }
+                
                 if (isGuestUser) {
                     guestUsersFound.push({
                         userId: obj.userId,
                         key: obj.key,
-                        reason: guestReason
+                        reason: guestReason,
+                        deviceIds: deviceIds
                     });
                     
                     if (!dryRun) {
+                        // Delete player metadata
                         try {
                             nk.storageDelete([{
                                 collection: collection,
@@ -12715,12 +12758,39 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                         } catch (deleteErr) {
                             errors.push({
                                 userId: obj.userId,
+                                type: "metadata",
                                 error: deleteErr.message
                             });
                             logger.error("[GuestCleanup] Failed to delete metadata for user " + obj.userId + ": " + deleteErr.message);
                         }
+                        
+                        // Delete device_user_mappings for each device
+                        for (var di = 0; di < deviceIds.length; di++) {
+                            var devId = deviceIds[di];
+                            var mappingKey = "device_" + devId;
+                            try {
+                                nk.storageDelete([{
+                                    collection: DEVICE_USER_MAPPINGS_COLLECTION,
+                                    key: mappingKey,
+                                    userId: SYSTEM_USER_ID
+                                }]);
+                                deviceMappingsDeleted++;
+                                logger.info("[GuestCleanup] Deleted device mapping: " + mappingKey + " for guest user: " + obj.userId);
+                            } catch (devDeleteErr) {
+                                errors.push({
+                                    userId: obj.userId,
+                                    type: "device_mapping",
+                                    deviceId: devId,
+                                    error: devDeleteErr.message
+                                });
+                                logger.warn("[GuestCleanup] Failed to delete device mapping " + mappingKey + ": " + devDeleteErr.message);
+                            }
+                        }
                     } else {
                         logger.info("[GuestCleanup] [DRY RUN] Would delete metadata for guest user: " + obj.userId + " (reason: " + guestReason + ")");
+                        if (deviceIds.length > 0) {
+                            logger.info("[GuestCleanup] [DRY RUN] Would delete " + deviceIds.length + " device mapping(s) for user: " + obj.userId);
+                        }
                     }
                 }
             }
@@ -12738,6 +12808,7 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
             processedCount: processedCount,
             guestUsersFound: guestUsersFound.length,
             deletedCount: deletedCount,
+            deviceMappingsDeleted: deviceMappingsDeleted,
             errors: errors,
             timestamp: new Date().toISOString()
         };
@@ -12748,7 +12819,8 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
         
         logger.info("[GuestCleanup] Cleanup complete. Processed: " + processedCount + 
             ", Guest users found: " + guestUsersFound.length + 
-            ", Deleted: " + deletedCount + 
+            ", Metadata deleted: " + deletedCount + 
+            ", Device mappings deleted: " + deviceMappingsDeleted +
             ", Errors: " + errors.length);
         
         return JSON.stringify(summary);
@@ -12760,6 +12832,7 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
             error: err.message,
             processedCount: processedCount,
             deletedCount: deletedCount,
+            deviceMappingsDeleted: deviceMappingsDeleted,
             timestamp: new Date().toISOString()
         });
     }
