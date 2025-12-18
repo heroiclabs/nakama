@@ -12604,6 +12604,189 @@ function lasttoliveAdminGrantItem(context, logger, nk, payload) {
     return quizverseAdminGrantItem(context, logger, nk, payload);
 }
 
+// ============================================================================
+// GUEST USER METADATA CLEANUP
+// ============================================================================
+
+/**
+ * Clean up player metadata for guest users.
+ * Guest users are identified by:
+ * - is_guest flag set to true in their metadata
+ * - Username starting with "guest_test_" pattern
+ * 
+ * This function should be called daily to clean up guest user data.
+ * 
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ * @param {string} payload - JSON payload (optional, can include { dryRun: boolean, limit: number })
+ * @returns {string} JSON response with cleanup results
+ */
+function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
+    logger.info("[GuestCleanup] Starting guest user metadata cleanup job");
+    
+    var dryRun = false;
+    var limit = 1000;
+    
+    // Parse optional payload
+    if (payload && payload !== "") {
+        try {
+            var data = JSON.parse(payload);
+            if (data.dryRun !== undefined) {
+                dryRun = !!data.dryRun;
+            }
+            if (data.limit !== undefined && data.limit > 0) {
+                limit = Math.min(data.limit, 10000);
+            }
+        } catch (err) {
+            logger.warn("[GuestCleanup] Invalid payload, using defaults: " + err.message);
+        }
+    }
+    
+    var collection = PLAYER_METADATA_COLLECTION;
+    var deletedCount = 0;
+    var processedCount = 0;
+    var guestUsersFound = [];
+    var errors = [];
+    
+    try {
+        // List all player metadata records
+        var cursor = null;
+        var hasMore = true;
+        
+        while (hasMore && processedCount < limit) {
+            var batchSize = Math.min(100, limit - processedCount);
+            var result = nk.storageList(null, collection, batchSize, cursor);
+            
+            if (!result || !result.objects || result.objects.length === 0) {
+                hasMore = false;
+                break;
+            }
+            
+            for (var i = 0; i < result.objects.length; i++) {
+                var obj = result.objects[i];
+                processedCount++;
+                
+                var isGuestUser = false;
+                var guestReason = "";
+                
+                // Check if metadata has is_guest flag
+                if (obj.value && obj.value.is_guest === true) {
+                    isGuestUser = true;
+                    guestReason = "is_guest flag";
+                }
+                
+                // If not identified by flag, check username pattern
+                if (!isGuestUser && obj.userId) {
+                    try {
+                        var users = nk.usersGetId([obj.userId]);
+                        if (users && users.length > 0) {
+                            var username = users[0].username;
+                            if (username && username.indexOf("guest_test_") === 0) {
+                                isGuestUser = true;
+                                guestReason = "username pattern (guest_test_*)";
+                            }
+                        }
+                    } catch (userErr) {
+                        logger.warn("[GuestCleanup] Failed to get user info for " + obj.userId + ": " + userErr.message);
+                    }
+                }
+                
+                if (isGuestUser) {
+                    guestUsersFound.push({
+                        userId: obj.userId,
+                        key: obj.key,
+                        reason: guestReason
+                    });
+                    
+                    if (!dryRun) {
+                        try {
+                            nk.storageDelete([{
+                                collection: collection,
+                                key: obj.key,
+                                userId: obj.userId
+                            }]);
+                            deletedCount++;
+                            logger.info("[GuestCleanup] Deleted metadata for guest user: " + obj.userId + " (reason: " + guestReason + ")");
+                        } catch (deleteErr) {
+                            errors.push({
+                                userId: obj.userId,
+                                error: deleteErr.message
+                            });
+                            logger.error("[GuestCleanup] Failed to delete metadata for user " + obj.userId + ": " + deleteErr.message);
+                        }
+                    } else {
+                        logger.info("[GuestCleanup] [DRY RUN] Would delete metadata for guest user: " + obj.userId + " (reason: " + guestReason + ")");
+                    }
+                }
+            }
+            
+            // Get next cursor for pagination
+            cursor = result.cursor;
+            if (!cursor || cursor === "") {
+                hasMore = false;
+            }
+        }
+        
+        var summary = {
+            success: true,
+            dryRun: dryRun,
+            processedCount: processedCount,
+            guestUsersFound: guestUsersFound.length,
+            deletedCount: deletedCount,
+            errors: errors,
+            timestamp: new Date().toISOString()
+        };
+        
+        if (dryRun) {
+            summary.guestUsers = guestUsersFound;
+        }
+        
+        logger.info("[GuestCleanup] Cleanup complete. Processed: " + processedCount + 
+            ", Guest users found: " + guestUsersFound.length + 
+            ", Deleted: " + deletedCount + 
+            ", Errors: " + errors.length);
+        
+        return JSON.stringify(summary);
+        
+    } catch (err) {
+        logger.error("[GuestCleanup] Cleanup job failed: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message,
+            processedCount: processedCount,
+            deletedCount: deletedCount,
+            timestamp: new Date().toISOString()
+        });
+    }
+}
+
+/**
+ * Scheduled function to clean up guest user metadata daily.
+ * This function is intended to be called by a cron job.
+ * Cron expression for daily at 3 AM UTC: "0 3 * * *"
+ * 
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ */
+function scheduledCleanupGuestUserMetadata(ctx, logger, nk) {
+    logger.info("[GuestCleanup] Daily scheduled cleanup started");
+    
+    try {
+        var result = rpcCleanupGuestUserMetadata(ctx, logger, nk, JSON.stringify({ dryRun: false, limit: 10000 }));
+        var parsed = JSON.parse(result);
+        
+        if (parsed.success) {
+            logger.info("[GuestCleanup] Daily cleanup completed successfully. Deleted " + parsed.deletedCount + " guest user metadata records");
+        } else {
+            logger.error("[GuestCleanup] Daily cleanup failed: " + parsed.error);
+        }
+    } catch (err) {
+        logger.error("[GuestCleanup] Scheduled cleanup error: " + err.message);
+    }
+}
+
 
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
@@ -13107,15 +13290,29 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[QuizVerse-MP] Failed to initialize: ' + err.message);
     }
 
+    // Register Guest User Metadata Cleanup RPC
+    try {
+        logger.info('[GuestCleanup] Initializing Guest User Metadata Cleanup Module...');
+        initializer.registerRpc('cleanup_guest_user_metadata', rpcCleanupGuestUserMetadata);
+        logger.info('[GuestCleanup] Registered RPC: cleanup_guest_user_metadata');
+        logger.info('[GuestCleanup] Note: To enable daily cleanup, configure cron in server config');
+        logger.info('[GuestCleanup] Cron expression for daily 3 AM UTC: "0 3 * * *"');
+        logger.info('[GuestCleanup] Call cleanup_guest_user_metadata RPC manually or on schedule');
+        logger.info('[GuestCleanup] Successfully registered 1 Guest Cleanup RPC');
+    } catch (err) {
+        logger.error('[GuestCleanup] Failed to initialize: ' + err.message);
+    }
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 126');
+    logger.info('Total System RPCs: 127');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
     logger.info('  - Tournament System: 6');
     logger.info('  - Infrastructure (Batch/Cache/Rate): 6');
     logger.info('  - QuizVerse Multiplayer: 3');
+    logger.info('  - Guest Cleanup: 1');
     logger.info('  - Plus existing Copilot RPCs');
     logger.info('========================================');
     logger.info('✓ All server gaps have been filled!');
