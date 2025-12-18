@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"regexp"
 	"strings"
@@ -316,7 +317,8 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 			return status.Error(codes.Internal, "Failed to generate a temporary password for the user.")
 		}
 
-		hashedPassword, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+		hashCost := math.Max(float64(bcrypt.DefaultCost), 13)
+		hashedPassword, err := bcrypt.GenerateFromPassword(password, int(hashCost))
 		if err != nil {
 			logger.Error("Failed to hash the temporary password for the user.", zap.Error(err))
 			return status.Error(codes.Internal, "Failed to hash the temporary password for the user.")

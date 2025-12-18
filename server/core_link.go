@@ -18,6 +18,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 
@@ -171,7 +172,8 @@ func LinkEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.
 	}
 
 	cleanEmail := strings.ToLower(email)
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashCost := math.Max(float64(bcrypt.DefaultCost), 13)
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), int(hashCost))
 
 	res, err := db.ExecContext(ctx, `
 UPDATE users
