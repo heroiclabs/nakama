@@ -429,6 +429,77 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     merged = updateGeolocation(merged, sanitized, now);
 
     // -------------------------------------------------------------------------
+    // Step 7b: Auto-resolve location if coordinates provided but city/country missing
+    // -------------------------------------------------------------------------
+    if (merged.has_location_data && !merged.has_resolved_location) {
+        // We have lat/long but no city/country - try to resolve automatically
+        logger.info("[PlayerMetadata:" + requestId + "] Attempting auto-resolution for coordinates: " + 
+            merged.latitude + ", " + merged.longitude);
+        
+        var resolved = resolveLocationFromCoordinates(nk, logger, ctx, merged.latitude, merged.longitude);
+        
+        if (resolved) {
+            // Update merged metadata with resolved location
+            if (resolved.country) {
+                merged.country = resolved.country;
+            }
+            if (resolved.country_code) {
+                merged.country_code = resolved.country_code;
+                merged.geo_location = resolved.country_code;
+            }
+            if (resolved.region) {
+                merged.region = resolved.region;
+                merged.state = resolved.region;
+            }
+            if (resolved.city) {
+                merged.city = resolved.city;
+            }
+            
+            // Update location history entry with resolved data
+            if (merged.location_history && merged.location_history.length > 0) {
+                var lastEntry = merged.location_history[merged.location_history.length - 1];
+                if (resolved.country_code) lastEntry.country_code = resolved.country_code;
+                if (resolved.city) lastEntry.city = resolved.city;
+                if (resolved.region) lastEntry.region = resolved.region;
+            }
+            
+            // Update most_visited_location if exists
+            if (merged.most_visited_location) {
+                if (resolved.city) merged.most_visited_location.city = resolved.city;
+                if (resolved.country_code) merged.most_visited_location.country_code = resolved.country_code;
+            }
+            
+            // Build formatted location strings
+            var locationParts = [];
+            if (merged.city) locationParts.push(merged.city);
+            if (merged.region) locationParts.push(merged.region);
+            if (merged.country) locationParts.push(merged.country);
+            
+            if (locationParts.length > 0) {
+                merged.formatted_location = locationParts.join(", ");
+            }
+            
+            if (merged.city && merged.country_code) {
+                merged.location_short = merged.city + ", " + merged.country_code;
+            } else if (merged.country_code) {
+                merged.location_short = merged.country_code;
+            }
+            
+            // Update flags
+            merged.has_resolved_location = true;
+            merged.location_resolved_at = now;
+            merged.unique_countries_visited = merged.unique_countries_visited || 1;
+            merged.unique_cities_visited = merged.unique_cities_visited || (merged.city ? 1 : 0);
+            
+            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " + 
+                (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " + 
+                (merged.country_code || "N/A"));
+        } else {
+            logger.warn("[PlayerMetadata:" + requestId + "] Could not auto-resolve location from coordinates");
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Step 8: Handle Device Information
     // -------------------------------------------------------------------------
     merged = updateDeviceInfo(merged, sanitized, now);
@@ -1129,6 +1200,119 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
+ * Resolve location from latitude/longitude using Google Maps Reverse Geocoding API
+ * Returns resolved location data or null if resolution fails
+ * 
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {object} ctx - Request context (for env vars)
+ * @param {number} latitude - Latitude coordinate
+ * @param {number} longitude - Longitude coordinate
+ * @returns {object|null} Location data { country, country_code, region, city } or null
+ */
+function resolveLocationFromCoordinates(nk, logger, ctx, latitude, longitude) {
+    try {
+        // Get API key from environment
+        var apiKey = ctx.env ? ctx.env["GOOGLE_MAPS_API_KEY"] : null;
+        
+        if (!apiKey) {
+            logger.warn("[LocationResolver] GOOGLE_MAPS_API_KEY not configured, skipping location resolution");
+            return null;
+        }
+        
+        // Validate coordinates
+        var lat = Number(latitude);
+        var lon = Number(longitude);
+        
+        if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            logger.warn("[LocationResolver] Invalid coordinates: " + latitude + ", " + longitude);
+            return null;
+        }
+        
+        // Call Google Maps Reverse Geocoding API
+        var geocodeUrl = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=' +
+            lat + ',' + lon + '&key=' + apiKey;
+        
+        var geocodeResponse;
+        try {
+            geocodeResponse = nk.httpRequest(
+                geocodeUrl,
+                'get',
+                { 'Accept': 'application/json' }
+            );
+        } catch (httpErr) {
+            logger.error("[LocationResolver] HTTP request failed: " + httpErr.message);
+            return null;
+        }
+        
+        if (geocodeResponse.code !== 200) {
+            logger.warn("[LocationResolver] API returned status " + geocodeResponse.code);
+            return null;
+        }
+        
+        // Parse response
+        var geocodeData;
+        try {
+            geocodeData = JSON.parse(geocodeResponse.body);
+        } catch (parseErr) {
+            logger.error("[LocationResolver] Failed to parse response: " + parseErr.message);
+            return null;
+        }
+        
+        if (geocodeData.status !== 'OK' || !geocodeData.results || geocodeData.results.length === 0) {
+            logger.warn("[LocationResolver] No results from API: " + geocodeData.status);
+            return null;
+        }
+        
+        // Extract location components
+        var result = {
+            country: null,
+            country_code: null,
+            region: null,
+            city: null
+        };
+        
+        var addressComponents = geocodeData.results[0].address_components;
+        
+        for (var i = 0; i < addressComponents.length; i++) {
+            var component = addressComponents[i];
+            var types = component.types;
+            
+            // Country
+            if (types.indexOf('country') !== -1) {
+                result.country = component.long_name;
+                result.country_code = component.short_name;
+            }
+            
+            // Region/State
+            if (types.indexOf('administrative_area_level_1') !== -1) {
+                result.region = component.long_name;
+            }
+            
+            // City - try multiple types
+            if (types.indexOf('locality') !== -1) {
+                result.city = component.long_name;
+            } else if (!result.city && types.indexOf('administrative_area_level_2') !== -1) {
+                result.city = component.long_name;
+            } else if (!result.city && types.indexOf('sublocality') !== -1) {
+                result.city = component.long_name;
+            }
+        }
+        
+        logger.info("[LocationResolver] Resolved: " + 
+            (result.city || "N/A") + ", " + 
+            (result.region || "N/A") + ", " + 
+            (result.country || "N/A") + " (" + (result.country_code || "N/A") + ")");
+        
+        return result;
+        
+    } catch (err) {
+        logger.error("[LocationResolver] Error resolving location: " + err.message);
+        return null;
+    }
+}
+
+/**
  * Update device information - tracks all devices used
  */
 function updateDeviceInfo(merged, sanitized, now) {
@@ -1460,6 +1644,77 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     if (sanitized.latitude !== undefined && sanitized.longitude !== undefined) {
         logger.debug("[PlayerMetadata:" + requestId + "] Updated geolocation: " +
             sanitized.latitude.toFixed(4) + ", " + sanitized.longitude.toFixed(4));
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 7b: Auto-resolve location if coordinates provided but city/country missing
+    // -------------------------------------------------------------------------
+    if (merged.has_location_data && !merged.has_resolved_location) {
+        // We have lat/long but no city/country - try to resolve automatically
+        logger.info("[PlayerMetadata:" + requestId + "] Attempting auto-resolution for coordinates: " + 
+            merged.latitude + ", " + merged.longitude);
+        
+        var resolved = resolveLocationFromCoordinates(nk, logger, ctx, merged.latitude, merged.longitude);
+        
+        if (resolved) {
+            // Update merged metadata with resolved location
+            if (resolved.country) {
+                merged.country = resolved.country;
+            }
+            if (resolved.country_code) {
+                merged.country_code = resolved.country_code;
+                merged.geo_location = resolved.country_code;
+            }
+            if (resolved.region) {
+                merged.region = resolved.region;
+                merged.state = resolved.region;
+            }
+            if (resolved.city) {
+                merged.city = resolved.city;
+            }
+            
+            // Update location history entry with resolved data
+            if (merged.location_history && merged.location_history.length > 0) {
+                var lastEntry = merged.location_history[merged.location_history.length - 1];
+                if (resolved.country_code) lastEntry.country_code = resolved.country_code;
+                if (resolved.city) lastEntry.city = resolved.city;
+                if (resolved.region) lastEntry.region = resolved.region;
+            }
+            
+            // Update most_visited_location if exists
+            if (merged.most_visited_location) {
+                if (resolved.city) merged.most_visited_location.city = resolved.city;
+                if (resolved.country_code) merged.most_visited_location.country_code = resolved.country_code;
+            }
+            
+            // Build formatted location strings
+            var locationParts = [];
+            if (merged.city) locationParts.push(merged.city);
+            if (merged.region) locationParts.push(merged.region);
+            if (merged.country) locationParts.push(merged.country);
+            
+            if (locationParts.length > 0) {
+                merged.formatted_location = locationParts.join(", ");
+            }
+            
+            if (merged.city && merged.country_code) {
+                merged.location_short = merged.city + ", " + merged.country_code;
+            } else if (merged.country_code) {
+                merged.location_short = merged.country_code;
+            }
+            
+            // Update flags
+            merged.has_resolved_location = true;
+            merged.location_resolved_at = now;
+            merged.unique_countries_visited = merged.unique_countries_visited || 1;
+            merged.unique_cities_visited = merged.unique_cities_visited || (merged.city ? 1 : 0);
+            
+            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " + 
+                (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " + 
+                (merged.country_code || "N/A"));
+        } else {
+            logger.warn("[PlayerMetadata:" + requestId + "] Could not auto-resolve location from coordinates");
+        }
     }
 
     // -------------------------------------------------------------------------
