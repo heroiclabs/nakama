@@ -270,6 +270,12 @@ var PERMISSION_WRITE_NONE = 0;   // NO_WRITE (server only)
 // Rate limiting: minimum seconds between updates
 var MIN_UPDATE_INTERVAL_SECONDS = 5;
 
+// Guest user cleanup constants
+var GUEST_USER_USERNAME_PREFIX = "guest_test_";
+var GUEST_CLEANUP_DEFAULT_LIMIT = 10000;
+var DEVICE_USER_MAPPINGS_COLLECTION = "device_user_mappings";
+var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 
 // Maximum lengths for string fields (prevent abuse)
 var MAX_STRING_LENGTHS = {
@@ -421,6 +427,77 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     // Step 7: Handle Geolocation
     // -------------------------------------------------------------------------
     merged = updateGeolocation(merged, sanitized, now);
+
+    // -------------------------------------------------------------------------
+    // Step 7b: Auto-resolve location if coordinates provided but city/country missing
+    // -------------------------------------------------------------------------
+    if (merged.has_location_data && !merged.has_resolved_location) {
+        // We have lat/long but no city/country - try to resolve automatically
+        logger.info("[PlayerMetadata:" + requestId + "] Attempting auto-resolution for coordinates: " + 
+            merged.latitude + ", " + merged.longitude);
+        
+        var resolved = resolveLocationFromCoordinates(nk, logger, ctx, merged.latitude, merged.longitude);
+        
+        if (resolved) {
+            // Update merged metadata with resolved location
+            if (resolved.country) {
+                merged.country = resolved.country;
+            }
+            if (resolved.country_code) {
+                merged.country_code = resolved.country_code;
+                merged.geo_location = resolved.country_code;
+            }
+            if (resolved.region) {
+                merged.region = resolved.region;
+                merged.state = resolved.region;
+            }
+            if (resolved.city) {
+                merged.city = resolved.city;
+            }
+            
+            // Update location history entry with resolved data
+            if (merged.location_history && merged.location_history.length > 0) {
+                var lastEntry = merged.location_history[merged.location_history.length - 1];
+                if (resolved.country_code) lastEntry.country_code = resolved.country_code;
+                if (resolved.city) lastEntry.city = resolved.city;
+                if (resolved.region) lastEntry.region = resolved.region;
+            }
+            
+            // Update most_visited_location if exists
+            if (merged.most_visited_location) {
+                if (resolved.city) merged.most_visited_location.city = resolved.city;
+                if (resolved.country_code) merged.most_visited_location.country_code = resolved.country_code;
+            }
+            
+            // Build formatted location strings
+            var locationParts = [];
+            if (merged.city) locationParts.push(merged.city);
+            if (merged.region) locationParts.push(merged.region);
+            if (merged.country) locationParts.push(merged.country);
+            
+            if (locationParts.length > 0) {
+                merged.formatted_location = locationParts.join(", ");
+            }
+            
+            if (merged.city && merged.country_code) {
+                merged.location_short = merged.city + ", " + merged.country_code;
+            } else if (merged.country_code) {
+                merged.location_short = merged.country_code;
+            }
+            
+            // Update flags
+            merged.has_resolved_location = true;
+            merged.location_resolved_at = now;
+            merged.unique_countries_visited = merged.unique_countries_visited || 1;
+            merged.unique_cities_visited = merged.unique_cities_visited || (merged.city ? 1 : 0);
+            
+            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " + 
+                (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " + 
+                (merged.country_code || "N/A"));
+        } else {
+            logger.warn("[PlayerMetadata:" + requestId + "] Could not auto-resolve location from coordinates");
+        }
+    }
 
     // -------------------------------------------------------------------------
     // Step 8: Handle Device Information
@@ -1123,6 +1200,119 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
+ * Resolve location from latitude/longitude using Google Maps Reverse Geocoding API
+ * Returns resolved location data or null if resolution fails
+ * 
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {object} ctx - Request context (for env vars)
+ * @param {number} latitude - Latitude coordinate
+ * @param {number} longitude - Longitude coordinate
+ * @returns {object|null} Location data { country, country_code, region, city } or null
+ */
+function resolveLocationFromCoordinates(nk, logger, ctx, latitude, longitude) {
+    try {
+        // Get API key from environment
+        var apiKey = ctx.env ? ctx.env["GOOGLE_MAPS_API_KEY"] : null;
+        
+        if (!apiKey) {
+            logger.warn("[LocationResolver] GOOGLE_MAPS_API_KEY not configured, skipping location resolution");
+            return null;
+        }
+        
+        // Validate coordinates
+        var lat = Number(latitude);
+        var lon = Number(longitude);
+        
+        if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            logger.warn("[LocationResolver] Invalid coordinates: " + latitude + ", " + longitude);
+            return null;
+        }
+        
+        // Call Google Maps Reverse Geocoding API
+        var geocodeUrl = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=' +
+            lat + ',' + lon + '&key=' + apiKey;
+        
+        var geocodeResponse;
+        try {
+            geocodeResponse = nk.httpRequest(
+                geocodeUrl,
+                'get',
+                { 'Accept': 'application/json' }
+            );
+        } catch (httpErr) {
+            logger.error("[LocationResolver] HTTP request failed: " + httpErr.message);
+            return null;
+        }
+        
+        if (geocodeResponse.code !== 200) {
+            logger.warn("[LocationResolver] API returned status " + geocodeResponse.code);
+            return null;
+        }
+        
+        // Parse response
+        var geocodeData;
+        try {
+            geocodeData = JSON.parse(geocodeResponse.body);
+        } catch (parseErr) {
+            logger.error("[LocationResolver] Failed to parse response: " + parseErr.message);
+            return null;
+        }
+        
+        if (geocodeData.status !== 'OK' || !geocodeData.results || geocodeData.results.length === 0) {
+            logger.warn("[LocationResolver] No results from API: " + geocodeData.status);
+            return null;
+        }
+        
+        // Extract location components
+        var result = {
+            country: null,
+            country_code: null,
+            region: null,
+            city: null
+        };
+        
+        var addressComponents = geocodeData.results[0].address_components;
+        
+        for (var i = 0; i < addressComponents.length; i++) {
+            var component = addressComponents[i];
+            var types = component.types;
+            
+            // Country
+            if (types.indexOf('country') !== -1) {
+                result.country = component.long_name;
+                result.country_code = component.short_name;
+            }
+            
+            // Region/State
+            if (types.indexOf('administrative_area_level_1') !== -1) {
+                result.region = component.long_name;
+            }
+            
+            // City - try multiple types
+            if (types.indexOf('locality') !== -1) {
+                result.city = component.long_name;
+            } else if (!result.city && types.indexOf('administrative_area_level_2') !== -1) {
+                result.city = component.long_name;
+            } else if (!result.city && types.indexOf('sublocality') !== -1) {
+                result.city = component.long_name;
+            }
+        }
+        
+        logger.info("[LocationResolver] Resolved: " + 
+            (result.city || "N/A") + ", " + 
+            (result.region || "N/A") + ", " + 
+            (result.country || "N/A") + " (" + (result.country_code || "N/A") + ")");
+        
+        return result;
+        
+    } catch (err) {
+        logger.error("[LocationResolver] Error resolving location: " + err.message);
+        return null;
+    }
+}
+
+/**
  * Update device information - tracks all devices used
  */
 function updateDeviceInfo(merged, sanitized, now) {
@@ -1454,6 +1644,77 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     if (sanitized.latitude !== undefined && sanitized.longitude !== undefined) {
         logger.debug("[PlayerMetadata:" + requestId + "] Updated geolocation: " +
             sanitized.latitude.toFixed(4) + ", " + sanitized.longitude.toFixed(4));
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 7b: Auto-resolve location if coordinates provided but city/country missing
+    // -------------------------------------------------------------------------
+    if (merged.has_location_data && !merged.has_resolved_location) {
+        // We have lat/long but no city/country - try to resolve automatically
+        logger.info("[PlayerMetadata:" + requestId + "] Attempting auto-resolution for coordinates: " + 
+            merged.latitude + ", " + merged.longitude);
+        
+        var resolved = resolveLocationFromCoordinates(nk, logger, ctx, merged.latitude, merged.longitude);
+        
+        if (resolved) {
+            // Update merged metadata with resolved location
+            if (resolved.country) {
+                merged.country = resolved.country;
+            }
+            if (resolved.country_code) {
+                merged.country_code = resolved.country_code;
+                merged.geo_location = resolved.country_code;
+            }
+            if (resolved.region) {
+                merged.region = resolved.region;
+                merged.state = resolved.region;
+            }
+            if (resolved.city) {
+                merged.city = resolved.city;
+            }
+            
+            // Update location history entry with resolved data
+            if (merged.location_history && merged.location_history.length > 0) {
+                var lastEntry = merged.location_history[merged.location_history.length - 1];
+                if (resolved.country_code) lastEntry.country_code = resolved.country_code;
+                if (resolved.city) lastEntry.city = resolved.city;
+                if (resolved.region) lastEntry.region = resolved.region;
+            }
+            
+            // Update most_visited_location if exists
+            if (merged.most_visited_location) {
+                if (resolved.city) merged.most_visited_location.city = resolved.city;
+                if (resolved.country_code) merged.most_visited_location.country_code = resolved.country_code;
+            }
+            
+            // Build formatted location strings
+            var locationParts = [];
+            if (merged.city) locationParts.push(merged.city);
+            if (merged.region) locationParts.push(merged.region);
+            if (merged.country) locationParts.push(merged.country);
+            
+            if (locationParts.length > 0) {
+                merged.formatted_location = locationParts.join(", ");
+            }
+            
+            if (merged.city && merged.country_code) {
+                merged.location_short = merged.city + ", " + merged.country_code;
+            } else if (merged.country_code) {
+                merged.location_short = merged.country_code;
+            }
+            
+            // Update flags
+            merged.has_resolved_location = true;
+            merged.location_resolved_at = now;
+            merged.unique_countries_visited = merged.unique_countries_visited || 1;
+            merged.unique_cities_visited = merged.unique_cities_visited || (merged.city ? 1 : 0);
+            
+            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " + 
+                (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " + 
+                (merged.country_code || "N/A"));
+        } else {
+            logger.warn("[PlayerMetadata:" + requestId + "] Could not auto-resolve location from coordinates");
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -12604,6 +12865,264 @@ function lasttoliveAdminGrantItem(context, logger, nk, payload) {
     return quizverseAdminGrantItem(context, logger, nk, payload);
 }
 
+// ============================================================================
+// GUEST USER METADATA CLEANUP
+// ============================================================================
+
+/**
+ * Clean up player metadata and device mappings for guest users.
+ * Guest users are identified by:
+ * - is_guest flag set to true in their metadata
+ * - Username starting with "guest_test_" pattern
+ * - role === "guest" in metadata
+ * - login_type === "guest" in metadata
+ * 
+ * This function also cleans up:
+ * - device_user_mappings entries for guest users
+ * 
+ * This function should be called daily to clean up guest user data.
+ * 
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ * @param {string} payload - JSON payload (optional, can include { dryRun: boolean, limit: number })
+ * @returns {string} JSON response with cleanup results
+ */
+function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
+    logger.info("[GuestCleanup] Starting guest user metadata cleanup job");
+    
+    var dryRun = false;
+    var limit = 1000;
+    
+    // Parse optional payload
+    if (payload && payload !== "") {
+        try {
+            var data = JSON.parse(payload);
+            if (data.dryRun !== undefined) {
+                dryRun = !!data.dryRun;
+            }
+            if (data.limit !== undefined && data.limit > 0) {
+                limit = Math.min(data.limit, 10000);
+            }
+        } catch (err) {
+            logger.warn("[GuestCleanup] Invalid payload, using defaults: " + err.message);
+        }
+    }
+    
+    var collection = PLAYER_METADATA_COLLECTION;
+    var deletedCount = 0;
+    var deviceMappingsDeleted = 0;
+    var processedCount = 0;
+    var guestUsersFound = [];
+    var errors = [];
+    
+    try {
+        // List all player metadata records
+        var cursor = null;
+        var hasMore = true;
+        
+        while (hasMore && processedCount < limit) {
+            var batchSize = Math.min(100, limit - processedCount);
+            var result = nk.storageList(null, collection, batchSize, cursor);
+            
+            if (!result || !result.objects || result.objects.length === 0) {
+                hasMore = false;
+                break;
+            }
+            
+            for (var i = 0; i < result.objects.length; i++) {
+                var obj = result.objects[i];
+                processedCount++;
+                
+                var isGuestUser = false;
+                var guestReason = "";
+                var deviceIds = [];
+                
+                // Check if metadata has is_guest flag
+                if (obj.value && obj.value.is_guest === true) {
+                    isGuestUser = true;
+                    guestReason = "is_guest flag";
+                }
+                
+                // Check if role === "guest" in metadata
+                if (!isGuestUser && obj.value && obj.value.role === "guest") {
+                    isGuestUser = true;
+                    guestReason = "role=guest";
+                }
+                
+                // Check if login_type === "guest" in metadata
+                if (!isGuestUser && obj.value && obj.value.login_type === "guest") {
+                    isGuestUser = true;
+                    guestReason = "login_type=guest";
+                }
+                
+                // If not identified by metadata flags, check username pattern
+                if (!isGuestUser && obj.userId) {
+                    try {
+                        var users = nk.usersGetId([obj.userId]);
+                        if (users && users.length > 0) {
+                            var username = users[0].username;
+                            if (username && username.indexOf(GUEST_USER_USERNAME_PREFIX) === 0) {
+                                isGuestUser = true;
+                                guestReason = "username pattern (" + GUEST_USER_USERNAME_PREFIX + "*)";
+                            }
+                        }
+                    } catch (userErr) {
+                        logger.warn("[GuestCleanup] Failed to get user info for " + obj.userId + ": " + userErr.message);
+                    }
+                }
+                
+                // Collect device IDs from metadata for cleanup
+                if (isGuestUser && obj.value) {
+                    // Get device_id from metadata
+                    if (obj.value.device_id) {
+                        deviceIds.push(obj.value.device_id);
+                    }
+                    if (obj.value.current_device_id && obj.value.current_device_id !== obj.value.device_id) {
+                        deviceIds.push(obj.value.current_device_id);
+                    }
+                    // Get device IDs from devices array
+                    if (obj.value.devices && Array.isArray(obj.value.devices)) {
+                        for (var d = 0; d < obj.value.devices.length; d++) {
+                            var dev = obj.value.devices[d];
+                            if (dev.device_id && deviceIds.indexOf(dev.device_id) === -1) {
+                                deviceIds.push(dev.device_id);
+                            }
+                        }
+                    }
+                }
+                
+                if (isGuestUser) {
+                    guestUsersFound.push({
+                        userId: obj.userId,
+                        key: obj.key,
+                        reason: guestReason,
+                        deviceIds: deviceIds
+                    });
+                    
+                    if (!dryRun) {
+                        // Delete player metadata
+                        try {
+                            nk.storageDelete([{
+                                collection: collection,
+                                key: obj.key,
+                                userId: obj.userId
+                            }]);
+                            deletedCount++;
+                            logger.info("[GuestCleanup] Deleted metadata for guest user: " + obj.userId + " (reason: " + guestReason + ")");
+                        } catch (deleteErr) {
+                            errors.push({
+                                userId: obj.userId,
+                                type: "metadata",
+                                error: deleteErr.message
+                            });
+                            logger.error("[GuestCleanup] Failed to delete metadata for user " + obj.userId + ": " + deleteErr.message);
+                        }
+                        
+                        // Delete device_user_mappings for each device
+                        for (var di = 0; di < deviceIds.length; di++) {
+                            var devId = deviceIds[di];
+                            var mappingKey = "device_" + devId;
+                            try {
+                                nk.storageDelete([{
+                                    collection: DEVICE_USER_MAPPINGS_COLLECTION,
+                                    key: mappingKey,
+                                    userId: SYSTEM_USER_ID
+                                }]);
+                                deviceMappingsDeleted++;
+                                logger.info("[GuestCleanup] Deleted device mapping: " + mappingKey + " for guest user: " + obj.userId);
+                            } catch (devDeleteErr) {
+                                errors.push({
+                                    userId: obj.userId,
+                                    type: "device_mapping",
+                                    deviceId: devId,
+                                    error: devDeleteErr.message
+                                });
+                                logger.warn("[GuestCleanup] Failed to delete device mapping " + mappingKey + ": " + devDeleteErr.message);
+                            }
+                        }
+                    } else {
+                        logger.info("[GuestCleanup] [DRY RUN] Would delete metadata for guest user: " + obj.userId + " (reason: " + guestReason + ")");
+                        if (deviceIds.length > 0) {
+                            logger.info("[GuestCleanup] [DRY RUN] Would delete " + deviceIds.length + " device mapping(s) for user: " + obj.userId);
+                        }
+                    }
+                }
+            }
+            
+            // Get next cursor for pagination
+            cursor = result.cursor;
+            if (!cursor || cursor === "") {
+                hasMore = false;
+            }
+        }
+        
+        var summary = {
+            success: true,
+            dryRun: dryRun,
+            processedCount: processedCount,
+            guestUsersFound: guestUsersFound.length,
+            deletedCount: deletedCount,
+            deviceMappingsDeleted: deviceMappingsDeleted,
+            errors: errors,
+            timestamp: new Date().toISOString()
+        };
+        
+        if (dryRun) {
+            summary.guestUsers = guestUsersFound;
+        }
+        
+        logger.info("[GuestCleanup] Cleanup complete. Processed: " + processedCount + 
+            ", Guest users found: " + guestUsersFound.length + 
+            ", Metadata deleted: " + deletedCount + 
+            ", Device mappings deleted: " + deviceMappingsDeleted +
+            ", Errors: " + errors.length);
+        
+        return JSON.stringify(summary);
+        
+    } catch (err) {
+        logger.error("[GuestCleanup] Cleanup job failed: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: err.message,
+            processedCount: processedCount,
+            deletedCount: deletedCount,
+            deviceMappingsDeleted: deviceMappingsDeleted,
+            timestamp: new Date().toISOString()
+        });
+    }
+}
+
+/**
+ * Scheduled function to clean up guest user metadata daily.
+ * This function is intended to be called by a cron job configured externally.
+ * Cron expression for daily at 3 AM UTC: "0 3 * * *"
+ * 
+ * Note: In Nakama, scheduled tasks are typically configured in the server config
+ * or via external schedulers. This function provides the implementation that
+ * can be invoked via the RPC cleanup_guest_user_metadata.
+ * 
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime
+ */
+function scheduledCleanupGuestUserMetadata(ctx, logger, nk) {
+    logger.info("[GuestCleanup] Daily scheduled cleanup started");
+    
+    try {
+        var result = rpcCleanupGuestUserMetadata(ctx, logger, nk, JSON.stringify({ dryRun: false, limit: GUEST_CLEANUP_DEFAULT_LIMIT }));
+        var parsed = JSON.parse(result);
+        
+        if (parsed.success) {
+            logger.info("[GuestCleanup] Daily cleanup completed successfully. Deleted " + parsed.deletedCount + " guest user metadata records");
+        } else {
+            logger.error("[GuestCleanup] Daily cleanup failed: " + parsed.error);
+        }
+    } catch (err) {
+        logger.error("[GuestCleanup] Scheduled cleanup error: " + err.message);
+    }
+}
+
 
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
@@ -13107,15 +13626,29 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[QuizVerse-MP] Failed to initialize: ' + err.message);
     }
 
+    // Register Guest User Metadata Cleanup RPC
+    try {
+        logger.info('[GuestCleanup] Initializing Guest User Metadata Cleanup Module...');
+        initializer.registerRpc('cleanup_guest_user_metadata', rpcCleanupGuestUserMetadata);
+        logger.info('[GuestCleanup] Registered RPC: cleanup_guest_user_metadata');
+        logger.info('[GuestCleanup] Note: To enable daily cleanup, configure cron in server config');
+        logger.info('[GuestCleanup] Cron expression for daily 3 AM UTC: "0 3 * * *"');
+        logger.info('[GuestCleanup] Call cleanup_guest_user_metadata RPC manually or on schedule');
+        logger.info('[GuestCleanup] Successfully registered 1 Guest Cleanup RPC');
+    } catch (err) {
+        logger.error('[GuestCleanup] Failed to initialize: ' + err.message);
+    }
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 126');
+    logger.info('Total System RPCs: 127');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
     logger.info('  - Tournament System: 6');
     logger.info('  - Infrastructure (Batch/Cache/Rate): 6');
     logger.info('  - QuizVerse Multiplayer: 3');
+    logger.info('  - Guest Cleanup: 1');
     logger.info('  - Plus existing Copilot RPCs');
     logger.info('========================================');
     logger.info('✓ All server gaps have been filled!');
