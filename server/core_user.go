@@ -18,7 +18,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"html"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -240,11 +239,11 @@ func convertUser(rows *sql.Rows) (*api.User, error) {
 	return &api.User{
 		Id:                    userID.String(),
 		Username:              username.String,
-		DisplayName:           html.EscapeString(displayName.String),
-		AvatarUrl:             html.EscapeString(avatarURL.String),
-		LangTag:               html.EscapeString(langTag.String),
-		Location:              html.EscapeString(location.String),
-		Timezone:              html.EscapeString(timezone.String),
+		DisplayName:           displayName.String,
+		AvatarUrl:             avatarURL.String,
+		LangTag:               langTag.String,
+		Location:              location.String,
+		Timezone:              timezone.String,
 		Metadata:              string(metadata),
 		AppleId:               apple.String,
 		FacebookId:            facebook.String,
