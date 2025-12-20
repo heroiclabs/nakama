@@ -76,7 +76,9 @@ func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker
 		},
 		Stream: stream,
 		UserID: uuid.FromStringOrNil(presence.UserId),
-		Meta:   PresenceMeta{},
+		Meta: PresenceMeta{
+			Username: presence.Username,
+		},
 	}
 
 	p := &PartyHandler{

@@ -5,11 +5,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
-## [3.35.1] - 2025-12-03
-
 ### Changed
 - Improvements to Console user setup and management.
 
+### Fixed
+- Ensure party leader username is recorded on party creation.
+
+## [3.35.1] - 2025-12-03
 ### Fixed
 - Correctly wire context propagation in Session Start/End runtime event hooks.
 
