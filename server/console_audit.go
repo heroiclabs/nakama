@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -158,6 +159,28 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				resource = console.AclResources_USER
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "new console user added or updated"
+			case "/nakama.console.Console/AuthenticatePasswordChange":
+				pwdResetReq, ok := req.(*console.AuthenticatePasswordChangeRequest)
+				if ok {
+					tokens := strings.Split(pwdResetReq.GetCode(), ".")
+					if len(tokens) == 3 {
+						decodeString, err := base64.RawURLEncoding.DecodeString(tokens[1])
+						if err != nil {
+							break
+						}
+						var claims map[string]any
+						if err = json.Unmarshal(decodeString, &claims); err != nil {
+							break
+						}
+						username, ok = claims["usn"].(string)
+						if !ok {
+							break
+						}
+						action = console.AuditLogAction_UPDATE
+						resource = console.AclResources_USER
+						log = "user updated their password"
+					}
+				}
 			case "/nakama.console.Console/BanAccount":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_ACCOUNT
@@ -391,56 +414,6 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				resource = console.AclResources_ACCOUNT_EXPORT
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "account data imported into new account"
-			case "/nakama.console.Console/HiroAddUserInventoryItems":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_INVENTORY
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro inventory items added to account"
-			case "/nakama.console.Console/HiroDeleteUserInventoryItems":
-				action = console.AuditLogAction_DELETE
-				resource = console.AclResources_HIRO_INVENTORY
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro inventory items removed from account"
-			case "/nakama.console.Console/HiroUpdateUserInventoryItems":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_INVENTORY
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro inventory items updated"
-			case "/nakama.console.Console/HiroResetProgressions":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_PROGRESSION
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro progression reset"
-			case "/nakama.console.Console/HiroUnlockProgressions":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_PROGRESSION
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro progression unlocked"
-			case "/nakama.console.Console/HiroUpdateProgressions":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_PROGRESSION
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro progression updated"
-			case "/nakama.console.Console/HiroPurchaseProgressions":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_PROGRESSION
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro progression purchased"
-			case "/nakama.console.Console/HiroEconomyGrant":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_ECONOMY
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro economy grant"
-			case "/nakama.console.Console/HiroStatsUpdate":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_STATS
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro stats update"
-			case "/nakama.console.Console/HiroEnergyGrant":
-				action = console.AuditLogAction_UPDATE
-				resource = console.AclResources_HIRO_ENERGY
-				metadata, mErr = auditLogMarshaller.Marshal(msg)
-				log = "hiro energy grant"
 			case "/nakama.console.Console/SatoriSendDirectMessage":
 				action = console.AuditLogAction_CREATE
 				resource = console.AclResources_SATORI_MESSAGE

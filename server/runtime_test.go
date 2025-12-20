@@ -648,7 +648,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "something_to_encrypt"
-	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
+	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcryptHashCost)
 	result, err, _ := fn(context.Background(), nil, nil, "", "", "", nil, 0, "", "", "", "", string(hash))
 	if err != nil {
 		t.Fatal(err)
