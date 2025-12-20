@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -649,8 +648,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "something_to_encrypt"
-	hashCost := math.Max(float64(bcrypt.DefaultCost), 13)
-	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), int(hashCost))
+	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcryptHashCost)
 	result, err, _ := fn(context.Background(), nil, nil, "", "", "", nil, 0, "", "", "", "", string(hash))
 	if err != nil {
 		t.Fatal(err)

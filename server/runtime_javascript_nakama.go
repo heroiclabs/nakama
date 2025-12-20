@@ -36,7 +36,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -1378,8 +1377,7 @@ func (n *RuntimeJavascriptNakamaModule) hmacSHA256Hash(r *goja.Runtime) func(goj
 func (n *RuntimeJavascriptNakamaModule) bcryptHash(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
-		hashCost := math.Max(float64(bcrypt.DefaultCost), 13)
-		hash, err := bcrypt.GenerateFromPassword([]byte(input), int(hashCost))
+		hash, err := bcrypt.GenerateFromPassword([]byte(input), bcryptHashCost)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error hashing input: %v", err.Error())))
 		}

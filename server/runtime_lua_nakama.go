@@ -36,7 +36,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1670,8 +1669,7 @@ func (n *RuntimeLuaNakamaModule) bcryptHash(l *lua.LState) int {
 		return 0
 	}
 
-	hashCost := math.Max(float64(bcrypt.DefaultCost), 13)
-	hash, err := bcrypt.GenerateFromPassword([]byte(input), int(hashCost))
+	hash, err := bcrypt.GenerateFromPassword([]byte(input), bcryptHashCost)
 	if err != nil {
 		l.RaiseError("error hashing input: %v", err.Error())
 		return 0

@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"html"
-	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -743,8 +742,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 		if len(p) < 8 {
 			return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long.")
 		}
-		hashCost := math.Max(float64(bcrypt.DefaultCost), 13)
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(p), int(hashCost))
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(p), bcryptHashCost)
 		if err != nil {
 			logger.Error("Error hashing password.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error updating user account password.")

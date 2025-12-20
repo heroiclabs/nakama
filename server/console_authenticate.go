@@ -21,7 +21,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -113,8 +112,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				uname = in.Username
 				userId = uuid.Nil
 
-				hashCost := math.Max(float64(bcrypt.DefaultCost), 13)
-				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), int(hashCost))
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcryptHashCost)
 				if err != nil {
 					logger.Error("failed to hash admin console user password", zap.Error(err))
 					return status.Error(codes.Internal, "failed to create admin console user")
@@ -398,8 +396,7 @@ func (s *ConsoleServer) AuthenticatePasswordChange(ctx context.Context, in *cons
 
 	logger := s.logger.With(zap.String("user_id", claims.Id))
 
-	hashCost := math.Max(float64(bcrypt.DefaultCost), 13)
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), int(hashCost))
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcryptHashCost)
 	if err != nil {
 		logger.Error("Failed to hash the password for the user.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to hash the password for the user.")
