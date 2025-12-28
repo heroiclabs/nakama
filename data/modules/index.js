@@ -14735,6 +14735,764 @@ function rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
 }
 
 
+// ============================================================================
+// PROGRESSION/PROGRESSIVE_UNLOCKS.JS
+// ============================================================================
+
+/**
+ * Progressive Content Unlocks Module
+ * Unlocks game features over the first 7 days to maintain engagement
+ * 
+ * Impact: D7 +5% retention
+ */
+
+// ============================================================================
+// UNLOCK CONFIGURATION
+// ============================================================================
+
+var UNLOCK_CONFIG = {
+    // Day 1: Basic features (default)
+    day1: {
+        features: ["basic_quiz", "championship", "daily_quiz"],
+        rewards: { coins: 50 },
+        message: "Welcome! Start your trivia journey!"
+    },
+    // Day 2: Engagement features
+    day2: {
+        features: ["lucky_wheel", "daily_streak", "power_ups"],
+        rewards: { coins: 100, energy: 3 },
+        message: "🎡 Lucky Wheel unlocked! Spin for rewards!",
+        requirement: { type: "login", day: 2 }
+    },
+    // Day 3: Social features
+    day3: {
+        features: ["multiplayer", "friends_list", "chat"],
+        rewards: { coins: 150, gems: 10 },
+        message: "⚔️ Multiplayer unlocked! Battle friends!",
+        requirement: { type: "quizzes_won", count: 3 }
+    },
+    // Day 4: Content creation
+    day4: {
+        features: ["link_and_play", "custom_quizzes", "share_quiz"],
+        rewards: { coins: 200, gems: 15 },
+        message: "📚 Link & Play unlocked! Create your own quizzes!",
+        requirement: { type: "login", day: 4 }
+    },
+    // Day 5: Advanced modes
+    day5: {
+        features: ["survival_mode", "timed_challenge", "hard_mode"],
+        rewards: { coins: 250, gems: 20, mystery_box: 1 },
+        message: "💀 Survival Mode unlocked! How long can you last?",
+        requirement: { type: "quizzes_completed", count: 10 }
+    },
+    // Day 6: Competitive features
+    day6: {
+        features: ["weekly_tournament", "global_leaderboard", "rankings"],
+        rewards: { coins: 300, gems: 25 },
+        message: "🏆 Weekly Tournament unlocked! Compete globally!",
+        requirement: { type: "login", day: 6 }
+    },
+    // Day 7: Premium trial
+    day7: {
+        features: ["premium_trial", "all_categories", "ad_free_trial"],
+        rewards: { coins: 500, gems: 50, premium_days: 3 },
+        message: "👑 VIP Trial unlocked! 3 days of Premium FREE!",
+        requirement: { type: "login", day: 7 }
+    }
+};
+
+// All possible features
+var ALL_FEATURES_PROGRESSIVE = [
+    "basic_quiz", "championship", "daily_quiz",
+    "lucky_wheel", "daily_streak", "power_ups",
+    "multiplayer", "friends_list", "chat",
+    "link_and_play", "custom_quizzes", "share_quiz",
+    "survival_mode", "timed_challenge", "hard_mode",
+    "weekly_tournament", "global_leaderboard", "rankings",
+    "premium_trial", "all_categories", "ad_free_trial"
+];
+
+// ============================================================================
+// STORAGE KEYS
+// ============================================================================
+
+var STORAGE_COLLECTION_PROG = "progression";
+var STORAGE_KEY_UNLOCKS = "progressive_unlocks";
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+function getUnlockData(nk, userId) {
+    try {
+        var objects = nk.storageRead([{
+            collection: STORAGE_COLLECTION_PROG,
+            key: STORAGE_KEY_UNLOCKS,
+            userId: userId
+        }]);
+        
+        if (objects && objects.length > 0) {
+            return objects[0].value;
+        }
+    } catch (e) {
+        // No data yet
+    }
+    
+    // Initialize default data
+    return {
+        firstLoginDate: Date.now(),
+        currentDay: 1,
+        unlockedFeatures: UNLOCK_CONFIG.day1.features.slice(),
+        claimedDays: [1],
+        totalQuizzesCompleted: 0,
+        totalQuizzesWon: 0,
+        lastCheckDate: Date.now()
+    };
+}
+
+function saveUnlockData(nk, userId, data) {
+    data.lastUpdated = Date.now();
+    
+    nk.storageWrite([{
+        collection: STORAGE_COLLECTION_PROG,
+        key: STORAGE_KEY_UNLOCKS,
+        userId: userId,
+        value: data,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function calculateCurrentDay(firstLoginDate) {
+    var now = Date.now();
+    var daysSinceFirst = Math.floor((now - firstLoginDate) / (24 * 60 * 60 * 1000));
+    return Math.min(daysSinceFirst + 1, 7); // Cap at day 7
+}
+
+function checkRequirementProgressive(data, requirement) {
+    if (!requirement) return true;
+    
+    switch (requirement.type) {
+        case "login":
+            return data.currentDay >= requirement.day;
+        case "quizzes_won":
+            return data.totalQuizzesWon >= requirement.count;
+        case "quizzes_completed":
+            return data.totalQuizzesCompleted >= requirement.count;
+        default:
+            return true;
+    }
+}
+
+function grantRewardsProgressive(nk, userId, rewards, logger) {
+    if (!rewards) return;
+    
+    try {
+        // Grant coins
+        if (rewards.coins) {
+            nk.walletUpdate(userId, { coins: rewards.coins }, {}, true);
+            logger.info("Granted " + rewards.coins + " coins to " + userId);
+        }
+        
+        // Grant gems
+        if (rewards.gems) {
+            nk.walletUpdate(userId, { gems: rewards.gems }, {}, true);
+            logger.info("Granted " + rewards.gems + " gems to " + userId);
+        }
+        
+        // Grant energy
+        if (rewards.energy) {
+            nk.walletUpdate(userId, { energy: rewards.energy }, {}, true);
+        }
+        
+        // Grant premium days
+        if (rewards.premium_days) {
+            var premiumExpiry = Date.now() + (rewards.premium_days * 24 * 60 * 60 * 1000);
+            nk.storageWrite([{
+                collection: "premium",
+                key: "trial",
+                userId: userId,
+                value: { expiresAt: premiumExpiry, type: "trial" },
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+        }
+        
+        // Grant mystery box
+        if (rewards.mystery_box) {
+            var inventoryData = { mystery_boxes: rewards.mystery_box };
+            nk.walletUpdate(userId, inventoryData, {}, true);
+        }
+    } catch (e) {
+        logger.error("Error granting rewards: " + e.message);
+    }
+}
+
+// ============================================================================
+// RPC FUNCTIONS
+// ============================================================================
+
+/**
+ * Get current unlock state
+ * Returns: unlockedFeatures, currentDay, nextUnlock, progress
+ */
+function rpcGetUnlockState(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({ success: false, error: "Not authenticated" });
+    }
+    
+    var data = getUnlockData(nk, ctx.userId);
+    
+    // Update current day
+    data.currentDay = calculateCurrentDay(data.firstLoginDate);
+    saveUnlockData(nk, ctx.userId, data);
+    
+    // Calculate next unlock info
+    var nextDay = null;
+    var nextUnlock = null;
+    
+    for (var day = 1; day <= 7; day++) {
+        var dayKey = "day" + day;
+        var config = UNLOCK_CONFIG[dayKey];
+        
+        if (config && data.claimedDays.indexOf(day) === -1) {
+            nextDay = day;
+            nextUnlock = {
+                day: day,
+                features: config.features,
+                rewards: config.rewards,
+                message: config.message,
+                canClaim: checkRequirementProgressive(data, config.requirement),
+                requirement: config.requirement
+            };
+            break;
+        }
+    }
+    
+    // Build locked features list
+    var lockedFeatures = [];
+    ALL_FEATURES_PROGRESSIVE.forEach(function(feature) {
+        if (data.unlockedFeatures.indexOf(feature) === -1) {
+            lockedFeatures.push(feature);
+        }
+    });
+    
+    return JSON.stringify({
+        success: true,
+        data: {
+            currentDay: data.currentDay,
+            firstLoginDate: data.firstLoginDate,
+            unlockedFeatures: data.unlockedFeatures,
+            lockedFeatures: lockedFeatures,
+            claimedDays: data.claimedDays,
+            nextUnlock: nextUnlock,
+            totalQuizzesCompleted: data.totalQuizzesCompleted,
+            totalQuizzesWon: data.totalQuizzesWon,
+            allUnlocked: data.claimedDays.length >= 7
+        }
+    });
+}
+
+/**
+ * Claim unlock for a specific day
+ * Payload: { day: number }
+ */
+function rpcClaimUnlock(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({ success: false, error: "Not authenticated" });
+    }
+    
+    var request = {};
+    try {
+        request = JSON.parse(payload || "{}");
+    } catch (e) {
+        return JSON.stringify({ success: false, error: "Invalid payload" });
+    }
+    
+    var day = request.day;
+    if (!day || day < 1 || day > 7) {
+        return JSON.stringify({ success: false, error: "Invalid day" });
+    }
+    
+    var data = getUnlockData(nk, ctx.userId);
+    data.currentDay = calculateCurrentDay(data.firstLoginDate);
+    
+    // Check if already claimed
+    if (data.claimedDays.indexOf(day) !== -1) {
+        return JSON.stringify({ success: false, error: "Already claimed" });
+    }
+    
+    // Check if day is reachable
+    if (day > data.currentDay) {
+        return JSON.stringify({ success: false, error: "Day not yet available" });
+    }
+    
+    // Check requirements
+    var dayKey = "day" + day;
+    var config = UNLOCK_CONFIG[dayKey];
+    
+    if (!config) {
+        return JSON.stringify({ success: false, error: "Invalid day config" });
+    }
+    
+    if (!checkRequirementProgressive(data, config.requirement)) {
+        return JSON.stringify({ 
+            success: false, 
+            error: "Requirement not met",
+            requirement: config.requirement
+        });
+    }
+    
+    // Claim the unlock
+    data.claimedDays.push(day);
+    config.features.forEach(function(feature) {
+        if (data.unlockedFeatures.indexOf(feature) === -1) {
+            data.unlockedFeatures.push(feature);
+        }
+    });
+    
+    // Grant rewards
+    grantRewardsProgressive(nk, ctx.userId, config.rewards, logger);
+    
+    // Save
+    saveUnlockData(nk, ctx.userId, data);
+    
+    logger.info("User " + ctx.userId + " claimed Day " + day + " unlock");
+    
+    return JSON.stringify({
+        success: true,
+        data: {
+            day: day,
+            unlockedFeatures: config.features,
+            rewards: config.rewards,
+            message: config.message,
+            allUnlockedFeatures: data.unlockedFeatures
+        }
+    });
+}
+
+/**
+ * Check if a specific feature is unlocked
+ */
+function rpcCheckFeatureUnlocked(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({ success: false, error: "Not authenticated" });
+    }
+    
+    var request = {};
+    try {
+        request = JSON.parse(payload || "{}");
+    } catch (e) {
+        return JSON.stringify({ success: false, error: "Invalid payload" });
+    }
+    
+    var feature = request.feature;
+    if (!feature) {
+        return JSON.stringify({ success: false, error: "Feature required" });
+    }
+    
+    var data = getUnlockData(nk, ctx.userId);
+    var isUnlocked = data.unlockedFeatures.indexOf(feature) !== -1;
+    
+    // Find which day unlocks this feature
+    var unlockDay = null;
+    for (var day = 1; day <= 7; day++) {
+        var config = UNLOCK_CONFIG["day" + day];
+        if (config && config.features.indexOf(feature) !== -1) {
+            unlockDay = day;
+            break;
+        }
+    }
+    
+    return JSON.stringify({
+        success: true,
+        data: {
+            feature: feature,
+            isUnlocked: isUnlocked,
+            unlockDay: unlockDay,
+            currentDay: calculateCurrentDay(data.firstLoginDate)
+        }
+    });
+}
+
+/**
+ * Update progress (quizzes completed/won)
+ */
+function rpcUpdateProgressProgressive(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({ success: false, error: "Not authenticated" });
+    }
+    
+    var request = {};
+    try {
+        request = JSON.parse(payload || "{}");
+    } catch (e) {
+        return JSON.stringify({ success: false, error: "Invalid payload" });
+    }
+    
+    var data = getUnlockData(nk, ctx.userId);
+    
+    if (request.quizCompleted) {
+        data.totalQuizzesCompleted++;
+    }
+    if (request.quizWon) {
+        data.totalQuizzesWon++;
+    }
+    
+    data.currentDay = calculateCurrentDay(data.firstLoginDate);
+    saveUnlockData(nk, ctx.userId, data);
+    
+    // Check if any new unlocks are available
+    var newUnlocksAvailable = [];
+    for (var day = 1; day <= data.currentDay; day++) {
+        if (data.claimedDays.indexOf(day) === -1) {
+            var config = UNLOCK_CONFIG["day" + day];
+            if (config && checkRequirementProgressive(data, config.requirement)) {
+                newUnlocksAvailable.push({
+                    day: day,
+                    features: config.features,
+                    message: config.message
+                });
+            }
+        }
+    }
+    
+    return JSON.stringify({
+        success: true,
+        data: {
+            totalQuizzesCompleted: data.totalQuizzesCompleted,
+            totalQuizzesWon: data.totalQuizzesWon,
+            newUnlocksAvailable: newUnlocksAvailable
+        }
+    });
+}
+
+// ============================================================================
+// PROGRESSION/MASTERY_SYSTEM.JS
+// ============================================================================
+
+/**
+ * Prestige & Category Mastery System
+ * Rewards deep engagement with specific categories and long-term progression
+ * 
+ * Impact: D30 +10% retention, increases session duration
+ */
+
+// ============================================================================
+// MASTERY CONFIGURATION
+// ============================================================================
+
+var MASTERY_CONFIG_PROG = {
+    // XP needed for each level in a category
+    levels: [
+        0,      // Level 0
+        100,    // Level 1
+        250,    // Level 2
+        500,    // Level 3 (Bronze Badge)
+        1000,   // Level 4
+        2000,   // Level 5 (Silver Badge)
+        4000,   // Level 6
+        8000,   // Level 7 (Gold Badge)
+        15000,  // Level 8
+        30000   // Level 9 (Platinum Badge)
+    ],
+    
+    // Rewards for reaching levels
+    rewards: {
+        3: { coins: 500, badge: "bronze" },
+        5: { coins: 1500, gems: 20, badge: "silver" },
+        7: { coins: 5000, gems: 100, badge: "gold" },
+        9: { coins: 15000, gems: 500, badge: "platinum" }
+    },
+    
+    // Prestige configuration
+    prestige: {
+        maxMasteryLevel: 9,
+        prestigeLevels: [
+            { id: 1, name: "Novice", xpBoost: 1.1, coinBoost: 1.05, requirements: { totalMastery: 5 } },
+            { id: 2, name: "Scholar", xpBoost: 1.2, coinBoost: 1.1, requirements: { totalMastery: 15 } },
+            { id: 3, name: "Sage", xpBoost: 1.5, coinBoost: 1.2, requirements: { totalMastery: 40 } },
+            { id: 4, name: "Master", xpBoost: 2.0, coinBoost: 1.5, requirements: { totalMastery: 80 } },
+            { id: 5, name: "Legend", xpBoost: 3.0, coinBoost: 2.0, requirements: { totalMastery: 150 } }
+        ]
+    }
+};
+
+// ============================================================================
+// STORAGE KEYS
+// ============================================================================
+
+var STORAGE_KEY_MASTERY_PROG = "category_mastery";
+var STORAGE_KEY_PRESTIGE_PROG = "prestige_data";
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+function getMasteryDataProg(nk, userId) {
+    try {
+        var objects = nk.storageRead([{
+            collection: STORAGE_COLLECTION_PROG,
+            key: STORAGE_KEY_MASTERY_PROG,
+            userId: userId
+        }]);
+        
+        if (objects && objects.length > 0) {
+            return objects[0].value;
+        }
+    } catch (e) {
+        // No data yet
+    }
+    
+    return {
+        categories: {}, // categoryId -> { xp, level, badges: [] }
+        totalMasteryLevel: 0,
+        lastUpdated: Date.now()
+    };
+}
+
+function getPrestigeDataProg(nk, userId) {
+    try {
+        var objects = nk.storageRead([{
+            collection: STORAGE_COLLECTION_PROG,
+            key: STORAGE_KEY_PRESTIGE_PROG,
+            userId: userId
+        }]);
+        
+        if (objects && objects.length > 0) {
+            return objects[0].value;
+        }
+    } catch (e) {
+        // No data yet
+    }
+    
+    return {
+        prestigeLevel: 0,
+        unlockedPrestigeNames: [],
+        currentXpBoost: 1.0,
+        currentCoinBoost: 1.0,
+        lastUpdated: Date.now()
+    };
+}
+
+function saveMasteryDataProg(nk, userId, data) {
+    data.lastUpdated = Date.now();
+    nk.storageWrite([{
+        collection: STORAGE_COLLECTION_PROG,
+        key: STORAGE_KEY_MASTERY_PROG,
+        userId: userId,
+        value: data,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function savePrestigeDataProg(nk, userId, data) {
+    data.lastUpdated = Date.now();
+    nk.storageWrite([{
+        collection: STORAGE_COLLECTION_PROG,
+        key: STORAGE_KEY_PRESTIGE_PROG,
+        userId: userId,
+        value: data,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function calculateLevelProg(xp) {
+    var level = 0;
+    for (var i = 0; i < MASTERY_CONFIG_PROG.levels.length; i++) {
+        if (xp >= MASTERY_CONFIG_PROG.levels[i]) {
+            level = i;
+        } else {
+            break;
+        }
+    }
+    return level;
+}
+
+// ============================================================================
+// RPC FUNCTIONS
+// ============================================================================
+
+/**
+ * Add XP to a category after a quiz
+ * Payload: { categoryId: string, xp: number }
+ */
+function rpcProgressionAddMasteryXp(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({ success: false, error: "Not authenticated" });
+    }
+    
+    var request = {};
+    try {
+        request = JSON.parse(payload || "{}");
+    } catch (e) {
+        return JSON.stringify({ success: false, error: "Invalid payload" });
+    }
+    
+    var categoryId = request.categoryId;
+    var xpToAdd = request.xp || 0;
+    
+    if (!categoryId) {
+        return JSON.stringify({ success: false, error: "Category ID required" });
+    }
+    
+    var masteryData = getMasteryDataProg(nk, ctx.userId);
+    var prestigeData = getPrestigeDataProg(nk, ctx.userId);
+    
+    // Apply prestige boost
+    var boostedXp = Math.floor(xpToAdd * (prestigeData.currentXpBoost || 1.0));
+    
+    if (!masteryData.categories[categoryId]) {
+        masteryData.categories[categoryId] = { xp: 0, level: 0, badges: [] };
+    }
+    
+    var oldLevel = masteryData.categories[categoryId].level;
+    masteryData.categories[categoryId].xp += boostedXp;
+    var newLevel = calculateLevelProg(masteryData.categories[categoryId].xp);
+    
+    var levelUps = [];
+    if (newLevel > oldLevel) {
+        masteryData.categories[categoryId].level = newLevel;
+        
+        // Grant rewards for each level up
+        for (var l = oldLevel + 1; l <= newLevel; l++) {
+            var reward = MASTERY_CONFIG_PROG.rewards[l];
+            if (reward) {
+                // Grant rewards to wallet
+                var walletChanges = {};
+                if (reward.coins) walletChanges.coins = reward.coins;
+                if (reward.gems) walletChanges.gems = reward.gems;
+                
+                if (Object.keys(walletChanges).length > 0) {
+                    nk.walletUpdate(ctx.userId, walletChanges, {}, true);
+                }
+                
+                if (reward.badge) {
+                    masteryData.categories[categoryId].badges.push(reward.badge);
+                }
+                
+                levelUps.push({ level: l, reward: reward });
+            } else {
+                levelUps.push({ level: l });
+            }
+        }
+        
+        // Update total mastery level
+        var total = 0;
+        for (var cat in masteryData.categories) {
+            total += masteryData.categories[cat].level;
+        }
+        masteryData.totalMasteryLevel = total;
+    }
+    
+    saveMasteryDataProg(nk, ctx.userId, masteryData);
+    
+    return JSON.stringify({
+        success: true,
+        data: {
+            categoryId: categoryId,
+            addedXp: boostedXp,
+            totalXp: masteryData.categories[categoryId].xp,
+            level: newLevel,
+            levelUps: levelUps,
+            totalMasteryLevel: masteryData.totalMasteryLevel
+        }
+    });
+}
+
+/**
+ * Get current mastery and prestige state
+ */
+function rpcProgressionGetState(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({ success: false, error: "Not authenticated" });
+    }
+    
+    var masteryData = getMasteryDataProg(nk, ctx.userId);
+    var prestigeData = getPrestigeDataProg(nk, ctx.userId);
+    
+    // Check if new prestige levels are available
+    var nextPrestige = null;
+    for (var i = 0; i < MASTERY_CONFIG_PROG.prestige.prestigeLevels.length; i++) {
+        var p = MASTERY_CONFIG_PROG.prestige.prestigeLevels[i];
+        if (p.id > prestigeData.prestigeLevel) {
+            var met = masteryData.totalMasteryLevel >= p.requirements.totalMastery;
+            nextPrestige = {
+                id: p.id,
+                name: p.name,
+                requirements: p.requirements,
+                met: met,
+                xpBoost: p.xpBoost,
+                coinBoost: p.coinBoost
+            };
+            break;
+        }
+    }
+    
+    return JSON.stringify({
+        success: true,
+        data: {
+            mastery: masteryData,
+            prestige: prestigeData,
+            nextPrestige: nextPrestige,
+            levelConfig: MASTERY_CONFIG_PROG.levels
+        }
+    });
+}
+
+/**
+ * Claim a prestige level if requirements are met
+ */
+function rpcProgressionClaimPrestige(ctx, logger, nk, payload) {
+    if (!ctx.userId) {
+        return JSON.stringify({ success: false, error: "Not authenticated" });
+    }
+    
+    var masteryData = getMasteryDataProg(nk, ctx.userId);
+    var prestigeData = getPrestigeDataProg(nk, ctx.userId);
+    
+    var nextLevelId = prestigeData.prestigeLevel + 1;
+    var nextLevelConfig = null;
+    
+    for (var i = 0; i < MASTERY_CONFIG_PROG.prestige.prestigeLevels.length; i++) {
+        if (MASTERY_CONFIG_PROG.prestige.prestigeLevels[i].id === nextLevelId) {
+            nextLevelConfig = MASTERY_CONFIG_PROG.prestige.prestigeLevels[i];
+            break;
+        }
+    }
+    
+    if (!nextLevelConfig) {
+        return JSON.stringify({ success: false, error: "No more prestige levels" });
+    }
+    
+    if (masteryData.totalMasteryLevel < nextLevelConfig.requirements.totalMastery) {
+        return JSON.stringify({ success: false, error: "Requirements not met" });
+    }
+    
+    // Update prestige
+    prestigeData.prestigeLevel = nextLevelConfig.id;
+    prestigeData.unlockedPrestigeNames.push(nextLevelConfig.name);
+    prestigeData.currentXpBoost = nextLevelConfig.xpBoost;
+    prestigeData.currentCoinBoost = nextLevelConfig.coinBoost;
+    
+    savePrestigeDataProg(nk, ctx.userId, prestigeData);
+    
+    logger.info("User " + ctx.userId + " reached prestige level " + nextLevelConfig.id + " (" + nextLevelConfig.name + ")");
+    
+    return JSON.stringify({
+        success: true,
+        data: {
+            prestigeLevel: prestigeData.prestigeLevel,
+            name: nextLevelConfig.name,
+            xpBoost: prestigeData.currentXpBoost,
+            coinBoost: prestigeData.currentCoinBoost
+        }
+    });
+}
+
+
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
@@ -15386,6 +16144,40 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[Winback] Successfully registered 4 Win-back RPCs');
     } catch (err) {
         logger.error('[Winback] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // NEW PROGRESSION SYSTEMS (D7/D30 Retention)
+    // ============================================================================
+
+    // Register Progressive Unlocks System RPCs (D7 Retention)
+    try {
+        logger.info('[ProgressiveUnlocks] Initializing Progressive Unlocks Module...');
+        initializer.registerRpc('progressive_get_state', rpcGetUnlockState);
+        logger.info('[ProgressiveUnlocks] Registered RPC: progressive_get_state');
+        initializer.registerRpc('progressive_claim_unlock', rpcClaimUnlock);
+        logger.info('[ProgressiveUnlocks] Registered RPC: progressive_claim_unlock');
+        initializer.registerRpc('progressive_check_feature', rpcCheckFeatureUnlocked);
+        logger.info('[ProgressiveUnlocks] Registered RPC: progressive_check_feature');
+        initializer.registerRpc('progressive_update_progress', rpcUpdateProgressProgressive);
+        logger.info('[ProgressiveUnlocks] Registered RPC: progressive_update_progress');
+        logger.info('[ProgressiveUnlocks] Successfully registered 4 Progressive Unlock RPCs');
+    } catch (err) {
+        logger.error('[ProgressiveUnlocks] Failed to initialize: ' + err.message);
+    }
+
+    // Register Progression & Mastery System RPCs (D30 Retention)
+    try {
+        logger.info('[ProgressionMastery] Initializing Progression & Mastery Module...');
+        initializer.registerRpc('progression_add_mastery_xp', rpcProgressionAddMasteryXp);
+        logger.info('[ProgressionMastery] Registered RPC: progression_add_mastery_xp');
+        initializer.registerRpc('progression_get_state', rpcProgressionGetState);
+        logger.info('[ProgressionMastery] Registered RPC: progression_get_state');
+        initializer.registerRpc('progression_claim_prestige', rpcProgressionClaimPrestige);
+        logger.info('[ProgressionMastery] Registered RPC: progression_claim_prestige');
+        logger.info('[ProgressionMastery] Successfully registered 3 Progression RPCs');
+    } catch (err) {
+        logger.error('[ProgressionMastery] Failed to initialize: ' + err.message);
     }
 
     logger.info('========================================');
