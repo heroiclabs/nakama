@@ -1,0 +1,58 @@
+# Elderwood Nakama Server Configuration
+# Configuration for the Harry Potter MMO backend
+
+name: "elderwood"
+
+# Logging configuration
+logger:
+  stdout: true
+  level: "info"
+  format: "text"
+
+# Socket configuration
+socket:
+  server_key: "elderwood_dev_key"
+  port: 7350
+  max_message_size_bytes: 4096
+  max_request_size_bytes: 131072
+  read_buffer_size_bytes: 4096
+  write_buffer_size_bytes: 4096
+  read_timeout_ms: 10000
+  write_timeout_ms: 10000
+  idle_timeout_ms: 60000
+  ping_period_ms: 15000
+  pong_wait_ms: 25000
+
+# Database configuration (PostgreSQL/CockroachDB)
+database:
+  address:
+    - "postgresql://localhost:5432/nakama"
+
+# Session configuration
+session:
+  encryption_key: "your-256-bit-encryption-key-here"
+  token_expiry_sec: 60
+
+# Console (Admin UI) configuration
+console:
+  port: 7351
+  username: "admin"
+  password: "password"
+  signing_key: "your-console-signing-key-here"
+
+# Runtime configuration for custom modules
+runtime:
+  path: "./data/modules"
+  env:
+    - "ENV=development"
+    - "MAX_CHARACTERS_PER_ACCOUNT=5"
+
+# Match configuration
+match:
+  input_queue_size: 128
+  call_queue_size: 128
+  deferred_queue_size: 128
+  join_attempt_queue_size: 128
+  join_marker_deadline_ms: 15000
+  max_empty_sec: 0
+  label_update_interval_ms: 1000
