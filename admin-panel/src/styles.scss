@@ -1,0 +1,124 @@
+// Global Styles for Elderwood Admin Panel
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-color: var(--surface-ground);
+  color: var(--text-color);
+}
+
+// Custom theme variables
+:root {
+  --elderwood-primary: #6366f1;
+  --elderwood-secondary: #818cf8;
+  --elderwood-gold: #f59e0b;
+  --elderwood-success: #22c55e;
+  --elderwood-danger: #ef4444;
+
+  // House colors
+  --house-venatrix: #dc2626;
+  --house-falcon: #2563eb;
+  --house-brumval: #16a34a;
+  --house-aerwyn: #eab308;
+}
+
+// Utility classes
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+
+// House color badges
+.house-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  &.venatrix { background-color: var(--house-venatrix); color: white; }
+  &.falcon { background-color: var(--house-falcon); color: white; }
+  &.brumval { background-color: var(--house-brumval); color: white; }
+  &.aerwyn { background-color: var(--house-aerwyn); color: black; }
+  &.none { background-color: var(--surface-400); color: var(--text-color); }
+}
+
+// Card styling
+.admin-card {
+  background: var(--surface-card);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+// Page header
+.page-header {
+  margin-bottom: 1.5rem;
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+  }
+
+  p {
+    color: var(--text-color-secondary);
+    margin: 0;
+  }
+}
+
+// Form styling
+.form-field {
+  margin-bottom: 1rem;
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+  }
+}
+
+// Table enhancements
+.p-datatable {
+  .p-datatable-header {
+    background: transparent;
+    border: none;
+    padding: 1rem 0;
+  }
+}
+
+// Dialog styling
+.p-dialog {
+  .p-dialog-header {
+    border-bottom: 1px solid var(--surface-border);
+  }
+
+  .p-dialog-footer {
+    border-top: 1px solid var(--surface-border);
+  }
+}
+
+// Scrollbar styling
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-ground);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-400);
+  border-radius: 4px;
+
+  &:hover {
+    background: var(--surface-500);
+  }
+}
