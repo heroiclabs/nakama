@@ -65,6 +65,197 @@ const (
 	MaxHistoryEntries = 100
 )
 
+// Inventory constants
+const (
+	// InventoryCollection stores character inventories
+	InventoryCollection = "inventories"
+	// MaxStackSize is the maximum quantity of a single item
+	MaxStackSize = 999
+)
+
+// ItemCategory represents the category of an item
+type ItemCategory string
+
+const (
+	CategoryWand        ItemCategory = "wand"
+	CategoryPotion      ItemCategory = "potion"
+	CategoryIngredient  ItemCategory = "ingredient"
+	CategoryBook        ItemCategory = "book"
+	CategoryEquipment   ItemCategory = "equipment"
+	CategoryConsumable  ItemCategory = "consumable"
+	CategoryQuestItem   ItemCategory = "quest_item"
+	CategoryMiscellaneous ItemCategory = "misc"
+)
+
+// ItemRarity represents the rarity of an item
+type ItemRarity string
+
+const (
+	RarityCommon    ItemRarity = "common"
+	RarityUncommon  ItemRarity = "uncommon"
+	RarityRare      ItemRarity = "rare"
+	RarityEpic      ItemRarity = "epic"
+	RarityLegendary ItemRarity = "legendary"
+)
+
+// Item represents an item definition in the game catalog
+type Item struct {
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Category    ItemCategory `json:"category"`
+	Rarity      ItemRarity   `json:"rarity"`
+	Stackable   bool         `json:"stackable"`
+	MaxStack    int          `json:"max_stack"`
+}
+
+// ItemsCatalog contains all available items in the game
+var ItemsCatalog = map[string]Item{
+	// Wands
+	"wand_oak": {
+		ID: "wand_oak", Name: "Baguette en Chêne", Description: "Une baguette solide en bois de chêne",
+		Category: CategoryWand, Rarity: RarityCommon, Stackable: false, MaxStack: 1,
+	},
+	"wand_holly": {
+		ID: "wand_holly", Name: "Baguette en Houx", Description: "Une baguette élégante en bois de houx",
+		Category: CategoryWand, Rarity: RarityUncommon, Stackable: false, MaxStack: 1,
+	},
+	"wand_elder": {
+		ID: "wand_elder", Name: "Baguette de Sureau", Description: "Une baguette légendaire en bois de sureau",
+		Category: CategoryWand, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
+	},
+
+	// Potions
+	"potion_health": {
+		ID: "potion_health", Name: "Potion de Soin", Description: "Restaure les points de vie",
+		Category: CategoryPotion, Rarity: RarityCommon, Stackable: true, MaxStack: 99,
+	},
+	"potion_mana": {
+		ID: "potion_mana", Name: "Potion de Mana", Description: "Restaure les points de mana",
+		Category: CategoryPotion, Rarity: RarityCommon, Stackable: true, MaxStack: 99,
+	},
+	"potion_felix_felicis": {
+		ID: "potion_felix_felicis", Name: "Felix Felicis", Description: "Potion de chance liquide",
+		Category: CategoryPotion, Rarity: RarityLegendary, Stackable: true, MaxStack: 10,
+	},
+	"potion_polyjuice": {
+		ID: "potion_polyjuice", Name: "Polynectar", Description: "Permet de prendre l'apparence d'une autre personne",
+		Category: CategoryPotion, Rarity: RarityEpic, Stackable: true, MaxStack: 20,
+	},
+	"potion_invisibility": {
+		ID: "potion_invisibility", Name: "Potion d'Invisibilité", Description: "Rend temporairement invisible",
+		Category: CategoryPotion, Rarity: RarityRare, Stackable: true, MaxStack: 50,
+	},
+
+	// Ingredients
+	"ingredient_moonstone": {
+		ID: "ingredient_moonstone", Name: "Pierre de Lune", Description: "Ingrédient magique rare",
+		Category: CategoryIngredient, Rarity: RarityRare, Stackable: true, MaxStack: 999,
+	},
+	"ingredient_bezoar": {
+		ID: "ingredient_bezoar", Name: "Bézoard", Description: "Antidote universel trouvé dans l'estomac d'une chèvre",
+		Category: CategoryIngredient, Rarity: RarityUncommon, Stackable: true, MaxStack: 999,
+	},
+	"ingredient_mandrake": {
+		ID: "ingredient_mandrake", Name: "Racine de Mandragore", Description: "Plante magique aux propriétés curatives",
+		Category: CategoryIngredient, Rarity: RarityUncommon, Stackable: true, MaxStack: 999,
+	},
+	"ingredient_phoenix_feather": {
+		ID: "ingredient_phoenix_feather", Name: "Plume de Phénix", Description: "Plume rare aux propriétés magiques puissantes",
+		Category: CategoryIngredient, Rarity: RarityEpic, Stackable: true, MaxStack: 100,
+	},
+	"ingredient_dragon_blood": {
+		ID: "ingredient_dragon_blood", Name: "Sang de Dragon", Description: "Ingrédient aux 12 usages magiques",
+		Category: CategoryIngredient, Rarity: RarityRare, Stackable: true, MaxStack: 500,
+	},
+
+	// Books
+	"book_spells_beginner": {
+		ID: "book_spells_beginner", Name: "Livre des Sorts - Niveau 1", Description: "Manuel de sorts pour débutants",
+		Category: CategoryBook, Rarity: RarityCommon, Stackable: false, MaxStack: 1,
+	},
+	"book_potions_advanced": {
+		ID: "book_potions_advanced", Name: "Potions Avancées", Description: "Guide des potions complexes",
+		Category: CategoryBook, Rarity: RarityRare, Stackable: false, MaxStack: 1,
+	},
+	"book_dark_arts": {
+		ID: "book_dark_arts", Name: "Secrets des Forces du Mal", Description: "Tome interdit sur les arts sombres",
+		Category: CategoryBook, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
+	},
+
+	// Equipment
+	"equipment_robe_student": {
+		ID: "equipment_robe_student", Name: "Robe d'Étudiant", Description: "Robe standard d'étudiant",
+		Category: CategoryEquipment, Rarity: RarityCommon, Stackable: false, MaxStack: 1,
+	},
+	"equipment_hat_wizard": {
+		ID: "equipment_hat_wizard", Name: "Chapeau de Sorcier", Description: "Chapeau pointu traditionnel",
+		Category: CategoryEquipment, Rarity: RarityCommon, Stackable: false, MaxStack: 1,
+	},
+	"equipment_cloak_invisibility": {
+		ID: "equipment_cloak_invisibility", Name: "Cape d'Invisibilité", Description: "Cape légendaire rendant invisible",
+		Category: CategoryEquipment, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
+	},
+	"equipment_broom_nimbus": {
+		ID: "equipment_broom_nimbus", Name: "Nimbus 2000", Description: "Balai de course haute performance",
+		Category: CategoryEquipment, Rarity: RarityRare, Stackable: false, MaxStack: 1,
+	},
+	"equipment_broom_firebolt": {
+		ID: "equipment_broom_firebolt", Name: "Éclair de Feu", Description: "Le meilleur balai de course au monde",
+		Category: CategoryEquipment, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
+	},
+
+	// Consumables
+	"consumable_chocolate_frog": {
+		ID: "consumable_chocolate_frog", Name: "Chocogrenouille", Description: "Friandise avec carte de collection",
+		Category: CategoryConsumable, Rarity: RarityCommon, Stackable: true, MaxStack: 999,
+	},
+	"consumable_bertie_beans": {
+		ID: "consumable_bertie_beans", Name: "Dragées de Bertie Crochue", Description: "Bonbons à tous les goûts",
+		Category: CategoryConsumable, Rarity: RarityCommon, Stackable: true, MaxStack: 999,
+	},
+	"consumable_butterbeer": {
+		ID: "consumable_butterbeer", Name: "Bièraubeurre", Description: "Boisson chaude réconfortante",
+		Category: CategoryConsumable, Rarity: RarityCommon, Stackable: true, MaxStack: 99,
+	},
+
+	// Quest Items
+	"quest_golden_snitch": {
+		ID: "quest_golden_snitch", Name: "Vif d'Or", Description: "La balle dorée du Quidditch",
+		Category: CategoryQuestItem, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
+	},
+	"quest_marauders_map": {
+		ID: "quest_marauders_map", Name: "Carte du Maraudeur", Description: "Je jure solennellement que mes intentions sont mauvaises",
+		Category: CategoryQuestItem, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
+	},
+	"quest_time_turner": {
+		ID: "quest_time_turner", Name: "Retourneur de Temps", Description: "Permet de voyager dans le temps",
+		Category: CategoryQuestItem, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
+	},
+
+	// Misc
+	"misc_galleon": {
+		ID: "misc_galleon", Name: "Gallion", Description: "Pièce d'or des sorciers",
+		Category: CategoryMiscellaneous, Rarity: RarityCommon, Stackable: true, MaxStack: 999999,
+	},
+	"misc_owl_treat": {
+		ID: "misc_owl_treat", Name: "Friandise pour Hibou", Description: "Récompense pour votre hibou fidèle",
+		Category: CategoryMiscellaneous, Rarity: RarityCommon, Stackable: true, MaxStack: 999,
+	},
+}
+
+// IsValidItem checks if an item ID exists in the catalog
+func IsValidItem(itemID string) bool {
+	_, exists := ItemsCatalog[itemID]
+	return exists
+}
+
+// GetItem returns an item from the catalog
+func GetItem(itemID string) (Item, bool) {
+	item, exists := ItemsCatalog[itemID]
+	return item, exists
+}
+
 // ValidHouses contains all valid house values
 var ValidHouses = map[string]bool{
 	HouseNone:     true,
@@ -186,6 +377,69 @@ type HousePointsHistoryResponse struct {
 	Entries []HousePointsEntry `json:"entries"`
 }
 
+// InventoryItem represents an item in a character's inventory
+type InventoryItem struct {
+	ItemID   string `json:"item_id"`
+	Quantity int    `json:"quantity"`
+}
+
+// Inventory represents a character's inventory
+type Inventory struct {
+	CharacterID string                   `json:"character_id"`
+	Items       map[string]InventoryItem `json:"items"` // Key is item_id
+	UpdatedAt   int64                    `json:"updated_at"`
+}
+
+// AddItemRequest is the payload for adding an item to inventory
+type AddItemRequest struct {
+	CharacterID string `json:"character_id"`
+	ItemID      string `json:"item_id"`
+	Quantity    int    `json:"quantity"`
+}
+
+// RemoveItemRequest is the payload for removing an item from inventory
+type RemoveItemRequest struct {
+	CharacterID string `json:"character_id"`
+	ItemID      string `json:"item_id"`
+	Quantity    int    `json:"quantity"`
+}
+
+// GetInventoryRequest is the payload for getting a character's inventory
+type GetInventoryRequest struct {
+	CharacterID string `json:"character_id"`
+}
+
+// InventoryItemWithDetails combines inventory item with catalog details
+type InventoryItemWithDetails struct {
+	ItemID      string       `json:"item_id"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Category    ItemCategory `json:"category"`
+	Rarity      ItemRarity   `json:"rarity"`
+	Quantity    int          `json:"quantity"`
+	MaxStack    int          `json:"max_stack"`
+}
+
+// InventoryResponse is the response containing inventory with item details
+type InventoryResponse struct {
+	CharacterID string                     `json:"character_id"`
+	Items       []InventoryItemWithDetails `json:"items"`
+	TotalItems  int                        `json:"total_items"`
+	UpdatedAt   int64                      `json:"updated_at"`
+}
+
+// ItemsCatalogResponse is the response containing all available items
+type ItemsCatalogResponse struct {
+	Items []Item `json:"items"`
+	Count int    `json:"count"`
+}
+
+// GetItemsCatalogRequest is the payload for filtering the items catalog
+type GetItemsCatalogRequest struct {
+	Category string `json:"category,omitempty"` // Optional: filter by category
+	Rarity   string `json:"rarity,omitempty"`   // Optional: filter by rarity
+}
+
 // InitModule initializes the Elderwood characters module
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	logger.Info("Initializing Elderwood Characters Module")
@@ -229,6 +483,27 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 
 	if err := initializer.RegisterRpc("elderwood_get_house_points_history", rpcGetHousePointsHistory); err != nil {
 		logger.Error("Failed to register elderwood_get_house_points_history RPC: %v", err)
+		return err
+	}
+
+	// Register RPC endpoints for inventory management
+	if err := initializer.RegisterRpc("elderwood_get_items_catalog", rpcGetItemsCatalog); err != nil {
+		logger.Error("Failed to register elderwood_get_items_catalog RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_get_inventory", rpcGetInventory); err != nil {
+		logger.Error("Failed to register elderwood_get_inventory RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_add_item", rpcAddItem); err != nil {
+		logger.Error("Failed to register elderwood_add_item RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_remove_item", rpcRemoveItem); err != nil {
+		logger.Error("Failed to register elderwood_remove_item RPC: %v", err)
 		return err
 	}
 
@@ -849,5 +1124,382 @@ func rpcGetHousePointsHistory(ctx context.Context, logger runtime.Logger, db *sq
 		return "", errors.New("failed to build response")
 	}
 
+	return string(responseJSON), nil
+}
+
+// ============================================================================
+// Inventory System
+// ============================================================================
+
+// getInventory retrieves the inventory for a character
+func getInventory(ctx context.Context, nk runtime.NakamaModule, userID, characterID string) (*Inventory, error) {
+	reads := []*runtime.StorageRead{
+		{
+			Collection: InventoryCollection,
+			Key:        characterID,
+			UserID:     userID,
+		},
+	}
+
+	objects, err := nk.StorageRead(ctx, reads)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(objects) == 0 {
+		// Return empty inventory
+		return &Inventory{
+			CharacterID: characterID,
+			Items:       make(map[string]InventoryItem),
+			UpdatedAt:   time.Now().Unix(),
+		}, nil
+	}
+
+	var inventory Inventory
+	if err := json.Unmarshal([]byte(objects[0].Value), &inventory); err != nil {
+		return nil, err
+	}
+
+	// Ensure Items map is initialized
+	if inventory.Items == nil {
+		inventory.Items = make(map[string]InventoryItem)
+	}
+
+	return &inventory, nil
+}
+
+// saveInventory saves the inventory for a character
+func saveInventory(ctx context.Context, nk runtime.NakamaModule, userID string, inventory *Inventory) error {
+	inventoryJSON, err := json.Marshal(inventory)
+	if err != nil {
+		return err
+	}
+
+	writes := []*runtime.StorageWrite{
+		{
+			Collection:      InventoryCollection,
+			Key:             inventory.CharacterID,
+			UserID:          userID,
+			Value:           string(inventoryJSON),
+			PermissionRead:  1, // Owner can read
+			PermissionWrite: 1, // Owner can write
+		},
+	}
+
+	_, err = nk.StorageWrite(ctx, writes)
+	return err
+}
+
+// verifyCharacterOwnership checks if the user owns the character
+func verifyCharacterOwnership(ctx context.Context, nk runtime.NakamaModule, userID, characterID string) error {
+	reads := []*runtime.StorageRead{
+		{
+			Collection: CharacterCollection,
+			Key:        characterID,
+			UserID:     userID,
+		},
+	}
+
+	objects, err := nk.StorageRead(ctx, reads)
+	if err != nil {
+		return err
+	}
+
+	if len(objects) == 0 {
+		return errors.New("character not found or not owned by user")
+	}
+
+	return nil
+}
+
+// rpcGetItemsCatalog returns the list of all available items
+func rpcGetItemsCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	// Parse optional filter request
+	var req GetItemsCatalogRequest
+	if payload != "" && payload != "{}" {
+		if err := json.Unmarshal([]byte(payload), &req); err != nil {
+			logger.Error("Failed to parse get items catalog request: %v", err)
+			return "", errors.New("invalid request payload")
+		}
+	}
+
+	// Collect and filter items
+	items := make([]Item, 0, len(ItemsCatalog))
+	for _, item := range ItemsCatalog {
+		// Apply category filter if specified
+		if req.Category != "" && string(item.Category) != req.Category {
+			continue
+		}
+		// Apply rarity filter if specified
+		if req.Rarity != "" && string(item.Rarity) != req.Rarity {
+			continue
+		}
+		items = append(items, item)
+	}
+
+	// Sort items by category then by name for consistent ordering
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Category != items[j].Category {
+			return items[i].Category < items[j].Category
+		}
+		return items[i].Name < items[j].Name
+	})
+
+	response := ItemsCatalogResponse{
+		Items: items,
+		Count: len(items),
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize items catalog response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcGetInventory returns the inventory for a character
+func rpcGetInventory(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req GetInventoryRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse get inventory request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get the inventory
+	inventory, err := getInventory(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get inventory: %v", err)
+		return "", errors.New("failed to retrieve inventory")
+	}
+
+	// Build response with item details
+	itemsWithDetails := make([]InventoryItemWithDetails, 0, len(inventory.Items))
+	totalItems := 0
+
+	for _, invItem := range inventory.Items {
+		item, exists := GetItem(invItem.ItemID)
+		if !exists {
+			logger.Warn("Item %s in inventory not found in catalog", invItem.ItemID)
+			continue
+		}
+
+		itemsWithDetails = append(itemsWithDetails, InventoryItemWithDetails{
+			ItemID:      item.ID,
+			Name:        item.Name,
+			Description: item.Description,
+			Category:    item.Category,
+			Rarity:      item.Rarity,
+			Quantity:    invItem.Quantity,
+			MaxStack:    item.MaxStack,
+		})
+		totalItems += invItem.Quantity
+	}
+
+	// Sort by category then by name
+	sort.Slice(itemsWithDetails, func(i, j int) bool {
+		if itemsWithDetails[i].Category != itemsWithDetails[j].Category {
+			return itemsWithDetails[i].Category < itemsWithDetails[j].Category
+		}
+		return itemsWithDetails[i].Name < itemsWithDetails[j].Name
+	})
+
+	response := InventoryResponse{
+		CharacterID: req.CharacterID,
+		Items:       itemsWithDetails,
+		TotalItems:  totalItems,
+		UpdatedAt:   inventory.UpdatedAt,
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize inventory response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcAddItem adds an item to a character's inventory
+func rpcAddItem(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req AddItemRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse add item request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	// Validate request
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.ItemID == "" {
+		return "", errors.New("item_id is required")
+	}
+	if req.Quantity <= 0 {
+		return "", errors.New("quantity must be positive")
+	}
+
+	// Verify item exists in catalog
+	item, exists := GetItem(req.ItemID)
+	if !exists {
+		return "", errors.New("item not found in catalog")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get current inventory
+	inventory, err := getInventory(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get inventory: %v", err)
+		return "", errors.New("failed to retrieve inventory")
+	}
+
+	// Add or update item in inventory
+	currentItem, exists := inventory.Items[req.ItemID]
+	newQuantity := req.Quantity
+	if exists {
+		newQuantity += currentItem.Quantity
+	}
+
+	// Check max stack
+	if newQuantity > item.MaxStack {
+		return "", errors.New("quantity exceeds maximum stack size for this item")
+	}
+
+	inventory.Items[req.ItemID] = InventoryItem{
+		ItemID:   req.ItemID,
+		Quantity: newQuantity,
+	}
+	inventory.UpdatedAt = time.Now().Unix()
+
+	// Save inventory
+	if err := saveInventory(ctx, nk, userID, inventory); err != nil {
+		logger.Error("Failed to save inventory: %v", err)
+		return "", errors.New("failed to save inventory")
+	}
+
+	logger.Info("Added %d x %s to character %s inventory", req.Quantity, req.ItemID, req.CharacterID)
+
+	// Return the updated item info
+	response := map[string]interface{}{
+		"character_id": req.CharacterID,
+		"item_id":      req.ItemID,
+		"item_name":    item.Name,
+		"quantity":     newQuantity,
+		"added":        req.Quantity,
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcRemoveItem removes an item from a character's inventory
+func rpcRemoveItem(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req RemoveItemRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse remove item request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	// Validate request
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.ItemID == "" {
+		return "", errors.New("item_id is required")
+	}
+	if req.Quantity <= 0 {
+		return "", errors.New("quantity must be positive")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get current inventory
+	inventory, err := getInventory(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get inventory: %v", err)
+		return "", errors.New("failed to retrieve inventory")
+	}
+
+	// Check if item exists in inventory
+	currentItem, exists := inventory.Items[req.ItemID]
+	if !exists {
+		return "", errors.New("item not found in inventory")
+	}
+
+	// Check if there's enough quantity
+	if currentItem.Quantity < req.Quantity {
+		return "", errors.New("not enough items in inventory")
+	}
+
+	// Update or remove item
+	newQuantity := currentItem.Quantity - req.Quantity
+	if newQuantity <= 0 {
+		delete(inventory.Items, req.ItemID)
+	} else {
+		inventory.Items[req.ItemID] = InventoryItem{
+			ItemID:   req.ItemID,
+			Quantity: newQuantity,
+		}
+	}
+	inventory.UpdatedAt = time.Now().Unix()
+
+	// Save inventory
+	if err := saveInventory(ctx, nk, userID, inventory); err != nil {
+		logger.Error("Failed to save inventory: %v", err)
+		return "", errors.New("failed to save inventory")
+	}
+
+	logger.Info("Removed %d x %s from character %s inventory", req.Quantity, req.ItemID, req.CharacterID)
+
+	// Get item name for response
+	itemName := req.ItemID
+	if item, exists := GetItem(req.ItemID); exists {
+		itemName = item.Name
+	}
+
+	// Return the updated item info
+	response := map[string]interface{}{
+		"character_id":     req.CharacterID,
+		"item_id":          req.ItemID,
+		"item_name":        itemName,
+		"quantity":         newQuantity,
+		"removed":          req.Quantity,
+		"removed_entirely": newQuantity <= 0,
+	}
+	responseJSON, _ := json.Marshal(response)
 	return string(responseJSON), nil
 }
