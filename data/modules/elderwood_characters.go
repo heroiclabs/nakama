@@ -83,6 +83,82 @@ const (
 	MinSpellLevel = 0
 )
 
+// Notebook constants
+const (
+	// NotebooksCollection stores character notebooks
+	NotebooksCollection = "notebooks"
+	// MaxNotebookTitleLength is the maximum length of a notebook title
+	MaxNotebookTitleLength = 128
+	// MaxNotebookContentLength is the maximum length of notebook content
+	MaxNotebookContentLength = 10000
+)
+
+// Subject represents a school subject for notebooks
+type Subject string
+
+const (
+	SubjectDefense         Subject = "Défense contre les forces du mal"
+	SubjectPotions         Subject = "Potions"
+	SubjectTransfiguration Subject = "Métamorphose"
+	SubjectCharms          Subject = "Sortilèges"
+	SubjectHistory         Subject = "Histoire de la Magie"
+	SubjectHerbology       Subject = "Botanique"
+	SubjectAstronomy       Subject = "Astronomie"
+	SubjectDivination      Subject = "Divination"
+	SubjectArithmancy      Subject = "Arithmancie"
+	SubjectAncientRunes    Subject = "Étude des Runes"
+	SubjectCareCreatures   Subject = "Soins aux Créatures Magiques"
+	SubjectMuggleStudies   Subject = "Étude des Moldus"
+	SubjectAlchemy         Subject = "Alchimie"
+	SubjectFlying          Subject = "Vol sur Balai"
+	SubjectOther           Subject = "Autre"
+)
+
+// ValidSubjects contains all valid school subjects
+var ValidSubjects = map[Subject]bool{
+	SubjectDefense:         true,
+	SubjectPotions:         true,
+	SubjectTransfiguration: true,
+	SubjectCharms:          true,
+	SubjectHistory:         true,
+	SubjectHerbology:       true,
+	SubjectAstronomy:       true,
+	SubjectDivination:      true,
+	SubjectArithmancy:      true,
+	SubjectAncientRunes:    true,
+	SubjectCareCreatures:   true,
+	SubjectMuggleStudies:   true,
+	SubjectAlchemy:         true,
+	SubjectFlying:          true,
+	SubjectOther:           true,
+}
+
+// IsValidSubject checks if a subject is valid
+func IsValidSubject(subject Subject) bool {
+	return ValidSubjects[subject]
+}
+
+// GetAllSubjects returns a list of all valid subjects
+func GetAllSubjects() []Subject {
+	return []Subject{
+		SubjectDefense,
+		SubjectPotions,
+		SubjectTransfiguration,
+		SubjectCharms,
+		SubjectHistory,
+		SubjectHerbology,
+		SubjectAstronomy,
+		SubjectDivination,
+		SubjectArithmancy,
+		SubjectAncientRunes,
+		SubjectCareCreatures,
+		SubjectMuggleStudies,
+		SubjectAlchemy,
+		SubjectFlying,
+		SubjectOther,
+	}
+}
+
 // SpellCategory represents the category of a spell
 type SpellCategory string
 
@@ -750,6 +826,65 @@ type SpellsCatalogResponse struct {
 	Count  int     `json:"count"`
 }
 
+// Notebook represents a character's notebook with notes for a subject
+type Notebook struct {
+	ID          string  `json:"id"`
+	CharacterID string  `json:"character_id"`
+	Title       string  `json:"title"`
+	Content     string  `json:"content"`
+	Subject     Subject `json:"subject"`
+	CreatedAt   int64   `json:"created_at"`
+	UpdatedAt   int64   `json:"updated_at"`
+}
+
+// CreateNotebookRequest is the payload for creating a new notebook
+type CreateNotebookRequest struct {
+	CharacterID string  `json:"character_id"`
+	Title       string  `json:"title"`
+	Content     string  `json:"content"`
+	Subject     Subject `json:"subject"`
+}
+
+// GetNotebooksRequest is the payload for getting all notebooks of a character
+type GetNotebooksRequest struct {
+	CharacterID string  `json:"character_id"`
+	Subject     Subject `json:"subject,omitempty"` // Optional filter by subject
+}
+
+// GetNotebookRequest is the payload for getting a specific notebook
+type GetNotebookRequest struct {
+	CharacterID string `json:"character_id"`
+	NotebookID  string `json:"notebook_id"`
+}
+
+// UpdateNotebookRequest is the payload for updating a notebook
+type UpdateNotebookRequest struct {
+	CharacterID string   `json:"character_id"`
+	NotebookID  string   `json:"notebook_id"`
+	Title       *string  `json:"title,omitempty"`
+	Content     *string  `json:"content,omitempty"`
+	Subject     *Subject `json:"subject,omitempty"`
+}
+
+// DeleteNotebookRequest is the payload for deleting a notebook
+type DeleteNotebookRequest struct {
+	CharacterID string `json:"character_id"`
+	NotebookID  string `json:"notebook_id"`
+}
+
+// NotebooksResponse is the response containing a list of notebooks
+type NotebooksResponse struct {
+	CharacterID string     `json:"character_id"`
+	Notebooks   []Notebook `json:"notebooks"`
+	Count       int        `json:"count"`
+}
+
+// SubjectsResponse is the response containing all available subjects
+type SubjectsResponse struct {
+	Subjects []Subject `json:"subjects"`
+	Count    int       `json:"count"`
+}
+
 // InitModule initializes the Elderwood characters module
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	logger.Info("Initializing Elderwood Characters Module")
@@ -840,6 +975,37 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 
 	if err := initializer.RegisterRpc("elderwood_forget_spell", rpcForgetSpell); err != nil {
 		logger.Error("Failed to register elderwood_forget_spell RPC: %v", err)
+		return err
+	}
+
+	// Register RPC endpoints for notebook management
+	if err := initializer.RegisterRpc("elderwood_get_subjects", rpcGetSubjects); err != nil {
+		logger.Error("Failed to register elderwood_get_subjects RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_create_notebook", rpcCreateNotebook); err != nil {
+		logger.Error("Failed to register elderwood_create_notebook RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_get_notebooks", rpcGetNotebooks); err != nil {
+		logger.Error("Failed to register elderwood_get_notebooks RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_get_notebook", rpcGetNotebook); err != nil {
+		logger.Error("Failed to register elderwood_get_notebook RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_update_notebook", rpcUpdateNotebook); err != nil {
+		logger.Error("Failed to register elderwood_update_notebook RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_delete_notebook", rpcDeleteNotebook); err != nil {
+		logger.Error("Failed to register elderwood_delete_notebook RPC: %v", err)
 		return err
 	}
 
@@ -2288,6 +2454,435 @@ func rpcForgetSpell(ctx context.Context, logger runtime.Logger, db *sql.DB, nk r
 		"spell_id":     req.SpellID,
 		"spell_name":   spellName,
 		"status":       "forgotten",
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// ============================================================================
+// Notebooks System
+// ============================================================================
+
+// getCharacterNotebooks retrieves all notebooks for a character
+func getCharacterNotebooks(ctx context.Context, nk runtime.NakamaModule, userID, characterID string) ([]Notebook, error) {
+	// List all notebooks for this character
+	// We use a composite key: characterID_notebookID
+	objects, _, err := nk.StorageList(ctx, "", userID, NotebooksCollection, 100, "")
+	if err != nil {
+		return nil, err
+	}
+
+	notebooks := make([]Notebook, 0)
+	for _, obj := range objects {
+		var notebook Notebook
+		if err := json.Unmarshal([]byte(obj.Value), &notebook); err != nil {
+			continue
+		}
+		// Filter by character ID
+		if notebook.CharacterID == characterID {
+			notebooks = append(notebooks, notebook)
+		}
+	}
+
+	return notebooks, nil
+}
+
+// getNotebook retrieves a specific notebook
+func getNotebook(ctx context.Context, nk runtime.NakamaModule, userID, notebookID string) (*Notebook, string, error) {
+	reads := []*runtime.StorageRead{
+		{
+			Collection: NotebooksCollection,
+			Key:        notebookID,
+			UserID:     userID,
+		},
+	}
+
+	objects, err := nk.StorageRead(ctx, reads)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if len(objects) == 0 {
+		return nil, "", errors.New("notebook not found")
+	}
+
+	var notebook Notebook
+	if err := json.Unmarshal([]byte(objects[0].Value), &notebook); err != nil {
+		return nil, "", err
+	}
+
+	return &notebook, objects[0].Version, nil
+}
+
+// saveNotebook saves a notebook to storage
+func saveNotebook(ctx context.Context, nk runtime.NakamaModule, userID string, notebook *Notebook, version string) error {
+	notebookJSON, err := json.Marshal(notebook)
+	if err != nil {
+		return err
+	}
+
+	writes := []*runtime.StorageWrite{
+		{
+			Collection:      NotebooksCollection,
+			Key:             notebook.ID,
+			UserID:          userID,
+			Value:           string(notebookJSON),
+			Version:         version,
+			PermissionRead:  1, // Owner can read
+			PermissionWrite: 1, // Owner can write
+		},
+	}
+
+	_, err = nk.StorageWrite(ctx, writes)
+	return err
+}
+
+// rpcGetSubjects returns the list of all available school subjects
+func rpcGetSubjects(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	subjects := GetAllSubjects()
+
+	response := SubjectsResponse{
+		Subjects: subjects,
+		Count:    len(subjects),
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize subjects response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcCreateNotebook creates a new notebook for a character
+func rpcCreateNotebook(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req CreateNotebookRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse create notebook request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	// Validate request
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.Title == "" {
+		return "", errors.New("title is required")
+	}
+	if len(req.Title) > MaxNotebookTitleLength {
+		return "", errors.New("title exceeds maximum length")
+	}
+	if len(req.Content) > MaxNotebookContentLength {
+		return "", errors.New("content exceeds maximum length")
+	}
+	if !IsValidSubject(req.Subject) {
+		return "", errors.New("invalid subject")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Create the notebook
+	now := time.Now().Unix()
+	notebook := Notebook{
+		ID:          uuid.Must(uuid.NewV4()).String(),
+		CharacterID: req.CharacterID,
+		Title:       req.Title,
+		Content:     req.Content,
+		Subject:     req.Subject,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	// Save the notebook
+	if err := saveNotebook(ctx, nk, userID, &notebook, ""); err != nil {
+		logger.Error("Failed to save notebook: %v", err)
+		return "", errors.New("failed to create notebook")
+	}
+
+	logger.Info("Notebook created: %s for character %s", notebook.ID, req.CharacterID)
+
+	responseJSON, err := json.Marshal(notebook)
+	if err != nil {
+		logger.Error("Failed to serialize notebook response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcGetNotebooks returns all notebooks for a character
+func rpcGetNotebooks(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req GetNotebooksRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse get notebooks request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+
+	// Validate subject filter if provided
+	if req.Subject != "" && !IsValidSubject(req.Subject) {
+		return "", errors.New("invalid subject filter")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get all notebooks for this character
+	notebooks, err := getCharacterNotebooks(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get notebooks: %v", err)
+		return "", errors.New("failed to retrieve notebooks")
+	}
+
+	// Apply subject filter if specified
+	if req.Subject != "" {
+		filtered := make([]Notebook, 0)
+		for _, nb := range notebooks {
+			if nb.Subject == req.Subject {
+				filtered = append(filtered, nb)
+			}
+		}
+		notebooks = filtered
+	}
+
+	// Sort by updated_at descending (most recent first)
+	sort.Slice(notebooks, func(i, j int) bool {
+		return notebooks[i].UpdatedAt > notebooks[j].UpdatedAt
+	})
+
+	response := NotebooksResponse{
+		CharacterID: req.CharacterID,
+		Notebooks:   notebooks,
+		Count:       len(notebooks),
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize notebooks response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcGetNotebook returns a specific notebook
+func rpcGetNotebook(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req GetNotebookRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse get notebook request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.NotebookID == "" {
+		return "", errors.New("notebook_id is required")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get the notebook
+	notebook, _, err := getNotebook(ctx, nk, userID, req.NotebookID)
+	if err != nil {
+		if err.Error() == "notebook not found" {
+			return "", err
+		}
+		logger.Error("Failed to get notebook: %v", err)
+		return "", errors.New("failed to retrieve notebook")
+	}
+
+	// Verify the notebook belongs to the character
+	if notebook.CharacterID != req.CharacterID {
+		return "", errors.New("notebook not found")
+	}
+
+	responseJSON, err := json.Marshal(notebook)
+	if err != nil {
+		logger.Error("Failed to serialize notebook response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcUpdateNotebook updates a notebook's title, content, or subject
+func rpcUpdateNotebook(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req UpdateNotebookRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse update notebook request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.NotebookID == "" {
+		return "", errors.New("notebook_id is required")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get the existing notebook
+	notebook, version, err := getNotebook(ctx, nk, userID, req.NotebookID)
+	if err != nil {
+		if err.Error() == "notebook not found" {
+			return "", err
+		}
+		logger.Error("Failed to get notebook for update: %v", err)
+		return "", errors.New("failed to retrieve notebook")
+	}
+
+	// Verify the notebook belongs to the character
+	if notebook.CharacterID != req.CharacterID {
+		return "", errors.New("notebook not found")
+	}
+
+	// Apply updates
+	if req.Title != nil {
+		if *req.Title == "" {
+			return "", errors.New("title cannot be empty")
+		}
+		if len(*req.Title) > MaxNotebookTitleLength {
+			return "", errors.New("title exceeds maximum length")
+		}
+		notebook.Title = *req.Title
+	}
+
+	if req.Content != nil {
+		if len(*req.Content) > MaxNotebookContentLength {
+			return "", errors.New("content exceeds maximum length")
+		}
+		notebook.Content = *req.Content
+	}
+
+	if req.Subject != nil {
+		if !IsValidSubject(*req.Subject) {
+			return "", errors.New("invalid subject")
+		}
+		notebook.Subject = *req.Subject
+	}
+
+	notebook.UpdatedAt = time.Now().Unix()
+
+	// Save the updated notebook
+	if err := saveNotebook(ctx, nk, userID, notebook, version); err != nil {
+		logger.Error("Failed to save updated notebook: %v", err)
+		return "", errors.New("failed to update notebook - it may have been modified")
+	}
+
+	logger.Info("Notebook updated: %s for character %s", req.NotebookID, req.CharacterID)
+
+	responseJSON, err := json.Marshal(notebook)
+	if err != nil {
+		logger.Error("Failed to serialize notebook response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcDeleteNotebook deletes a notebook
+func rpcDeleteNotebook(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req DeleteNotebookRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse delete notebook request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.NotebookID == "" {
+		return "", errors.New("notebook_id is required")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get the notebook to verify ownership
+	notebook, _, err := getNotebook(ctx, nk, userID, req.NotebookID)
+	if err != nil {
+		if err.Error() == "notebook not found" {
+			return "", err
+		}
+		logger.Error("Failed to get notebook for deletion: %v", err)
+		return "", errors.New("failed to verify notebook")
+	}
+
+	// Verify the notebook belongs to the character
+	if notebook.CharacterID != req.CharacterID {
+		return "", errors.New("notebook not found")
+	}
+
+	// Delete the notebook
+	deletes := []*runtime.StorageDelete{
+		{
+			Collection: NotebooksCollection,
+			Key:        req.NotebookID,
+			UserID:     userID,
+		},
+	}
+
+	if err := nk.StorageDelete(ctx, deletes); err != nil {
+		logger.Error("Failed to delete notebook: %v", err)
+		return "", errors.New("failed to delete notebook")
+	}
+
+	logger.Info("Notebook deleted: %s for character %s", req.NotebookID, req.CharacterID)
+
+	// Return success message
+	response := map[string]string{
+		"status":      "success",
+		"message":     "Notebook deleted successfully",
+		"notebook_id": req.NotebookID,
 	}
 	responseJSON, _ := json.Marshal(response)
 	return string(responseJSON), nil
