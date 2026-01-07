@@ -73,6 +73,244 @@ const (
 	MaxStackSize = 999
 )
 
+// Spells constants
+const (
+	// SpellsCollection stores character spells
+	SpellsCollection = "character_spells"
+	// MaxSpellLevel is the maximum level a spell can reach
+	MaxSpellLevel = 3
+	// MinSpellLevel is the starting level for learned spells
+	MinSpellLevel = 0
+)
+
+// SpellCategory represents the category of a spell
+type SpellCategory string
+
+const (
+	SpellCategoryCharm       SpellCategory = "charm"        // Enchantements
+	SpellCategoryTransfiguration SpellCategory = "transfiguration" // Métamorphose
+	SpellCategoryDefense     SpellCategory = "defense"      // Défense contre les forces du mal
+	SpellCategoryHex         SpellCategory = "hex"          // Maléfices
+	SpellCategoryCurse       SpellCategory = "curse"        // Sortilèges
+	SpellCategoryHealing     SpellCategory = "healing"      // Soins
+	SpellCategoryUtility     SpellCategory = "utility"      // Utilitaires
+)
+
+// SpellDifficulty represents how hard a spell is to learn
+type SpellDifficulty string
+
+const (
+	DifficultyBeginner     SpellDifficulty = "beginner"
+	DifficultyIntermediate SpellDifficulty = "intermediate"
+	DifficultyAdvanced     SpellDifficulty = "advanced"
+	DifficultyMaster       SpellDifficulty = "master"
+)
+
+// Spell represents a spell definition in the game catalog
+type Spell struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Incantation string          `json:"incantation"`
+	Description string          `json:"description"`
+	Category    SpellCategory   `json:"category"`
+	Difficulty  SpellDifficulty `json:"difficulty"`
+	MinLevel    int             `json:"min_level"` // Minimum character level to learn
+}
+
+// SpellsCatalog contains all available spells in the game
+var SpellsCatalog = map[string]Spell{
+	// Charms (Enchantements)
+	"spell_lumos": {
+		ID: "spell_lumos", Name: "Lumos", Incantation: "Lumos",
+		Description: "Produit un faisceau de lumière au bout de la baguette",
+		Category: SpellCategoryCharm, Difficulty: DifficultyBeginner, MinLevel: 1,
+	},
+	"spell_nox": {
+		ID: "spell_nox", Name: "Nox", Incantation: "Nox",
+		Description: "Éteint la lumière produite par Lumos",
+		Category: SpellCategoryCharm, Difficulty: DifficultyBeginner, MinLevel: 1,
+	},
+	"spell_wingardium_leviosa": {
+		ID: "spell_wingardium_leviosa", Name: "Wingardium Leviosa", Incantation: "Wingardium Leviosa",
+		Description: "Fait léviter un objet",
+		Category: SpellCategoryCharm, Difficulty: DifficultyBeginner, MinLevel: 1,
+	},
+	"spell_accio": {
+		ID: "spell_accio", Name: "Accio", Incantation: "Accio",
+		Description: "Attire un objet vers le lanceur",
+		Category: SpellCategoryCharm, Difficulty: DifficultyIntermediate, MinLevel: 4,
+	},
+	"spell_aguamenti": {
+		ID: "spell_aguamenti", Name: "Aguamenti", Incantation: "Aguamenti",
+		Description: "Fait jaillir de l'eau de la baguette",
+		Category: SpellCategoryCharm, Difficulty: DifficultyIntermediate, MinLevel: 5,
+	},
+	"spell_alohomora": {
+		ID: "spell_alohomora", Name: "Alohomora", Incantation: "Alohomora",
+		Description: "Déverrouille les portes et serrures",
+		Category: SpellCategoryCharm, Difficulty: DifficultyBeginner, MinLevel: 1,
+	},
+	"spell_reparo": {
+		ID: "spell_reparo", Name: "Reparo", Incantation: "Reparo",
+		Description: "Répare un objet cassé",
+		Category: SpellCategoryCharm, Difficulty: DifficultyBeginner, MinLevel: 2,
+	},
+	"spell_expecto_patronum": {
+		ID: "spell_expecto_patronum", Name: "Expecto Patronum", Incantation: "Expecto Patronum",
+		Description: "Invoque un Patronus pour repousser les Détraqueurs",
+		Category: SpellCategoryCharm, Difficulty: DifficultyMaster, MinLevel: 13,
+	},
+
+	// Transfiguration (Métamorphose)
+	"spell_vera_verto": {
+		ID: "spell_vera_verto", Name: "Vera Verto", Incantation: "Vera Verto",
+		Description: "Transforme un animal en calice",
+		Category: SpellCategoryTransfiguration, Difficulty: DifficultyIntermediate, MinLevel: 4,
+	},
+	"spell_avifors": {
+		ID: "spell_avifors", Name: "Avifors", Incantation: "Avifors",
+		Description: "Transforme un objet en oiseau",
+		Category: SpellCategoryTransfiguration, Difficulty: DifficultyIntermediate, MinLevel: 5,
+	},
+	"spell_lapifors": {
+		ID: "spell_lapifors", Name: "Lapifors", Incantation: "Lapifors",
+		Description: "Transforme un objet en lapin",
+		Category: SpellCategoryTransfiguration, Difficulty: DifficultyIntermediate, MinLevel: 6,
+	},
+
+	// Defense (Défense contre les forces du mal)
+	"spell_expelliarmus": {
+		ID: "spell_expelliarmus", Name: "Expelliarmus", Incantation: "Expelliarmus",
+		Description: "Désarme l'adversaire",
+		Category: SpellCategoryDefense, Difficulty: DifficultyIntermediate, MinLevel: 4,
+	},
+	"spell_protego": {
+		ID: "spell_protego", Name: "Protego", Incantation: "Protego",
+		Description: "Crée un bouclier magique protecteur",
+		Category: SpellCategoryDefense, Difficulty: DifficultyIntermediate, MinLevel: 5,
+	},
+	"spell_stupefy": {
+		ID: "spell_stupefy", Name: "Stupefix", Incantation: "Stupefy",
+		Description: "Stupéfixie l'adversaire",
+		Category: SpellCategoryDefense, Difficulty: DifficultyIntermediate, MinLevel: 5,
+	},
+	"spell_impedimenta": {
+		ID: "spell_impedimenta", Name: "Impedimenta", Incantation: "Impedimenta",
+		Description: "Ralentit ou immobilise la cible",
+		Category: SpellCategoryDefense, Difficulty: DifficultyIntermediate, MinLevel: 6,
+	},
+	"spell_riddikulus": {
+		ID: "spell_riddikulus", Name: "Riddikulus", Incantation: "Riddikulus",
+		Description: "Transforme un Épouvantard en quelque chose de ridicule",
+		Category: SpellCategoryDefense, Difficulty: DifficultyAdvanced, MinLevel: 7,
+	},
+	"spell_protego_maxima": {
+		ID: "spell_protego_maxima", Name: "Protego Maxima", Incantation: "Protego Maxima",
+		Description: "Version puissante du sortilège du Bouclier",
+		Category: SpellCategoryDefense, Difficulty: DifficultyMaster, MinLevel: 15,
+	},
+
+	// Hex (Maléfices)
+	"spell_flipendo": {
+		ID: "spell_flipendo", Name: "Flipendo", Incantation: "Flipendo",
+		Description: "Repousse la cible avec force",
+		Category: SpellCategoryHex, Difficulty: DifficultyBeginner, MinLevel: 2,
+	},
+	"spell_petrificus_totalus": {
+		ID: "spell_petrificus_totalus", Name: "Petrificus Totalus", Incantation: "Petrificus Totalus",
+		Description: "Pétrifie complètement la cible",
+		Category: SpellCategoryHex, Difficulty: DifficultyIntermediate, MinLevel: 5,
+	},
+	"spell_locomotor_mortis": {
+		ID: "spell_locomotor_mortis", Name: "Locomotor Mortis", Incantation: "Locomotor Mortis",
+		Description: "Bloque les jambes de la cible",
+		Category: SpellCategoryHex, Difficulty: DifficultyBeginner, MinLevel: 3,
+	},
+	"spell_incendio": {
+		ID: "spell_incendio", Name: "Incendio", Incantation: "Incendio",
+		Description: "Produit des flammes",
+		Category: SpellCategoryHex, Difficulty: DifficultyIntermediate, MinLevel: 4,
+	},
+	"spell_confringo": {
+		ID: "spell_confringo", Name: "Confringo", Incantation: "Confringo",
+		Description: "Provoque une explosion",
+		Category: SpellCategoryHex, Difficulty: DifficultyAdvanced, MinLevel: 10,
+	},
+
+	// Curse (Sortilèges puissants)
+	"spell_sectumsempra": {
+		ID: "spell_sectumsempra", Name: "Sectumsempra", Incantation: "Sectumsempra",
+		Description: "Inflige de profondes entailles à la cible",
+		Category: SpellCategoryCurse, Difficulty: DifficultyMaster, MinLevel: 15,
+	},
+	"spell_levicorpus": {
+		ID: "spell_levicorpus", Name: "Levicorpus", Incantation: "Levicorpus",
+		Description: "Suspend la cible par la cheville dans les airs",
+		Category: SpellCategoryCurse, Difficulty: DifficultyAdvanced, MinLevel: 8,
+	},
+	"spell_liberacorpus": {
+		ID: "spell_liberacorpus", Name: "Liberacorpus", Incantation: "Liberacorpus",
+		Description: "Contre-sort de Levicorpus",
+		Category: SpellCategoryCurse, Difficulty: DifficultyAdvanced, MinLevel: 8,
+	},
+
+	// Healing (Soins)
+	"spell_episkey": {
+		ID: "spell_episkey", Name: "Episkey", Incantation: "Episkey",
+		Description: "Soigne les blessures légères",
+		Category: SpellCategoryHealing, Difficulty: DifficultyIntermediate, MinLevel: 5,
+	},
+	"spell_vulnera_sanentur": {
+		ID: "spell_vulnera_sanentur", Name: "Vulnera Sanentur", Incantation: "Vulnera Sanentur",
+		Description: "Soigne les blessures graves et les hémorragies",
+		Category: SpellCategoryHealing, Difficulty: DifficultyMaster, MinLevel: 15,
+	},
+	"spell_ferula": {
+		ID: "spell_ferula", Name: "Ferula", Incantation: "Ferula",
+		Description: "Crée une attelle et des bandages",
+		Category: SpellCategoryHealing, Difficulty: DifficultyIntermediate, MinLevel: 6,
+	},
+
+	// Utility (Utilitaires)
+	"spell_scourgify": {
+		ID: "spell_scourgify", Name: "Scourgify", Incantation: "Scourgify",
+		Description: "Nettoie un objet ou une surface",
+		Category: SpellCategoryUtility, Difficulty: DifficultyBeginner, MinLevel: 1,
+	},
+	"spell_pack": {
+		ID: "spell_pack", Name: "Pack", Incantation: "Pack",
+		Description: "Range automatiquement les affaires dans une valise",
+		Category: SpellCategoryUtility, Difficulty: DifficultyBeginner, MinLevel: 2,
+	},
+	"spell_point_me": {
+		ID: "spell_point_me", Name: "Point Me", Incantation: "Point Me",
+		Description: "Transforme la baguette en boussole",
+		Category: SpellCategoryUtility, Difficulty: DifficultyBeginner, MinLevel: 3,
+	},
+	"spell_muffliato": {
+		ID: "spell_muffliato", Name: "Muffliato", Incantation: "Muffliato",
+		Description: "Empêche les autres d'entendre une conversation",
+		Category: SpellCategoryUtility, Difficulty: DifficultyAdvanced, MinLevel: 9,
+	},
+	"spell_apparition": {
+		ID: "spell_apparition", Name: "Transplanage", Incantation: "Apparition",
+		Description: "Permet de se téléporter instantanément",
+		Category: SpellCategoryUtility, Difficulty: DifficultyMaster, MinLevel: 17,
+	},
+}
+
+// IsValidSpell checks if a spell ID exists in the catalog
+func IsValidSpell(spellID string) bool {
+	_, exists := SpellsCatalog[spellID]
+	return exists
+}
+
+// GetSpell returns a spell from the catalog
+func GetSpell(spellID string) (Spell, bool) {
+	spell, exists := SpellsCatalog[spellID]
+	return spell, exists
+}
+
 // ItemCategory represents the category of an item
 type ItemCategory string
 
@@ -440,6 +678,78 @@ type GetItemsCatalogRequest struct {
 	Rarity   string `json:"rarity,omitempty"`   // Optional: filter by rarity
 }
 
+// CharacterSpell represents a spell learned by a character
+type CharacterSpell struct {
+	SpellID   string `json:"spell_id"`
+	Level     int    `json:"level"` // 0 to MaxSpellLevel
+	LearnedAt int64  `json:"learned_at"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
+// CharacterSpells represents all spells learned by a character
+type CharacterSpells struct {
+	CharacterID string                    `json:"character_id"`
+	Spells      map[string]CharacterSpell `json:"spells"` // Key is spell_id
+	UpdatedAt   int64                     `json:"updated_at"`
+}
+
+// LearnSpellRequest is the payload for learning a new spell
+type LearnSpellRequest struct {
+	CharacterID string `json:"character_id"`
+	SpellID     string `json:"spell_id"`
+}
+
+// UpgradeSpellRequest is the payload for upgrading a spell level
+type UpgradeSpellRequest struct {
+	CharacterID string `json:"character_id"`
+	SpellID     string `json:"spell_id"`
+}
+
+// ForgetSpellRequest is the payload for forgetting a spell
+type ForgetSpellRequest struct {
+	CharacterID string `json:"character_id"`
+	SpellID     string `json:"spell_id"`
+}
+
+// GetCharacterSpellsRequest is the payload for getting character spells
+type GetCharacterSpellsRequest struct {
+	CharacterID string `json:"character_id"`
+}
+
+// GetSpellsCatalogRequest is the payload for filtering the spells catalog
+type GetSpellsCatalogRequest struct {
+	Category   string `json:"category,omitempty"`   // Optional: filter by category
+	Difficulty string `json:"difficulty,omitempty"` // Optional: filter by difficulty
+	MaxLevel   int    `json:"max_level,omitempty"`  // Optional: filter by max character level required
+}
+
+// CharacterSpellWithDetails combines learned spell with catalog details
+type CharacterSpellWithDetails struct {
+	SpellID     string          `json:"spell_id"`
+	Name        string          `json:"name"`
+	Incantation string          `json:"incantation"`
+	Description string          `json:"description"`
+	Category    SpellCategory   `json:"category"`
+	Difficulty  SpellDifficulty `json:"difficulty"`
+	Level       int             `json:"level"`     // Current mastery level (0-3)
+	MaxLevel    int             `json:"max_level"` // Maximum level (always 3)
+	LearnedAt   int64           `json:"learned_at"`
+}
+
+// CharacterSpellsResponse is the response containing character spells with details
+type CharacterSpellsResponse struct {
+	CharacterID string                      `json:"character_id"`
+	Spells      []CharacterSpellWithDetails `json:"spells"`
+	TotalSpells int                         `json:"total_spells"`
+	UpdatedAt   int64                       `json:"updated_at"`
+}
+
+// SpellsCatalogResponse is the response containing all available spells
+type SpellsCatalogResponse struct {
+	Spells []Spell `json:"spells"`
+	Count  int     `json:"count"`
+}
+
 // InitModule initializes the Elderwood characters module
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	logger.Info("Initializing Elderwood Characters Module")
@@ -504,6 +814,32 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 
 	if err := initializer.RegisterRpc("elderwood_remove_item", rpcRemoveItem); err != nil {
 		logger.Error("Failed to register elderwood_remove_item RPC: %v", err)
+		return err
+	}
+
+	// Register RPC endpoints for spells management
+	if err := initializer.RegisterRpc("elderwood_get_spells_catalog", rpcGetSpellsCatalog); err != nil {
+		logger.Error("Failed to register elderwood_get_spells_catalog RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_get_character_spells", rpcGetCharacterSpells); err != nil {
+		logger.Error("Failed to register elderwood_get_character_spells RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_learn_spell", rpcLearnSpell); err != nil {
+		logger.Error("Failed to register elderwood_learn_spell RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_upgrade_spell", rpcUpgradeSpell); err != nil {
+		logger.Error("Failed to register elderwood_upgrade_spell RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_forget_spell", rpcForgetSpell); err != nil {
+		logger.Error("Failed to register elderwood_forget_spell RPC: %v", err)
 		return err
 	}
 
@@ -1499,6 +1835,459 @@ func rpcRemoveItem(ctx context.Context, logger runtime.Logger, db *sql.DB, nk ru
 		"quantity":         newQuantity,
 		"removed":          req.Quantity,
 		"removed_entirely": newQuantity <= 0,
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// ============================================================================
+// Spells System
+// ============================================================================
+
+// getCharacterSpells retrieves the spells for a character
+func getCharacterSpells(ctx context.Context, nk runtime.NakamaModule, userID, characterID string) (*CharacterSpells, error) {
+	reads := []*runtime.StorageRead{
+		{
+			Collection: SpellsCollection,
+			Key:        characterID,
+			UserID:     userID,
+		},
+	}
+
+	objects, err := nk.StorageRead(ctx, reads)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(objects) == 0 {
+		// Return empty spells
+		return &CharacterSpells{
+			CharacterID: characterID,
+			Spells:      make(map[string]CharacterSpell),
+			UpdatedAt:   time.Now().Unix(),
+		}, nil
+	}
+
+	var spells CharacterSpells
+	if err := json.Unmarshal([]byte(objects[0].Value), &spells); err != nil {
+		return nil, err
+	}
+
+	// Ensure Spells map is initialized
+	if spells.Spells == nil {
+		spells.Spells = make(map[string]CharacterSpell)
+	}
+
+	return &spells, nil
+}
+
+// saveCharacterSpells saves the spells for a character
+func saveCharacterSpells(ctx context.Context, nk runtime.NakamaModule, userID string, spells *CharacterSpells) error {
+	spellsJSON, err := json.Marshal(spells)
+	if err != nil {
+		return err
+	}
+
+	writes := []*runtime.StorageWrite{
+		{
+			Collection:      SpellsCollection,
+			Key:             spells.CharacterID,
+			UserID:          userID,
+			Value:           string(spellsJSON),
+			PermissionRead:  1, // Owner can read
+			PermissionWrite: 1, // Owner can write
+		},
+	}
+
+	_, err = nk.StorageWrite(ctx, writes)
+	return err
+}
+
+// getCharacterLevel retrieves the level of a character
+func getCharacterLevel(ctx context.Context, nk runtime.NakamaModule, userID, characterID string) (int, error) {
+	reads := []*runtime.StorageRead{
+		{
+			Collection: CharacterCollection,
+			Key:        characterID,
+			UserID:     userID,
+		},
+	}
+
+	objects, err := nk.StorageRead(ctx, reads)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(objects) == 0 {
+		return 0, errors.New("character not found")
+	}
+
+	var character Character
+	if err := json.Unmarshal([]byte(objects[0].Value), &character); err != nil {
+		return 0, err
+	}
+
+	return character.Level, nil
+}
+
+// rpcGetSpellsCatalog returns the list of all available spells
+func rpcGetSpellsCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	// Parse optional filter request
+	var req GetSpellsCatalogRequest
+	if payload != "" && payload != "{}" {
+		if err := json.Unmarshal([]byte(payload), &req); err != nil {
+			logger.Error("Failed to parse get spells catalog request: %v", err)
+			return "", errors.New("invalid request payload")
+		}
+	}
+
+	// Collect and filter spells
+	spells := make([]Spell, 0, len(SpellsCatalog))
+	for _, spell := range SpellsCatalog {
+		// Apply category filter if specified
+		if req.Category != "" && string(spell.Category) != req.Category {
+			continue
+		}
+		// Apply difficulty filter if specified
+		if req.Difficulty != "" && string(spell.Difficulty) != req.Difficulty {
+			continue
+		}
+		// Apply max level filter if specified
+		if req.MaxLevel > 0 && spell.MinLevel > req.MaxLevel {
+			continue
+		}
+		spells = append(spells, spell)
+	}
+
+	// Sort spells by category then by name for consistent ordering
+	sort.Slice(spells, func(i, j int) bool {
+		if spells[i].Category != spells[j].Category {
+			return spells[i].Category < spells[j].Category
+		}
+		return spells[i].Name < spells[j].Name
+	})
+
+	response := SpellsCatalogResponse{
+		Spells: spells,
+		Count:  len(spells),
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize spells catalog response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcGetCharacterSpells returns the spells learned by a character
+func rpcGetCharacterSpells(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req GetCharacterSpellsRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse get character spells request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get the spells
+	charSpells, err := getCharacterSpells(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get character spells: %v", err)
+		return "", errors.New("failed to retrieve spells")
+	}
+
+	// Build response with spell details
+	spellsWithDetails := make([]CharacterSpellWithDetails, 0, len(charSpells.Spells))
+
+	for _, charSpell := range charSpells.Spells {
+		spell, exists := GetSpell(charSpell.SpellID)
+		if !exists {
+			logger.Warn("Spell %s in character not found in catalog", charSpell.SpellID)
+			continue
+		}
+
+		spellsWithDetails = append(spellsWithDetails, CharacterSpellWithDetails{
+			SpellID:     spell.ID,
+			Name:        spell.Name,
+			Incantation: spell.Incantation,
+			Description: spell.Description,
+			Category:    spell.Category,
+			Difficulty:  spell.Difficulty,
+			Level:       charSpell.Level,
+			MaxLevel:    MaxSpellLevel,
+			LearnedAt:   charSpell.LearnedAt,
+		})
+	}
+
+	// Sort by category then by name
+	sort.Slice(spellsWithDetails, func(i, j int) bool {
+		if spellsWithDetails[i].Category != spellsWithDetails[j].Category {
+			return spellsWithDetails[i].Category < spellsWithDetails[j].Category
+		}
+		return spellsWithDetails[i].Name < spellsWithDetails[j].Name
+	})
+
+	response := CharacterSpellsResponse{
+		CharacterID: req.CharacterID,
+		Spells:      spellsWithDetails,
+		TotalSpells: len(spellsWithDetails),
+		UpdatedAt:   charSpells.UpdatedAt,
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize character spells response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcLearnSpell teaches a new spell to a character
+func rpcLearnSpell(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req LearnSpellRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse learn spell request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	// Validate request
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.SpellID == "" {
+		return "", errors.New("spell_id is required")
+	}
+
+	// Verify spell exists in catalog
+	spell, exists := GetSpell(req.SpellID)
+	if !exists {
+		return "", errors.New("spell not found in catalog")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Check character level requirement
+	charLevel, err := getCharacterLevel(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get character level: %v", err)
+		return "", errors.New("failed to verify character level")
+	}
+
+	if charLevel < spell.MinLevel {
+		return "", errors.New("character level too low to learn this spell")
+	}
+
+	// Get current spells
+	charSpells, err := getCharacterSpells(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get character spells: %v", err)
+		return "", errors.New("failed to retrieve spells")
+	}
+
+	// Check if spell already learned
+	if _, exists := charSpells.Spells[req.SpellID]; exists {
+		return "", errors.New("spell already learned")
+	}
+
+	// Add the spell
+	now := time.Now().Unix()
+	charSpells.Spells[req.SpellID] = CharacterSpell{
+		SpellID:   req.SpellID,
+		Level:     MinSpellLevel,
+		LearnedAt: now,
+		UpdatedAt: now,
+	}
+	charSpells.UpdatedAt = now
+
+	// Save spells
+	if err := saveCharacterSpells(ctx, nk, userID, charSpells); err != nil {
+		logger.Error("Failed to save character spells: %v", err)
+		return "", errors.New("failed to save spells")
+	}
+
+	logger.Info("Character %s learned spell %s", req.CharacterID, req.SpellID)
+
+	// Return the learned spell info
+	response := map[string]interface{}{
+		"character_id": req.CharacterID,
+		"spell_id":     req.SpellID,
+		"spell_name":   spell.Name,
+		"incantation":  spell.Incantation,
+		"level":        MinSpellLevel,
+		"max_level":    MaxSpellLevel,
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcUpgradeSpell upgrades a spell to the next level
+func rpcUpgradeSpell(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req UpgradeSpellRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse upgrade spell request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	// Validate request
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.SpellID == "" {
+		return "", errors.New("spell_id is required")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get current spells
+	charSpells, err := getCharacterSpells(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get character spells: %v", err)
+		return "", errors.New("failed to retrieve spells")
+	}
+
+	// Check if spell is learned
+	charSpell, exists := charSpells.Spells[req.SpellID]
+	if !exists {
+		return "", errors.New("spell not learned")
+	}
+
+	// Check if spell is at max level
+	if charSpell.Level >= MaxSpellLevel {
+		return "", errors.New("spell already at maximum level")
+	}
+
+	// Upgrade the spell
+	newLevel := charSpell.Level + 1
+	now := time.Now().Unix()
+	charSpell.Level = newLevel
+	charSpell.UpdatedAt = now
+	charSpells.Spells[req.SpellID] = charSpell
+	charSpells.UpdatedAt = now
+
+	// Save spells
+	if err := saveCharacterSpells(ctx, nk, userID, charSpells); err != nil {
+		logger.Error("Failed to save character spells: %v", err)
+		return "", errors.New("failed to save spells")
+	}
+
+	// Get spell name for response
+	spellName := req.SpellID
+	if spell, exists := GetSpell(req.SpellID); exists {
+		spellName = spell.Name
+	}
+
+	logger.Info("Character %s upgraded spell %s to level %d", req.CharacterID, req.SpellID, newLevel)
+
+	// Return the upgraded spell info
+	response := map[string]interface{}{
+		"character_id":   req.CharacterID,
+		"spell_id":       req.SpellID,
+		"spell_name":     spellName,
+		"previous_level": newLevel - 1,
+		"new_level":      newLevel,
+		"max_level":      MaxSpellLevel,
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcForgetSpell removes a spell from a character
+func rpcForgetSpell(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("user ID not found in context - authentication required")
+	}
+
+	// Parse the request
+	var req ForgetSpellRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse forget spell request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	// Validate request
+	if req.CharacterID == "" {
+		return "", errors.New("character_id is required")
+	}
+	if req.SpellID == "" {
+		return "", errors.New("spell_id is required")
+	}
+
+	// Verify the user owns this character
+	if err := verifyCharacterOwnership(ctx, nk, userID, req.CharacterID); err != nil {
+		return "", err
+	}
+
+	// Get current spells
+	charSpells, err := getCharacterSpells(ctx, nk, userID, req.CharacterID)
+	if err != nil {
+		logger.Error("Failed to get character spells: %v", err)
+		return "", errors.New("failed to retrieve spells")
+	}
+
+	// Check if spell is learned
+	if _, exists := charSpells.Spells[req.SpellID]; !exists {
+		return "", errors.New("spell not learned")
+	}
+
+	// Remove the spell
+	delete(charSpells.Spells, req.SpellID)
+	charSpells.UpdatedAt = time.Now().Unix()
+
+	// Save spells
+	if err := saveCharacterSpells(ctx, nk, userID, charSpells); err != nil {
+		logger.Error("Failed to save character spells: %v", err)
+		return "", errors.New("failed to save spells")
+	}
+
+	// Get spell name for response
+	spellName := req.SpellID
+	if spell, exists := GetSpell(req.SpellID); exists {
+		spellName = spell.Name
+	}
+
+	logger.Info("Character %s forgot spell %s", req.CharacterID, req.SpellID)
+
+	// Return success
+	response := map[string]interface{}{
+		"character_id": req.CharacterID,
+		"spell_id":     req.SpellID,
+		"spell_name":   spellName,
+		"status":       "forgotten",
 	}
 	responseJSON, _ := json.Marshal(response)
 	return string(responseJSON), nil
