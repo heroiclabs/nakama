@@ -18,6 +18,7 @@
 // - name: character display name
 // - level: character level (1+)
 // - xp: experience points
+// - house: character's house (Venatrix, Falcon, Brumval, Aerwyn, or "Pas de Maison")
 package main
 
 import (
@@ -42,10 +43,34 @@ const (
 	DefaultCharacterXP = 0
 )
 
+// House constants for Elderwood
+const (
+	HouseNone     = "Pas de Maison" // Default house for new characters
+	HouseVenatrix = "Venatrix"
+	HouseFalcon   = "Falcon"
+	HouseBrumval  = "Brumval"
+	HouseAerwyn   = "Aerwyn"
+)
+
+// ValidHouses contains all valid house values
+var ValidHouses = map[string]bool{
+	HouseNone:     true,
+	HouseVenatrix: true,
+	HouseFalcon:   true,
+	HouseBrumval:  true,
+	HouseAerwyn:   true,
+}
+
+// IsValidHouse checks if a house name is valid
+func IsValidHouse(house string) bool {
+	return ValidHouses[house]
+}
+
 // Character represents a player character in the Elderwood MMO
 type Character struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
+	House     string `json:"house"`
 	Level     int    `json:"level"`
 	XP        int64  `json:"xp"`
 	CreatedAt int64  `json:"created_at"`
@@ -59,10 +84,11 @@ type CreateCharacterRequest struct {
 
 // UpdateCharacterRequest is the payload for updating a character
 type UpdateCharacterRequest struct {
-	ID    string `json:"id"`
-	Level *int   `json:"level,omitempty"`
-	XP    *int64 `json:"xp,omitempty"`
+	ID    string  `json:"id"`
+	Level *int    `json:"level,omitempty"`
+	XP    *int64  `json:"xp,omitempty"`
 	Name  *string `json:"name,omitempty"`
+	House *string `json:"house,omitempty"`
 }
 
 // GetCharacterRequest is the payload for getting a specific character
@@ -165,6 +191,7 @@ func rpcCreateCharacter(ctx context.Context, logger runtime.Logger, db *sql.DB, 
 	character := Character{
 		ID:        characterID,
 		Name:      req.Name,
+		House:     HouseNone, // New characters start with no house
 		Level:     DefaultCharacterLevel,
 		XP:        DefaultCharacterXP,
 		CreatedAt: now,
@@ -342,6 +369,13 @@ func rpcUpdateCharacter(ctx context.Context, logger runtime.Logger, db *sql.DB, 
 			return "", errors.New("character name must be between 2 and 32 characters")
 		}
 		character.Name = *req.Name
+	}
+
+	if req.House != nil {
+		if !IsValidHouse(*req.House) {
+			return "", errors.New("invalid house - must be one of: Venatrix, Falcon, Brumval, Aerwyn, or Pas de Maison")
+		}
+		character.House = *req.House
 	}
 
 	character.UpdatedAt = time.Now().Unix()
