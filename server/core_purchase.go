@@ -20,15 +20,18 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/iap"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -42,16 +45,84 @@ var ErrPurchasesListInvalidCursor = errors.New("purchases list cursor invalid")
 var httpc = &http.Client{Timeout: 20 * time.Second}
 
 func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidatePurchaseResponse, error) {
-	validation, raw, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
+	tokens := strings.Split(receipt, ".")
+	if len(tokens) != 3 {
+		// Receipt is not a JWS, fallback to using deprecated verifyReceipt API.
+		return validateLegacyPurchaseReceiptApple(ctx, logger, db, httpc, userID, password, receipt, persist)
+	}
+	// Receipt is a JWS.
+	if err := iap.ValidateAppleJwsSignature(receipt); err != nil {
+		return nil, err
+	}
+	seg := tokens[1]
+	jsonPayload, err := base64.RawStdEncoding.DecodeString(seg)
 	if err != nil {
-		if err != context.Canceled {
+		return nil, err
+	}
+
+	var transactionInfo *runtime.AppleNotificationTransactionInfo
+	if err = json.Unmarshal(jsonPayload, &transactionInfo); err != nil {
+		return nil, err
+	}
+
+	if transactionInfo.ExpiresDate != 0 {
+		// This is a subscription transaction.
+		return nil, status.Error(codes.FailedPrecondition, "Subscription Receipt. Use the appropriate function instead.")
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if transactionInfo.Environment == iap.AppleSandboxEnvironment {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	purchase := &storagePurchase{
+		userID:        userID,
+		store:         api.StoreProvider_APPLE_APP_STORE,
+		productId:     transactionInfo.ProductId,
+		transactionId: transactionInfo.TransactionId,
+		purchaseTime:  parseMillisecondUnixTimestamp(transactionInfo.PurchaseDate),
+		refundTime:    parseMillisecondUnixTimestamp(transactionInfo.RevocationDate),
+		environment:   env,
+	}
+
+	dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{purchase})
+	if err != nil {
+		logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to store app store purchase data")
+	}
+
+	dbPurchase := dbPurchases[0]
+	suid := dbPurchase.userID.String()
+	if dbPurchase.userID.IsNil() {
+		suid = ""
+	}
+	validatedPurchase := &api.ValidatedPurchase{
+		UserId:           suid,
+		ProductId:        transactionInfo.ProductId,
+		TransactionId:    transactionInfo.TransactionId,
+		Store:            api.StoreProvider_APPLE_APP_STORE,
+		CreateTime:       timestamppb.New(dbPurchase.createTime),
+		UpdateTime:       timestamppb.New(dbPurchase.updateTime),
+		PurchaseTime:     timestamppb.New(dbPurchase.purchaseTime),
+		RefundTime:       timestamppb.New(dbPurchase.refundTime),
+		ProviderResponse: receipt,
+		Environment:      env,
+		SeenBefore:       dbPurchase.seenBefore,
+	}
+
+	return &api.ValidatePurchaseResponse{ValidatedPurchases: []*api.ValidatedPurchase{validatedPurchase}}, nil
+}
+
+func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger, db *sql.DB, httpc *http.Client, userID uuid.UUID, receipt, password string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, receipt, password)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) {
 			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
 				logger.Debug("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
-			} else {
-				logger.Error("Error validating Apple receipt", zap.Error(err))
 			}
+			logger.Error("Error validating Apple receipt", zap.Error(err))
 		}
 		return nil, err
 	}
