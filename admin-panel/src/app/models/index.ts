@@ -290,3 +290,22 @@ export interface AdminDeleteCharacterRequest {
   user_id: string;
   id: string;
 }
+
+// Storage Logs
+export interface StorageObjectEntry {
+  collection: string;
+  key: string;
+  user_id: string;
+  username: string;
+  value: string;
+  version: string;
+  permission_read: number;
+  permission_write: number;
+  create_time: number;
+  update_time: number;
+}
+
+export interface StorageLogsResponse {
+  objects: StorageObjectEntry[];
+  count: number;
+}

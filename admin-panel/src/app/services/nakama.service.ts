@@ -30,7 +30,8 @@ import {
   AdminListAllCharactersResponse,
   AdminCreateCharacterRequest,
   AdminUpdateCharacterRequest,
-  AdminDeleteCharacterRequest
+  AdminDeleteCharacterRequest,
+  StorageLogsResponse
 } from '../models';
 
 interface RpcResponse<T> {
@@ -186,5 +187,11 @@ export class NakamaService {
 
   adminDeleteCharacter(request: AdminDeleteCharacterRequest): Observable<any> {
     return this.rpc('elderwood_admin_delete_character', request);
+  }
+
+  // ==================== Storage Logs ====================
+
+  listStorageObjects(): Observable<StorageLogsResponse> {
+    return this.rpc<StorageLogsResponse>('elderwood_admin_list_storage');
   }
 }

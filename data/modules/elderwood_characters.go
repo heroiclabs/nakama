@@ -1096,7 +1096,13 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
-	logger.Info("Elderwood Characters Module initialized successfully - 32 RPCs registered")
+	// Storage Logs RPC
+	if err := initializer.RegisterRpc("elderwood_admin_list_storage", rpcAdminListStorageObjects); err != nil {
+		logger.Error("Failed to register elderwood_admin_list_storage RPC: %v", err)
+		return err
+	}
+
+	logger.Info("Elderwood Characters Module initialized successfully - 34 RPCs registered")
 	return nil
 }
 
@@ -3092,6 +3098,30 @@ type AdminCreateCharacterRequest struct {
 }
 
 // ============================================================================
+// Storage Logs Types
+// ============================================================================
+
+// StorageObjectEntry represents a storage object for the logs view
+type StorageObjectEntry struct {
+	Collection      string `json:"collection"`
+	Key             string `json:"key"`
+	UserID          string `json:"user_id"`
+	Username        string `json:"username"`
+	Value           string `json:"value"`
+	Version         string `json:"version"`
+	PermissionRead  int    `json:"permission_read"`
+	PermissionWrite int    `json:"permission_write"`
+	CreateTime      int64  `json:"create_time"`
+	UpdateTime      int64  `json:"update_time"`
+}
+
+// StorageLogsResponse is the response for listing storage objects
+type StorageLogsResponse struct {
+	Objects []StorageObjectEntry `json:"objects"`
+	Count   int                  `json:"count"`
+}
+
+// ============================================================================
 // Account Management RPCs
 // ============================================================================
 
@@ -3637,5 +3667,86 @@ func rpcAdminDeleteCharacter(ctx context.Context, logger runtime.Logger, db *sql
 	}
 
 	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// ============================================================================
+// Storage Logs RPCs
+// ============================================================================
+
+// rpcAdminListStorageObjects lists all storage objects for the logs view
+func rpcAdminListStorageObjects(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	// Define all collections to query
+	collections := []string{
+		CharacterCollection,
+		InventoryCollection,
+		SpellsCollection,
+		NotebookCollection,
+		HousePointsCollection,
+	}
+
+	// Build a map of userIDs to usernames for lookups
+	userCache := make(map[string]string)
+
+	allObjects := make([]StorageObjectEntry, 0)
+
+	for _, collection := range collections {
+		// List all objects in this collection
+		cursor := ""
+		for {
+			objects, nextCursor, err := nk.StorageList(ctx, "", "", collection, 100, cursor)
+			if err != nil {
+				logger.Error("Failed to list storage objects for collection %s: %v", collection, err)
+				break
+			}
+
+			for _, obj := range objects {
+				// Get username from cache or fetch it
+				username := ""
+				if obj.UserId != "" {
+					if cached, ok := userCache[obj.UserId]; ok {
+						username = cached
+					} else {
+						users, err := nk.UsersGetId(ctx, []string{obj.UserId}, nil)
+						if err == nil && len(users) > 0 {
+							username = users[0].Username
+							userCache[obj.UserId] = username
+						}
+					}
+				}
+
+				entry := StorageObjectEntry{
+					Collection:      obj.Collection,
+					Key:             obj.Key,
+					UserID:          obj.UserId,
+					Username:        username,
+					Value:           obj.Value,
+					Version:         obj.Version,
+					PermissionRead:  int(obj.PermissionRead),
+					PermissionWrite: int(obj.PermissionWrite),
+					CreateTime:      obj.CreateTime.Seconds,
+					UpdateTime:      obj.UpdateTime.Seconds,
+				}
+				allObjects = append(allObjects, entry)
+			}
+
+			if nextCursor == "" {
+				break
+			}
+			cursor = nextCursor
+		}
+	}
+
+	response := StorageLogsResponse{
+		Objects: allObjects,
+		Count:   len(allObjects),
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
 	return string(responseJSON), nil
 }

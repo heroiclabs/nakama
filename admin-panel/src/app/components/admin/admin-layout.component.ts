@@ -59,6 +59,15 @@ import { AuthService } from '../../services/auth.service';
             <i class="pi pi-users"></i>
             <span>Personnages</span>
           </a>
+
+          <a
+            routerLink="/admin/logs"
+            routerLinkActive="active"
+            class="nav-item"
+          >
+            <i class="pi pi-database"></i>
+            <span>Logs</span>
+          </a>
         </nav>
 
         <div class="sidebar-footer">

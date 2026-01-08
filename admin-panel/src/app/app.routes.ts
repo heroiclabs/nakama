@@ -37,6 +37,10 @@ export const routes: Routes = [
       {
         path: 'characters/:id',
         loadComponent: () => import('./components/character-detail/character-detail.component').then(m => m.CharacterDetailComponent)
+      },
+      {
+        path: 'logs',
+        loadComponent: () => import('./components/logs/logs.component').then(m => m.LogsComponent)
       }
     ]
   },
