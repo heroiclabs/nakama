@@ -242,6 +242,14 @@ export interface AdminUpdateAccountRequest {
   role?: AdminRole;
 }
 
+export interface AdminCreateAccountRequest {
+  username: string;
+  email?: string;
+  password?: string;
+  display_name?: string;
+  role?: AdminRole;
+}
+
 export interface AdminRolesResponse {
   roles: AdminRole[];
 }

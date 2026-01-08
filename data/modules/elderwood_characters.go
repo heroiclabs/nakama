@@ -1070,6 +1070,11 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
+	if err := initializer.RegisterRpc("elderwood_admin_create_account", rpcAdminCreateAccount); err != nil {
+		logger.Error("Failed to register elderwood_admin_create_account RPC: %v", err)
+		return err
+	}
+
 	if err := initializer.RegisterRpc("elderwood_admin_delete_account", rpcAdminDeleteAccount); err != nil {
 		logger.Error("Failed to register elderwood_admin_delete_account RPC: %v", err)
 		return err
@@ -3071,6 +3076,15 @@ type AdminDeleteAccountRequest struct {
 	UserID string `json:"user_id"`
 }
 
+// AdminCreateAccountRequest is the request for creating a new account
+type AdminCreateAccountRequest struct {
+	Username    string    `json:"username"`
+	Email       string    `json:"email,omitempty"`
+	Password    string    `json:"password,omitempty"`
+	DisplayName string    `json:"display_name,omitempty"`
+	Role        AdminRole `json:"role,omitempty"`
+}
+
 // AdminCreateCharacterRequest is the request for admin creating a character for a user
 type AdminCreateCharacterRequest struct {
 	UserID string `json:"user_id"`
@@ -3264,6 +3278,81 @@ func rpcAdminUpdateAccount(ctx context.Context, logger runtime.Logger, db *sql.D
 	}
 
 	logger.Info("Account updated: %s", req.UserID)
+	return string(responseJSON), nil
+}
+
+// rpcAdminCreateAccount creates a new account
+func rpcAdminCreateAccount(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req AdminCreateAccountRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.Username == "" {
+		return "", errors.New("username is required")
+	}
+	if len(req.Username) < 3 || len(req.Username) > 32 {
+		return "", errors.New("username must be between 3 and 32 characters")
+	}
+
+	// Validate role if provided
+	if req.Role != "" && !IsValidAdminRole(req.Role) {
+		return "", errors.New("invalid role")
+	}
+
+	// Prepare metadata with role
+	metadata := make(map[string]interface{})
+	if req.Role != "" {
+		metadata["role"] = string(req.Role)
+	}
+
+	var userID string
+	var err error
+
+	// Create account using email if provided, otherwise use device ID
+	if req.Email != "" && req.Password != "" {
+		userID, _, _, err = nk.AuthenticateEmail(ctx, req.Email, req.Password, req.Username, true)
+	} else {
+		// Generate a unique device ID for the account
+		deviceID := uuid.Must(uuid.NewV4()).String()
+		userID, _, _, err = nk.AuthenticateDevice(ctx, deviceID, req.Username, true)
+	}
+
+	if err != nil {
+		logger.Error("Failed to create account: %v", err)
+		return "", errors.New("failed to create account")
+	}
+
+	// Update account with display name and metadata
+	displayName := req.DisplayName
+	if displayName == "" {
+		displayName = req.Username
+	}
+
+	if err := nk.AccountUpdateId(ctx, userID, req.Username, metadata, displayName, "", "", "", ""); err != nil {
+		logger.Error("Failed to update account metadata: %v", err)
+		// Account was created but metadata update failed - not critical
+	}
+
+	// Return created account info
+	account := AccountInfo{
+		UserID:      userID,
+		Username:    req.Username,
+		DisplayName: displayName,
+		Email:       req.Email,
+		Role:        req.Role,
+		CreateTime:  time.Now().Unix(),
+		UpdateTime:  time.Now().Unix(),
+	}
+
+	responseJSON, err := json.Marshal(account)
+	if err != nil {
+		logger.Error("Failed to serialize response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	logger.Info("Account created: %s (%s)", userID, req.Username)
 	return string(responseJSON), nil
 }
 

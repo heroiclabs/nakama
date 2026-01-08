@@ -13,6 +13,7 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TagModule } from 'primeng/tag';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { PasswordModule } from 'primeng/password';
 import { MessageService, ConfirmationService } from 'primeng/api';
 
 import { NakamaService } from '../../services/nakama.service';
@@ -38,7 +39,8 @@ interface RoleOption {
     ProgressSpinnerModule,
     TagModule,
     DialogModule,
-    ConfirmDialogModule
+    ConfirmDialogModule,
+    PasswordModule
   ],
   providers: [MessageService, ConfirmationService],
   template: `
@@ -75,12 +77,19 @@ interface RoleOption {
             styleClass="w-12rem"
           ></p-dropdown>
         </div>
-        <p-button
-          icon="pi pi-refresh"
-          [text]="true"
-          (onClick)="loadAccounts()"
-          pTooltip="Actualiser"
-        ></p-button>
+        <div class="flex gap-2">
+          <p-button
+            icon="pi pi-plus"
+            label="Créer"
+            (onClick)="openCreateDialog()"
+          ></p-button>
+          <p-button
+            icon="pi pi-refresh"
+            [text]="true"
+            (onClick)="loadAccounts()"
+            pTooltip="Actualiser"
+          ></p-button>
+        </div>
       </div>
 
       @if (loading()) {
@@ -175,6 +184,95 @@ interface RoleOption {
         </p-table>
       }
     </p-card>
+
+    <!-- Create Dialog -->
+    <p-dialog
+      header="Créer un compte"
+      [(visible)]="createDialogVisible"
+      [modal]="true"
+      [style]="{ width: '500px' }"
+      [closable]="true"
+    >
+      <div class="flex flex-column gap-3">
+        <div class="field">
+          <label for="create_username" class="block mb-2 font-medium">Nom d'utilisateur *</label>
+          <input
+            id="create_username"
+            type="text"
+            pInputText
+            [(ngModel)]="createForm.username"
+            class="w-full"
+            placeholder="3-32 caractères"
+          />
+        </div>
+
+        <div class="field">
+          <label for="create_display_name" class="block mb-2 font-medium">Nom d'affichage</label>
+          <input
+            id="create_display_name"
+            type="text"
+            pInputText
+            [(ngModel)]="createForm.display_name"
+            class="w-full"
+            placeholder="Optionnel"
+          />
+        </div>
+
+        <div class="field">
+          <label for="create_email" class="block mb-2 font-medium">Email</label>
+          <input
+            id="create_email"
+            type="email"
+            pInputText
+            [(ngModel)]="createForm.email"
+            class="w-full"
+            placeholder="Optionnel - pour connexion par email"
+          />
+        </div>
+
+        <div class="field">
+          <label for="create_password" class="block mb-2 font-medium">Mot de passe</label>
+          <p-password
+            id="create_password"
+            [(ngModel)]="createForm.password"
+            [toggleMask]="true"
+            [feedback]="false"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+            placeholder="Requis si email renseigné"
+          ></p-password>
+        </div>
+
+        <div class="field">
+          <label for="create_role" class="block mb-2 font-medium">Rôle</label>
+          <p-dropdown
+            id="create_role"
+            [options]="roleOptions"
+            [(ngModel)]="createForm.role"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Sélectionner un rôle"
+            [showClear]="true"
+            styleClass="w-full"
+          ></p-dropdown>
+        </div>
+      </div>
+
+      <ng-template pTemplate="footer">
+        <p-button
+          label="Annuler"
+          [text]="true"
+          (onClick)="createDialogVisible = false"
+        ></p-button>
+        <p-button
+          label="Créer"
+          icon="pi pi-check"
+          (onClick)="createAccount()"
+          [loading]="saving()"
+          [disabled]="!createForm.username"
+        ></p-button>
+      </ng-template>
+    </p-dialog>
 
     <!-- Edit Dialog -->
     <p-dialog
@@ -295,6 +393,17 @@ export class AccountsComponent implements OnInit {
     { label: 'Développeur', value: 'Developeur' }
   ];
 
+  // Create dialog
+  createDialogVisible = false;
+  createForm = {
+    username: '',
+    display_name: '',
+    email: '',
+    password: '',
+    role: '' as AdminRole
+  };
+
+  // Edit dialog
   editDialogVisible = false;
   selectedAccount: AccountInfo | null = null;
   editForm = {
@@ -354,6 +463,62 @@ export class AccountsComponent implements OnInit {
     }
 
     this.filteredAccounts.set(filtered);
+  }
+
+  openCreateDialog(): void {
+    this.createForm = {
+      username: '',
+      display_name: '',
+      email: '',
+      password: '',
+      role: '' as AdminRole
+    };
+    this.createDialogVisible = true;
+  }
+
+  createAccount(): void {
+    if (!this.createForm.username) return;
+
+    // Validate email/password combo
+    if (this.createForm.email && !this.createForm.password) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Attention',
+        detail: 'Un mot de passe est requis si vous renseignez un email'
+      });
+      return;
+    }
+
+    this.saving.set(true);
+
+    this.nakamaService.createAccount({
+      username: this.createForm.username,
+      display_name: this.createForm.display_name || undefined,
+      email: this.createForm.email || undefined,
+      password: this.createForm.password || undefined,
+      role: this.createForm.role || undefined
+    }).subscribe({
+      next: (created) => {
+        this.accounts.set([...this.accounts(), created]);
+        this.filterAccounts();
+        this.saving.set(false);
+        this.createDialogVisible = false;
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Succès',
+          detail: 'Compte créé avec succès'
+        });
+      },
+      error: (err) => {
+        console.error('Failed to create account:', err);
+        this.saving.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: 'Impossible de créer le compte'
+        });
+      }
+    });
   }
 
   openEditDialog(account: AccountInfo): void {

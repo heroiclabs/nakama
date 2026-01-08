@@ -24,6 +24,7 @@ import {
   AccountInfo,
   AdminListAccountsResponse,
   AdminUpdateAccountRequest,
+  AdminCreateAccountRequest,
   AdminRolesResponse,
   AdminCharacterEntry,
   AdminListAllCharactersResponse,
@@ -159,6 +160,10 @@ export class NakamaService {
 
   updateAccount(request: AdminUpdateAccountRequest): Observable<AccountInfo> {
     return this.rpc<AccountInfo>('elderwood_admin_update_account', request);
+  }
+
+  createAccount(request: AdminCreateAccountRequest): Observable<AccountInfo> {
+    return this.rpc<AccountInfo>('elderwood_admin_create_account', request);
   }
 
   deleteAccount(userId: string): Observable<any> {
