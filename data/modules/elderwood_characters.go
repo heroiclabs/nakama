@@ -3681,8 +3681,8 @@ func rpcAdminListStorageObjects(ctx context.Context, logger runtime.Logger, db *
 		CharacterCollection,
 		InventoryCollection,
 		SpellsCollection,
-		NotebookCollection,
-		HousePointsCollection,
+		NotebooksCollection,
+		HousePointsHistoryCollection,
 	}
 
 	// Build a map of userIDs to usernames for lookups

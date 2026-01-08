@@ -298,11 +298,11 @@ export class LogsComponent implements OnInit {
   selectedObject: StorageObjectEntry | null = null;
 
   private collectionLabels: Record<string, string> = {
-    'elderwood_characters': 'Personnages',
-    'elderwood_inventory': 'Inventaire',
-    'elderwood_spells': 'Sorts',
-    'elderwood_notebooks': 'Carnets',
-    'elderwood_house_points': 'Points Maison'
+    'characters': 'Personnages',
+    'inventories': 'Inventaire',
+    'character_spells': 'Sorts',
+    'notebooks': 'Carnets',
+    'house_points_history': 'Points Maison'
   };
 
   constructor(
@@ -369,11 +369,11 @@ export class LogsComponent implements OnInit {
 
   getCollectionClass(collection: string): string {
     const classMap: Record<string, string> = {
-      'elderwood_characters': 'characters',
-      'elderwood_inventory': 'inventory',
-      'elderwood_spells': 'spells',
-      'elderwood_notebooks': 'notebooks',
-      'elderwood_house_points': 'house-points'
+      'characters': 'characters',
+      'inventories': 'inventory',
+      'character_spells': 'spells',
+      'notebooks': 'notebooks',
+      'house_points_history': 'house-points'
     };
     return classMap[collection] || 'other';
   }
