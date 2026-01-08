@@ -3094,7 +3094,7 @@ func rpcAdminListAccounts(ctx context.Context, logger runtime.Logger, db *sql.DB
 	for _, user := range users {
 		// Parse metadata for role
 		var role AdminRole = ""
-		if user.Metadata != nil {
+		if user.Metadata != "" {
 			var metadata map[string]interface{}
 			if err := json.Unmarshal([]byte(user.Metadata), &metadata); err == nil {
 				if r, ok := metadata["role"].(string); ok {
@@ -3153,7 +3153,7 @@ func rpcAdminGetAccount(ctx context.Context, logger runtime.Logger, db *sql.DB, 
 
 	// Parse metadata for role
 	var role AdminRole = ""
-	if user.Metadata != nil {
+	if user.Metadata != "" {
 		var metadata map[string]interface{}
 		if err := json.Unmarshal([]byte(user.Metadata), &metadata); err == nil {
 			if r, ok := metadata["role"].(string); ok {
@@ -3217,7 +3217,7 @@ func rpcAdminUpdateAccount(ctx context.Context, logger runtime.Logger, db *sql.D
 
 	// Parse existing metadata
 	metadata := make(map[string]interface{})
-	if user.Metadata != nil {
+	if user.Metadata != "" {
 		json.Unmarshal([]byte(user.Metadata), &metadata)
 	}
 
@@ -3398,8 +3398,8 @@ func rpcAdminUpdateCharacter(ctx context.Context, logger runtime.Logger, db *sql
 		ID     string  `json:"id"`
 		Name   *string `json:"name,omitempty"`
 		House  *string `json:"house,omitempty"`
-		Level  *int    `json:"level,omitempty"`
-		XP     *int    `json:"xp,omitempty"`
+		Level  *int64  `json:"level,omitempty"`
+		XP     *int64  `json:"xp,omitempty"`
 	}
 	if err := json.Unmarshal([]byte(payload), &req); err != nil {
 		logger.Error("Failed to parse request: %v", err)
