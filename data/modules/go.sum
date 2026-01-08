@@ -1,0 +1,4 @@
+github.com/gofrs/uuid/v5 v5.3.2 h1:2jfO8j3XgSwlz/wHqemAEugfnTlikAYHhnqQ8Xh4fE0=
+github.com/gofrs/uuid/v5 v5.3.2/go.mod h1:CDOjlDMVAtN56jqyRUZh58JT31Tiw7/oQyEXZV+9bD8=
+github.com/heroiclabs/nakama-common v1.44.0 h1:hD9U6RIW7sdmqHyBJXKqjEMbN3K6etrj2D+8aUJqz6A=
+github.com/heroiclabs/nakama-common v1.44.0/go.mod h1:7hzuAexOZvMZ7L/78JN8nSVR+W1BXZM2F4/UKfWfMPU=

@@ -10,7 +10,7 @@ services:
       - "-c"
       - |
         cd /backend/src && \
-        go mod download && \
+        go mod tidy && \
         go build -buildmode=plugin -trimpath -o /backend/build/elderwood.so . && \
         echo "Plugin built successfully!"
 
