@@ -37,8 +37,10 @@ export class NakamaService {
 
   private rpc<T>(id: string, payload: object = {}): Observable<T> {
     const url = `${this.baseUrl}/v2/rpc/${id}`;
-    // Nakama RPC expects the payload as a JSON string directly in the body
-    return this.http.post<{ payload: string }>(url, JSON.stringify(payload)).pipe(
+    // Nakama RPC expects the body to be a JSON string value
+    // So we need to send a JSON-encoded string: '"{}"' not '{}'
+    const jsonPayload = JSON.stringify(payload);
+    return this.http.post<{ payload: string }>(url, JSON.stringify(jsonPayload)).pipe(
       map(response => JSON.parse(response.payload) as T)
     );
   }
