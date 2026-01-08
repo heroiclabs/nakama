@@ -215,3 +215,70 @@ export interface SubjectsResponse {
   subjects: Subject[];
   count: number;
 }
+
+// Admin Roles
+export type AdminRole = 'Douanier' | 'MJ' | 'Animateur' | 'Owner' | 'Coordinateur' | 'Gérant' | 'Developeur' | '';
+
+// Accounts (Admin)
+export interface AccountInfo {
+  user_id: string;
+  username: string;
+  display_name: string;
+  email: string;
+  role: AdminRole;
+  create_time: number;
+  update_time: number;
+}
+
+export interface AdminListAccountsResponse {
+  accounts: AccountInfo[];
+  count: number;
+}
+
+export interface AdminUpdateAccountRequest {
+  user_id: string;
+  username?: string;
+  display_name?: string;
+  role?: AdminRole;
+}
+
+export interface AdminRolesResponse {
+  roles: AdminRole[];
+}
+
+// Admin Character Management
+export interface AdminCharacterEntry {
+  id: string;
+  name: string;
+  house: HouseName;
+  level: number;
+  xp: number;
+  created_at: number;
+  updated_at: number;
+  owner_id: string;
+  owner_username: string;
+}
+
+export interface AdminListAllCharactersResponse {
+  characters: AdminCharacterEntry[];
+  count: number;
+}
+
+export interface AdminCreateCharacterRequest {
+  user_id: string;
+  name: string;
+}
+
+export interface AdminUpdateCharacterRequest {
+  user_id: string;
+  id: string;
+  name?: string;
+  house?: HouseName;
+  level?: number;
+  xp?: number;
+}
+
+export interface AdminDeleteCharacterRequest {
+  user_id: string;
+  id: string;
+}

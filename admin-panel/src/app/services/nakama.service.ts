@@ -20,7 +20,16 @@ import {
   LearnSpellRequest,
   ForgetSpellRequest,
   UpgradeSpellRequest,
-  HouseName
+  HouseName,
+  AccountInfo,
+  AdminListAccountsResponse,
+  AdminUpdateAccountRequest,
+  AdminRolesResponse,
+  AdminCharacterEntry,
+  AdminListAllCharactersResponse,
+  AdminCreateCharacterRequest,
+  AdminUpdateCharacterRequest,
+  AdminDeleteCharacterRequest
 } from '../models';
 
 interface RpcResponse<T> {
@@ -132,5 +141,45 @@ export class NakamaService {
 
   upgradeSpell(request: UpgradeSpellRequest): Observable<any> {
     return this.rpc('elderwood_upgrade_spell', request);
+  }
+
+  // ==================== Admin Accounts ====================
+
+  listAccounts(): Observable<AdminListAccountsResponse> {
+    return this.rpc<AdminListAccountsResponse>('elderwood_admin_list_accounts');
+  }
+
+  getAccount(userId: string): Observable<AccountInfo> {
+    return this.rpc<AccountInfo>('elderwood_admin_get_account', { user_id: userId });
+  }
+
+  getRoles(): Observable<AdminRolesResponse> {
+    return this.rpc<AdminRolesResponse>('elderwood_admin_get_roles');
+  }
+
+  updateAccount(request: AdminUpdateAccountRequest): Observable<AccountInfo> {
+    return this.rpc<AccountInfo>('elderwood_admin_update_account', request);
+  }
+
+  deleteAccount(userId: string): Observable<any> {
+    return this.rpc('elderwood_admin_delete_account', { user_id: userId });
+  }
+
+  // ==================== Admin Characters ====================
+
+  listAllCharacters(): Observable<AdminListAllCharactersResponse> {
+    return this.rpc<AdminListAllCharactersResponse>('elderwood_admin_list_all_characters');
+  }
+
+  adminCreateCharacter(request: AdminCreateCharacterRequest): Observable<AdminCharacterEntry> {
+    return this.rpc<AdminCharacterEntry>('elderwood_admin_create_character', request);
+  }
+
+  adminUpdateCharacter(request: AdminUpdateCharacterRequest): Observable<AdminCharacterEntry> {
+    return this.rpc<AdminCharacterEntry>('elderwood_admin_update_character', request);
+  }
+
+  adminDeleteCharacter(request: AdminDeleteCharacterRequest): Observable<any> {
+    return this.rpc('elderwood_admin_delete_character', request);
   }
 }

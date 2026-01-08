@@ -8,14 +8,22 @@ import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { InputTextModule } from 'primeng/inputtext';
+import { InputNumberModule } from 'primeng/inputnumber';
 import { DropdownModule } from 'primeng/dropdown';
 import { ToastModule } from 'primeng/toast';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TagModule } from 'primeng/tag';
-import { MessageService } from 'primeng/api';
+import { DialogModule } from 'primeng/dialog';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { MessageService, ConfirmationService } from 'primeng/api';
 
 import { NakamaService } from '../../services/nakama.service';
-import { Character, HouseName } from '../../models';
+import { AdminCharacterEntry, HouseName, AccountInfo } from '../../models';
+
+interface HouseOption {
+  label: string;
+  value: HouseName;
+}
 
 @Component({
   selector: 'app-characters',
@@ -27,14 +35,18 @@ import { Character, HouseName } from '../../models';
     ButtonModule,
     TableModule,
     InputTextModule,
+    InputNumberModule,
     DropdownModule,
     ToastModule,
     ProgressSpinnerModule,
-    TagModule
+    TagModule,
+    DialogModule,
+    ConfirmDialogModule
   ],
-  providers: [MessageService],
+  providers: [MessageService, ConfirmationService],
   template: `
     <p-toast></p-toast>
+    <p-confirmDialog header="Confirmation" icon="pi pi-exclamation-triangle"></p-confirmDialog>
 
     <div class="page-header">
       <h1>Gestion des Personnages</h1>
@@ -66,12 +78,19 @@ import { Character, HouseName } from '../../models';
             styleClass="w-12rem"
           ></p-dropdown>
         </div>
-        <p-button
-          icon="pi pi-refresh"
-          [text]="true"
-          (onClick)="loadCharacters()"
-          pTooltip="Actualiser"
-        ></p-button>
+        <div class="flex gap-2">
+          <p-button
+            icon="pi pi-plus"
+            label="Créer"
+            (onClick)="openCreateDialog()"
+          ></p-button>
+          <p-button
+            icon="pi pi-refresh"
+            [text]="true"
+            (onClick)="loadCharacters()"
+            pTooltip="Actualiser"
+          ></p-button>
+        </div>
       </div>
 
       @if (loading()) {
@@ -103,10 +122,13 @@ import { Character, HouseName } from '../../models';
               <th pSortableColumn="xp">
                 XP <p-sortIcon field="xp"></p-sortIcon>
               </th>
+              <th pSortableColumn="owner_username">
+                Propriétaire <p-sortIcon field="owner_username"></p-sortIcon>
+              </th>
               <th pSortableColumn="created_at">
                 Créé le <p-sortIcon field="created_at"></p-sortIcon>
               </th>
-              <th style="width: 100px">Actions</th>
+              <th style="width: 150px">Actions</th>
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-character>
@@ -128,21 +150,41 @@ import { Character, HouseName } from '../../models';
                 <span class="level-badge">Niv. {{ character.level }}</span>
               </td>
               <td>{{ character.xp | number }}</td>
+              <td>
+                <span class="text-color-secondary">{{ character.owner_username }}</span>
+              </td>
               <td>{{ character.created_at * 1000 | date:'dd/MM/yyyy' }}</td>
               <td>
-                <p-button
-                  icon="pi pi-eye"
-                  [rounded]="true"
-                  [text]="true"
-                  (onClick)="viewCharacter(character); $event.stopPropagation()"
-                  pTooltip="Voir les détails"
-                ></p-button>
+                <div class="flex gap-1">
+                  <p-button
+                    icon="pi pi-eye"
+                    [rounded]="true"
+                    [text]="true"
+                    (onClick)="viewCharacter(character); $event.stopPropagation()"
+                    pTooltip="Voir les détails"
+                  ></p-button>
+                  <p-button
+                    icon="pi pi-pencil"
+                    [rounded]="true"
+                    [text]="true"
+                    (onClick)="openEditDialog(character); $event.stopPropagation()"
+                    pTooltip="Modifier"
+                  ></p-button>
+                  <p-button
+                    icon="pi pi-trash"
+                    [rounded]="true"
+                    [text]="true"
+                    severity="danger"
+                    (onClick)="confirmDelete(character); $event.stopPropagation()"
+                    pTooltip="Supprimer"
+                  ></p-button>
+                </div>
               </td>
             </tr>
           </ng-template>
           <ng-template pTemplate="emptymessage">
             <tr>
-              <td colspan="6" class="text-center p-4">
+              <td colspan="7" class="text-center p-4">
                 @if (searchQuery || selectedHouseFilter) {
                   Aucun personnage ne correspond aux filtres
                 } @else {
@@ -154,6 +196,136 @@ import { Character, HouseName } from '../../models';
         </p-table>
       }
     </p-card>
+
+    <!-- Create Dialog -->
+    <p-dialog
+      header="Créer un personnage"
+      [(visible)]="createDialogVisible"
+      [modal]="true"
+      [style]="{ width: '500px' }"
+      [closable]="true"
+    >
+      <div class="flex flex-column gap-3">
+        <div class="field">
+          <label for="create_account" class="block mb-2 font-medium">Compte propriétaire *</label>
+          <p-dropdown
+            id="create_account"
+            [options]="accountOptions()"
+            [(ngModel)]="createForm.user_id"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Sélectionner un compte"
+            [filter]="true"
+            filterBy="label"
+            styleClass="w-full"
+          ></p-dropdown>
+        </div>
+
+        <div class="field">
+          <label for="create_name" class="block mb-2 font-medium">Nom du personnage *</label>
+          <input
+            id="create_name"
+            type="text"
+            pInputText
+            [(ngModel)]="createForm.name"
+            class="w-full"
+            placeholder="Entrez le nom du personnage"
+          />
+        </div>
+      </div>
+
+      <ng-template pTemplate="footer">
+        <p-button
+          label="Annuler"
+          [text]="true"
+          (onClick)="createDialogVisible = false"
+        ></p-button>
+        <p-button
+          label="Créer"
+          icon="pi pi-check"
+          (onClick)="createCharacter()"
+          [loading]="saving()"
+          [disabled]="!createForm.user_id || !createForm.name"
+        ></p-button>
+      </ng-template>
+    </p-dialog>
+
+    <!-- Edit Dialog -->
+    <p-dialog
+      header="Modifier le personnage"
+      [(visible)]="editDialogVisible"
+      [modal]="true"
+      [style]="{ width: '500px' }"
+      [closable]="true"
+    >
+      @if (selectedCharacter) {
+        <div class="flex flex-column gap-3">
+          <div class="field">
+            <label for="edit_name" class="block mb-2 font-medium">Nom</label>
+            <input
+              id="edit_name"
+              type="text"
+              pInputText
+              [(ngModel)]="editForm.name"
+              class="w-full"
+            />
+          </div>
+
+          <div class="field">
+            <label for="edit_house" class="block mb-2 font-medium">Maison</label>
+            <p-dropdown
+              id="edit_house"
+              [options]="houseOptions"
+              [(ngModel)]="editForm.house"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Sélectionner une maison"
+              styleClass="w-full"
+            ></p-dropdown>
+          </div>
+
+          <div class="field">
+            <label for="edit_level" class="block mb-2 font-medium">Niveau</label>
+            <p-inputNumber
+              id="edit_level"
+              [(ngModel)]="editForm.level"
+              [min]="1"
+              [max]="100"
+              styleClass="w-full"
+            ></p-inputNumber>
+          </div>
+
+          <div class="field">
+            <label for="edit_xp" class="block mb-2 font-medium">XP</label>
+            <p-inputNumber
+              id="edit_xp"
+              [(ngModel)]="editForm.xp"
+              [min]="0"
+              styleClass="w-full"
+            ></p-inputNumber>
+          </div>
+
+          <div class="field">
+            <label class="block mb-2 font-medium text-color-secondary">Propriétaire</label>
+            <span>{{ selectedCharacter.owner_username }}</span>
+          </div>
+        </div>
+      }
+
+      <ng-template pTemplate="footer">
+        <p-button
+          label="Annuler"
+          [text]="true"
+          (onClick)="editDialogVisible = false"
+        ></p-button>
+        <p-button
+          label="Enregistrer"
+          icon="pi pi-check"
+          (onClick)="saveCharacter()"
+          [loading]="saving()"
+        ></p-button>
+      </ng-template>
+    </p-dialog>
   `,
   styles: [`
     .character-avatar {
@@ -200,14 +372,17 @@ import { Character, HouseName } from '../../models';
   `]
 })
 export class CharactersComponent implements OnInit {
-  characters = signal<Character[]>([]);
-  filteredCharacters = signal<Character[]>([]);
+  characters = signal<AdminCharacterEntry[]>([]);
+  filteredCharacters = signal<AdminCharacterEntry[]>([]);
+  accounts = signal<AccountInfo[]>([]);
+  accountOptions = signal<{ label: string; value: string }[]>([]);
   loading = signal(false);
+  saving = signal(false);
 
   searchQuery = '';
   selectedHouseFilter: HouseName | null = null;
 
-  houseOptions = [
+  houseOptions: HouseOption[] = [
     { label: 'Venatrix', value: 'Venatrix' },
     { label: 'Falcon', value: 'Falcon' },
     { label: 'Brumval', value: 'Brumval' },
@@ -215,22 +390,41 @@ export class CharactersComponent implements OnInit {
     { label: 'Pas de Maison', value: 'Pas de Maison' }
   ];
 
+  // Create dialog
+  createDialogVisible = false;
+  createForm = {
+    user_id: '',
+    name: ''
+  };
+
+  // Edit dialog
+  editDialogVisible = false;
+  selectedCharacter: AdminCharacterEntry | null = null;
+  editForm = {
+    name: '',
+    house: '' as HouseName,
+    level: 1,
+    xp: 0
+  };
+
   constructor(
     private nakamaService: NakamaService,
     private messageService: MessageService,
+    private confirmationService: ConfirmationService,
     private router: Router
   ) {}
 
   ngOnInit(): void {
     this.loadCharacters();
+    this.loadAccounts();
   }
 
   loadCharacters(): void {
     this.loading.set(true);
 
-    this.nakamaService.getCharacters().subscribe({
-      next: (characters) => {
-        this.characters.set(characters);
+    this.nakamaService.listAllCharacters().subscribe({
+      next: (response) => {
+        this.characters.set(response.characters || []);
         this.filterCharacters();
         this.loading.set(false);
       },
@@ -246,6 +440,23 @@ export class CharactersComponent implements OnInit {
     });
   }
 
+  loadAccounts(): void {
+    this.nakamaService.listAccounts().subscribe({
+      next: (response) => {
+        this.accounts.set(response.accounts || []);
+        this.accountOptions.set(
+          (response.accounts || []).map(a => ({
+            label: `${a.username}${a.display_name ? ' (' + a.display_name + ')' : ''}`,
+            value: a.user_id
+          }))
+        );
+      },
+      error: (err) => {
+        console.error('Failed to load accounts:', err);
+      }
+    });
+  }
+
   filterCharacters(): void {
     let filtered = this.characters();
 
@@ -254,7 +465,8 @@ export class CharactersComponent implements OnInit {
       const query = this.searchQuery.toLowerCase();
       filtered = filtered.filter(c =>
         c.name.toLowerCase().includes(query) ||
-        c.id.toLowerCase().includes(query)
+        c.id.toLowerCase().includes(query) ||
+        c.owner_username.toLowerCase().includes(query)
       );
     }
 
@@ -266,8 +478,134 @@ export class CharactersComponent implements OnInit {
     this.filteredCharacters.set(filtered);
   }
 
-  viewCharacter(character: Character): void {
+  viewCharacter(character: AdminCharacterEntry): void {
     this.router.navigate(['/admin/characters', character.id]);
+  }
+
+  openCreateDialog(): void {
+    this.createForm = { user_id: '', name: '' };
+    this.createDialogVisible = true;
+  }
+
+  createCharacter(): void {
+    if (!this.createForm.user_id || !this.createForm.name) return;
+
+    this.saving.set(true);
+
+    this.nakamaService.adminCreateCharacter({
+      user_id: this.createForm.user_id,
+      name: this.createForm.name
+    }).subscribe({
+      next: (created) => {
+        this.characters.set([...this.characters(), created]);
+        this.filterCharacters();
+        this.saving.set(false);
+        this.createDialogVisible = false;
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Succès',
+          detail: 'Personnage créé avec succès'
+        });
+      },
+      error: (err) => {
+        console.error('Failed to create character:', err);
+        this.saving.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: 'Impossible de créer le personnage'
+        });
+      }
+    });
+  }
+
+  openEditDialog(character: AdminCharacterEntry): void {
+    this.selectedCharacter = character;
+    this.editForm = {
+      name: character.name,
+      house: character.house,
+      level: character.level,
+      xp: character.xp
+    };
+    this.editDialogVisible = true;
+  }
+
+  saveCharacter(): void {
+    if (!this.selectedCharacter) return;
+
+    this.saving.set(true);
+
+    this.nakamaService.adminUpdateCharacter({
+      user_id: this.selectedCharacter.owner_id,
+      id: this.selectedCharacter.id,
+      name: this.editForm.name,
+      house: this.editForm.house,
+      level: this.editForm.level,
+      xp: this.editForm.xp
+    }).subscribe({
+      next: (updated) => {
+        // Update local state
+        const characters = this.characters();
+        const index = characters.findIndex(c => c.id === updated.id);
+        if (index >= 0) {
+          characters[index] = updated;
+          this.characters.set([...characters]);
+          this.filterCharacters();
+        }
+
+        this.saving.set(false);
+        this.editDialogVisible = false;
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Succès',
+          detail: 'Personnage mis à jour avec succès'
+        });
+      },
+      error: (err) => {
+        console.error('Failed to update character:', err);
+        this.saving.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: 'Impossible de mettre à jour le personnage'
+        });
+      }
+    });
+  }
+
+  confirmDelete(character: AdminCharacterEntry): void {
+    this.confirmationService.confirm({
+      message: `Êtes-vous sûr de vouloir supprimer le personnage "${character.name}" ? Cette action est irréversible.`,
+      accept: () => this.deleteCharacter(character)
+    });
+  }
+
+  deleteCharacter(character: AdminCharacterEntry): void {
+    this.nakamaService.adminDeleteCharacter({
+      user_id: character.owner_id,
+      id: character.id
+    }).subscribe({
+      next: () => {
+        // Remove from local state
+        const characters = this.characters().filter(c => c.id !== character.id);
+        this.characters.set(characters);
+        this.filterCharacters();
+
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Succès',
+          detail: 'Personnage supprimé avec succès'
+        });
+      },
+      error: (err) => {
+        console.error('Failed to delete character:', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: 'Impossible de supprimer le personnage'
+        });
+      }
+    });
   }
 
   getHouseClass(house: string): string {

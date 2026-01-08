@@ -93,6 +93,40 @@ const (
 	MaxNotebookContentLength = 10000
 )
 
+// AdminRole represents a staff role
+type AdminRole string
+
+const (
+	RoleDouanier     AdminRole = "Douanier"
+	RoleMJ           AdminRole = "MJ"
+	RoleAnimateur    AdminRole = "Animateur"
+	RoleOwner        AdminRole = "Owner"
+	RoleCoordinateur AdminRole = "Coordinateur"
+	RoleGerant       AdminRole = "Gérant"
+	RoleDeveloper    AdminRole = "Developeur"
+)
+
+// ValidAdminRoles contains all valid admin roles
+var ValidAdminRoles = []AdminRole{
+	RoleDouanier,
+	RoleMJ,
+	RoleAnimateur,
+	RoleOwner,
+	RoleCoordinateur,
+	RoleGerant,
+	RoleDeveloper,
+}
+
+// IsValidAdminRole checks if a role is valid
+func IsValidAdminRole(role AdminRole) bool {
+	for _, r := range ValidAdminRoles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
 // Subject represents a school subject for notebooks
 type Subject string
 
@@ -1015,7 +1049,49 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
-	logger.Info("Elderwood Characters Module initialized successfully - 24 RPCs registered")
+	// Account management RPCs
+	if err := initializer.RegisterRpc("elderwood_admin_list_accounts", rpcAdminListAccounts); err != nil {
+		logger.Error("Failed to register elderwood_admin_list_accounts RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_get_account", rpcAdminGetAccount); err != nil {
+		logger.Error("Failed to register elderwood_admin_get_account RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_get_roles", rpcAdminGetRoles); err != nil {
+		logger.Error("Failed to register elderwood_admin_get_roles RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_update_account", rpcAdminUpdateAccount); err != nil {
+		logger.Error("Failed to register elderwood_admin_update_account RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_delete_account", rpcAdminDeleteAccount); err != nil {
+		logger.Error("Failed to register elderwood_admin_delete_account RPC: %v", err)
+		return err
+	}
+
+	// Admin character management RPCs
+	if err := initializer.RegisterRpc("elderwood_admin_create_character", rpcAdminCreateCharacter); err != nil {
+		logger.Error("Failed to register elderwood_admin_create_character RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_update_character", rpcAdminUpdateCharacter); err != nil {
+		logger.Error("Failed to register elderwood_admin_update_character RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_delete_character", rpcAdminDeleteCharacter); err != nil {
+		logger.Error("Failed to register elderwood_admin_delete_character RPC: %v", err)
+		return err
+	}
+
+	logger.Info("Elderwood Characters Module initialized successfully - 32 RPCs registered")
 	return nil
 }
 
@@ -2953,5 +3029,524 @@ func rpcAdminListAllCharacters(ctx context.Context, logger runtime.Logger, db *s
 		return "", errors.New("failed to build response")
 	}
 
+	return string(responseJSON), nil
+}
+
+// ============================================================================
+// Account Management Types
+// ============================================================================
+
+// AccountInfo represents a Nakama account with metadata
+type AccountInfo struct {
+	UserID      string    `json:"user_id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	Email       string    `json:"email"`
+	Role        AdminRole `json:"role"`
+	CreateTime  int64     `json:"create_time"`
+	UpdateTime  int64     `json:"update_time"`
+}
+
+// AdminListAccountsResponse is the response for listing all accounts
+type AdminListAccountsResponse struct {
+	Accounts []AccountInfo `json:"accounts"`
+	Count    int           `json:"count"`
+}
+
+// AdminGetAccountRequest is the request for getting a specific account
+type AdminGetAccountRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// AdminUpdateAccountRequest is the request for updating an account
+type AdminUpdateAccountRequest struct {
+	UserID      string     `json:"user_id"`
+	Username    *string    `json:"username,omitempty"`
+	DisplayName *string    `json:"display_name,omitempty"`
+	Role        *AdminRole `json:"role,omitempty"`
+}
+
+// AdminDeleteAccountRequest is the request for deleting an account
+type AdminDeleteAccountRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// AdminCreateCharacterRequest is the request for admin creating a character for a user
+type AdminCreateCharacterRequest struct {
+	UserID string `json:"user_id"`
+	Name   string `json:"name"`
+}
+
+// ============================================================================
+// Account Management RPCs
+// ============================================================================
+
+// rpcAdminListAccounts lists all accounts in the system
+func rpcAdminListAccounts(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	// Get users from the database
+	users, err := nk.UsersGetRandom(ctx, 100)
+	if err != nil {
+		logger.Error("Failed to get users: %v", err)
+		return "", errors.New("failed to retrieve users")
+	}
+
+	accounts := make([]AccountInfo, 0, len(users))
+	for _, user := range users {
+		// Parse metadata for role
+		var role AdminRole = ""
+		if user.Metadata != nil {
+			var metadata map[string]interface{}
+			if err := json.Unmarshal([]byte(user.Metadata), &metadata); err == nil {
+				if r, ok := metadata["role"].(string); ok {
+					role = AdminRole(r)
+				}
+			}
+		}
+
+		accounts = append(accounts, AccountInfo{
+			UserID:      user.Id,
+			Username:    user.Username,
+			DisplayName: user.DisplayName,
+			Role:        role,
+			CreateTime:  user.CreateTime.Seconds,
+			UpdateTime:  user.UpdateTime.Seconds,
+		})
+	}
+
+	response := AdminListAccountsResponse{
+		Accounts: accounts,
+		Count:    len(accounts),
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcAdminGetAccount gets a specific account by user ID
+func rpcAdminGetAccount(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req AdminGetAccountRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.UserID == "" {
+		return "", errors.New("user_id is required")
+	}
+
+	users, err := nk.UsersGetId(ctx, []string{req.UserID}, nil)
+	if err != nil {
+		logger.Error("Failed to get user: %v", err)
+		return "", errors.New("failed to retrieve user")
+	}
+
+	if len(users) == 0 {
+		return "", errors.New("user not found")
+	}
+
+	user := users[0]
+
+	// Parse metadata for role
+	var role AdminRole = ""
+	if user.Metadata != nil {
+		var metadata map[string]interface{}
+		if err := json.Unmarshal([]byte(user.Metadata), &metadata); err == nil {
+			if r, ok := metadata["role"].(string); ok {
+				role = AdminRole(r)
+			}
+		}
+	}
+
+	account := AccountInfo{
+		UserID:      user.Id,
+		Username:    user.Username,
+		DisplayName: user.DisplayName,
+		Role:        role,
+		CreateTime:  user.CreateTime.Seconds,
+		UpdateTime:  user.UpdateTime.Seconds,
+	}
+
+	responseJSON, err := json.Marshal(account)
+	if err != nil {
+		logger.Error("Failed to serialize response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcAdminGetRoles returns all available admin roles
+func rpcAdminGetRoles(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	response := map[string][]AdminRole{
+		"roles": ValidAdminRoles,
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
+	return string(responseJSON), nil
+}
+
+// rpcAdminUpdateAccount updates an account's metadata (role)
+func rpcAdminUpdateAccount(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req AdminUpdateAccountRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.UserID == "" {
+		return "", errors.New("user_id is required")
+	}
+
+	// Get current user
+	users, err := nk.UsersGetId(ctx, []string{req.UserID}, nil)
+	if err != nil || len(users) == 0 {
+		return "", errors.New("user not found")
+	}
+
+	user := users[0]
+
+	// Parse existing metadata
+	metadata := make(map[string]interface{})
+	if user.Metadata != nil {
+		json.Unmarshal([]byte(user.Metadata), &metadata)
+	}
+
+	// Update role if provided
+	if req.Role != nil {
+		if *req.Role != "" && !IsValidAdminRole(*req.Role) {
+			return "", errors.New("invalid role")
+		}
+		metadata["role"] = string(*req.Role)
+	}
+
+	// Update the account
+	displayName := user.DisplayName
+	if req.DisplayName != nil {
+		displayName = *req.DisplayName
+	}
+
+	username := user.Username
+	if req.Username != nil {
+		username = *req.Username
+	}
+
+	if err := nk.AccountUpdateId(ctx, req.UserID, username, metadata, displayName, "", "", "", ""); err != nil {
+		logger.Error("Failed to update account: %v", err)
+		return "", errors.New("failed to update account")
+	}
+
+	// Return updated account info
+	var role AdminRole = ""
+	if r, ok := metadata["role"].(string); ok {
+		role = AdminRole(r)
+	}
+
+	account := AccountInfo{
+		UserID:      req.UserID,
+		Username:    username,
+		DisplayName: displayName,
+		Role:        role,
+	}
+
+	responseJSON, err := json.Marshal(account)
+	if err != nil {
+		return "", errors.New("failed to build response")
+	}
+
+	logger.Info("Account updated: %s", req.UserID)
+	return string(responseJSON), nil
+}
+
+// rpcAdminDeleteAccount deletes an account
+func rpcAdminDeleteAccount(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req AdminDeleteAccountRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.UserID == "" {
+		return "", errors.New("user_id is required")
+	}
+
+	// Delete the account
+	if err := nk.AccountDeleteId(ctx, req.UserID, false); err != nil {
+		logger.Error("Failed to delete account: %v", err)
+		return "", errors.New("failed to delete account")
+	}
+
+	logger.Info("Account deleted: %s", req.UserID)
+
+	response := map[string]string{
+		"status":  "success",
+		"message": "Account deleted successfully",
+		"user_id": req.UserID,
+	}
+
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcAdminCreateCharacter creates a character for a specific user (admin function)
+func rpcAdminCreateCharacter(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req AdminCreateCharacterRequest
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.UserID == "" {
+		return "", errors.New("user_id is required")
+	}
+	if req.Name == "" {
+		return "", errors.New("character name is required")
+	}
+	if len(req.Name) < 2 || len(req.Name) > 32 {
+		return "", errors.New("character name must be between 2 and 32 characters")
+	}
+
+	// Verify user exists
+	users, err := nk.UsersGetId(ctx, []string{req.UserID}, nil)
+	if err != nil || len(users) == 0 {
+		return "", errors.New("user not found")
+	}
+
+	// Check existing characters for this user
+	existingCharacters, _, err := nk.StorageList(ctx, "", req.UserID, CharacterCollection, MaxCharactersPerAccount+1, "")
+	if err != nil {
+		logger.Error("Failed to list existing characters: %v", err)
+		return "", errors.New("failed to check existing characters")
+	}
+
+	if len(existingCharacters) >= MaxCharactersPerAccount {
+		return "", errors.New("maximum number of characters reached for this user")
+	}
+
+	// Check for duplicate name
+	for _, obj := range existingCharacters {
+		var existing Character
+		if err := json.Unmarshal([]byte(obj.Value), &existing); err == nil {
+			if existing.Name == req.Name {
+				return "", errors.New("a character with this name already exists for this user")
+			}
+		}
+	}
+
+	// Create the character
+	characterID := uuid.Must(uuid.NewV4()).String()
+	now := time.Now().Unix()
+
+	character := Character{
+		ID:        characterID,
+		Name:      req.Name,
+		House:     HouseNone,
+		Level:     DefaultCharacterLevel,
+		XP:        DefaultCharacterXP,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	characterJSON, err := json.Marshal(character)
+	if err != nil {
+		logger.Error("Failed to serialize character: %v", err)
+		return "", errors.New("failed to create character")
+	}
+
+	// Store the character
+	writes := []*runtime.StorageWrite{
+		{
+			Collection:      CharacterCollection,
+			Key:             characterID,
+			UserID:          req.UserID,
+			Value:           string(characterJSON),
+			PermissionRead:  1,
+			PermissionWrite: 1,
+		},
+	}
+
+	if _, err := nk.StorageWrite(ctx, writes); err != nil {
+		logger.Error("Failed to store character: %v", err)
+		return "", errors.New("failed to save character")
+	}
+
+	// Return with owner info
+	entry := AdminCharacterEntry{
+		Character:     character,
+		OwnerID:       req.UserID,
+		OwnerUsername: users[0].Username,
+	}
+
+	responseJSON, _ := json.Marshal(entry)
+	logger.Info("Admin created character: %s for user %s", characterID, req.UserID)
+	return string(responseJSON), nil
+}
+
+// rpcAdminUpdateCharacter updates a character (admin function, can update any user's character)
+func rpcAdminUpdateCharacter(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req struct {
+		UserID string  `json:"user_id"`
+		ID     string  `json:"id"`
+		Name   *string `json:"name,omitempty"`
+		House  *string `json:"house,omitempty"`
+		Level  *int    `json:"level,omitempty"`
+		XP     *int    `json:"xp,omitempty"`
+	}
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.UserID == "" {
+		return "", errors.New("user_id is required")
+	}
+	if req.ID == "" {
+		return "", errors.New("character id is required")
+	}
+
+	// Read the existing character
+	reads := []*runtime.StorageRead{
+		{
+			Collection: CharacterCollection,
+			Key:        req.ID,
+			UserID:     req.UserID,
+		},
+	}
+
+	objects, err := nk.StorageRead(ctx, reads)
+	if err != nil {
+		logger.Error("Failed to read character: %v", err)
+		return "", errors.New("failed to retrieve character")
+	}
+
+	if len(objects) == 0 {
+		return "", errors.New("character not found")
+	}
+
+	var character Character
+	if err := json.Unmarshal([]byte(objects[0].Value), &character); err != nil {
+		logger.Error("Failed to parse character: %v", err)
+		return "", errors.New("failed to parse character data")
+	}
+
+	// Apply updates
+	if req.Name != nil {
+		if len(*req.Name) < 2 || len(*req.Name) > 32 {
+			return "", errors.New("character name must be between 2 and 32 characters")
+		}
+		character.Name = *req.Name
+	}
+	if req.House != nil {
+		if !IsValidHouse(*req.House) {
+			return "", errors.New("invalid house")
+		}
+		character.House = *req.House
+	}
+	if req.Level != nil {
+		if *req.Level < 1 || *req.Level > 100 {
+			return "", errors.New("level must be between 1 and 100")
+		}
+		character.Level = *req.Level
+	}
+	if req.XP != nil {
+		if *req.XP < 0 {
+			return "", errors.New("XP cannot be negative")
+		}
+		character.XP = *req.XP
+	}
+
+	character.UpdatedAt = time.Now().Unix()
+
+	characterJSON, err := json.Marshal(character)
+	if err != nil {
+		return "", errors.New("failed to serialize character")
+	}
+
+	// Store updated character
+	writes := []*runtime.StorageWrite{
+		{
+			Collection:      CharacterCollection,
+			Key:             req.ID,
+			UserID:          req.UserID,
+			Value:           string(characterJSON),
+			Version:         objects[0].Version,
+			PermissionRead:  1,
+			PermissionWrite: 1,
+		},
+	}
+
+	if _, err := nk.StorageWrite(ctx, writes); err != nil {
+		logger.Error("Failed to store character: %v", err)
+		return "", errors.New("failed to save character")
+	}
+
+	// Get user info
+	users, _ := nk.UsersGetId(ctx, []string{req.UserID}, nil)
+	username := ""
+	if len(users) > 0 {
+		username = users[0].Username
+	}
+
+	entry := AdminCharacterEntry{
+		Character:     character,
+		OwnerID:       req.UserID,
+		OwnerUsername: username,
+	}
+
+	responseJSON, _ := json.Marshal(entry)
+	logger.Info("Admin updated character: %s", req.ID)
+	return string(responseJSON), nil
+}
+
+// rpcAdminDeleteCharacter deletes a character (admin function)
+func rpcAdminDeleteCharacter(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req struct {
+		UserID string `json:"user_id"`
+		ID     string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		logger.Error("Failed to parse request: %v", err)
+		return "", errors.New("invalid request payload")
+	}
+
+	if req.UserID == "" {
+		return "", errors.New("user_id is required")
+	}
+	if req.ID == "" {
+		return "", errors.New("character id is required")
+	}
+
+	// Delete the character
+	deletes := []*runtime.StorageDelete{
+		{
+			Collection: CharacterCollection,
+			Key:        req.ID,
+			UserID:     req.UserID,
+		},
+	}
+
+	if err := nk.StorageDelete(ctx, deletes); err != nil {
+		logger.Error("Failed to delete character: %v", err)
+		return "", errors.New("failed to delete character")
+	}
+
+	logger.Info("Admin deleted character: %s for user %s", req.ID, req.UserID)
+
+	response := map[string]string{
+		"status":       "success",
+		"message":      "Character deleted successfully",
+		"character_id": req.ID,
+	}
+
+	responseJSON, _ := json.Marshal(response)
 	return string(responseJSON), nil
 }

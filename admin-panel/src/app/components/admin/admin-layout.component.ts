@@ -43,6 +43,15 @@ import { AuthService } from '../../services/auth.service';
           </a>
 
           <a
+            routerLink="/admin/accounts"
+            routerLinkActive="active"
+            class="nav-item"
+          >
+            <i class="pi pi-id-card"></i>
+            <span>Comptes</span>
+          </a>
+
+          <a
             routerLink="/admin/characters"
             routerLinkActive="active"
             class="nav-item"
