@@ -3961,8 +3961,54 @@ type ItemCatalogEntry struct {
 	UpdatedAt int64 `json:"updated_at"`
 }
 
+// seedSpellCatalog initializes the spell catalog storage with static data if empty
+func seedSpellCatalog(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule) error {
+	objects, _, err := nk.StorageList(ctx, "", SystemUserID, SpellsCatalogCollection, 1, "")
+	if err != nil {
+		return err
+	}
+
+	// If catalog already has data, skip seeding
+	if len(objects) > 0 {
+		return nil
+	}
+
+	logger.Info("Seeding spell catalog with %d spells...", len(SpellsCatalog))
+	now := time.Now().Unix()
+
+	writes := make([]*runtime.StorageWrite, 0, len(SpellsCatalog))
+	for _, spell := range SpellsCatalog {
+		entry := SpellCatalogEntry{
+			Spell:     spell,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		entryJSON, _ := json.Marshal(entry)
+		writes = append(writes, &runtime.StorageWrite{
+			Collection:      SpellsCatalogCollection,
+			Key:             spell.ID,
+			UserID:          SystemUserID,
+			Value:           string(entryJSON),
+			PermissionRead:  2,
+			PermissionWrite: 0,
+		})
+	}
+
+	if _, err := nk.StorageWrite(ctx, writes); err != nil {
+		return err
+	}
+
+	logger.Info("Spell catalog seeded successfully")
+	return nil
+}
+
 // rpcAdminListSpellCatalog lists all spells in the catalog
 func rpcAdminListSpellCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	// Seed catalog if empty
+	if err := seedSpellCatalog(ctx, logger, nk); err != nil {
+		logger.Error("Failed to seed spell catalog: %v", err)
+	}
+
 	objects, _, err := nk.StorageList(ctx, "", SystemUserID, SpellsCatalogCollection, 1000, "")
 	if err != nil {
 		logger.Error("Failed to list spell catalog: %v", err)
@@ -4102,8 +4148,54 @@ func rpcAdminDeleteSpell(ctx context.Context, logger runtime.Logger, db *sql.DB,
 	return `{"status":"success"}`, nil
 }
 
+// seedItemCatalog initializes the item catalog storage with static data if empty
+func seedItemCatalog(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule) error {
+	objects, _, err := nk.StorageList(ctx, "", SystemUserID, ItemsCatalogCollection, 1, "")
+	if err != nil {
+		return err
+	}
+
+	// If catalog already has data, skip seeding
+	if len(objects) > 0 {
+		return nil
+	}
+
+	logger.Info("Seeding item catalog with %d items...", len(ItemsCatalog))
+	now := time.Now().Unix()
+
+	writes := make([]*runtime.StorageWrite, 0, len(ItemsCatalog))
+	for _, item := range ItemsCatalog {
+		entry := ItemCatalogEntry{
+			Item:      item,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		entryJSON, _ := json.Marshal(entry)
+		writes = append(writes, &runtime.StorageWrite{
+			Collection:      ItemsCatalogCollection,
+			Key:             item.ID,
+			UserID:          SystemUserID,
+			Value:           string(entryJSON),
+			PermissionRead:  2,
+			PermissionWrite: 0,
+		})
+	}
+
+	if _, err := nk.StorageWrite(ctx, writes); err != nil {
+		return err
+	}
+
+	logger.Info("Item catalog seeded successfully")
+	return nil
+}
+
 // rpcAdminListItemCatalog lists all items in the catalog
 func rpcAdminListItemCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	// Seed catalog if empty
+	if err := seedItemCatalog(ctx, logger, nk); err != nil {
+		logger.Error("Failed to seed item catalog: %v", err)
+	}
+
 	objects, _, err := nk.StorageList(ctx, "", SystemUserID, ItemsCatalogCollection, 1000, "")
 	if err != nil {
 		logger.Error("Failed to list item catalog: %v", err)
