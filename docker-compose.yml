@@ -1,4 +1,19 @@
 services:
+  # Build Go plugin
+  plugin-builder:
+    image: heroiclabs/nakama-pluginbuilder:3.35.0
+    volumes:
+      - ./data/modules:/backend/src
+      - plugin-build:/backend/build
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - |
+        cd /backend/src && \
+        go mod download && \
+        go build -buildmode=plugin -trimpath -o /backend/build/elderwood.so . && \
+        echo "Plugin built successfully!"
+
   cockroachdb:
     image: cockroachdb/cockroach:latest-v24.1
     command: start-single-node --insecure --store=attrs=ssd,path=/var/lib/cockroach/
@@ -16,6 +31,7 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
+
   nakama:
     image: registry.heroiclabs.com/heroiclabs/nakama:3.35.0
     entrypoint:
@@ -32,8 +48,10 @@ services:
         condition: service_healthy
       prometheus:
         condition: service_started
+      plugin-builder:
+        condition: service_completed_successfully
     volumes:
-      - ./:/nakama/data
+      - plugin-build:/nakama/data/modules
     expose:
       - "7349"
       - "7350"
@@ -48,6 +66,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
   prometheus:
     image: prom/prometheus
     entrypoint: /bin/sh -c
@@ -72,5 +91,7 @@ services:
       EOF'
     ports:
       - '9090:9090'
+
 volumes:
   data:
+  plugin-build:

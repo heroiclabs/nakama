@@ -1009,7 +1009,13 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
-	logger.Info("Elderwood Characters Module initialized successfully")
+	// Register admin RPC endpoints
+	if err := initializer.RegisterRpc("elderwood_admin_list_all_characters", rpcAdminListAllCharacters); err != nil {
+		logger.Error("Failed to register elderwood_admin_list_all_characters RPC: %v", err)
+		return err
+	}
+
+	logger.Info("Elderwood Characters Module initialized successfully - 24 RPCs registered")
 	return nil
 }
 
@@ -2885,5 +2891,67 @@ func rpcDeleteNotebook(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 		"notebook_id": req.NotebookID,
 	}
 	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// AdminCharacterEntry represents a character with owner info for admin listing
+type AdminCharacterEntry struct {
+	Character
+	OwnerID       string `json:"owner_id"`
+	OwnerUsername string `json:"owner_username"`
+}
+
+// AdminListAllCharactersResponse is the response for admin character listing
+type AdminListAllCharactersResponse struct {
+	Characters []AdminCharacterEntry `json:"characters"`
+	Count      int                   `json:"count"`
+}
+
+// rpcAdminListAllCharacters lists all characters from all users (admin function)
+func rpcAdminListAllCharacters(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	// Get random users to iterate through (limitation: we can only get random users)
+	users, err := nk.UsersGetRandom(ctx, 100)
+	if err != nil {
+		logger.Error("Failed to get users: %v", err)
+		return "", errors.New("failed to retrieve users")
+	}
+
+	allCharacters := make([]AdminCharacterEntry, 0)
+
+	// For each user, get their characters
+	for _, user := range users {
+		objects, _, err := nk.StorageList(ctx, "", user.Id, CharacterCollection, 10, "")
+		if err != nil {
+			logger.Warn("Failed to list characters for user %s: %v", user.Id, err)
+			continue
+		}
+
+		for _, obj := range objects {
+			var character Character
+			if err := json.Unmarshal([]byte(obj.Value), &character); err != nil {
+				logger.Warn("Failed to parse character %s: %v", obj.Key, err)
+				continue
+			}
+
+			entry := AdminCharacterEntry{
+				Character:     character,
+				OwnerID:       user.Id,
+				OwnerUsername: user.Username,
+			}
+			allCharacters = append(allCharacters, entry)
+		}
+	}
+
+	response := AdminListAllCharactersResponse{
+		Characters: allCharacters,
+		Count:      len(allCharacters),
+	}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to serialize admin response: %v", err)
+		return "", errors.New("failed to build response")
+	}
+
 	return string(responseJSON), nil
 }

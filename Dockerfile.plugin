@@ -1,0 +1,17 @@
+# Build stage for Go plugin
+FROM heroiclabs/nakama-pluginbuilder:3.35.0 AS builder
+
+# Copy module source
+WORKDIR /backend
+COPY data/modules/go.mod .
+COPY data/modules/elderwood_characters.go .
+
+# Download dependencies
+RUN go mod download
+
+# Build the plugin
+RUN go build -buildmode=plugin -trimpath -o ./elderwood.so .
+
+# Final stage - just output the .so file
+FROM scratch AS export
+COPY --from=builder /backend/elderwood.so /elderwood.so
