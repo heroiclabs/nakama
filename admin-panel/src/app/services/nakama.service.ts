@@ -31,7 +31,13 @@ import {
   AdminCreateCharacterRequest,
   AdminUpdateCharacterRequest,
   AdminDeleteCharacterRequest,
-  StorageLogsResponse
+  StorageLogsResponse,
+  SpellCatalogResponse,
+  CreateSpellRequest,
+  UpdateSpellRequest,
+  ItemCatalogResponse,
+  CreateItemRequest,
+  UpdateItemRequest
 } from '../models';
 
 interface RpcResponse<T> {
@@ -193,5 +199,41 @@ export class NakamaService {
 
   listStorageObjects(): Observable<StorageLogsResponse> {
     return this.rpc<StorageLogsResponse>('elderwood_admin_list_storage');
+  }
+
+  // ==================== Spell Catalog Management ====================
+
+  listSpellCatalog(): Observable<SpellCatalogResponse> {
+    return this.rpc<SpellCatalogResponse>('elderwood_admin_list_spell_catalog');
+  }
+
+  createSpell(request: CreateSpellRequest): Observable<Spell> {
+    return this.rpc<Spell>('elderwood_admin_create_spell', request);
+  }
+
+  updateSpell(request: UpdateSpellRequest): Observable<Spell> {
+    return this.rpc<Spell>('elderwood_admin_update_spell', request);
+  }
+
+  deleteSpell(spellId: string): Observable<any> {
+    return this.rpc('elderwood_admin_delete_spell', { id: spellId });
+  }
+
+  // ==================== Item Catalog Management ====================
+
+  listItemCatalog(): Observable<ItemCatalogResponse> {
+    return this.rpc<ItemCatalogResponse>('elderwood_admin_list_item_catalog');
+  }
+
+  createItem(request: CreateItemRequest): Observable<Item> {
+    return this.rpc<Item>('elderwood_admin_create_item', request);
+  }
+
+  updateItem(request: UpdateItemRequest): Observable<Item> {
+    return this.rpc<Item>('elderwood_admin_update_item', request);
+  }
+
+  deleteItem(itemId: string): Observable<any> {
+    return this.rpc('elderwood_admin_delete_item', { id: itemId });
   }
 }

@@ -39,6 +39,14 @@ export const routes: Routes = [
         loadComponent: () => import('./components/character-detail/character-detail.component').then(m => m.CharacterDetailComponent)
       },
       {
+        path: 'spells',
+        loadComponent: () => import('./components/spell-catalog/spell-catalog.component').then(m => m.SpellCatalogComponent)
+      },
+      {
+        path: 'items',
+        loadComponent: () => import('./components/item-catalog/item-catalog.component').then(m => m.ItemCatalogComponent)
+      },
+      {
         path: 'logs',
         loadComponent: () => import('./components/storage-logs/logs.component').then(m => m.LogsComponent)
       }

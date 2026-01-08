@@ -77,8 +77,36 @@ export interface UpdateCharacterRequest {
 }
 
 // Items & Inventory
-export type ItemCategory = 'wand' | 'potion' | 'ingredient' | 'book' | 'equipment' | 'consumable' | 'quest_item' | 'misc';
+export type ItemCategory = 'equipment' | 'wand' | 'consumable' | 'broom' | 'money' | 'resource';
 export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type EquipmentSlot = 'head' | 'chest' | 'hands' | 'legs' | 'feet' | 'neck' | 'ring' | 'back' | 'mainhand' | 'offhand';
+export type ConsumableEffectType = 'heal_hp' | 'heal_mana' | 'buff_stat' | 'transform' | 'invisibility' | 'speed' | 'luck' | 'resistance' | 'custom';
+
+export interface ConsumableEffect {
+  type: ConsumableEffectType;
+  value?: number;
+  duration?: number;
+  stat_type?: string;
+  target_form?: string;
+  custom_data?: string;
+}
+
+export interface EquipmentStats {
+  health?: number;
+  mana?: number;
+  strength?: number;
+  intelligence?: number;
+  defense?: number;
+  magic_defense?: number;
+  speed?: number;
+}
+
+export interface BroomStats {
+  max_speed: number;
+  acceleration: number;
+  handling: number;
+  max_altitude: number;
+}
 
 export interface Item {
   id: string;
@@ -88,6 +116,20 @@ export interface Item {
   rarity: ItemRarity;
   stackable: boolean;
   max_stack: number;
+  // Equipment fields
+  equipment_slot?: EquipmentSlot;
+  equipment_stats?: EquipmentStats;
+  // Wand fields
+  wand_damage?: number;
+  wand_core?: string;
+  wand_wood?: string;
+  wand_length?: number;
+  // Consumable fields
+  effect?: ConsumableEffect;
+  // Broom fields
+  broom_stats?: BroomStats;
+  // Money fields
+  money_value?: number;
 }
 
 export interface ItemsCatalogResponse {
@@ -127,6 +169,8 @@ export interface RemoveItemRequest {
 // Spells
 export type SpellCategory = 'charm' | 'transfiguration' | 'defense' | 'hex' | 'curse' | 'healing' | 'utility';
 export type SpellDifficulty = 'beginner' | 'intermediate' | 'advanced' | 'master';
+export type SpellType = 'attack' | 'defense' | 'cc' | 'buff' | 'debuff' | 'heal' | 'utility';
+export type CCType = 'none' | 'stun' | 'slow' | 'airborne' | 'root' | 'silence' | 'blind' | 'fear' | 'charm' | 'knockback';
 
 export interface Spell {
   id: string;
@@ -136,6 +180,17 @@ export interface Spell {
   category: SpellCategory;
   difficulty: SpellDifficulty;
   min_level: number;
+  // Gameplay stats
+  spell_type?: SpellType;
+  damage?: number;
+  mana_cost?: number;
+  cooldown?: number;
+  cc_type?: CCType;
+  cc_duration?: number;
+  year_required?: number;
+  range?: number;
+  cast_time?: number;
+  is_channeled?: boolean;
 }
 
 export interface SpellsCatalogResponse {
@@ -308,4 +363,62 @@ export interface StorageObjectEntry {
 export interface StorageLogsResponse {
   objects: StorageObjectEntry[];
   count: number;
+}
+
+// Catalog Management (Admin)
+export interface SpellCatalogResponse {
+  spells: Spell[];
+  count: number;
+}
+
+export interface CreateSpellRequest {
+  id: string;
+  name: string;
+  incantation: string;
+  description: string;
+  category: SpellCategory;
+  difficulty: SpellDifficulty;
+  min_level: number;
+  spell_type?: SpellType;
+  damage?: number;
+  mana_cost?: number;
+  cooldown?: number;
+  cc_type?: CCType;
+  cc_duration?: number;
+  year_required?: number;
+  range?: number;
+  cast_time?: number;
+  is_channeled?: boolean;
+}
+
+export interface UpdateSpellRequest extends Partial<CreateSpellRequest> {
+  id: string;
+}
+
+export interface ItemCatalogResponse {
+  items: Item[];
+  count: number;
+}
+
+export interface CreateItemRequest {
+  id: string;
+  name: string;
+  description: string;
+  category: ItemCategory;
+  rarity: ItemRarity;
+  stackable: boolean;
+  max_stack: number;
+  equipment_slot?: EquipmentSlot;
+  equipment_stats?: EquipmentStats;
+  wand_damage?: number;
+  wand_core?: string;
+  wand_wood?: string;
+  wand_length?: number;
+  effect?: ConsumableEffect;
+  broom_stats?: BroomStats;
+  money_value?: number;
+}
+
+export interface UpdateItemRequest extends Partial<CreateItemRequest> {
+  id: string;
 }

@@ -61,6 +61,24 @@ import { AuthService } from '../../services/auth.service';
           </a>
 
           <a
+            routerLink="/admin/spells"
+            routerLinkActive="active"
+            class="nav-item"
+          >
+            <i class="pi pi-bolt"></i>
+            <span>Sorts</span>
+          </a>
+
+          <a
+            routerLink="/admin/items"
+            routerLinkActive="active"
+            class="nav-item"
+          >
+            <i class="pi pi-box"></i>
+            <span>Objets</span>
+          </a>
+
+          <a
             routerLink="/admin/logs"
             routerLinkActive="active"
             class="nav-item"

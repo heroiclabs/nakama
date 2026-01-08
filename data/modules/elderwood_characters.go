@@ -93,6 +93,16 @@ const (
 	MaxNotebookContentLength = 10000
 )
 
+// Catalog constants
+const (
+	// SpellsCatalogCollection stores the spell catalog (admin-managed)
+	SpellsCatalogCollection = "spell_catalog"
+	// ItemsCatalogCollection stores the item catalog (admin-managed)
+	ItemsCatalogCollection = "item_catalog"
+	// CatalogKey is the storage key for catalog entries
+	CatalogKey = "catalog"
+)
+
 // AdminRole represents a staff role
 type AdminRole string
 
@@ -197,13 +207,42 @@ func GetAllSubjects() []Subject {
 type SpellCategory string
 
 const (
-	SpellCategoryCharm       SpellCategory = "charm"        // Enchantements
+	SpellCategoryCharm           SpellCategory = "charm"           // Enchantements
 	SpellCategoryTransfiguration SpellCategory = "transfiguration" // Métamorphose
-	SpellCategoryDefense     SpellCategory = "defense"      // Défense contre les forces du mal
-	SpellCategoryHex         SpellCategory = "hex"          // Maléfices
-	SpellCategoryCurse       SpellCategory = "curse"        // Sortilèges
-	SpellCategoryHealing     SpellCategory = "healing"      // Soins
-	SpellCategoryUtility     SpellCategory = "utility"      // Utilitaires
+	SpellCategoryDefense         SpellCategory = "defense"         // Défense contre les forces du mal
+	SpellCategoryHex             SpellCategory = "hex"             // Maléfices
+	SpellCategoryCurse           SpellCategory = "curse"           // Sortilèges
+	SpellCategoryHealing         SpellCategory = "healing"         // Soins
+	SpellCategoryUtility         SpellCategory = "utility"         // Utilitaires
+)
+
+// SpellType represents the gameplay type of a spell
+type SpellType string
+
+const (
+	SpellTypeAttack  SpellType = "attack"  // Sort offensif
+	SpellTypeDefense SpellType = "defense" // Sort défensif
+	SpellTypeCC      SpellType = "cc"      // Crowd Control
+	SpellTypeBuff    SpellType = "buff"    // Amélioration allié
+	SpellTypeDebuff  SpellType = "debuff"  // Affaiblissement ennemi
+	SpellTypeHeal    SpellType = "heal"    // Soin
+	SpellTypeUtility SpellType = "utility" // Utilitaire
+)
+
+// CCType represents crowd control effects
+type CCType string
+
+const (
+	CCTypeNone     CCType = "none"
+	CCTypeStun     CCType = "stun"     // Étourdissement
+	CCTypeSlow     CCType = "slow"     // Ralentissement
+	CCTypeAirborne CCType = "airborne" // Projection en l'air
+	CCTypeRoot     CCType = "root"     // Immobilisation
+	CCTypeSilence  CCType = "silence"  // Silence (pas de sorts)
+	CCTypeBlind    CCType = "blind"    // Aveuglement
+	CCTypeFear     CCType = "fear"     // Peur (fuite)
+	CCTypeCharm    CCType = "charm"    // Charme (contrôle)
+	CCTypeKnockback CCType = "knockback" // Recul
 )
 
 // SpellDifficulty represents how hard a spell is to learn
@@ -224,7 +263,18 @@ type Spell struct {
 	Description string          `json:"description"`
 	Category    SpellCategory   `json:"category"`
 	Difficulty  SpellDifficulty `json:"difficulty"`
-	MinLevel    int             `json:"min_level"` // Minimum character level to learn
+	MinLevel    int             `json:"min_level"`               // Niveau minimum requis
+	// Gameplay stats
+	SpellType    SpellType `json:"spell_type"`              // Type de sort (attack, defense, cc, etc.)
+	Damage       int       `json:"damage"`                  // Dégâts de base
+	ManaCost     int       `json:"mana_cost"`               // Coût en mana
+	Cooldown     float64   `json:"cooldown"`                // Temps de recharge en secondes
+	CCType       CCType    `json:"cc_type"`                 // Type de CC (none si pas de CC)
+	CCDuration   float64   `json:"cc_duration"`             // Durée du CC en secondes
+	YearRequired int       `json:"year_required"`           // Année d'étude requise (1-7)
+	Range        float64   `json:"range,omitempty"`         // Portée en mètres
+	CastTime     float64   `json:"cast_time,omitempty"`     // Temps d'incantation
+	IsChanneled  bool      `json:"is_channeled,omitempty"`  // Sort canalisé
 }
 
 // SpellsCatalog contains all available spells in the game
@@ -425,14 +475,12 @@ func GetSpell(spellID string) (Spell, bool) {
 type ItemCategory string
 
 const (
-	CategoryWand        ItemCategory = "wand"
-	CategoryPotion      ItemCategory = "potion"
-	CategoryIngredient  ItemCategory = "ingredient"
-	CategoryBook        ItemCategory = "book"
-	CategoryEquipment   ItemCategory = "equipment"
-	CategoryConsumable  ItemCategory = "consumable"
-	CategoryQuestItem   ItemCategory = "quest_item"
-	CategoryMiscellaneous ItemCategory = "misc"
+	CategoryEquipment  ItemCategory = "equipment"  // Équipements (armures, accessoires)
+	CategoryWand       ItemCategory = "wand"       // Baguettes magiques
+	CategoryConsumable ItemCategory = "consumable" // Consommables (potions, nourriture)
+	CategoryBroom      ItemCategory = "broom"      // Balais volants
+	CategoryMoney      ItemCategory = "money"      // Argent (Gallions, Mornilles, Noises)
+	CategoryResource   ItemCategory = "resource"   // Ressources (ingrédients, matériaux)
 )
 
 // ItemRarity represents the rarity of an item
@@ -446,6 +494,66 @@ const (
 	RarityLegendary ItemRarity = "legendary"
 )
 
+// EquipmentSlot represents where equipment can be worn
+type EquipmentSlot string
+
+const (
+	SlotHead     EquipmentSlot = "head"     // Chapeau, couronne
+	SlotChest    EquipmentSlot = "chest"    // Robe, tunique
+	SlotHands    EquipmentSlot = "hands"    // Gants
+	SlotLegs     EquipmentSlot = "legs"     // Pantalon, jupe
+	SlotFeet     EquipmentSlot = "feet"     // Chaussures, bottes
+	SlotNeck     EquipmentSlot = "neck"     // Collier, écharpe
+	SlotRing     EquipmentSlot = "ring"     // Bague
+	SlotBack     EquipmentSlot = "back"     // Cape
+	SlotMainHand EquipmentSlot = "mainhand" // Main principale (baguette)
+	SlotOffHand  EquipmentSlot = "offhand"  // Main secondaire
+)
+
+// ConsumableEffectType represents the type of effect a consumable has
+type ConsumableEffectType string
+
+const (
+	EffectHealHP       ConsumableEffectType = "heal_hp"       // Restaure PV
+	EffectHealMana     ConsumableEffectType = "heal_mana"     // Restaure Mana
+	EffectBuffStat     ConsumableEffectType = "buff_stat"     // Boost de stat temporaire
+	EffectTransform    ConsumableEffectType = "transform"     // Transformation (Polynectar)
+	EffectInvisibility ConsumableEffectType = "invisibility"  // Invisibilité
+	EffectSpeed        ConsumableEffectType = "speed"         // Boost de vitesse
+	EffectLuck         ConsumableEffectType = "luck"          // Boost de chance
+	EffectResistance   ConsumableEffectType = "resistance"    // Résistance aux dégâts
+	EffectCustom       ConsumableEffectType = "custom"        // Effet personnalisé (via script)
+)
+
+// ConsumableEffect represents the effect of a consumable item
+type ConsumableEffect struct {
+	Type       ConsumableEffectType `json:"type"`
+	Value      int                  `json:"value,omitempty"`      // Valeur de l'effet (PV, mana, %)
+	Duration   float64              `json:"duration,omitempty"`   // Durée en secondes (0 = instant)
+	StatType   string               `json:"stat_type,omitempty"`  // Pour buff_stat: "strength", "intelligence", etc.
+	TargetForm string               `json:"target_form,omitempty"` // Pour transform: ID de la forme cible
+	CustomData string               `json:"custom_data,omitempty"` // JSON pour effets personnalisés
+}
+
+// EquipmentStats represents stats provided by equipment
+type EquipmentStats struct {
+	Health       int `json:"health,omitempty"`
+	Mana         int `json:"mana,omitempty"`
+	Strength     int `json:"strength,omitempty"`
+	Intelligence int `json:"intelligence,omitempty"`
+	Defense      int `json:"defense,omitempty"`
+	MagicDefense int `json:"magic_defense,omitempty"`
+	Speed        int `json:"speed,omitempty"`
+}
+
+// BroomStats represents stats for a broom
+type BroomStats struct {
+	MaxSpeed     float64 `json:"max_speed"`     // Vitesse max en m/s
+	Acceleration float64 `json:"acceleration"`  // Accélération en m/s²
+	Handling     float64 `json:"handling"`      // Maniabilité (1-10)
+	Altitude     float64 `json:"max_altitude"`  // Altitude max en mètres
+}
+
 // Item represents an item definition in the game catalog
 type Item struct {
 	ID          string       `json:"id"`
@@ -455,6 +563,16 @@ type Item struct {
 	Rarity      ItemRarity   `json:"rarity"`
 	Stackable   bool         `json:"stackable"`
 	MaxStack    int          `json:"max_stack"`
+	// Category-specific fields
+	EquipmentSlot  EquipmentSlot     `json:"equipment_slot,omitempty"`  // Pour equipment
+	EquipmentStats *EquipmentStats   `json:"equipment_stats,omitempty"` // Pour equipment
+	WandDamage     int               `json:"wand_damage,omitempty"`     // Pour wand
+	WandCore       string            `json:"wand_core,omitempty"`       // Cœur de baguette
+	WandWood       string            `json:"wand_wood,omitempty"`       // Bois de baguette
+	WandLength     float64           `json:"wand_length,omitempty"`     // Longueur en cm
+	Effect         *ConsumableEffect `json:"effect,omitempty"`          // Pour consumable
+	BroomStats     *BroomStats       `json:"broom_stats,omitempty"`     // Pour broom
+	MoneyValue     int               `json:"money_value,omitempty"`     // Pour money (en Noises)
 }
 
 // ItemsCatalog contains all available items in the game
@@ -473,62 +591,67 @@ var ItemsCatalog = map[string]Item{
 		Category: CategoryWand, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
 	},
 
-	// Potions
+	// Consumables (Potions)
 	"potion_health": {
 		ID: "potion_health", Name: "Potion de Soin", Description: "Restaure les points de vie",
-		Category: CategoryPotion, Rarity: RarityCommon, Stackable: true, MaxStack: 99,
+		Category: CategoryConsumable, Rarity: RarityCommon, Stackable: true, MaxStack: 99,
+		Effect: &ConsumableEffect{Type: EffectHealHP, Value: 50},
 	},
 	"potion_mana": {
 		ID: "potion_mana", Name: "Potion de Mana", Description: "Restaure les points de mana",
-		Category: CategoryPotion, Rarity: RarityCommon, Stackable: true, MaxStack: 99,
+		Category: CategoryConsumable, Rarity: RarityCommon, Stackable: true, MaxStack: 99,
+		Effect: &ConsumableEffect{Type: EffectHealMana, Value: 50},
 	},
 	"potion_felix_felicis": {
 		ID: "potion_felix_felicis", Name: "Felix Felicis", Description: "Potion de chance liquide",
-		Category: CategoryPotion, Rarity: RarityLegendary, Stackable: true, MaxStack: 10,
+		Category: CategoryConsumable, Rarity: RarityLegendary, Stackable: true, MaxStack: 10,
+		Effect: &ConsumableEffect{Type: EffectLuck, Value: 100, Duration: 300},
 	},
 	"potion_polyjuice": {
 		ID: "potion_polyjuice", Name: "Polynectar", Description: "Permet de prendre l'apparence d'une autre personne",
-		Category: CategoryPotion, Rarity: RarityEpic, Stackable: true, MaxStack: 20,
+		Category: CategoryConsumable, Rarity: RarityEpic, Stackable: true, MaxStack: 20,
+		Effect: &ConsumableEffect{Type: EffectTransform, Duration: 3600},
 	},
 	"potion_invisibility": {
 		ID: "potion_invisibility", Name: "Potion d'Invisibilité", Description: "Rend temporairement invisible",
-		Category: CategoryPotion, Rarity: RarityRare, Stackable: true, MaxStack: 50,
+		Category: CategoryConsumable, Rarity: RarityRare, Stackable: true, MaxStack: 50,
+		Effect: &ConsumableEffect{Type: EffectInvisibility, Duration: 60},
 	},
 
-	// Ingredients
+	// Resources (Ingredients)
 	"ingredient_moonstone": {
 		ID: "ingredient_moonstone", Name: "Pierre de Lune", Description: "Ingrédient magique rare",
-		Category: CategoryIngredient, Rarity: RarityRare, Stackable: true, MaxStack: 999,
+		Category: CategoryResource, Rarity: RarityRare, Stackable: true, MaxStack: 999,
 	},
 	"ingredient_bezoar": {
 		ID: "ingredient_bezoar", Name: "Bézoard", Description: "Antidote universel trouvé dans l'estomac d'une chèvre",
-		Category: CategoryIngredient, Rarity: RarityUncommon, Stackable: true, MaxStack: 999,
+		Category: CategoryResource, Rarity: RarityUncommon, Stackable: true, MaxStack: 999,
 	},
 	"ingredient_mandrake": {
 		ID: "ingredient_mandrake", Name: "Racine de Mandragore", Description: "Plante magique aux propriétés curatives",
-		Category: CategoryIngredient, Rarity: RarityUncommon, Stackable: true, MaxStack: 999,
+		Category: CategoryResource, Rarity: RarityUncommon, Stackable: true, MaxStack: 999,
 	},
 	"ingredient_phoenix_feather": {
 		ID: "ingredient_phoenix_feather", Name: "Plume de Phénix", Description: "Plume rare aux propriétés magiques puissantes",
-		Category: CategoryIngredient, Rarity: RarityEpic, Stackable: true, MaxStack: 100,
+		Category: CategoryResource, Rarity: RarityEpic, Stackable: true, MaxStack: 100,
 	},
 	"ingredient_dragon_blood": {
 		ID: "ingredient_dragon_blood", Name: "Sang de Dragon", Description: "Ingrédient aux 12 usages magiques",
-		Category: CategoryIngredient, Rarity: RarityRare, Stackable: true, MaxStack: 500,
+		Category: CategoryResource, Rarity: RarityRare, Stackable: true, MaxStack: 500,
 	},
 
-	// Books
+	// Resources (Books)
 	"book_spells_beginner": {
 		ID: "book_spells_beginner", Name: "Livre des Sorts - Niveau 1", Description: "Manuel de sorts pour débutants",
-		Category: CategoryBook, Rarity: RarityCommon, Stackable: false, MaxStack: 1,
+		Category: CategoryResource, Rarity: RarityCommon, Stackable: false, MaxStack: 1,
 	},
 	"book_potions_advanced": {
 		ID: "book_potions_advanced", Name: "Potions Avancées", Description: "Guide des potions complexes",
-		Category: CategoryBook, Rarity: RarityRare, Stackable: false, MaxStack: 1,
+		Category: CategoryResource, Rarity: RarityRare, Stackable: false, MaxStack: 1,
 	},
 	"book_dark_arts": {
 		ID: "book_dark_arts", Name: "Secrets des Forces du Mal", Description: "Tome interdit sur les arts sombres",
-		Category: CategoryBook, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
+		Category: CategoryResource, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
 	},
 
 	// Equipment
@@ -544,13 +667,16 @@ var ItemsCatalog = map[string]Item{
 		ID: "equipment_cloak_invisibility", Name: "Cape d'Invisibilité", Description: "Cape légendaire rendant invisible",
 		Category: CategoryEquipment, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
 	},
-	"equipment_broom_nimbus": {
-		ID: "equipment_broom_nimbus", Name: "Nimbus 2000", Description: "Balai de course haute performance",
-		Category: CategoryEquipment, Rarity: RarityRare, Stackable: false, MaxStack: 1,
+	// Brooms
+	"broom_nimbus": {
+		ID: "broom_nimbus", Name: "Nimbus 2000", Description: "Balai de course haute performance",
+		Category: CategoryBroom, Rarity: RarityRare, Stackable: false, MaxStack: 1,
+		BroomStats: &BroomStats{MaxSpeed: 80, Acceleration: 15, Handling: 8, Altitude: 500},
 	},
-	"equipment_broom_firebolt": {
-		ID: "equipment_broom_firebolt", Name: "Éclair de Feu", Description: "Le meilleur balai de course au monde",
-		Category: CategoryEquipment, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
+	"broom_firebolt": {
+		ID: "broom_firebolt", Name: "Éclair de Feu", Description: "Le meilleur balai de course au monde",
+		Category: CategoryBroom, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
+		BroomStats: &BroomStats{MaxSpeed: 120, Acceleration: 25, Handling: 9, Altitude: 1000},
 	},
 
 	// Consumables
@@ -567,28 +693,41 @@ var ItemsCatalog = map[string]Item{
 		Category: CategoryConsumable, Rarity: RarityCommon, Stackable: true, MaxStack: 99,
 	},
 
-	// Quest Items
-	"quest_golden_snitch": {
-		ID: "quest_golden_snitch", Name: "Vif d'Or", Description: "La balle dorée du Quidditch",
-		Category: CategoryQuestItem, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
+	// Special Equipment (non-standard items)
+	"equipment_golden_snitch": {
+		ID: "equipment_golden_snitch", Name: "Vif d'Or", Description: "La balle dorée du Quidditch",
+		Category: CategoryEquipment, Rarity: RarityEpic, Stackable: false, MaxStack: 1,
 	},
-	"quest_marauders_map": {
-		ID: "quest_marauders_map", Name: "Carte du Maraudeur", Description: "Je jure solennellement que mes intentions sont mauvaises",
-		Category: CategoryQuestItem, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
+	"equipment_marauders_map": {
+		ID: "equipment_marauders_map", Name: "Carte du Maraudeur", Description: "Je jure solennellement que mes intentions sont mauvaises",
+		Category: CategoryEquipment, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
 	},
-	"quest_time_turner": {
-		ID: "quest_time_turner", Name: "Retourneur de Temps", Description: "Permet de voyager dans le temps",
-		Category: CategoryQuestItem, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
+	"equipment_time_turner": {
+		ID: "equipment_time_turner", Name: "Retourneur de Temps", Description: "Permet de voyager dans le temps",
+		Category: CategoryEquipment, Rarity: RarityLegendary, Stackable: false, MaxStack: 1,
 	},
 
-	// Misc
-	"misc_galleon": {
-		ID: "misc_galleon", Name: "Gallion", Description: "Pièce d'or des sorciers",
-		Category: CategoryMiscellaneous, Rarity: RarityCommon, Stackable: true, MaxStack: 999999,
+	// Money
+	"money_galleon": {
+		ID: "money_galleon", Name: "Gallion", Description: "Pièce d'or des sorciers",
+		Category: CategoryMoney, Rarity: RarityCommon, Stackable: true, MaxStack: 999999,
+		MoneyValue: 493, // 1 Gallion = 17 Mornilles = 493 Noises
 	},
-	"misc_owl_treat": {
-		ID: "misc_owl_treat", Name: "Friandise pour Hibou", Description: "Récompense pour votre hibou fidèle",
-		Category: CategoryMiscellaneous, Rarity: RarityCommon, Stackable: true, MaxStack: 999,
+	"money_sickle": {
+		ID: "money_sickle", Name: "Mornille", Description: "Pièce d'argent des sorciers",
+		Category: CategoryMoney, Rarity: RarityCommon, Stackable: true, MaxStack: 999999,
+		MoneyValue: 29, // 1 Mornille = 29 Noises
+	},
+	"money_knut": {
+		ID: "money_knut", Name: "Noise", Description: "Pièce de bronze des sorciers",
+		Category: CategoryMoney, Rarity: RarityCommon, Stackable: true, MaxStack: 999999,
+		MoneyValue: 1, // Base unit
+	},
+
+	// Resources (Misc)
+	"resource_owl_treat": {
+		ID: "resource_owl_treat", Name: "Friandise pour Hibou", Description: "Récompense pour votre hibou fidèle",
+		Category: CategoryResource, Rarity: RarityCommon, Stackable: true, MaxStack: 999,
 	},
 }
 
@@ -1102,7 +1241,60 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
-	logger.Info("Elderwood Characters Module initialized successfully - 34 RPCs registered")
+	// Spell Catalog Management RPCs
+	if err := initializer.RegisterRpc("elderwood_admin_list_spell_catalog", rpcAdminListSpellCatalog); err != nil {
+		logger.Error("Failed to register elderwood_admin_list_spell_catalog RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_create_spell", rpcAdminCreateSpell); err != nil {
+		logger.Error("Failed to register elderwood_admin_create_spell RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_update_spell", rpcAdminUpdateSpell); err != nil {
+		logger.Error("Failed to register elderwood_admin_update_spell RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_delete_spell", rpcAdminDeleteSpell); err != nil {
+		logger.Error("Failed to register elderwood_admin_delete_spell RPC: %v", err)
+		return err
+	}
+
+	// Item Catalog Management RPCs
+	if err := initializer.RegisterRpc("elderwood_admin_list_item_catalog", rpcAdminListItemCatalog); err != nil {
+		logger.Error("Failed to register elderwood_admin_list_item_catalog RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_create_item", rpcAdminCreateItem); err != nil {
+		logger.Error("Failed to register elderwood_admin_create_item RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_update_item", rpcAdminUpdateItem); err != nil {
+		logger.Error("Failed to register elderwood_admin_update_item RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_admin_delete_item", rpcAdminDeleteItem); err != nil {
+		logger.Error("Failed to register elderwood_admin_delete_item RPC: %v", err)
+		return err
+	}
+
+	// Public catalog RPCs (for client caching)
+	if err := initializer.RegisterRpc("elderwood_get_spell_catalog", rpcGetSpellCatalog); err != nil {
+		logger.Error("Failed to register elderwood_get_spell_catalog RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_get_item_catalog", rpcGetItemCatalog); err != nil {
+		logger.Error("Failed to register elderwood_get_item_catalog RPC: %v", err)
+		return err
+	}
+
+	logger.Info("Elderwood Characters Module initialized successfully - 44 RPCs registered")
 	return nil
 }
 
@@ -3748,5 +3940,345 @@ func rpcAdminListStorageObjects(ctx context.Context, logger runtime.Logger, db *
 		return "", errors.New("failed to build response")
 	}
 
+	return string(responseJSON), nil
+}
+
+// ============================================================================
+// Catalog Management RPCs
+// ============================================================================
+
+// SpellCatalogEntry is a spell stored in the catalog storage
+type SpellCatalogEntry struct {
+	Spell
+	CreatedAt int64 `json:"created_at"`
+	UpdatedAt int64 `json:"updated_at"`
+}
+
+// ItemCatalogEntry is an item stored in the catalog storage
+type ItemCatalogEntry struct {
+	Item
+	CreatedAt int64 `json:"created_at"`
+	UpdatedAt int64 `json:"updated_at"`
+}
+
+// rpcAdminListSpellCatalog lists all spells in the catalog
+func rpcAdminListSpellCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	objects, _, err := nk.StorageList(ctx, "", SystemUserID, SpellsCatalogCollection, 1000, "")
+	if err != nil {
+		logger.Error("Failed to list spell catalog: %v", err)
+		return "", errors.New("failed to retrieve spell catalog")
+	}
+
+	spells := make([]SpellCatalogEntry, 0, len(objects))
+	for _, obj := range objects {
+		var spell SpellCatalogEntry
+		if err := json.Unmarshal([]byte(obj.Value), &spell); err == nil {
+			spells = append(spells, spell)
+		}
+	}
+
+	response := map[string]interface{}{
+		"spells": spells,
+		"count":  len(spells),
+	}
+
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcAdminCreateSpell creates a new spell in the catalog
+func rpcAdminCreateSpell(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var spell Spell
+	if err := json.Unmarshal([]byte(payload), &spell); err != nil {
+		logger.Error("Failed to parse spell: %v", err)
+		return "", errors.New("invalid spell data")
+	}
+
+	if spell.ID == "" || spell.Name == "" {
+		return "", errors.New("spell ID and name are required")
+	}
+
+	reads := []*runtime.StorageRead{{Collection: SpellsCatalogCollection, Key: spell.ID, UserID: SystemUserID}}
+	existing, _ := nk.StorageRead(ctx, reads)
+	if len(existing) > 0 {
+		return "", errors.New("spell with this ID already exists")
+	}
+
+	entry := SpellCatalogEntry{
+		Spell:     spell,
+		CreatedAt: time.Now().Unix(),
+		UpdatedAt: time.Now().Unix(),
+	}
+
+	entryJSON, _ := json.Marshal(entry)
+	writes := []*runtime.StorageWrite{{
+		Collection:      SpellsCatalogCollection,
+		Key:             spell.ID,
+		UserID:          SystemUserID,
+		Value:           string(entryJSON),
+		PermissionRead:  2,
+		PermissionWrite: 0,
+	}}
+
+	if _, err := nk.StorageWrite(ctx, writes); err != nil {
+		logger.Error("Failed to create spell: %v", err)
+		return "", errors.New("failed to create spell")
+	}
+
+	logger.Info("Spell created: %s", spell.ID)
+	responseJSON, _ := json.Marshal(entry)
+	return string(responseJSON), nil
+}
+
+// rpcAdminUpdateSpell updates an existing spell in the catalog
+func rpcAdminUpdateSpell(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var spell Spell
+	if err := json.Unmarshal([]byte(payload), &spell); err != nil {
+		logger.Error("Failed to parse spell: %v", err)
+		return "", errors.New("invalid spell data")
+	}
+
+	if spell.ID == "" {
+		return "", errors.New("spell ID is required")
+	}
+
+	reads := []*runtime.StorageRead{{Collection: SpellsCatalogCollection, Key: spell.ID, UserID: SystemUserID}}
+	existing, err := nk.StorageRead(ctx, reads)
+	if err != nil || len(existing) == 0 {
+		return "", errors.New("spell not found")
+	}
+
+	var oldEntry SpellCatalogEntry
+	json.Unmarshal([]byte(existing[0].Value), &oldEntry)
+
+	entry := SpellCatalogEntry{
+		Spell:     spell,
+		CreatedAt: oldEntry.CreatedAt,
+		UpdatedAt: time.Now().Unix(),
+	}
+
+	entryJSON, _ := json.Marshal(entry)
+	writes := []*runtime.StorageWrite{{
+		Collection:      SpellsCatalogCollection,
+		Key:             spell.ID,
+		UserID:          SystemUserID,
+		Value:           string(entryJSON),
+		Version:         existing[0].Version,
+		PermissionRead:  2,
+		PermissionWrite: 0,
+	}}
+
+	if _, err := nk.StorageWrite(ctx, writes); err != nil {
+		logger.Error("Failed to update spell: %v", err)
+		return "", errors.New("failed to update spell")
+	}
+
+	logger.Info("Spell updated: %s", spell.ID)
+	responseJSON, _ := json.Marshal(entry)
+	return string(responseJSON), nil
+}
+
+// rpcAdminDeleteSpell deletes a spell from the catalog
+func rpcAdminDeleteSpell(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(payload), &req); err != nil || req.ID == "" {
+		return "", errors.New("spell ID is required")
+	}
+
+	deletes := []*runtime.StorageDelete{{
+		Collection: SpellsCatalogCollection,
+		Key:        req.ID,
+		UserID:     SystemUserID,
+	}}
+
+	if err := nk.StorageDelete(ctx, deletes); err != nil {
+		logger.Error("Failed to delete spell: %v", err)
+		return "", errors.New("failed to delete spell")
+	}
+
+	logger.Info("Spell deleted: %s", req.ID)
+	return `{"status":"success"}`, nil
+}
+
+// rpcAdminListItemCatalog lists all items in the catalog
+func rpcAdminListItemCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	objects, _, err := nk.StorageList(ctx, "", SystemUserID, ItemsCatalogCollection, 1000, "")
+	if err != nil {
+		logger.Error("Failed to list item catalog: %v", err)
+		return "", errors.New("failed to retrieve item catalog")
+	}
+
+	items := make([]ItemCatalogEntry, 0, len(objects))
+	for _, obj := range objects {
+		var item ItemCatalogEntry
+		if err := json.Unmarshal([]byte(obj.Value), &item); err == nil {
+			items = append(items, item)
+		}
+	}
+
+	response := map[string]interface{}{
+		"items": items,
+		"count": len(items),
+	}
+
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcAdminCreateItem creates a new item in the catalog
+func rpcAdminCreateItem(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var item Item
+	if err := json.Unmarshal([]byte(payload), &item); err != nil {
+		logger.Error("Failed to parse item: %v", err)
+		return "", errors.New("invalid item data")
+	}
+
+	if item.ID == "" || item.Name == "" {
+		return "", errors.New("item ID and name are required")
+	}
+
+	reads := []*runtime.StorageRead{{Collection: ItemsCatalogCollection, Key: item.ID, UserID: SystemUserID}}
+	existing, _ := nk.StorageRead(ctx, reads)
+	if len(existing) > 0 {
+		return "", errors.New("item with this ID already exists")
+	}
+
+	entry := ItemCatalogEntry{
+		Item:      item,
+		CreatedAt: time.Now().Unix(),
+		UpdatedAt: time.Now().Unix(),
+	}
+
+	entryJSON, _ := json.Marshal(entry)
+	writes := []*runtime.StorageWrite{{
+		Collection:      ItemsCatalogCollection,
+		Key:             item.ID,
+		UserID:          SystemUserID,
+		Value:           string(entryJSON),
+		PermissionRead:  2,
+		PermissionWrite: 0,
+	}}
+
+	if _, err := nk.StorageWrite(ctx, writes); err != nil {
+		logger.Error("Failed to create item: %v", err)
+		return "", errors.New("failed to create item")
+	}
+
+	logger.Info("Item created: %s", item.ID)
+	responseJSON, _ := json.Marshal(entry)
+	return string(responseJSON), nil
+}
+
+// rpcAdminUpdateItem updates an existing item in the catalog
+func rpcAdminUpdateItem(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var item Item
+	if err := json.Unmarshal([]byte(payload), &item); err != nil {
+		logger.Error("Failed to parse item: %v", err)
+		return "", errors.New("invalid item data")
+	}
+
+	if item.ID == "" {
+		return "", errors.New("item ID is required")
+	}
+
+	reads := []*runtime.StorageRead{{Collection: ItemsCatalogCollection, Key: item.ID, UserID: SystemUserID}}
+	existing, err := nk.StorageRead(ctx, reads)
+	if err != nil || len(existing) == 0 {
+		return "", errors.New("item not found")
+	}
+
+	var oldEntry ItemCatalogEntry
+	json.Unmarshal([]byte(existing[0].Value), &oldEntry)
+
+	entry := ItemCatalogEntry{
+		Item:      item,
+		CreatedAt: oldEntry.CreatedAt,
+		UpdatedAt: time.Now().Unix(),
+	}
+
+	entryJSON, _ := json.Marshal(entry)
+	writes := []*runtime.StorageWrite{{
+		Collection:      ItemsCatalogCollection,
+		Key:             item.ID,
+		UserID:          SystemUserID,
+		Value:           string(entryJSON),
+		Version:         existing[0].Version,
+		PermissionRead:  2,
+		PermissionWrite: 0,
+	}}
+
+	if _, err := nk.StorageWrite(ctx, writes); err != nil {
+		logger.Error("Failed to update item: %v", err)
+		return "", errors.New("failed to update item")
+	}
+
+	logger.Info("Item updated: %s", item.ID)
+	responseJSON, _ := json.Marshal(entry)
+	return string(responseJSON), nil
+}
+
+// rpcAdminDeleteItem deletes an item from the catalog
+func rpcAdminDeleteItem(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(payload), &req); err != nil || req.ID == "" {
+		return "", errors.New("item ID is required")
+	}
+
+	deletes := []*runtime.StorageDelete{{
+		Collection: ItemsCatalogCollection,
+		Key:        req.ID,
+		UserID:     SystemUserID,
+	}}
+
+	if err := nk.StorageDelete(ctx, deletes); err != nil {
+		logger.Error("Failed to delete item: %v", err)
+		return "", errors.New("failed to delete item")
+	}
+
+	logger.Info("Item deleted: %s", req.ID)
+	return `{"status":"success"}`, nil
+}
+
+// rpcGetSpellCatalog returns all spells for client use (public)
+func rpcGetSpellCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	objects, _, err := nk.StorageList(ctx, "", SystemUserID, SpellsCatalogCollection, 1000, "")
+	if err != nil {
+		logger.Error("Failed to get spell catalog: %v", err)
+		return "", errors.New("failed to retrieve spell catalog")
+	}
+
+	spells := make([]Spell, 0, len(objects))
+	for _, obj := range objects {
+		var entry SpellCatalogEntry
+		if err := json.Unmarshal([]byte(obj.Value), &entry); err == nil {
+			spells = append(spells, entry.Spell)
+		}
+	}
+
+	responseJSON, _ := json.Marshal(map[string]interface{}{"spells": spells})
+	return string(responseJSON), nil
+}
+
+// rpcGetItemCatalog returns all items for client use (public)
+func rpcGetItemCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	objects, _, err := nk.StorageList(ctx, "", SystemUserID, ItemsCatalogCollection, 1000, "")
+	if err != nil {
+		logger.Error("Failed to get item catalog: %v", err)
+		return "", errors.New("failed to retrieve item catalog")
+	}
+
+	items := make([]Item, 0, len(objects))
+	for _, obj := range objects {
+		var entry ItemCatalogEntry
+		if err := json.Unmarshal([]byte(obj.Value), &entry); err == nil {
+			items = append(items, entry.Item)
+		}
+	}
+
+	responseJSON, _ := json.Marshal(map[string]interface{}{"items": items})
 	return string(responseJSON), nil
 }
