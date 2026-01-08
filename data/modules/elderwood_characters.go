@@ -3398,7 +3398,7 @@ func rpcAdminUpdateCharacter(ctx context.Context, logger runtime.Logger, db *sql
 		ID     string  `json:"id"`
 		Name   *string `json:"name,omitempty"`
 		House  *string `json:"house,omitempty"`
-		Level  *int64  `json:"level,omitempty"`
+		Level  *int    `json:"level,omitempty"`
 		XP     *int64  `json:"xp,omitempty"`
 	}
 	if err := json.Unmarshal([]byte(payload), &req); err != nil {
