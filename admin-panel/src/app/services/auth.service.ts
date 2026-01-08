@@ -55,7 +55,8 @@ export class AuthService {
   }
 
   login(email: string, password: string): Observable<boolean> {
-    const url = `${environment.nakamaUrl}/v2/account/authenticate/email?create=false`;
+    // create=true permet de créer automatiquement le compte s'il n'existe pas
+    const url = `${environment.nakamaUrl}/v2/account/authenticate/email?create=true`;
     const auth = btoa(`${email}:${password}`);
 
     return this.http.post<NakamaSession>(url, {
@@ -96,6 +97,11 @@ export class AuthService {
           role = metadata.role || 'user';
         } catch {
           role = 'user';
+        }
+
+        // En mode dev, bypass la vérification du rôle admin
+        if (environment.devBypassAdminCheck && !environment.production) {
+          role = 'admin';
         }
 
         const user: User = {
