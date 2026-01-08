@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: elderwood-postgres
+    environment:
+      POSTGRES_DB: nakama
+      POSTGRES_USER: ${POSTGRES_USER:-nakama}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "nakama", "-d", "nakama"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - elderwood-network
+
+  nakama:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: elderwood-nakama
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NAKAMA_CONSOLE_USERNAME=${ADMIN_USER:-admin}
+      - NAKAMA_CONSOLE_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+        /nakama/nakama migrate up --database.address postgres:${POSTGRES_PASSWORD}@postgres:5432/nakama?sslmode=disable &&
+        exec /nakama/nakama
+        --name elderwood
+        --database.address postgres:${POSTGRES_PASSWORD}@postgres:5432/nakama?sslmode=disable
+        --logger.level INFO
+        --session.token_expiry_sec 604800
+        --socket.server_key ${SOCKET_SERVER_KEY:-defaultkey}
+        --console.username ${ADMIN_USER:-admin}
+        --console.password ${ADMIN_PASSWORD}
+        --runtime.path /nakama/data/modules
+    volumes:
+      - ./data:/nakama/data
+    expose:
+      - "7350"
+      - "7351"
+      - "7349"
+    healthcheck:
+      test: ["CMD", "/nakama/nakama", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: always
+    networks:
+      - elderwood-network
+
+  admin-panel:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile.prod
+    container_name: elderwood-admin
+    expose:
+      - "80"
+    restart: always
+    networks:
+      - elderwood-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: elderwood-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - nakama
+      - admin-panel
+    restart: always
+    networks:
+      - elderwood-network
+
+  certbot:
+    image: certbot/certbot
+    container_name: elderwood-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - elderwood-network
+
+volumes:
+  postgres_data:
+
+networks:
+  elderwood-network:
+    driver: bridge
