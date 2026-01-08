@@ -40,7 +40,7 @@ export const routes: Routes = [
       },
       {
         path: 'logs',
-        loadComponent: () => import('./components/logs/logs.component').then(m => m.LogsComponent)
+        loadComponent: () => import('./components/storage-logs/logs.component').then(m => m.LogsComponent)
       }
     ]
   },
