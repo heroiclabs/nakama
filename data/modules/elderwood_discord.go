@@ -194,19 +194,15 @@ func rpcDiscordCallback(ctx context.Context, logger runtime.Logger, db *sql.DB, 
 	}
 
 	// Check if this Discord ID is already linked to another account
-	existingUsers, err := nk.UsersGetId(ctx, []string{}, nil)
-	if err == nil {
-		// Search in storage for existing Discord link
-		query := fmt.Sprintf("+value.discord_id:%s", discordUser.ID)
-		result, _, err := nk.StorageIndexList(ctx, SystemUserID, "discord_links_idx", query, 1, nil, "")
-		if err == nil && len(result.Objects) > 0 {
-			var existingLink struct {
-				UserID string `json:"user_id"`
-			}
-			json.Unmarshal([]byte(result.Objects[0].Value), &existingLink)
-			if existingLink.UserID != stateData.UserID {
-				return "", errors.New("this Discord account is already linked to another user")
-			}
+	query := fmt.Sprintf("+value.discord_id:%s", discordUser.ID)
+	result, _, err := nk.StorageIndexList(ctx, SystemUserID, "discord_links_idx", query, 1, nil, "")
+	if err == nil && len(result.Objects) > 0 {
+		var existingLink struct {
+			UserID string `json:"user_id"`
+		}
+		json.Unmarshal([]byte(result.Objects[0].Value), &existingLink)
+		if existingLink.UserID != stateData.UserID {
+			return "", errors.New("this Discord account is already linked to another user")
 		}
 	}
 
