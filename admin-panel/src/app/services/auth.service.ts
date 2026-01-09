@@ -241,9 +241,10 @@ export class AuthService {
     const url = `${environment.nakamaUrl}/v2/rpc/elderwood_verify_email`;
 
     // Double stringify: Nakama RPC expects a JSON string containing the payload
+    // Use HTTP key for unauthenticated RPC calls (user clicking email link)
     return this.http.post<{payload: string}>(url, JSON.stringify(JSON.stringify({ token })), {
       headers: {
-        'Authorization': `Basic ${btoa(environment.nakamaKey + ':')}`,
+        'Authorization': `Basic ${btoa(environment.nakamaHttpKey + ':')}`,
         'Content-Type': 'application/json'
       }
     }).pipe(

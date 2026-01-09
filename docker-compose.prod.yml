@@ -49,6 +49,7 @@ services:
         --logger.level INFO
         --session.token_expiry_sec 604800
         --socket.server_key ${SOCKET_SERVER_KEY:-defaultkey}
+        --runtime.http_key ${RUNTIME_HTTP_KEY:-defaulthttpkey}
         --console.username ${ADMIN_USER:-admin}
         --console.password ${ADMIN_PASSWORD}
         --runtime.path /nakama/data/modules
