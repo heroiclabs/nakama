@@ -8,7 +8,7 @@ COPY data/modules/go.mod .
 COPY data/modules/elderwood_characters.go .
 
 # Download dependencies and build
-RUN go mod download
+RUN go mod tidy
 RUN go build -buildmode=plugin -trimpath -o ./elderwood.so .
 
 # Final Nakama image
