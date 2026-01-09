@@ -7,9 +7,11 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Improvements to Console user setup and management.
+- Option for faster cleanup of parties that are idle and empty.
 
 ### Fixed
 - Ensure party leader username is recorded on party creation.
+- Ensure ended matches are removed from the Console UI list more quickly.
 
 ## [3.35.1] - 2025-12-03
 ### Fixed
