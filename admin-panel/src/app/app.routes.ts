@@ -18,6 +18,14 @@ export const routes: Routes = [
     canActivate: [guestGuard]
   },
   {
+    path: 'verify-email',
+    loadComponent: () => import('./components/verify-email/verify-email.component').then(m => m.VerifyEmailComponent)
+  },
+  {
+    path: 'pending-verification',
+    loadComponent: () => import('./components/pending-verification/pending-verification.component').then(m => m.PendingVerificationComponent)
+  },
+  {
     path: 'admin',
     loadComponent: () => import('./components/admin/admin-layout.component').then(m => m.AdminLayoutComponent),
     canActivate: [authGuard, adminGuard],

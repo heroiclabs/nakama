@@ -30,6 +30,14 @@ services:
     environment:
       - NAKAMA_CONSOLE_USERNAME=${ADMIN_USER:-admin}
       - NAKAMA_CONSOLE_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      # SMTP Configuration for email verification
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Elderwood}
+      - APP_BASE_URL=${APP_BASE_URL:-https://admin.elderwood-rp.com}
     entrypoint:
       - "/bin/sh"
       - "-ecx"

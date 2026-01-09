@@ -218,4 +218,60 @@ export class AuthService {
 
     return user.role === role;
   }
+
+  // Email verification methods
+  sendVerificationEmail(): Observable<{status: string}> {
+    const url = `${environment.nakamaUrl}/v2/rpc/elderwood_send_verification_email`;
+
+    return this.http.post<{payload: string}>(url, '{}', {
+      headers: {
+        'Authorization': `Bearer ${this.token()}`,
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
+      map(response => JSON.parse(response.payload || '{}')),
+      catchError(error => {
+        console.error('Failed to send verification email:', error);
+        throw error;
+      })
+    );
+  }
+
+  verifyEmail(token: string): Observable<{status: string}> {
+    const url = `${environment.nakamaUrl}/v2/rpc/elderwood_verify_email`;
+
+    return this.http.post<{payload: string}>(url, JSON.stringify({ token }), {
+      headers: {
+        'Authorization': `Basic ${btoa(environment.nakamaKey + ':')}`,
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
+      map(response => JSON.parse(response.payload || '{}')),
+      catchError(error => {
+        console.error('Failed to verify email:', error);
+        throw error;
+      })
+    );
+  }
+
+  checkEmailVerified(): Observable<{verified: boolean, email: string}> {
+    const url = `${environment.nakamaUrl}/v2/rpc/elderwood_check_email_verified`;
+
+    return this.http.post<{payload: string}>(url, '{}', {
+      headers: {
+        'Authorization': `Bearer ${this.token()}`,
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
+      map(response => JSON.parse(response.payload || '{}')),
+      catchError(error => {
+        console.error('Failed to check email verification:', error);
+        throw error;
+      })
+    );
+  }
+
+  resendVerificationEmail(): Observable<{status: string}> {
+    return this.sendVerificationEmail();
+  }
 }

@@ -238,17 +238,31 @@ export class RegisterComponent {
 
     this.authService.register(this.email, this.password, this.username).subscribe({
       next: (success) => {
-        this.loading.set(false);
         if (success) {
-          this.messages.set([{
-            severity: 'success',
-            summary: 'Compte créé',
-            detail: 'Votre compte a été créé avec succès'
-          }]);
-          setTimeout(() => {
-            this.router.navigate(['/admin']);
-          }, 1500);
+          // Send verification email
+          this.authService.sendVerificationEmail().subscribe({
+            next: () => {
+              this.loading.set(false);
+              this.messages.set([{
+                severity: 'success',
+                summary: 'Compte créé',
+                detail: 'Un email de confirmation a été envoyé à ' + this.email + '. Veuillez vérifier votre boîte de réception.'
+              }]);
+            },
+            error: () => {
+              this.loading.set(false);
+              this.messages.set([{
+                severity: 'warn',
+                summary: 'Compte créé',
+                detail: 'Votre compte a été créé mais l\'envoi de l\'email de confirmation a échoué. Vous pourrez le renvoyer plus tard.'
+              }]);
+              setTimeout(() => {
+                this.router.navigate(['/pending-verification']);
+              }, 3000);
+            }
+          });
         } else {
+          this.loading.set(false);
           this.messages.set([{
             severity: 'error',
             summary: 'Erreur',

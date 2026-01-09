@@ -1294,7 +1294,12 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
-	logger.Info("Elderwood Characters Module initialized successfully - 44 RPCs registered")
+	// Register email verification RPCs
+	if err := RegisterEmailRPCs(logger, initializer); err != nil {
+		return err
+	}
+
+	logger.Info("Elderwood Characters Module initialized successfully - 48 RPCs registered")
 	return nil
 }
 

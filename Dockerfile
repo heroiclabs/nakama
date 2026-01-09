@@ -3,9 +3,9 @@ FROM heroiclabs/nakama-pluginbuilder:3.24.2 AS builder
 
 WORKDIR /backend
 
-# Copy Go module files
+# Copy Go module files and source
 COPY data/modules/go.mod .
-COPY data/modules/elderwood_characters.go .
+COPY data/modules/*.go .
 
 # Download dependencies and build
 RUN go mod tidy
