@@ -1,6 +1,7 @@
 export const environment = {
   production: true,
-  nakamaUrl: 'https://api.elderwood-rp.com',
-  nakamaKey: 'defaultkey',
+  // Use relative URL - nginx will proxy /v2/ to Nakama
+  nakamaUrl: '',
+  nakamaKey: 'une-cle-random-pour-les-clients',
   nakamaHttpKey: 'defaulthttpkey'
 };
