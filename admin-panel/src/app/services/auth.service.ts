@@ -223,7 +223,7 @@ export class AuthService {
   sendVerificationEmail(): Observable<{status: string}> {
     const url = `${environment.nakamaUrl}/v2/rpc/elderwood_send_verification_email`;
 
-    return this.http.post<{payload: string}>(url, '{}', {
+    return this.http.post<{payload: string}>(url, '""', {
       headers: {
         'Authorization': `Bearer ${this.token()}`,
         'Content-Type': 'application/json'
@@ -240,7 +240,8 @@ export class AuthService {
   verifyEmail(token: string): Observable<{status: string}> {
     const url = `${environment.nakamaUrl}/v2/rpc/elderwood_verify_email`;
 
-    return this.http.post<{payload: string}>(url, JSON.stringify({ token }), {
+    // Double stringify: Nakama RPC expects a JSON string containing the payload
+    return this.http.post<{payload: string}>(url, JSON.stringify(JSON.stringify({ token })), {
       headers: {
         'Authorization': `Basic ${btoa(environment.nakamaKey + ':')}`,
         'Content-Type': 'application/json'
@@ -257,7 +258,7 @@ export class AuthService {
   checkEmailVerified(): Observable<{verified: boolean, email: string}> {
     const url = `${environment.nakamaUrl}/v2/rpc/elderwood_check_email_verified`;
 
-    return this.http.post<{payload: string}>(url, '{}', {
+    return this.http.post<{payload: string}>(url, '""', {
       headers: {
         'Authorization': `Bearer ${this.token()}`,
         'Content-Type': 'application/json'
