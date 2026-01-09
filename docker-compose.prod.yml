@@ -83,6 +83,17 @@ services:
     networks:
       - elderwood-network
 
+  landing-page:
+    build:
+      context: ./landing-page
+      dockerfile: Dockerfile
+    container_name: elderwood-landing
+    expose:
+      - "80"
+    restart: always
+    networks:
+      - elderwood-network
+
   nginx:
     image: nginx:alpine
     container_name: elderwood-nginx
@@ -97,6 +108,7 @@ services:
     depends_on:
       - nakama
       - admin-panel
+      - landing-page
     restart: always
     networks:
       - elderwood-network
