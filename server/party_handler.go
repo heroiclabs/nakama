@@ -771,7 +771,7 @@ func (p *PartyHandler) CloseIfIdle() {
 	}
 
 	if p.tracker.CountByStream(p.Stream) == 0 {
-		// Idle and has no members.
+		// Party is idle and has no members.
 		p.Lock()
 		if p.stopped {
 			p.Unlock()
