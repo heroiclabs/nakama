@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, adminGuard, guestGuard } from './services/auth.guard';
+import { authGuard, adminGuard, guestGuard, discordLinkedGuard } from './services/auth.guard';
 
 export const routes: Routes = [
   {
@@ -26,9 +26,19 @@ export const routes: Routes = [
     loadComponent: () => import('./components/pending-verification/pending-verification.component').then(m => m.PendingVerificationComponent)
   },
   {
+    path: 'link-discord',
+    loadComponent: () => import('./components/link-discord/link-discord.component').then(m => m.LinkDiscordComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'discord-callback',
+    loadComponent: () => import('./components/discord-callback/discord-callback.component').then(m => m.DiscordCallbackComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'admin',
     loadComponent: () => import('./components/admin/admin-layout.component').then(m => m.AdminLayoutComponent),
-    canActivate: [authGuard, adminGuard],
+    canActivate: [authGuard, discordLinkedGuard, adminGuard],
     children: [
       {
         path: '',

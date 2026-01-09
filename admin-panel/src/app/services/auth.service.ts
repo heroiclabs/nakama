@@ -276,4 +276,56 @@ export class AuthService {
   resendVerificationEmail(): Observable<{status: string}> {
     return this.sendVerificationEmail();
   }
+
+  // Discord linking methods
+  getDiscordAuthUrl(): Observable<{url: string}> {
+    const url = `${environment.nakamaUrl}/v2/rpc/elderwood_discord_auth_url`;
+
+    return this.http.post<{payload: string}>(url, '""', {
+      headers: {
+        'Authorization': `Bearer ${this.token()}`,
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
+      map(response => JSON.parse(response.payload || '{}')),
+      catchError(error => {
+        console.error('Failed to get Discord auth URL:', error);
+        throw error;
+      })
+    );
+  }
+
+  discordCallback(code: string, state: string): Observable<{status: string, discord_id: string, discord_username: string}> {
+    const url = `${environment.nakamaUrl}/v2/rpc/elderwood_discord_callback`;
+
+    return this.http.post<{payload: string}>(url, JSON.stringify(JSON.stringify({ code, state })), {
+      headers: {
+        'Authorization': `Bearer ${this.token()}`,
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
+      map(response => JSON.parse(response.payload || '{}')),
+      catchError(error => {
+        console.error('Failed to complete Discord callback:', error);
+        throw error;
+      })
+    );
+  }
+
+  checkDiscordLinked(): Observable<{linked: boolean, discord_id: string, discord_username: string}> {
+    const url = `${environment.nakamaUrl}/v2/rpc/elderwood_check_discord_linked`;
+
+    return this.http.post<{payload: string}>(url, '""', {
+      headers: {
+        'Authorization': `Bearer ${this.token()}`,
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
+      map(response => JSON.parse(response.payload || '{}')),
+      catchError(error => {
+        console.error('Failed to check Discord status:', error);
+        throw error;
+      })
+    );
+  }
 }

@@ -38,6 +38,10 @@ services:
       - SMTP_FROM=${SMTP_FROM:-}
       - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Elderwood}
       - APP_BASE_URL=${APP_BASE_URL:-https://admin.elderwood-rp.com}
+      # Discord OAuth2 Configuration
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
+      - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-https://admin.elderwood-rp.com/discord-callback}
     entrypoint:
       - "/bin/sh"
       - "-ecx"

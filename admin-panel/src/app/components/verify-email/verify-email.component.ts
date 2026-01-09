@@ -30,7 +30,7 @@ import { AuthService } from '../../services/auth.service';
             <i class="pi pi-check-circle text-6xl mb-4" style="color: var(--green-500)"></i>
             <h1>Email vérifié !</h1>
             <p>Votre adresse email a été vérifiée avec succès.</p>
-            <p>Vous pouvez maintenant vous connecter à votre compte.</p>
+            <p>Connectez-vous pour continuer et lier votre compte Discord.</p>
             <p-button
               label="Se connecter"
               icon="pi pi-sign-in"
