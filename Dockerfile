@@ -7,9 +7,8 @@ WORKDIR /backend
 COPY data/modules/go.mod .
 COPY data/modules/*.go .
 
-# Download dependencies and build
-RUN go mod tidy
-RUN go build -buildmode=plugin -trimpath -o ./elderwood.so .
+# Clean any cached modules and rebuild dependencies from scratch
+RUN rm -f go.sum && go mod tidy && go build -buildmode=plugin -trimpath -o ./elderwood.so .
 
 # Final Nakama image
 FROM heroiclabs/nakama:3.24.2

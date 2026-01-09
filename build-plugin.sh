@@ -10,7 +10,7 @@ NC='\033[0m'
 echo -e "${YELLOW}Building Go plugin for Nakama...${NC}"
 
 # Build only the builder stage and extract the elderwood.so
-docker build --target builder -t nakama-builder -f Dockerfile .
+docker build --no-cache --target builder -t nakama-builder -f Dockerfile .
 
 # Create a temporary container to copy the file
 CONTAINER_ID=$(docker create nakama-builder)
