@@ -104,6 +104,15 @@ fi
 echo -e "${YELLOW}Updating nginx configuration...${NC}"
 sed -i "s/elderwood.example.com/$DOMAIN/g" nginx/conf.d/default.conf
 
+# Build Go plugin first (needed because volume mount overrides container files)
+echo -e "${YELLOW}Building Go plugin...${NC}"
+if [ -f "./build-plugin.sh" ]; then
+    chmod +x ./build-plugin.sh
+    ./build-plugin.sh
+else
+    echo -e "${RED}Warning: build-plugin.sh not found. Go RPCs may not work.${NC}"
+fi
+
 # Build and start services
 echo -e "${YELLOW}Building and starting services...${NC}"
 docker compose -f docker-compose.prod.yml build
