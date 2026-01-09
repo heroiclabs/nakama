@@ -282,8 +282,7 @@ func rpcVerifyEmail(ctx context.Context, logger runtime.Logger, db *sql.DB, nk r
 	metadata["email_verified"] = true
 	metadata["email_verified_at"] = time.Now().Format(time.RFC3339)
 
-	metadataJSON, _ := json.Marshal(metadata)
-	if err := nk.AccountUpdateId(ctx, verification.UserID, "", metadataJSON, "", "", "", "", ""); err != nil {
+	if err := nk.AccountUpdateId(ctx, verification.UserID, "", metadata, "", "", "", "", ""); err != nil {
 		logger.Error("Failed to update account metadata: %v", err)
 		return "", errors.New("failed to verify email")
 	}
