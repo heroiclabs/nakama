@@ -1062,6 +1062,14 @@ type SubjectsResponse struct {
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	logger.Info("Initializing Elderwood Characters Module")
 
+	// Seed catalogs only at startup (if empty)
+	if err := seedSpellCatalog(ctx, logger, nk); err != nil {
+		logger.Warn("Failed to seed spell catalog: %v", err)
+	}
+	if err := seedItemCatalog(ctx, logger, nk); err != nil {
+		logger.Warn("Failed to seed item catalog: %v", err)
+	}
+
 	// Register RPC endpoints for character management
 	if err := initializer.RegisterRpc("elderwood_create_character", rpcCreateCharacter); err != nil {
 		logger.Error("Failed to register elderwood_create_character RPC: %v", err)
@@ -4014,10 +4022,8 @@ func seedSpellCatalog(ctx context.Context, logger runtime.Logger, nk runtime.Nak
 
 // rpcAdminListSpellCatalog lists all spells in the catalog
 func rpcAdminListSpellCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
-	// Seed catalog if empty
-	if err := seedSpellCatalog(ctx, logger, nk); err != nil {
-		logger.Error("Failed to seed spell catalog: %v", err)
-	}
+	// NOTE: Seeding removed - catalog should be seeded via separate admin action or InitModule
+	// This prevents deleted spells from reappearing
 
 	objects, _, err := nk.StorageList(ctx, "", SystemUserID, SpellsCatalogCollection, 1000, "")
 	if err != nil {
@@ -4201,10 +4207,8 @@ func seedItemCatalog(ctx context.Context, logger runtime.Logger, nk runtime.Naka
 
 // rpcAdminListItemCatalog lists all items in the catalog
 func rpcAdminListItemCatalog(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
-	// Seed catalog if empty
-	if err := seedItemCatalog(ctx, logger, nk); err != nil {
-		logger.Error("Failed to seed item catalog: %v", err)
-	}
+	// NOTE: Seeding removed - catalog should be seeded via separate admin action or InitModule
+	// This prevents deleted items from reappearing
 
 	objects, _, err := nk.StorageList(ctx, "", SystemUserID, ItemsCatalogCollection, 1000, "")
 	if err != nil {
