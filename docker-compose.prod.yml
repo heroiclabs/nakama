@@ -94,6 +94,17 @@ services:
     networks:
       - elderwood-network
 
+  whitelist-panel:
+    build:
+      context: ./whitelist-panel
+      dockerfile: Dockerfile.prod
+    container_name: elderwood-whitelist
+    expose:
+      - "80"
+    restart: always
+    networks:
+      - elderwood-network
+
   nginx:
     image: nginx:alpine
     container_name: elderwood-nginx
@@ -109,6 +120,7 @@ services:
       - nakama
       - admin-panel
       - landing-page
+      - whitelist-panel
     restart: always
     networks:
       - elderwood-network

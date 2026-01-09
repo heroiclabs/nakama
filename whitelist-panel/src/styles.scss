@@ -1,0 +1,113 @@
+:root {
+  --elderwood-primary: #c9a227;
+  --elderwood-secondary: #8b5cf6;
+  --elderwood-dark: #0c0c0c;
+  --elderwood-surface: #1a1c1e;
+  --elderwood-surface-light: #292a2c;
+  --elderwood-accent: #5ac1ff;
+  --elderwood-gold: #d4af37;
+  --elderwood-purple: #7c3aed;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Crimson Text', serif;
+  background-color: var(--elderwood-dark);
+  color: #ffffff;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Cinzel', serif;
+}
+
+// Override PrimeNG theme colors
+.p-button {
+  background: linear-gradient(135deg, var(--elderwood-primary) 0%, var(--elderwood-gold) 100%);
+  border: none;
+
+  &:hover {
+    background: linear-gradient(135deg, var(--elderwood-gold) 0%, var(--elderwood-primary) 100%);
+  }
+
+  &:focus {
+    box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.3);
+  }
+}
+
+.p-inputtext {
+  background: var(--elderwood-surface-light);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+
+  &:enabled:focus {
+    border-color: var(--elderwood-primary);
+    box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.2);
+  }
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+}
+
+.p-password-input {
+  background: var(--elderwood-surface-light);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+
+  &:enabled:focus {
+    border-color: var(--elderwood-primary);
+    box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.2);
+  }
+}
+
+.p-card {
+  background: var(--elderwood-surface);
+  border-radius: 1rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+// Scrollbar
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--elderwood-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--elderwood-surface-light);
+  border-radius: 4px;
+
+  &:hover {
+    background: var(--elderwood-primary);
+  }
+}
+
+// Selection
+::selection {
+  background: var(--elderwood-primary);
+  color: #000;
+}
+
+// Global animations
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(201, 162, 39, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(201, 162, 39, 0.5); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
