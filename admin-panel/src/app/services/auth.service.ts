@@ -110,10 +110,8 @@ export class AuthService {
     return this.token();
   }
 
-  login(email: string, password: string): Observable<boolean> {
-    // create=true permet de créer automatiquement le compte s'il n'existe pas
-    const url = `${environment.nakamaUrl}/v2/account/authenticate/email?create=true`;
-    const auth = btoa(`${email}:${password}`);
+  register(email: string, password: string, username: string): Observable<boolean> {
+    const url = `${environment.nakamaUrl}/v2/account/authenticate/email?create=true&username=${encodeURIComponent(username)}`;
 
     return this.http.post<NakamaSession>(url, {
       email,
@@ -128,7 +126,31 @@ export class AuthService {
         this.token.set(session.token);
         localStorage.setItem(this.TOKEN_KEY, session.token);
       }),
-      // After login, fetch user account to get metadata (role)
+      tap(() => this.fetchUserAccount()),
+      map(() => true),
+      catchError(error => {
+        console.error('Registration failed:', error);
+        return of(false);
+      })
+    );
+  }
+
+  login(email: string, password: string): Observable<boolean> {
+    const url = `${environment.nakamaUrl}/v2/account/authenticate/email?create=false`;
+
+    return this.http.post<NakamaSession>(url, {
+      email,
+      password
+    }, {
+      headers: {
+        'Authorization': `Basic ${btoa(environment.nakamaKey + ':')}`,
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
+      tap(session => {
+        this.token.set(session.token);
+        localStorage.setItem(this.TOKEN_KEY, session.token);
+      }),
       tap(() => this.fetchUserAccount()),
       map(() => true),
       catchError(error => {

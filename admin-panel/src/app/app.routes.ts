@@ -13,6 +13,11 @@ export const routes: Routes = [
     canActivate: [guestGuard]
   },
   {
+    path: 'register',
+    loadComponent: () => import('./components/register/register.component').then(m => m.RegisterComponent),
+    canActivate: [guestGuard]
+  },
+  {
     path: 'admin',
     loadComponent: () => import('./components/admin/admin-layout.component').then(m => m.AdminLayoutComponent),
     canActivate: [authGuard, adminGuard],
