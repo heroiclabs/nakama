@@ -1,7 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, catchError, of, map } from 'rxjs';
+import { Observable, tap, catchError, of, map, firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { User, UserRole } from '../models';
 
@@ -25,6 +25,8 @@ interface NakamaAccount {
 export class AuthService {
   private readonly TOKEN_KEY = 'elderwood_token';
   private readonly USER_KEY = 'elderwood_user';
+  private readonly USER_TIMESTAMP_KEY = 'elderwood_user_timestamp';
+  private readonly CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
   private currentUser = signal<User | null>(null);
   private token = signal<string | null>(null);
@@ -43,11 +45,65 @@ export class AuthService {
   private loadStoredSession(): void {
     const storedToken = localStorage.getItem(this.TOKEN_KEY);
     const storedUser = localStorage.getItem(this.USER_KEY);
+    const storedTimestamp = localStorage.getItem(this.USER_TIMESTAMP_KEY);
 
     if (storedToken && storedUser) {
       this.token.set(storedToken);
       this.currentUser.set(JSON.parse(storedUser));
+
+      // Refresh user data if cache is stale
+      const timestamp = storedTimestamp ? parseInt(storedTimestamp, 10) : 0;
+      if (Date.now() - timestamp > this.CACHE_DURATION_MS) {
+        this.refreshUserAccount();
+      }
     }
+  }
+
+  // Public method to refresh user account from server
+  refreshUserAccount(): Promise<User | null> {
+    if (!this.token()) {
+      return Promise.resolve(null);
+    }
+
+    const url = `${environment.nakamaUrl}/v2/account`;
+
+    return firstValueFrom(
+      this.http.get<NakamaAccount>(url, {
+        headers: {
+          'Authorization': `Bearer ${this.token()}`
+        }
+      }).pipe(
+        map(account => {
+          let role: UserRole = 'user';
+          try {
+            const metadata = JSON.parse(account.user.metadata || '{}');
+            role = metadata.role || 'user';
+          } catch {
+            role = 'user';
+          }
+
+          if (environment.devBypassAdminCheck && !environment.production) {
+            role = 'admin';
+          }
+
+          const user: User = {
+            id: account.user.id,
+            username: account.user.username,
+            role
+          };
+
+          this.currentUser.set(user);
+          localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+          localStorage.setItem(this.USER_TIMESTAMP_KEY, Date.now().toString());
+
+          return user;
+        }),
+        catchError(err => {
+          console.error('Failed to refresh account:', err);
+          return of(null);
+        })
+      )
+    );
   }
 
   getToken(): string | null {
@@ -124,6 +180,7 @@ export class AuthService {
     this.currentUser.set(null);
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
+    localStorage.removeItem(this.USER_TIMESTAMP_KEY);
     this.router.navigate(['/login']);
   }
 

@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-unauthorized',
@@ -17,11 +18,20 @@ import { CardModule } from 'primeng/card';
           <p class="text-color-secondary mb-4">
             Vous n'avez pas les permissions nécessaires pour accéder à cette page.
           </p>
-          <p-button
-            label="Retour à la connexion"
-            icon="pi pi-arrow-left"
-            routerLink="/login"
-          ></p-button>
+          <div class="flex gap-2 justify-content-center">
+            <p-button
+              label="Rafraîchir les permissions"
+              icon="pi pi-refresh"
+              [loading]="refreshing()"
+              (onClick)="refreshPermissions()"
+              severity="secondary"
+            ></p-button>
+            <p-button
+              label="Retour à la connexion"
+              icon="pi pi-arrow-left"
+              routerLink="/login"
+            ></p-button>
+          </div>
         </div>
       </p-card>
     </div>
@@ -35,7 +45,7 @@ import { CardModule } from 'primeng/card';
       padding: 2rem;
 
       p-card {
-        max-width: 400px;
+        max-width: 450px;
         width: 100%;
       }
 
@@ -46,4 +56,23 @@ import { CardModule } from 'primeng/card';
     }
   `]
 })
-export class UnauthorizedComponent {}
+export class UnauthorizedComponent {
+  refreshing = signal(false);
+
+  constructor(
+    private authService: AuthService,
+    private router: Router
+  ) {}
+
+  async refreshPermissions(): Promise<void> {
+    this.refreshing.set(true);
+    try {
+      const user = await this.authService.refreshUserAccount();
+      if (user?.role === 'admin') {
+        this.router.navigate(['/']);
+      }
+    } finally {
+      this.refreshing.set(false);
+    }
+  }
+}
