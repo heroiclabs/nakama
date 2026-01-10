@@ -649,8 +649,44 @@ import { AuthService } from '../../services/auth.service';
       justify-content: flex-end;
       gap: 1rem;
       margin-top: 2rem;
-      padding-top: 1rem;
+      padding-top: 1.5rem;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Button styling */
+    :host ::ng-deep .form-actions .p-button {
+      padding: 0.875rem 1.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+    }
+
+    :host ::ng-deep .form-actions .p-button:not(.p-button-outlined) {
+      background: linear-gradient(135deg, var(--elderwood-primary), var(--elderwood-gold));
+      border: none;
+      color: #0c0c0c;
+    }
+
+    :host ::ng-deep .form-actions .p-button:not(.p-button-outlined):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(201, 162, 39, 0.3);
+    }
+
+    :host ::ng-deep .form-actions .p-button.p-button-outlined {
+      background: transparent;
+      border: 2px solid #3a3d40;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    :host ::ng-deep .form-actions .p-button.p-button-outlined:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: #4a4d50;
+      color: white;
+    }
+
+    :host ::ng-deep .form-actions .p-button .p-button-icon {
+      font-size: 0.9rem;
     }
 
     :host ::ng-deep .mb-4 {
