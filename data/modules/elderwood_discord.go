@@ -71,6 +71,8 @@ func rpcGetDiscordAuthURL(ctx context.Context, logger runtime.Logger, db *sql.DB
 		json.Unmarshal([]byte(payload), &req)
 	}
 
+	logger.Info("Discord auth URL requested - payload: %s, parsed source: %s", payload, req.Source)
+
 	clientID := os.Getenv("DISCORD_CLIENT_ID")
 	if clientID == "" {
 		logger.Error("Discord OAuth not configured: missing DISCORD_CLIENT_ID")
