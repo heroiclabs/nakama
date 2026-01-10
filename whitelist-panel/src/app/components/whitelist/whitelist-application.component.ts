@@ -266,6 +266,10 @@ import { AuthService } from '../../services/auth.service';
       overflow: hidden;
     }
 
+    :host ::ng-deep .p-card .p-card-header {
+      padding: 0;
+    }
+
     :host ::ng-deep .p-card .p-card-body {
       padding: 2rem;
     }
@@ -281,7 +285,6 @@ import { AuthService } from '../../services/auth.service';
       padding: 1.5rem 2rem;
       background: linear-gradient(135deg, var(--elderwood-primary), var(--elderwood-gold));
       color: #0c0c0c;
-      margin: -2rem -2rem 2rem -2rem;
     }
 
     .card-header i {
