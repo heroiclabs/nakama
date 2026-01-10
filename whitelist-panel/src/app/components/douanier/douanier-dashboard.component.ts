@@ -278,19 +278,21 @@ import { AuthService } from '../../services/auth.service';
   styles: [`
     .douanier-dashboard {
       padding: 2rem;
+      background: #0c0c0c;
+      min-height: 100vh;
     }
 
     .header {
       margin-bottom: 2rem;
+    }
 
-      h1 {
-        color: var(--primary-color);
-        margin-bottom: 0.5rem;
-      }
+    .header h1 {
+      color: var(--elderwood-primary);
+      margin-bottom: 0.5rem;
+    }
 
-      p {
-        color: var(--text-color-secondary);
-      }
+    .header p {
+      color: rgba(255, 255, 255, 0.6);
     }
 
     .stats-cards {
@@ -300,38 +302,140 @@ import { AuthService } from '../../services/auth.service';
       margin-bottom: 2rem;
     }
 
-    :host ::ng-deep .stat-card {
-      .p-card-body {
-        padding: 1rem;
-      }
+    :host ::ng-deep .stat-card .p-card {
+      background: #1d1f21;
+      border: none;
+    }
 
-      &.pending .p-card {
-        border-left: 4px solid var(--yellow-500);
-      }
+    :host ::ng-deep .stat-card .p-card-body {
+      padding: 1.5rem;
+    }
 
-      &.approved .p-card {
-        border-left: 4px solid var(--green-500);
-      }
+    :host ::ng-deep .stat-card.pending .p-card {
+      border-left: 4px solid #f59e0b;
+    }
 
-      &.rejected .p-card {
-        border-left: 4px solid var(--red-500);
-      }
+    :host ::ng-deep .stat-card.approved .p-card {
+      border-left: 4px solid #22c55e;
+    }
+
+    :host ::ng-deep .stat-card.rejected .p-card {
+      border-left: 4px solid #ef4444;
     }
 
     .stat-content {
       display: flex;
       flex-direction: column;
       align-items: center;
+      gap: 0.25rem;
+    }
 
-      .stat-number {
-        font-size: 2rem;
-        font-weight: bold;
-        color: var(--primary-color);
-      }
+    .stat-content .stat-number {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: var(--elderwood-primary);
+    }
 
-      .stat-label {
-        color: var(--text-color-secondary);
-      }
+    .stat-content .stat-label {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.9rem;
+    }
+
+    /* TabView styling */
+    :host ::ng-deep .p-tabview {
+      background: transparent;
+    }
+
+    :host ::ng-deep .p-tabview .p-tabview-nav {
+      background: #1d1f21;
+      border: none;
+      border-radius: 12px 12px 0 0;
+      padding: 0.5rem 0.5rem 0;
+    }
+
+    :host ::ng-deep .p-tabview .p-tabview-nav li .p-tabview-nav-link {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.5);
+      padding: 1rem 1.5rem;
+      border-radius: 8px 8px 0 0;
+    }
+
+    :host ::ng-deep .p-tabview .p-tabview-nav li.p-highlight .p-tabview-nav-link {
+      background: var(--elderwood-surface);
+      color: var(--elderwood-primary);
+      border: none;
+    }
+
+    :host ::ng-deep .p-tabview .p-tabview-nav li:not(.p-highlight):not(.p-disabled):hover .p-tabview-nav-link {
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+    }
+
+    :host ::ng-deep .p-tabview .p-tabview-panels {
+      background: var(--elderwood-surface);
+      border-radius: 0 0 12px 12px;
+      padding: 1.5rem;
+    }
+
+    /* Table styling */
+    :host ::ng-deep .p-datatable {
+      background: transparent;
+    }
+
+    :host ::ng-deep .p-datatable .p-datatable-header {
+      background: transparent;
+      border: none;
+    }
+
+    :host ::ng-deep .p-datatable .p-datatable-thead > tr > th {
+      background: rgba(0, 0, 0, 0.3);
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      padding: 1rem;
+      font-weight: 600;
+    }
+
+    :host ::ng-deep .p-datatable .p-datatable-tbody > tr {
+      background: transparent;
+      transition: background 0.2s;
+    }
+
+    :host ::ng-deep .p-datatable .p-datatable-tbody > tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    :host ::ng-deep .p-datatable .p-datatable-tbody > tr > td {
+      border: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 1rem;
+      color: white;
+    }
+
+    :host ::ng-deep .p-datatable-striped .p-datatable-tbody > tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    :host ::ng-deep .p-paginator {
+      background: transparent;
+      border: none;
+      padding: 1rem 0;
+    }
+
+    :host ::ng-deep .p-paginator .p-paginator-element {
+      background: #292a2c;
+      border: none;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    :host ::ng-deep .p-paginator .p-paginator-element:hover {
+      background: #3a3b3d;
+      color: white;
+    }
+
+    :host ::ng-deep .p-paginator .p-highlight {
+      background: var(--elderwood-primary);
+      color: #0c0c0c;
     }
 
     .action-buttons {
@@ -339,103 +443,210 @@ import { AuthService } from '../../services/auth.service';
       gap: 0.5rem;
     }
 
-    .application-details {
-      .detail-section {
-        margin-bottom: 1.5rem;
-
-        h3 {
-          color: var(--primary-color);
-          margin-bottom: 1rem;
-          padding-bottom: 0.5rem;
-          border-bottom: 1px solid var(--surface-border);
-        }
-      }
-
-      .detail-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-      }
-
-      .detail-item {
-        label {
-          display: block;
-          font-weight: bold;
-          color: var(--text-color-secondary);
-          margin-bottom: 0.25rem;
-          font-size: 0.875rem;
-        }
-
-        span {
-          color: var(--text-color);
-        }
-      }
-
-      .story-text {
-        white-space: pre-wrap;
-        background: var(--surface-ground);
-        padding: 1rem;
-        border-radius: 6px;
-        line-height: 1.6;
-      }
-
-      .rejection-section {
-        background: rgba(239, 68, 68, 0.1);
-        padding: 1rem;
-        border-radius: 6px;
-        border-left: 4px solid var(--red-500);
-
-        h3 {
-          color: var(--red-500);
-        }
-
-        .rejection-text {
-          color: var(--red-400);
-        }
-      }
-
-      .approved-section {
-        background: rgba(34, 197, 94, 0.1);
-        padding: 1rem;
-        border-radius: 6px;
-        border-left: 4px solid var(--green-500);
-
-        h3 {
-          color: var(--green-500);
-        }
-      }
-
-      .reviewed-by {
-        font-size: 0.875rem;
-        color: var(--text-color-secondary);
-        margin-top: 0.5rem;
-      }
+    :host ::ng-deep .action-buttons .p-button {
+      width: 36px;
+      height: 36px;
+      padding: 0;
     }
 
-    .reject-form {
-      .warn-text {
-        color: var(--yellow-500);
-        font-size: 0.875rem;
-        margin-bottom: 1rem;
-      }
+    :host ::ng-deep .action-buttons .p-button-info {
+      background: #3b82f6;
+    }
 
-      .form-field {
-        label {
-          display: block;
-          margin-bottom: 0.5rem;
-          font-weight: bold;
-        }
+    :host ::ng-deep .action-buttons .p-button-success {
+      background: #22c55e;
+    }
 
-        textarea {
-          width: 100%;
-        }
-      }
+    :host ::ng-deep .action-buttons .p-button-danger {
+      background: #ef4444;
+    }
+
+    /* Dialog styling */
+    :host ::ng-deep .p-dialog {
+      background: var(--elderwood-surface);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+    }
+
+    :host ::ng-deep .p-dialog .p-dialog-header {
+      background: var(--elderwood-surface);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      color: white;
+      border-radius: 16px 16px 0 0;
+    }
+
+    :host ::ng-deep .p-dialog .p-dialog-content {
+      background: var(--elderwood-surface);
+      color: white;
+    }
+
+    :host ::ng-deep .p-dialog .p-dialog-footer {
+      background: var(--elderwood-surface);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0 0 16px 16px;
+    }
+
+    .application-details .detail-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .application-details .detail-section h3 {
+      color: var(--elderwood-primary);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .detail-item label {
+      display: block;
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 0.25rem;
+      font-size: 0.875rem;
+    }
+
+    .detail-item span {
+      color: white;
+    }
+
+    .story-text {
+      white-space: pre-wrap;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 1rem;
+      border-radius: 8px;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .rejection-section {
+      background: rgba(239, 68, 68, 0.1);
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid #ef4444;
+    }
+
+    .rejection-section h3 {
+      color: #ef4444 !important;
+      border: none !important;
+    }
+
+    .rejection-text {
+      color: #fca5a5;
+    }
+
+    .approved-section {
+      background: rgba(34, 197, 94, 0.1);
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid #22c55e;
+    }
+
+    .approved-section h3 {
+      color: #22c55e !important;
+      border: none !important;
+    }
+
+    .reviewed-by {
+      font-size: 0.875rem;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 0.5rem;
+    }
+
+    .reject-form p {
+      margin-bottom: 0.5rem;
+    }
+
+    .warn-text {
+      color: #f59e0b;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-field {
+      margin-top: 1rem;
+    }
+
+    .form-field label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    :host ::ng-deep .form-field textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: white;
+      border-radius: 8px;
+    }
+
+    :host ::ng-deep .form-field textarea:focus {
+      border-color: var(--elderwood-primary);
+      box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.2);
     }
 
     .text-center {
       text-align: center;
       padding: 2rem;
-      color: var(--text-color-secondary);
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* Tag styling */
+    :host ::ng-deep .p-tag {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.75rem;
+    }
+
+    :host ::ng-deep .p-tag.p-tag-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    :host ::ng-deep .p-tag.p-tag-success {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    :host ::ng-deep .p-tag.p-tag-danger {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    /* Confirm dialog */
+    :host ::ng-deep .p-confirm-dialog {
+      background: var(--elderwood-surface);
+    }
+
+    :host ::ng-deep .p-confirm-dialog .p-dialog-header {
+      background: var(--elderwood-surface);
+      color: white;
+    }
+
+    :host ::ng-deep .p-confirm-dialog .p-dialog-content {
+      background: var(--elderwood-surface);
+      color: white;
+    }
+
+    :host ::ng-deep .p-confirm-dialog .p-dialog-footer {
+      background: var(--elderwood-surface);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .stats-cards {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
     }
   `]
 })
