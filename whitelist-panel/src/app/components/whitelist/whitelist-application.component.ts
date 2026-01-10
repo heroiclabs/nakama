@@ -262,16 +262,26 @@ import { AuthService } from '../../services/auth.service';
     :host ::ng-deep .p-card {
       background: var(--elderwood-surface);
       border: none;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    :host ::ng-deep .p-card .p-card-body {
+      padding: 2rem;
+    }
+
+    :host ::ng-deep .p-card .p-card-content {
+      padding: 0;
     }
 
     .card-header {
       display: flex;
       align-items: center;
       gap: 1rem;
-      padding: 1.5rem;
+      padding: 1.5rem 2rem;
       background: linear-gradient(135deg, var(--elderwood-primary), var(--elderwood-gold));
       color: #0c0c0c;
-      border-radius: 6px 6px 0 0;
+      margin: -2rem -2rem 2rem -2rem;
     }
 
     .card-header i {
@@ -280,6 +290,7 @@ import { AuthService } from '../../services/auth.service';
 
     .card-header h2 {
       margin: 0;
+      font-size: 1.5rem;
     }
 
     /* Steps styling - Elderwood theme */
@@ -433,72 +444,174 @@ import { AuthService } from '../../services/auth.service';
     }
 
     /* Form View */
+    .step-content {
+      padding: 0.5rem 0;
+    }
+
     .form-step h3 {
       color: var(--elderwood-primary);
       margin-bottom: 0.5rem;
+      font-size: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .step-description {
       color: rgba(255, 255, 255, 0.6);
-      margin-bottom: 1.5rem;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
     }
 
     .form-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
+      gap: 1.5rem;
     }
 
     .form-field {
-      margin-bottom: 1rem;
+      margin-bottom: 1.5rem;
     }
 
     .form-field label {
       display: block;
       margin-bottom: 0.5rem;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.8);
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.9rem;
     }
 
-    .form-field input,
-    .form-field textarea {
+    /* Input text styling */
+    :host ::ng-deep .form-field .p-inputtext {
       width: 100%;
-      background: var(--elderwood-surface-light);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #151719;
+      border: 2px solid #2a2d30;
+      border-radius: 10px;
       color: white;
+      padding: 0.875rem 1rem;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
     }
 
-    :host ::ng-deep .form-field .p-dropdown,
+    :host ::ng-deep .form-field .p-inputtext:hover {
+      border-color: #3a3d40;
+    }
+
+    :host ::ng-deep .form-field .p-inputtext:focus {
+      border-color: var(--elderwood-primary);
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+      outline: none;
+    }
+
+    :host ::ng-deep .form-field .p-inputtext::placeholder {
+      color: rgba(255, 255, 255, 0.35);
+    }
+
+    /* Textarea styling */
+    :host ::ng-deep .form-field textarea.p-inputtextarea {
+      width: 100%;
+      background: #151719;
+      border: 2px solid #2a2d30;
+      border-radius: 10px;
+      color: white;
+      padding: 0.875rem 1rem;
+      font-size: 0.95rem;
+      resize: vertical;
+      min-height: 120px;
+      transition: all 0.2s ease;
+    }
+
+    :host ::ng-deep .form-field textarea.p-inputtextarea:hover {
+      border-color: #3a3d40;
+    }
+
+    :host ::ng-deep .form-field textarea.p-inputtextarea:focus {
+      border-color: var(--elderwood-primary);
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+      outline: none;
+    }
+
+    /* Dropdown styling */
+    :host ::ng-deep .form-field .p-dropdown {
+      width: 100%;
+      background: #151719;
+      border: 2px solid #2a2d30;
+      border-radius: 10px;
+      transition: all 0.2s ease;
+    }
+
+    :host ::ng-deep .form-field .p-dropdown:hover {
+      border-color: #3a3d40;
+    }
+
+    :host ::ng-deep .form-field .p-dropdown.p-focus {
+      border-color: var(--elderwood-primary);
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+    }
+
+    :host ::ng-deep .form-field .p-dropdown .p-dropdown-label {
+      background: transparent;
+      color: white;
+      padding: 0.875rem 1rem;
+      font-size: 0.95rem;
+    }
+
+    :host ::ng-deep .form-field .p-dropdown .p-dropdown-label.p-placeholder {
+      color: rgba(255, 255, 255, 0.35);
+    }
+
+    :host ::ng-deep .form-field .p-dropdown .p-dropdown-trigger {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.5);
+      width: 3rem;
+    }
+
+    /* InputNumber styling */
     :host ::ng-deep .form-field .p-inputnumber {
       width: 100%;
     }
 
-    :host ::ng-deep .form-field .p-dropdown .p-dropdown-label {
-      background: var(--elderwood-surface-light);
+    :host ::ng-deep .form-field .p-inputnumber .p-inputtext {
+      background: #151719;
+      border: 2px solid #2a2d30;
+      border-radius: 10px 0 0 10px;
       color: white;
+      padding: 0.875rem 1rem;
+      font-size: 0.95rem;
     }
 
-    :host ::ng-deep .form-field .p-dropdown .p-dropdown-trigger {
-      background: var(--elderwood-surface-light);
-      color: rgba(255, 255, 255, 0.6);
+    :host ::ng-deep .form-field .p-inputnumber .p-inputtext:focus {
+      border-color: var(--elderwood-primary);
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
     }
 
-    :host ::ng-deep .p-inputnumber .p-inputtext {
-      background: var(--elderwood-surface-light);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    :host ::ng-deep .form-field .p-inputnumber .p-button {
+      background: #232527;
+      border: 2px solid #2a2d30;
       color: white;
+      width: 2.5rem;
     }
 
-    :host ::ng-deep .p-inputnumber .p-button {
-      background: #292a2c;
-      border-color: rgba(255, 255, 255, 0.1);
-      color: white;
+    :host ::ng-deep .form-field .p-inputnumber .p-button:hover {
+      background: #2a2d30;
+      border-color: #3a3d40;
+    }
+
+    :host ::ng-deep .form-field .p-inputnumber .p-button.p-inputnumber-button-up {
+      border-radius: 0 10px 0 0;
+      border-left: none;
+    }
+
+    :host ::ng-deep .form-field .p-inputnumber .p-button.p-inputnumber-button-down {
+      border-radius: 0 0 10px 0;
+      border-left: none;
+      border-top: none;
     }
 
     .form-field small {
       display: block;
-      margin-top: 0.25rem;
+      margin-top: 0.5rem;
       color: rgba(255, 255, 255, 0.5);
+      font-size: 0.8rem;
     }
 
     .form-field small.error {
