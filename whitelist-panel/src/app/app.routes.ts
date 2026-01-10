@@ -36,20 +36,25 @@ export const routes: Routes = [
     loadComponent: () => import('./components/discord-callback/discord-callback.component').then(m => m.DiscordCallbackComponent),
     canActivate: [authGuard]
   },
+  // Main layout with sidebar and header
   {
-    path: 'dashboard',
-    loadComponent: () => import('./components/dashboard/dashboard.component').then(m => m.DashboardComponent),
-    canActivate: [authGuard, emailVerifiedGuard, discordLinkedGuard]
-  },
-  {
-    path: 'whitelist',
-    loadComponent: () => import('./components/whitelist/whitelist-application.component').then(m => m.WhitelistApplicationComponent),
-    canActivate: [authGuard, emailVerifiedGuard, discordLinkedGuard]
-  },
-  {
-    path: 'douanier',
-    loadComponent: () => import('./components/douanier/douanier-dashboard.component').then(m => m.DouanierDashboardComponent),
-    canActivate: [authGuard, emailVerifiedGuard, discordLinkedGuard]
+    path: '',
+    loadComponent: () => import('./components/layout/main-layout.component').then(m => m.MainLayoutComponent),
+    canActivate: [authGuard, emailVerifiedGuard, discordLinkedGuard],
+    children: [
+      {
+        path: 'dashboard',
+        loadComponent: () => import('./components/dashboard/dashboard.component').then(m => m.DashboardComponent)
+      },
+      {
+        path: 'whitelist',
+        loadComponent: () => import('./components/whitelist/whitelist-application.component').then(m => m.WhitelistApplicationComponent)
+      },
+      {
+        path: 'douanier',
+        loadComponent: () => import('./components/douanier/douanier-dashboard.component').then(m => m.DouanierDashboardComponent)
+      }
+    ]
   },
   {
     path: '**',

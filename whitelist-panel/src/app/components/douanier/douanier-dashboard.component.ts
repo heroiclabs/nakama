@@ -277,9 +277,12 @@ import { AuthService } from '../../services/auth.service';
   `,
   styles: [`
     .douanier-dashboard {
-      padding: 2rem;
-      background: #0c0c0c;
-      min-height: 100vh;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .header {
