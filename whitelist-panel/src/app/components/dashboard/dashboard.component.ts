@@ -32,13 +32,21 @@ import { User } from '../../models';
             <button class="nav-item" pTooltip="Nouvelle demande" tooltipPosition="right" routerLink="/whitelist">
               <i class="pi pi-plus"></i>
             </button>
-            <button class="nav-item" pTooltip="Mes demandes" tooltipPosition="right">
+            <button class="nav-item" pTooltip="Mes demandes" tooltipPosition="right" routerLink="/whitelist">
               <i class="pi pi-comments"></i>
             </button>
             <button class="nav-item" pTooltip="Reglement" tooltipPosition="right">
               <i class="pi pi-bookmark"></i>
             </button>
           </div>
+
+          @if (isDouanier()) {
+            <div class="nav-group">
+              <button class="nav-item douanier" pTooltip="Gestion Douanier" tooltipPosition="right" routerLink="/douanier">
+                <i class="pi pi-shield"></i>
+              </button>
+            </div>
+          }
 
           <div class="nav-group">
             <button class="nav-item" pTooltip="Lore" tooltipPosition="right">
@@ -810,6 +818,23 @@ export class DashboardComponent implements OnInit {
 
   getStatusClass(): string {
     return this.user()?.whitelist_status || 'none';
+  }
+
+  isDouanier(): boolean {
+    const user = this.user();
+    if (!user) return false;
+
+    // Check for admin or douanier role
+    const role = user.role;
+    if (role === 'admin' || role === 'douanier') return true;
+
+    // Check roles array if exists
+    const roles = user.roles;
+    if (roles && Array.isArray(roles)) {
+      return roles.includes('admin') || roles.includes('douanier');
+    }
+
+    return false;
   }
 
   toggleUserMenu(): void {

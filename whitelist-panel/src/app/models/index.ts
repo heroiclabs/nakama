@@ -1,9 +1,10 @@
-export type UserRole = 'user' | 'moderator' | 'admin';
+export type UserRole = 'user' | 'moderator' | 'admin' | 'douanier';
 
 export interface User {
   id: string;
   username: string;
   role: UserRole;
+  roles?: string[];
   email_verified?: boolean;
   discord_linked?: boolean;
   discord_username?: string;

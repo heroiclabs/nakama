@@ -1312,7 +1312,12 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
-	logger.Info("Elderwood Characters Module initialized successfully - 51 RPCs registered")
+	// Register Whitelist RPCs
+	if err := RegisterWhitelistRPCs(initializer, logger); err != nil {
+		return err
+	}
+
+	logger.Info("Elderwood Characters Module initialized successfully - 55 RPCs registered")
 	return nil
 }
 

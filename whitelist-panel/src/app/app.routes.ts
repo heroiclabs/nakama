@@ -43,7 +43,12 @@ export const routes: Routes = [
   },
   {
     path: 'whitelist',
-    loadComponent: () => import('./components/whitelist-application/whitelist-application.component').then(m => m.WhitelistApplicationComponent),
+    loadComponent: () => import('./components/whitelist/whitelist-application.component').then(m => m.WhitelistApplicationComponent),
+    canActivate: [authGuard, emailVerifiedGuard, discordLinkedGuard]
+  },
+  {
+    path: 'douanier',
+    loadComponent: () => import('./components/douanier/douanier-dashboard.component').then(m => m.DouanierDashboardComponent),
     canActivate: [authGuard, emailVerifiedGuard, discordLinkedGuard]
   },
   {
