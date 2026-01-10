@@ -96,6 +96,57 @@ h1, h2, h3, h4, h5, h6 {
   color: #000;
 }
 
+// Tooltip styling
+.p-tooltip {
+  .p-tooltip-text {
+    background: #1d1f21;
+    color: white;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  &.p-tooltip-right .p-tooltip-arrow {
+    border-right-color: #1d1f21;
+  }
+
+  &.p-tooltip-left .p-tooltip-arrow {
+    border-left-color: #1d1f21;
+  }
+
+  &.p-tooltip-top .p-tooltip-arrow {
+    border-top-color: #1d1f21;
+  }
+
+  &.p-tooltip-bottom .p-tooltip-arrow {
+    border-bottom-color: #1d1f21;
+  }
+}
+
+// Dropdown panel styling
+.p-dropdown-panel {
+  background: #1d1f21;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+
+  .p-dropdown-items {
+    .p-dropdown-item {
+      color: white;
+      padding: 0.75rem 1rem;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      &.p-highlight {
+        background: var(--elderwood-primary);
+        color: #0c0c0c;
+      }
+    }
+  }
+}
+
 // Global animations
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
