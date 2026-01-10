@@ -4,7 +4,7 @@ import { Observable, map, catchError, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 
-export type WhitelistStatus = 'pending' | 'approved' | 'rejected';
+export type WhitelistStatus = 'pending' | 'rp_approved' | 'hrp_pending' | 'approved' | 'rejected';
 
 export interface WhitelistApplication {
   id: string;
@@ -13,14 +13,27 @@ export interface WhitelistApplication {
   email: string;
   discord_id: string;
   discord_username: string;
+
+  // Étape 1: RP (In-Game Character)
   character_first_name: string;
   character_last_name: string;
   character_age: number;
   character_blood: string;
   character_history: string;
   character_motivation: string;
+
+  // Étape 2: HRP (Hors RP - Real Person)
+  hrp_first_name?: string;
+  hrp_age?: number;
+  hrp_experience_years?: number;
+  hrp_experience_text?: string;
+  hrp_hp_knowledge?: string;
+
+  // Status
   status: WhitelistStatus;
+  current_step: 'rp' | 'hrp';
   rejection_reason?: string;
+  rejected_step?: 'rp' | 'hrp';
   reviewed_by?: string;
   reviewed_at?: string;
   created_at: string;
@@ -30,6 +43,7 @@ export interface WhitelistApplication {
 export interface WhitelistStatusResponse {
   has_application: boolean;
   can_apply: boolean;
+  can_submit_hrp: boolean;
   application?: WhitelistApplication;
   cooldown_remaining?: string;
 }
@@ -58,7 +72,7 @@ export class WhitelistService {
     };
   }
 
-  // Submit a new whitelist application
+  // Submit a new RP whitelist application (Step 1)
   submitApplication(data: {
     character_first_name: string;
     character_last_name: string;
@@ -75,7 +89,29 @@ export class WhitelistService {
     }).pipe(
       map(response => JSON.parse(response.payload || '{}')),
       catchError(error => {
-        console.error('Failed to submit whitelist application:', error);
+        console.error('Failed to submit RP whitelist application:', error);
+        throw error;
+      })
+    );
+  }
+
+  // Submit HRP whitelist application (Step 2)
+  submitHRPApplication(data: {
+    hrp_first_name: string;
+    hrp_age: number;
+    hrp_experience_years: number;
+    hrp_experience_text: string;
+    hrp_hp_knowledge: string;
+  }): Observable<{ status: string; app_id: string; message: string }> {
+    const url = `${environment.nakamaUrl}/v2/rpc/elderwood_submit_whitelist_hrp`;
+    const payload = JSON.stringify(data);
+
+    return this.http.post<{ payload: string }>(url, JSON.stringify(payload), {
+      headers: this.getHeaders()
+    }).pipe(
+      map(response => JSON.parse(response.payload || '{}')),
+      catchError(error => {
+        console.error('Failed to submit HRP whitelist application:', error);
         throw error;
       })
     );
@@ -150,7 +186,11 @@ export class WhitelistService {
   getStatusLabel(status: WhitelistStatus): string {
     switch (status) {
       case 'pending':
-        return 'En attente de validation';
+        return 'RP en attente';
+      case 'rp_approved':
+        return 'RP approuvé - HRP à soumettre';
+      case 'hrp_pending':
+        return 'HRP en attente';
       case 'approved':
         return 'Approuvée';
       case 'rejected':
@@ -160,10 +200,19 @@ export class WhitelistService {
     }
   }
 
+  // Helper to get step label
+  getStepLabel(step: 'rp' | 'hrp'): string {
+    return step === 'rp' ? 'Étape RP' : 'Étape HRP';
+  }
+
   // Helper to get status severity for PrimeNG
   getStatusSeverity(status: WhitelistStatus): 'info' | 'success' | 'danger' | 'warning' {
     switch (status) {
       case 'pending':
+        return 'warning';
+      case 'rp_approved':
+        return 'info';
+      case 'hrp_pending':
         return 'warning';
       case 'approved':
         return 'success';

@@ -50,8 +50,14 @@ import { AuthService } from '../../services/auth.service';
       <div class="stats-cards">
         <p-card styleClass="stat-card pending">
           <div class="stat-content">
-            <span class="stat-number">{{ pendingCount() }}</span>
-            <span class="stat-label">En attente</span>
+            <span class="stat-number">{{ rpPendingCount() }}</span>
+            <span class="stat-label">RP en attente</span>
+          </div>
+        </p-card>
+        <p-card styleClass="stat-card hrp-pending">
+          <div class="stat-content">
+            <span class="stat-number">{{ hrpPendingCount() }}</span>
+            <span class="stat-label">HRP en attente</span>
           </div>
         </p-card>
         <p-card styleClass="stat-card approved">
@@ -69,8 +75,11 @@ import { AuthService } from '../../services/auth.service';
       </div>
 
       <p-tabView>
-        <p-tabPanel header="En attente ({{ pendingCount() }})">
-          <ng-container *ngTemplateOutlet="applicationsTable; context: { $implicit: pendingApplications() }"></ng-container>
+        <p-tabPanel header="RP en attente ({{ rpPendingCount() }})">
+          <ng-container *ngTemplateOutlet="applicationsTable; context: { $implicit: rpPendingApplications() }"></ng-container>
+        </p-tabPanel>
+        <p-tabPanel header="HRP en attente ({{ hrpPendingCount() }})">
+          <ng-container *ngTemplateOutlet="applicationsTable; context: { $implicit: hrpPendingApplications() }"></ng-container>
         </p-tabPanel>
         <p-tabPanel header="Approuvées ({{ approvedCount() }})">
           <ng-container *ngTemplateOutlet="applicationsTable; context: { $implicit: approvedApplications() }"></ng-container>
@@ -99,6 +108,7 @@ import { AuthService } from '../../services/auth.service';
               <th>Âge</th>
               <th>Sang</th>
               <th pSortableColumn="created_at">Date <p-sortIcon field="created_at"></p-sortIcon></th>
+              <th>Étape</th>
               <th>Statut</th>
               <th>Actions</th>
             </tr>
@@ -112,6 +122,11 @@ import { AuthService } from '../../services/auth.service';
               <td>{{ whitelistService.getBloodLabel(app.character_blood) }}</td>
               <td>{{ formatDate(app.created_at) }}</td>
               <td>
+                <p-tag [severity]="app.current_step === 'hrp' ? 'info' : 'warning'" styleClass="step-tag">
+                  {{ app.current_step === 'hrp' ? 'HRP' : 'RP' }}
+                </p-tag>
+              </td>
+              <td>
                 <p-tag [severity]="whitelistService.getStatusSeverity(app.status)">
                   {{ whitelistService.getStatusLabel(app.status) }}
                 </p-tag>
@@ -124,18 +139,18 @@ import { AuthService } from '../../services/auth.service';
                     (click)="viewApplication(app)"
                     pTooltip="Voir les détails"
                   ></p-button>
-                  @if (app.status === 'pending') {
+                  @if (app.status === 'pending' || app.status === 'hrp_pending') {
                     <p-button
                       icon="pi pi-check"
                       styleClass="p-button-success p-button-sm"
                       (click)="approveApplication(app)"
-                      pTooltip="Approuver"
+                      [pTooltip]="app.status === 'hrp_pending' ? 'Approuver HRP' : 'Approuver RP'"
                     ></p-button>
                     <p-button
                       icon="pi pi-times"
                       styleClass="p-button-danger p-button-sm"
                       (click)="openRejectDialog(app)"
-                      pTooltip="Refuser"
+                      [pTooltip]="app.status === 'hrp_pending' ? 'Refuser HRP' : 'Refuser RP'"
                     ></p-button>
                   }
                 </div>
@@ -144,7 +159,7 @@ import { AuthService } from '../../services/auth.service';
           </ng-template>
           <ng-template pTemplate="emptymessage">
             <tr>
-              <td colspan="8" class="text-center">Aucune candidature dans cette catégorie</td>
+              <td colspan="9" class="text-center">Aucune candidature dans cette catégorie</td>
             </tr>
           </ng-template>
         </p-table>
@@ -211,9 +226,37 @@ import { AuthService } from '../../services/auth.service';
               <p class="story-text">{{ selectedApplication()!.character_motivation }}</p>
             </div>
 
+            @if (selectedApplication()!.hrp_first_name) {
+              <div class="detail-section hrp-section">
+                <h3><i class="pi pi-user"></i> Informations Hors-RP</h3>
+                <div class="detail-grid">
+                  <div class="detail-item">
+                    <label>Prénom</label>
+                    <span>{{ selectedApplication()!.hrp_first_name }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <label>Âge</label>
+                    <span>{{ selectedApplication()!.hrp_age }} ans</span>
+                  </div>
+                  <div class="detail-item">
+                    <label>Expérience RP</label>
+                    <span>{{ selectedApplication()!.hrp_experience_years }} ans</span>
+                  </div>
+                </div>
+                <div class="detail-item full-width">
+                  <label>Description expérience RP</label>
+                  <p class="story-text">{{ selectedApplication()!.hrp_experience_text }}</p>
+                </div>
+                <div class="detail-item full-width">
+                  <label>Connaissances Harry Potter</label>
+                  <p class="story-text">{{ selectedApplication()!.hrp_hp_knowledge }}</p>
+                </div>
+              </div>
+            }
+
             @if (selectedApplication()!.status === 'rejected' && selectedApplication()!.rejection_reason) {
               <div class="detail-section rejection-section">
-                <h3>Raison du refus</h3>
+                <h3>Raison du refus ({{ selectedApplication()!.rejected_step === 'hrp' ? 'HRP' : 'RP' }})</h3>
                 <p class="rejection-text">{{ selectedApplication()!.rejection_reason }}</p>
                 <p class="reviewed-by">Refusé par {{ selectedApplication()!.reviewed_by }} le {{ formatDate(selectedApplication()!.reviewed_at!) }}</p>
               </div>
@@ -229,9 +272,19 @@ import { AuthService } from '../../services/auth.service';
         }
 
         <ng-template pTemplate="footer">
-          @if (selectedApplication()?.status === 'pending') {
-            <p-button label="Refuser" icon="pi pi-times" styleClass="p-button-danger" (click)="openRejectDialog(selectedApplication()!)"></p-button>
-            <p-button label="Approuver" icon="pi pi-check" styleClass="p-button-success" (click)="approveApplication(selectedApplication()!)"></p-button>
+          @if (selectedApplication()?.status === 'pending' || selectedApplication()?.status === 'hrp_pending') {
+            <p-button
+              [label]="selectedApplication()?.status === 'hrp_pending' ? 'Refuser HRP' : 'Refuser RP'"
+              icon="pi pi-times"
+              styleClass="p-button-danger"
+              (click)="openRejectDialog(selectedApplication()!)"
+            ></p-button>
+            <p-button
+              [label]="selectedApplication()?.status === 'hrp_pending' ? 'Approuver HRP' : 'Approuver RP'"
+              icon="pi pi-check"
+              styleClass="p-button-success"
+              (click)="approveApplication(selectedApplication()!)"
+            ></p-button>
           }
           <p-button label="Fermer" icon="pi pi-times" styleClass="p-button-text" (click)="viewDialogVisible = false"></p-button>
         </ng-template>
@@ -300,7 +353,7 @@ import { AuthService } from '../../services/auth.service';
 
     .stats-cards {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 1rem;
       margin-bottom: 2rem;
     }
@@ -316,6 +369,10 @@ import { AuthService } from '../../services/auth.service';
 
     :host ::ng-deep .stat-card.pending .p-card {
       border-left: 4px solid #f59e0b;
+    }
+
+    :host ::ng-deep .stat-card.hrp-pending .p-card {
+      border-left: 4px solid #3b82f6;
     }
 
     :host ::ng-deep .stat-card.approved .p-card {
@@ -555,6 +612,36 @@ import { AuthService } from '../../services/auth.service';
       border: none !important;
     }
 
+    .hrp-section {
+      background: rgba(59, 130, 246, 0.1);
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .hrp-section h3 {
+      color: #3b82f6 !important;
+      border: none !important;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .detail-item.full-width {
+      grid-column: 1 / -1;
+      margin-top: 1rem;
+    }
+
+    .step-tag {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+    }
+
+    :host ::ng-deep .p-tag.p-tag-info {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
     .reviewed-by {
       font-size: 0.875rem;
       color: rgba(255, 255, 255, 0.5);
@@ -642,6 +729,12 @@ import { AuthService } from '../../services/auth.service';
     }
 
     /* Responsive */
+    @media (max-width: 1024px) {
+      .stats-cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
     @media (max-width: 768px) {
       .stats-cards {
         grid-template-columns: 1fr;
@@ -670,12 +763,14 @@ export class DouanierDashboardComponent implements OnInit {
   rejectionReason = '';
 
   // Computed counts
-  pendingCount = signal(0);
+  rpPendingCount = signal(0);
+  hrpPendingCount = signal(0);
   approvedCount = signal(0);
   rejectedCount = signal(0);
 
   // Filtered applications
-  pendingApplications = signal<WhitelistApplication[]>([]);
+  rpPendingApplications = signal<WhitelistApplication[]>([]);
+  hrpPendingApplications = signal<WhitelistApplication[]>([]);
   approvedApplications = signal<WhitelistApplication[]>([]);
   rejectedApplications = signal<WhitelistApplication[]>([]);
 
@@ -689,15 +784,18 @@ export class DouanierDashboardComponent implements OnInit {
         const apps = response.applications || [];
 
         // Filter by status
-        const pending = apps.filter(a => a.status === 'pending');
+        const rpPending = apps.filter(a => a.status === 'pending');
+        const hrpPending = apps.filter(a => a.status === 'hrp_pending');
         const approved = apps.filter(a => a.status === 'approved');
         const rejected = apps.filter(a => a.status === 'rejected');
 
-        this.pendingApplications.set(pending);
+        this.rpPendingApplications.set(rpPending);
+        this.hrpPendingApplications.set(hrpPending);
         this.approvedApplications.set(approved);
         this.rejectedApplications.set(rejected);
 
-        this.pendingCount.set(pending.length);
+        this.rpPendingCount.set(rpPending.length);
+        this.hrpPendingCount.set(hrpPending.length);
         this.approvedCount.set(approved.length);
         this.rejectedCount.set(rejected.length);
       },
@@ -727,17 +825,23 @@ export class DouanierDashboardComponent implements OnInit {
   }
 
   approveApplication(app: WhitelistApplication) {
+    const isHRP = app.status === 'hrp_pending';
+    const stepLabel = isHRP ? 'HRP' : 'RP';
+
     this.confirmationService.confirm({
-      message: `Êtes-vous sûr de vouloir approuver la candidature de ${app.username} ?`,
+      message: `Êtes-vous sûr de vouloir approuver l'étape ${stepLabel} de la candidature de ${app.username} ?`,
       header: 'Confirmation',
       icon: 'pi pi-check-circle',
       accept: () => {
         this.whitelistService.reviewApplication(app.id, app.user_id, true).subscribe({
           next: () => {
+            const detail = isHRP
+              ? 'Candidature entièrement approuvée ! Le joueur peut maintenant accéder au jeu.'
+              : 'Étape RP approuvée. Le joueur doit maintenant soumettre sa candidature HRP.';
             this.messageService.add({
               severity: 'success',
               summary: 'Succès',
-              detail: 'Candidature approuvée avec succès.'
+              detail
             });
             this.viewDialogVisible = false;
             this.loadApplications();

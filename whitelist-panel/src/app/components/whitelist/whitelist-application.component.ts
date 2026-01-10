@@ -46,6 +46,86 @@ import { AuthService } from '../../services/auth.service';
           <p-progressSpinner></p-progressSpinner>
           <p>Chargement...</p>
         </div>
+      } @else if (status()?.can_submit_hrp) {
+        <!-- Show HRP form (Step 2) -->
+        <div class="application-form">
+          <p-card styleClass="form-card">
+            <ng-template pTemplate="header">
+              <div class="card-header">
+                <i class="pi pi-user"></i>
+                <h2>Candidature Hors-RP</h2>
+              </div>
+            </ng-template>
+
+            <div class="hrp-intro">
+              <div class="success-badge">
+                <i class="pi pi-check-circle"></i>
+                <span>Votre candidature RP a été approuvée !</span>
+              </div>
+              <p>Félicitations ! Votre personnage <strong>{{ status()!.application!.character_first_name }} {{ status()!.application!.character_last_name }}</strong> a été validé.</p>
+              <p>Nous avons maintenant besoin d'en savoir un peu plus sur vous, le joueur, pour nous assurer que vous êtes prêt(e) à rejoindre notre communauté.</p>
+            </div>
+
+            <div class="form-step">
+              <h3>À propos de vous</h3>
+
+              <div class="form-grid">
+                <div class="form-field">
+                  <label for="hrpFirstName">Votre prénom *</label>
+                  <input pInputText id="hrpFirstName" [(ngModel)]="hrpForm.hrp_first_name" placeholder="Votre vrai prénom" />
+                </div>
+                <div class="form-field">
+                  <label for="hrpAge">Votre âge *</label>
+                  <p-inputNumber id="hrpAge" [(ngModel)]="hrpForm.hrp_age" [min]="13" [max]="99" [showButtons]="true"></p-inputNumber>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label for="hrpExpYears">Années d'expérience en RP *</label>
+                <p-inputNumber id="hrpExpYears" [(ngModel)]="hrpForm.hrp_experience_years" [min]="0" [max]="30" [showButtons]="true" suffix=" ans"></p-inputNumber>
+              </div>
+
+              <div class="form-field">
+                <label for="hrpExpText">Décrivez votre expérience RP *</label>
+                <textarea
+                  pInputTextarea
+                  id="hrpExpText"
+                  [(ngModel)]="hrpForm.hrp_experience_text"
+                  rows="5"
+                  placeholder="Sur quels serveurs avez-vous joué ? Quels types de personnages avez-vous incarnés ? Qu'est-ce qui vous plaît dans le RP ?"
+                ></textarea>
+                <small [class.error]="hrpForm.hrp_experience_text.length < 50">
+                  {{ hrpForm.hrp_experience_text.length }} / 50 caractères minimum
+                </small>
+              </div>
+
+              <div class="form-field">
+                <label for="hrpHPKnowledge">Vos connaissances de l'univers Harry Potter *</label>
+                <textarea
+                  pInputTextarea
+                  id="hrpHPKnowledge"
+                  [(ngModel)]="hrpForm.hrp_hp_knowledge"
+                  rows="5"
+                  placeholder="Avez-vous lu les livres ? Vu les films ? Quels sont vos personnages ou moments préférés ? Connaissez-vous le lore étendu ?"
+                ></textarea>
+                <small [class.error]="hrpForm.hrp_hp_knowledge.length < 50">
+                  {{ hrpForm.hrp_hp_knowledge.length }} / 50 caractères minimum
+                </small>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <p-button
+                label="Soumettre ma candidature HRP"
+                icon="pi pi-send"
+                iconPos="right"
+                (click)="submitHRP()"
+                [disabled]="!canSubmitHRP()"
+                [loading]="submitting()"
+              ></p-button>
+            </div>
+          </p-card>
+        </div>
       } @else if (status()?.has_application && !status()?.can_apply) {
         <!-- Show application status -->
         <div class="status-view">
@@ -70,20 +150,26 @@ import { AuthService } from '../../services/auth.service';
                 @case ('pending') {
                   <div class="status-message pending">
                     <i class="pi pi-clock"></i>
-                    <p>Votre candidature est en cours d'examen par nos Douaniers. Vous serez notifié dès qu'une décision sera prise.</p>
+                    <p>Votre candidature RP est en cours d'examen par nos Douaniers. Vous serez notifié dès qu'une décision sera prise.</p>
+                  </div>
+                }
+                @case ('hrp_pending') {
+                  <div class="status-message pending">
+                    <i class="pi pi-clock"></i>
+                    <p>Votre candidature Hors-RP est en cours d'examen par nos Douaniers. Vous serez notifié dès qu'une décision sera prise.</p>
                   </div>
                 }
                 @case ('approved') {
                   <div class="status-message approved">
                     <i class="pi pi-check-circle"></i>
-                    <p>Félicitations ! Votre candidature a été approuvée. Vous pouvez maintenant accéder au jeu.</p>
+                    <p>Félicitations ! Votre candidature a été entièrement approuvée. Vous pouvez maintenant accéder au jeu.</p>
                     <p class="reviewer">Approuvée par {{ status()!.application!.reviewed_by }} le {{ formatDate(status()!.application!.reviewed_at!) }}</p>
                   </div>
                 }
                 @case ('rejected') {
                   <div class="status-message rejected">
                     <i class="pi pi-times-circle"></i>
-                    <p>Votre candidature a été refusée.</p>
+                    <p>Votre candidature a été refusée à l'étape {{ status()!.application!.rejected_step === 'hrp' ? 'Hors-RP' : 'RP' }}.</p>
                     <div class="rejection-reason">
                       <strong>Raison :</strong>
                       <p>{{ status()!.application!.rejection_reason }}</p>
@@ -101,7 +187,7 @@ import { AuthService } from '../../services/auth.service';
               }
 
               <div class="application-summary">
-                <h3>Résumé de votre candidature</h3>
+                <h3>Résumé de votre candidature RP</h3>
                 <div class="summary-grid">
                   <div class="summary-item">
                     <label>Personnage</label>
@@ -121,6 +207,26 @@ import { AuthService } from '../../services/auth.service';
                   </div>
                 </div>
               </div>
+
+              @if (status()!.application!.hrp_first_name) {
+                <div class="application-summary">
+                  <h3>Résumé de votre candidature HRP</h3>
+                  <div class="summary-grid">
+                    <div class="summary-item">
+                      <label>Prénom</label>
+                      <span>{{ status()!.application!.hrp_first_name }}</span>
+                    </div>
+                    <div class="summary-item">
+                      <label>Âge</label>
+                      <span>{{ status()!.application!.hrp_age }} ans</span>
+                    </div>
+                    <div class="summary-item">
+                      <label>Expérience RP</label>
+                      <span>{{ status()!.application!.hrp_experience_years }} ans</span>
+                    </div>
+                  </div>
+                </div>
+              }
             </div>
           </p-card>
         </div>
@@ -714,6 +820,42 @@ import { AuthService } from '../../services/auth.service';
       color: #ef4444;
     }
 
+    :host ::ng-deep .p-tag.p-tag-info {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    /* HRP Intro Styling */
+    .hrp-intro {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .hrp-intro p {
+      margin: 0.5rem 0 0 0;
+      color: rgba(255, 255, 255, 0.8);
+      line-height: 1.6;
+    }
+
+    .success-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .success-badge i {
+      font-size: 1.1rem;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .form-grid {
@@ -752,6 +894,14 @@ export class WhitelistApplicationComponent implements OnInit {
     character_blood: '',
     character_history: '',
     character_motivation: ''
+  };
+
+  hrpForm = {
+    hrp_first_name: '',
+    hrp_age: 18,
+    hrp_experience_years: 0,
+    hrp_experience_text: '',
+    hrp_hp_knowledge: ''
   };
 
   ngOnInit() {
@@ -817,7 +967,7 @@ export class WhitelistApplicationComponent implements OnInit {
         this.submitting.set(false);
         this.messageService.add({
           severity: 'success',
-          summary: 'Candidature soumise',
+          summary: 'Candidature RP soumise',
           detail: response.message
         });
         this.loadStatus();
@@ -825,6 +975,39 @@ export class WhitelistApplicationComponent implements OnInit {
       error: (error) => {
         this.submitting.set(false);
         const message = error.error?.message || 'Impossible de soumettre votre candidature.';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: message
+        });
+      }
+    });
+  }
+
+  canSubmitHRP(): boolean {
+    return !!this.hrpForm.hrp_first_name &&
+           this.hrpForm.hrp_age >= 13 &&
+           this.hrpForm.hrp_experience_text.length >= 50 &&
+           this.hrpForm.hrp_hp_knowledge.length >= 50;
+  }
+
+  submitHRP() {
+    if (!this.canSubmitHRP()) return;
+
+    this.submitting.set(true);
+    this.whitelistService.submitHRPApplication(this.hrpForm).subscribe({
+      next: (response) => {
+        this.submitting.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Candidature HRP soumise',
+          detail: response.message
+        });
+        this.loadStatus();
+      },
+      error: (error) => {
+        this.submitting.set(false);
+        const message = error.error?.message || 'Impossible de soumettre votre candidature HRP.';
         this.messageService.add({
           severity: 'error',
           summary: 'Erreur',
