@@ -500,18 +500,15 @@ func rpcReviewWhitelistApplication(ctx context.Context, logger runtime.Logger, d
 		return "", errors.New("failed to read application")
 	}
 
-	// Determine which step is being reviewed
-	currentStep := app.CurrentStep
-	if currentStep == "" {
-		currentStep = "rp" // Default for legacy applications
-	}
-
-	// Check if the application is in a reviewable state
-	if currentStep == "rp" && app.Status != WhitelistStatusPending {
-		return "", errors.New("RP application has already been reviewed")
-	}
-	if currentStep == "hrp" && app.Status != WhitelistStatusHRPPending {
-		return "", errors.New("HRP application has already been reviewed")
+	// Determine which step is being reviewed based on Status (more reliable than CurrentStep)
+	var currentStep string
+	switch app.Status {
+	case WhitelistStatusPending:
+		currentStep = "rp"
+	case WhitelistStatusHRPPending:
+		currentStep = "hrp"
+	default:
+		return "", errors.New("application is not in a reviewable state")
 	}
 
 	// Get reviewer info
