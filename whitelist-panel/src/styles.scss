@@ -26,32 +26,226 @@ h1, h2, h3, h4, h5, h6 {
   font-family: 'Cinzel', serif;
 }
 
-// Override PrimeNG theme colors
+// ============================================
+// GLOBAL BUTTON STYLES
+// ============================================
 .p-button {
-  background: linear-gradient(135deg, var(--elderwood-primary) 0%, var(--elderwood-gold) 100%);
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
   border: none;
 
-  &:hover {
-    background: linear-gradient(135deg, var(--elderwood-gold) 0%, var(--elderwood-primary) 100%);
+  // Primary button (default)
+  &:not(.p-button-outlined):not(.p-button-text):not(.p-button-success):not(.p-button-danger):not(.p-button-info):not(.p-button-secondary) {
+    background: linear-gradient(135deg, var(--elderwood-primary) 0%, var(--elderwood-gold) 100%);
+    color: #0c0c0c;
+
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, var(--elderwood-gold) 0%, var(--elderwood-primary) 100%);
+      transform: translateY(-1px);
+    }
   }
 
   &:focus {
-    box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.3);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.25);
+  }
+
+  // Outlined button
+  &.p-button-outlined {
+    background: transparent;
+    border: 2px solid #3a3d40;
+    color: rgba(255, 255, 255, 0.8);
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: #5a5d60;
+      color: white;
+    }
+  }
+
+  // Text button
+  &.p-button-text {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+    }
+  }
+
+  // Success button
+  &.p-button-success {
+    background: #22c55e;
+    color: white;
+
+    &:hover:not(:disabled) {
+      background: #16a34a;
+    }
+  }
+
+  // Danger button
+  &.p-button-danger {
+    background: #ef4444;
+    color: white;
+
+    &:hover:not(:disabled) {
+      background: #dc2626;
+    }
+  }
+
+  // Info button
+  &.p-button-info {
+    background: #3b82f6;
+    color: white;
+
+    &:hover:not(:disabled) {
+      background: #2563eb;
+    }
+  }
+
+  // Secondary button
+  &.p-button-secondary {
+    background: #4b5563;
+    color: white;
+
+    &:hover:not(:disabled) {
+      background: #374151;
+    }
+  }
+
+  // Small button
+  &.p-button-sm {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8rem;
+  }
+
+  // Disabled
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
 
+// ============================================
+// DIALOG STYLES
+// ============================================
+.p-dialog {
+  background: var(--elderwood-surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  .p-dialog-header {
+    background: var(--elderwood-surface);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 1.25rem 1.5rem;
+    border-radius: 12px 12px 0 0;
+
+    .p-dialog-title {
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .p-dialog-header-icons {
+      .p-dialog-header-icon {
+        color: rgba(255, 255, 255, 0.5);
+        width: 2rem;
+        height: 2rem;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+          color: white;
+        }
+      }
+    }
+  }
+
+  .p-dialog-content {
+    background: var(--elderwood-surface);
+    color: white;
+    padding: 1.5rem;
+  }
+
+  .p-dialog-footer {
+    background: var(--elderwood-surface);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem 1.5rem;
+    border-radius: 0 0 12px 12px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+}
+
+// ============================================
+// CONFIRM DIALOG STYLES
+// ============================================
+.p-confirm-dialog {
+  .p-dialog-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+
+    .p-confirm-dialog-icon {
+      font-size: 1.5rem;
+      color: var(--elderwood-primary);
+    }
+
+    .p-confirm-dialog-message {
+      color: rgba(255, 255, 255, 0.9);
+      line-height: 1.5;
+    }
+  }
+}
+
+// ============================================
+// INPUT STYLES
+// ============================================
 .p-inputtext {
   background: var(--elderwood-surface-light);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   color: #ffffff;
+  padding: 0.75rem 1rem;
+  transition: all 0.2s ease;
+
+  &:enabled:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
 
   &:enabled:focus {
     border-color: var(--elderwood-primary);
-    box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.2);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
   }
 
   &::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.35);
+  }
+}
+
+.p-inputtextarea {
+  background: var(--elderwood-surface-light);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #ffffff;
+  padding: 0.75rem 1rem;
+  transition: all 0.2s ease;
+
+  &:enabled:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  &:enabled:focus {
+    border-color: var(--elderwood-primary);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+  }
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.35);
   }
 }
 
@@ -66,37 +260,19 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+// ============================================
+// CARD STYLES
+// ============================================
 .p-card {
   background: var(--elderwood-surface);
-  border-radius: 1rem;
+  border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  border: none;
 }
 
-// Scrollbar
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--elderwood-dark);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--elderwood-surface-light);
-  border-radius: 4px;
-
-  &:hover {
-    background: var(--elderwood-primary);
-  }
-}
-
-// Selection
-::selection {
-  background: var(--elderwood-primary);
-  color: #000;
-}
-
-// Tooltip styling
+// ============================================
+// TOOLTIP STYLES
+// ============================================
 .p-tooltip {
   .p-tooltip-text {
     background: #1d1f21;
@@ -124,16 +300,23 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-// Dropdown panel styling
+// ============================================
+// DROPDOWN STYLES
+// ============================================
 .p-dropdown-panel {
   background: #1d1f21;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 
   .p-dropdown-items {
+    padding: 0.5rem;
+
     .p-dropdown-item {
       color: white;
       padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin: 0.125rem 0;
 
       &:hover {
         background: rgba(255, 255, 255, 0.05);
@@ -147,7 +330,109 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-// Global animations
+// ============================================
+// TAG STYLES
+// ============================================
+.p-tag {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+
+  &.p-tag-warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+  }
+
+  &.p-tag-success {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+  }
+
+  &.p-tag-danger {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+  }
+
+  &.p-tag-info {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+  }
+}
+
+// ============================================
+// TOAST STYLES
+// ============================================
+.p-toast {
+  .p-toast-message {
+    background: var(--elderwood-surface);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+
+    .p-toast-message-content {
+      padding: 1rem;
+      color: white;
+
+      .p-toast-summary {
+        font-weight: 600;
+      }
+
+      .p-toast-detail {
+        color: rgba(255, 255, 255, 0.7);
+      }
+    }
+
+    &.p-toast-message-success {
+      border-left: 4px solid #22c55e;
+    }
+
+    &.p-toast-message-error {
+      border-left: 4px solid #ef4444;
+    }
+
+    &.p-toast-message-warn {
+      border-left: 4px solid #f59e0b;
+    }
+
+    &.p-toast-message-info {
+      border-left: 4px solid #3b82f6;
+    }
+  }
+}
+
+// ============================================
+// SCROLLBAR
+// ============================================
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--elderwood-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--elderwood-surface-light);
+  border-radius: 4px;
+
+  &:hover {
+    background: var(--elderwood-primary);
+  }
+}
+
+// ============================================
+// SELECTION
+// ============================================
+::selection {
+  background: var(--elderwood-primary);
+  color: #000;
+}
+
+// ============================================
+// ANIMATIONS
+// ============================================
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
