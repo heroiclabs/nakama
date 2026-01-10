@@ -53,7 +53,7 @@ export class WhitelistService {
 
   private getHeaders() {
     return {
-      'Authorization': `Bearer ${this.authService.token()}`,
+      'Authorization': `Bearer ${this.authService.getToken()}`,
       'Content-Type': 'application/json'
     };
   }
