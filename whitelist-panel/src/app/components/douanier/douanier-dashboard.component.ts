@@ -14,6 +14,7 @@ import { ToastModule } from 'primeng/toast';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { CardModule } from 'primeng/card';
 import { TabViewModule } from 'primeng/tabview';
+import { TooltipModule } from 'primeng/tooltip';
 import { MessageService, ConfirmationService } from 'primeng/api';
 
 import { WhitelistService, WhitelistApplication, WhitelistStatus } from '../../services/whitelist.service';
@@ -34,7 +35,8 @@ import { AuthService } from '../../services/auth.service';
     ToastModule,
     ConfirmDialogModule,
     CardModule,
-    TabViewModule
+    TabViewModule,
+    TooltipModule
   ],
   providers: [MessageService, ConfirmationService],
   template: `
