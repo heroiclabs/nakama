@@ -40,6 +40,22 @@ type DiscordUser struct {
 	Verified      bool   `json:"verified"`
 }
 
+// getRedirectURI returns the appropriate redirect URI based on source
+func getRedirectURI(source string) string {
+	switch source {
+	case "admin":
+		return "https://admin.elderwood-rp.com/discord-callback"
+	case "panel":
+		return "https://panel.elderwood-rp.com/discord-callback"
+	default:
+		// Fallback to environment variable or panel
+		if uri := os.Getenv("DISCORD_REDIRECT_URI"); uri != "" {
+			return uri
+		}
+		return "https://panel.elderwood-rp.com/discord-callback"
+	}
+}
+
 // rpcGetDiscordAuthURL returns the Discord OAuth2 authorization URL
 func rpcGetDiscordAuthURL(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
 	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
@@ -47,22 +63,32 @@ func rpcGetDiscordAuthURL(ctx context.Context, logger runtime.Logger, db *sql.DB
 		return "", errors.New("authentication required")
 	}
 
-	clientID := os.Getenv("DISCORD_CLIENT_ID")
-	redirectURI := os.Getenv("DISCORD_REDIRECT_URI")
+	// Parse source from payload (admin or panel)
+	var req struct {
+		Source string `json:"source"`
+	}
+	if payload != "" {
+		json.Unmarshal([]byte(payload), &req)
+	}
 
-	if clientID == "" || redirectURI == "" {
-		logger.Error("Discord OAuth not configured: missing DISCORD_CLIENT_ID or DISCORD_REDIRECT_URI")
+	clientID := os.Getenv("DISCORD_CLIENT_ID")
+	if clientID == "" {
+		logger.Error("Discord OAuth not configured: missing DISCORD_CLIENT_ID")
 		return "", errors.New("Discord integration not configured")
 	}
+
+	redirectURI := getRedirectURI(req.Source)
 
 	// Create state token to prevent CSRF - store user ID for callback
 	state := fmt.Sprintf("%s_%d", userID, time.Now().Unix())
 
 	// Store state in Nakama storage for verification later
 	stateData := map[string]interface{}{
-		"user_id":    userID,
-		"created_at": time.Now().Format(time.RFC3339),
-		"expires_at": time.Now().Add(10 * time.Minute).Format(time.RFC3339),
+		"user_id":      userID,
+		"source":       req.Source,
+		"redirect_uri": redirectURI,
+		"created_at":   time.Now().Format(time.RFC3339),
+		"expires_at":   time.Now().Add(10 * time.Minute).Format(time.RFC3339),
 	}
 	stateJSON, _ := json.Marshal(stateData)
 
@@ -115,8 +141,10 @@ func rpcDiscordCallback(ctx context.Context, logger runtime.Logger, db *sql.DB, 
 	}
 
 	var stateData struct {
-		UserID    string `json:"user_id"`
-		ExpiresAt string `json:"expires_at"`
+		UserID      string `json:"user_id"`
+		Source      string `json:"source"`
+		RedirectURI string `json:"redirect_uri"`
+		ExpiresAt   string `json:"expires_at"`
 	}
 	if err := json.Unmarshal([]byte(objects[0].Value), &stateData); err != nil {
 		return "", errors.New("invalid state data")
@@ -138,7 +166,11 @@ func rpcDiscordCallback(ctx context.Context, logger runtime.Logger, db *sql.DB, 
 	// Exchange code for token
 	clientID := os.Getenv("DISCORD_CLIENT_ID")
 	clientSecret := os.Getenv("DISCORD_CLIENT_SECRET")
-	redirectURI := os.Getenv("DISCORD_REDIRECT_URI")
+	// Use redirect URI from state (stored when auth was initiated)
+	redirectURI := stateData.RedirectURI
+	if redirectURI == "" {
+		redirectURI = getRedirectURI(stateData.Source)
+	}
 
 	tokenData := url.Values{}
 	tokenData.Set("client_id", clientID)

@@ -256,7 +256,10 @@ export class AuthService {
   getDiscordAuthUrl(): Observable<{url: string}> {
     const url = `${environment.nakamaUrl}/v2/rpc/elderwood_discord_auth_url`;
 
-    return this.http.post<{payload: string}>(url, '""', {
+    // Pass source: 'panel' to get the correct redirect URI
+    const payload = JSON.stringify({ source: 'panel' });
+
+    return this.http.post<{payload: string}>(url, JSON.stringify(payload), {
       headers: {
         'Authorization': `Bearer ${this.token()}`,
         'Content-Type': 'application/json'
