@@ -14,6 +14,7 @@ import { StepsModule } from 'primeng/steps';
 import { ToastModule } from 'primeng/toast';
 import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { CalendarModule } from 'primeng/calendar';
 import { MessageService, MenuItem } from 'primeng/api';
 
 import { WhitelistService, WhitelistApplication, WhitelistStatusResponse } from '../../services/whitelist.service';
@@ -34,7 +35,8 @@ import { AuthService } from '../../services/auth.service';
     StepsModule,
     ToastModule,
     TagModule,
-    ProgressSpinnerModule
+    ProgressSpinnerModule,
+    CalendarModule
   ],
   providers: [MessageService],
   template: `
@@ -45,6 +47,81 @@ import { AuthService } from '../../services/auth.service';
         <div class="loading-container">
           <p-progressSpinner></p-progressSpinner>
           <p>Chargement...</p>
+        </div>
+      } @else if (status()?.can_select_oral_slot) {
+        <!-- Show Oral Slot Selection (Step 3) -->
+        <div class="application-form">
+          <p-card styleClass="form-card">
+            <ng-template pTemplate="header">
+              <div class="card-header">
+                <i class="pi pi-calendar"></i>
+                <h2>Candidature Orale</h2>
+              </div>
+            </ng-template>
+
+            <div class="oral-intro">
+              <div class="success-badge">
+                <i class="pi pi-check-circle"></i>
+                <span>Votre candidature HRP a été approuvée !</span>
+              </div>
+              <p>Félicitations <strong>{{ status()!.application!.hrp_first_name }}</strong> ! Vous passez maintenant à la dernière étape : l'entretien oral.</p>
+              <p>Les Douaniers vous ont proposé une semaine pour passer votre oral. Choisissez un jour et une heure qui vous conviennent.</p>
+            </div>
+
+            <div class="proposed-week">
+              <h3>Semaine proposée</h3>
+              <div class="week-range">
+                <span class="date-badge">
+                  <i class="pi pi-calendar"></i>
+                  Du {{ formatDateShort(status()!.application!.oral_proposed_week_start!) }}
+                  au {{ formatDateShort(status()!.application!.oral_proposed_week_end!) }}
+                </span>
+              </div>
+            </div>
+
+            <div class="form-step">
+              <h3>Choisissez votre créneau</h3>
+
+              <div class="form-field">
+                <label for="oralSlot">Date et heure de votre oral *</label>
+                <p-calendar
+                  id="oralSlot"
+                  [(ngModel)]="selectedOralSlot"
+                  [showTime]="true"
+                  [minDate]="getOralMinDate()"
+                  [maxDate]="getOralMaxDate()"
+                  [hourFormat]="'24'"
+                  dateFormat="dd/mm/yy"
+                  placeholder="Sélectionnez une date et heure"
+                  styleClass="w-full"
+                ></p-calendar>
+              </div>
+
+              <div class="oral-info">
+                <i class="pi pi-info-circle"></i>
+                <div>
+                  <p><strong>Comment se déroule l'oral ?</strong></p>
+                  <ul>
+                    <li>Vous serez invité sur le serveur Discord <strong>Elderwood Douane</strong></li>
+                    <li>Vous recevrez le rôle "En attente d'oral"</li>
+                    <li>L'entretien porte sur le règlement et votre personnage</li>
+                    <li>Durée estimée : 15-30 minutes</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <p-button
+                label="Confirmer mon créneau"
+                icon="pi pi-check"
+                iconPos="right"
+                (click)="submitOralSlot()"
+                [disabled]="!selectedOralSlot"
+                [loading]="submitting()"
+              ></p-button>
+            </div>
+          </p-card>
         </div>
       } @else if (status()?.can_submit_hrp) {
         <!-- Show HRP form (Step 2) -->
@@ -159,6 +236,25 @@ import { AuthService } from '../../services/auth.service';
                     <p>Votre candidature Hors-RP est en cours d'examen par nos Douaniers. Vous serez notifié dès qu'une décision sera prise.</p>
                   </div>
                 }
+                @case ('hrp_approved') {
+                  <div class="status-message info">
+                    <i class="pi pi-clock"></i>
+                    <p>Votre candidature HRP a été approuvée ! En attente de proposition de semaine pour l'oral par les Douaniers.</p>
+                  </div>
+                }
+                @case ('oral_scheduled') {
+                  <div class="status-message scheduled">
+                    <i class="pi pi-calendar-check"></i>
+                    <p>Votre oral est programmé le <strong>{{ formatDate(status()!.application!.oral_selected_slot!) }}</strong></p>
+                    <p>Vous serez invité sur le Discord <strong>Elderwood Douane</strong> pour passer votre entretien.</p>
+                    @if (status()!.application!.oral_discord_invite_sent) {
+                      <div class="invite-sent">
+                        <i class="pi pi-check"></i>
+                        <span>Invitation Discord envoyée</span>
+                      </div>
+                    }
+                  </div>
+                }
                 @case ('approved') {
                   <div class="status-message approved">
                     <i class="pi pi-check-circle"></i>
@@ -169,7 +265,7 @@ import { AuthService } from '../../services/auth.service';
                 @case ('rejected') {
                   <div class="status-message rejected">
                     <i class="pi pi-times-circle"></i>
-                    <p>Votre candidature a été refusée à l'étape {{ status()!.application!.rejected_step === 'hrp' ? 'Hors-RP' : 'RP' }}.</p>
+                    <p>Votre candidature a été refusée à l'étape {{ getRejectedStepLabel(status()!.application!.rejected_step) }}.</p>
                     <div class="rejection-reason">
                       <strong>Raison :</strong>
                       <p>{{ status()!.application!.rejection_reason }}</p>
@@ -223,6 +319,22 @@ import { AuthService } from '../../services/auth.service';
                     <div class="summary-item">
                       <label>Expérience RP</label>
                       <span>{{ status()!.application!.hrp_experience_years }} ans</span>
+                    </div>
+                  </div>
+                </div>
+              }
+
+              @if (status()!.application!.oral_selected_slot) {
+                <div class="application-summary">
+                  <h3>Résumé de votre candidature Orale</h3>
+                  <div class="summary-grid">
+                    <div class="summary-item">
+                      <label>Créneau choisi</label>
+                      <span>{{ formatDate(status()!.application!.oral_selected_slot!) }}</span>
+                    </div>
+                    <div class="summary-item">
+                      <label>Invitation Discord</label>
+                      <span>{{ status()!.application!.oral_discord_invite_sent ? 'Envoyée' : 'En attente' }}</span>
                     </div>
                   </div>
                 </div>
@@ -856,6 +968,162 @@ import { AuthService } from '../../services/auth.service';
       font-size: 1.1rem;
     }
 
+    /* Oral Section Styles */
+    .oral-intro {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .oral-intro p {
+      margin: 0.5rem 0 0 0;
+      color: rgba(255, 255, 255, 0.8);
+      line-height: 1.6;
+    }
+
+    .proposed-week {
+      background: rgba(201, 162, 39, 0.1);
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .proposed-week h3 {
+      margin: 0 0 1rem 0;
+      color: var(--elderwood-primary);
+    }
+
+    .week-range {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .date-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(201, 162, 39, 0.2);
+      color: var(--elderwood-primary);
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+
+    .oral-info {
+      display: flex;
+      gap: 1rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .oral-info > i {
+      font-size: 1.5rem;
+      color: var(--elderwood-primary);
+    }
+
+    .oral-info p {
+      margin: 0 0 0.5rem 0;
+    }
+
+    .oral-info ul {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .oral-info li {
+      margin: 0.25rem 0;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* Status message - info */
+    .status-message.info {
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 4px solid #3b82f6;
+    }
+
+    .status-message.info i {
+      color: #3b82f6;
+    }
+
+    /* Status message - scheduled */
+    .status-message.scheduled {
+      background: rgba(139, 92, 246, 0.1);
+      border-left: 4px solid #8b5cf6;
+    }
+
+    .status-message.scheduled i {
+      color: #8b5cf6;
+    }
+
+    .invite-sent {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+
+    .invite-sent i {
+      font-size: 1rem !important;
+      margin: 0 !important;
+      color: inherit !important;
+    }
+
+    /* Calendar styling */
+    :host ::ng-deep .p-calendar {
+      width: 100%;
+    }
+
+    :host ::ng-deep .p-calendar .p-inputtext {
+      width: 100%;
+      background: #151719;
+      border: 2px solid #2a2d30;
+      border-radius: 10px;
+      color: white;
+      padding: 0.875rem 1rem;
+      font-size: 0.95rem;
+    }
+
+    :host ::ng-deep .p-calendar .p-inputtext:focus {
+      border-color: var(--elderwood-primary);
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+    }
+
+    :host ::ng-deep .p-datepicker {
+      background: var(--elderwood-surface);
+      border: 1px solid #3a3d40;
+      border-radius: 10px;
+    }
+
+    :host ::ng-deep .p-datepicker .p-datepicker-header {
+      background: transparent;
+      border-bottom: 1px solid #3a3d40;
+    }
+
+    :host ::ng-deep .p-datepicker table td > span {
+      color: white;
+    }
+
+    :host ::ng-deep .p-datepicker table td.p-datepicker-today > span {
+      background: rgba(201, 162, 39, 0.2);
+      color: var(--elderwood-primary);
+    }
+
+    :host ::ng-deep .p-datepicker table td > span.p-highlight {
+      background: var(--elderwood-primary);
+      color: #0c0c0c;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .form-grid {
@@ -864,6 +1132,10 @@ import { AuthService } from '../../services/auth.service';
 
       .summary-grid {
         grid-template-columns: 1fr;
+      }
+
+      .oral-info {
+        flex-direction: column;
       }
     }
   `]
@@ -903,6 +1175,8 @@ export class WhitelistApplicationComponent implements OnInit {
     hrp_experience_text: '',
     hrp_hp_knowledge: ''
   };
+
+  selectedOralSlot: Date | null = null;
 
   ngOnInit() {
     this.loadStatus();
@@ -1031,5 +1305,80 @@ export class WhitelistApplicationComponent implements OnInit {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  formatDateShort(dateString: string): string {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  }
+
+  getOralMinDate(): Date {
+    const app = this.status()?.application;
+    if (app?.oral_proposed_week_start) {
+      return new Date(app.oral_proposed_week_start);
+    }
+    return new Date();
+  }
+
+  getOralMaxDate(): Date {
+    const app = this.status()?.application;
+    if (app?.oral_proposed_week_end) {
+      const date = new Date(app.oral_proposed_week_end);
+      date.setHours(23, 59, 59);
+      return date;
+    }
+    return new Date();
+  }
+
+  submitOralSlot() {
+    if (!this.selectedOralSlot) return;
+
+    // Format date as YYYY-MM-DDTHH:MM
+    const year = this.selectedOralSlot.getFullYear();
+    const month = String(this.selectedOralSlot.getMonth() + 1).padStart(2, '0');
+    const day = String(this.selectedOralSlot.getDate()).padStart(2, '0');
+    const hours = String(this.selectedOralSlot.getHours()).padStart(2, '0');
+    const minutes = String(this.selectedOralSlot.getMinutes()).padStart(2, '0');
+    const formattedSlot = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+    this.submitting.set(true);
+    this.whitelistService.selectOralSlot(formattedSlot).subscribe({
+      next: (response) => {
+        this.submitting.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Créneau confirmé',
+          detail: response.message
+        });
+        this.loadStatus();
+      },
+      error: (error) => {
+        this.submitting.set(false);
+        const message = error.error?.message || 'Impossible de confirmer le créneau.';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: message
+        });
+      }
+    });
+  }
+
+  getRejectedStepLabel(step?: string): string {
+    switch (step) {
+      case 'rp':
+        return 'RP';
+      case 'hrp':
+        return 'Hors-RP';
+      case 'oral':
+        return 'Oral';
+      default:
+        return step || '';
+    }
   }
 }

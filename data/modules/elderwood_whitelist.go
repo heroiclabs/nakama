@@ -20,11 +20,14 @@ const (
 type WhitelistStatus string
 
 const (
-	WhitelistStatusPending    WhitelistStatus = "pending"     // Étape 1: Candidature RP en attente
-	WhitelistStatusRPApproved WhitelistStatus = "rp_approved" // Étape 1 validée, en attente de soumission HRP
-	WhitelistStatusHRPPending WhitelistStatus = "hrp_pending" // Étape 2: Candidature HRP en attente
-	WhitelistStatusApproved   WhitelistStatus = "approved"    // Complètement validé (RP + HRP)
-	WhitelistStatusRejected   WhitelistStatus = "rejected"    // Refusé, doit attendre 24h
+	WhitelistStatusPending       WhitelistStatus = "pending"        // Étape 1: Candidature RP en attente
+	WhitelistStatusRPApproved    WhitelistStatus = "rp_approved"    // Étape 1 validée, en attente de soumission HRP
+	WhitelistStatusHRPPending    WhitelistStatus = "hrp_pending"    // Étape 2: Candidature HRP en attente
+	WhitelistStatusHRPApproved   WhitelistStatus = "hrp_approved"   // Étape 2 validée, en attente de proposition de semaine
+	WhitelistStatusOralPending   WhitelistStatus = "oral_pending"   // Étape 3: Semaine proposée, en attente de choix du joueur
+	WhitelistStatusOralScheduled WhitelistStatus = "oral_scheduled" // Étape 3: Oral programmé, en attente de passage
+	WhitelistStatusApproved      WhitelistStatus = "approved"       // Complètement validé (RP + HRP + Oral)
+	WhitelistStatusRejected      WhitelistStatus = "rejected"       // Refusé, doit attendre 24h
 )
 
 // WhitelistApplication represents a whitelist application
@@ -50,6 +53,12 @@ type WhitelistApplication struct {
 	HRPExperienceYears int    `json:"hrp_experience_years,omitempty"` // Années d'expérience RP
 	HRPExperienceText  string `json:"hrp_experience_text,omitempty"`  // Texte explicatif expérience RP
 	HRPHPKnowledge     string `json:"hrp_hp_knowledge,omitempty"`     // Connaissances Harry Potter
+
+	// Étape 3: Candidature Orale
+	OralProposedWeekStart string `json:"oral_proposed_week_start,omitempty"` // Début de la semaine proposée (format: 2006-01-02)
+	OralProposedWeekEnd   string `json:"oral_proposed_week_end,omitempty"`   // Fin de la semaine proposée (format: 2006-01-02)
+	OralSelectedSlot      string `json:"oral_selected_slot,omitempty"`       // Créneau choisi par le joueur (format: 2006-01-02T15:04)
+	OralDiscordInviteSent bool   `json:"oral_discord_invite_sent,omitempty"` // Invitation Discord envoyée
 
 	// Status
 	Status          WhitelistStatus `json:"status"`
@@ -364,6 +373,7 @@ func rpcGetWhitelistStatus(ctx context.Context, logger runtime.Logger, db *sql.D
 	// Calculate if user can apply again (for rejected applications)
 	canApply := false
 	canSubmitHRP := false
+	canSelectOralSlot := false
 	var cooldownRemaining string
 
 	switch latestApp.Status {
@@ -381,14 +391,18 @@ func rpcGetWhitelistStatus(ctx context.Context, logger runtime.Logger, db *sql.D
 	case WhitelistStatusRPApproved:
 		// User's RP is approved, they can now submit HRP
 		canSubmitHRP = true
+	case WhitelistStatusOralPending:
+		// User received a week proposal, they can select a slot
+		canSelectOralSlot = true
 	}
 
 	response := map[string]interface{}{
-		"has_application":    true,
-		"application":        latestApp,
-		"can_apply":          canApply,
-		"can_submit_hrp":     canSubmitHRP,
-		"cooldown_remaining": cooldownRemaining,
+		"has_application":       true,
+		"application":           latestApp,
+		"can_apply":             canApply,
+		"can_submit_hrp":        canSubmitHRP,
+		"can_select_oral_slot":  canSelectOralSlot,
+		"cooldown_remaining":    cooldownRemaining,
 	}
 	responseJSON, _ := json.Marshal(response)
 	return string(responseJSON), nil
@@ -507,6 +521,8 @@ func rpcReviewWhitelistApplication(ctx context.Context, logger runtime.Logger, d
 		currentStep = "rp"
 	case WhitelistStatusHRPPending:
 		currentStep = "hrp"
+	case WhitelistStatusOralScheduled:
+		currentStep = "oral"
 	default:
 		return "", errors.New("application is not in a reviewable state")
 	}
@@ -521,11 +537,15 @@ func rpcReviewWhitelistApplication(ctx context.Context, logger runtime.Logger, d
 	// Update application status based on step
 	now := time.Now()
 	if req.Approved {
-		if currentStep == "rp" {
+		switch currentStep {
+		case "rp":
 			// RP approved -> move to HRP step
 			app.Status = WhitelistStatusRPApproved
-		} else {
-			// HRP approved -> fully approved
+		case "hrp":
+			// HRP approved -> move to oral step (waiting for week proposal)
+			app.Status = WhitelistStatusHRPApproved
+		case "oral":
+			// Oral approved -> fully approved
 			app.Status = WhitelistStatusApproved
 		}
 	} else {
@@ -563,8 +583,8 @@ func rpcReviewWhitelistApplication(ctx context.Context, logger runtime.Logger, d
 		PermissionWrite: 0,
 	}})
 
-	// Update user metadata with whitelist status (only when fully approved)
-	if req.Approved && currentStep == "hrp" {
+	// Update user metadata with whitelist status (only when fully approved after oral)
+	if req.Approved && currentStep == "oral" {
 		account, _ := nk.AccountGetId(ctx, req.UserID)
 		if account != nil {
 			metadata := make(map[string]interface{})
@@ -580,9 +600,12 @@ func rpcReviewWhitelistApplication(ctx context.Context, logger runtime.Logger, d
 	// Generate status text for logging and response
 	var statusText string
 	if req.Approved {
-		if currentStep == "rp" {
+		switch currentStep {
+		case "rp":
 			statusText = "rp_approved"
-		} else {
+		case "hrp":
+			statusText = "hrp_approved"
+		case "oral":
 			statusText = "approved"
 		}
 	} else {
@@ -593,6 +616,351 @@ func rpcReviewWhitelistApplication(ctx context.Context, logger runtime.Logger, d
 	response := map[string]interface{}{
 		"status":  statusText,
 		"message": fmt.Sprintf("Application %s successfully", statusText),
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcProposeOralWeek allows a Douanier to propose a calendar week for an oral interview
+func rpcProposeOralWeek(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	reviewerID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || reviewerID == "" {
+		return "", errors.New("authentication required")
+	}
+
+	// Check if user is a Douanier
+	if !isDouanier(ctx, nk, reviewerID) {
+		return "", errors.New("access denied: Douanier role required")
+	}
+
+	var req struct {
+		ApplicationID string `json:"application_id"`
+		UserID        string `json:"user_id"`
+		WeekStart     string `json:"week_start"` // Format: 2006-01-02
+		WeekEnd       string `json:"week_end"`   // Format: 2006-01-02
+	}
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		return "", errors.New("invalid request format")
+	}
+
+	if req.ApplicationID == "" || req.UserID == "" {
+		return "", errors.New("application_id and user_id are required")
+	}
+
+	// Validate date format
+	_, err := time.Parse("2006-01-02", req.WeekStart)
+	if err != nil {
+		return "", errors.New("invalid week_start format, use YYYY-MM-DD")
+	}
+	_, err = time.Parse("2006-01-02", req.WeekEnd)
+	if err != nil {
+		return "", errors.New("invalid week_end format, use YYYY-MM-DD")
+	}
+
+	// Get the application
+	objects, err := nk.StorageRead(ctx, []*runtime.StorageRead{{
+		Collection: WhitelistCollection,
+		Key:        req.ApplicationID,
+		UserID:     req.UserID,
+	}})
+	if err != nil || len(objects) == 0 {
+		return "", errors.New("application not found")
+	}
+
+	var app WhitelistApplication
+	if err := json.Unmarshal([]byte(objects[0].Value), &app); err != nil {
+		return "", errors.New("failed to read application")
+	}
+
+	// Check application is in hrp_approved status
+	if app.Status != WhitelistStatusHRPApproved {
+		return "", errors.New("application must be in hrp_approved status to propose an oral week")
+	}
+
+	// Update application with proposed week
+	now := time.Now()
+	app.OralProposedWeekStart = req.WeekStart
+	app.OralProposedWeekEnd = req.WeekEnd
+	app.Status = WhitelistStatusOralPending
+	app.UpdatedAt = now.Format(time.RFC3339)
+
+	appJSON, _ := json.Marshal(app)
+
+	// Update in user's storage
+	_, err = nk.StorageWrite(ctx, []*runtime.StorageWrite{{
+		Collection:      WhitelistCollection,
+		Key:             req.ApplicationID,
+		UserID:          req.UserID,
+		Value:           string(appJSON),
+		PermissionRead:  1,
+		PermissionWrite: 0,
+	}})
+	if err != nil {
+		logger.Error("Failed to update application: %v", err)
+		return "", errors.New("failed to propose oral week")
+	}
+
+	// Update in system index
+	nk.StorageWrite(ctx, []*runtime.StorageWrite{{
+		Collection:      "whitelist_index",
+		Key:             req.ApplicationID,
+		UserID:          SystemUserID,
+		Value:           string(appJSON),
+		PermissionRead:  0,
+		PermissionWrite: 0,
+	}})
+
+	logger.Info("Oral week proposed for application %s: %s to %s", req.ApplicationID, req.WeekStart, req.WeekEnd)
+
+	response := map[string]interface{}{
+		"status":     "oral_pending",
+		"message":    "Semaine proposée au candidat",
+		"week_start": req.WeekStart,
+		"week_end":   req.WeekEnd,
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcSelectOralSlot allows a player to select a day/time slot for their oral interview
+func rpcSelectOralSlot(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("authentication required")
+	}
+
+	var req struct {
+		SelectedSlot string `json:"selected_slot"` // Format: 2006-01-02T15:04
+	}
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		return "", errors.New("invalid request format")
+	}
+
+	// Validate datetime format
+	selectedTime, err := time.Parse("2006-01-02T15:04", req.SelectedSlot)
+	if err != nil {
+		return "", errors.New("invalid selected_slot format, use YYYY-MM-DDTHH:MM")
+	}
+
+	// Find the user's oral_pending application
+	objects, _, err := nk.StorageList(ctx, "", userID, WhitelistCollection, 10, "")
+	if err != nil {
+		logger.Error("Failed to list whitelist applications: %v", err)
+		return "", errors.New("failed to check existing applications")
+	}
+
+	var pendingApp *WhitelistApplication
+	var pendingAppKey string
+	for _, obj := range objects {
+		var app WhitelistApplication
+		if err := json.Unmarshal([]byte(obj.Value), &app); err != nil {
+			continue
+		}
+		if app.Status == WhitelistStatusOralPending {
+			pendingApp = &app
+			pendingAppKey = obj.Key
+			break
+		}
+	}
+
+	if pendingApp == nil {
+		return "", errors.New("no oral-pending application found")
+	}
+
+	// Validate selected slot is within proposed week
+	weekStart, _ := time.Parse("2006-01-02", pendingApp.OralProposedWeekStart)
+	weekEnd, _ := time.Parse("2006-01-02", pendingApp.OralProposedWeekEnd)
+	weekEnd = weekEnd.Add(24 * time.Hour) // Include the end day
+
+	if selectedTime.Before(weekStart) || selectedTime.After(weekEnd) {
+		return "", fmt.Errorf("selected slot must be between %s and %s", pendingApp.OralProposedWeekStart, pendingApp.OralProposedWeekEnd)
+	}
+
+	// Update application with selected slot
+	now := time.Now()
+	pendingApp.OralSelectedSlot = req.SelectedSlot
+	pendingApp.Status = WhitelistStatusOralScheduled
+	pendingApp.UpdatedAt = now.Format(time.RFC3339)
+
+	appJSON, _ := json.Marshal(pendingApp)
+
+	// Update in user's storage
+	_, err = nk.StorageWrite(ctx, []*runtime.StorageWrite{{
+		Collection:      WhitelistCollection,
+		Key:             pendingAppKey,
+		UserID:          userID,
+		Value:           string(appJSON),
+		PermissionRead:  1,
+		PermissionWrite: 0,
+	}})
+	if err != nil {
+		logger.Error("Failed to save oral slot selection: %v", err)
+		return "", errors.New("failed to select oral slot")
+	}
+
+	// Update in system index
+	nk.StorageWrite(ctx, []*runtime.StorageWrite{{
+		Collection:      "whitelist_index",
+		Key:             pendingAppKey,
+		UserID:          SystemUserID,
+		Value:           string(appJSON),
+		PermissionRead:  0,
+		PermissionWrite: 0,
+	}})
+
+	logger.Info("Oral slot selected for application %s: %s", pendingAppKey, req.SelectedSlot)
+
+	response := map[string]interface{}{
+		"status":        "oral_scheduled",
+		"message":       "Créneau sélectionné. Vous recevrez une invitation Discord pour passer votre oral.",
+		"selected_slot": req.SelectedSlot,
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcListOralCalendar returns scheduled oral interviews for Douaniers
+func rpcListOralCalendar(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || userID == "" {
+		return "", errors.New("authentication required")
+	}
+
+	// Check if user is a Douanier
+	if !isDouanier(ctx, nk, userID) {
+		return "", errors.New("access denied: Douanier role required")
+	}
+
+	// List all applications with oral_scheduled status
+	objects, _, err := nk.StorageList(ctx, "", SystemUserID, "whitelist_index", 1000, "")
+	if err != nil {
+		logger.Warn("Failed to list whitelist index: %v", err)
+		response := map[string]interface{}{
+			"scheduled_orals": []interface{}{},
+			"total":           0,
+		}
+		responseJSON, _ := json.Marshal(response)
+		return string(responseJSON), nil
+	}
+
+	type OralSlot struct {
+		ApplicationID   string `json:"application_id"`
+		UserID          string `json:"user_id"`
+		Username        string `json:"username"`
+		DiscordUsername string `json:"discord_username"`
+		CharacterName   string `json:"character_name"`
+		SelectedSlot    string `json:"selected_slot"`
+		InviteSent      bool   `json:"invite_sent"`
+	}
+
+	var scheduledOrals []OralSlot
+	for _, obj := range objects {
+		var app WhitelistApplication
+		if err := json.Unmarshal([]byte(obj.Value), &app); err != nil {
+			continue
+		}
+
+		if app.Status == WhitelistStatusOralScheduled {
+			scheduledOrals = append(scheduledOrals, OralSlot{
+				ApplicationID:   app.ID,
+				UserID:          app.UserID,
+				Username:        app.Username,
+				DiscordUsername: app.DiscordUsername,
+				CharacterName:   fmt.Sprintf("%s %s", app.CharacterFirstName, app.CharacterLastName),
+				SelectedSlot:    app.OralSelectedSlot,
+				InviteSent:      app.OralDiscordInviteSent,
+			})
+		}
+	}
+
+	// Sort by selected slot (earliest first)
+	for i := 0; i < len(scheduledOrals)-1; i++ {
+		for j := i + 1; j < len(scheduledOrals); j++ {
+			if scheduledOrals[i].SelectedSlot > scheduledOrals[j].SelectedSlot {
+				scheduledOrals[i], scheduledOrals[j] = scheduledOrals[j], scheduledOrals[i]
+			}
+		}
+	}
+
+	response := map[string]interface{}{
+		"scheduled_orals": scheduledOrals,
+		"total":           len(scheduledOrals),
+	}
+	responseJSON, _ := json.Marshal(response)
+	return string(responseJSON), nil
+}
+
+// rpcMarkOralInviteSent marks that the Discord invite has been sent to the player
+func rpcMarkOralInviteSent(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	reviewerID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
+	if !ok || reviewerID == "" {
+		return "", errors.New("authentication required")
+	}
+
+	// Check if user is a Douanier
+	if !isDouanier(ctx, nk, reviewerID) {
+		return "", errors.New("access denied: Douanier role required")
+	}
+
+	var req struct {
+		ApplicationID string `json:"application_id"`
+		UserID        string `json:"user_id"`
+	}
+	if err := json.Unmarshal([]byte(payload), &req); err != nil {
+		return "", errors.New("invalid request format")
+	}
+
+	// Get the application
+	objects, err := nk.StorageRead(ctx, []*runtime.StorageRead{{
+		Collection: WhitelistCollection,
+		Key:        req.ApplicationID,
+		UserID:     req.UserID,
+	}})
+	if err != nil || len(objects) == 0 {
+		return "", errors.New("application not found")
+	}
+
+	var app WhitelistApplication
+	if err := json.Unmarshal([]byte(objects[0].Value), &app); err != nil {
+		return "", errors.New("failed to read application")
+	}
+
+	if app.Status != WhitelistStatusOralScheduled {
+		return "", errors.New("application is not in oral_scheduled status")
+	}
+
+	// Update application
+	now := time.Now()
+	app.OralDiscordInviteSent = true
+	app.UpdatedAt = now.Format(time.RFC3339)
+
+	appJSON, _ := json.Marshal(app)
+
+	// Update in user's storage
+	nk.StorageWrite(ctx, []*runtime.StorageWrite{{
+		Collection:      WhitelistCollection,
+		Key:             req.ApplicationID,
+		UserID:          req.UserID,
+		Value:           string(appJSON),
+		PermissionRead:  1,
+		PermissionWrite: 0,
+	}})
+
+	// Update in system index
+	nk.StorageWrite(ctx, []*runtime.StorageWrite{{
+		Collection:      "whitelist_index",
+		Key:             req.ApplicationID,
+		UserID:          SystemUserID,
+		Value:           string(appJSON),
+		PermissionRead:  0,
+		PermissionWrite: 0,
+	}})
+
+	logger.Info("Discord invite marked as sent for application %s", req.ApplicationID)
+
+	response := map[string]interface{}{
+		"status":  "invite_sent",
+		"message": "Invitation Discord marquée comme envoyée",
 	}
 	responseJSON, _ := json.Marshal(response)
 	return string(responseJSON), nil
@@ -656,6 +1024,26 @@ func RegisterWhitelistRPCs(initializer runtime.Initializer, logger runtime.Logge
 
 	if err := initializer.RegisterRpc("elderwood_review_whitelist", rpcReviewWhitelistApplication); err != nil {
 		logger.Error("Failed to register elderwood_review_whitelist RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_propose_oral_week", rpcProposeOralWeek); err != nil {
+		logger.Error("Failed to register elderwood_propose_oral_week RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_select_oral_slot", rpcSelectOralSlot); err != nil {
+		logger.Error("Failed to register elderwood_select_oral_slot RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_list_oral_calendar", rpcListOralCalendar); err != nil {
+		logger.Error("Failed to register elderwood_list_oral_calendar RPC: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterRpc("elderwood_mark_oral_invite_sent", rpcMarkOralInviteSent); err != nil {
+		logger.Error("Failed to register elderwood_mark_oral_invite_sent RPC: %v", err)
 		return err
 	}
 
