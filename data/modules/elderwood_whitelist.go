@@ -219,6 +219,11 @@ func rpcSubmitWhitelistApplication(ctx context.Context, logger runtime.Logger, d
 		logger.Warn("Failed to update whitelist index: %v", err)
 	}
 
+	// Update user metadata with whitelist status
+	if err := updateUserWhitelistStatus(ctx, nk, userID, WhitelistStatusPending); err != nil {
+		logger.Warn("Failed to update user whitelist status: %v", err)
+	}
+
 	logger.Info("Whitelist RP application submitted: user=%s, app=%s", userID, app.ID)
 
 	response := map[string]interface{}{
@@ -322,6 +327,11 @@ func rpcSubmitWhitelistHRP(ctx context.Context, logger runtime.Logger, db *sql.D
 		PermissionRead:  0,
 		PermissionWrite: 0,
 	}})
+
+	// Update user metadata with whitelist status
+	if err := updateUserWhitelistStatus(ctx, nk, userID, WhitelistStatusHRPPending); err != nil {
+		logger.Warn("Failed to update user whitelist status: %v", err)
+	}
 
 	logger.Info("Whitelist HRP application submitted: user=%s, app=%s", userID, approvedApp.ID)
 
@@ -584,18 +594,9 @@ func rpcReviewWhitelistApplication(ctx context.Context, logger runtime.Logger, d
 		PermissionWrite: 0,
 	}})
 
-	// Update user metadata with whitelist status (only when fully approved after oral)
-	if req.Approved && currentStep == "oral" {
-		account, _ := nk.AccountGetId(ctx, req.UserID)
-		if account != nil {
-			metadata := make(map[string]interface{})
-			if account.User.Metadata != "" {
-				json.Unmarshal([]byte(account.User.Metadata), &metadata)
-			}
-			metadata["whitelist_status"] = "approved"
-			metadata["whitelist_approved_at"] = now.Format(time.RFC3339)
-			nk.AccountUpdateId(ctx, req.UserID, "", metadata, "", "", "", "", "")
-		}
+	// Update user metadata with whitelist status
+	if err := updateUserWhitelistStatus(ctx, nk, req.UserID, app.Status); err != nil {
+		logger.Warn("Failed to update user whitelist status: %v", err)
 	}
 
 	// Generate status text for logging and response
@@ -711,6 +712,11 @@ func rpcProposeOralWeek(ctx context.Context, logger runtime.Logger, db *sql.DB, 
 		PermissionWrite: 0,
 	}})
 
+	// Update user metadata with whitelist status
+	if err := updateUserWhitelistStatus(ctx, nk, req.UserID, WhitelistStatusOralPending); err != nil {
+		logger.Warn("Failed to update user whitelist status: %v", err)
+	}
+
 	logger.Info("Oral week proposed for application %s: %s to %s", req.ApplicationID, req.WeekStart, req.WeekEnd)
 
 	response := map[string]interface{}{
@@ -809,6 +815,11 @@ func rpcSelectOralSlot(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 		PermissionRead:  0,
 		PermissionWrite: 0,
 	}})
+
+	// Update user metadata with whitelist status
+	if err := updateUserWhitelistStatus(ctx, nk, userID, WhitelistStatusOralScheduled); err != nil {
+		logger.Warn("Failed to update user whitelist status: %v", err)
+	}
 
 	logger.Info("Oral slot selected for application %s: %s", pendingAppKey, req.SelectedSlot)
 
@@ -975,6 +986,26 @@ func rpcMarkOralInviteSent(ctx context.Context, logger runtime.Logger, db *sql.D
 	}
 	responseJSON, _ := json.Marshal(response)
 	return string(responseJSON), nil
+}
+
+// updateUserWhitelistStatus updates the whitelist_status in user's metadata
+func updateUserWhitelistStatus(ctx context.Context, nk runtime.NakamaModule, userID string, status WhitelistStatus) error {
+	account, err := nk.AccountGetId(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	metadata := make(map[string]interface{})
+	if account.User.Metadata != "" {
+		json.Unmarshal([]byte(account.User.Metadata), &metadata)
+	}
+
+	metadata["whitelist_status"] = string(status)
+	if status == WhitelistStatusApproved {
+		metadata["whitelist_approved_at"] = time.Now().Format(time.RFC3339)
+	}
+
+	return nk.AccountUpdateId(ctx, userID, "", metadata, "", "", "", "", "")
 }
 
 // isDouanier checks if a user has the Douanier role
