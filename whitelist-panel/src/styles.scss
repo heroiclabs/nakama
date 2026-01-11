@@ -438,8 +438,9 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 1rem;
-  min-width: 300px;
+  min-width: 320px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  z-index: 10000 !important;
 
   .p-datepicker-header {
     background: transparent;
@@ -551,6 +552,90 @@ h1, h2, h3, h4, h5, h6 {
         background: var(--elderwood-primary);
         color: #0c0c0c;
       }
+    }
+  }
+
+  // Time picker styles
+  .p-timepicker {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem 0 0;
+    margin-top: 0.5rem;
+
+    > div {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .p-hour-picker,
+    .p-minute-picker,
+    .p-second-picker,
+    .p-ampm-picker {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+
+      span {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: white;
+        min-width: 2.5rem;
+        text-align: center;
+      }
+
+      button {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: white;
+        width: 2.5rem;
+        height: 2rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover {
+          background: rgba(201, 162, 39, 0.3);
+          color: var(--elderwood-primary);
+        }
+
+        .p-icon {
+          width: 1rem;
+          height: 1rem;
+        }
+      }
+    }
+
+    .p-separator {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.5);
+      padding: 0 0.25rem;
+    }
+  }
+}
+
+// Calendar with icon button styling
+.p-calendar.p-calendar-w-btn {
+  .p-inputtext {
+    border-radius: 10px 0 0 10px;
+  }
+
+  .p-datepicker-trigger {
+    background: rgba(201, 162, 39, 0.2);
+    border: 2px solid #2a2d30;
+    border-left: none;
+    color: var(--elderwood-primary);
+    border-radius: 0 10px 10px 0;
+    width: 3rem;
+
+    &:hover {
+      background: rgba(201, 162, 39, 0.3);
+    }
+
+    &:focus {
+      box-shadow: none;
     }
   }
 }

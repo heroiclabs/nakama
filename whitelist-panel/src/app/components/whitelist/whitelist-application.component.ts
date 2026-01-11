@@ -91,9 +91,13 @@ import { AuthService } from '../../services/auth.service';
                   [minDate]="getOralMinDate()"
                   [maxDate]="getOralMaxDate()"
                   [hourFormat]="'24'"
+                  [stepMinute]="15"
                   dateFormat="dd/mm/yy"
                   placeholder="Sélectionnez une date et heure"
-                  styleClass="w-full"
+                  appendTo="body"
+                  [showIcon]="true"
+                  [readonlyInput]="false"
+                  styleClass="oral-slot-calendar"
                 ></p-calendar>
               </div>
 
