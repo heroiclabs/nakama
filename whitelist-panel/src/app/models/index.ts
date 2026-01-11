@@ -8,7 +8,7 @@ export interface User {
   email_verified?: boolean;
   discord_linked?: boolean;
   discord_username?: string;
-  whitelist_status?: 'pending' | 'approved' | 'rejected' | 'none';
+  whitelist_status?: 'pending' | 'rp_approved' | 'hrp_pending' | 'hrp_approved' | 'oral_pending' | 'oral_scheduled' | 'approved' | 'rejected' | 'none';
 }
 
 export interface WhitelistApplication {
