@@ -92,7 +92,7 @@ import { User } from '../../models';
               ></p-avatar>
               <div class="user-info">
                 <span class="user-name">{{ user()?.username || 'Utilisateur' }}</span>
-                <span class="user-role">{{ getWhitelistStatus() }}</span>
+                <span class="status-badge" [class]="getWhitelistStatusClass()">{{ getWhitelistStatus() }}</span>
               </div>
               <i class="pi pi-chevron-down"></i>
             </div>
@@ -369,10 +369,43 @@ import { User } from '../../models';
       color: white;
     }
 
-    .user-info .user-role {
-      font-size: 0.75rem;
-      color: var(--elderwood-primary);
+    .status-badge {
+      font-size: 0.65rem;
       font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .status-badge.status-none {
+      background: rgba(107, 114, 128, 0.2);
+      color: #9ca3af;
+    }
+
+    .status-badge.status-pending {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .status-badge.status-progress {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .status-badge.status-oral {
+      background: rgba(139, 92, 246, 0.2);
+      color: #a78bfa;
+    }
+
+    .status-badge.status-approved {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .status-badge.status-rejected {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
     }
 
     .user-menu > i {
@@ -473,10 +506,36 @@ export class MainLayoutComponent implements OnInit {
   getWhitelistStatus(): string {
     const status = this.user()?.whitelist_status;
     switch (status) {
-      case 'pending': return 'En attente';
-      case 'approved': return 'Approuve';
-      case 'rejected': return 'Refuse';
-      default: return 'Non postule';
+      case 'pending': return 'RP en attente';
+      case 'rp_approved': return 'RP approuvé';
+      case 'hrp_pending': return 'HRP en attente';
+      case 'hrp_approved': return 'HRP approuvé';
+      case 'oral_pending': return 'Oral à programmer';
+      case 'oral_scheduled': return 'Oral programmé';
+      case 'approved': return 'Approuvé';
+      case 'rejected': return 'Refusé';
+      default: return 'Non postulé';
+    }
+  }
+
+  getWhitelistStatusClass(): string {
+    const status = this.user()?.whitelist_status;
+    switch (status) {
+      case 'pending':
+      case 'hrp_pending':
+        return 'status-badge status-pending';
+      case 'rp_approved':
+      case 'hrp_approved':
+        return 'status-badge status-progress';
+      case 'oral_pending':
+      case 'oral_scheduled':
+        return 'status-badge status-oral';
+      case 'approved':
+        return 'status-badge status-approved';
+      case 'rejected':
+        return 'status-badge status-rejected';
+      default:
+        return 'status-badge status-none';
     }
   }
 
