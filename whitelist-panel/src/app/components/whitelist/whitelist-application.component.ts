@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -88,8 +88,8 @@ import { AuthService } from '../../services/auth.service';
                   id="oralSlot"
                   [(ngModel)]="selectedOralSlot"
                   [showTime]="true"
-                  [minDate]="getOralMinDate()"
-                  [maxDate]="getOralMaxDate()"
+                  [minDate]="oralMinDate()"
+                  [maxDate]="oralMaxDate()"
                   [hourFormat]="'24'"
                   [stepMinute]="15"
                   dateFormat="dd/mm/yy"
@@ -1182,6 +1182,25 @@ export class WhitelistApplicationComponent implements OnInit {
 
   selectedOralSlot: Date | null = null;
 
+  // Computed signals for oral date range (prevents creating new Date objects on each render)
+  oralMinDate = computed(() => {
+    const app = this.status()?.application;
+    if (app?.oral_proposed_week_start) {
+      return new Date(app.oral_proposed_week_start);
+    }
+    return new Date();
+  });
+
+  oralMaxDate = computed(() => {
+    const app = this.status()?.application;
+    if (app?.oral_proposed_week_end) {
+      const date = new Date(app.oral_proposed_week_end);
+      date.setHours(23, 59, 59);
+      return date;
+    }
+    return new Date();
+  });
+
   ngOnInit() {
     this.loadStatus();
   }
@@ -1319,24 +1338,6 @@ export class WhitelistApplicationComponent implements OnInit {
       month: '2-digit',
       year: 'numeric'
     });
-  }
-
-  getOralMinDate(): Date {
-    const app = this.status()?.application;
-    if (app?.oral_proposed_week_start) {
-      return new Date(app.oral_proposed_week_start);
-    }
-    return new Date();
-  }
-
-  getOralMaxDate(): Date {
-    const app = this.status()?.application;
-    if (app?.oral_proposed_week_end) {
-      const date = new Date(app.oral_proposed_week_end);
-      date.setHours(23, 59, 59);
-      return date;
-    }
-    return new Date();
   }
 
   submitOralSlot() {
