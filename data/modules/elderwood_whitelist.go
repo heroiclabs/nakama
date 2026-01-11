@@ -780,6 +780,7 @@ func rpcSelectOralSlot(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 	now := time.Now()
 	pendingApp.OralSelectedSlot = req.SelectedSlot
 	pendingApp.Status = WhitelistStatusOralScheduled
+	pendingApp.OralDiscordInviteSent = true // Auto-mark as sent since we show the link directly
 	pendingApp.UpdatedAt = now.Format(time.RFC3339)
 
 	appJSON, _ := json.Marshal(pendingApp)
@@ -810,10 +811,19 @@ func rpcSelectOralSlot(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 
 	logger.Info("Oral slot selected for application %s: %s", pendingAppKey, req.SelectedSlot)
 
+	// Get Discord Douane invite URL from environment
+	discordInviteURL := os.Getenv("DISCORD_DOUANE_INVITE_URL")
+	if discordInviteURL == "" {
+		// Default fallback - should be configured in production
+		discordInviteURL = "https://discord.gg/elderwooddouane"
+	}
+
 	response := map[string]interface{}{
-		"status":        "oral_scheduled",
-		"message":       "Créneau sélectionné. Vous recevrez une invitation Discord pour passer votre oral.",
-		"selected_slot": req.SelectedSlot,
+		"status":             "oral_scheduled",
+		"message":            "Créneau confirmé ! Rejoignez le serveur Discord Elderwood Douane pour passer votre oral.",
+		"selected_slot":      req.SelectedSlot,
+		"discord_invite_url": discordInviteURL,
+		"character_name":     fmt.Sprintf("%s %s", pendingApp.CharacterFirstName, pendingApp.CharacterLastName),
 	}
 	responseJSON, _ := json.Marshal(response)
 	return string(responseJSON), nil

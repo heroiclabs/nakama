@@ -231,7 +231,13 @@ export class WhitelistService {
   }
 
   // Select an oral slot (Player)
-  selectOralSlot(selectedSlot: string): Observable<{ status: string; message: string; selected_slot: string }> {
+  selectOralSlot(selectedSlot: string): Observable<{
+    status: string;
+    message: string;
+    selected_slot: string;
+    discord_invite_url: string;
+    character_name: string;
+  }> {
     const url = `${environment.nakamaUrl}/v2/rpc/elderwood_select_oral_slot`;
     const payload = JSON.stringify({ selected_slot: selectedSlot });
 

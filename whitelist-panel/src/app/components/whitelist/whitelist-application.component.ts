@@ -15,6 +15,7 @@ import { ToastModule } from 'primeng/toast';
 import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { CalendarModule } from 'primeng/calendar';
+import { DialogModule } from 'primeng/dialog';
 import { MessageService, MenuItem } from 'primeng/api';
 
 import { WhitelistService, WhitelistApplication, WhitelistStatusResponse } from '../../services/whitelist.service';
@@ -36,7 +37,8 @@ import { AuthService } from '../../services/auth.service';
     ToastModule,
     TagModule,
     ProgressSpinnerModule,
-    CalendarModule
+    CalendarModule,
+    DialogModule
   ],
   providers: [MessageService],
   template: `
@@ -458,6 +460,56 @@ import { AuthService } from '../../services/auth.service';
           </p-card>
         </div>
       }
+
+      <!-- Discord Invite Modal -->
+      <p-dialog
+        header="Invitation Discord"
+        [(visible)]="discordInviteDialogVisible"
+        [modal]="true"
+        [style]="{ width: '550px' }"
+        [draggable]="false"
+        [resizable]="false"
+        [closable]="true"
+        styleClass="discord-invite-dialog"
+      >
+        <div class="discord-invite-content">
+          <div class="success-icon">
+            <i class="pi pi-check-circle"></i>
+          </div>
+          <h3>Créneau confirmé !</h3>
+          <p>Votre oral est programmé pour le :</p>
+          <div class="slot-badge">
+            <i class="pi pi-calendar"></i>
+            <span>{{ formatOralSlotDisplay() }}</span>
+          </div>
+
+          <div class="discord-section">
+            <div class="discord-icon">
+              <i class="pi pi-discord"></i>
+            </div>
+            <p>Rejoignez le serveur <strong>Elderwood Douane</strong> pour passer votre entretien oral.</p>
+            <p class="role-info">Vous recevrez automatiquement le rôle <strong>"En attente d'oral"</strong></p>
+
+            <a [href]="discordInviteUrl" target="_blank" class="discord-link">
+              <i class="pi pi-external-link"></i>
+              Rejoindre le Discord Elderwood Douane
+            </a>
+          </div>
+
+          <div class="character-info">
+            <i class="pi pi-user"></i>
+            <span>Personnage : <strong>{{ confirmedCharacterName }}</strong></span>
+          </div>
+        </div>
+
+        <ng-template pTemplate="footer">
+          <p-button
+            label="J'ai rejoint le Discord"
+            icon="pi pi-check"
+            (click)="closeDiscordDialog()"
+          ></p-button>
+        </ng-template>
+      </p-dialog>
     </div>
   `,
   styles: [`
@@ -1128,6 +1180,111 @@ import { AuthService } from '../../services/auth.service';
       color: #0c0c0c;
     }
 
+    /* Discord Invite Modal */
+    .discord-invite-content {
+      text-align: center;
+      padding: 1rem 0;
+    }
+
+    .discord-invite-content .success-icon {
+      margin-bottom: 1rem;
+    }
+
+    .discord-invite-content .success-icon i {
+      font-size: 4rem;
+      color: #22c55e;
+    }
+
+    .discord-invite-content h3 {
+      color: var(--elderwood-primary);
+      margin-bottom: 0.5rem;
+      font-size: 1.5rem;
+    }
+
+    .discord-invite-content > p {
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 1rem;
+    }
+
+    .slot-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(139, 92, 246, 0.2);
+      color: #a78bfa;
+      padding: 1rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+    }
+
+    .slot-badge i {
+      font-size: 1.25rem;
+    }
+
+    .discord-section {
+      background: rgba(88, 101, 242, 0.1);
+      border: 1px solid rgba(88, 101, 242, 0.3);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .discord-section .discord-icon {
+      margin-bottom: 1rem;
+    }
+
+    .discord-section .discord-icon i {
+      font-size: 2.5rem;
+      color: #5865F2;
+    }
+
+    .discord-section p {
+      color: rgba(255, 255, 255, 0.8);
+      margin: 0.5rem 0;
+    }
+
+    .discord-section .role-info {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 1.5rem;
+    }
+
+    .discord-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #5865F2;
+      color: white;
+      padding: 0.875rem 1.5rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .discord-link:hover {
+      background: #4752C4;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(88, 101, 242, 0.3);
+    }
+
+    .character-info {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: rgba(201, 162, 39, 0.1);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: var(--elderwood-primary);
+    }
+
+    .character-info i {
+      font-size: 1rem;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .form-grid {
@@ -1181,6 +1338,12 @@ export class WhitelistApplicationComponent implements OnInit {
   };
 
   selectedOralSlot: Date | null = null;
+
+  // Discord invite dialog
+  discordInviteDialogVisible = false;
+  discordInviteUrl = '';
+  confirmedCharacterName = '';
+  confirmedOralSlot = '';
 
   // Computed signals for oral date range (prevents creating new Date objects on each render)
   oralMinDate = computed(() => {
@@ -1351,16 +1514,18 @@ export class WhitelistApplicationComponent implements OnInit {
     const minutes = String(this.selectedOralSlot.getMinutes()).padStart(2, '0');
     const formattedSlot = `${year}-${month}-${day}T${hours}:${minutes}`;
 
+    // Store the slot for display
+    this.confirmedOralSlot = formattedSlot;
+
     this.submitting.set(true);
     this.whitelistService.selectOralSlot(formattedSlot).subscribe({
       next: (response) => {
         this.submitting.set(false);
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Créneau confirmé',
-          detail: response.message
-        });
-        this.loadStatus();
+        // Store Discord invite info
+        this.discordInviteUrl = response.discord_invite_url;
+        this.confirmedCharacterName = response.character_name;
+        // Show Discord invite dialog
+        this.discordInviteDialogVisible = true;
       },
       error: (error) => {
         this.submitting.set(false);
@@ -1372,6 +1537,24 @@ export class WhitelistApplicationComponent implements OnInit {
         });
       }
     });
+  }
+
+  formatOralSlotDisplay(): string {
+    if (!this.confirmedOralSlot) return '';
+    const date = new Date(this.confirmedOralSlot);
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  closeDiscordDialog() {
+    this.discordInviteDialogVisible = false;
+    this.loadStatus();
   }
 
   getRejectedStepLabel(step?: string): string {

@@ -42,6 +42,8 @@ services:
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
       - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-https://admin.elderwood-rp.com/discord-callback}
+      # Discord Douane invite URL for oral interviews
+      - DISCORD_DOUANE_INVITE_URL=${DISCORD_DOUANE_INVITE_URL:-}
     entrypoint:
       - "/bin/sh"
       - "-ecx"
