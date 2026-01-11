@@ -431,6 +431,131 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 // ============================================
+// DATEPICKER / CALENDAR STYLES
+// ============================================
+.p-datepicker {
+  background: #1d1f21;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1rem;
+  min-width: 300px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+
+  .p-datepicker-header {
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.5rem 0 1rem;
+    margin-bottom: 0.5rem;
+
+    .p-datepicker-title {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+
+      .p-datepicker-month,
+      .p-datepicker-year {
+        color: white;
+        font-weight: 600;
+        font-size: 1rem;
+
+        &:hover {
+          color: var(--elderwood-primary);
+        }
+      }
+    }
+
+    .p-datepicker-prev,
+    .p-datepicker-next {
+      color: rgba(255, 255, 255, 0.6);
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+
+      &:hover {
+        color: white;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      &:focus {
+        box-shadow: none;
+      }
+    }
+  }
+
+  table {
+    font-size: 1rem;
+    margin: 0;
+
+    th {
+      padding: 0.75rem;
+      color: rgba(255, 255, 255, 0.5);
+      font-weight: 600;
+      font-size: 0.85rem;
+
+      > span {
+        color: rgba(255, 255, 255, 0.5);
+      }
+    }
+
+    td {
+      padding: 0.25rem;
+
+      > span {
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 50%;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+
+        &:hover:not(.p-disabled):not(.p-highlight) {
+          background: rgba(201, 162, 39, 0.2);
+          color: var(--elderwood-primary);
+        }
+
+        &.p-highlight {
+          background: var(--elderwood-primary);
+          color: #0c0c0c;
+          font-weight: 600;
+        }
+      }
+
+      &.p-datepicker-today > span:not(.p-highlight) {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      &.p-datepicker-other-month > span {
+        color: rgba(255, 255, 255, 0.3);
+      }
+    }
+  }
+
+  // Month/Year picker view
+  .p-monthpicker,
+  .p-yearpicker {
+    .p-monthpicker-month,
+    .p-yearpicker-year {
+      color: white;
+      padding: 0.75rem;
+      border-radius: 8px;
+
+      &:hover:not(.p-disabled) {
+        background: rgba(201, 162, 39, 0.2);
+        color: var(--elderwood-primary);
+      }
+
+      &.p-highlight {
+        background: var(--elderwood-primary);
+        color: #0c0c0c;
+      }
+    }
+  }
+}
+
+// ============================================
 // ANIMATIONS
 // ============================================
 @keyframes fadeIn {

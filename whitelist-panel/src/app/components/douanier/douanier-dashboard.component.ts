@@ -364,9 +364,10 @@ import { AuthService } from '../../services/auth.service';
         header="Proposer une semaine pour l'oral"
         [(visible)]="proposeWeekDialogVisible"
         [modal]="true"
-        [style]="{ width: '500px' }"
+        [style]="{ width: '650px' }"
         [draggable]="false"
         [resizable]="false"
+        styleClass="propose-week-dialog"
       >
         <div class="propose-week-form">
           <p>Proposez une semaine durant laquelle <strong>{{ applicationToProposeWeek()?.username }}</strong> pourra choisir un créneau pour son oral.</p>
@@ -383,6 +384,8 @@ import { AuthService } from '../../services/auth.service';
                   dateFormat="dd/mm/yy"
                   [minDate]="today"
                   placeholder="Date de début"
+                  appendTo="body"
+                  [showIcon]="true"
                 ></p-calendar>
               </div>
               <div class="date-field">
@@ -393,6 +396,8 @@ import { AuthService } from '../../services/auth.service';
                   dateFormat="dd/mm/yy"
                   [minDate]="proposedWeekStart || today"
                   placeholder="Date de fin"
+                  appendTo="body"
+                  [showIcon]="true"
                 ></p-calendar>
               </div>
             </div>
@@ -908,8 +913,8 @@ import { AuthService } from '../../services/auth.service';
 
     .week-picker {
       display: flex;
-      gap: 1rem;
-      margin-top: 0.5rem;
+      gap: 1.5rem;
+      margin-top: 1rem;
     }
 
     .date-field {
@@ -918,9 +923,10 @@ import { AuthService } from '../../services/auth.service';
 
     .date-field label {
       display: block;
-      margin-bottom: 0.25rem;
-      font-size: 0.875rem;
-      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.7);
+      font-weight: 500;
     }
 
     :host ::ng-deep .week-picker .p-calendar {
@@ -933,10 +939,91 @@ import { AuthService } from '../../services/auth.service';
       border: 1px solid rgba(255, 255, 255, 0.1);
       color: white;
       border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
     }
 
     :host ::ng-deep .week-picker .p-calendar .p-inputtext:focus {
       border-color: var(--elderwood-primary);
+    }
+
+    /* Propose week dialog calendar styling */
+    :host ::ng-deep .propose-week-dialog .p-datepicker {
+      background: #1d1f21;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 1rem;
+      min-width: 280px;
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker table {
+      font-size: 1rem;
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker table td {
+      padding: 0.5rem;
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker table td > span {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker table th {
+      padding: 0.5rem;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker .p-datepicker-header {
+      background: transparent;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker .p-datepicker-title {
+      color: white;
+      font-weight: 600;
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker .p-datepicker-prev,
+    :host ::ng-deep .propose-week-dialog .p-datepicker .p-datepicker-next {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker .p-datepicker-prev:hover,
+    :host ::ng-deep .propose-week-dialog .p-datepicker .p-datepicker-next:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker table td > span:hover {
+      background: rgba(201, 162, 39, 0.2);
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker table td.p-datepicker-today > span {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    :host ::ng-deep .propose-week-dialog .p-datepicker table td > span.p-highlight {
+      background: var(--elderwood-primary);
+      color: #0c0c0c;
+    }
+
+    /* Calendar icon button */
+    :host ::ng-deep .week-picker .p-calendar .p-datepicker-trigger {
+      background: rgba(201, 162, 39, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--elderwood-primary);
+      border-radius: 0 8px 8px 0;
+    }
+
+    :host ::ng-deep .week-picker .p-calendar .p-datepicker-trigger:hover {
+      background: rgba(201, 162, 39, 0.3);
+    }
+
+    :host ::ng-deep .week-picker .p-calendar.p-calendar-w-btn .p-inputtext {
+      border-radius: 8px 0 0 8px;
     }
 
     /* Oral calendar header */
