@@ -814,8 +814,8 @@ func rpcSelectOralSlot(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 	// Get Discord Douane invite URL from environment
 	discordInviteURL := os.Getenv("DISCORD_DOUANE_INVITE_URL")
 	if discordInviteURL == "" {
-		// Default fallback - should be configured in production
-		discordInviteURL = "https://discord.gg/elderwooddouane"
+		// Default fallback
+		discordInviteURL = "https://discord.gg/uRKSv2z9bn"
 	}
 
 	response := map[string]interface{}{
