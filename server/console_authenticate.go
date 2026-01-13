@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	passwordMinLength = 8
+	passwordMinLength = 12
 	passwordMaxLength = 128
 )
 
@@ -112,7 +112,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				uname = in.Username
 				userId = uuid.Nil
 
-				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcryptHashCost)
 				if err != nil {
 					logger.Error("failed to hash admin console user password", zap.Error(err))
 					return status.Error(codes.Internal, "failed to create admin console user")
@@ -385,7 +385,7 @@ func (s *ConsoleServer) AuthenticatePasswordChange(ctx context.Context, in *cons
 	}
 
 	if len(in.Password) < passwordMinLength || len(in.Password) > passwordMaxLength {
-		return nil, status.Error(codes.InvalidArgument, "Password must be between 8 and 128 characters long.")
+		return nil, status.Error(codes.InvalidArgument, "Password must be between 12 and 128 characters long.")
 	}
 
 	var claims UserInvitationClaims
@@ -396,7 +396,7 @@ func (s *ConsoleServer) AuthenticatePasswordChange(ctx context.Context, in *cons
 
 	logger := s.logger.With(zap.String("user_id", claims.Id))
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcryptHashCost)
 	if err != nil {
 		logger.Error("Failed to hash the password for the user.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to hash the password for the user.")

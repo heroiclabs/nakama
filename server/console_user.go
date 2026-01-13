@@ -25,7 +25,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v5"
@@ -316,7 +315,7 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 			return status.Error(codes.Internal, "Failed to generate a temporary password for the user.")
 		}
 
-		hashedPassword, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+		hashedPassword, err := bcrypt.GenerateFromPassword(password, bcryptHashCost)
 		if err != nil {
 			logger.Error("Failed to hash the temporary password for the user.", zap.Error(err))
 			return status.Error(codes.Internal, "Failed to hash the temporary password for the user.")
@@ -429,23 +428,6 @@ func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string
 		return false, uuid.Nil, err
 	}
 	return true, deletedID, nil
-}
-
-func isValidPassword(pwd string) bool {
-	if len(pwd) < 8 {
-		return false
-	}
-	var number bool
-	var upper bool
-	for _, c := range pwd {
-		switch {
-		case unicode.IsNumber(c):
-			number = true
-		case unicode.IsUpper(c):
-			upper = true
-		}
-	}
-	return number && upper
 }
 
 func (s *ConsoleServer) RequireUserMfa(ctx context.Context, in *console.RequireUserMfaRequest) (*emptypb.Empty, error) {
