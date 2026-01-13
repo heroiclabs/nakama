@@ -765,7 +765,7 @@ func (p *PartyHandler) CloseIfIdle() {
 	tick := p.tick.Load()
 	lastIdleCheckTick := p.lastIdleCheckTick.Swap(tick)
 
-	if lastIdleCheckTick < tick {
+	if lastIdleCheckTick != tick {
 		// Party has activity, or was just created.
 		return
 	}
