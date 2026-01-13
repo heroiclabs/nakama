@@ -1205,6 +1205,22 @@ message ValidateSubscriptionAppleRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
+// Apple StoreKit2 JWS Purchase validation request
+message ValidatePurchaseAppleJWSRequest {
+  // The JWS token from StoreKit2 (jwsRepresentation).
+  string jws = 1;
+  // Persist the purchase.
+  google.protobuf.BoolValue persist = 2;
+}
+
+// Apple StoreKit2 JWS Subscription validation request
+message ValidateSubscriptionAppleJWSRequest {
+  // The JWS token from StoreKit2 (jwsRepresentation).
+  string jws = 1;
+  // Persist the subscription.
+  google.protobuf.BoolValue persist = 2;
+}
+
 // Google IAP Purchase validation request
 message ValidatePurchaseGoogleRequest {
   // JSON encoded Google purchase payload.

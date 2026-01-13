@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -25,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/url"
 	"sort"
@@ -897,4 +899,194 @@ func ValidateReceiptFacebookInstant(appSecret, signedRequest string) (*FacebookI
 	}
 
 	return payment, string(payload), nil
+}
+
+// Apple StoreKit2 JWS
+
+// JWSTransactionDecodedPayload represents the decoded payload from a StoreKit2 JWS transaction.
+// https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload
+type JWSTransactionDecodedPayload struct {
+	TransactionId             string `json:"transactionId"`
+	OriginalTransactionId     string `json:"originalTransactionId"`
+	WebOrderLineItemId        string `json:"webOrderLineItemId,omitempty"`
+	BundleId                  string `json:"bundleId"`
+	ProductId                 string `json:"productId"`
+	SubscriptionGroupId       string `json:"subscriptionGroupIdentifier,omitempty"`
+	PurchaseDate              int64  `json:"purchaseDate"`
+	OriginalPurchaseDate      int64  `json:"originalPurchaseDate"`
+	ExpiresDate               int64  `json:"expiresDate,omitempty"`
+	Quantity                  int    `json:"quantity"`
+	Type                      string `json:"type"`
+	AppAccountToken           string `json:"appAccountToken,omitempty"`
+	InAppOwnershipType        string `json:"inAppOwnershipType"`
+	SignedDate                int64  `json:"signedDate"`
+	RevocationReason          *int   `json:"revocationReason,omitempty"`
+	RevocationDate            int64  `json:"revocationDate,omitempty"`
+	IsUpgraded                bool   `json:"isUpgraded,omitempty"`
+	OfferType                 *int   `json:"offerType,omitempty"`
+	OfferId                   string `json:"offerId,omitempty"`
+	Environment               string `json:"environment"`
+	Storefront                string `json:"storefront,omitempty"`
+	StorefrontId              string `json:"storefrontId,omitempty"`
+	TransactionReason         string `json:"transactionReason,omitempty"`
+	Currency                  string `json:"currency,omitempty"`
+	Price                     int64  `json:"price,omitempty"`
+	OfferDiscountType         string `json:"offerDiscountType,omitempty"`
+	AppTransactionId          string `json:"appTransactionId,omitempty"`
+	AdvancedCommerceFeatures  string `json:"advancedCommerceFeatures,omitempty"`
+}
+
+// JWSHeader represents the header of a JWS token.
+type jwsHeader struct {
+	Alg string   `json:"alg"`
+	X5c []string `json:"x5c"`
+}
+
+var (
+	ErrJWSInvalidFormat    = errors.New("invalid JWS format")
+	ErrJWSInvalidAlgorithm = errors.New("invalid JWS algorithm, expected ES256")
+	ErrJWSInvalidCertChain = errors.New("invalid certificate chain")
+	ErrJWSSignatureInvalid = errors.New("JWS signature verification failed")
+	ErrJWSCertNotTrusted   = errors.New("certificate not signed by Apple Root CA")
+	ErrJWSCertExpired      = errors.New("certificate has expired")
+)
+
+// ValidateJWSApple validates a StoreKit2 JWS transaction token and returns the decoded payload.
+// The JWS is validated by:
+// 1. Verifying the certificate chain against Apple's Root CA G3
+// 2. Verifying the ES256 signature using the leaf certificate's public key
+// 3. Decoding and returning the transaction payload
+func ValidateJWSApple(jws string) (*JWSTransactionDecodedPayload, string, error) {
+	// Split JWS into parts: header.payload.signature
+	parts := strings.Split(jws, ".")
+	if len(parts) != 3 {
+		return nil, "", ErrJWSInvalidFormat
+	}
+
+	headerB64, payloadB64, signatureB64 := parts[0], parts[1], parts[2]
+
+	// Decode and parse header
+	headerBytes, err := base64.RawURLEncoding.DecodeString(headerB64)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: failed to decode header: %v", ErrJWSInvalidFormat, err)
+	}
+
+	var header jwsHeader
+	if err := json.Unmarshal(headerBytes, &header); err != nil {
+		return nil, "", fmt.Errorf("%w: failed to parse header: %v", ErrJWSInvalidFormat, err)
+	}
+
+	// Verify algorithm is ES256
+	if header.Alg != "ES256" {
+		return nil, "", ErrJWSInvalidAlgorithm
+	}
+
+	// Validate certificate chain and get public key
+	pubKey, err := validateAppleCertChain(header.X5c)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Decode signature
+	signature, err := base64.RawURLEncoding.DecodeString(signatureB64)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: failed to decode signature: %v", ErrJWSInvalidFormat, err)
+	}
+
+	// Verify ES256 signature
+	signingInput := headerB64 + "." + payloadB64
+	if err := verifyES256Signature(pubKey, []byte(signingInput), signature); err != nil {
+		return nil, "", err
+	}
+
+	// Decode payload
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(payloadB64)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: failed to decode payload: %v", ErrJWSInvalidFormat, err)
+	}
+
+	var payload JWSTransactionDecodedPayload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return nil, "", fmt.Errorf("%w: failed to parse payload: %v", ErrJWSInvalidFormat, err)
+	}
+
+	return &payload, string(payloadBytes), nil
+}
+
+// validateAppleCertChain validates the x5c certificate chain and returns the leaf certificate's public key.
+func validateAppleCertChain(x5c []string) (*ecdsa.PublicKey, error) {
+	if len(x5c) < 2 {
+		return nil, fmt.Errorf("%w: expected at least 2 certificates, got %d", ErrJWSInvalidCertChain, len(x5c))
+	}
+
+	// Parse the certificates from x5c (base64 standard encoding, not URL encoding)
+	certs := make([]*x509.Certificate, len(x5c))
+	for i, certB64 := range x5c {
+		certDER, err := base64.StdEncoding.DecodeString(certB64)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to decode certificate %d: %v", ErrJWSInvalidCertChain, i, err)
+		}
+		cert, err := x509.ParseCertificate(certDER)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to parse certificate %d: %v", ErrJWSInvalidCertChain, i, err)
+		}
+		certs[i] = cert
+	}
+
+	// Parse Apple Root CA G3
+	rootCA, err := x509.ParseCertificate(AppleRootCAG3)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Apple Root CA: %v", err)
+	}
+
+	// Create a certificate pool with the Apple Root CA
+	roots := x509.NewCertPool()
+	roots.AddCert(rootCA)
+
+	// Create intermediate pool from the chain (all certs except the leaf)
+	intermediates := x509.NewCertPool()
+	for i := 1; i < len(certs); i++ {
+		intermediates.AddCert(certs[i])
+	}
+
+	// Verify the leaf certificate
+	leafCert := certs[0]
+	opts := x509.VerifyOptions{
+		Roots:         roots,
+		Intermediates: intermediates,
+		CurrentTime:   time.Now(),
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	}
+
+	if _, err := leafCert.Verify(opts); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrJWSCertNotTrusted, err)
+	}
+
+	// Extract ECDSA public key from leaf certificate
+	pubKey, ok := leafCert.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("%w: leaf certificate does not contain an ECDSA public key", ErrJWSInvalidCertChain)
+	}
+
+	return pubKey, nil
+}
+
+// verifyES256Signature verifies an ES256 (ECDSA with P-256 and SHA-256) signature.
+func verifyES256Signature(pubKey *ecdsa.PublicKey, signingInput, signature []byte) error {
+	// Compute SHA-256 hash of the signing input
+	hash := sha256.Sum256(signingInput)
+
+	// ES256 signature is the concatenation of r and s, each 32 bytes
+	if len(signature) != 64 {
+		return fmt.Errorf("%w: invalid signature length %d, expected 64", ErrJWSSignatureInvalid, len(signature))
+	}
+
+	r := new(big.Int).SetBytes(signature[:32])
+	s := new(big.Int).SetBytes(signature[32:])
+
+	if !ecdsa.Verify(pubKey, hash[:], r, s) {
+		return ErrJWSSignatureInvalid
+	}
+
+	return nil
 }

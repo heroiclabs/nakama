@@ -698,6 +698,22 @@ service Nakama {
     };
   }
 
+  // Validate Apple StoreKit2 JWS Purchase
+  rpc ValidatePurchaseAppleJWS (api.ValidatePurchaseAppleJWSRequest) returns (api.ValidatePurchaseResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/purchase/apple/jws",
+      body: "*"
+    };
+  }
+
+  // Validate Apple StoreKit2 JWS Subscription
+  rpc ValidateSubscriptionAppleJWS (api.ValidateSubscriptionAppleJWSRequest) returns (api.ValidateSubscriptionResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/subscription/apple/jws",
+      body: "*"
+    };
+  }
+
   // Validate Google IAP Receipt
   rpc ValidatePurchaseGoogle (api.ValidatePurchaseGoogleRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {
