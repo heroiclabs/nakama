@@ -15,7 +15,7 @@
 # docker build . --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version=v2.1.1 -t heroiclabs/nakama:2.1.1
 # docker build . --build-arg commit="$(git rev-parse --short HEAD)" --build-arg version="$(git rev-parse --short HEAD)" -t heroiclabs/nakama-prerelease:"$(git rev-parse --short HEAD)"
 
-FROM golang:1.25.0-bookworm AS builder
+FROM golang:1.25.5-bookworm AS builder
 
 ARG COMMIT
 ARG VERSION

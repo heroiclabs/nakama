@@ -2,8 +2,8 @@ package pgxpool
 
 import (
 	"context"
-	"fmt"
-	"math/rand"
+	"errors"
+	"math/rand/v2"
 	"runtime"
 	"strconv"
 	"sync"
@@ -15,12 +15,14 @@ import (
 	"github.com/jackc/puddle/v2"
 )
 
-var defaultMaxConns = int32(4)
-var defaultMinConns = int32(0)
-var defaultMinIdleConns = int32(0)
-var defaultMaxConnLifetime = time.Hour
-var defaultMaxConnIdleTime = time.Minute * 30
-var defaultHealthCheckPeriod = time.Minute
+var (
+	defaultMaxConns          = int32(4)
+	defaultMinConns          = int32(0)
+	defaultMinIdleConns      = int32(0)
+	defaultMaxConnLifetime   = time.Hour
+	defaultMaxConnIdleTime   = time.Minute * 30
+	defaultHealthCheckPeriod = time.Minute
+)
 
 type connResource struct {
 	conn       *pgx.Conn
@@ -84,9 +86,10 @@ type Pool struct {
 	config                *Config
 	beforeConnect         func(context.Context, *pgx.ConnConfig) error
 	afterConnect          func(context.Context, *pgx.Conn) error
-	beforeAcquire         func(context.Context, *pgx.Conn) bool
+	prepareConn           func(context.Context, *pgx.Conn) (bool, error)
 	afterRelease          func(*pgx.Conn) bool
 	beforeClose           func(*pgx.Conn)
+	shouldPing            func(context.Context, ShouldPingParams) bool
 	minConns              int32
 	minIdleConns          int32
 	maxConns              int32
@@ -94,6 +97,10 @@ type Pool struct {
 	maxConnLifetimeJitter time.Duration
 	maxConnIdleTime       time.Duration
 	healthCheckPeriod     time.Duration
+	pingTimeout           time.Duration
+
+	healthCheckMu    sync.Mutex
+	healthCheckTimer *time.Timer
 
 	healthCheckChan chan struct{}
 
@@ -102,6 +109,12 @@ type Pool struct {
 
 	closeOnce sync.Once
 	closeChan chan struct{}
+}
+
+// ShouldPingParams are the parameters passed to ShouldPing.
+type ShouldPingParams struct {
+	Conn         *pgx.Conn
+	IdleDuration time.Duration
 }
 
 // Config is the configuration struct for creating a pool. It must be created by [ParseConfig] and then it can be
@@ -119,7 +132,22 @@ type Config struct {
 	// BeforeAcquire is called before a connection is acquired from the pool. It must return true to allow the
 	// acquisition or false to indicate that the connection should be destroyed and a different connection should be
 	// acquired.
+	//
+	// Deprecated: Use PrepareConn instead. If both PrepareConn and BeforeAcquire are set, PrepareConn will take
+	// precedence, ignoring BeforeAcquire.
 	BeforeAcquire func(context.Context, *pgx.Conn) bool
+
+	// PrepareConn is called before a connection is acquired from the pool. If this function returns true, the connection
+	// is considered valid, otherwise the connection is destroyed. If the function returns a non-nil error, the instigating
+	// query will fail with the returned error.
+	//
+	// Specifically, this means that:
+	//
+	// 	- If it returns true and a nil error, the query proceeds as normal.
+	// 	- If it returns true and an error, the connection will be returned to the pool, and the instigating query will fail with the returned error.
+	// 	- If it returns false, and an error, the connection will be destroyed, and the query will fail with the returned error.
+	// 	- If it returns false and a nil error, the connection will be destroyed, and the instigating query will be retried on a new connection.
+	PrepareConn func(context.Context, *pgx.Conn) (bool, error)
 
 	// AfterRelease is called after a connection is released, but before it is returned to the pool. It must return true to
 	// return the connection to the pool or false to destroy the connection.
@@ -127,6 +155,10 @@ type Config struct {
 
 	// BeforeClose is called right before a connection is closed and removed from the pool.
 	BeforeClose func(*pgx.Conn)
+
+	// ShouldPing is called after a connection is acquired from the pool. If it returns true, the connection is pinged to check for liveness.
+	// If this func is not set, the default behavior is to ping connections that have been idle for at least 1 second.
+	ShouldPing func(context.Context, ShouldPingParams) bool
 
 	// MaxConnLifetime is the duration since creation after which a connection will be automatically closed.
 	MaxConnLifetime time.Duration
@@ -137,6 +169,10 @@ type Config struct {
 
 	// MaxConnIdleTime is the duration after which an idle connection will be automatically closed by the health check.
 	MaxConnIdleTime time.Duration
+
+	// PingTimeout is the maximum amount of time to wait for a connection to pong before considering it as unhealthy and
+	// destroying it. If zero, the default is no timeout.
+	PingTimeout time.Duration
 
 	// MaxConns is the maximum size of the pool. The default is the greater of 4 or runtime.NumCPU().
 	MaxConns int32
@@ -190,11 +226,18 @@ func NewWithConfig(ctx context.Context, config *Config) (*Pool, error) {
 		panic("config must be created by ParseConfig")
 	}
 
+	prepareConn := config.PrepareConn
+	if prepareConn == nil && config.BeforeAcquire != nil {
+		prepareConn = func(ctx context.Context, conn *pgx.Conn) (bool, error) {
+			return config.BeforeAcquire(ctx, conn), nil
+		}
+	}
+
 	p := &Pool{
 		config:                config,
 		beforeConnect:         config.BeforeConnect,
 		afterConnect:          config.AfterConnect,
-		beforeAcquire:         config.BeforeAcquire,
+		prepareConn:           prepareConn,
 		afterRelease:          config.AfterRelease,
 		beforeClose:           config.BeforeClose,
 		minConns:              config.MinConns,
@@ -203,6 +246,7 @@ func NewWithConfig(ctx context.Context, config *Config) (*Pool, error) {
 		maxConnLifetime:       config.MaxConnLifetime,
 		maxConnLifetimeJitter: config.MaxConnLifetimeJitter,
 		maxConnIdleTime:       config.MaxConnIdleTime,
+		pingTimeout:           config.PingTimeout,
 		healthCheckPeriod:     config.HealthCheckPeriod,
 		healthCheckChan:       make(chan struct{}, 1),
 		closeChan:             make(chan struct{}),
@@ -214,6 +258,14 @@ func NewWithConfig(ctx context.Context, config *Config) (*Pool, error) {
 
 	if t, ok := config.ConnConfig.Tracer.(ReleaseTracer); ok {
 		p.releaseTracer = t
+	}
+
+	if config.ShouldPing != nil {
+		p.shouldPing = config.ShouldPing
+	} else {
+		p.shouldPing = func(ctx context.Context, params ShouldPingParams) bool {
+			return params.IdleDuration > time.Second
+		}
 	}
 
 	var err error
@@ -321,10 +373,10 @@ func ParseConfig(connString string) (*Config, error) {
 		delete(connConfig.Config.RuntimeParams, "pool_max_conns")
 		n, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse pool_max_conns: %w", err)
+			return nil, pgconn.NewParseConfigError(connString, "cannot parse pool_max_conns", err)
 		}
 		if n < 1 {
-			return nil, fmt.Errorf("pool_max_conns too small: %d", n)
+			return nil, pgconn.NewParseConfigError(connString, "pool_max_conns too small", err)
 		}
 		config.MaxConns = int32(n)
 	} else {
@@ -338,7 +390,7 @@ func ParseConfig(connString string) (*Config, error) {
 		delete(connConfig.Config.RuntimeParams, "pool_min_conns")
 		n, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse pool_min_conns: %w", err)
+			return nil, pgconn.NewParseConfigError(connString, "cannot parse pool_min_conns", err)
 		}
 		config.MinConns = int32(n)
 	} else {
@@ -349,7 +401,7 @@ func ParseConfig(connString string) (*Config, error) {
 		delete(connConfig.Config.RuntimeParams, "pool_min_idle_conns")
 		n, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse pool_min_idle_conns: %w", err)
+			return nil, pgconn.NewParseConfigError(connString, "cannot parse pool_min_idle_conns", err)
 		}
 		config.MinIdleConns = int32(n)
 	} else {
@@ -360,7 +412,7 @@ func ParseConfig(connString string) (*Config, error) {
 		delete(connConfig.Config.RuntimeParams, "pool_max_conn_lifetime")
 		d, err := time.ParseDuration(s)
 		if err != nil {
-			return nil, fmt.Errorf("invalid pool_max_conn_lifetime: %w", err)
+			return nil, pgconn.NewParseConfigError(connString, "cannot parse pool_max_conn_lifetime", err)
 		}
 		config.MaxConnLifetime = d
 	} else {
@@ -371,7 +423,7 @@ func ParseConfig(connString string) (*Config, error) {
 		delete(connConfig.Config.RuntimeParams, "pool_max_conn_idle_time")
 		d, err := time.ParseDuration(s)
 		if err != nil {
-			return nil, fmt.Errorf("invalid pool_max_conn_idle_time: %w", err)
+			return nil, pgconn.NewParseConfigError(connString, "cannot parse pool_max_conn_idle_time", err)
 		}
 		config.MaxConnIdleTime = d
 	} else {
@@ -382,7 +434,7 @@ func ParseConfig(connString string) (*Config, error) {
 		delete(connConfig.Config.RuntimeParams, "pool_health_check_period")
 		d, err := time.ParseDuration(s)
 		if err != nil {
-			return nil, fmt.Errorf("invalid pool_health_check_period: %w", err)
+			return nil, pgconn.NewParseConfigError(connString, "cannot parse pool_health_check_period", err)
 		}
 		config.HealthCheckPeriod = d
 	} else {
@@ -393,7 +445,7 @@ func ParseConfig(connString string) (*Config, error) {
 		delete(connConfig.Config.RuntimeParams, "pool_max_conn_lifetime_jitter")
 		d, err := time.ParseDuration(s)
 		if err != nil {
-			return nil, fmt.Errorf("invalid pool_max_conn_lifetime_jitter: %w", err)
+			return nil, pgconn.NewParseConfigError(connString, "cannot parse pool_max_conn_lifetime_jitter", err)
 		}
 		config.MaxConnLifetimeJitter = d
 	}
@@ -415,15 +467,25 @@ func (p *Pool) isExpired(res *puddle.Resource[*connResource]) bool {
 }
 
 func (p *Pool) triggerHealthCheck() {
-	go func() {
+	const healthCheckDelay = 500 * time.Millisecond
+
+	p.healthCheckMu.Lock()
+	defer p.healthCheckMu.Unlock()
+
+	if p.healthCheckTimer == nil {
 		// Destroy is asynchronous so we give it time to actually remove itself from
 		// the pool otherwise we might try to check the pool size too soon
-		time.Sleep(500 * time.Millisecond)
-		select {
-		case p.healthCheckChan <- struct{}{}:
-		default:
-		}
-	}()
+		p.healthCheckTimer = time.AfterFunc(healthCheckDelay, func() {
+			select {
+			case <-p.closeChan:
+			case p.healthCheckChan <- struct{}{}:
+			default:
+			}
+		})
+		return
+	}
+
+	p.healthCheckTimer.Reset(healthCheckDelay)
 }
 
 func (p *Pool) backgroundHealthCheck() {
@@ -509,7 +571,7 @@ func (p *Pool) createIdleResources(parentCtx context.Context, targetResources in
 
 	errs := make(chan error, targetResources)
 
-	for i := 0; i < targetResources; i++ {
+	for range targetResources {
 		go func() {
 			err := p.p.CreateResource(ctx)
 			// Ignore ErrNotAvailable since it means that the pool has become full since we started creating resource.
@@ -521,7 +583,7 @@ func (p *Pool) createIdleResources(parentCtx context.Context, targetResources in
 	}
 
 	var firstError error
-	for i := 0; i < targetResources; i++ {
+	for range targetResources {
 		err := <-errs
 		if err != nil && firstError == nil {
 			cancel()
@@ -545,7 +607,10 @@ func (p *Pool) Acquire(ctx context.Context) (c *Conn, err error) {
 		}()
 	}
 
-	for {
+	// Try to acquire from the connection pool up to maxConns + 1 times, so that
+	// any that fatal errors would empty the pool and still at least try 1 fresh
+	// connection.
+	for range int(p.maxConns) + 1 {
 		res, err := p.p.Acquire(ctx)
 		if err != nil {
 			return nil, err
@@ -553,20 +618,41 @@ func (p *Pool) Acquire(ctx context.Context) (c *Conn, err error) {
 
 		cr := res.Value()
 
-		if res.IdleDuration() > time.Second {
-			err := cr.conn.Ping(ctx)
+		shouldPingParams := ShouldPingParams{Conn: cr.conn, IdleDuration: res.IdleDuration()}
+		if p.shouldPing(ctx, shouldPingParams) {
+			pingCtx := ctx
+			if p.pingTimeout > 0 {
+				var cancel context.CancelFunc
+				pingCtx, cancel = context.WithTimeout(ctx, p.pingTimeout)
+				defer cancel()
+			}
+
+			err := cr.conn.Ping(pingCtx)
 			if err != nil {
 				res.Destroy()
 				continue
 			}
 		}
 
-		if p.beforeAcquire == nil || p.beforeAcquire(ctx, cr.conn) {
-			return cr.getConn(p, res), nil
+		if p.prepareConn != nil {
+			ok, err := p.prepareConn(ctx, cr.conn)
+			if !ok {
+				res.Destroy()
+			}
+			if err != nil {
+				if ok {
+					res.Release()
+				}
+				return nil, err
+			}
+			if !ok {
+				continue
+			}
 		}
 
-		res.Destroy()
+		return cr.getConn(p, res), nil
 	}
+	return nil, errors.New("pgxpool: detected infinite loop acquiring connection; likely bug in PrepareConn or BeforeAcquire hook")
 }
 
 // AcquireFunc acquires a *Conn and calls f with that *Conn. ctx will only affect the Acquire. It has no effect on the
@@ -589,11 +675,14 @@ func (p *Pool) AcquireAllIdle(ctx context.Context) []*Conn {
 	conns := make([]*Conn, 0, len(resources))
 	for _, res := range resources {
 		cr := res.Value()
-		if p.beforeAcquire == nil || p.beforeAcquire(ctx, cr.conn) {
-			conns = append(conns, cr.getConn(p, res))
-		} else {
-			res.Destroy()
+		if p.prepareConn != nil {
+			ok, err := p.prepareConn(ctx, cr.conn)
+			if !ok || err != nil {
+				res.Destroy()
+				continue
+			}
 		}
+		conns = append(conns, cr.getConn(p, res))
 	}
 
 	return conns
