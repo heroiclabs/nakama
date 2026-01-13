@@ -202,6 +202,10 @@ type (
 	RuntimeAfterValidatePurchaseAppleFunction              func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseAppleRequest) error
 	RuntimeBeforeValidateSubscriptionAppleFunction         func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateSubscriptionAppleRequest) (*api.ValidateSubscriptionAppleRequest, error, codes.Code)
 	RuntimeAfterValidateSubscriptionAppleFunction          func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionAppleRequest) error
+	RuntimeBeforeValidatePurchaseAppleJWSFunction          func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseAppleJWSRequest) (*api.ValidatePurchaseAppleJWSRequest, error, codes.Code)
+	RuntimeAfterValidatePurchaseAppleJWSFunction           func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseAppleJWSRequest) error
+	RuntimeBeforeValidateSubscriptionAppleJWSFunction      func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateSubscriptionAppleJWSRequest) (*api.ValidateSubscriptionAppleJWSRequest, error, codes.Code)
+	RuntimeAfterValidateSubscriptionAppleJWSFunction       func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionAppleJWSRequest) error
 	RuntimeBeforeValidatePurchaseGoogleFunction            func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseGoogleRequest) (*api.ValidatePurchaseGoogleRequest, error, codes.Code)
 	RuntimeAfterValidatePurchaseGoogleFunction             func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseGoogleRequest) error
 	RuntimeBeforeValidateSubscriptionGoogleFunction        func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateSubscriptionGoogleRequest) (*api.ValidateSubscriptionGoogleRequest, error, codes.Code)
@@ -433,6 +437,8 @@ type RuntimeBeforeReqFunctions struct {
 	beforeEventFunction                             RuntimeBeforeEventFunction
 	beforeValidatePurchaseAppleFunction             RuntimeBeforeValidatePurchaseAppleFunction
 	beforeValidateSubscriptionAppleFunction         RuntimeBeforeValidateSubscriptionAppleFunction
+	beforeValidatePurchaseAppleJWSFunction          RuntimeBeforeValidatePurchaseAppleJWSFunction
+	beforeValidateSubscriptionAppleJWSFunction      RuntimeBeforeValidateSubscriptionAppleJWSFunction
 	beforeValidatePurchaseGoogleFunction            RuntimeBeforeValidatePurchaseGoogleFunction
 	beforeValidateSubscriptionGoogleFunction        RuntimeBeforeValidateSubscriptionGoogleFunction
 	beforeValidatePurchaseHuaweiFunction            RuntimeBeforeValidatePurchaseHuaweiFunction
@@ -518,6 +524,8 @@ type RuntimeAfterReqFunctions struct {
 	afterEventFunction                             RuntimeAfterEventFunction
 	afterValidatePurchaseAppleFunction             RuntimeAfterValidatePurchaseAppleFunction
 	afterValidateSubscriptionAppleFunction         RuntimeAfterValidateSubscriptionAppleFunction
+	afterValidatePurchaseAppleJWSFunction          RuntimeAfterValidatePurchaseAppleJWSFunction
+	afterValidateSubscriptionAppleJWSFunction      RuntimeAfterValidateSubscriptionAppleJWSFunction
 	afterValidatePurchaseGoogleFunction            RuntimeAfterValidatePurchaseGoogleFunction
 	afterValidateSubscriptionGoogleFunction        RuntimeAfterValidateSubscriptionGoogleFunction
 	afterValidatePurchaseHuaweiFunction            RuntimeAfterValidatePurchaseHuaweiFunction
@@ -3487,6 +3495,22 @@ func (r *Runtime) BeforeValidateSubscriptionApple() RuntimeBeforeValidateSubscri
 
 func (r *Runtime) AfterValidateSubscriptionApple() RuntimeAfterValidateSubscriptionAppleFunction {
 	return r.afterReqFunctions.afterValidateSubscriptionAppleFunction
+}
+
+func (r *Runtime) BeforeValidatePurchaseAppleJWS() RuntimeBeforeValidatePurchaseAppleJWSFunction {
+	return r.beforeReqFunctions.beforeValidatePurchaseAppleJWSFunction
+}
+
+func (r *Runtime) AfterValidatePurchaseAppleJWS() RuntimeAfterValidatePurchaseAppleJWSFunction {
+	return r.afterReqFunctions.afterValidatePurchaseAppleJWSFunction
+}
+
+func (r *Runtime) BeforeValidateSubscriptionAppleJWS() RuntimeBeforeValidateSubscriptionAppleJWSFunction {
+	return r.beforeReqFunctions.beforeValidateSubscriptionAppleJWSFunction
+}
+
+func (r *Runtime) AfterValidateSubscriptionAppleJWS() RuntimeAfterValidateSubscriptionAppleJWSFunction {
+	return r.afterReqFunctions.afterValidateSubscriptionAppleJWSFunction
 }
 
 func (r *Runtime) BeforeValidatePurchaseGoogle() RuntimeBeforeValidatePurchaseGoogleFunction {

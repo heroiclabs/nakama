@@ -388,6 +388,92 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSubs[0]}, nil
 }
 
+// ValidateSubscriptionAppleJWS validates a StoreKit2 JWS subscription token and returns the validated subscription.
+func ValidateSubscriptionAppleJWS(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, jws string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+	payload, rawPayload, err := iap.ValidateJWSApple(jws)
+	if err != nil {
+		logger.Debug("Error validating Apple JWS", zap.Error(err))
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	// Check if this is a subscription (has ExpiresDate) - non-subscriptions should use ValidatePurchaseAppleJWS
+	if payload.ExpiresDate == 0 {
+		return nil, status.Error(codes.FailedPrecondition, "Non-subscription JWS. Use ValidatePurchaseAppleJWS instead.")
+	}
+
+	// Determine environment
+	env := api.StoreEnvironment_PRODUCTION
+	if payload.Environment == "Sandbox" {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	// Parse times
+	purchaseTime := parseMillisecondUnixTimestamp(payload.PurchaseDate)
+	expireTime := parseMillisecondUnixTimestamp(payload.ExpiresDate)
+
+	// Determine if subscription is active
+	active := expireTime.After(time.Now())
+
+	// Check for revocation
+	var refundTime time.Time
+	if payload.RevocationDate > 0 {
+		refundTime = parseMillisecondUnixTimestamp(payload.RevocationDate)
+		active = false
+	}
+
+	storageSub := &storageSubscription{
+		originalTransactionId: payload.OriginalTransactionId,
+		userID:                userID,
+		store:                 api.StoreProvider_APPLE_APP_STORE,
+		productId:             payload.ProductId,
+		purchaseTime:          purchaseTime,
+		environment:           env,
+		expireTime:            expireTime,
+		refundTime:            refundTime,
+		rawResponse:           rawPayload,
+	}
+
+	validatedSub := &api.ValidatedSubscription{
+		UserId:                userID.String(),
+		ProductId:             storageSub.productId,
+		OriginalTransactionId: storageSub.originalTransactionId,
+		Store:                 storageSub.store,
+		PurchaseTime:          timestamppb.New(storageSub.purchaseTime),
+		Environment:           storageSub.environment,
+		Active:                active,
+		ExpiryTime:            timestamppb.New(storageSub.expireTime),
+		ProviderResponse:      rawPayload,
+	}
+
+	if !refundTime.IsZero() {
+		validatedSub.RefundTime = timestamppb.New(refundTime)
+	}
+
+	if !persist {
+		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	}
+
+	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		return upsertSubscription(ctx, tx, storageSub)
+	}); err != nil {
+		logger.Error("Failed to upsert Apple JWS subscription", zap.Error(err))
+		return nil, err
+	}
+
+	suid := storageSub.userID.String()
+	if storageSub.userID.IsNil() {
+		suid = ""
+	}
+
+	validatedSub.UserId = suid
+	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
+	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
+	validatedSub.ProviderResponse = storageSub.rawResponse
+	validatedSub.ProviderNotification = storageSub.rawNotification
+
+	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+}
+
 func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	gResponse, gReceipt, rawResponse, err := iap.ValidateSubscriptionReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {

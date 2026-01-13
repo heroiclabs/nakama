@@ -261,3 +261,111 @@ func (s *ApiServer) ValidatePurchaseFacebookInstant(ctx context.Context, in *api
 
 	return validation, err
 }
+
+func (s *ApiServer) ValidatePurchaseAppleJWS(ctx context.Context, in *api.ValidatePurchaseAppleJWSRequest) (*api.ValidatePurchaseResponse, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
+
+	// Before hook.
+	if fn := s.runtime.BeforeValidatePurchaseAppleJWS(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(in.Jws) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "JWS cannot be empty.")
+	}
+
+	persist := true
+	if in.Persist != nil {
+		persist = in.Persist.GetValue()
+	}
+
+	validation, err := ValidatePurchaseAppleJWS(ctx, logger, s.db, userID, in.Jws, persist)
+	if err != nil {
+		return nil, err
+	}
+
+	// After hook.
+	if fn := s.runtime.AfterValidatePurchaseAppleJWS(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return validation, err
+}
+
+func (s *ApiServer) ValidateSubscriptionAppleJWS(ctx context.Context, in *api.ValidateSubscriptionAppleJWSRequest) (*api.ValidateSubscriptionResponse, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
+
+	// Before hook.
+	if fn := s.runtime.BeforeValidateSubscriptionAppleJWS(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(in.Jws) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "JWS cannot be empty.")
+	}
+
+	persist := true
+	if in.Persist != nil {
+		persist = in.Persist.GetValue()
+	}
+
+	validation, err := ValidateSubscriptionAppleJWS(ctx, logger, s.db, userID, in.Jws, persist)
+	if err != nil {
+		return nil, err
+	}
+
+	// After hook.
+	if fn := s.runtime.AfterValidateSubscriptionAppleJWS(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return validation, err
+}

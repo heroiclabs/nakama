@@ -174,6 +174,88 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}, nil
 }
 
+// ValidatePurchaseAppleJWS validates a StoreKit2 JWS transaction token and returns the validated purchase.
+func ValidatePurchaseAppleJWS(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, jws string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	payload, rawPayload, err := iap.ValidateJWSApple(jws)
+	if err != nil {
+		logger.Debug("Error validating Apple JWS", zap.Error(err))
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	// Check if this is a subscription (has ExpiresDate) - those should use ValidateSubscriptionAppleJWS
+	if payload.ExpiresDate > 0 {
+		return nil, status.Error(codes.FailedPrecondition, "Subscription JWS. Use ValidateSubscriptionAppleJWS instead.")
+	}
+
+	// Check for revoked purchases
+	if payload.RevocationDate > 0 {
+		return nil, status.Error(codes.FailedPrecondition, "Purchase has been revoked.")
+	}
+
+	// Determine environment
+	env := api.StoreEnvironment_PRODUCTION
+	if payload.Environment == "Sandbox" {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	// Create storage purchase
+	sPurchase := &storagePurchase{
+		userID:        userID,
+		store:         api.StoreProvider_APPLE_APP_STORE,
+		productId:     payload.ProductId,
+		transactionId: payload.TransactionId,
+		rawResponse:   rawPayload,
+		purchaseTime:  parseMillisecondUnixTimestamp(payload.PurchaseDate),
+		environment:   env,
+	}
+
+	if !persist {
+		// Skip storing the purchase
+		return &api.ValidatePurchaseResponse{
+			ValidatedPurchases: []*api.ValidatedPurchase{
+				{
+					UserId:           sPurchase.userID.String(),
+					ProductId:        sPurchase.productId,
+					TransactionId:    sPurchase.transactionId,
+					Store:            sPurchase.store,
+					PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
+					ProviderResponse: rawPayload,
+					Environment:      sPurchase.environment,
+				},
+			},
+		}, nil
+	}
+
+	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	if err != nil {
+		return nil, err
+	}
+
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
+		suid := p.userID.String()
+		if p.userID.IsNil() {
+			suid = ""
+		}
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           suid,
+			ProductId:        p.productId,
+			TransactionId:    p.transactionId,
+			Store:            p.store,
+			PurchaseTime:     timestamppb.New(p.purchaseTime),
+			CreateTime:       timestamppb.New(p.createTime),
+			UpdateTime:       timestamppb.New(p.updateTime),
+			ProviderResponse: rawPayload,
+			SeenBefore:       p.seenBefore,
+			Environment:      p.environment,
+		})
+	}
+
+	return &api.ValidatePurchaseResponse{
+		ValidatedPurchases: validatedPurchases,
+	}, nil
+}
+
 func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string, persist bool) (*api.ValidatePurchaseResponse, error) {
 	gResponse, gReceipt, raw, err := iap.ValidateReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
