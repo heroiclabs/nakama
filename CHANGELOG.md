@@ -5,9 +5,11 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.36.0] - 2026-01-13
 ### Changed
 - Improvements to Console user setup and management.
 - Option for faster cleanup of parties that are idle and empty.
+- Build with Go 1.25.5.
 
 ### Fixed
 - Ensure party leader username is recorded on party creation.

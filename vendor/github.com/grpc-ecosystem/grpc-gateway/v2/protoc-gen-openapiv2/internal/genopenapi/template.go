@@ -345,6 +345,11 @@ func nestedQueryParams(message *descriptor.Message, field *descriptor.Field, pre
 			}
 		}
 
+		// verify if the field is deprecated, either via proto or annotation
+		protoDeprecated := field.GetOptions().GetDeprecated() && reg.GetEnableFieldDeprecation()
+		annotationDeprecated := getFieldConfiguration(reg, field).GetDeprecated()
+		deprecated := protoDeprecated || annotationDeprecated
+
 		param := openapiParameterObject{
 			Description: desc,
 			In:          "query",
@@ -354,6 +359,7 @@ func nestedQueryParams(message *descriptor.Message, field *descriptor.Field, pre
 			Format:      schema.Format,
 			Pattern:     schema.Pattern,
 			Required:    required,
+			Deprecated:  deprecated,
 			UniqueItems: schema.UniqueItems,
 			extensions:  schema.extensions,
 			Enum:        schema.Enum,
@@ -448,6 +454,12 @@ func findServicesMessagesAndEnumerations(s []*descriptor.Service, reg *descripto
 			// Request may be fully included in query
 			{
 				if !isVisible(getMethodVisibilityOption(meth), reg) {
+					continue
+				}
+
+				// Only process methods with HTTP bindings (exposed via HTTP annotations)
+				// This prevents unused message definitions from appearing in the OpenAPI document
+				if len(meth.Bindings) == 0 {
 					continue
 				}
 
@@ -607,11 +619,38 @@ func renderMessageAsDefinition(msg *descriptor.Message, reg *descriptor.Registry
 		}
 
 		if fieldSchema.Required != nil {
-			schema.Required = getUniqueFields(schema.Required, fieldSchema.Required)
-			schema.Required = append(schema.Required, fieldSchema.Required...)
-			// To avoid populating both the field schema require and message schema require, unset the field schema require.
-			// See issue #2635.
-			fieldSchema.Required = nil
+			// Only hoist required fields to parent if there are no path params inside this field.
+			if len(subPathParams) == 0 {
+				schema.Required = getUniqueFields(schema.Required, fieldSchema.Required)
+				schema.Required = append(schema.Required, fieldSchema.Required...)
+				// To avoid populating both the field schema require and message schema require, unset the field schema require.
+				// See issue #2635.
+				fieldSchema.Required = nil
+			} else {
+				// When there are path params, we need to separate field-level required from nested required.
+				// The field name itself (if required) should be in parent's required, but nested field names
+				// should stay in the nested schema's required.
+				fieldName := f.GetName()
+				if reg.GetUseJSONNamesForFields() {
+					fieldName = f.GetJsonName()
+				}
+				// Check if the field name is in the fieldSchema.Required (it would be if the field is marked REQUIRED)
+				var nestedRequired []string
+				fieldIsRequired := false
+				for _, req := range fieldSchema.Required {
+					if req == fieldName {
+						fieldIsRequired = true
+					} else {
+						nestedRequired = append(nestedRequired, req)
+					}
+				}
+				// Add the field name to parent's required if the field itself is required
+				if fieldIsRequired && find(schema.Required, fieldName) == -1 {
+					schema.Required = append(schema.Required, fieldName)
+				}
+				// Keep only the nested required fields in the field schema
+				fieldSchema.Required = nestedRequired
+			}
 		}
 
 		if reg.GetUseAllOfForRefs() {
@@ -832,8 +871,13 @@ func schemaOfFieldBase(f *descriptor.Field, reg *descriptor.Registry, refs refMa
 
 	switch aggregate {
 	case array:
-		if _, ok := wktSchemas[fd.GetTypeName()]; !ok && fd.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
-			core.Type = "object"
+		// Only set core.Type = "object" for MESSAGE types with $ref if the flag is not set.
+		// When omitArrayItemTypeWhenRefSibling is true, we omit "type: object" to avoid
+		// no-$ref-siblings violations in OpenAPI v2, since $ref already implies the type is object.
+		if !reg.GetOmitArrayItemTypeWhenRefSibling() {
+			if _, ok := wktSchemas[fd.GetTypeName()]; !ok && fd.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+				core.Type = "object"
+			}
 		}
 		ret = openapiSchemaObject{
 			schemaCore: schemaCore{
@@ -1043,7 +1087,7 @@ func resolveFullyQualifiedNameToOpenAPINames(messages []string, namingStrategy s
 	return strategyFn(messages)
 }
 
-var canRegexp = regexp.MustCompile("{([a-zA-Z][a-zA-Z0-9_.]*)([^}]*)}")
+var canRegexp = regexp.MustCompile("{([a-zA-Z][a-zA-Z0-9_.-]*)([^}]*)}")
 
 // templateToParts splits a URL template into path segments for use by `partsToOpenAPIPath` and `partsToRegexpMap`.
 //
@@ -1454,18 +1498,26 @@ func renderServices(services []*descriptor.Service, paths *openapiPathsObject, r
 					if regExp, ok := pathParamRegexpMap[parameterString]; ok {
 						pattern = regExp
 					}
-					if fc := getFieldConfiguration(reg, parameter.Target); fc != nil {
+					fc := getFieldConfiguration(reg, parameter.Target)
+					if fc != nil {
 						pathParamName := fc.GetPathParamName()
 						if pathParamName != "" && pathParamName != parameterString {
 							pathParamNames["{"+parameterString+"}"] = "{" + pathParamName + "}"
 							parameterString, _, _ = strings.Cut(pathParamName, "=")
 						}
 					}
+
+					// verify if the parameter is deprecated, either via proto or annotation
+					protoDeprecated := parameter.Target.GetOptions().GetDeprecated() && reg.GetEnableFieldDeprecation()
+					annotationDeprecated := fc.GetDeprecated()
+					deprecated := protoDeprecated || annotationDeprecated
+
 					parameters = append(parameters, openapiParameterObject{
 						Name:        parameterString,
 						Description: desc,
 						In:          "path",
 						Required:    true,
+						Deprecated:  deprecated,
 						Default:     defaultValue,
 						// Parameters in gRPC-Gateway can only be strings?
 						Type:             paramType,
@@ -1550,6 +1602,39 @@ func renderServices(services []*descriptor.Service, paths *openapiPathsObject, r
 							schema, err = renderFieldAsDefinition(bodyField.Target, reg, customRefs, pathParams)
 							if err != nil {
 								return err
+							}
+							// renderFieldAsDefinition may add the body field name to the schema's required array
+							// via updateSwaggerObjectFromFieldBehavior. However, for body parameters, the schema
+							// represents the field's type, not the containing message. The body field name should
+							// only be in the schema's required array if it's actually a property of the schema.
+							// Remove the body field name from required if it's not a property to avoid invalid entries.
+							if schema.Required != nil && schema.Properties != nil {
+								// Build a set of property names
+								propertyNames := make(map[string]bool)
+								for _, prop := range *schema.Properties {
+									propertyNames[prop.Key] = true
+								}
+								// Filter required array: keep field names that are either:
+								// 1. Not the body field name, OR
+								// 2. The body field name AND it's actually a property
+								filteredRequired := make([]string, 0, len(schema.Required))
+								seenBodyFieldName := false
+								for _, req := range schema.Required {
+									if req == bodyFieldName {
+										if propertyNames[req] {
+											// It's a property, keep it (but only once)
+											if !seenBodyFieldName {
+												filteredRequired = append(filteredRequired, req)
+												seenBodyFieldName = true
+											}
+										}
+										// else: It's not a property, skip it
+									} else {
+										// Not the body field name, keep it
+										filteredRequired = append(filteredRequired, req)
+									}
+								}
+								schema.Required = filteredRequired
 							}
 						}
 						if schema.Title != "" {
