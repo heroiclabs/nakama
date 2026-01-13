@@ -141,6 +141,24 @@ func NewLocalPartyRegistry(ctx context.Context, logger, startupLogger *zap.Logge
 		}
 	}()
 
+	if config.GetParty().IdleCheckIntervalMs > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Duration(config.GetParty().IdleCheckIntervalMs) * time.Millisecond)
+			for {
+				select {
+				case <-ctx.Done():
+					ticker.Stop()
+					return
+				case <-ticker.C:
+					r.parties.Range(func(id uuid.UUID, party *PartyHandler) bool {
+						party.CloseIfIdle()
+						return true
+					})
+				}
+			}
+		}()
+	}
+
 	return r
 }
 

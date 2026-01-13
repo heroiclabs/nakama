@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -54,6 +55,8 @@ type PartyHandler struct {
 	Stream     PresenceStream
 
 	stopped               bool
+	tick                  *atomic.Int64
+	lastIdleCheckTick     *atomic.Int64
 	ctx                   context.Context
 	ctxCancelFn           context.CancelFunc
 	expectedInitialLeader *Presence
@@ -98,6 +101,8 @@ func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker
 		Stream:     stream,
 
 		stopped:               false,
+		tick:                  &atomic.Int64{},
+		lastIdleCheckTick:     &atomic.Int64{},
 		ctx:                   ctx,
 		ctxCancelFn:           ctxCancelFn,
 		expectedInitialLeader: leaderPresence,
@@ -109,6 +114,7 @@ func NewPartyHandler(logger *zap.Logger, partyRegistry PartyRegistry, matchmaker
 
 		members: NewPartyPresenceList(maxSize),
 	}
+	p.tick.Add(1)
 
 	// No errors expected here.
 	_, _ = p.members.Join([]*Presence{leaderPresence})
@@ -129,6 +135,8 @@ func (p *PartyHandler) JoinRequest(presence *Presence) (bool, error) {
 		p.Unlock()
 		return false, runtime.ErrPartyClosed
 	}
+
+	p.tick.Add(1)
 
 	// Check if party is full.
 	if p.members.Size() >= p.MaxSize {
@@ -202,6 +210,8 @@ func (p *PartyHandler) Join(presences []*Presence) {
 		p.Unlock()
 		return
 	}
+
+	p.tick.Add(1)
 
 	// Assign the party leader if this is the first join.
 	var initialLeader *Presence
@@ -296,6 +306,8 @@ func (p *PartyHandler) Leave(presences []*Presence) {
 		return
 	}
 
+	p.tick.Add(1)
+
 	presences, _ = p.members.Leave(presences)
 	if len(presences) == 0 {
 		p.Unlock()
@@ -356,6 +368,8 @@ func (p *PartyHandler) Promote(sessionID, node string, presence *rtapi.UserPrese
 		return runtime.ErrPartyNotLeader
 	}
 
+	p.tick.Add(1)
+
 	members := p.members.List()
 
 	var envelope *rtapi.Envelope
@@ -404,6 +418,8 @@ func (p *PartyHandler) Accept(sessionID, node string, presence *rtapi.UserPresen
 		p.Unlock()
 		return runtime.ErrPartyNotLeader
 	}
+
+	p.tick.Add(1)
 
 	// Check if there's room to accept the new party member.
 	if p.members.Size() >= p.MaxSize {
@@ -470,6 +486,8 @@ func (p *PartyHandler) Remove(sessionID, node string, presence *rtapi.UserPresen
 		p.Unlock()
 		return runtime.ErrPartyNotLeader
 	}
+
+	p.tick.Add(1)
 
 	// Check if the leader is attempting to remove its own presence.
 	if p.leader.UserPresence.SessionId == presence.SessionId && p.leader.UserPresence.UserId == presence.UserId && p.leader.UserPresence.Username == presence.Username {
@@ -563,6 +581,8 @@ func (p *PartyHandler) JoinRequestList(sessionID, node string) ([]*rtapi.UserPre
 		return nil, runtime.ErrPartyNotLeader
 	}
 
+	p.tick.Add(1)
+
 	joinRequestUserPresences := make([]*rtapi.UserPresence, 0, len(p.joinRequests))
 	for _, joinRequest := range p.joinRequests {
 		joinRequestUserPresences = append(joinRequestUserPresences, joinRequest.UserPresence)
@@ -585,6 +605,8 @@ func (p *PartyHandler) MatchmakerAdd(sessionID, node, query string, minCount, ma
 		p.RUnlock()
 		return "", nil, runtime.ErrPartyNotLeader
 	}
+
+	p.tick.Add(1)
 
 	members := p.members.List()
 
@@ -628,6 +650,8 @@ func (p *PartyHandler) MatchmakerRemove(sessionID, node, ticket string) error {
 		return runtime.ErrPartyNotLeader
 	}
 
+	p.tick.Add(1)
+
 	p.RUnlock()
 
 	return p.matchmaker.RemoveParty(p.IDStr, ticket)
@@ -666,6 +690,9 @@ func (p *PartyHandler) DataSend(sessionID, node string, opCode int64, data []byt
 	if sender == nil {
 		return runtime.ErrPartyNotMember
 	}
+
+	p.tick.Add(1)
+
 	if len(recipients) == 0 {
 		return nil
 	}
@@ -699,6 +726,8 @@ func (p *PartyHandler) Update(sessionID, node, label string, open, hidden bool) 
 		return runtime.ErrPartyNotLeader
 	}
 
+	p.tick.Add(1)
+
 	if err := p.partyRegistry.LabelUpdate(p.ID, p.Node, label, open, hidden, p.MaxSize, p.CreateTime); err != nil {
 		p.Unlock()
 		return err
@@ -723,4 +752,34 @@ func (p *PartyHandler) Update(sessionID, node, label string, open, hidden bool) 
 	p.router.SendToStream(p.logger, p.Stream, envelope, true)
 
 	return nil
+}
+
+func (p *PartyHandler) CloseIfIdle() {
+	p.Lock()
+	if p.stopped {
+		p.Unlock()
+		return
+	}
+	p.Unlock()
+
+	tick := p.tick.Load()
+	lastIdleCheckTick := p.lastIdleCheckTick.Swap(tick)
+
+	if lastIdleCheckTick != tick {
+		// Party has activity, or was just created.
+		return
+	}
+
+	if p.tracker.CountByStream(p.Stream) == 0 {
+		// Party is idle and has no members.
+		p.Lock()
+		if p.stopped {
+			p.Unlock()
+			return
+		}
+		p.stopped = true
+		p.Unlock()
+
+		p.stop()
+	}
 }
