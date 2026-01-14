@@ -15493,6 +15493,579 @@ function rpcProgressionClaimPrestige(ctx, logger, nk, payload) {
 }
 
 
+// ============================================================================
+// REWARDED ADS SYSTEM - Server-Validated Ad Rewards
+// Prevents auto-shown rewards, duplicate claims, and replay attacks
+// ============================================================================
+
+var REWARDED_AD_TOKEN_EXPIRY_SECONDS = 300; // 5 minutes
+var REWARDED_AD_TOKEN_COLLECTION = "rewarded_ad_tokens";
+var REWARDED_AD_CLAIMS_COLLECTION = "rewarded_ad_claims";
+
+var REWARDED_AD_CONFIG = {
+    "double_score": {
+        rewardType: "score_multiplier",
+        multiplier: 2,
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 10
+    },
+    "extra_time": {
+        rewardType: "currency",
+        currency: "time_bonus",
+        amount: 30,
+        cooldownSeconds: 60,
+        maxClaimsPerDay: 20
+    },
+    "free_hint": {
+        rewardType: "currency",
+        currency: "hints",
+        amount: 1,
+        cooldownSeconds: 30,
+        maxClaimsPerDay: 30
+    },
+    "bonus_coins": {
+        rewardType: "currency",
+        currency: "coins",
+        amount: 100,
+        cooldownSeconds: 120,
+        maxClaimsPerDay: 15
+    },
+    "default": {
+        rewardType: "currency",
+        currency: "coins",
+        amount: 50,
+        cooldownSeconds: 60,
+        maxClaimsPerDay: 50
+    }
+};
+
+function generateAdRewardToken() {
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    var token = "";
+    for (var i = 0; i < 32; i++) {
+        token += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    token += "_" + Date.now().toString(36);
+    return token;
+}
+
+function getAdRewardStartOfDay() {
+    var now = new Date();
+    now.setUTCHours(0, 0, 0, 0);
+    return Math.floor(now.getTime() / 1000);
+}
+
+function getAdDailyClaimCount(nk, logger, userId, placement) {
+    var key = "daily_claims_" + getAdRewardStartOfDay();
+    try {
+        var records = nk.storageRead([{
+            collection: REWARDED_AD_CLAIMS_COLLECTION,
+            key: key,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value[placement] || 0;
+        }
+    } catch (err) {
+        logger.warn("[RewardedAds] Failed to read daily claims: " + err.message);
+    }
+    return 0;
+}
+
+function incrementAdDailyClaimCount(nk, logger, userId, placement) {
+    var key = "daily_claims_" + getAdRewardStartOfDay();
+    var claims = {};
+    try {
+        var records = nk.storageRead([{
+            collection: REWARDED_AD_CLAIMS_COLLECTION,
+            key: key,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            claims = records[0].value;
+        }
+    } catch (err) { /* continue */ }
+
+    claims[placement] = (claims[placement] || 0) + 1;
+    claims.updatedAt = new Date().toISOString();
+
+    try {
+        nk.storageWrite([{
+            collection: REWARDED_AD_CLAIMS_COLLECTION,
+            key: key,
+            userId: userId,
+            value: claims,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        logger.error("[RewardedAds] Failed to increment daily claims: " + err.message);
+        return false;
+    }
+}
+
+function getAdLastClaimTimestamp(nk, logger, userId, placement) {
+    var key = "last_claim_" + placement;
+    try {
+        var records = nk.storageRead([{
+            collection: REWARDED_AD_CLAIMS_COLLECTION,
+            key: key,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value.timestamp || 0;
+        }
+    } catch (err) {
+        logger.warn("[RewardedAds] Failed to read last claim: " + err.message);
+    }
+    return 0;
+}
+
+function updateAdLastClaimTimestamp(nk, logger, userId, placement) {
+    var key = "last_claim_" + placement;
+    var now = Math.floor(Date.now() / 1000);
+    try {
+        nk.storageWrite([{
+            collection: REWARDED_AD_CLAIMS_COLLECTION,
+            key: key,
+            userId: userId,
+            value: {
+                timestamp: now,
+                placement: placement,
+                updatedAt: new Date().toISOString()
+            },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        logger.error("[RewardedAds] Failed to update last claim: " + err.message);
+        return false;
+    }
+}
+
+/**
+ * RPC: Request a reward token BEFORE showing ad (user clicks button)
+ * Payload: { placement: string, gameId: string, metadata?: object }
+ */
+function rpcRewardedAdRequestToken(ctx, logger, nk, payload) {
+    logger.info("[RewardedAds] Token request from user: " + ctx.userId);
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ success: false, error: "Authentication required" });
+    }
+
+    var data = {};
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (err) {
+        return JSON.stringify({ success: false, error: "Invalid payload" });
+    }
+
+    var placement = data.placement || "default";
+    var gameId = data.gameId || "unknown";
+    var metadata = data.metadata || {};
+
+    var config = REWARDED_AD_CONFIG[placement] || REWARDED_AD_CONFIG["default"];
+
+    // Check daily claim limit
+    var dailyClaims = getAdDailyClaimCount(nk, logger, userId, placement);
+    if (dailyClaims >= config.maxClaimsPerDay) {
+        logger.warn("[RewardedAds] Daily limit reached for user: " + userId);
+        return JSON.stringify({
+            success: false,
+            error: "Daily limit reached",
+            dailyClaims: dailyClaims,
+            maxClaimsPerDay: config.maxClaimsPerDay,
+            resetAt: getAdRewardStartOfDay() + 86400
+        });
+    }
+
+    // Check cooldown
+    var now = Math.floor(Date.now() / 1000);
+    var lastClaim = getAdLastClaimTimestamp(nk, logger, userId, placement);
+    var cooldownRemaining = (lastClaim + config.cooldownSeconds) - now;
+
+    if (cooldownRemaining > 0) {
+        logger.info("[RewardedAds] Cooldown active for user: " + userId);
+        return JSON.stringify({
+            success: false,
+            error: "Cooldown active",
+            cooldownRemaining: cooldownRemaining,
+            canClaimAt: lastClaim + config.cooldownSeconds
+        });
+    }
+
+    // Generate unique token
+    var token = generateAdRewardToken();
+    var expiresAt = now + REWARDED_AD_TOKEN_EXPIRY_SECONDS;
+
+    var tokenData = {
+        token: token,
+        userId: userId,
+        placement: placement,
+        gameId: gameId,
+        metadata: metadata,
+        createdAt: now,
+        expiresAt: expiresAt,
+        consumed: false,
+        clientIp: ctx.clientIp || "unknown",
+        sessionId: ctx.sessionId || "unknown"
+    };
+
+    try {
+        nk.storageWrite([{
+            collection: REWARDED_AD_TOKEN_COLLECTION,
+            key: token,
+            userId: userId,
+            value: tokenData,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+
+        logger.info("[RewardedAds] Token generated for user: " + userId + ", placement: " + placement);
+
+        return JSON.stringify({
+            success: true,
+            token: token,
+            expiresIn: REWARDED_AD_TOKEN_EXPIRY_SECONDS,
+            expiresAt: expiresAt,
+            placement: placement,
+            rewardConfig: {
+                type: config.rewardType,
+                currency: config.currency,
+                amount: config.amount,
+                multiplier: config.multiplier
+            }
+        });
+    } catch (err) {
+        logger.error("[RewardedAds] Failed to store token: " + err.message);
+        return JSON.stringify({ success: false, error: "Failed to generate token" });
+    }
+}
+
+/**
+ * RPC: Claim reward after ad was watched
+ * Payload: { token: string, adCompleted: bool, adNetwork?: string, metadata?: object }
+ */
+function rpcRewardedAdClaim(ctx, logger, nk, payload) {
+    logger.info("[RewardedAds] Claim request from user: " + ctx.userId);
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ success: false, error: "Authentication required" });
+    }
+
+    var data = {};
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (err) {
+        return JSON.stringify({ success: false, error: "Invalid payload" });
+    }
+
+    var token = data.token;
+    var adCompleted = data.adCompleted === true;
+    var adNetwork = data.adNetwork || "unknown";
+    var claimMetadata = data.metadata || {};
+
+    if (!token) {
+        logger.warn("[RewardedAds] Claim attempt without token from user: " + userId);
+        return JSON.stringify({ success: false, error: "Token required" });
+    }
+
+    if (!adCompleted) {
+        logger.info("[RewardedAds] Ad not completed for user: " + userId);
+        return JSON.stringify({ success: false, error: "Ad was not completed" });
+    }
+
+    // Read and validate token
+    var tokenData = null;
+    try {
+        var records = nk.storageRead([{
+            collection: REWARDED_AD_TOKEN_COLLECTION,
+            key: token,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            tokenData = records[0].value;
+        }
+    } catch (err) {
+        logger.error("[RewardedAds] Failed to read token: " + err.message);
+        return JSON.stringify({ success: false, error: "Token validation failed" });
+    }
+
+    if (!tokenData) {
+        logger.warn("[RewardedAds] Invalid token from user: " + userId);
+        return JSON.stringify({ success: false, error: "Invalid or expired token" });
+    }
+
+    if (tokenData.userId !== userId) {
+        logger.warn("[RewardedAds] Token ownership mismatch");
+        return JSON.stringify({ success: false, error: "Token does not belong to user" });
+    }
+
+    if (tokenData.consumed) {
+        logger.warn("[RewardedAds] Token already consumed");
+        return JSON.stringify({ success: false, error: "Reward already claimed" });
+    }
+
+    var now = Math.floor(Date.now() / 1000);
+    if (now > tokenData.expiresAt) {
+        logger.warn("[RewardedAds] Token expired");
+        return JSON.stringify({ success: false, error: "Token expired" });
+    }
+
+    var placement = tokenData.placement;
+    var gameId = tokenData.gameId;
+    var config = REWARDED_AD_CONFIG[placement] || REWARDED_AD_CONFIG["default"];
+
+    // Mark token as consumed FIRST (prevent race conditions)
+    tokenData.consumed = true;
+    tokenData.consumedAt = now;
+    tokenData.adNetwork = adNetwork;
+    tokenData.claimMetadata = claimMetadata;
+
+    try {
+        nk.storageWrite([{
+            collection: REWARDED_AD_TOKEN_COLLECTION,
+            key: token,
+            userId: userId,
+            value: tokenData,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        logger.error("[RewardedAds] Failed to mark token consumed: " + err.message);
+        return JSON.stringify({ success: false, error: "Claim processing failed" });
+    }
+
+    var rewardResult = null;
+
+    if (config.rewardType === "score_multiplier") {
+        var authToken = generateAdRewardToken();
+        rewardResult = {
+            type: "score_multiplier",
+            multiplier: config.multiplier,
+            authorized: true,
+            authorizationToken: authToken,
+            expiresIn: 60
+        };
+
+        try {
+            nk.storageWrite([{
+                collection: "score_multiplier_auth",
+                key: authToken,
+                userId: userId,
+                value: {
+                    multiplier: config.multiplier,
+                    placement: placement,
+                    gameId: gameId,
+                    createdAt: now,
+                    expiresAt: now + 60,
+                    used: false
+                },
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+        } catch (err) {
+            logger.error("[RewardedAds] Failed to store score auth: " + err.message);
+        }
+    } else if (config.rewardType === "currency") {
+        var changeset = {};
+        changeset[config.currency] = config.amount;
+        var walletMeta = {
+            source: "rewarded_ad",
+            placement: placement,
+            gameId: gameId,
+            grantedAt: new Date().toISOString()
+        };
+
+        try {
+            var results = nk.walletUpdate(userId, changeset, walletMeta, true);
+            logger.info("[RewardedAds] Wallet updated for user: " + userId);
+            rewardResult = {
+                type: "currency",
+                currency: config.currency,
+                amount: config.amount,
+                walletUpdate: {
+                    success: true,
+                    previousBalance: results.previous ? results.previous[config.currency] || 0 : 0,
+                    newBalance: results.updated ? results.updated[config.currency] || config.amount : config.amount,
+                    change: config.amount
+                }
+            };
+        } catch (err) {
+            logger.error("[RewardedAds] Wallet update failed: " + err.message);
+            rewardResult = {
+                type: "currency",
+                currency: config.currency,
+                amount: config.amount,
+                walletUpdate: { success: false, error: err.message }
+            };
+        }
+    }
+
+    incrementAdDailyClaimCount(nk, logger, userId, placement);
+    updateAdLastClaimTimestamp(nk, logger, userId, placement);
+
+    logger.info("[RewardedAds] Reward claimed successfully. User: " + userId + ", Placement: " + placement);
+
+    return JSON.stringify({
+        success: true,
+        placement: placement,
+        reward: rewardResult,
+        dailyClaims: getAdDailyClaimCount(nk, logger, userId, placement),
+        maxClaimsPerDay: config.maxClaimsPerDay
+    });
+}
+
+/**
+ * RPC: Validate score multiplier authorization
+ * Payload: { authorizationToken: string, originalScore: number, multipliedScore: number }
+ */
+function rpcValidateScoreMultiplier(ctx, logger, nk, payload) {
+    logger.info("[RewardedAds] Score multiplier validation from user: " + ctx.userId);
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ success: false, error: "Authentication required" });
+    }
+
+    var data = {};
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (err) {
+        return JSON.stringify({ success: false, error: "Invalid payload" });
+    }
+
+    var authToken = data.authorizationToken;
+    var originalScore = data.originalScore;
+    var multipliedScore = data.multipliedScore;
+
+    if (!authToken) {
+        return JSON.stringify({ success: false, error: "Authorization token required" });
+    }
+
+    var authData = null;
+    try {
+        var records = nk.storageRead([{
+            collection: "score_multiplier_auth",
+            key: authToken,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            authData = records[0].value;
+        }
+    } catch (err) {
+        logger.error("[RewardedAds] Failed to read auth: " + err.message);
+        return JSON.stringify({ success: false, error: "Validation failed" });
+    }
+
+    if (!authData) {
+        logger.warn("[RewardedAds] Invalid score auth token");
+        return JSON.stringify({ success: false, error: "Invalid authorization" });
+    }
+
+    if (authData.used) {
+        logger.warn("[RewardedAds] Score auth already used");
+        return JSON.stringify({ success: false, error: "Authorization already used" });
+    }
+
+    var now = Math.floor(Date.now() / 1000);
+    if (now > authData.expiresAt) {
+        logger.warn("[RewardedAds] Score auth expired");
+        return JSON.stringify({ success: false, error: "Authorization expired" });
+    }
+
+    var expectedScore = originalScore * authData.multiplier;
+    if (multipliedScore !== expectedScore) {
+        logger.warn("[RewardedAds] Score mismatch. Expected: " + expectedScore + ", Got: " + multipliedScore);
+        return JSON.stringify({ success: false, error: "Score calculation mismatch" });
+    }
+
+    authData.used = true;
+    authData.usedAt = now;
+    authData.originalScore = originalScore;
+    authData.multipliedScore = multipliedScore;
+
+    try {
+        nk.storageWrite([{
+            collection: "score_multiplier_auth",
+            key: authToken,
+            userId: userId,
+            value: authData,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        logger.error("[RewardedAds] Failed to mark auth used: " + err.message);
+    }
+
+    logger.info("[RewardedAds] Score multiplier validated. User: " + userId);
+
+    return JSON.stringify({
+        success: true,
+        authorized: true,
+        originalScore: originalScore,
+        multipliedScore: multipliedScore,
+        multiplier: authData.multiplier
+    });
+}
+
+/**
+ * RPC: Get user's rewarded ad status
+ * Payload: { placement?: string }
+ */
+function rpcGetRewardedAdStatus(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ success: false, error: "Authentication required" });
+    }
+
+    var data = {};
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (err) { /* continue */ }
+
+    var requestedPlacement = data.placement;
+    var now = Math.floor(Date.now() / 1000);
+    var statuses = [];
+
+    var placements = requestedPlacement ? [requestedPlacement] : Object.keys(REWARDED_AD_CONFIG);
+
+    for (var i = 0; i < placements.length; i++) {
+        var placement = placements[i];
+        if (placement === "default" && !requestedPlacement) continue;
+
+        var config = REWARDED_AD_CONFIG[placement] || REWARDED_AD_CONFIG["default"];
+        var dailyClaims = getAdDailyClaimCount(nk, logger, userId, placement);
+        var lastClaim = getAdLastClaimTimestamp(nk, logger, userId, placement);
+        var cooldownRemaining = Math.max(0, (lastClaim + config.cooldownSeconds) - now);
+
+        statuses.push({
+            placement: placement,
+            available: dailyClaims < config.maxClaimsPerDay && cooldownRemaining === 0,
+            dailyClaims: dailyClaims,
+            maxClaimsPerDay: config.maxClaimsPerDay,
+            cooldownRemaining: cooldownRemaining,
+            canClaimAt: cooldownRemaining > 0 ? lastClaim + config.cooldownSeconds : now,
+            rewardType: config.rewardType,
+            rewardAmount: config.amount,
+            rewardCurrency: config.currency,
+            multiplier: config.multiplier
+        });
+    }
+
+    return JSON.stringify({
+        success: true,
+        placements: statuses,
+        resetAt: getAdRewardStartOfDay() + 86400
+    });
+}
+
+
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
@@ -16180,9 +16753,29 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[ProgressionMastery] Failed to initialize: ' + err.message);
     }
 
+    // ============================================================================
+    // REWARDED ADS SYSTEM - Server-Validated Ad Rewards (Prevents Auto-Show Exploits)
+    // ============================================================================
+
+    // Register Rewarded Ads System RPCs
+    try {
+        logger.info('[RewardedAds] Initializing Rewarded Ads System Module...');
+        initializer.registerRpc('rewarded_ad_request_token', rpcRewardedAdRequestToken);
+        logger.info('[RewardedAds] Registered RPC: rewarded_ad_request_token');
+        initializer.registerRpc('rewarded_ad_claim', rpcRewardedAdClaim);
+        logger.info('[RewardedAds] Registered RPC: rewarded_ad_claim');
+        initializer.registerRpc('rewarded_ad_validate_score_multiplier', rpcValidateScoreMultiplier);
+        logger.info('[RewardedAds] Registered RPC: rewarded_ad_validate_score_multiplier');
+        initializer.registerRpc('rewarded_ad_get_status', rpcGetRewardedAdStatus);
+        logger.info('[RewardedAds] Registered RPC: rewarded_ad_get_status');
+        logger.info('[RewardedAds] Successfully registered 4 Rewarded Ads RPCs');
+    } catch (err) {
+        logger.error('[RewardedAds] Failed to initialize: ' + err.message);
+    }
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 165');
+    logger.info('Total System RPCs: 169');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
