@@ -7677,22 +7677,25 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
  * Each game can have custom multipliers, currencies, and reward rules
  */
 var GAME_REWARD_CONFIGS = {
-    // QuizVerse
+    // QuizVerse - TUNED FOR SCARCITY (interstitials-only monetization)
+    // Target: Average player earns ~50 coins/game, power users ~100 coins/game
+    // Feature costs: Hint=75, ExtraTime=150, DoubleScore=300, PremiumAccess=500
     "126bf539-dae2-4bcf-964d-316c0fa1f92b": {
         game_name: "QuizVerse",
-        score_to_coins_multiplier: 0.1,        // 1000 score = 100 coins
-        min_score_for_reward: 10,              // Minimum score to get any reward
-        max_reward_per_match: 10000,           // Cap on single match rewards
+        score_to_coins_multiplier: 0.08,       // 8% of score = coins (scarcity tuned)
+        min_score_for_reward: 50,              // Need 50+ score to earn anything
+        max_reward_per_match: 150,             // Cap prevents inflation (3 hints max)
         currency: "coins",
-        bonus_thresholds: [                     // Bonus rewards for milestones
-            { score: 1000, bonus: 50, type: "milestone_1k" },
-            { score: 5000, bonus: 250, type: "milestone_5k" },
-            { score: 10000, bonus: 1000, type: "milestone_10k" }
+        bonus_thresholds: [                     // Milestone bonuses encourage high performance
+            { score: 500, bonus: 10, type: "good_game" },
+            { score: 1000, bonus: 25, type: "great_game" },
+            { score: 2000, bonus: 50, type: "perfect_game" }
         ],
-        streak_multipliers: {                   // Consecutive wins bonus
+        streak_multipliers: {                   // Streak rewards encourage retention
             3: 1.1,   // 10% bonus for 3 wins
-            5: 1.25,  // 25% bonus for 5 wins
-            10: 1.5   // 50% bonus for 10 wins
+            5: 1.2,   // 20% bonus for 5 wins
+            7: 1.3,   // 30% bonus for 7 wins (weekly engagement)
+            10: 1.5   // 50% bonus for 10 wins (power users)
         }
     },
 
@@ -16066,6 +16069,377 @@ function rpcGetRewardedAdStatus(ctx, logger, nk, payload) {
 }
 
 
+// ============================================================================
+// GAME ENTRY COST SYSTEM - Server-Side Validation
+// Enforces coin economy across ALL game modes
+// ============================================================================
+
+var GAME_MODE_COSTS = {
+    // Solo Modes
+    "quick_play": { entryCost: 10, rewardOnComplete: 5, rewardOnWin: 15, freeDaily: 3 },
+    "championship": { entryCost: 25, rewardOnComplete: 10, rewardOnWin: 50, freeDaily: 2 },
+    "daily_challenge": { entryCost: 15, rewardOnComplete: 20, rewardOnWin: 40, freeDaily: 1 },
+    "practice": { entryCost: 5, rewardOnComplete: 2, rewardOnWin: 5, freeDaily: 5 },
+    
+    // Topic-Based
+    "topic_quiz": { entryCost: 15, rewardOnComplete: 8, rewardOnWin: 25, freeDaily: 2 },
+    "category_quiz": { entryCost: 15, rewardOnComplete: 8, rewardOnWin: 25, freeDaily: 2 },
+    "pic_a_topic": { entryCost: 20, rewardOnComplete: 10, rewardOnWin: 30, freeDaily: 2 },
+    
+    // Multiplayer
+    "online_multiplayer": { entryCost: 30, rewardOnComplete: 10, rewardOnWin: 60, freeDaily: 2 },
+    "local_multiplayer": { entryCost: 20, rewardOnComplete: 8, rewardOnWin: 40, freeDaily: 3 },
+    "party_mode": { entryCost: 25, rewardOnComplete: 10, rewardOnWin: 50, freeDaily: 2 },
+    
+    // Premium
+    "daily_premium": { entryCost: 50, rewardOnComplete: 30, rewardOnWin: 100, freeDaily: 1 },
+    "study_mode": { entryCost: 15, rewardOnComplete: 5, rewardOnWin: 10, freeDaily: 3 },
+    "upload_doc": { entryCost: 30, rewardOnComplete: 15, rewardOnWin: 30, freeDaily: 2 },
+    
+    // Special
+    "tournament": { entryCost: 100, rewardOnComplete: 25, rewardOnWin: 500, freeDaily: 0 },
+    "weekly_challenge": { entryCost: 40, rewardOnComplete: 20, rewardOnWin: 150, freeDaily: 1 }
+};
+
+/**
+ * RPC: game_entry_validate
+ * Validates and processes game entry - deducts coins or uses free play
+ */
+function rpcGameEntryValidate(ctx, logger, nk, payload) {
+    logger.info('[GameEntry] Validating game entry');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        var userId = ctx.userId;
+        var gameId = data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse default
+        var gameMode = data.gameMode;
+        var entryMethod = data.entryMethod || "coins"; // "coins", "free_play", "ad_entry"
+        
+        if (!gameMode) {
+            return JSON.stringify({ success: false, error: "gameMode required" });
+        }
+        
+        var config = GAME_MODE_COSTS[gameMode];
+        if (!config) {
+            return JSON.stringify({ success: false, error: "Unknown game mode: " + gameMode });
+        }
+        
+        // Get user's wallet
+        var walletKey = "wallet_" + userId + "_" + gameId;
+        var walletRecords = nk.storageRead([{
+            collection: "wallets",
+            key: walletKey,
+            userId: userId
+        }]);
+        
+        var wallet = (walletRecords && walletRecords.length > 0) ? walletRecords[0].value : null;
+        var currentBalance = wallet && wallet.currencies ? (wallet.currencies.game || wallet.currencies.tokens || 0) : 0;
+        
+        // Get daily tracking
+        var today = new Date().toISOString().split('T')[0];
+        var dailyKey = "game_entry_daily_" + userId + "_" + today;
+        var dailyRecords = nk.storageRead([{
+            collection: "game_entry_tracking",
+            key: dailyKey,
+            userId: userId
+        }]);
+        
+        var dailyData = (dailyRecords && dailyRecords.length > 0) ? dailyRecords[0].value : {
+            freePlaysUsed: {},
+            adEntriesUsed: {},
+            date: today
+        };
+        
+        var freePlaysUsed = dailyData.freePlaysUsed[gameMode] || 0;
+        var adEntriesUsed = dailyData.adEntriesUsed[gameMode] || 0;
+        var MAX_AD_ENTRIES = 10;
+        
+        var entryGranted = false;
+        var coinsDeducted = 0;
+        var method = "";
+        
+        // Process entry based on method
+        if (entryMethod === "free_play") {
+            if (freePlaysUsed < config.freeDaily) {
+                dailyData.freePlaysUsed[gameMode] = freePlaysUsed + 1;
+                entryGranted = true;
+                method = "free_play";
+                logger.info("[GameEntry] Free play used for " + gameMode);
+            } else {
+                return JSON.stringify({
+                    success: false,
+                    error: "No free plays remaining",
+                    freePlayesRemaining: 0
+                });
+            }
+        } else if (entryMethod === "ad_entry") {
+            if (adEntriesUsed < MAX_AD_ENTRIES) {
+                dailyData.adEntriesUsed[gameMode] = adEntriesUsed + 1;
+                entryGranted = true;
+                method = "ad_entry";
+                logger.info("[GameEntry] Ad entry used for " + gameMode);
+            } else {
+                return JSON.stringify({
+                    success: false,
+                    error: "Daily ad entry limit reached",
+                    adEntriesRemaining: 0
+                });
+            }
+        } else {
+            // Coins entry
+            if (currentBalance >= config.entryCost) {
+                // Deduct coins
+                if (wallet && wallet.currencies) {
+                    wallet.currencies.game = (wallet.currencies.game || 0) - config.entryCost;
+                    wallet.currencies.tokens = (wallet.currencies.tokens || 0) - config.entryCost;
+                    wallet.updatedAt = new Date().toISOString();
+                    
+                    nk.storageWrite([{
+                        collection: "wallets",
+                        key: walletKey,
+                        userId: userId,
+                        value: wallet,
+                        permissionRead: 1,
+                        permissionWrite: 0
+                    }]);
+                    
+                    coinsDeducted = config.entryCost;
+                    entryGranted = true;
+                    method = "coins";
+                    logger.info("[GameEntry] Deducted " + config.entryCost + " coins for " + gameMode);
+                }
+            } else {
+                return JSON.stringify({
+                    success: false,
+                    error: "Insufficient coins",
+                    required: config.entryCost,
+                    current: currentBalance,
+                    shortfall: config.entryCost - currentBalance
+                });
+            }
+        }
+        
+        if (!entryGranted) {
+            return JSON.stringify({ success: false, error: "Entry not granted" });
+        }
+        
+        // Save daily tracking
+        nk.storageWrite([{
+            collection: "game_entry_tracking",
+            key: dailyKey,
+            userId: userId,
+            value: dailyData,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        
+        // Generate entry token for game session validation
+        var entryToken = generateEntryToken(userId, gameMode, Date.now());
+        
+        // Log the entry
+        nk.storageWrite([{
+            collection: "game_entry_logs",
+            key: "entry_" + userId + "_" + Date.now(),
+            userId: userId,
+            value: {
+                userId: userId,
+                gameMode: gameMode,
+                entryMethod: method,
+                coinsDeducted: coinsDeducted,
+                timestamp: new Date().toISOString(),
+                entryToken: entryToken
+            },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        
+        return JSON.stringify({
+            success: true,
+            entryGranted: true,
+            entryMethod: method,
+            coinsDeducted: coinsDeducted,
+            newBalance: wallet ? (wallet.currencies.game || 0) : currentBalance - coinsDeducted,
+            entryToken: entryToken,
+            freePlayesRemaining: Math.max(0, config.freeDaily - (dailyData.freePlaysUsed[gameMode] || 0)),
+            adEntriesRemaining: Math.max(0, MAX_AD_ENTRIES - (dailyData.adEntriesUsed[gameMode] || 0)),
+            potentialRewards: {
+                onComplete: config.rewardOnComplete,
+                onWin: config.rewardOnWin
+            }
+        });
+        
+    } catch (err) {
+        logger.error("[GameEntry] Error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: game_entry_complete
+ * Awards coins when game is completed
+ */
+function rpcGameEntryComplete(ctx, logger, nk, payload) {
+    logger.info('[GameEntry] Processing game completion');
+    
+    try {
+        var data = JSON.parse(payload || '{}');
+        var userId = ctx.userId;
+        var gameId = data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+        var gameMode = data.gameMode;
+        var won = data.won === true;
+        var score = data.score || 0;
+        var entryToken = data.entryToken;
+        
+        if (!gameMode) {
+            return JSON.stringify({ success: false, error: "gameMode required" });
+        }
+        
+        var config = GAME_MODE_COSTS[gameMode];
+        if (!config) {
+            return JSON.stringify({ success: false, error: "Unknown game mode" });
+        }
+        
+        // Calculate rewards
+        var reward = config.rewardOnComplete;
+        if (won) {
+            reward += config.rewardOnWin;
+        }
+        
+        // Bonus for high scores (10% of score, capped at 50)
+        var scoreBonus = Math.min(Math.floor(score / 10), 50);
+        reward += scoreBonus;
+        
+        // Get and update wallet
+        var walletKey = "wallet_" + userId + "_" + gameId;
+        var walletRecords = nk.storageRead([{
+            collection: "wallets",
+            key: walletKey,
+            userId: userId
+        }]);
+        
+        var wallet = (walletRecords && walletRecords.length > 0) ? walletRecords[0].value : {
+            userId: userId,
+            currencies: { game: 0, tokens: 0 },
+            createdAt: new Date().toISOString()
+        };
+        
+        // Add reward
+        wallet.currencies.game = (wallet.currencies.game || 0) + reward;
+        wallet.currencies.tokens = (wallet.currencies.tokens || 0) + reward;
+        wallet.updatedAt = new Date().toISOString();
+        
+        nk.storageWrite([{
+            collection: "wallets",
+            key: walletKey,
+            userId: userId,
+            value: wallet,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        
+        logger.info("[GameEntry] Awarded " + reward + " coins for " + gameMode + " (won: " + won + ", score: " + score + ")");
+        
+        return JSON.stringify({
+            success: true,
+            reward: reward,
+            breakdown: {
+                completion: config.rewardOnComplete,
+                winBonus: won ? config.rewardOnWin : 0,
+                scoreBonus: scoreBonus
+            },
+            won: won,
+            newBalance: wallet.currencies.game
+        });
+        
+    } catch (err) {
+        logger.error("[GameEntry] Complete error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: game_entry_get_status
+ * Get entry status for all game modes
+ */
+function rpcGameEntryGetStatus(ctx, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload || '{}');
+        var userId = ctx.userId;
+        var gameId = data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+        
+        // Get wallet balance
+        var walletKey = "wallet_" + userId + "_" + gameId;
+        var walletRecords = nk.storageRead([{
+            collection: "wallets",
+            key: walletKey,
+            userId: userId
+        }]);
+        var wallet = (walletRecords && walletRecords.length > 0) ? walletRecords[0].value : null;
+        var currentBalance = wallet && wallet.currencies ? (wallet.currencies.game || 0) : 0;
+        
+        // Get daily tracking
+        var today = new Date().toISOString().split('T')[0];
+        var dailyKey = "game_entry_daily_" + userId + "_" + today;
+        var dailyRecords = nk.storageRead([{
+            collection: "game_entry_tracking",
+            key: dailyKey,
+            userId: userId
+        }]);
+        var dailyData = (dailyRecords && dailyRecords.length > 0) ? dailyRecords[0].value : {
+            freePlaysUsed: {},
+            adEntriesUsed: {}
+        };
+        
+        var MAX_AD_ENTRIES = 10;
+        var modeStatuses = [];
+        
+        for (var mode in GAME_MODE_COSTS) {
+            var config = GAME_MODE_COSTS[mode];
+            var freePlaysUsed = dailyData.freePlaysUsed[mode] || 0;
+            var adEntriesUsed = dailyData.adEntriesUsed[mode] || 0;
+            
+            modeStatuses.push({
+                mode: mode,
+                entryCost: config.entryCost,
+                canAfford: currentBalance >= config.entryCost,
+                freePlayesRemaining: Math.max(0, config.freeDaily - freePlaysUsed),
+                adEntriesRemaining: Math.max(0, MAX_AD_ENTRIES - adEntriesUsed),
+                rewardOnComplete: config.rewardOnComplete,
+                rewardOnWin: config.rewardOnWin,
+                hasAnyEntry: (currentBalance >= config.entryCost) || 
+                             (freePlaysUsed < config.freeDaily) || 
+                             (adEntriesUsed < MAX_AD_ENTRIES)
+            });
+        }
+        
+        return JSON.stringify({
+            success: true,
+            currentBalance: currentBalance,
+            modes: modeStatuses,
+            resetAt: new Date(new Date().setHours(24, 0, 0, 0)).toISOString()
+        });
+        
+    } catch (err) {
+        logger.error("[GameEntry] GetStatus error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * Generate entry token for session validation
+ */
+function generateEntryToken(userId, gameMode, timestamp) {
+    var data = userId + "_" + gameMode + "_" + timestamp;
+    // Simple hash for validation
+    var hash = 0;
+    for (var i = 0; i < data.length; i++) {
+        hash = ((hash << 5) - hash) + data.charCodeAt(i);
+        hash = hash & hash;
+    }
+    return "entry_" + Math.abs(hash).toString(16) + "_" + timestamp.toString(36);
+}
+
+
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
@@ -16170,6 +16544,20 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[DailyRewards] Successfully registered 2 Daily Rewards RPCs');
     } catch (err) {
         logger.error('[DailyRewards] Failed to initialize: ' + err.message);
+    }
+
+    // Register Game Entry Cost RPCs
+    try {
+        logger.info('[GameEntry] Initializing Game Entry Cost Module...');
+        initializer.registerRpc('game_entry_validate', rpcGameEntryValidate);
+        logger.info('[GameEntry] Registered RPC: game_entry_validate');
+        initializer.registerRpc('game_entry_complete', rpcGameEntryComplete);
+        logger.info('[GameEntry] Registered RPC: game_entry_complete');
+        initializer.registerRpc('game_entry_get_status', rpcGameEntryGetStatus);
+        logger.info('[GameEntry] Registered RPC: game_entry_get_status');
+        logger.info('[GameEntry] Successfully registered 3 Game Entry Cost RPCs');
+    } catch (err) {
+        logger.error('[GameEntry] Failed to initialize: ' + err.message);
     }
 
     // Register Daily Missions RPCs
