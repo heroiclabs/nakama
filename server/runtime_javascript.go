@@ -1701,7 +1701,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				if err != nil {
 					return err
 				}
-				return runtimeProviderJS.PurchaseNotificationApple(ctx, purchase, string(providerJson))
+				return runtimeProviderJS.PurchaseNotificationApple(ctx, purchase, string(providerJson), notificationType.String())
 			}
 		case RuntimeExecutionModeSubscriptionNotificationApple:
 			subscriptionNotificationAppleFunction = func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.AppleNotificationData) error {
@@ -1709,7 +1709,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				if err != nil {
 					return err
 				}
-				return runtimeProviderJS.SubscriptionNotificationApple(ctx, notificationType.String(), subscription, string(providerJson))
+				return runtimeProviderJS.SubscriptionNotificationApple(ctx, subscription, string(providerJson), notificationType.String())
 			}
 		case RuntimeExecutionModePurchaseNotificationGoogle:
 			purchaseNotificationGoogleFunction = func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.PurchaseV2GoogleResponse) error {
@@ -1717,7 +1717,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				if err != nil {
 					return err
 				}
-				return runtimeProviderJS.PurchaseNotificationGoogle(ctx, purchase, string(providerJson))
+				return runtimeProviderJS.PurchaseNotificationGoogle(ctx, purchase, string(providerJson), notificationType.String())
 			}
 		case RuntimeExecutionModeSubscriptionNotificationGoogle:
 			subscriptionNotificationGoogleFunction = func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.SubscriptionV2GoogleResponse) error {
@@ -1725,7 +1725,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				if err != nil {
 					return err
 				}
-				return runtimeProviderJS.SubscriptionNotificationGoogle(ctx, subscription, string(providerJson))
+				return runtimeProviderJS.SubscriptionNotificationGoogle(ctx, subscription, string(providerJson), notificationType.String())
 			}
 		case RuntimeExecutionModeStorageIndexFilter:
 			storageIndexFilterFunctions[id] = func(ctx context.Context, write *StorageOpWrite) (bool, error) {

@@ -169,7 +169,7 @@ type ValidateReceiptAppleResponse struct {
 }
 
 // Validate an IAP receipt with Apple. This function will check against both the production and sandbox Apple URLs.
-func ValidateLegacyReceiptApple(ctx context.Context, httpc *http.Client, receipt, password string) (*ValidateReceiptAppleResponse, []byte, error) {
+func ValidateLegacyReceiptApple(ctx context.Context, httpc *http.Client, password, receipt string) (*ValidateReceiptAppleResponse, []byte, error) {
 	resp, raw, err := ValidateLegacyReceiptAppleWithUrl(ctx, httpc, AppleReceiptValidationUrlProduction, receipt, password)
 	if err != nil {
 		return nil, nil, err
@@ -995,7 +995,7 @@ func ValidateAppleJwsSignature(receipt string) error {
 	}
 
 	if len(sigBytes) != 64 {
-		return fmt.Errorf("invalid jws signature: invalid length %d, expected 64", len(signature))
+		return fmt.Errorf("invalid jws signature: invalid length %d, expected 64", len(sigBytes))
 	}
 
 	r := new(big.Int).SetBytes(sigBytes[:32])

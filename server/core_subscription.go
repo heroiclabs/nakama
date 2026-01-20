@@ -348,8 +348,8 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
 
-func validateLegacySubscriptionReceiptApple(ctx context.Context, logger *zap.Logger, db *sql.DB, httpc *http.Client, userID uuid.UUID, receipt, password string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, receipt, password)
+func validateLegacySubscriptionReceiptApple(ctx context.Context, logger *zap.Logger, db *sql.DB, httpc *http.Client, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, password, receipt)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			var vErr *iap.ValidationError

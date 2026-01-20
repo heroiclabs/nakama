@@ -118,7 +118,7 @@ func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger,
 		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
 	}
 
-	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, receipt, password)
+	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, password, receipt)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			var vErr *iap.ValidationError
