@@ -350,7 +350,7 @@ func updateAccounts(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates 
 		if _, err := tx.Exec(ctx, query, params...); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_username_key") {
-				return status.Error(codes.AlreadyExists, "Username already taken.")
+				return status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
 
 			logger.Error("Could not update user account.", zap.Error(err),
