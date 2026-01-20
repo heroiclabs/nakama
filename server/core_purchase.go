@@ -48,7 +48,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	tokens := strings.Split(receipt, ".")
 	if len(tokens) != 3 {
 		// Receipt is not a JWS, fallback to using deprecated verifyReceipt API.
-		return validateLegacyPurchaseReceiptApple(ctx, logger, db, httpc, userID, password, receipt, persist)
+		return validateLegacyPurchaseReceiptApple(ctx, logger, db, httpc, userID, receipt, password, persist)
 	}
 	// Receipt is a JWS.
 	if err := iap.ValidateAppleJwsSignature(receipt); err != nil {
@@ -114,6 +114,10 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 }
 
 func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger, db *sql.DB, httpc *http.Client, userID uuid.UUID, receipt, password string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	if password == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
+	}
+
 	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, receipt, password)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {

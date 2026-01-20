@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -25,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/url"
 	"sort"
@@ -34,7 +36,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"golang.org/x/oauth2/jws"
 )
 
 const AppleRootPEM = `
@@ -918,8 +919,13 @@ func ValidateReceiptFacebookInstant(appSecret, signedRequest string) (*FacebookI
 	return payment, string(payload), nil
 }
 
-func ValidateAppleJwsSignature(jwsToken string) error {
-	headerByte, err := base64.RawStdEncoding.DecodeString(jwsToken)
+func ValidateAppleJwsSignature(receipt string) error {
+	jwsTokens := strings.Split(receipt, ".")
+	header := jwsTokens[0]
+	payload := jwsTokens[1]
+	signature := jwsTokens[2]
+
+	headerByte, err := base64.RawStdEncoding.DecodeString(header)
 	if err != nil {
 		return err
 	}
@@ -928,14 +934,13 @@ func ValidateAppleJwsSignature(jwsToken string) error {
 		Alg string   `json:"alg"`
 		X5c []string `json:"x5c"`
 	}
-	var header Header
-
-	if err = json.Unmarshal(headerByte, &header); err != nil {
+	var jwsHeader Header
+	if err = json.Unmarshal(headerByte, &jwsHeader); err != nil {
 		return err
 	}
 
 	certs := make([][]byte, 0)
-	for _, encodedCert := range header.X5c {
+	for _, encodedCert := range jwsHeader.X5c {
 		cert, err := base64.StdEncoding.DecodeString(encodedCert)
 		if err != nil {
 			return err
@@ -976,13 +981,28 @@ func ValidateAppleJwsSignature(jwsToken string) error {
 		return err
 	}
 
-	leafCertRsaPubKey, ok := leafCert.PublicKey.(*rsa.PublicKey)
+	leafCertRsaPubKey, ok := leafCert.PublicKey.(*ecdsa.PublicKey)
 	if !ok {
 		return fmt.Errorf("failed to parse leaf certificate public key")
 	}
 
-	if err = jws.Verify(jwsToken, leafCertRsaPubKey); err != nil {
-		return fmt.Errorf("failed to verify jws token: %s", err.Error())
+	signingInput := []byte(fmt.Sprintf("%s.%s", header, payload))
+	hash := sha256.Sum256(signingInput)
+
+	sigBytes, err := base64.RawURLEncoding.DecodeString(signature)
+	if err != nil {
+		return fmt.Errorf("failed to decode jws signature: %w", err)
+	}
+
+	if len(sigBytes) != 64 {
+		return fmt.Errorf("invalid jws signature: invalid length %d, expected 64", len(signature))
+	}
+
+	r := new(big.Int).SetBytes(sigBytes[:32])
+	s := new(big.Int).SetBytes(sigBytes[32:])
+
+	if !ecdsa.Verify(leafCertRsaPubKey, hash[:], r, s) {
+		return errors.New("invalid jws signature: ecdsa verification failed")
 	}
 
 	return nil
