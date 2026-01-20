@@ -4427,7 +4427,42 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
 
 /**
  * RPC: quiz_submit_result
- * Submit quiz result from any game mode
+ * Submit quiz result from any game mode with detailed question-level data
+ * 
+ * Required payload:
+ * {
+ *   gameId: "uuid",
+ *   gameMode: "QuickPlay | DailyChallenge | Championship | ...",
+ *   score: 850,
+ *   correctAnswers: 8,
+ *   totalQuestions: 10,
+ *   timeTakenSeconds: 120,
+ *   won: true,
+ *   
+ *   // Optional - Detailed question data
+ *   questionDetails: [
+ *     {
+ *       questionIndex: 0,
+ *       questionId: "q_123",
+ *       questionText: "What is 2+2?",
+ *       options: ["1", "2", "3", "4"],
+ *       selectedAnswerIndex: 3,
+ *       selectedAnswerText: "4",
+ *       correctAnswerIndex: 3,
+ *       correctAnswerText: "4",
+ *       isCorrect: true,
+ *       timeTakenSeconds: 5.2,
+ *       explanation: "2+2=4",
+ *       category: "Math",
+ *       concept: "Addition",
+ *       difficulty: "easy",
+ *       usedHint: false,
+ *       timedOut: false
+ *     }
+ *   ],
+ *   missedConcepts: ["Algebra", "Geometry"],
+ *   masteredConcepts: ["Arithmetic"]
+ * }
  */
 function rpcQuizSubmitResult(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_submit_result called");
@@ -4458,7 +4493,39 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
     var username = ctx.username || "unknown";
     var timestamp = getUnixTimestamp();
     
-    // Build result object
+    // Process question details to extract missed/mastered concepts
+    var questionDetails = data.questionDetails || [];
+    var missedConcepts = data.missedConcepts || [];
+    var masteredConcepts = data.masteredConcepts || [];
+    
+    // Auto-extract concepts from question details if not provided
+    if (questionDetails.length > 0 && missedConcepts.length === 0 && masteredConcepts.length === 0) {
+        var conceptTracker = {};
+        for (var i = 0; i < questionDetails.length; i++) {
+            var qd = questionDetails[i];
+            var concept = qd.concept || qd.category || "General";
+            if (!conceptTracker[concept]) {
+                conceptTracker[concept] = { correct: 0, total: 0 };
+            }
+            conceptTracker[concept].total++;
+            if (qd.isCorrect) {
+                conceptTracker[concept].correct++;
+            }
+        }
+        
+        // Classify concepts based on accuracy
+        for (var concept in conceptTracker) {
+            var stats = conceptTracker[concept];
+            var accuracy = stats.total > 0 ? stats.correct / stats.total : 0;
+            if (accuracy >= 0.7) {
+                masteredConcepts.push(concept);
+            } else if (accuracy < 0.5 && stats.total >= 1) {
+                missedConcepts.push(concept);
+            }
+        }
+    }
+    
+    // Build result object with all details
     var result = {
         id: generateQuizResultKey(userId, timestamp),
         userId: userId,
@@ -4471,10 +4538,11 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
         timeTakenSeconds: parseFloat(data.timeTakenSeconds) || 0,
         won: data.won === true || data.won === "true",
         
-        // Optional fields
+        // Optional summary fields
         difficulty: data.difficulty || "normal",
         categoryId: data.categoryId || null,
         categoryName: data.categoryName || null,
+        topicName: data.topicName || null,
         opponentId: data.opponentId || null,
         opponentName: data.opponentName || null,
         tournamentId: data.tournamentId || null,
@@ -4487,7 +4555,17 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
         coinsEarned: parseInt(data.coinsEarned) || 0,
         xpEarned: parseInt(data.xpEarned) || 0,
         streakDay: parseInt(data.streakDay) || 0,
+        maxStreak: parseInt(data.maxStreak) || 0,
+        perfectAnswerCount: parseInt(data.perfectAnswerCount) || 0,
         metadata: data.metadata || {},
+        
+        // NEW: Detailed question-level data
+        questionDetails: questionDetails,
+        questionCount: questionDetails.length,
+        
+        // NEW: Concept tracking for learning insights
+        missedConcepts: missedConcepts,
+        masteredConcepts: masteredConcepts,
         
         timestamp: timestamp,
         submittedAt: getCurrentTimestamp()
@@ -4497,6 +4575,14 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
     var metrics = calculateQuizMetrics(result);
     result.metrics = metrics;
     result.perfectScore = metrics.isPerfect;
+    
+    // Add learning insights
+    result.learningInsights = {
+        needsImprovement: missedConcepts,
+        strengths: masteredConcepts,
+        conceptAccuracy: {},
+        recommendedTopics: missedConcepts.slice(0, 3) // Top 3 concepts to practice
+    };
     
     try {
         // 1. Store the result
