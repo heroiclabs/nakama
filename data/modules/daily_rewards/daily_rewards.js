@@ -6,16 +6,42 @@ import * as utils from "../copilot/utils.js";
  * Reward configurations per gameId UUID
  * This can be extended or moved to storage for dynamic configuration
  */
+/**
+ * BALANCED DAILY REWARDS CONFIGURATION
+ * 
+ * Design Philosophy:
+ * - Day 1: 40 coins = ~4 QuickPlay games (keeps them playing after free plays)
+ * - Day 3: 65 coins = Can afford first Hint power-up (75) with Day 2 leftover (milestone!)
+ * - Day 7: 200 coins = Big reward validates loyalty, can afford Extra Life (200)
+ * - Weekly total: 660 coins (enough for ~6-8 sessions/day with free plays)
+ * 
+ * Key metrics:
+ * - Creates "slightly short" feeling → drives ad watching & IAP
+ * - Never leaves user completely stuck (can always play with free plays + Day 1)
+ * - Milestone at Day 3 (first power-up affordable) creates mid-week retention hook
+ * - Day 7 jackpot encourages full week completion (4x Day 1 reward)
+ */
 var REWARD_CONFIGS = {
-    // Default rewards for any game
+    // Default rewards for any game - BALANCED FOR ENGAGEMENT + MONETIZATION
     "default": [
-        { day: 1, xp: 100, tokens: 10, description: "Day 1 Reward" },
-        { day: 2, xp: 150, tokens: 15, description: "Day 2 Reward" },
-        { day: 3, xp: 200, tokens: 20, description: "Day 3 Reward" },
-        { day: 4, xp: 250, tokens: 25, description: "Day 4 Reward" },
-        { day: 5, xp: 300, tokens: 30, multiplier: "2x XP", description: "Day 5 Bonus" },
-        { day: 6, xp: 350, tokens: 35, description: "Day 6 Reward" },
-        { day: 7, xp: 500, tokens: 50, nft: "weekly_badge", description: "Day 7 Special Badge" }
+        { day: 1, xp: 50, tokens: 40, description: "Welcome Back!" },
+        { day: 2, xp: 75, tokens: 50, description: "Day 2 Reward" },
+        { day: 3, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
+        { day: 4, xp: 150, tokens: 80, description: "Halfway There!" },
+        { day: 5, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! 🔥" },
+        { day: 6, xp: 275, tokens: 125, description: "Almost There!" },
+        { day: 7, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
+    ],
+    
+    // QuizVerse specific (same values, can customize per game)
+    "33b245c8-a23f-4f9c-a06e-189885cc22a1": [
+        { day: 1, xp: 50, tokens: 40, description: "Welcome Back!" },
+        { day: 2, xp: 75, tokens: 50, description: "Day 2 Reward" },
+        { day: 3, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
+        { day: 4, xp: 150, tokens: 80, description: "Halfway There!" },
+        { day: 5, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! 🔥" },
+        { day: 6, xp: 275, tokens: 125, description: "Almost There!" },
+        { day: 7, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
     ]
 };
 

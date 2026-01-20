@@ -4284,6 +4284,436 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
 // Export RPC functions (ES Module syntax)
 
 // ============================================================================
+// QUIZ_RESULTS - Comprehensive Quiz Result Tracking
+// ============================================================================
+
+/**
+ * Quiz Results System - Stores ALL quiz results from ALL game modes
+ * for analytics, history, leaderboards, and mission progress tracking
+ */
+
+/**
+ * Get collection name for quiz results
+ */
+function getQuizResultsCollection(gameId) {
+    return "quiz_results_" + gameId;
+}
+
+/**
+ * Get user stats collection
+ */
+function getQuizUserStatsCollection(gameId) {
+    return "quiz_user_stats_" + gameId;
+}
+
+/**
+ * Generate unique result key
+ */
+function generateQuizResultKey(userId, timestamp) {
+    return "result_" + userId + "_" + timestamp;
+}
+
+/**
+ * Calculate quiz performance metrics
+ */
+function calculateQuizMetrics(result) {
+    var accuracy = result.totalQuestions > 0 
+        ? (result.correctAnswers / result.totalQuestions) * 100 
+        : 0;
+    
+    var avgTimePerQuestion = result.totalQuestions > 0 
+        ? result.timeTakenSeconds / result.totalQuestions 
+        : 0;
+    
+    var isPerfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
+    
+    // Calculate performance rating (1-5 stars)
+    var rating = 0;
+    if (accuracy >= 90) rating += 2.5;
+    else if (accuracy >= 70) rating += 2.0;
+    else if (accuracy >= 50) rating += 1.5;
+    else if (accuracy >= 30) rating += 1.0;
+    else rating += 0.5;
+    
+    if (avgTimePerQuestion <= 5) rating += 1.5;
+    else if (avgTimePerQuestion <= 10) rating += 1.0;
+    else if (avgTimePerQuestion <= 15) rating += 0.5;
+    
+    if (result.won) rating += 1.0;
+    
+    return {
+        accuracy: Math.round(accuracy * 100) / 100,
+        avgTimePerQuestion: Math.round(avgTimePerQuestion * 100) / 100,
+        isPerfect: isPerfect,
+        performanceRating: Math.min(5, Math.round(rating * 10) / 10)
+    };
+}
+
+/**
+ * Update user's aggregate quiz statistics
+ */
+function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
+    var collection = getQuizUserStatsCollection(gameId);
+    var key = "stats_" + userId;
+    
+    var stats = readStorage(nk, logger, collection, key, userId);
+    
+    if (!stats) {
+        stats = {
+            userId: userId,
+            gameId: gameId,
+            totalGames: 0,
+            totalWins: 0,
+            totalScore: 0,
+            totalCorrect: 0,
+            totalQuestions: 0,
+            totalTimePlayed: 0,
+            perfectGames: 0,
+            highestScore: 0,
+            longestStreak: 0,
+            currentStreak: 0,
+            lastPlayedAt: null,
+            modeStats: {},
+            createdAt: getCurrentTimestamp()
+        };
+    }
+    
+    // Update totals
+    stats.totalGames++;
+    stats.totalScore += result.score || 0;
+    stats.totalCorrect += result.correctAnswers || 0;
+    stats.totalQuestions += result.totalQuestions || 0;
+    stats.totalTimePlayed += result.timeTakenSeconds || 0;
+    
+    if (result.won) {
+        stats.totalWins++;
+        stats.currentStreak++;
+        stats.longestStreak = Math.max(stats.longestStreak, stats.currentStreak);
+    } else {
+        stats.currentStreak = 0;
+    }
+    
+    if (metrics.isPerfect) {
+        stats.perfectGames++;
+    }
+    
+    stats.highestScore = Math.max(stats.highestScore, result.score || 0);
+    stats.lastPlayedAt = getCurrentTimestamp();
+    
+    // Update per-mode stats
+    var mode = result.gameMode || "unknown";
+    if (!stats.modeStats[mode]) {
+        stats.modeStats[mode] = {
+            games: 0,
+            wins: 0,
+            totalScore: 0,
+            highestScore: 0
+        };
+    }
+    stats.modeStats[mode].games++;
+    if (result.won) stats.modeStats[mode].wins++;
+    stats.modeStats[mode].totalScore += result.score || 0;
+    stats.modeStats[mode].highestScore = Math.max(
+        stats.modeStats[mode].highestScore, 
+        result.score || 0
+    );
+    
+    stats.updatedAt = getCurrentTimestamp();
+    
+    writeStorage(nk, logger, collection, key, userId, stats);
+    
+    return stats;
+}
+
+/**
+ * RPC: quiz_submit_result
+ * Submit quiz result from any game mode
+ */
+function rpcQuizSubmitResult(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC quiz_submit_result called");
+    
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success) {
+        return handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    
+    // Validate required fields
+    var required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
+    var validation = validatePayload(data, required);
+    if (!validation.valid) {
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+    
+    if (!isValidUUID(data.gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return handleError(ctx, null, "User not authenticated");
+    }
+    
+    var username = ctx.username || "unknown";
+    var timestamp = getUnixTimestamp();
+    
+    // Build result object
+    var result = {
+        id: generateQuizResultKey(userId, timestamp),
+        userId: userId,
+        username: username,
+        gameId: data.gameId,
+        gameMode: data.gameMode,
+        score: parseInt(data.score) || 0,
+        correctAnswers: parseInt(data.correctAnswers) || 0,
+        totalQuestions: parseInt(data.totalQuestions) || 0,
+        timeTakenSeconds: parseFloat(data.timeTakenSeconds) || 0,
+        won: data.won === true || data.won === "true",
+        
+        // Optional fields
+        difficulty: data.difficulty || "normal",
+        categoryId: data.categoryId || null,
+        categoryName: data.categoryName || null,
+        opponentId: data.opponentId || null,
+        opponentName: data.opponentName || null,
+        tournamentId: data.tournamentId || null,
+        matchId: data.matchId || null,
+        hintsUsed: parseInt(data.hintsUsed) || 0,
+        skipsUsed: parseInt(data.skipsUsed) || 0,
+        extraTimeUsed: parseInt(data.extraTimeUsed) || 0,
+        extraLivesUsed: parseInt(data.extraLivesUsed) || 0,
+        coinsSpent: parseInt(data.coinsSpent) || 0,
+        coinsEarned: parseInt(data.coinsEarned) || 0,
+        xpEarned: parseInt(data.xpEarned) || 0,
+        streakDay: parseInt(data.streakDay) || 0,
+        metadata: data.metadata || {},
+        
+        timestamp: timestamp,
+        submittedAt: getCurrentTimestamp()
+    };
+    
+    // Calculate metrics
+    var metrics = calculateQuizMetrics(result);
+    result.metrics = metrics;
+    result.perfectScore = metrics.isPerfect;
+    
+    try {
+        // 1. Store the result
+        var collection = getQuizResultsCollection(data.gameId);
+        var resultKey = result.id;
+        writeStorage(nk, logger, collection, resultKey, userId, result);
+        logInfo(logger, "Stored quiz result: " + resultKey);
+        
+        // 2. Update user stats
+        var updatedStats = updateQuizUserStats(nk, logger, userId, data.gameId, result, metrics);
+        
+        // 3. Update leaderboard if score > 0
+        if (result.score > 0) {
+            try {
+                var leaderboardId = "leaderboard_" + data.gameId;
+                var leaderboardMetadata = {
+                    gameMode: result.gameMode,
+                    accuracy: metrics.accuracy,
+                    submittedAt: result.submittedAt
+                };
+                
+                nk.leaderboardRecordWrite(
+                    leaderboardId,
+                    userId,
+                    username,
+                    result.score,
+                    0,
+                    JSON.stringify(leaderboardMetadata),
+                    null
+                );
+                logInfo(logger, "Updated leaderboard: " + leaderboardId);
+            } catch (lbErr) {
+                logWarning(logger, "Leaderboard update failed (non-critical): " + lbErr.message);
+            }
+        }
+        
+        // 4. Store in transaction log for analytics
+        var transactionKey = "quiz_result_" + userId + "_" + timestamp;
+        writeStorage(nk, logger, "transaction_logs", transactionKey, userId, {
+            type: "quiz_result",
+            resultId: result.id,
+            gameMode: result.gameMode,
+            score: result.score,
+            won: result.won,
+            timestamp: result.submittedAt
+        });
+        
+        logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
+        
+        return JSON.stringify({
+            success: true,
+            resultId: result.id,
+            metrics: metrics,
+            stats: {
+                totalGames: updatedStats.totalGames,
+                totalWins: updatedStats.totalWins,
+                currentStreak: updatedStats.currentStreak,
+                highestScore: updatedStats.highestScore
+            }
+        });
+        
+    } catch (err) {
+        logError(logger, "Failed to submit quiz result: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to submit result: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: quiz_get_history
+ * Get quiz history for a user
+ */
+function rpcQuizGetHistory(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC quiz_get_history called");
+    
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success) {
+        return handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    var validation = validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return handleError(ctx, null, "Missing gameId");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return handleError(ctx, null, "User not authenticated");
+    }
+    
+    var collection = getQuizResultsCollection(data.gameId);
+    var limit = Math.min(parseInt(data.limit) || 20, 100);
+    
+    try {
+        var objects = nk.storageList(userId, collection, limit, data.cursor || "");
+        
+        var results = [];
+        for (var i = 0; i < (objects.objects || []).length; i++) {
+            var obj = objects.objects[i];
+            var result = JSON.parse(obj.value);
+            
+            if (data.gameMode && result.gameMode !== data.gameMode) {
+                continue;
+            }
+            
+            results.push({
+                id: result.id,
+                gameMode: result.gameMode,
+                score: result.score,
+                correctAnswers: result.correctAnswers,
+                totalQuestions: result.totalQuestions,
+                won: result.won,
+                metrics: result.metrics,
+                categoryName: result.categoryName,
+                submittedAt: result.submittedAt
+            });
+        }
+        
+        return JSON.stringify({
+            success: true,
+            results: results,
+            cursor: objects.cursor || null,
+            count: results.length
+        });
+        
+    } catch (err) {
+        logError(logger, "Failed to get quiz history: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to get history: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: quiz_get_stats
+ * Get user's aggregate quiz statistics
+ */
+function rpcQuizGetStats(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC quiz_get_stats called");
+    
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success) {
+        return handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    var validation = validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return handleError(ctx, null, "Missing gameId");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return handleError(ctx, null, "User not authenticated");
+    }
+    
+    var collection = getQuizUserStatsCollection(data.gameId);
+    var key = "stats_" + userId;
+    
+    var stats = readStorage(nk, logger, collection, key, userId);
+    
+    if (!stats) {
+        return JSON.stringify({
+            success: true,
+            stats: {
+                totalGames: 0,
+                totalWins: 0,
+                winRate: 0,
+                totalScore: 0,
+                averageScore: 0,
+                accuracy: 0,
+                highestScore: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                perfectGames: 0,
+                modeStats: {}
+            }
+        });
+    }
+    
+    var winRate = stats.totalGames > 0 
+        ? Math.round((stats.totalWins / stats.totalGames) * 100) 
+        : 0;
+    
+    var averageScore = stats.totalGames > 0 
+        ? Math.round(stats.totalScore / stats.totalGames) 
+        : 0;
+    
+    var accuracy = stats.totalQuestions > 0 
+        ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100) 
+        : 0;
+    
+    return JSON.stringify({
+        success: true,
+        stats: {
+            totalGames: stats.totalGames,
+            totalWins: stats.totalWins,
+            winRate: winRate,
+            totalScore: stats.totalScore,
+            averageScore: averageScore,
+            accuracy: accuracy,
+            highestScore: stats.highestScore,
+            currentStreak: stats.currentStreak,
+            longestStreak: stats.longestStreak,
+            perfectGames: stats.perfectGames,
+            totalTimePlayed: stats.totalTimePlayed,
+            modeStats: stats.modeStats,
+            lastPlayedAt: stats.lastPlayedAt
+        }
+    });
+}
+
+// ============================================================================
 // DAILY_MISSIONS/DAILY_MISSIONS.JS
 // ============================================================================
 
@@ -16544,6 +16974,20 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[DailyRewards] Successfully registered 2 Daily Rewards RPCs');
     } catch (err) {
         logger.error('[DailyRewards] Failed to initialize: ' + err.message);
+    }
+
+    // Register Quiz Results RPCs
+    try {
+        logger.info('[QuizResults] Initializing Quiz Results Module...');
+        initializer.registerRpc('quiz_submit_result', rpcQuizSubmitResult);
+        logger.info('[QuizResults] Registered RPC: quiz_submit_result');
+        initializer.registerRpc('quiz_get_history', rpcQuizGetHistory);
+        logger.info('[QuizResults] Registered RPC: quiz_get_history');
+        initializer.registerRpc('quiz_get_stats', rpcQuizGetStats);
+        logger.info('[QuizResults] Registered RPC: quiz_get_stats');
+        logger.info('[QuizResults] Successfully registered 3 Quiz Results RPCs');
+    } catch (err) {
+        logger.error('[QuizResults] Failed to initialize: ' + err.message);
     }
 
     // Register Game Entry Cost RPCs
