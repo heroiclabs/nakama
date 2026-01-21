@@ -905,7 +905,10 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 			}
 		}
 
-		return &api.LeaderboardRecordList{Records: records, PrevCursor: prevCursorStr, NextCursor: nextCursorStr, RankCount: rankCount}, nil
+		ownerRecords := make([]*api.LeaderboardRecord, 0)
+		ownerRecords = append(ownerRecords, ownerRecord)
+
+		return &api.LeaderboardRecordList{Records: records, OwnerRecords: ownerRecords, PrevCursor: prevCursorStr, NextCursor: nextCursorStr, RankCount: rankCount}, nil
 	} else {
 		// If a cursor is passed, then this becomes a regular record listing operation.
 		return LeaderboardRecordsList(ctx, logger, db, leaderboardCache, rankCache, leaderboardId, wrapperspb.Int32(int32(limit)), cursor, nil, expiryTime.Unix())
