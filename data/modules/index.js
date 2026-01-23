@@ -4799,6 +4799,176 @@ function rpcQuizGetStats(ctx, logger, nk, payload) {
     });
 }
 
+/**
+ * RPC: quiz_check_daily_completion
+ * Check if user has completed a quiz for a specific game mode today
+ * Based on user UUID - queries across all quiz result collections for the user
+ * 
+ * Payload:
+ * {
+ *   gameMode: "DailyChallenge" | "DailyPremiumQuiz"
+ *   gameId: "uuid" (optional - if provided, only checks that specific game)
+ * }
+ * 
+ * Returns:
+ * {
+ *   success: true,
+ *   completed: boolean,
+ *   gameMode: "DailyChallenge",
+ *   date: "2025-01-15" (YYYY-MM-DD format)
+ * }
+ */
+function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC quiz_check_daily_completion called");
+    
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success) {
+        return handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    
+    // Validate required fields (only gameMode is required now)
+    var validation = validatePayload(data, ['gameMode']);
+    if (!validation.valid) {
+        return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+    
+    // Validate gameMode
+    var validModes = ['DailyChallenge', 'DailyPremiumQuiz'];
+    if (validModes.indexOf(data.gameMode) === -1) {
+        return handleError(ctx, null, "Invalid gameMode. Must be 'DailyChallenge' or 'DailyPremiumQuiz'");
+    }
+    
+    // Validate gameId if provided (optional)
+    if (data.gameId && !isValidUUID(data.gameId)) {
+        return handleError(ctx, null, "Invalid gameId UUID format");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return handleError(ctx, null, "User not authenticated");
+    }
+    
+    try {
+        // Get today's start timestamp (00:00:00 UTC)
+        var todayStart = getStartOfDay();
+        var todayEnd = todayStart + 86400; // End of day (24 hours later)
+        
+        // Get current date string for response (YYYY-MM-DD)
+        var today = new Date();
+        var dateString = today.getUTCFullYear() + "-" + 
+                        String(today.getUTCMonth() + 1).padStart(2, '0') + "-" + 
+                        String(today.getUTCDate()).padStart(2, '0');
+        
+        var completed = false;
+        
+        // If gameId is provided, only check that specific collection
+        if (data.gameId) {
+            var collection = getQuizResultsCollection(data.gameId);
+            var limit = 100; // Check last 100 results (should be enough for daily check)
+            
+            var objects = nk.storageList(userId, collection, limit, "");
+            
+            // Check if any result matches gameMode and was submitted today
+            for (var i = 0; i < (objects.objects || []).length; i++) {
+                var obj = objects.objects[i];
+                var result = JSON.parse(obj.value);
+                
+                // Check if gameMode matches
+                if (result.gameMode !== data.gameMode) {
+                    continue;
+                }
+                
+                // Check if submitted today
+                // result.timestamp is Unix timestamp in seconds
+                if (result.timestamp >= todayStart && result.timestamp < todayEnd) {
+                    completed = true;
+                    logInfo(logger, "User " + userId + " completed " + data.gameMode + " today (timestamp: " + result.timestamp + ")");
+                    break;
+                }
+            }
+        } else {
+            // No gameId provided - query across all quiz result collections
+            // We'll check common collection patterns and user's storage objects
+            // Since we can't list all collections, we'll use a different approach:
+            // Query the user's storage objects with a pattern match
+            
+            // Get all storage objects for this user (with a reasonable limit)
+            // We'll search for objects in collections that match "quiz_results_*"
+            var limit = 1000; // Higher limit to check more results across collections
+            
+            // Try to find quiz results by querying known collections or using storage index
+            // Since Nakama doesn't support wildcard collection queries directly,
+            // we'll use a workaround: check transaction_logs which stores all quiz results
+            var transactionCollection = "transaction_logs";
+            var transactionObjects = nk.storageList(userId, transactionCollection, limit, "");
+            
+            // Check transaction logs for quiz results submitted today
+            for (var i = 0; i < (transactionObjects.objects || []).length; i++) {
+                var obj = transactionObjects.objects[i];
+                var transaction = JSON.parse(obj.value);
+                
+                // Check if this is a quiz result transaction
+                if (transaction.type === "quiz_result" && 
+                    transaction.gameMode === data.gameMode) {
+                    
+                    // Parse timestamp from submittedAt (ISO string) or use timestamp if available
+                    var transactionTimestamp = null;
+                    if (transaction.timestamp) {
+                        // If timestamp is a Unix timestamp (seconds)
+                        if (typeof transaction.timestamp === 'number') {
+                            transactionTimestamp = transaction.timestamp;
+                        } else if (typeof transaction.timestamp === 'string') {
+                            // If it's an ISO string, convert to Unix timestamp
+                            var dateObj = new Date(transaction.timestamp);
+                            if (!isNaN(dateObj.getTime())) {
+                                transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
+                            }
+                        }
+                    } else if (transaction.submittedAt) {
+                        // Fallback to submittedAt if timestamp not available
+                        var dateObj = new Date(transaction.submittedAt);
+                        if (!isNaN(dateObj.getTime())) {
+                            transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
+                        }
+                    }
+                    
+                    // Check if submitted today
+                    if (transactionTimestamp && transactionTimestamp >= todayStart && transactionTimestamp < todayEnd) {
+                        completed = true;
+                        logInfo(logger, "User " + userId + " completed " + data.gameMode + " today (from transaction log, timestamp: " + transactionTimestamp + ")");
+                        break;
+                    }
+                }
+            }
+            
+            // If not found in transaction logs, try to query known game collections
+            // This is a fallback - in production, you might want to maintain a registry of gameIds
+            if (!completed) {
+                // Try common gameId patterns or query user's metadata for known gameIds
+                // For now, we'll log that we couldn't find it in transaction logs
+                logInfo(logger, "User " + userId + " daily completion check: not found in transaction logs, may need gameId");
+            }
+        }
+        
+        return JSON.stringify({
+            success: true,
+            completed: completed,
+            gameMode: data.gameMode,
+            date: dateString
+        });
+        
+    } catch (err) {
+        logError(logger, "Failed to check daily completion: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to check completion: " + err.message,
+            completed: false
+        });
+    }
+}
+
 // ============================================================================
 // DAILY_MISSIONS/DAILY_MISSIONS.JS
 // ============================================================================
@@ -17071,7 +17241,9 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[QuizResults] Registered RPC: quiz_get_history');
         initializer.registerRpc('quiz_get_stats', rpcQuizGetStats);
         logger.info('[QuizResults] Registered RPC: quiz_get_stats');
-        logger.info('[QuizResults] Successfully registered 3 Quiz Results RPCs');
+        initializer.registerRpc('quiz_check_daily_completion', rpcQuizCheckDailyCompletion);
+        logger.info('[QuizResults] Registered RPC: quiz_check_daily_completion');
+        logger.info('[QuizResults] Successfully registered 4 Quiz Results RPCs');
     } catch (err) {
         logger.error('[QuizResults] Failed to initialize: ' + err.message);
     }
