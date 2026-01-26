@@ -35,6 +35,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/apigrpc"
@@ -106,17 +107,23 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		gatewayContextTimeoutMs = fmt.Sprintf("%vm", config.GetSocket().IdleTimeoutMs)
 	}
 
-	serverOpts := []grpc.ServerOption{
-		grpc.StatsHandler(&MetricsGrpcHandler{MetricsFn: metrics.Api, Metrics: metrics}),
-		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxRequestSizeBytes)),
-		grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 			ctx = context.WithValue(ctx, ctxTraceId{}, uuid.Must(uuid.NewV4()).String())
 			ctx, err := securityInterceptorFunc(logger, config, sessionCache, ctx, req, info)
 			if err != nil {
 				return nil, err
 			}
 			return handler(ctx, req)
-		}),
+		},
+	}
+	if config.GetSocket().PanicRecovery {
+		unaryInterceptors = append(unaryInterceptors, recovery.UnaryServerInterceptor())
+	}
+	serverOpts := []grpc.ServerOption{
+		grpc.StatsHandler(&MetricsGrpcHandler{MetricsFn: metrics.Api, Metrics: metrics}),
+		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxRequestSizeBytes)),
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
 	}
 	if config.GetSocket().TLSCert != nil {
 		serverOpts = append(serverOpts, grpc.Creds(credentials.NewServerTLSFromCert(&config.GetSocket().TLSCert[0])))

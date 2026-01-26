@@ -839,6 +839,7 @@ type SocketConfig struct {
 	CertPEMBlock         []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLCertificate, not set from input args directly.
 	KeyPEMBlock          []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLPrivateKey, not set from input args directly.
 	TLSCert              []tls.Certificate `yaml:"-" json:"-"` // Created by processing CertPEMBlock and KeyPEMBlock, not set from input args directly.
+	PanicRecovery        bool              `yaml:"panic_recovery" json:"panic_recovery" usage:"Enable gRPC panic recovery interceptor to convert panics into Internal errors. Default false."`
 }
 
 func (cfg *SocketConfig) GetServerKey() string {
