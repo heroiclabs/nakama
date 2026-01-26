@@ -17125,6 +17125,719 @@ function generateEntryToken(userId, gameMode, timestamp) {
     return "entry_" + Math.abs(hash).toString(16) + "_" + timestamp.toString(36);
 }
 
+// ============================================================================
+// COMPATIBILITY QUIZ SYSTEM - Valentine's Day Feature (QuizVerse)
+// ============================================================================
+
+var COLLECTION_COMPATIBILITY_SESSIONS = 'compatibility_sessions';
+
+/**
+ * Generate a unique share code from session ID
+ */
+function compatibilityGenerateShareCode(sessionId) {
+    return sessionId.replace(/-/g, '').substring(0, 8).toUpperCase();
+}
+
+/**
+ * Send a push notification to a user for compatibility quiz
+ */
+function compatibilitySendNotification(nk, userId, subject, content, data) {
+    try {
+        var notifications = [{
+            userId: userId,
+            subject: subject,
+            content: JSON.stringify({
+                message: content,
+                ...data
+            }),
+            code: 100,
+            persistent: true
+        }];
+        nk.notificationsSend(notifications);
+    } catch (e) {
+        // Silently fail if notification fails
+    }
+}
+
+/**
+ * Calculate trait similarity between two trait score sets
+ */
+function compatibilityCalculateTraitSimilarity(traits1, traits2, relevantTraits) {
+    var similarity = 0;
+    var count = 0;
+    
+    for (var i = 0; i < relevantTraits.length; i++) {
+        var trait = relevantTraits[i];
+        var score1 = traits1[trait] || 0;
+        var score2 = traits2[trait] || 0;
+        
+        var norm1 = Math.min(score1 / 5, 1);
+        var norm2 = Math.min(score2 / 5, 1);
+        
+        var diff = Math.abs(norm1 - norm2);
+        similarity += (1 - diff);
+        count++;
+    }
+    
+    return count > 0 ? similarity / count : 0.5;
+}
+
+/**
+ * Count how many answers match between two players
+ */
+function compatibilityCountMatchingAnswers(answers1, answers2) {
+    var matches = 0;
+    var minLen = Math.min(answers1.length, answers2.length);
+    
+    for (var i = 0; i < minLen; i++) {
+        var a1 = answers1[i];
+        var a2 = answers2[i];
+        
+        if (a1 && a2 && a1.optionId === a2.optionId) {
+            matches++;
+        }
+    }
+    
+    return matches;
+}
+
+/**
+ * Compute compatibility score based on trait scores and answers
+ */
+function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers, partnerAnswers) {
+    var totalScore = 0;
+    var categoryCount = 0;
+    var breakdown = {};
+    
+    // 1. Communication Style
+    var commScore = compatibilityCalculateTraitSimilarity(
+        creatorTraits,
+        partnerTraits,
+        ['mbti:E', 'mbti:I', 'mbti:J', 'mbti:P']
+    );
+    breakdown.communicationStyle = Math.round(commScore * 100);
+    totalScore += commScore;
+    categoryCount++;
+    
+    // 2. Emotional Connection
+    var emotionalScore = compatibilityCalculateTraitSimilarity(
+        creatorTraits,
+        partnerTraits,
+        ['mbti:F', 'mbti:T', 'big_five:high_agreeableness', 'big_five:high_openness']
+    );
+    breakdown.emotionalConnection = Math.round(emotionalScore * 100);
+    totalScore += emotionalScore;
+    categoryCount++;
+    
+    // 3. Shared Values
+    var valuesScore = compatibilityCalculateTraitSimilarity(
+        creatorTraits,
+        partnerTraits,
+        ['mbti:N', 'mbti:S', 'big_five:high_conscientiousness']
+    );
+    breakdown.sharedValues = Math.round(valuesScore * 100);
+    totalScore += valuesScore;
+    categoryCount++;
+    
+    // 4. Direct answer matching bonus
+    var matchingAnswers = compatibilityCountMatchingAnswers(creatorAnswers, partnerAnswers);
+    var maxLen = Math.max(creatorAnswers.length, partnerAnswers.length, 1);
+    var matchRatio = matchingAnswers / maxLen;
+    breakdown.answerAlignment = Math.round(matchRatio * 100);
+    totalScore += matchRatio * 0.5;
+    categoryCount += 0.5;
+    
+    var finalScore = (totalScore / categoryCount) * 100;
+    
+    var message;
+    var emoji;
+    if (finalScore >= 90) {
+        message = "You're a perfect match! Your connection is extraordinary!";
+        emoji = "heart";
+    } else if (finalScore >= 75) {
+        message = "Highly compatible! You complement each other wonderfully!";
+        emoji = "hearts";
+    } else if (finalScore >= 60) {
+        message = "Good compatibility! You share many common values!";
+        emoji = "heart_pink";
+    } else if (finalScore >= 45) {
+        message = "Moderate compatibility! Opposites can attract!";
+        emoji = "heart_yellow";
+    } else {
+        message = "Different perspectives! Diversity makes life interesting!";
+        emoji = "star";
+    }
+    
+    return {
+        score: finalScore,
+        breakdown: breakdown,
+        message: message,
+        emoji: emoji,
+        matchingAnswers: matchingAnswers,
+        totalQuestions: maxLen
+    };
+}
+
+/**
+ * RPC: Create a new compatibility quiz session
+ * Payload: { quizId: string }
+ */
+function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
+    logger.debug('[CompatibilityQuiz] Creating session for user: ' + ctx.userId);
+    
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+    }
+    
+    try {
+        var quizId = request.quizId || 'compatibility_quiz_v1';
+        var sessionId = nk.uuidV4();
+        var shareCode = compatibilityGenerateShareCode(sessionId);
+        var now = Date.now();
+        var expiresAt = now + (48 * 60 * 60 * 1000);
+        
+        var users = nk.usersGetId([ctx.userId]);
+        var displayName = users.length > 0 ? (users[0].displayName || users[0].username) : 'Unknown';
+        
+        var session = {
+            sessionId: sessionId,
+            shareCode: shareCode,
+            quizId: quizId,
+            creatorId: ctx.userId,
+            creatorName: displayName,
+            partnerId: null,
+            partnerName: null,
+            status: 'waiting_for_partner',
+            createdAt: now,
+            expiresAt: expiresAt,
+            creatorCompleted: false,
+            partnerCompleted: false,
+            creatorAnswers: null,
+            partnerAnswers: null,
+            creatorTraitScores: null,
+            partnerTraitScores: null,
+            compatibilityResult: null
+        };
+        
+        nk.storageWrite([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: sessionId,
+            userId: ctx.userId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+        
+        nk.storageWrite([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: 'code_' + shareCode,
+            userId: ctx.userId,
+            value: { sessionId: sessionId, creatorId: ctx.userId },
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+        
+        logger.info('[CompatibilityQuiz] Session created: ' + sessionId + ' with code: ' + shareCode);
+        
+        return JSON.stringify({
+            success: true,
+            sessionId: sessionId,
+            shareCode: shareCode,
+            createdAt: now,
+            expiresAt: expiresAt,
+            status: 'waiting_for_partner'
+        });
+    } catch (err) {
+        logger.error('[CompatibilityQuiz] Create session error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: Join an existing compatibility quiz session
+ * Payload: { shareCode: string }
+ */
+function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
+    logger.debug('[CompatibilityQuiz] User ' + ctx.userId + ' attempting to join session');
+    
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+    }
+    
+    try {
+        var shareCode = (request.shareCode || '').toUpperCase().trim();
+        if (!shareCode || shareCode.length < 6) {
+            return JSON.stringify({ success: false, error: 'Invalid share code' });
+        }
+        
+        var codeResults = nk.storageRead([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: 'code_' + shareCode,
+            userId: null
+        }]);
+        
+        if (codeResults.length === 0) {
+            return JSON.stringify({ success: false, error: 'Session not found' });
+        }
+        
+        var codeRecord = codeResults[0].value;
+        var sessionId = codeRecord.sessionId;
+        var creatorId = codeRecord.creatorId;
+        
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: sessionId,
+            userId: creatorId
+        }]);
+        
+        if (sessionResults.length === 0) {
+            return JSON.stringify({ success: false, error: 'Session data not found' });
+        }
+        
+        var session = sessionResults[0].value;
+        
+        if (session.status === 'expired' || Date.now() > session.expiresAt) {
+            return JSON.stringify({ success: false, error: 'Session has expired' });
+        }
+        
+        if (session.partnerId !== null && session.partnerId !== ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Session already has a partner' });
+        }
+        
+        if (session.creatorId === ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Cannot join your own session' });
+        }
+        
+        var users = nk.usersGetId([ctx.userId]);
+        var displayName = users.length > 0 ? (users[0].displayName || users[0].username) : 'Unknown';
+        
+        session.partnerId = ctx.userId;
+        session.partnerName = displayName;
+        session.status = 'partner_joined';
+        
+        nk.storageWrite([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: sessionId,
+            userId: creatorId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+        
+        compatibilitySendNotification(nk, session.creatorId,
+            'Partner Joined!',
+            displayName + ' has joined your compatibility quiz!',
+            { type: 'partner_joined', sessionId: sessionId }
+        );
+        
+        logger.info('[CompatibilityQuiz] User ' + ctx.userId + ' joined session ' + sessionId);
+        
+        return JSON.stringify({
+            success: true,
+            session: {
+                sessionId: session.sessionId,
+                shareCode: session.shareCode,
+                quizId: session.quizId,
+                creatorName: session.creatorName,
+                status: session.status,
+                createdAt: session.createdAt,
+                expiresAt: session.expiresAt
+            }
+        });
+    } catch (err) {
+        logger.error('[CompatibilityQuiz] Join session error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: Get session details
+ * Payload: { sessionId: string } or { shareCode: string }
+ */
+function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+    }
+    
+    try {
+        var sessionId = request.sessionId;
+        var creatorId = null;
+        
+        if (!sessionId && request.shareCode) {
+            var shareCode = request.shareCode.toUpperCase().trim();
+            var codeResults = nk.storageRead([{
+                collection: COLLECTION_COMPATIBILITY_SESSIONS,
+                key: 'code_' + shareCode,
+                userId: null
+            }]);
+            
+            if (codeResults.length === 0) {
+                return JSON.stringify({ success: false, error: 'Session not found' });
+            }
+            
+            sessionId = codeResults[0].value.sessionId;
+            creatorId = codeResults[0].value.creatorId;
+        }
+        
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: sessionId,
+            userId: ctx.userId
+        }]);
+        
+        if (sessionResults.length === 0 && creatorId) {
+            sessionResults = nk.storageRead([{
+                collection: COLLECTION_COMPATIBILITY_SESSIONS,
+                key: sessionId,
+                userId: creatorId
+            }]);
+        }
+        
+        if (sessionResults.length === 0) {
+            return JSON.stringify({ success: false, error: 'Session not found' });
+        }
+        
+        var session = sessionResults[0].value;
+        
+        if (session.creatorId !== ctx.userId && session.partnerId !== ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Not authorized to view this session' });
+        }
+        
+        if (Date.now() > session.expiresAt && session.status !== 'completed') {
+            session.status = 'expired';
+        }
+        
+        return JSON.stringify({
+            success: true,
+            session: {
+                sessionId: session.sessionId,
+                shareCode: session.shareCode,
+                quizId: session.quizId,
+                creatorId: session.creatorId,
+                creatorName: session.creatorName,
+                partnerId: session.partnerId,
+                partnerName: session.partnerName,
+                status: session.status,
+                createdAt: session.createdAt,
+                expiresAt: session.expiresAt,
+                creatorCompleted: session.creatorCompleted,
+                partnerCompleted: session.partnerCompleted,
+                compatibilityResult: session.compatibilityResult
+            }
+        });
+    } catch (err) {
+        logger.error('[CompatibilityQuiz] Get session error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: Submit quiz answers
+ * Payload: { sessionId, answers[], traitScores{} }
+ */
+function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
+    logger.debug('[CompatibilityQuiz] User ' + ctx.userId + ' submitting answers');
+    
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+    }
+    
+    try {
+        var sessionId = request.sessionId;
+        var answers = request.answers || [];
+        var traitScores = request.traitScores || {};
+        
+        if (!sessionId) {
+            return JSON.stringify({ success: false, error: 'Session ID required' });
+        }
+        
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: sessionId,
+            userId: ctx.userId
+        }]);
+        
+        var isCreator = sessionResults.length > 0;
+        var creatorId = isCreator ? ctx.userId : null;
+        
+        if (!isCreator) {
+            var listResults = nk.storageList(null, COLLECTION_COMPATIBILITY_SESSIONS, 100, '');
+            var objects = listResults.objects || [];
+            
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.value.sessionId === sessionId && obj.value.partnerId === ctx.userId) {
+                    creatorId = obj.value.creatorId;
+                    break;
+                }
+            }
+            
+            if (creatorId) {
+                sessionResults = nk.storageRead([{
+                    collection: COLLECTION_COMPATIBILITY_SESSIONS,
+                    key: sessionId,
+                    userId: creatorId
+                }]);
+            }
+        }
+        
+        if (sessionResults.length === 0) {
+            return JSON.stringify({ success: false, error: 'Session not found' });
+        }
+        
+        var session = sessionResults[0].value;
+        
+        var isPartner = session.partnerId === ctx.userId;
+        isCreator = session.creatorId === ctx.userId;
+        
+        if (!isCreator && !isPartner) {
+            return JSON.stringify({ success: false, error: 'Not authorized for this session' });
+        }
+        
+        if (isCreator) {
+            session.creatorAnswers = answers;
+            session.creatorTraitScores = traitScores;
+            session.creatorCompleted = true;
+        } else {
+            session.partnerAnswers = answers;
+            session.partnerTraitScores = traitScores;
+            session.partnerCompleted = true;
+        }
+        
+        if (session.creatorCompleted && session.partnerCompleted) {
+            session.status = 'both_completed';
+        } else if (session.creatorCompleted) {
+            session.status = 'creator_completed';
+        } else if (session.partnerCompleted) {
+            session.status = 'partner_completed';
+        }
+        
+        nk.storageWrite([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: sessionId,
+            userId: session.creatorId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+        
+        if (isCreator && session.partnerId) {
+            compatibilitySendNotification(nk, session.partnerId,
+                'Your partner finished!',
+                session.creatorName + ' completed the quiz. Check your results!',
+                { type: 'creator_completed', sessionId: sessionId }
+            );
+        } else if (isPartner) {
+            compatibilitySendNotification(nk, session.creatorId,
+                'Results are ready!',
+                session.partnerName + ' completed the quiz! See your compatibility now!',
+                { type: 'partner_completed', sessionId: sessionId }
+            );
+        }
+        
+        logger.info('[CompatibilityQuiz] Answers submitted for session ' + sessionId);
+        
+        return JSON.stringify({
+            success: true,
+            status: session.status,
+            bothCompleted: session.creatorCompleted && session.partnerCompleted
+        });
+    } catch (err) {
+        logger.error('[CompatibilityQuiz] Submit answers error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: Calculate compatibility between two players
+ * Payload: { sessionId: string }
+ */
+function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
+    logger.debug('[CompatibilityQuiz] Calculating compatibility for user ' + ctx.userId);
+    
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+    }
+    
+    try {
+        var sessionId = request.sessionId;
+        if (!sessionId) {
+            return JSON.stringify({ success: false, error: 'Session ID required' });
+        }
+        
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: sessionId,
+            userId: ctx.userId
+        }]);
+        
+        var creatorId = ctx.userId;
+        
+        if (sessionResults.length === 0) {
+            var listResults = nk.storageList(null, COLLECTION_COMPATIBILITY_SESSIONS, 100, '');
+            var objects = listResults.objects || [];
+            
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.value.sessionId === sessionId) {
+                    creatorId = obj.value.creatorId;
+                    break;
+                }
+            }
+            
+            sessionResults = nk.storageRead([{
+                collection: COLLECTION_COMPATIBILITY_SESSIONS,
+                key: sessionId,
+                userId: creatorId
+            }]);
+        }
+        
+        if (sessionResults.length === 0) {
+            return JSON.stringify({ success: false, error: 'Session not found' });
+        }
+        
+        var session = sessionResults[0].value;
+        
+        if (!session.creatorCompleted || !session.partnerCompleted) {
+            return JSON.stringify({ success: false, error: 'Both players must complete the quiz first' });
+        }
+        
+        if (session.compatibilityResult) {
+            return JSON.stringify({
+                success: true,
+                score: session.compatibilityResult.score,
+                breakdown: session.compatibilityResult.breakdown,
+                message: session.compatibilityResult.message,
+                emoji: session.compatibilityResult.emoji,
+                matchingAnswers: session.compatibilityResult.matchingAnswers,
+                totalQuestions: session.compatibilityResult.totalQuestions
+            });
+        }
+        
+        var creatorTraits = session.creatorTraitScores || {};
+        var partnerTraits = session.partnerTraitScores || {};
+        var creatorAnswers = session.creatorAnswers || [];
+        var partnerAnswers = session.partnerAnswers || [];
+        
+        var result = compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers, partnerAnswers);
+        
+        session.compatibilityResult = result;
+        session.status = 'completed';
+        
+        nk.storageWrite([{
+            collection: COLLECTION_COMPATIBILITY_SESSIONS,
+            key: sessionId,
+            userId: creatorId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+        
+        var resultMessage = 'Your compatibility score: ' + result.score.toFixed(0) + '%!';
+        
+        compatibilitySendNotification(nk, session.creatorId,
+            'Compatibility Results!',
+            resultMessage,
+            { type: 'results_ready', sessionId: sessionId }
+        );
+        
+        if (session.partnerId) {
+            compatibilitySendNotification(nk, session.partnerId,
+                'Compatibility Results!',
+                resultMessage,
+                { type: 'results_ready', sessionId: sessionId }
+            );
+        }
+        
+        logger.info('[CompatibilityQuiz] Compatibility calculated: ' + result.score + '%');
+        
+        return JSON.stringify({
+            success: true,
+            score: result.score,
+            breakdown: result.breakdown,
+            message: result.message,
+            emoji: result.emoji,
+            matchingAnswers: result.matchingAnswers,
+            totalQuestions: result.totalQuestions
+        });
+    } catch (err) {
+        logger.error('[CompatibilityQuiz] Calculate error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: List user's compatibility sessions
+ * Payload: { limit?: number, includeExpired?: boolean }
+ */
+function rpcCompatibilityListSessions(ctx, logger, nk, payload) {
+    var request = {};
+    try {
+        if (payload) {
+            request = JSON.parse(payload);
+        }
+    } catch (e) {
+        // Use defaults
+    }
+    
+    try {
+        var limit = Math.min(request.limit || 20, 100);
+        var includeExpired = request.includeExpired || false;
+        
+        var creatorSessions = nk.storageList(ctx.userId, COLLECTION_COMPATIBILITY_SESSIONS, limit, '');
+        
+        var sessions = [];
+        var now = Date.now();
+        var objects = creatorSessions.objects || [];
+        
+        for (var i = 0; i < objects.length; i++) {
+            var obj = objects[i];
+            var session = obj.value;
+            
+            if (obj.key.indexOf('code_') === 0) continue;
+            
+            if (!includeExpired && (session.status === 'expired' || now > session.expiresAt)) {
+                continue;
+            }
+            
+            sessions.push({
+                sessionId: session.sessionId,
+                shareCode: session.shareCode,
+                role: 'creator',
+                partnerName: session.partnerName,
+                status: session.status,
+                createdAt: session.createdAt,
+                expiresAt: session.expiresAt,
+                hasResults: session.compatibilityResult !== null
+            });
+        }
+        
+        return JSON.stringify({
+            success: true,
+            sessions: sessions,
+            count: sessions.length
+        });
+    } catch (err) {
+        logger.error('[CompatibilityQuiz] List sessions error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message, sessions: [], count: 0 });
+    }
+}
+
 
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
@@ -17863,9 +18576,33 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[RewardedAds] Failed to initialize: ' + err.message);
     }
 
+    // ============================================================================
+    // COMPATIBILITY QUIZ SYSTEM - Valentine's Day Feature (QuizVerse)
+    // ============================================================================
+
+    // Register Compatibility Quiz RPCs
+    try {
+        logger.info('[CompatibilityQuiz] Initializing Compatibility Quiz Module...');
+        initializer.registerRpc('compatibility_create_session', rpcCompatibilityCreateSession);
+        logger.info('[CompatibilityQuiz] Registered RPC: compatibility_create_session');
+        initializer.registerRpc('compatibility_join_session', rpcCompatibilityJoinSession);
+        logger.info('[CompatibilityQuiz] Registered RPC: compatibility_join_session');
+        initializer.registerRpc('compatibility_get_session', rpcCompatibilityGetSession);
+        logger.info('[CompatibilityQuiz] Registered RPC: compatibility_get_session');
+        initializer.registerRpc('compatibility_submit_answers', rpcCompatibilitySubmitAnswers);
+        logger.info('[CompatibilityQuiz] Registered RPC: compatibility_submit_answers');
+        initializer.registerRpc('compatibility_calculate', rpcCompatibilityCalculate);
+        logger.info('[CompatibilityQuiz] Registered RPC: compatibility_calculate');
+        initializer.registerRpc('compatibility_list_sessions', rpcCompatibilityListSessions);
+        logger.info('[CompatibilityQuiz] Registered RPC: compatibility_list_sessions');
+        logger.info('[CompatibilityQuiz] Successfully registered 6 Compatibility Quiz RPCs');
+    } catch (err) {
+        logger.error('[CompatibilityQuiz] Failed to initialize: ' + err.message);
+    }
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 169');
+    logger.info('Total System RPCs: 175');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
@@ -17880,6 +18617,7 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('  - Monthly Milestones System: 4');
     logger.info('  - Collections System: 4');
     logger.info('  - Winback System: 4');
+    logger.info('  - Compatibility Quiz: 6');
     logger.info('  - Plus existing Copilot RPCs');
     logger.info('========================================');
     logger.info('✓ All server gaps have been filled!');
