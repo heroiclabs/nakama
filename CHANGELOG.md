@@ -5,6 +5,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Changed
+- Add support for optional panic recovery in game module handlers.
+
 ## [3.36.0] - 2026-01-13
 ### Changed
 - Improvements to Console user setup and management.
