@@ -17160,6 +17160,62 @@ function compatibilitySendNotification(nk, userId, subject, content, data) {
 }
 
 /**
+ * Convert internal session storage to Unity-compatible format
+ * Status mapping: 0=WaitingForPartner, 1=PartnerJoined, 2=BothCompleted, 3=Expired, 4=Cancelled
+ */
+function compatibilitySessionToUnityFormat(session) {
+    // Convert string status to numeric
+    var statusMap = {
+        'waiting_for_partner': 0,
+        'partner_joined': 1,
+        'creator_completed': 1,
+        'partner_completed': 1,
+        'both_completed': 2,
+        'completed': 2,
+        'expired': 3,
+        'cancelled': 4
+    };
+    var numericStatus = typeof session.status === 'number' ? session.status : (statusMap[session.status] || 0);
+    
+    // Check expiry
+    if (Date.now() > session.expiresAt && numericStatus < 2) {
+        numericStatus = 3; // Expired
+    }
+    
+    return {
+        sessionId: session.sessionId,
+        quizId: session.quizId || 'compatibility_quiz_v1',
+        quizTitle: session.quizTitle || 'Compatibility Quiz',
+        createdByUserId: session.creatorId,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+        playerA: {
+            odId: session.creatorId,
+            odplayerUserId: session.creatorId,
+            displayName: session.creatorName || 'Player A',
+            isComplete: session.creatorCompleted || false,
+            answeredQuestions: session.creatorAnswers || [],
+            traitScores: session.creatorTraitScores || {}
+        },
+        playerB: session.partnerId ? {
+            odId: session.partnerId,
+            playerUserId: session.partnerId,
+            displayName: session.partnerName || 'Player B',
+            isComplete: session.partnerCompleted || false,
+            answeredQuestions: session.partnerAnswers || [],
+            traitScores: session.partnerTraitScores || {}
+        } : null,
+        compatibilityScore: session.compatibilityResult ? session.compatibilityResult.score : 0,
+        compatibilityLevel: session.compatibilityResult ? session.compatibilityResult.emoji : null,
+        matchingTraits: [],
+        differentTraits: [],
+        compatibilityInsight: session.compatibilityResult ? session.compatibilityResult.message : null,
+        status: numericStatus,
+        shareCode: session.shareCode
+    };
+}
+
+/**
  * Calculate trait similarity between two trait score sets
  */
 function compatibilityCalculateTraitSimilarity(traits1, traits2, relevantTraits) {
@@ -17289,28 +17345,32 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
-        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
     
     try {
         var quizId = request.quizId || 'compatibility_quiz_v1';
+        var quizTitle = request.quizTitle || 'Compatibility Quiz';
+        var playerDisplayName = request.playerDisplayName || 'Unknown';
         var sessionId = nk.uuidV4();
         var shareCode = compatibilityGenerateShareCode(sessionId);
         var now = Date.now();
         var expiresAt = now + (48 * 60 * 60 * 1000);
         
         var users = nk.usersGetId([ctx.userId]);
-        var displayName = users.length > 0 ? (users[0].displayName || users[0].username) : 'Unknown';
+        var displayName = users.length > 0 ? (users[0].displayName || users[0].username) : playerDisplayName;
         
-        var session = {
+        // Internal storage format
+        var sessionStorage = {
             sessionId: sessionId,
             shareCode: shareCode,
             quizId: quizId,
+            quizTitle: quizTitle,
             creatorId: ctx.userId,
             creatorName: displayName,
             partnerId: null,
             partnerName: null,
-            status: 'waiting_for_partner',
+            status: 0, // WaitingForPartner
             createdAt: now,
             expiresAt: expiresAt,
             creatorCompleted: false,
@@ -17326,7 +17386,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
             userId: ctx.userId,
-            value: session,
+            value: sessionStorage,
             permissionRead: 2,
             permissionWrite: 1
         }]);
@@ -17342,17 +17402,37 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
         
         logger.info('[CompatibilityQuiz] Session created: ' + sessionId + ' with code: ' + shareCode);
         
+        // Response format matching Unity client expectations
         return JSON.stringify({
             success: true,
-            sessionId: sessionId,
-            shareCode: shareCode,
-            createdAt: now,
-            expiresAt: expiresAt,
-            status: 'waiting_for_partner'
+            message: 'Session created successfully',
+            data: {
+                sessionId: sessionId,
+                quizId: quizId,
+                quizTitle: quizTitle,
+                createdByUserId: ctx.userId,
+                createdAt: now,
+                expiresAt: expiresAt,
+                playerA: {
+                    odId: ctx.userId,
+                    displayName: displayName,
+                    isComplete: false,
+                    answeredQuestions: [],
+                    traitScores: {}
+                },
+                playerB: null,
+                compatibilityScore: 0,
+                compatibilityLevel: null,
+                matchingTraits: [],
+                differentTraits: [],
+                compatibilityInsight: null,
+                status: 0, // WaitingForPartner
+                shareCode: shareCode
+            }
         });
     } catch (err) {
         logger.error('[CompatibilityQuiz] Create session error: ' + err.message);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, message: err.message, data: null });
     }
 }
 
@@ -17367,13 +17447,13 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
-        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
     
     try {
-        var shareCode = (request.shareCode || '').toUpperCase().trim();
+        var shareCode = (request.shareCode || request.shareCodeOrSessionId || '').toUpperCase().trim();
         if (!shareCode || shareCode.length < 6) {
-            return JSON.stringify({ success: false, error: 'Invalid share code' });
+            return JSON.stringify({ success: false, message: 'Invalid share code', data: null });
         }
         
         var codeResults = nk.storageRead([{
@@ -17383,7 +17463,7 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
         }]);
         
         if (codeResults.length === 0) {
-            return JSON.stringify({ success: false, error: 'Session not found' });
+            return JSON.stringify({ success: false, message: 'Session not found', data: null });
         }
         
         var codeRecord = codeResults[0].value;
@@ -17397,29 +17477,29 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
         }]);
         
         if (sessionResults.length === 0) {
-            return JSON.stringify({ success: false, error: 'Session data not found' });
+            return JSON.stringify({ success: false, message: 'Session data not found', data: null });
         }
         
         var session = sessionResults[0].value;
         
-        if (session.status === 'expired' || Date.now() > session.expiresAt) {
-            return JSON.stringify({ success: false, error: 'Session has expired' });
+        if (session.status === 3 || session.status === 'expired' || Date.now() > session.expiresAt) {
+            return JSON.stringify({ success: false, message: 'Session has expired', data: null });
         }
         
         if (session.partnerId !== null && session.partnerId !== ctx.userId) {
-            return JSON.stringify({ success: false, error: 'Session already has a partner' });
+            return JSON.stringify({ success: false, message: 'Session already has a partner', data: null });
         }
         
         if (session.creatorId === ctx.userId) {
-            return JSON.stringify({ success: false, error: 'Cannot join your own session' });
+            return JSON.stringify({ success: false, message: 'Cannot join your own session', data: null });
         }
         
         var users = nk.usersGetId([ctx.userId]);
-        var displayName = users.length > 0 ? (users[0].displayName || users[0].username) : 'Unknown';
+        var displayName = users.length > 0 ? (users[0].displayName || users[0].username) : (request.playerDisplayName || 'Unknown');
         
         session.partnerId = ctx.userId;
         session.partnerName = displayName;
-        session.status = 'partner_joined';
+        session.status = 1; // PartnerJoined
         
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
@@ -17440,19 +17520,12 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
         
         return JSON.stringify({
             success: true,
-            session: {
-                sessionId: session.sessionId,
-                shareCode: session.shareCode,
-                quizId: session.quizId,
-                creatorName: session.creatorName,
-                status: session.status,
-                createdAt: session.createdAt,
-                expiresAt: session.expiresAt
-            }
+            message: 'Successfully joined session',
+            data: compatibilitySessionToUnityFormat(session)
         });
     } catch (err) {
         logger.error('[CompatibilityQuiz] Join session error: ' + err.message);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, message: err.message, data: null });
     }
 }
 
@@ -17465,7 +17538,7 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
-        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
     
     try {
@@ -17481,7 +17554,7 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
             }]);
             
             if (codeResults.length === 0) {
-                return JSON.stringify({ success: false, error: 'Session not found' });
+                return JSON.stringify({ success: false, message: 'Session not found', data: null });
             }
             
             sessionId = codeResults[0].value.sessionId;
@@ -17503,40 +17576,23 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
         }
         
         if (sessionResults.length === 0) {
-            return JSON.stringify({ success: false, error: 'Session not found' });
+            return JSON.stringify({ success: false, message: 'Session not found', data: null });
         }
         
         var session = sessionResults[0].value;
         
         if (session.creatorId !== ctx.userId && session.partnerId !== ctx.userId) {
-            return JSON.stringify({ success: false, error: 'Not authorized to view this session' });
-        }
-        
-        if (Date.now() > session.expiresAt && session.status !== 'completed') {
-            session.status = 'expired';
+            return JSON.stringify({ success: false, message: 'Not authorized to view this session', data: null });
         }
         
         return JSON.stringify({
             success: true,
-            session: {
-                sessionId: session.sessionId,
-                shareCode: session.shareCode,
-                quizId: session.quizId,
-                creatorId: session.creatorId,
-                creatorName: session.creatorName,
-                partnerId: session.partnerId,
-                partnerName: session.partnerName,
-                status: session.status,
-                createdAt: session.createdAt,
-                expiresAt: session.expiresAt,
-                creatorCompleted: session.creatorCompleted,
-                partnerCompleted: session.partnerCompleted,
-                compatibilityResult: session.compatibilityResult
-            }
+            message: 'Session retrieved',
+            data: compatibilitySessionToUnityFormat(session)
         });
     } catch (err) {
         logger.error('[CompatibilityQuiz] Get session error: ' + err.message);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, message: err.message, data: null });
     }
 }
 
@@ -17551,7 +17607,7 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
-        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
     
     try {
@@ -17560,7 +17616,7 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
         var traitScores = request.traitScores || {};
         
         if (!sessionId) {
-            return JSON.stringify({ success: false, error: 'Session ID required' });
+            return JSON.stringify({ success: false, message: 'Session ID required', data: null });
         }
         
         var sessionResults = nk.storageRead([{
@@ -17594,7 +17650,7 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
         }
         
         if (sessionResults.length === 0) {
-            return JSON.stringify({ success: false, error: 'Session not found' });
+            return JSON.stringify({ success: false, message: 'Session not found', data: null });
         }
         
         var session = sessionResults[0].value;
@@ -17603,7 +17659,7 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
         isCreator = session.creatorId === ctx.userId;
         
         if (!isCreator && !isPartner) {
-            return JSON.stringify({ success: false, error: 'Not authorized for this session' });
+            return JSON.stringify({ success: false, message: 'Not authorized for this session', data: null });
         }
         
         if (isCreator) {
@@ -17616,12 +17672,11 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
             session.partnerCompleted = true;
         }
         
+        // Update status using numeric values
         if (session.creatorCompleted && session.partnerCompleted) {
-            session.status = 'both_completed';
-        } else if (session.creatorCompleted) {
-            session.status = 'creator_completed';
-        } else if (session.partnerCompleted) {
-            session.status = 'partner_completed';
+            session.status = 2; // BothCompleted
+        } else if (session.creatorCompleted || session.partnerCompleted) {
+            session.status = 1; // PartnerJoined (or waiting for other)
         }
         
         nk.storageWrite([{
@@ -17651,12 +17706,12 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
         
         return JSON.stringify({
             success: true,
-            status: session.status,
-            bothCompleted: session.creatorCompleted && session.partnerCompleted
+            message: 'Answers submitted successfully',
+            data: compatibilitySessionToUnityFormat(session)
         });
     } catch (err) {
         logger.error('[CompatibilityQuiz] Submit answers error: ' + err.message);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, message: err.message, data: null });
     }
 }
 
@@ -17671,13 +17726,13 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
-        return JSON.stringify({ success: false, error: 'Invalid JSON payload' });
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
     
     try {
         var sessionId = request.sessionId;
         if (!sessionId) {
-            return JSON.stringify({ success: false, error: 'Session ID required' });
+            return JSON.stringify({ success: false, message: 'Session ID required', data: null });
         }
         
         var sessionResults = nk.storageRead([{
@@ -17708,24 +17763,22 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
         }
         
         if (sessionResults.length === 0) {
-            return JSON.stringify({ success: false, error: 'Session not found' });
+            return JSON.stringify({ success: false, message: 'Session not found', data: null });
         }
         
         var session = sessionResults[0].value;
         
         if (!session.creatorCompleted || !session.partnerCompleted) {
-            return JSON.stringify({ success: false, error: 'Both players must complete the quiz first' });
+            return JSON.stringify({ success: false, message: 'Both players must complete the quiz first', data: null });
         }
         
+        // If already calculated, return cached result
         if (session.compatibilityResult) {
+            session.status = 2; // BothCompleted
             return JSON.stringify({
                 success: true,
-                score: session.compatibilityResult.score,
-                breakdown: session.compatibilityResult.breakdown,
-                message: session.compatibilityResult.message,
-                emoji: session.compatibilityResult.emoji,
-                matchingAnswers: session.compatibilityResult.matchingAnswers,
-                totalQuestions: session.compatibilityResult.totalQuestions
+                message: 'Compatibility result retrieved',
+                data: compatibilitySessionToUnityFormat(session)
             });
         }
         
@@ -17737,7 +17790,7 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
         var result = compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers, partnerAnswers);
         
         session.compatibilityResult = result;
-        session.status = 'completed';
+        session.status = 2; // BothCompleted
         
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
@@ -17768,16 +17821,12 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
         
         return JSON.stringify({
             success: true,
-            score: result.score,
-            breakdown: result.breakdown,
-            message: result.message,
-            emoji: result.emoji,
-            matchingAnswers: result.matchingAnswers,
-            totalQuestions: result.totalQuestions
+            message: 'Compatibility calculated',
+            data: compatibilitySessionToUnityFormat(session)
         });
     } catch (err) {
         logger.error('[CompatibilityQuiz] Calculate error: ' + err.message);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, message: err.message, data: null });
     }
 }
 
@@ -17811,30 +17860,25 @@ function rpcCompatibilityListSessions(ctx, logger, nk, payload) {
             
             if (obj.key.indexOf('code_') === 0) continue;
             
-            if (!includeExpired && (session.status === 'expired' || now > session.expiresAt)) {
+            // Convert status to numeric
+            var numericStatus = typeof session.status === 'number' ? session.status : 0;
+            var isExpired = numericStatus === 3 || now > session.expiresAt;
+            
+            if (!includeExpired && isExpired) {
                 continue;
             }
             
-            sessions.push({
-                sessionId: session.sessionId,
-                shareCode: session.shareCode,
-                role: 'creator',
-                partnerName: session.partnerName,
-                status: session.status,
-                createdAt: session.createdAt,
-                expiresAt: session.expiresAt,
-                hasResults: session.compatibilityResult !== null
-            });
+            sessions.push(compatibilitySessionToUnityFormat(session));
         }
         
         return JSON.stringify({
             success: true,
-            sessions: sessions,
-            count: sessions.length
+            message: 'Sessions retrieved',
+            data: sessions
         });
     } catch (err) {
         logger.error('[CompatibilityQuiz] List sessions error: ' + err.message);
-        return JSON.stringify({ success: false, error: err.message, sessions: [], count: 0 });
+        return JSON.stringify({ success: false, message: err.message, data: [] });
     }
 }
 
