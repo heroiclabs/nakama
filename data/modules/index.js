@@ -17352,7 +17352,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
         var quizId = request.quizId || 'compatibility_quiz_v1';
         var quizTitle = request.quizTitle || 'Compatibility Quiz';
         var playerDisplayName = request.playerDisplayName || 'Unknown';
-        var sessionId = nk.uuidV4();
+        var sessionId = nk.uuidv4();
         var shareCode = compatibilityGenerateShareCode(sessionId);
         var now = Date.now();
         var expiresAt = now + (48 * 60 * 60 * 1000);
