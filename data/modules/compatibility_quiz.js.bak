@@ -45,7 +45,7 @@ function createSession(ctx, logger, nk, payload) {
     }
     
     const quizId = request.quizId || 'compatibility_quiz_v1';
-    const sessionId = nk.uuidV4();
+    const sessionId = nk.uuidv4();
     const shareCode = generateShareCode(sessionId);
     const now = Date.now();
     const expiresAt = now + (48 * 60 * 60 * 1000); // 48 hours
