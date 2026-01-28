@@ -17342,7 +17342,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
 
 /**
  * RPC: Create a new compatibility quiz session
- * Payload: { quizId: string }
+ * Payload: { quizId: string, userId?: string, playerDisplayName?: string }
  */
 function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
     logger.debug('[CompatibilityQuiz] Creating session for user: ' + ctx.userId);
@@ -17355,6 +17355,20 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
     }
     
     try {
+        // CRITICAL: Validate userId - use from context or fallback to payload
+        var userId = ctx.userId;
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            userId = request.userId;
+        }
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            return JSON.stringify({ 
+                success: false, 
+                message: 'User authentication required. Please ensure you are logged in.', 
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        
         var quizId = request.quizId || 'compatibility_quiz_v1';
         var quizTitle = request.quizTitle || 'Compatibility Quiz';
         var playerDisplayName = request.playerDisplayName || 'Unknown';
@@ -17363,8 +17377,16 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
         var now = Date.now();
         var expiresAt = now + (48 * 60 * 60 * 1000);
         
-        var users = nk.usersGetId([ctx.userId]);
-        var displayName = users.length > 0 ? (users[0].displayName || users[0].username) : playerDisplayName;
+        // Fetch user display name (with fallback)
+        var displayName = playerDisplayName;
+        try {
+            var users = nk.usersGetId([userId]);
+            if (users && users.length > 0) {
+                displayName = users[0].displayName || users[0].username || playerDisplayName;
+            }
+        } catch (userErr) {
+            logger.warn('[CompatibilityQuiz] Could not fetch user info: ' + userErr.message);
+        }
         
         // Internal storage format
         var sessionStorage = {
@@ -17372,7 +17394,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
             shareCode: shareCode,
             quizId: quizId,
             quizTitle: quizTitle,
-            creatorId: ctx.userId,
+            creatorId: userId,
             creatorName: displayName,
             partnerId: null,
             partnerName: null,
@@ -17391,7 +17413,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
-            userId: ctx.userId,
+            userId: userId,
             value: sessionStorage,
             permissionRead: 2,
             permissionWrite: 1
@@ -17400,8 +17422,8 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: 'code_' + shareCode,
-            userId: ctx.userId,
-            value: { sessionId: sessionId, creatorId: ctx.userId },
+            userId: userId,
+            value: { sessionId: sessionId, creatorId: userId },
             permissionRead: 2,
             permissionWrite: 1
         }]);
@@ -17444,7 +17466,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
 
 /**
  * RPC: Join an existing compatibility quiz session
- * Payload: { shareCode: string }
+ * Payload: { shareCode: string, userId?: string, playerDisplayName?: string }
  */
 function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
     logger.debug('[CompatibilityQuiz] User ' + ctx.userId + ' attempting to join session');
@@ -17457,6 +17479,20 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
     }
     
     try {
+        // CRITICAL: Validate userId - use from context or fallback to payload
+        var userId = ctx.userId;
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            userId = request.userId;
+        }
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            return JSON.stringify({ 
+                success: false, 
+                message: 'User authentication required. Please ensure you are logged in.', 
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        
         var shareCode = (request.shareCode || request.shareCodeOrSessionId || '').toUpperCase().trim();
         if (!shareCode || shareCode.length < 6) {
             return JSON.stringify({ success: false, message: 'Invalid share code', data: null });
@@ -17492,18 +17528,26 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, message: 'Session has expired', data: null });
         }
         
-        if (session.partnerId !== null && session.partnerId !== ctx.userId) {
+        if (session.partnerId !== null && session.partnerId !== userId) {
             return JSON.stringify({ success: false, message: 'Session already has a partner', data: null });
         }
         
-        if (session.creatorId === ctx.userId) {
+        if (session.creatorId === userId) {
             return JSON.stringify({ success: false, message: 'Cannot join your own session', data: null });
         }
         
-        var users = nk.usersGetId([ctx.userId]);
-        var displayName = users.length > 0 ? (users[0].displayName || users[0].username) : (request.playerDisplayName || 'Unknown');
+        // Fetch user display name (with fallback)
+        var displayName = request.playerDisplayName || 'Unknown';
+        try {
+            var users = nk.usersGetId([userId]);
+            if (users && users.length > 0) {
+                displayName = users[0].displayName || users[0].username || displayName;
+            }
+        } catch (userErr) {
+            logger.warn('[CompatibilityQuiz] Could not fetch user info: ' + userErr.message);
+        }
         
-        session.partnerId = ctx.userId;
+        session.partnerId = userId;
         session.partnerName = displayName;
         session.status = 1; // PartnerJoined
         
@@ -17522,7 +17566,7 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
             { type: 'partner_joined', sessionId: sessionId }
         );
         
-        logger.info('[CompatibilityQuiz] User ' + ctx.userId + ' joined session ' + sessionId);
+        logger.info('[CompatibilityQuiz] User ' + userId + ' joined session ' + sessionId);
         
         return JSON.stringify({
             success: true,
@@ -17537,7 +17581,7 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
 
 /**
  * RPC: Get session details
- * Payload: { sessionId: string } or { shareCode: string }
+ * Payload: { sessionId: string, userId?: string } or { shareCode: string, userId?: string }
  */
 function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
     var request;
@@ -17548,6 +17592,20 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
     }
     
     try {
+        // CRITICAL: Validate userId - use from context or fallback to payload
+        var userId = ctx.userId;
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            userId = request.userId;
+        }
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            return JSON.stringify({ 
+                success: false, 
+                message: 'User authentication required. Please ensure you are logged in.', 
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        
         var sessionId = request.sessionId;
         var creatorId = null;
         
@@ -17570,7 +17628,7 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
-            userId: ctx.userId
+            userId: userId
         }]);
         
         if (sessionResults.length === 0 && creatorId) {
@@ -17587,7 +17645,7 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
         
         var session = sessionResults[0].value;
         
-        if (session.creatorId !== ctx.userId && session.partnerId !== ctx.userId) {
+        if (session.creatorId !== userId && session.partnerId !== userId) {
             return JSON.stringify({ success: false, message: 'Not authorized to view this session', data: null });
         }
         
@@ -17617,6 +17675,20 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
     }
     
     try {
+        // CRITICAL: Validate userId - use from context or fallback to payload
+        var userId = ctx.userId;
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            userId = request.userId;
+        }
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            return JSON.stringify({ 
+                success: false, 
+                message: 'User authentication required. Please ensure you are logged in.', 
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        
         var sessionId = request.sessionId;
         var answers = request.answers || [];
         var traitScores = request.traitScores || {};
@@ -17628,11 +17700,11 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
-            userId: ctx.userId
+            userId: userId
         }]);
         
         var isCreator = sessionResults.length > 0;
-        var creatorId = isCreator ? ctx.userId : null;
+        var creatorId = isCreator ? userId : null;
         
         if (!isCreator) {
             var listResults = nk.storageList(null, COLLECTION_COMPATIBILITY_SESSIONS, 100, '');
@@ -17640,7 +17712,7 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
             
             for (var i = 0; i < objects.length; i++) {
                 var obj = objects[i];
-                if (obj.value.sessionId === sessionId && obj.value.partnerId === ctx.userId) {
+                if (obj.value.sessionId === sessionId && obj.value.partnerId === userId) {
                     creatorId = obj.value.creatorId;
                     break;
                 }
@@ -17661,8 +17733,8 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
         
         var session = sessionResults[0].value;
         
-        var isPartner = session.partnerId === ctx.userId;
-        isCreator = session.creatorId === ctx.userId;
+        var isPartner = session.partnerId === userId;
+        isCreator = session.creatorId === userId;
         
         if (!isCreator && !isPartner) {
             return JSON.stringify({ success: false, message: 'Not authorized for this session', data: null });
@@ -17745,6 +17817,20 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
     }
     
     try {
+        // CRITICAL: Validate userId - use from context or fallback to payload
+        var userId = ctx.userId;
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            userId = request.userId;
+        }
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            return JSON.stringify({ 
+                success: false, 
+                message: 'User authentication required. Please ensure you are logged in.', 
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        
         var sessionId = request.sessionId;
         if (!sessionId) {
             return JSON.stringify({ success: false, message: 'Session ID required', data: null });
@@ -17753,10 +17839,10 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
-            userId: ctx.userId
+            userId: userId
         }]);
         
-        var creatorId = ctx.userId;
+        var creatorId = userId;
         
         if (sessionResults.length === 0) {
             var listResults = nk.storageList(null, COLLECTION_COMPATIBILITY_SESSIONS, 100, '');
@@ -17847,7 +17933,7 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
 
 /**
  * RPC: List user's compatibility sessions
- * Payload: { limit?: number, includeExpired?: boolean }
+ * Payload: { limit?: number, includeExpired?: boolean, userId?: string }
  */
 function rpcCompatibilityListSessions(ctx, logger, nk, payload) {
     var request = {};
@@ -17860,10 +17946,24 @@ function rpcCompatibilityListSessions(ctx, logger, nk, payload) {
     }
     
     try {
+        // CRITICAL: Validate userId - use from context or fallback to payload
+        var userId = ctx.userId;
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            userId = request.userId;
+        }
+        if (!userId || typeof userId !== 'string' || userId.length < 10) {
+            return JSON.stringify({ 
+                success: false, 
+                message: 'User authentication required. Please ensure you are logged in.', 
+                data: [],
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        
         var limit = Math.min(request.limit || 20, 100);
         var includeExpired = request.includeExpired || false;
         
-        var creatorSessions = nk.storageList(ctx.userId, COLLECTION_COMPATIBILITY_SESSIONS, limit, '');
+        var creatorSessions = nk.storageList(userId, COLLECTION_COMPATIBILITY_SESSIONS, limit, '');
         
         var sessions = [];
         var now = Date.now();
