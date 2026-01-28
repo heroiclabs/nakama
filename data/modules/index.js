@@ -17183,41 +17183,41 @@ function compatibilitySessionToUnityFormat(session) {
     }
     
     return {
-        sessionId: session.sessionId,
+        sessionId: session.sessionId || '',
         quizId: session.quizId || 'compatibility_quiz_v1',
         quizTitle: session.quizTitle || 'Compatibility Quiz',
-        createdByUserId: session.creatorId,
+        createdByUserId: session.creatorId || '',
         createdAt: session.createdAt,
         expiresAt: session.expiresAt,
         playerA: {
-            userId: session.creatorId,
+            userId: session.creatorId || '',
             displayName: session.creatorName || 'Player A',
             isComplete: session.creatorCompleted || false,
             answers: session.creatorAnswers || [],
             traitScores: session.creatorTraitScores || {},
-            resultId: session.creatorResultId || null,
-            personalityTitle: session.creatorPersonalityTitle || null,
-            personalityEmoji: session.creatorPersonalityEmoji || null,
+            resultId: session.creatorResultId || '',
+            personalityTitle: session.creatorPersonalityTitle || '',
+            personalityEmoji: session.creatorPersonalityEmoji || '',
             completedAt: session.creatorCompletedAt || 0
         },
         playerB: session.partnerId ? {
-            userId: session.partnerId,
+            userId: session.partnerId || '',
             displayName: session.partnerName || 'Player B',
             isComplete: session.partnerCompleted || false,
             answers: session.partnerAnswers || [],
             traitScores: session.partnerTraitScores || {},
-            resultId: session.partnerResultId || null,
-            personalityTitle: session.partnerPersonalityTitle || null,
-            personalityEmoji: session.partnerPersonalityEmoji || null,
+            resultId: session.partnerResultId || '',
+            personalityTitle: session.partnerPersonalityTitle || '',
+            personalityEmoji: session.partnerPersonalityEmoji || '',
             completedAt: session.partnerCompletedAt || 0
         } : null,
         compatibilityScore: session.compatibilityResult ? session.compatibilityResult.score : 0,
-        compatibilityLevel: session.compatibilityResult ? session.compatibilityResult.level : null,
+        compatibilityLevel: session.compatibilityResult ? (session.compatibilityResult.level || '') : '',
         matchingTraits: session.compatibilityResult ? (session.compatibilityResult.matchingTraits || []) : [],
         differentTraits: session.compatibilityResult ? (session.compatibilityResult.differentTraits || []) : [],
-        compatibilityInsight: session.compatibilityResult ? session.compatibilityResult.message : null,
+        compatibilityInsight: session.compatibilityResult ? (session.compatibilityResult.message || '') : '',
         status: numericStatus,
-        shareCode: session.shareCode
+        shareCode: session.shareCode || ''
     };
 }
 
