@@ -17190,25 +17190,31 @@ function compatibilitySessionToUnityFormat(session) {
         createdAt: session.createdAt,
         expiresAt: session.expiresAt,
         playerA: {
-            odId: session.creatorId,
-            odplayerUserId: session.creatorId,
+            userId: session.creatorId,
             displayName: session.creatorName || 'Player A',
             isComplete: session.creatorCompleted || false,
-            answeredQuestions: session.creatorAnswers || [],
-            traitScores: session.creatorTraitScores || {}
+            answers: session.creatorAnswers || [],
+            traitScores: session.creatorTraitScores || {},
+            resultId: session.creatorResultId || null,
+            personalityTitle: session.creatorPersonalityTitle || null,
+            personalityEmoji: session.creatorPersonalityEmoji || null,
+            completedAt: session.creatorCompletedAt || 0
         },
         playerB: session.partnerId ? {
-            odId: session.partnerId,
-            playerUserId: session.partnerId,
+            userId: session.partnerId,
             displayName: session.partnerName || 'Player B',
             isComplete: session.partnerCompleted || false,
-            answeredQuestions: session.partnerAnswers || [],
-            traitScores: session.partnerTraitScores || {}
+            answers: session.partnerAnswers || [],
+            traitScores: session.partnerTraitScores || {},
+            resultId: session.partnerResultId || null,
+            personalityTitle: session.partnerPersonalityTitle || null,
+            personalityEmoji: session.partnerPersonalityEmoji || null,
+            completedAt: session.partnerCompletedAt || 0
         } : null,
         compatibilityScore: session.compatibilityResult ? session.compatibilityResult.score : 0,
-        compatibilityLevel: session.compatibilityResult ? session.compatibilityResult.emoji : null,
-        matchingTraits: [],
-        differentTraits: [],
+        compatibilityLevel: session.compatibilityResult ? session.compatibilityResult.level : null,
+        matchingTraits: session.compatibilityResult ? (session.compatibilityResult.matchingTraits || []) : [],
+        differentTraits: session.compatibilityResult ? (session.compatibilityResult.differentTraits || []) : [],
         compatibilityInsight: session.compatibilityResult ? session.compatibilityResult.message : null,
         status: numericStatus,
         shareCode: session.shareCode
@@ -17414,7 +17420,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
                 createdAt: now,
                 expiresAt: expiresAt,
                 playerA: {
-                    odId: ctx.userId,
+                    userId: ctx.userId,
                     displayName: displayName,
                     isComplete: false,
                     answeredQuestions: [],
@@ -17662,14 +17668,23 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, message: 'Not authorized for this session', data: null });
         }
         
+        var now = Date.now();
         if (isCreator) {
             session.creatorAnswers = answers;
             session.creatorTraitScores = traitScores;
             session.creatorCompleted = true;
+            session.creatorCompletedAt = now;
+            session.creatorResultId = request.resultId || null;
+            session.creatorPersonalityTitle = request.personalityTitle || null;
+            session.creatorPersonalityEmoji = request.personalityEmoji || null;
         } else {
             session.partnerAnswers = answers;
             session.partnerTraitScores = traitScores;
             session.partnerCompleted = true;
+            session.partnerCompletedAt = now;
+            session.partnerResultId = request.resultId || null;
+            session.partnerPersonalityTitle = request.personalityTitle || null;
+            session.partnerPersonalityEmoji = request.personalityEmoji || null;
         }
         
         // Update status using numeric values
