@@ -37,8 +37,8 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
             userId: actualUserId
         }]);
         
-        if (records && records.length > 0 && records[0]. value) {
-            wallet = records[0]. value;
+        if (records && records.length > 0 && records[0].value) {
+            wallet = records[0].value;
             logger.info("[Wallet-Compat] Found wallet in new system");
             
             // Convert new format to old format for backward compatibility
@@ -48,11 +48,11 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
                 game_id: gameId,
                 user_id: actualUserId,
                 balance: (wallet.currencies && wallet.currencies.game) || 
-                         (wallet. currencies && wallet.currencies.tokens) || 0,
+                         (wallet.currencies && wallet.currencies.tokens) || 0,
                 currency: "coins",
                 currencies: wallet.currencies || { game: 0, tokens: 0 },
-                created_at: wallet. createdAt || new Date().toISOString(),
-                updated_at: wallet.updatedAt || new Date(). toISOString()
+                created_at: wallet.createdAt || new Date().toISOString(),
+                updated_at: wallet.updatedAt || new Date().toISOString()
             };
         }
     } catch (err) {
@@ -65,7 +65,7 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
     
     for (var i = 0; i < legacyCollections.length; i++) {
         try {
-            var legacyRecords = nk. storageRead([{
+            var legacyRecords = nk.storageRead([{
                 collection: legacyCollections[i],
                 key: legacyKey,
                 userId: "00000000-0000-0000-0000-000000000000"
@@ -73,19 +73,19 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
             
             if (legacyRecords && legacyRecords.length > 0 && legacyRecords[0].value) {
                 var legacyWallet = legacyRecords[0].value;
-                logger.info("[Wallet-Compat] Found legacy wallet in " + legacyCollections[i] + ", migrating.. .");
+                logger.info("[Wallet-Compat] Found legacy wallet in " + legacyCollections[i] + ", migrating...");
                 
                 // Migrate to new system
                 var newWallet = {
                     userId: actualUserId,
                     gameId: gameId,
                     currencies: {
-                        game: legacyWallet. balance || 0,
+                        game: legacyWallet.balance || 0,
                         tokens: legacyWallet.balance || 0,
                         xp: 0
                     },
                     items: {},
-                    createdAt: legacyWallet. created_at || new Date().toISOString(),
+                    createdAt: legacyWallet.created_at || new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
                 
@@ -107,11 +107,11 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
                     device_id: deviceId,
                     game_id: gameId,
                     user_id: actualUserId,
-                    balance: newWallet.currencies. game,
+                    balance: newWallet.currencies.game,
                     currency: "coins",
                     currencies: newWallet.currencies,
-                    created_at: newWallet. createdAt,
-                    updated_at: newWallet. updatedAt
+                    created_at: newWallet.createdAt,
+                    updated_at: newWallet.updatedAt
                 };
             }
         } catch (err) {
@@ -150,7 +150,7 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId, userId) {
         
         logger.info("[Wallet-Compat] Created new wallet for user: " + actualUserId);
     } catch (err) {
-        logger. error("[Wallet-Compat] Failed to create wallet: " + err. message);
+        logger.error("[Wallet-Compat] Failed to create wallet: " + err.message);
         throw err;
     }
     
@@ -187,23 +187,23 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId, userId) {
         
         if (records && records.length > 0 && records[0].value) {
             var wallet = records[0].value;
-            logger. info("[Wallet-Compat] Found global wallet in new system");
+            logger.info("[Wallet-Compat] Found global wallet in new system");
             
             return {
-                wallet_id: globalWalletId || wallet. userId,
+                wallet_id: globalWalletId || wallet.userId,
                 device_id: deviceId,
                 game_id: "global",
                 user_id: actualUserId,
                 balance: (wallet.currencies && wallet.currencies.global) ||
-                         (wallet.currencies && wallet. currencies.xut) || 0,
+                         (wallet.currencies && wallet.currencies.xut) || 0,
                 currency: "global_coins",
                 currencies: wallet.currencies || { global: 0, xut: 0 },
-                created_at: wallet. createdAt || new Date().toISOString(),
-                updated_at: wallet. updatedAt || new Date().toISOString()
+                created_at: wallet.createdAt || new Date().toISOString(),
+                updated_at: wallet.updatedAt || new Date().toISOString()
             };
         }
     } catch (err) {
-        logger. warn("[Wallet-Compat] Error reading global wallet: " + err.message);
+        logger.warn("[Wallet-Compat] Error reading global wallet: " + err.message);
     }
     
     // Create new global wallet
@@ -246,7 +246,7 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId, userId) {
         user_id: actualUserId,
         balance: 0,
         currency: "global_coins",
-        currencies: newWallet. currencies,
+        currencies: newWallet.currencies,
         created_at: newWallet.createdAt,
         updated_at: newWallet.updatedAt
     };
@@ -266,7 +266,7 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, amountToAdd, user
     // Read current wallet
     var wallet = null;
     try {
-        var records = nk. storageRead([{
+        var records = nk.storageRead([{
             collection: collection,
             key: key,
             userId: actualUserId
@@ -276,7 +276,7 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, amountToAdd, user
             wallet = records[0].value;
         }
     } catch (err) {
-        logger.warn("[Wallet-Compat] Error reading wallet: " + err. message);
+        logger.warn("[Wallet-Compat] Error reading wallet: " + err.message);
     }
     
     if (!wallet) {
@@ -292,7 +292,7 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, amountToAdd, user
     }
     
     // Ensure currencies object exists
-    if (! wallet.currencies) {
+    if (!wallet.currencies) {
         wallet.currencies = { game: 0, tokens: 0, xp: 0 };
     }
     
@@ -330,6 +330,6 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, amountToAdd, user
         balance: newBalance,
         currency: "coins",
         currencies: wallet.currencies,
-        updated_at: wallet. updatedAt
+        updated_at: wallet.updatedAt
     };
 }
