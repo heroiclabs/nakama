@@ -9,7 +9,9 @@ import (
 var random *rand.Rand
 
 func OpenMath(L *LState) int {
-	random = rand.New(rand.NewSource(time.Now().UTC().UnixMilli()))
+	if random == nil {
+		random = rand.New(rand.NewSource(time.Now().UTC().UnixMilli()))
+	}
 
 	mod := L.RegisterModule(MathLibName, mathFuncs).(*LTable)
 	mod.RawSetString("pi", LNumber(math.Pi))
