@@ -1404,7 +1404,7 @@
         "parameters": [
           {
             "name": "limit",
-            "description": "Max number of records to return. Between 1 and 100.",
+            "description": "Max number of records to return. Between 1 and 1000.",
             "in": "query",
             "required": false,
             "type": "integer",
