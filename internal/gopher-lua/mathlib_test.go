@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"testing"
 )
 
@@ -113,10 +114,43 @@ func TestMathRandomSeeded(t *testing.T) {
 	}
 
 	//
-	// Assert: output should be the same
+	// Assert: output should be the same.
 	if out1 != out2 {
 		t.Fatalf("Output is not the same")
 	}
+}
+
+func TestMathRandomConcurrencyRace(t *testing.T) {
+	//
+	// Arrange: new state and wait group of 100 goroutines.
+	L := NewState()
+	defer L.Close()
+
+	numGoroutines := 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	// Push argument for seed.
+	L.Push(LNumber(100))
+
+	//
+	// Act: fire goroutines and test random funcs.
+	// can't really test mathRandom here, because it relies on
+	// lua state which is not thread-safe.
+	for range numGoroutines {
+		go func() {
+			defer wg.Done()
+
+			mathRandomseed(L)
+			random.Float64()
+			random.Intn(10)
+		}()
+	}
+
+	// Wait for all to complete.
+	wg.Wait()
+
+	// Assert: shouldn't crash
 }
 
 func captureOutput(f func() error) (string, error) {

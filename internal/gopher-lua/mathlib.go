@@ -3,16 +3,40 @@ package lua
 import (
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 )
 
-var random *rand.Rand
+type LuaRand struct {
+	lock sync.Mutex
+	rand *rand.Rand
+}
+
+func (r *LuaRand) Float64() (out float64) {
+	r.lock.Lock()
+	out = r.rand.Float64()
+	r.lock.Unlock()
+	return
+}
+
+func (r *LuaRand) Intn(n int) (out int) {
+	r.lock.Lock()
+	out = r.rand.Intn(n)
+	r.lock.Unlock()
+	return
+}
+
+var random *LuaRand
+
+func init() {
+	random = &LuaRand{
+		rand: rand.New(rand.NewSource(
+			time.Now().UTC().UnixMilli(),
+		)),
+	}
+}
 
 func OpenMath(L *LState) int {
-	if random == nil {
-		random = rand.New(rand.NewSource(time.Now().UTC().UnixMilli()))
-	}
-
 	mod := L.RegisterModule(MathLibName, mathFuncs).(*LTable)
 	mod.RawSetString("pi", LNumber(math.Pi))
 	mod.RawSetString("huge", LNumber(math.MaxFloat64))
@@ -207,7 +231,9 @@ func mathRandom(L *LState) int {
 }
 
 func mathRandomseed(L *LState) int {
-	random = rand.New(rand.NewSource(L.CheckInt64(1)))
+	random.lock.Lock()
+	random.rand = rand.New(rand.NewSource(L.CheckInt64(1)))
+	random.lock.Unlock()
 	return 0
 }
 
@@ -235,5 +261,3 @@ func mathTanh(L *LState) int {
 	L.Push(LNumber(math.Tanh(float64(L.CheckNumber(1)))))
 	return 1
 }
-
-//
