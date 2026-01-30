@@ -3,9 +3,14 @@ package lua
 import (
 	"math"
 	"math/rand"
+	"time"
 )
 
+var random *rand.Rand
+
 func OpenMath(L *LState) int {
+	random = rand.New(rand.NewSource(time.Now().UTC().UnixMilli()))
+
 	mod := L.RegisterModule(MathLibName, mathFuncs).(*LTable)
 	mod.RawSetString("pi", LNumber(math.Pi))
 	mod.RawSetString("huge", LNumber(math.MaxFloat64))
@@ -186,20 +191,21 @@ func mathRad(L *LState) int {
 func mathRandom(L *LState) int {
 	switch L.GetTop() {
 	case 0:
-		L.Push(LNumber(rand.Float64()))
+		L.Push(LNumber(random.Float64()))
 	case 1:
 		n := L.CheckInt(1)
-		L.Push(LNumber(rand.Intn(n) + 1))
+		L.Push(LNumber(random.Intn(n) + 1))
 	default:
 		min := L.CheckInt(1)
 		max := L.CheckInt(2) + 1
-		L.Push(LNumber(rand.Intn(max-min) + min))
+		L.Push(LNumber(random.Intn(max-min) + min))
 	}
+
 	return 1
 }
 
 func mathRandomseed(L *LState) int {
-	rand.Seed(L.CheckInt64(1))
+	random = rand.New(rand.NewSource(L.CheckInt64(1)))
 	return 0
 }
 
