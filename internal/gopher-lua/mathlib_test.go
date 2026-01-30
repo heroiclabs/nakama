@@ -121,11 +121,17 @@ func TestMathRandomSeeded(t *testing.T) {
 
 func captureOutput(f func() error) (string, error) {
 	orig := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		return "", pipeErr
+	}
 	os.Stdout = w
 	err := f()
 	os.Stdout = orig
 	w.Close()
-	out, _ := io.ReadAll(r)
+	out, readErr := io.ReadAll(r)
+	if readErr != nil {
+		return "", readErr
+	}
 	return string(out), err
 }
