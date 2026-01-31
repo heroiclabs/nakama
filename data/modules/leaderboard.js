@@ -30,62 +30,6 @@ function getUserFriends(nk, logger, userId) {
 }
 
 /**
- * Get all existing leaderboards from registry
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @returns {array} Array of leaderboard IDs
- */
-function getAllLeaderboardIds(nk, logger) {
-    var leaderboardIds = [];
-    
-    // Read from leaderboards_registry
-    try {
-        var records = nk.storageRead([{
-            collection: "leaderboards_registry",
-            key: "all_created",
-            userId: "00000000-0000-0000-0000-000000000000"
-        }]);
-        
-        if (records && records.length > 0 && records[0].value) {
-            var registry = records[0].value;
-            for (var i = 0; i < registry.length; i++) {
-                if (registry[i].leaderboardId) {
-                    leaderboardIds.push(registry[i].leaderboardId);
-                }
-            }
-        }
-    } catch (err) {
-        logger.warn("[NAKAMA] Failed to read leaderboards registry: " + err.message);
-    }
-    
-    // Also read from time_period_leaderboards registry
-    try {
-        var timePeriodRecords = nk.storageRead([{
-            collection: "leaderboards_registry",
-            key: "time_period_leaderboards",
-            userId: "00000000-0000-0000-0000-000000000000"
-        }]);
-        
-        if (timePeriodRecords && timePeriodRecords.length > 0 && timePeriodRecords[0].value) {
-            var timePeriodRegistry = timePeriodRecords[0].value;
-            if (timePeriodRegistry.leaderboards) {
-                for (var i = 0; i < timePeriodRegistry.leaderboards.length; i++) {
-                    var lb = timePeriodRegistry.leaderboards[i];
-                    if (lb.leaderboardId && leaderboardIds.indexOf(lb.leaderboardId) === -1) {
-                        leaderboardIds.push(lb.leaderboardId);
-                    }
-                }
-            }
-        }
-    } catch (err) {
-        logger.warn("[NAKAMA] Failed to read time period leaderboards registry: " + err.message);
-    }
-    
-    logger.info("[NAKAMA] Found " + leaderboardIds.length + " existing leaderboards in registry");
-    return leaderboardIds;
-}
-
-/**
  * Leaderboard configuration constants
  */
 var LEADERBOARD_CONFIG = {

@@ -915,17 +915,5 @@ function scheduledSyncGameRegistry(ctx, logger, nk) {
     }
 }
 
-// Export functions (ES Module syntax)
-export {
-    createGameLeaderboards,
-    createGlobalLeaderboards,
-    rpcCreateTimePeriodLeaderboards,
-    rpcSubmitScoreToTimePeriods,
-    rpcGetTimePeriodLeaderboard,
-    rpcGetGameRegistry,
-    rpcGetGameById,
-    rpcSyncGameRegistry,
-    scheduledSyncGameRegistry,
-    RESET_SCHEDULES,
-    LEADERBOARD_CONFIG
-};
+// Note: Functions are available globally when loaded by Nakama runtime
+// No ES module exports - Nakama V8 runtime uses global function registration

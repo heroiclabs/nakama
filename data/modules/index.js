@@ -17419,13 +17419,14 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
             permissionWrite: 1
         }]);
         
+        // Store code mapping with system user ID for public lookup
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: 'code_' + shareCode,
-            userId: userId,
+            userId: '00000000-0000-0000-0000-000000000000',
             value: { sessionId: sessionId, creatorId: userId },
             permissionRead: 2,
-            permissionWrite: 1
+            permissionWrite: 0
         }]);
         
         logger.info('[CompatibilityQuiz] Session created: ' + sessionId + ' with code: ' + shareCode);
@@ -17498,10 +17499,13 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, message: 'Invalid share code', data: null });
         }
         
+        // Note: We must read using the creator's ID, but we don't know it yet.
+        // First, try to find the code record by listing storage with the code key pattern.
+        // For now, we'll use a different approach - store the code mapping with system user.
         var codeResults = nk.storageRead([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: 'code_' + shareCode,
-            userId: null
+            userId: '00000000-0000-0000-0000-000000000000'
         }]);
         
         if (codeResults.length === 0) {
@@ -17614,7 +17618,7 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
             var codeResults = nk.storageRead([{
                 collection: COLLECTION_COMPATIBILITY_SESSIONS,
                 key: 'code_' + shareCode,
-                userId: null
+                userId: '00000000-0000-0000-0000-000000000000'
             }]);
             
             if (codeResults.length === 0) {
