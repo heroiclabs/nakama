@@ -8,32 +8,28 @@ import (
 )
 
 type LuaRand struct {
-	lock sync.Mutex
+	sync.Mutex
 	rand *rand.Rand
 }
 
 func (r *LuaRand) Float64() (out float64) {
-	r.lock.Lock()
+	r.Lock()
 	out = r.rand.Float64()
-	r.lock.Unlock()
+	r.Unlock()
 	return
 }
 
 func (r *LuaRand) Intn(n int) (out int) {
-	r.lock.Lock()
+	r.Lock()
 	out = r.rand.Intn(n)
-	r.lock.Unlock()
+	r.Unlock()
 	return
 }
 
-var random *LuaRand
-
-func init() {
-	random = &LuaRand{
-		rand: rand.New(rand.NewSource(
-			time.Now().UTC().UnixMilli(),
-		)),
-	}
+var random *LuaRand = &LuaRand{
+	rand: rand.New(rand.NewSource(
+		time.Now().UTC().UnixMilli(),
+	)),
 }
 
 func OpenMath(L *LState) int {
@@ -231,9 +227,9 @@ func mathRandom(L *LState) int {
 }
 
 func mathRandomseed(L *LState) int {
-	random.lock.Lock()
+	random.Lock()
 	random.rand = rand.New(rand.NewSource(L.CheckInt64(1)))
-	random.lock.Unlock()
+	random.Unlock()
 	return 0
 }
 
