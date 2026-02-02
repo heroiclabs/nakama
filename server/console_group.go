@@ -345,7 +345,7 @@ RETURNING state`
 			}
 
 			var newState sql.NullInt64
-			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupUserList_GroupUser_MEMBER).Scan(&newState); err != nil {
+			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupRoleStatus_MEMBER).Scan(&newState); err != nil {
 				if err == sql.ErrNoRows {
 					return ErrEmptyMemberDemote
 				}

@@ -495,13 +495,13 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 			}
 
 			// Only count proper members, not banned edges or join requests.
-			switch api.GroupUserList_GroupUser_State(state.Int64) {
-			case api.GroupUserList_GroupUser_SUPERADMIN:
+			switch api.GroupRoleStatus(state.Int64) {
+			case api.GroupRoleStatus_SUPERADMIN:
 				otherSuperadminCount += count.Int64
 				fallthrough
-			case api.GroupUserList_GroupUser_ADMIN:
+			case api.GroupRoleStatus_ADMIN:
 				fallthrough
-			case api.GroupUserList_GroupUser_MEMBER:
+			case api.GroupRoleStatus_MEMBER:
 				otherMemberCount += count.Int64
 			}
 		}
@@ -1184,7 +1184,7 @@ OR
 RETURNING state`
 
 			var newState sql.NullInt64
-			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupUserList_GroupUser_MEMBER).Scan(&newState); err != nil {
+			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupRoleStatus_MEMBER).Scan(&newState); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					continue
 				}
@@ -1331,7 +1331,7 @@ RETURNING state`
 			}
 
 			var newState sql.NullInt64
-			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupUserList_GroupUser_MEMBER).Scan(&newState); err != nil {
+			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupRoleStatus_MEMBER).Scan(&newState); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					continue
 				}

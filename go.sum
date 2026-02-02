@@ -108,6 +108,10 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.4/go.mod h1:6Nz966r3vQYCqIzWsuEl
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/heroiclabs/nakama-common v1.44.1 h1:+2kc87K57lMltVNyxG4JzQdlq0XHe3NVby2ww5E09vg=
 github.com/heroiclabs/nakama-common v1.44.1/go.mod h1:/KLxEy4+JdasHJLPt+tAXJJ8eXywWr/J+Q+KY+/vg7E=
+github.com/heroiclabs/nakama-common v1.44.2-0.20260202081213-ff8cd5b0ec06 h1:qyytZl6obZC7VVMuAYTI7xB+GqWq/2QuVv3GpfD+Rk4=
+github.com/heroiclabs/nakama-common v1.44.2-0.20260202081213-ff8cd5b0ec06/go.mod h1:/KLxEy4+JdasHJLPt+tAXJJ8eXywWr/J+Q+KY+/vg7E=
+github.com/heroiclabs/nakama-common v1.44.2-0.20260202090149-1af4154f9e6a h1:Brl9cKYAkiEwRRiX705V1jqTHumKNrlNqSE4bsTUHQM=
+github.com/heroiclabs/nakama-common v1.44.2-0.20260202090149-1af4154f9e6a/go.mod h1:/KLxEy4+JdasHJLPt+tAXJJ8eXywWr/J+Q+KY+/vg7E=
 github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0 h1:hHJcYOP6L2/wZIEnYjjkJM+rOk/bK0uaYkDAejYpLhI=
 github.com/heroiclabs/sql-migrate v0.0.0-20241125131053-95a7949783b0/go.mod h1:uwcmopkVQIfb/JQqul5zmGI9ounclRC08j9S9lLcpRQ=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
