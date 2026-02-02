@@ -17330,11 +17330,124 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
         emoji = "star";
     }
     
+    // Determine compatibility level string
+    var level;
+    if (finalScore >= 90) {
+        level = "Perfect Match";
+    } else if (finalScore >= 75) {
+        level = "Highly Compatible";
+    } else if (finalScore >= 60) {
+        level = "Good Match";
+    } else if (finalScore >= 45) {
+        level = "Moderate";
+    } else {
+        level = "Different Perspectives";
+    }
+    
+    // Generate matching traits based on category scores
+    var matchingTraits = [];
+    var differentTraits = [];
+    
+    if (breakdown.communicationStyle >= 70) {
+        matchingTraits.push("Communication Style");
+    } else if (breakdown.communicationStyle < 40) {
+        differentTraits.push("Communication Style");
+    }
+    
+    if (breakdown.emotionalConnection >= 70) {
+        matchingTraits.push("Emotional Connection");
+    } else if (breakdown.emotionalConnection < 40) {
+        differentTraits.push("Emotional Connection");
+    }
+    
+    if (breakdown.sharedValues >= 70) {
+        matchingTraits.push("Shared Values");
+    } else if (breakdown.sharedValues < 40) {
+        differentTraits.push("Shared Values");
+    }
+    
+    if (breakdown.answerAlignment >= 60) {
+        matchingTraits.push("Similar Thinking");
+    } else if (breakdown.answerAlignment < 30) {
+        differentTraits.push("Different Viewpoints");
+    }
+    
+    // Add personality-based traits
+    if (creatorTraits['mbti:E'] && partnerTraits['mbti:E'] && 
+        creatorTraits['mbti:E'] > 2 && partnerTraits['mbti:E'] > 2) {
+        matchingTraits.push("Both Outgoing");
+    }
+    if (creatorTraits['mbti:I'] && partnerTraits['mbti:I'] && 
+        creatorTraits['mbti:I'] > 2 && partnerTraits['mbti:I'] > 2) {
+        matchingTraits.push("Both Thoughtful");
+    }
+    if (creatorTraits['big_five:high_openness'] && partnerTraits['big_five:high_openness'] &&
+        creatorTraits['big_five:high_openness'] > 2 && partnerTraits['big_five:high_openness'] > 2) {
+        matchingTraits.push("Creative Minds");
+    }
+    if (creatorTraits['big_five:high_agreeableness'] && partnerTraits['big_five:high_agreeableness'] &&
+        creatorTraits['big_five:high_agreeableness'] > 2 && partnerTraits['big_five:high_agreeableness'] > 2) {
+        matchingTraits.push("Caring Hearts");
+    }
+    
+    // Ensure we have at least one matching trait or different trait
+    if (matchingTraits.length === 0 && finalScore >= 50) {
+        matchingTraits.push("Open to Growth");
+    }
+    if (differentTraits.length === 0 && finalScore < 50) {
+        differentTraits.push("Unique Perspectives");
+    }
+    
+    // Format category scores for Unity frontend
+    var categoryScores = {
+        communication: breakdown.communicationStyle || 0,
+        emotional: breakdown.emotionalConnection || 0,
+        values: breakdown.sharedValues || 0,
+        lifestyle: Math.round((breakdown.answerAlignment || 0) * 0.8), // Derive lifestyle from answer alignment
+        interests: Math.round(finalScore * 0.9) // Derive interests from overall score
+    };
+    
+    // Generate growth areas from low-scoring categories
+    var growthAreas = [];
+    if (categoryScores.communication < 50) growthAreas.push("Communication Skills");
+    if (categoryScores.emotional < 50) growthAreas.push("Emotional Understanding");
+    if (categoryScores.values < 50) growthAreas.push("Aligning Core Values");
+    if (categoryScores.lifestyle < 50) growthAreas.push("Lifestyle Balance");
+    if (categoryScores.interests < 50) growthAreas.push("Discovering Shared Interests");
+    
+    // Ensure at least one growth area
+    if (growthAreas.length === 0) {
+        growthAreas.push("Keep Growing Together");
+    }
+    
+    // Generate relationship advice based on score
+    var relationshipAdvice;
+    if (finalScore >= 85) {
+        relationshipAdvice = "Your connection is truly special! Keep nurturing this beautiful bond. 💕";
+    } else if (finalScore >= 70) {
+        relationshipAdvice = "You have great potential together. Communication is your superpower! 💖";
+    } else if (finalScore >= 55) {
+        relationshipAdvice = "Embrace your differences - they make your relationship unique! 💗";
+    } else if (finalScore >= 40) {
+        relationshipAdvice = "Every relationship is a journey of discovery. Keep exploring together! 💛";
+    } else {
+        relationshipAdvice = "Your different perspectives can lead to amazing growth. Stay curious! 🌟";
+    }
+    
     return {
         score: finalScore,
+        overallScore: finalScore, // Alias for Unity compatibility
+        level: level,
+        compatibilityLevel: level, // Alias for Unity compatibility
         breakdown: breakdown,
+        categoryScores: categoryScores,
         message: message,
+        relationshipAdvice: relationshipAdvice, // Explicit advice field for Unity
+        compatibilityInsight: message, // Alias for backward compatibility
         emoji: emoji,
+        matchingTraits: matchingTraits,
+        differentTraits: differentTraits,
+        growthAreas: growthAreas,
         matchingAnswers: matchingAnswers,
         totalQuestions: maxLen
     };
