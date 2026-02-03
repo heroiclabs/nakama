@@ -33,8 +33,8 @@ var REWARD_CONFIGS = {
         { day: 7, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
     ],
     
-    // QuizVerse specific (same values, can customize per game)
-    "33b245c8-a23f-4f9c-a06e-189885cc22a1": [
+    // QuizVerse specific - CORRECT GAME ID
+    "126bf539-dae2-4bcf-964d-316c0fa1f92b": [
         { day: 1, xp: 50, tokens: 40, description: "Welcome Back!" },
         { day: 2, xp: 75, tokens: 50, description: "Day 2 Reward" },
         { day: 3, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
