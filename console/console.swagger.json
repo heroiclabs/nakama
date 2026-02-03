@@ -4343,7 +4343,7 @@
         "state": {
           "type": "integer",
           "format": "int32",
-          "description": "The friend status.\n\none of \"Friend.State\"."
+          "description": "The friend status.\n\none of \"Friend_State\"."
         },
         "update_time": {
           "type": "string",
@@ -4444,14 +4444,32 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/GroupUser"
+            "$ref": "#/definitions/GroupUserList_GroupUser"
           },
           "description": "The group's list of members."
         }
       },
       "description": "An export of all information stored for a group."
     },
-    "GroupUser": {
+    "GroupUserList": {
+      "type": "object",
+      "properties": {
+        "group_users": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/GroupUserList_GroupUser"
+          },
+          "description": "User-role pairs for a group."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
+        }
+      },
+      "description": "A list of users belonging to a group, along with their role."
+    },
+    "GroupUserList_GroupUser": {
       "type": "object",
       "properties": {
         "user": {
@@ -4465,24 +4483,6 @@
         }
       },
       "description": "A single user-role pair."
-    },
-    "GroupUserList": {
-      "type": "object",
-      "properties": {
-        "group_users": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/GroupUser"
-          },
-          "description": "User-role pairs for a group."
-        },
-        "cursor": {
-          "type": "string",
-          "description": "Cursor for the next page of results, if any."
-        }
-      },
-      "description": "A list of users belonging to a group, along with their role."
     },
     "HiroSystems": {
       "type": "object",
@@ -5616,7 +5616,25 @@
       },
       "description": "Request to update an existing user."
     },
-    "UserGroup": {
+    "UserGroupList": {
+      "type": "object",
+      "properties": {
+        "user_groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/UserGroupList_UserGroup"
+          },
+          "description": "Group-role pairs for a user."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor for the next page of results, if any."
+        }
+      },
+      "description": "A list of groups belonging to a user, along with the user's role in each group."
+    },
+    "UserGroupList_UserGroup": {
       "type": "object",
       "properties": {
         "group": {
@@ -5630,24 +5648,6 @@
         }
       },
       "description": "A single group-role pair."
-    },
-    "UserGroupList": {
-      "type": "object",
-      "properties": {
-        "user_groups": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/UserGroup"
-          },
-          "description": "Group-role pairs for a user."
-        },
-        "cursor": {
-          "type": "string",
-          "description": "Cursor for the next page of results, if any."
-        }
-      },
-      "description": "A list of groups belonging to a user, along with the user's role in each group."
     },
     "UserList": {
       "type": "object",

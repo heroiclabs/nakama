@@ -740,7 +740,7 @@ message GroupExport {
   // The group details.
   api.Group group = 1;
   // The group's list of members.
-  repeated api.GroupUserList.GroupUser members = 2;
+  repeated api.GroupUserList_GroupUser members = 2;
 }
 
 // A list of realtime matches, with their node names.

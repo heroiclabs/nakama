@@ -9520,7 +9520,7 @@ const file_console_proto_rawDesc = "" +
 	"nextCursor\"u\n" +
 	"\vGroupExport\x12'\n" +
 	"\x05group\x18\x01 \x01(\v2\x11.nakama.api.GroupR\x05group\x12=\n" +
-	"\amembers\x18\x02 \x03(\v2#.nakama.api.GroupUserList.GroupUserR\amembers\"\x93\x01\n" +
+	"\amembers\x18\x02 \x03(\v2#.nakama.api.GroupUserList_GroupUserR\amembers\"\x93\x01\n" +
 	"\tMatchList\x129\n" +
 	"\amatches\x18\x01 \x03(\v2\x1f.nakama.console.MatchList.MatchR\amatches\x1aK\n" +
 	"\x05Match\x12.\n" +
@@ -10524,7 +10524,7 @@ var file_console_proto_goTypes = []any{
 	(*api.Notification)(nil),                                           // 154: nakama.api.Notification
 	(*api.User)(nil),                                                   // 155: nakama.api.User
 	(*wrapperspb.Int32Value)(nil),                                      // 156: google.protobuf.Int32Value
-	(*api.GroupUserList_GroupUser)(nil),                                // 157: nakama.api.GroupUserList.GroupUser
+	(*api.GroupUserList_GroupUser)(nil),                                // 157: nakama.api.GroupUserList_GroupUser
 	(*wrapperspb.StringValue)(nil),                                     // 158: google.protobuf.StringValue
 	(*rtapi.UserPresence)(nil),                                         // 159: nakama.realtime.UserPresence
 	(*structpb.Struct)(nil),                                            // 160: google.protobuf.Struct
@@ -10564,7 +10564,7 @@ var file_console_proto_depIdxs = []int32{
 	111, // 17: nakama.console.AuditLogList.entries:type_name -> nakama.console.AuditLogList.AuditLog
 	151, // 18: nakama.console.GroupList.groups:type_name -> nakama.api.Group
 	151, // 19: nakama.console.GroupExport.group:type_name -> nakama.api.Group
-	157, // 20: nakama.console.GroupExport.members:type_name -> nakama.api.GroupUserList.GroupUser
+	157, // 20: nakama.console.GroupExport.members:type_name -> nakama.api.GroupUserList_GroupUser
 	112, // 21: nakama.console.MatchList.matches:type_name -> nakama.console.MatchList.Match
 	113, // 22: nakama.console.AddUserRequest.acl:type_name -> nakama.console.AddUserRequest.AclEntry
 	114, // 23: nakama.console.AddAclTemplateRequest.acl:type_name -> nakama.console.AddAclTemplateRequest.AclEntry
