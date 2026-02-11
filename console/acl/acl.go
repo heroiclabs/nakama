@@ -198,6 +198,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/AddAccountNote":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_NOTES, PermissionWrite)
+	case "/nakama.console.Console/AddGroupUsers":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_GROUPS, PermissionWrite)
 	case "/nakama.console.Console/ListAccountNotes":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT_NOTES, PermissionRead)
 	case "/nakama.console.Console/DeleteAccountNote":
