@@ -4,12 +4,15 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.37.0] - 2026-02-12
 ### Added
 - Support Apple JWS receipts in In-App Purchase validation APIs.
 - Expose new Prometheus RPC metrics with label per gRPC status.
 
 ### Fixed
 - Fix permission check on Console Group AddMembers operation.
+- Fix Lua runtime random generator seeding.
 
 ## [3.36.0] - 2026-01-13
 ### Changed
