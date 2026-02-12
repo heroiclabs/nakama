@@ -28,6 +28,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"google.golang.org/grpc/codes"
 )
 
 // loggerForTest allows for easily adjusting log output produced by tests in one place
@@ -158,10 +159,10 @@ func (m *testMetrics) SnapshotLatencyMs() float64 { return 0 }
 func (m *testMetrics) SnapshotRateSec() float64   { return 0 }
 func (m *testMetrics) SnapshotRecvKbSec() float64 { return 0 }
 func (m *testMetrics) SnapshotSentKbSec() float64 { return 0 }
-func (m *testMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+func (m *testMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code) {
 }
 
-func (m *testMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+func (m *testMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code) {
 }
 func (m *testMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)             {}
 func (m *testMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool)              {}
