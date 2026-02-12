@@ -673,7 +673,7 @@ message ListChannelMessagesRequest {
 
 // List friends for a user.
 message ListFriendsRequest {
-  // Max number of records to return. Between 1 and 100.
+  // Max number of records to return. Between 1 and 1000.
   google.protobuf.Int32Value limit = 1;
   // The friend state to list.
   google.protobuf.Int32Value state = 2;
