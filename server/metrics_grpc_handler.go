@@ -19,7 +19,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/stats"
+	"google.golang.org/grpc/status"
 )
 
 type ctxMetricsGrpcHandlerKey struct{}
@@ -31,8 +33,8 @@ type metricsGrpcHandlerData struct {
 }
 
 type MetricsGrpcHandler struct {
-	MetricsFn func(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
 	Metrics   Metrics
+	MetricsFn func(name string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code)
 }
 
 // TagRPC can attach some information to the given context.
@@ -54,7 +56,8 @@ func (m *MetricsGrpcHandler) HandleRPC(ctx context.Context, rs stats.RPCStats) {
 		case *stats.OutPayload:
 			atomic.AddInt64(&data.sentBytes, int64(rs.WireLength))
 		case *stats.End:
-			m.MetricsFn(data.fullMethodName, rs.EndTime.Sub(rs.BeginTime), data.recvBytes, data.sentBytes, rs.Error != nil)
+			rpcCode := status.Convert(rs.Error).Code()
+			m.MetricsFn(data.fullMethodName, rs.EndTime.Sub(rs.BeginTime), data.recvBytes, data.sentBytes, rpcCode)
 		}
 	} else {
 		m.Metrics.CountUntaggedGrpcStatsCalls(1)
