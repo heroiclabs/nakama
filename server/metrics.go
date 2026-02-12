@@ -322,7 +322,7 @@ func (m *LocalMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)
 	// Global stats.
 	m.PrometheusScope.Counter("overall_before_count").Inc(1)
 	m.PrometheusScope.Timer("overall_before_latency_ms").Record(elapsed)
-	m.PrometheusScope.Timer("overall_after_latency").Record(elapsed)
+	m.PrometheusScope.Timer("overall_before_latency").Record(elapsed)
 
 	// Per-endpoint stats.
 	m.PrometheusScope.Counter(name + "_count").Inc(1)

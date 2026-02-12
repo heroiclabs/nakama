@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Support Apple JWS receipts in In-App Purchase validation APIs.
+- Expose new Prometheus RPC metrics with label per gRPC status.
 
 ### Fixed
 - Fix permission check on Console Group AddMembers operation.
