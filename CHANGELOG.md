@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Support Apple JWS receipts in In-App Purchase validation APIs.
 
+### Fixed
+- Fix permission check on Console Group AddMembers operation.
+
 ## [3.36.0] - 2026-01-13
 ### Changed
 - Improvements to Console user setup and management.
