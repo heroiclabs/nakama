@@ -1701,7 +1701,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				if err != nil {
 					return err
 				}
-				return runtimeProviderJS.PurchaseNotificationApple(ctx, purchase, string(providerJson))
+				return runtimeProviderJS.PurchaseNotificationApple(ctx, purchase, string(providerJson), notificationType.String())
 			}
 		case RuntimeExecutionModeSubscriptionNotificationApple:
 			subscriptionNotificationAppleFunction = func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.AppleNotificationData) error {
@@ -1709,7 +1709,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				if err != nil {
 					return err
 				}
-				return runtimeProviderJS.SubscriptionNotificationApple(ctx, subscription, string(providerJson))
+				return runtimeProviderJS.SubscriptionNotificationApple(ctx, subscription, string(providerJson), notificationType.String())
 			}
 		case RuntimeExecutionModePurchaseNotificationGoogle:
 			purchaseNotificationGoogleFunction = func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.PurchaseV2GoogleResponse) error {
@@ -1717,7 +1717,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				if err != nil {
 					return err
 				}
-				return runtimeProviderJS.PurchaseNotificationGoogle(ctx, purchase, string(providerJson))
+				return runtimeProviderJS.PurchaseNotificationGoogle(ctx, purchase, string(providerJson), notificationType.String())
 			}
 		case RuntimeExecutionModeSubscriptionNotificationGoogle:
 			subscriptionNotificationGoogleFunction = func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.SubscriptionV2GoogleResponse) error {
@@ -1725,7 +1725,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				if err != nil {
 					return err
 				}
-				return runtimeProviderJS.SubscriptionNotificationGoogle(ctx, subscription, string(providerJson))
+				return runtimeProviderJS.SubscriptionNotificationGoogle(ctx, subscription, string(providerJson), notificationType.String())
 			}
 		case RuntimeExecutionModeStorageIndexFilter:
 			storageIndexFilterFunctions[id] = func(ctx context.Context, write *StorageOpWrite) (bool, error) {
@@ -2193,7 +2193,7 @@ func (rp *RuntimeProviderJS) Shutdown(ctx context.Context) {
 	}
 }
 
-func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload, notificationType string) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return err
@@ -2222,7 +2222,7 @@ func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purc
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModePurchaseNotificationApple, nil, nil, "", 0, "", "", nil, "", "", "", "")
 	r.SetContext(ctx)
-	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModePurchaseNotificationApple, "purchaseNotificationApple", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModePurchaseNotificationApple, "purchaseNotificationApple", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType))
 	r.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
@@ -2236,7 +2236,7 @@ func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purc
 	return errors.New("Unexpected return type from runtime Purchase Notification Apple hook, must be nil.")
 }
 
-func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload, notificationType string) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return err
@@ -2265,7 +2265,7 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, 
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeSubscriptionNotificationApple, nil, nil, "", 0, "", "", nil, "", "", "", "")
 	r.SetContext(ctx)
-	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeSubscriptionNotificationApple, "subscriptionNotificationApple", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeSubscriptionNotificationApple, "subscriptionNotificationApple", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType))
 	r.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
@@ -2279,7 +2279,7 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, 
 	return errors.New("Unexpected return type from runtime Subscription Notification Apple hook, must be nil.")
 }
 
-func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload string) error {
+func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload, notificationType string) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return err
@@ -2308,7 +2308,7 @@ func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, pur
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModePurchaseNotificationGoogle, nil, nil, "", 0, "", "", nil, "", "", "", "")
 	r.SetContext(ctx)
-	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModePurchaseNotificationGoogle, "purchaseNotificationGoogle", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModePurchaseNotificationGoogle, "purchaseNotificationGoogle", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType))
 	r.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
@@ -2322,7 +2322,7 @@ func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, pur
 	return errors.New("Unexpected return type from runtime Purchase Notification Google hook, must be nil.")
 }
 
-func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload string) error {
+func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload, notificationType string) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return err
@@ -2351,7 +2351,7 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context,
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeSubscriptionNotificationGoogle, nil, nil, "", 0, "", "", nil, "", "", "", "")
 	r.SetContext(ctx)
-	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeSubscriptionNotificationGoogle, "subscriptionNotificationGoogle", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload))
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeSubscriptionNotificationGoogle, "subscriptionNotificationGoogle", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType))
 	r.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {

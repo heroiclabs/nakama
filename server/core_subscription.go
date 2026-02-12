@@ -17,7 +17,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
@@ -273,16 +272,92 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 }
 
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
+	tokens := strings.Split(receipt, ".")
+	if len(tokens) != 3 {
+		// Receipt is not a JWS, fallback to using deprecated verifyReceipt API.
+		return validateLegacySubscriptionReceiptApple(ctx, logger, db, httpc, userID, password, receipt, persist)
+	}
+	// Receipt is a JWS.
+	if err := iap.ValidateAppleJwsSignature(receipt); err != nil {
+		return nil, err
+	}
+	seg := tokens[1]
+	jsonPayload, err := base64.RawStdEncoding.DecodeString(seg)
+	if err != nil {
+		return nil, err
+	}
+
+	var transactionInfo *runtime.AppleNotificationTransactionInfo
+	if err = json.Unmarshal(jsonPayload, &transactionInfo); err != nil {
+		return nil, err
+	}
+
+	if transactionInfo.ExpiresDate == 0 {
+		// This is a purchase transaction.
+		return nil, status.Error(codes.FailedPrecondition, "Purchase Receipt. Use the appropriate function instead.")
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if transactionInfo.Environment == iap.AppleSandboxEnvironment {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	sub := &storageSubscription{
+		userID:                userID,
+		originalTransactionId: transactionInfo.OriginalTransactionId,
+		store:                 api.StoreProvider_APPLE_APP_STORE,
+		productId:             transactionInfo.ProductId,
+		purchaseTime:          parseMillisecondUnixTimestamp(transactionInfo.OriginalPurchaseDate),
+		environment:           env,
+		expireTime:            parseMillisecondUnixTimestamp(transactionInfo.ExpiresDate),
+		rawResponse:           receipt,
+		refundTime:            parseMillisecondUnixTimestamp(transactionInfo.RevocationDate),
+	}
+
+	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		if err = upsertSubscription(ctx, tx, sub); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		logger.Error("Failed to validate apple jws subscription receipt", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to validate apple jws subscription receipt")
+	}
+
+	active := false
+	if sub.expireTime.After(time.Now()) && sub.refundTime.Unix() == 0 {
+		active = true
+	}
+
+	validatedSub := &api.ValidatedSubscription{
+		UserId:                userID.String(),
+		ProductId:             sub.productId,
+		OriginalTransactionId: sub.originalTransactionId,
+		Store:                 api.StoreProvider_APPLE_APP_STORE,
+		PurchaseTime:          timestamppb.New(sub.purchaseTime),
+		CreateTime:            timestamppb.New(sub.createTime),
+		UpdateTime:            timestamppb.New(sub.updateTime),
+		Environment:           env,
+		ExpiryTime:            timestamppb.New(sub.expireTime),
+		RefundTime:            timestamppb.New(sub.refundTime),
+		ProviderResponse:      sub.rawResponse,
+		ProviderNotification:  sub.rawNotification,
+		Active:                active,
+	}
+
+	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+}
+
+func validateLegacySubscriptionReceiptApple(ctx context.Context, logger *zap.Logger, db *sql.DB, httpc *http.Client, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, password, receipt)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
-				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				logger.Debug("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
-			} else {
-				logger.Error("Error validating Apple receipt", zap.Error(err))
 			}
+			logger.Error("Error validating Apple receipt", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -333,7 +408,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 			Environment:           env,
 			Active:                active,
 			ExpiryTime:            timestamppb.New(expireTime),
-			ProviderResponse:      string(rawResponse),
+			ProviderResponse:      string(raw),
 		}
 
 		validatedSubs = append(validatedSubs, validatedSub)
@@ -358,7 +433,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 				purchaseTime:          sub.PurchaseTime.AsTime(),
 				environment:           env,
 				expireTime:            sub.ExpiryTime.AsTime(),
-				rawResponse:           string(rawResponse),
+				rawResponse:           string(raw),
 			}
 
 			if err = upsertSubscription(ctx, tx, storageSub); err != nil {
@@ -684,24 +759,6 @@ RETURNING
 
 	return nil
 }
-
-const AppleRootPEM = `
------BEGIN CERTIFICATE-----
-MIICQzCCAcmgAwIBAgIILcX8iNLFS5UwCgYIKoZIzj0EAwMwZzEbMBkGA1UEAwwS
-QXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9u
-IEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcN
-MTQwNDMwMTgxOTA2WhcNMzkwNDMwMTgxOTA2WjBnMRswGQYDVQQDDBJBcHBsZSBS
-b290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9y
-aXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49
-AgEGBSuBBAAiA2IABJjpLz1AcqTtkyJygRMc3RCV8cWjTnHcFBbZDuWmBSp3ZHtf
-TjjTuxxEtX/1H7YyYl3J6YRbTzBPEVoA/VhYDKX1DyxNB0cTddqXl5dvMVztK517
-IDvYuVTZXpmkOlEKMaNCMEAwHQYDVR0OBBYEFLuw3qFYM4iapIqZ3r6966/ayySr
-MA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMDA2gA
-MGUCMQCD6cHEFl4aXTQY2e3v9GwOAEZLuN+yRhHFD/3meoyhpmvOwgPUnPWTxnS4
-at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
-6BgD56KyKA==
------END CERTIFICATE-----
-`
 
 type appleNotificationSigned struct {
 	SignedPayload string `json:"signedPayload"`
@@ -1113,7 +1170,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 				dbPurchases, err := upsertPurchases(r.Context(), db, []*storagePurchase{purchase})
 				if err != nil {
-					logger.Error("Failed to store App Store notification purchase data")
+					logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -1153,75 +1210,17 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 }
 
 func decodeAppleNotificationSignedPayload(appleNotificationSigned *appleNotificationSigned) (*appleNotificationPayload, *runtime.AppleNotificationData, error) {
-	tokens := strings.Split(appleNotificationSigned.SignedPayload, ".")
+	if err := iap.ValidateAppleJwsSignature(appleNotificationSigned.SignedPayload); err != nil {
+		return nil, nil, fmt.Errorf("failed to validate apple jws header: %s", err.Error())
+	}
 
+	tokens := strings.Split(appleNotificationSigned.SignedPayload, ".")
 	if len(tokens) < 3 {
 		return nil, nil, fmt.Errorf("unexpected apple jws length: %d", len(tokens))
 	}
 
-	seg := tokens[0]
-	if l := len(seg) % 4; l > 0 {
-		seg += strings.Repeat("=", 4-l)
-	}
-
-	headerByte, err := base64.StdEncoding.DecodeString(seg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	type Header struct {
-		Alg string   `json:"alg"`
-		X5c []string `json:"x5c"`
-	}
-	var header Header
-
-	if err = json.Unmarshal(headerByte, &header); err != nil {
-		return nil, nil, err
-	}
-
-	certs := make([][]byte, 0)
-	for _, encodedCert := range header.X5c {
-		cert, err := base64.StdEncoding.DecodeString(encodedCert)
-		if err != nil {
-			return nil, nil, err
-		}
-		certs = append(certs, cert)
-	}
-
-	rootCert := x509.NewCertPool()
-	ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
-	if !ok {
-		return nil, nil, err
-	}
-
-	interCert, err := x509.ParseCertificate(certs[1])
-	if err != nil {
-		return nil, nil, err
-	}
-	intermediates := x509.NewCertPool()
-	intermediates.AddCert(interCert)
-
-	cert, err := x509.ParseCertificate(certs[2])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	opts := x509.VerifyOptions{
-		Roots:         rootCert,
-		Intermediates: intermediates,
-	}
-
-	_, err = cert.Verify(opts)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	seg = tokens[1]
-	if l := len(seg) % 4; l > 0 {
-		seg += strings.Repeat("=", 4-l)
-	}
-
-	jsonPayload, err := base64.StdEncoding.DecodeString(seg)
+	seg := tokens[1]
+	jsonPayload, err := base64.RawStdEncoding.DecodeString(seg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1239,11 +1238,7 @@ func decodeAppleNotificationSignedPayload(appleNotificationSigned *appleNotifica
 		}
 
 		seg = tokens[1]
-		if l := len(seg) % 4; l > 0 {
-			seg += strings.Repeat("=", 4-l)
-		}
-
-		jsonPayload, err = base64.StdEncoding.DecodeString(seg)
+		jsonPayload, err = base64.RawStdEncoding.DecodeString(seg)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1261,11 +1256,7 @@ func decodeAppleNotificationSignedPayload(appleNotificationSigned *appleNotifica
 		}
 
 		seg = tokens[1]
-		if l := len(seg) % 4; l > 0 {
-			seg += strings.Repeat("=", 4-l)
-		}
-
-		renewalJsonPayload, err := base64.StdEncoding.DecodeString(seg)
+		renewalJsonPayload, err := base64.RawStdEncoding.DecodeString(seg)
 		if err != nil {
 			return nil, nil, err
 		}
