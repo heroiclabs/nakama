@@ -1095,6 +1095,7 @@ type RuntimeConfig struct {
 	LuaReadOnlyGlobals bool              `yaml:"lua_read_only_globals" json:"lua_read_only_globals" usage:"When enabled marks all Lua runtime global tables as read-only to reduce memory footprint. Default true."`
 	JsReadOnlyGlobals  bool              `yaml:"js_read_only_globals" json:"js_read_only_globals" usage:"When enabled marks all Javascript runtime globals as read-only to reduce memory footprint. Default true."`
 	LuaApiStacktrace   bool              `yaml:"lua_api_stacktrace" json:"lua_api_stacktrace" usage:"Include the Lua stacktrace in error responses returned to the client. Default false."`
+	LuaPaths           []string          `yaml:"lua_path" json:"lua_path" usage:"Lua default path directories."`
 	JsEntrypoint       string            `yaml:"js_entrypoint" json:"js_entrypoint" usage:"Specifies the location of the bundled JavaScript runtime source code."`
 }
 
@@ -1185,6 +1186,7 @@ func NewRuntimeConfig() *RuntimeConfig {
 		LuaReadOnlyGlobals: true,
 		JsReadOnlyGlobals:  true,
 		LuaApiStacktrace:   false,
+		LuaPaths:           make([]string, 0),
 	}
 }
 
