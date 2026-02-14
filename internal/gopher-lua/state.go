@@ -386,10 +386,8 @@ func (rg *registry) checkSize(requiredSize int) { // +inline-start
 } // +inline-end
 
 func (rg *registry) resize(requiredSize int) { // +inline-start
-	newSize := requiredSize + rg.growBy // give some padding
-	if newSize > rg.maxSize {
-		newSize = rg.maxSize
-	}
+	// give some padding
+	newSize := min(requiredSize+rg.growBy, rg.maxSize)
 	if newSize < requiredSize {
 		rg.handler.registryOverflow()
 		return
@@ -1037,10 +1035,7 @@ func (ls *LState) initCallFrame(cf *callFrame) { // +inline-start
 					   namedparam1 <- lbase
 					   namedparam2
 			*/
-			nvarargs := nargs - np
-			if nvarargs < 0 {
-				nvarargs = 0
-			}
+			nvarargs := max(nargs-np, 0)
 
 			ls.reg.SetTop(cf.LocalBase + nargs + np)
 			for i := 0; i < np; i++ {
@@ -1149,10 +1144,7 @@ func (ls *LState) pushCallFrame(cf callFrame, fn LValue, meta bool) { // +inline
 						   namedparam1 <- lbase
 						   namedparam2
 				*/
-				nvarargs := nargs - np
-				if nvarargs < 0 {
-					nvarargs = 0
-				}
+				nvarargs := max(nargs-np, 0)
 
 				ls.reg.SetTop(cf.LocalBase + nargs + np)
 				for i := 0; i < np; i++ {

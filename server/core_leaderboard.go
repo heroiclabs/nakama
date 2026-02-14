@@ -847,10 +847,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		if start < 0 || len(firstRecords) < secondLimit {
 			start = 0
 		}
-		end := start + limit
-		if end > numRecords {
-			end = numRecords
-		}
+		end := min(start+limit, numRecords)
 
 		if start > 0 {
 			// There was a previous result that was discarded, the prev_cursor should be set.
