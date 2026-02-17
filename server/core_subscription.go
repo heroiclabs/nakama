@@ -1446,7 +1446,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 		case googleNotification.VoidedPurchaseNotification != nil:
 			if googleNotification.VoidedPurchaseNotification.ProductType == runtime.GoogleProductTypeSubscription {
 				// This is a subscription related refund/voided notification.
-				gSubscription, _, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.SubscriptionNotification.PurchaseToken)
+				gSubscription, _, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.VoidedPurchaseNotification.PurchaseToken)
 				if err != nil {
 					var vErr *iap.ValidationError
 					if errors.As(err, &vErr) {

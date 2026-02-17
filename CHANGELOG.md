@@ -5,6 +5,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Fixed
+- Correct field usage in voided Google In-App Purchase subscription notifications.
+
 ## [3.37.0] - 2026-02-12
 ### Added
 - Support Apple JWS receipts in In-App Purchase validation APIs.
