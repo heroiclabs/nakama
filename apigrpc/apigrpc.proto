@@ -23,6 +23,7 @@ import "api/api.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
+import "rtapi/realtime.proto";
 
 option go_package = "github.com/heroiclabs/nakama/v3/apigrpc";
 
@@ -757,4 +758,7 @@ service Nakama {
       }
     };
   }
+
+  // Open a realtime bidirectional stream using the same Envelope protocol as the WebSocket endpoint.
+  rpc Realtime (stream nakama.realtime.Envelope) returns (stream nakama.realtime.Envelope);
 }

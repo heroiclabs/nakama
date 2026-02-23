@@ -90,7 +90,9 @@ type ApiServer struct {
 	streamManager        StreamManager
 	metrics              Metrics
 	matchmaker           Matchmaker
+	pipeline             *Pipeline
 	runtime              *Runtime
+	sessionIdGen         *uuid.Gen
 	grpcServer           *grpc.Server
 	grpcGatewayServer    *http.Server
 }
@@ -130,6 +132,11 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	}
 	once.Do(func() { grpclog.SetLoggerV2(grpcLogger) })
 
+	sessionIdGen := uuid.NewGenWithHWAF(func() (net.HardwareAddr, error) {
+		hash := NodeToHash(config.GetName())
+		return hash[:], nil
+	})
+
 	s := &ApiServer{
 		logger:               logger,
 		db:                   db,
@@ -149,7 +156,9 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		streamManager:        streamManager,
 		metrics:              metrics,
 		matchmaker:           matchmaker,
+		pipeline:             pipeline,
 		runtime:              runtime,
+		sessionIdGen:         sessionIdGen,
 		grpcServer:           grpcServer,
 	}
 
