@@ -104,13 +104,13 @@ func (p Permission) HasAccess(permission Permission) bool {
 
 // For debug, returns a human-readable string representation of the permissions bitmap.
 func (p Permission) bitmapString() string {
-	sb := strings.Builder{}
+	sb := &strings.Builder{}
 
 	for i, b := range p.Bitmap {
 		if i == len(p.Bitmap)-1 {
-			sb.WriteString(fmt.Sprintf("%08b", b))
+			_, _ = fmt.Fprintf(sb, "%08b", b)
 		} else {
-			sb.WriteString(fmt.Sprintf("%08b ", b))
+			_, _ = fmt.Fprintf(sb, "%08b ", b)
 		}
 	}
 	return sb.String()
