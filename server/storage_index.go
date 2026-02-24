@@ -377,22 +377,21 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 	}
 
 	sortedObjects := make([]*api.StorageObject, 0, len(objects.Objects))
-	staleIdxObj := make([]*api.StorageObject, 0)
+	staleIndexedObjects := make([]*api.StorageObject, 0)
 	for _, r := range indexResults {
-		objKey := si.storageIndexDocumentId(r.Collection, r.Key, r.UserID)
-		if index, ok := objectIdToIdx[string(objKey)]; ok {
+		if index, ok := objectIdToIdx[string(si.storageIndexDocumentId(r.Collection, r.Key, r.UserID))]; ok {
 			dbObj := objects.Objects[index]
 			sortedObjects = append(sortedObjects, dbObj)
 			if dbObj.Version != r.Version {
 				// Recheck version mismatch with db to reindex if needed.
-				staleIdxObj = append(staleIdxObj, dbObj)
+				staleIndexedObjects = append(staleIndexedObjects, dbObj)
 			}
 		}
 	}
 
-	if len(staleIdxObj) > 0 {
+	if len(staleIndexedObjects) > 0 {
 		// Reindex potentially stale indexed objects.
-		si.Write(ctx, staleIdxObj)
+		si.Write(ctx, staleIndexedObjects)
 	}
 
 	objects.Objects = sortedObjects
