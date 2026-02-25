@@ -269,7 +269,7 @@ func (m *LocalMetrics) Api(id string, elapsed time.Duration, recvBytes, sentByte
 	}
 
 	// New metrics format
-	labels := map[string]string{"rpc_id": id, "rpc_code": rpcCode.String()}
+	labels := map[string]string{"transport": "api", "rpc_id": id, "rpc_code": rpcCode.String()}
 	labeledScope := m.PrometheusScope.Tagged(labels)
 	labeledScope.Counter("count").Inc(1)
 	labeledScope.Counter("recv_bytes").Inc(recvBytes)
