@@ -329,7 +329,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 }
 
 // @group satori
-// @summary Delete an identity and all its asociated data.
+// @summary Delete an identity and all its associated data.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param id(type=string) The identifier of the identity.
 // @return error(error) An optional error value if an error occurred.
