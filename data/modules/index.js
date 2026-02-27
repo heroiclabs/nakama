@@ -282,6 +282,8 @@ var MAX_STRING_LENGTHS = {
     email: 254,
     first_name: 100,
     last_name: 100,
+    display_name: 50,
+    avatar_url: 2048,
     role: 50,
     login_type: 50,
     idp_username: 256,
@@ -659,7 +661,7 @@ function sanitizeMetadataPayload(meta, logger, requestId) {
 
     // Identity string fields
     var identityFields = [
-        'role', 'email', 'first_name', 'last_name', 'login_type',
+        'role', 'email', 'first_name', 'last_name', 'display_name', 'login_type',
         'idp_username', 'account_status', 'wallet_address', 'cognito_user_id',
         'geo_location', 'device_id'
     ];
@@ -754,6 +756,16 @@ function sanitizeMetadataPayload(meta, logger, requestId) {
         var pc = parseInt(meta.processor_count, 10);
         if (!isNaN(pc) && pc > 0 && pc < 1000) {
             sanitized.processor_count = pc;
+        }
+    }
+
+    // Avatar URL (HTTP/HTTPS only, max 2048)
+    if (meta.avatar_url !== undefined && meta.avatar_url !== null && meta.avatar_url !== "") {
+        var avatarStr = sanitizeString(meta.avatar_url, MAX_STRING_LENGTHS.avatar_url);
+        if (avatarStr && /^https?:\/\//i.test(avatarStr)) {
+            sanitized.avatar_url = avatarStr;
+        } else if (avatarStr) {
+            logger.warn("[PlayerMetadata:" + requestId + "] avatar_url must be HTTP/HTTPS URL, ignored");
         }
     }
 
@@ -1499,6 +1511,44 @@ function updateSessionAnalytics(merged, now, isNewUser) {
 }
 
 /**
+ * Sync profile fields to Nakama native account (display_name, avatar_url, timezone, location, langTag).
+ * Does NOT update username - use rpc_change_username for that.
+ * Idempotent: only passes non-null values; accountUpdateId leaves unchanged fields as-is.
+ */
+function syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId) {
+    try {
+        var displayName = merged.display_name || null;
+        if (!displayName && (merged.first_name || merged.last_name)) {
+            displayName = [merged.first_name || "", merged.last_name || ""].join(" ").trim() || null;
+        }
+        if (!displayName && merged.nakama_username) {
+            displayName = merged.nakama_username;
+        }
+
+        var timezone = merged.timezone || merged.location_timezone || null;
+        var location = merged.formatted_location || null;
+        if (!location && (merged.city || merged.region || merged.country)) {
+            var parts = [];
+            if (merged.city) parts.push(merged.city);
+            if (merged.region) parts.push(merged.region);
+            if (merged.country) parts.push(merged.country);
+            location = parts.join(", ") || null;
+        }
+        var langTag = merged.locale || null;
+        var avatarURL = (merged.avatar_url && /^https?:\/\//i.test(merged.avatar_url)) ? merged.avatar_url : null;
+
+        if (!displayName && !timezone && !location && !langTag && !avatarURL) {
+            return;
+        }
+
+        nk.accountUpdateId(userId, null, displayName || null, timezone || null, location || null, langTag || null, avatarURL || null, null);
+        logger.info("[PlayerMetadata:" + requestId + "] Synced to Nakama account: displayName=" + !!displayName + " avatar=" + !!avatarURL + " location=" + !!location);
+    } catch (err) {
+        logger.warn("[PlayerMetadata:" + requestId + "] Account sync failed (metadata saved): " + err.message);
+    }
+}
+
+/**
  * Cleanup legacy metadata documents (non-blocking)
  */
 function cleanupLegacyMetadataAsync(nk, logger, userId, requestId) {
@@ -1754,6 +1804,11 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     }
 
     // -------------------------------------------------------------------------
+    // Step 10b: Sync display_name, avatar_url, location, timezone, locale to Nakama native account
+    // -------------------------------------------------------------------------
+    syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId);
+
+    // -------------------------------------------------------------------------
     // Step 11: Cleanup Legacy Data (non-blocking)
     // -------------------------------------------------------------------------
     cleanupLegacyMetadataAsync(nk, logger, userId, requestId);
@@ -1783,6 +1838,98 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
             permission_write: "NO_WRITE"
         }
     });
+}
+
+// ============================================================================
+// RPC: rpc_change_username (Dedicated username change - atomic, validated)
+// ============================================================================
+
+var USERNAME_MIN_LEN = 3;
+var USERNAME_MAX_LEN = 20;
+var USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
+var RESERVED_USERNAMES = ["admin", "system", "nakama", "root", "moderator", "support", "null", "undefined", "guest", "anonymous", "intelliversex", "intelliverse"];
+
+/**
+ * RPC: rpc_change_username
+ * Atomic username change with uniqueness check and validation.
+ * Syncs to Nakama account + metadata.
+ */
+function rpcChangeUsername(ctx, logger, nk, payload) {
+    var requestId = generateShortUUID();
+    logger.info("[ChangeUsername:" + requestId + "] RPC called");
+
+    if (!ctx.userId) {
+        return JSON.stringify({ success: false, error: "User not authenticated", error_code: "AUTH_REQUIRED", request_id: requestId });
+    }
+
+    var data;
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (err) {
+        return JSON.stringify({ success: false, error: "Invalid JSON payload", error_code: "INVALID_JSON", request_id: requestId });
+    }
+
+    var raw = (data.new_username || data.newUsername || "").trim();
+    if (!raw) {
+        return JSON.stringify({ success: false, error: "Username is required", error_code: "USERNAME_INVALID", request_id: requestId });
+    }
+
+    if (raw.length < USERNAME_MIN_LEN) {
+        return JSON.stringify({ success: false, error: "Username must be at least " + USERNAME_MIN_LEN + " characters", error_code: "USERNAME_TOO_SHORT", request_id: requestId });
+    }
+    if (raw.length > USERNAME_MAX_LEN) {
+        return JSON.stringify({ success: false, error: "Username must be at most " + USERNAME_MAX_LEN + " characters", error_code: "USERNAME_TOO_LONG", request_id: requestId });
+    }
+    if (!USERNAME_REGEX.test(raw)) {
+        return JSON.stringify({ success: false, error: "Username can only contain letters, numbers, and underscores", error_code: "USERNAME_INVALID", request_id: requestId });
+    }
+
+    var normalized = raw.toLowerCase();
+    if (RESERVED_USERNAMES.indexOf(normalized) !== -1) {
+        return JSON.stringify({ success: false, error: "Username is reserved", error_code: "USERNAME_RESERVED", request_id: requestId });
+    }
+
+    var userId = ctx.userId;
+
+    try {
+        var users = nk.usersGetUsername([normalized]);
+        if (users && users.length > 0) {
+            var existing = users[0];
+            if (existing.id !== userId) {
+                return JSON.stringify({ success: false, error: "Username is already taken", error_code: "USERNAME_TAKEN", request_id: requestId });
+            }
+            return JSON.stringify({ success: true, username: existing.username, message: "Username unchanged", request_id: requestId });
+        }
+
+        nk.accountUpdateId(userId, normalized, null, null, null, null, null, null);
+        logger.info("[ChangeUsername:" + requestId + "] Updated username to " + normalized + " for user " + userId);
+
+        var records = nk.storageRead([{ collection: PLAYER_METADATA_COLLECTION, key: PLAYER_METADATA_KEY, userId: userId }]);
+        if (records && records.length > 0 && records[0].value) {
+            var meta = records[0].value;
+            meta.username = normalized;
+            meta.nakama_username = normalized;
+            meta.updated_at = new Date().toISOString();
+            nk.storageWrite([{
+                collection: PLAYER_METADATA_COLLECTION,
+                key: PLAYER_METADATA_KEY,
+                userId: userId,
+                value: meta,
+                permissionRead: PERMISSION_READ_OWNER,
+                permissionWrite: PERMISSION_WRITE_NONE,
+                version: records[0].version
+            }]);
+        }
+
+        return JSON.stringify({ success: true, username: normalized, request_id: requestId });
+    } catch (err) {
+        logger.error("[ChangeUsername:" + requestId + "] Update failed: " + err.message);
+        var code = "UPDATE_FAILED";
+        if (err.message && err.message.indexOf("username") !== -1 && err.message.toLowerCase().indexOf("unique") !== -1) {
+            code = "USERNAME_TAKEN";
+        }
+        return JSON.stringify({ success: false, error: err.message || "Update failed", error_code: code, request_id: requestId });
+    }
 }
 
 // ============================================================================
@@ -18398,6 +18545,9 @@ function InitModule(ctx, logger, nk, initializer) {
 
         initializer.registerRpc('rpc_update_player_metadata', rpcUpdatePlayerMetadataUnified);
         logger.info('[PlayerRPCs] ✓ Registered: rpc_update_player_metadata (unified)');
+
+        initializer.registerRpc('rpc_change_username', rpcChangeUsername);
+        logger.info('[PlayerRPCs] ✓ Registered: rpc_change_username');
 
         initializer.registerRpc('get_player_metadata', rpcGetPlayerMetadata);
         logger.info('[PlayerRPCs] ✓ Registered: get_player_metadata');
