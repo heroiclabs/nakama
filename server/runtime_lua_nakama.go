@@ -11047,6 +11047,7 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 	satoriFunctions := map[string]lua.LGFunction{
 		"authenticate":          n.satoriAuthenticate,
+		"identity_delete":       n.satoriIdentityDelete,
 		"properties_get":        n.satoriPropertiesGet,
 		"properties_update":     n.satoriPropertiesUpdate,
 		"events_publish":        n.satoriEventsPublish,
@@ -11118,6 +11119,21 @@ func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 
 	l.Push(propertiesTable)
 	return 1
+}
+
+// @group satori
+// @summary Delete an identity and all its associated data.
+// @param identifier(type=string) The identifier of the identity.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriIdentityDelete(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	if err := n.satori.IdentityDelete(l.Context(), identifier); err != nil {
+		l.RaiseError("failed to satori identity delete: %v", err.Error())
+		return 0
+	}
+
+	return 0
 }
 
 // @group satori

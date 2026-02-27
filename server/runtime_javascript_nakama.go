@@ -8975,6 +8975,7 @@ func (n *RuntimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 func (n *RuntimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goja.Object, error) {
 	mappings := map[string]func(goja.FunctionCall) goja.Value{
 		"authenticate":        n.satoriAuthenticate(r),
+		"identityDelete":      n.satoriIdentityDelete(r),
 		"propertiesGet":       n.satoriPropertiesGet(r),
 		"propertiesUpdate":    n.satoriPropertiesUpdate(r),
 		"eventsPublish":       n.satoriPublishEvents(r),
@@ -9062,6 +9063,23 @@ func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 			"custom":   properties.Custom,
 			"computed": properties.Computed,
 		})
+	}
+}
+
+// @group satori
+// @summary Delete an identity and all its associated data.
+// @param id(type=string) The identifier of the identity.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) satoriIdentityDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+
+		if err := n.satori.IdentityDelete(n.ctx, id); err != nil {
+			n.logger.Error("Failed to Satori Identity Delete.", zap.Error(err))
+			panic(r.NewGoError(fmt.Errorf("failed to satori identity delete: %s", err.Error())))
+		}
+
+		return nil
 	}
 }
 
