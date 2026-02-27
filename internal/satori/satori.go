@@ -362,7 +362,11 @@ func (s *SatoriClient) IdentityDelete(ctx context.Context, id string) error {
 	case http.StatusOK:
 		return nil
 	default:
-		return fmt.Errorf("%d status code", res.StatusCode)
+		resBody, readErr := io.ReadAll(res.Body)
+		if readErr != nil {
+			return fmt.Errorf("%d status code", res.StatusCode)
+		}
+		return fmt.Errorf("%d status code: %s", res.StatusCode, strings.TrimSpace(string(resBody)))
 	}
 }
 
