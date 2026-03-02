@@ -28,7 +28,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"google.golang.org/grpc/codes"
 )
 
 // loggerForTest allows for easily adjusting log output produced by tests in one place
@@ -54,7 +53,7 @@ func createTestMatchRegistry(t fatalable, logger *zap.Logger) (*LocalMatchRegist
 	cfg.GetMatch().LabelUpdateIntervalMs = int(time.Hour / time.Millisecond)
 	messageRouter := &testMessageRouter{}
 	matchRegistry := NewLocalMatchRegistry(logger, logger, cfg, &testSessionRegistry{}, &testTracker{},
-		messageRouter, &testMetrics{}, "node")
+		messageRouter, metrics, "node")
 	mp := NewMatchProvider()
 
 	mp.RegisterCreateFn("go",
@@ -150,42 +149,6 @@ func (m *testMatch) MatchTerminate(ctx context.Context, logger runtime.Logger, d
 func (m *testMatch) MatchSignal(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, data string) (interface{}, string) {
 	return state, "signal received: " + data
 }
-
-// testMetrics implements the Metrics interface and does nothing
-type testMetrics struct{}
-
-func (m *testMetrics) Stop(logger *zap.Logger)    {}
-func (m *testMetrics) SnapshotLatencyMs() float64 { return 0 }
-func (m *testMetrics) SnapshotRateSec() float64   { return 0 }
-func (m *testMetrics) SnapshotRecvKbSec() float64 { return 0 }
-func (m *testMetrics) SnapshotSentKbSec() float64 { return 0 }
-func (m *testMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code) {
-}
-
-func (m *testMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code) {
-}
-func (m *testMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)             {}
-func (m *testMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool)              {}
-func (m *testMetrics) Message(recvBytes int64, isErr bool)                                  {}
-func (m *testMetrics) MessageBytesSent(sentBytes int64)                                     {}
-func (m *testMetrics) GaugeRuntimes(value float64)                                          {}
-func (m *testMetrics) GaugeLuaRuntimes(value float64)                                       {}
-func (m *testMetrics) GaugeJsRuntimes(value float64)                                        {}
-func (m *testMetrics) GaugeAuthoritativeMatches(value float64)                              {}
-func (m *testMetrics) GaugeParties(value float64)                                           {}
-func (m *testMetrics) GaugeStorageIndexEntries(indexName string, value float64)             {}
-func (m *testMetrics) CountDroppedEvents(delta int64)                                       {}
-func (m *testMetrics) CountWebsocketOpened(delta int64)                                     {}
-func (m *testMetrics) CountWebsocketClosed(delta int64)                                     {}
-func (m *testMetrics) CountUntaggedGrpcStatsCalls(delta int64)                              {}
-func (m *testMetrics) GaugeSessions(value float64)                                          {}
-func (m *testMetrics) GaugePresences(value float64)                                         {}
-func (m *testMetrics) Matchmaker(tickets, activeTickets float64, processTime time.Duration) {}
-func (m *testMetrics) PresenceEvent(dequeueElapsed, processElapsed time.Duration)           {}
-func (m *testMetrics) StorageWriteRejectCount(tags map[string]string, delta int64)          {}
-func (m *testMetrics) CustomCounter(name string, tags map[string]string, delta int64)       {}
-func (m *testMetrics) CustomGauge(name string, tags map[string]string, value float64)       {}
-func (m *testMetrics) CustomTimer(name string, tags map[string]string, value time.Duration) {}
 
 // testMessageRouter is used for testing, and can fire a callback
 // when the SendToPresenceIDs method is invoked
