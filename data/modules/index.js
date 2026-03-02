@@ -512,8 +512,15 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     merged = updateSessionAnalytics(merged, now, isNewUser);
 
     // -------------------------------------------------------------------------
-    // Step 10: Write to Storage
+    // Step 10: Sync to Nakama Account FIRST (display_name, timezone, location)
+    // This ensures Account tab is updated even if storage write fails later
     // -------------------------------------------------------------------------
+    syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId);
+
+    // -------------------------------------------------------------------------
+    // Step 11: Write to Storage (for additional metadata tracking)
+    // -------------------------------------------------------------------------
+    var storageWriteSuccess = true;
     try {
         nk.storageWrite([{
             collection: PLAYER_METADATA_COLLECTION,
@@ -527,23 +534,25 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
 
         logger.info("[PlayerMetadata:" + requestId + "] Metadata saved successfully");
     } catch (err) {
-        logger.error("[PlayerMetadata:" + requestId + "] Write failed: " + err.message);
-        return buildErrorResponse("Failed to save metadata", "STORAGE_ERROR", requestId);
+        logger.error("[PlayerMetadata:" + requestId + "] Storage write failed (Account already synced): " + err.message);
+        storageWriteSuccess = false;
+        // Don't return error - Account tab was already updated
     }
 
     // -------------------------------------------------------------------------
-    // Step 11: Cleanup Legacy Data (async, non-blocking)
+    // Step 12: Cleanup Legacy Data (async, non-blocking)
     // -------------------------------------------------------------------------
     cleanupLegacyMetadataAsync(nk, logger, userId, requestId);
 
     // -------------------------------------------------------------------------
-    // Step 12: Build Success Response
+    // Step 13: Build Success Response
     // -------------------------------------------------------------------------
     var executionTime = Date.now() - startTime;
 
     logger.info("[PlayerMetadata:" + requestId + "] Completed in " + executionTime + "ms" +
         " | Games: " + (merged.total_games || 0) +
-        " | New: " + isNewUser);
+        " | New: " + isNewUser +
+        " | StorageOK: " + storageWriteSuccess);
 
     return JSON.stringify({
         success: true,
@@ -551,6 +560,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
         is_new_user: isNewUser,
         execution_time_ms: executionTime,
         request_id: requestId,
+        storage_write_success: storageWriteSuccess,
         storage: {
             collection: PLAYER_METADATA_COLLECTION,
             key: PLAYER_METADATA_KEY,
@@ -1859,8 +1869,15 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     merged = updateSessionAnalytics(merged, now, isNewUser);
 
     // -------------------------------------------------------------------------
-    // Step 10: Write to Storage
+    // Step 10: Sync to Nakama Account FIRST (display_name, timezone, location)
+    // This ensures Account tab is updated even if storage write fails later
     // -------------------------------------------------------------------------
+    syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId);
+
+    // -------------------------------------------------------------------------
+    // Step 11: Write to Storage (for additional metadata tracking)
+    // -------------------------------------------------------------------------
+    var storageWriteSuccess = true;
     try {
         nk.storageWrite([{
             collection: PLAYER_METADATA_COLLECTION,
@@ -1874,22 +1891,18 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
 
         logger.info("[PlayerMetadata:" + requestId + "] Metadata saved successfully");
     } catch (err) {
-        logger.error("[PlayerMetadata:" + requestId + "] Write failed: " + err.message);
-        return buildErrorResponse("Failed to save metadata", "STORAGE_ERROR", requestId);
+        logger.error("[PlayerMetadata:" + requestId + "] Storage write failed (Account already synced): " + err.message);
+        storageWriteSuccess = false;
+        // Don't return error - Account tab was already updated successfully
     }
 
     // -------------------------------------------------------------------------
-    // Step 10b: Sync display_name, avatar_url, location, timezone, locale to Nakama native account
-    // -------------------------------------------------------------------------
-    syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId);
-
-    // -------------------------------------------------------------------------
-    // Step 11: Cleanup Legacy Data (non-blocking)
+    // Step 12: Cleanup Legacy Data (non-blocking)
     // -------------------------------------------------------------------------
     cleanupLegacyMetadataAsync(nk, logger, userId, requestId);
 
     // -------------------------------------------------------------------------
-    // Step 12: Build Success Response
+    // Step 13: Build Success Response
     // -------------------------------------------------------------------------
     var executionTime = Date.now() - startTime;
 
@@ -1898,7 +1911,8 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
         " | Devices: " + (merged.total_devices || 0) +
         " | Sessions: " + (merged.analytics ? merged.analytics.total_sessions : 0) +
         " | Streak: " + (merged.analytics ? merged.analytics.current_streak : 0) +
-        " | New: " + isNewUser);
+        " | New: " + isNewUser +
+        " | StorageOK: " + storageWriteSuccess);
 
     return JSON.stringify({
         success: true,
@@ -1906,6 +1920,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
         is_new_user: isNewUser,
         execution_time_ms: executionTime,
         request_id: requestId,
+        storage_write_success: storageWriteSuccess,
         storage: {
             collection: PLAYER_METADATA_COLLECTION,
             key: PLAYER_METADATA_KEY,
