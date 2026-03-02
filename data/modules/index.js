@@ -1512,39 +1512,114 @@ function updateSessionAnalytics(merged, now, isNewUser) {
 
 /**
  * Sync profile fields to Nakama native account (display_name, avatar_url, timezone, location, langTag).
+ * FIXED: Proper timezone validation, display name building, and account metadata
  * Does NOT update username - use rpc_change_username for that.
  * Idempotent: only passes non-null values; accountUpdateId leaves unchanged fields as-is.
  */
 function syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId) {
     try {
-        var displayName = merged.display_name || null;
-        if (!displayName && (merged.first_name || merged.last_name)) {
-            displayName = [merged.first_name || "", merged.last_name || ""].join(" ").trim() || null;
+        // Build display name from various sources
+        var displayName = null;
+        
+        // Priority 1: Explicit display_name
+        if (merged.display_name && typeof merged.display_name === 'string' && merged.display_name.trim() !== "") {
+            displayName = merged.display_name.trim();
         }
-        if (!displayName && merged.nakama_username) {
-            displayName = merged.nakama_username;
+        // Priority 2: first_name + last_name (handle empty strings)
+        if (!displayName) {
+            var nameParts = [];
+            if (merged.first_name && typeof merged.first_name === 'string' && merged.first_name.trim() !== "") {
+                nameParts.push(merged.first_name.trim());
+            }
+            if (merged.last_name && typeof merged.last_name === 'string' && merged.last_name.trim() !== "") {
+                nameParts.push(merged.last_name.trim());
+            }
+            if (nameParts.length > 0) {
+                displayName = nameParts.join(" ");
+            }
+        }
+        // Priority 3: nakama_username fallback
+        if (!displayName && merged.nakama_username && merged.nakama_username.trim() !== "") {
+            displayName = merged.nakama_username.trim();
         }
 
-        var timezone = merged.timezone || merged.location_timezone || null;
+        // Validate and normalize timezone - MUST be IANA format (contains /)
+        var timezone = null;
+        var rawTimezone = merged.timezone || merged.location_timezone || null;
+        if (rawTimezone && rawTimezone !== "Local" && rawTimezone !== "local" && rawTimezone.indexOf("/") !== -1) {
+            timezone = rawTimezone;
+        }
+
+        // Build location string from geolocation data
         var location = merged.formatted_location || null;
         if (!location && (merged.city || merged.region || merged.country)) {
             var parts = [];
             if (merged.city) parts.push(merged.city);
             if (merged.region) parts.push(merged.region);
             if (merged.country) parts.push(merged.country);
-            location = parts.join(", ") || null;
+            if (parts.length > 0) {
+                location = parts.join(", ");
+            }
         }
-        var langTag = merged.locale || null;
-        var avatarURL = (merged.avatar_url && /^https?:\/\//i.test(merged.avatar_url)) ? merged.avatar_url : null;
 
-        if (!displayName && !timezone && !location && !langTag && !avatarURL) {
+        // Extract language tag from locale (e.g., "en-AU" -> "en")
+        var langTag = null;
+        if (merged.locale && typeof merged.locale === 'string') {
+            langTag = merged.locale.split("-")[0].toLowerCase();
+        }
+
+        // Avatar URL validation
+        var avatarURL = null;
+        var rawAvatar = merged.avatar_url || merged.avatarUrl || null;
+        if (rawAvatar && /^https?:\/\//i.test(rawAvatar)) {
+            avatarURL = rawAvatar;
+        }
+
+        // Build account metadata (visible in Nakama Console Account tab)
+        var accountMetadata = {};
+        if (merged.email) accountMetadata.email = merged.email;
+        if (merged.wallet_address || merged.walletAddress) {
+            accountMetadata.wallet_address = merged.wallet_address || merged.walletAddress;
+        }
+        if (merged.cognito_user_id || merged.cognitoUserId) {
+            accountMetadata.cognito_user_id = merged.cognito_user_id || merged.cognitoUserId;
+        }
+        if (merged.first_name) accountMetadata.first_name = merged.first_name;
+        if (merged.last_name) accountMetadata.last_name = merged.last_name;
+        if (merged.role) accountMetadata.role = merged.role;
+        if (merged.account_status) accountMetadata.account_status = merged.account_status;
+        if (merged.login_type) accountMetadata.login_type = merged.login_type;
+        accountMetadata.last_synced = new Date().toISOString();
+
+        // Skip if nothing to update
+        var hasMetadata = Object.keys(accountMetadata).length > 1; // > 1 because last_synced always exists
+        if (!displayName && !timezone && !location && !langTag && !avatarURL && !hasMetadata) {
+            logger.debug("[PlayerMetadata:" + requestId + "] No account fields to sync");
             return;
         }
 
-        nk.accountUpdateId(userId, null, displayName || null, timezone || null, location || null, langTag || null, avatarURL || null, null);
-        logger.info("[PlayerMetadata:" + requestId + "] Synced to Nakama account: displayName=" + !!displayName + " avatar=" + !!avatarURL + " location=" + !!location);
+        // Log what we're syncing
+        logger.info("[PlayerMetadata:" + requestId + "] Syncing to account: displayName=" + 
+            (displayName || "(none)") + ", timezone=" + (timezone || "(none)") + 
+            ", location=" + (location || "(none)") + ", langTag=" + (langTag || "(none)") +
+            ", hasMetadata=" + hasMetadata);
+
+        // Update native Nakama account
+        // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
+        nk.accountUpdateId(
+            userId,
+            null,                                                           // username - don't change
+            displayName || null,                                            // display_name
+            timezone,                                                       // timezone (IANA only)
+            location,                                                       // location
+            langTag,                                                        // language tag
+            avatarURL,                                                      // avatar URL
+            hasMetadata ? accountMetadata : null                            // account metadata object
+        );
+
+        logger.info("[PlayerMetadata:" + requestId + "] ✓ Synced to Nakama account successfully");
     } catch (err) {
-        logger.warn("[PlayerMetadata:" + requestId + "] Account sync failed (metadata saved): " + err.message);
+        logger.warn("[PlayerMetadata:" + requestId + "] Account sync failed (metadata saved): " + (err.message || String(err)));
     }
 }
 
