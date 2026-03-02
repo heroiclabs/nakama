@@ -9048,8 +9048,8 @@ func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 		}
 
 		var ipAddress string
-		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-			ipAddress = getJsString(r, f.Argument(2))
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			ipAddress = getJsString(r, f.Argument(3))
 		}
 
 		properties, err := n.satori.Authenticate(n.ctx, id, defPropsMap, customPropsMap, noSession, ipAddress)
