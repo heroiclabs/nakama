@@ -303,7 +303,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, err
@@ -325,6 +325,48 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 		return &props.Properties, nil
 	default:
 		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	}
+}
+
+// @group satori
+// @summary Delete an identity and all its associated data.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @return error(error) An optional error value if an error occurred.
+func (s *SatoriClient) IdentityDelete(ctx context.Context, id string) error {
+	if s.invalidConfig {
+		return runtime.ErrSatoriConfigurationInvalid
+	}
+
+	url := s.url.JoinPath("/v1/identity").String()
+
+	sessionToken, err := s.generateToken(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sessionToken))
+
+	res, err := s.httpc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		return nil
+	default:
+		resBody, readErr := io.ReadAll(res.Body)
+		if readErr != nil {
+			return fmt.Errorf("%d status code", res.StatusCode)
+		}
+		return fmt.Errorf("%d status code: %s", res.StatusCode, strings.TrimSpace(string(resBody)))
 	}
 }
 
@@ -369,7 +411,7 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 		defer res.Body.Close()
 
 		switch res.StatusCode {
-		case 200:
+		case http.StatusOK:
 			resBody, err := io.ReadAll(res.Body)
 			if err != nil {
 				return nil, err
@@ -433,7 +475,7 @@ func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properti
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return nil
 	default:
 		return fmt.Errorf("%d status code", res.StatusCode)
@@ -507,7 +549,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return nil
 	default:
 		errBody, err := io.ReadAll(res.Body)
@@ -568,7 +610,7 @@ func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtim
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return nil
 	default:
 		errBody, err := io.ReadAll(res.Body)
@@ -639,7 +681,7 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names, la
 		}
 
 		switch res.StatusCode {
-		case 200:
+		case http.StatusOK:
 			var experiments *runtime.ExperimentList
 			if err = json.Unmarshal(resBody, &experiments); err != nil {
 				return nil, err
@@ -748,7 +790,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names, labels [
 		}
 
 		switch res.StatusCode {
-		case 200:
+		case http.StatusOK:
 			var flags *runtime.FlagList
 			if err = json.Unmarshal(resBody, &flags); err != nil {
 				return nil, err
@@ -851,7 +893,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names,
 		}
 
 		switch res.StatusCode {
-		case 200:
+		case http.StatusOK:
 			var flagOverrides *runtime.FlagOverridesList
 			if err = json.Unmarshal(resBody, &flagOverrides); err != nil {
 				return nil, err
@@ -1010,7 +1052,7 @@ func (s *SatoriClient) LiveEventsList(ctx context.Context, id string, names, lab
 		}
 
 		switch res.StatusCode {
-		case 200:
+		case http.StatusOK:
 			var liveEvents *runtime.LiveEventList
 			if err = json.Unmarshal(resBody, &liveEvents); err != nil {
 				return nil, err
@@ -1076,7 +1118,7 @@ func (s *SatoriClient) LiveEventJoin(ctx context.Context, id, liveEventId string
 	}
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return nil
 	default:
 		if len(resBody) > 0 {
@@ -1140,7 +1182,7 @@ func (s *SatoriClient) MessagesList(ctx context.Context, id string, limit int, f
 	}
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		var messages runtime.MessageList
 		if err = json.Unmarshal(resBody, &messages); err != nil {
 			return nil, err
@@ -1198,7 +1240,7 @@ func (s *SatoriClient) MessageUpdate(ctx context.Context, id, messageId string, 
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return nil
 	default:
 		errBody, err := io.ReadAll(res.Body)
@@ -1245,7 +1287,7 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return nil
 	default:
 		errBody, err := io.ReadAll(res.Body)
@@ -1312,7 +1354,7 @@ func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *cons
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, err
@@ -1483,7 +1525,7 @@ func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, templateId 
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	case 200:
+	case http.StatusOK:
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, err
