@@ -41,9 +41,10 @@ type Pipeline struct {
 	router               MessageRouter
 	runtime              *Runtime
 	node                 string
+	metrics              Metrics
 }
 
-func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, sessionRegistry SessionRegistry, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtime *Runtime) *Pipeline {
+func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, sessionRegistry SessionRegistry, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, matchmaker Matchmaker, tracker Tracker, router MessageRouter, runtime *Runtime, metrics *LocalMetrics) *Pipeline {
 	return &Pipeline{
 		logger:               logger,
 		config:               config,
@@ -59,6 +60,7 @@ func NewPipeline(logger *zap.Logger, config Config, db *sql.DB, protojsonMarshal
 		router:               router,
 		runtime:              runtime,
 		node:                 config.GetName(),
+		metrics:              metrics,
 	}
 }
 
@@ -155,7 +157,7 @@ func (p *Pipeline) ProcessRequest(logger *zap.Logger, session Session, in *rtapi
 
 	switch in.Message.(type) {
 	case *rtapi.Envelope_Rpc:
-		// No before/after hooks on RPC.
+		// No before/after hooks on RPC. RPC handles its own metrics in pipeline_rpc.go.
 	default:
 		messageName = fmt.Sprintf("%T", in.Message)
 		messageNameID = strings.ToLower(messageName)

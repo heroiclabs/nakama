@@ -218,7 +218,7 @@ func main() {
 
 	leaderboardScheduler.Start(runtime)
 
-	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, statusRegistry, matchRegistry, partyRegistry, matchmaker, tracker, router, runtime)
+	pipeline := server.NewPipeline(logger, config, db, jsonpbMarshaler, jsonpbUnmarshaler, sessionRegistry, statusRegistry, matchRegistry, partyRegistry, matchmaker, tracker, router, runtime, metrics)
 	statusHandler := server.NewLocalStatusHandler(logger, sessionRegistry, matchRegistry, partyRegistry, tracker, metrics, config.GetName(), createTime)
 
 	telemetryEnabled := os.Getenv("NAKAMA_TELEMETRY") != "0"

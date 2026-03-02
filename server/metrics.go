@@ -44,6 +44,8 @@ type Metrics interface {
 	ApiBefore(name string, elapsed time.Duration, isErr bool)
 	ApiAfter(name string, elapsed time.Duration, isErr bool)
 
+	WsRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code)
+
 	Message(recvBytes int64, isErr bool)
 	MessageBytesSent(sentBytes int64)
 
@@ -308,7 +310,46 @@ func (m *LocalMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentB
 	}
 
 	// New metrics format
-	labels := map[string]string{"transport": "request", "rpc_id": id, "rpc_code": rpcCode.String()}
+	labels := map[string]string{"transport": "api_rpc", "rpc_id": id, "rpc_code": rpcCode.String()}
+	labeledScope := m.PrometheusScope.Tagged(labels)
+	labeledScope.Counter("count").Inc(1)
+	labeledScope.Counter("recv_bytes").Inc(recvBytes)
+	labeledScope.Counter("sent_bytes").Inc(sentBytes)
+	labeledScope.Timer("latency").Record(elapsed)
+}
+
+func (m *LocalMetrics) WsRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code) {
+	// Increment ongoing statistics for current measurement window.
+	m.currentMsTotal.Add(int64(elapsed / time.Millisecond))
+	m.currentReqCount.Inc()
+	m.currentRecvBytes.Add(recvBytes)
+	m.currentSentBytes.Add(sentBytes)
+
+	// Global stats.
+	m.PrometheusScope.Counter("overall_count").Inc(1)
+	m.PrometheusScope.Counter("overall_request_count").Inc(1)
+	m.PrometheusScope.Counter("overall_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_request_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Counter("overall_request_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
+
+	// Per-endpoint stats.
+	taggedScope := m.PrometheusScope.Tagged(map[string]string{"rpc_id": id})
+	taggedScope.Counter("Rpc_count").Inc(1)
+	taggedScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
+	taggedScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
+	taggedScope.Timer("Rpc_latency_ms").Record(elapsed)
+
+	// Error stats if applicable.
+	if rpcCode != codes.OK {
+		m.PrometheusScope.Counter("overall_errors").Inc(1)
+		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
+		taggedScope.Counter("Rpc_errors").Inc(1)
+	}
+
+	// New metrics format
+	labels := map[string]string{"transport": "ws_rpc", "rpc_id": id, "rpc_code": rpcCode.String()}
 	labeledScope := m.PrometheusScope.Tagged(labels)
 	labeledScope.Counter("count").Inc(1)
 	labeledScope.Counter("recv_bytes").Inc(recvBytes)
