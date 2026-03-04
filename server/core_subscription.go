@@ -17,7 +17,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
@@ -273,16 +272,92 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 }
 
 func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
-	validation, rawResponse, err := iap.ValidateReceiptApple(ctx, httpc, receipt, password)
+	tokens := strings.Split(receipt, ".")
+	if len(tokens) != 3 {
+		// Receipt is not a JWS, fallback to using deprecated verifyReceipt API.
+		return validateLegacySubscriptionReceiptApple(ctx, logger, db, httpc, userID, password, receipt, persist)
+	}
+	// Receipt is a JWS.
+	if err := iap.ValidateAppleJwsSignature(receipt); err != nil {
+		return nil, err
+	}
+	seg := tokens[1]
+	jsonPayload, err := base64.RawStdEncoding.DecodeString(seg)
+	if err != nil {
+		return nil, err
+	}
+
+	var transactionInfo *runtime.AppleNotificationTransactionInfo
+	if err = json.Unmarshal(jsonPayload, &transactionInfo); err != nil {
+		return nil, err
+	}
+
+	if transactionInfo.ExpiresDate == 0 {
+		// This is a purchase transaction.
+		return nil, status.Error(codes.FailedPrecondition, "Purchase Receipt. Use the appropriate function instead.")
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if transactionInfo.Environment == iap.AppleSandboxEnvironment {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	sub := &storageSubscription{
+		userID:                userID,
+		originalTransactionId: transactionInfo.OriginalTransactionId,
+		store:                 api.StoreProvider_APPLE_APP_STORE,
+		productId:             transactionInfo.ProductId,
+		purchaseTime:          parseMillisecondUnixTimestamp(transactionInfo.OriginalPurchaseDate),
+		environment:           env,
+		expireTime:            parseMillisecondUnixTimestamp(transactionInfo.ExpiresDate),
+		rawResponse:           receipt,
+		refundTime:            parseMillisecondUnixTimestamp(transactionInfo.RevocationDate),
+	}
+
+	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		if err = upsertSubscription(ctx, tx, sub); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		logger.Error("Failed to validate apple jws subscription receipt", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to validate apple jws subscription receipt")
+	}
+
+	active := false
+	if sub.expireTime.After(time.Now()) && sub.refundTime.Unix() == 0 {
+		active = true
+	}
+
+	validatedSub := &api.ValidatedSubscription{
+		UserId:                userID.String(),
+		ProductId:             sub.productId,
+		OriginalTransactionId: sub.originalTransactionId,
+		Store:                 api.StoreProvider_APPLE_APP_STORE,
+		PurchaseTime:          timestamppb.New(sub.purchaseTime),
+		CreateTime:            timestamppb.New(sub.createTime),
+		UpdateTime:            timestamppb.New(sub.updateTime),
+		Environment:           env,
+		ExpiryTime:            timestamppb.New(sub.expireTime),
+		RefundTime:            timestamppb.New(sub.refundTime),
+		ProviderResponse:      sub.rawResponse,
+		ProviderNotification:  sub.rawNotification,
+		Active:                active,
+	}
+
+	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+}
+
+func validateLegacySubscriptionReceiptApple(ctx context.Context, logger *zap.Logger, db *sql.DB, httpc *http.Client, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, password, receipt)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			var vErr *iap.ValidationError
 			if errors.As(err, &vErr) {
-				logger.Error("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				logger.Debug("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
-			} else {
-				logger.Error("Error validating Apple receipt", zap.Error(err))
 			}
+			logger.Error("Error validating Apple receipt", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -333,7 +408,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 			Environment:           env,
 			Active:                active,
 			ExpiryTime:            timestamppb.New(expireTime),
-			ProviderResponse:      string(rawResponse),
+			ProviderResponse:      string(raw),
 		}
 
 		validatedSubs = append(validatedSubs, validatedSub)
@@ -358,7 +433,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 				purchaseTime:          sub.PurchaseTime.AsTime(),
 				environment:           env,
 				expireTime:            sub.ExpiryTime.AsTime(),
-				rawResponse:           string(rawResponse),
+				rawResponse:           string(raw),
 			}
 
 			if err = upsertSubscription(ctx, tx, storageSub); err != nil {
@@ -685,24 +760,6 @@ RETURNING
 	return nil
 }
 
-const AppleRootPEM = `
------BEGIN CERTIFICATE-----
-MIICQzCCAcmgAwIBAgIILcX8iNLFS5UwCgYIKoZIzj0EAwMwZzEbMBkGA1UEAwwS
-QXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9u
-IEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcN
-MTQwNDMwMTgxOTA2WhcNMzkwNDMwMTgxOTA2WjBnMRswGQYDVQQDDBJBcHBsZSBS
-b290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9y
-aXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49
-AgEGBSuBBAAiA2IABJjpLz1AcqTtkyJygRMc3RCV8cWjTnHcFBbZDuWmBSp3ZHtf
-TjjTuxxEtX/1H7YyYl3J6YRbTzBPEVoA/VhYDKX1DyxNB0cTddqXl5dvMVztK517
-IDvYuVTZXpmkOlEKMaNCMEAwHQYDVR0OBBYEFLuw3qFYM4iapIqZ3r6966/ayySr
-MA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMDA2gA
-MGUCMQCD6cHEFl4aXTQY2e3v9GwOAEZLuN+yRhHFD/3meoyhpmvOwgPUnPWTxnS4
-at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
-6BgD56KyKA==
------END CERTIFICATE-----
-`
-
 type appleNotificationSigned struct {
 	SignedPayload string `json:"signedPayload"`
 }
@@ -758,13 +815,14 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			return
 		}
 
+		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", signedNotificationPayload))
+
 		notificationPayload, notificationData, err := decodeAppleNotificationSignedPayload(signedNotificationPayload)
 		if err != nil {
 			logger.Error("Failed to decode App Store notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
-
-		logger.Debug("Apple IAP notification received", zap.Any("notification_payload", notificationData))
 
 		switch notificationType := strings.ToUpper(notificationPayload.NotificationType); notificationType {
 		case "DID_RENEW", "SUBSCRIBED", "DID_CHANGE_RENEWAL_PREF", "OFFER_REDEEMED":
@@ -1112,7 +1170,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 				dbPurchases, err := upsertPurchases(r.Context(), db, []*storagePurchase{purchase})
 				if err != nil {
-					logger.Error("Failed to store App Store notification purchase data")
+					logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -1152,75 +1210,17 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 }
 
 func decodeAppleNotificationSignedPayload(appleNotificationSigned *appleNotificationSigned) (*appleNotificationPayload, *runtime.AppleNotificationData, error) {
-	tokens := strings.Split(appleNotificationSigned.SignedPayload, ".")
+	if err := iap.ValidateAppleJwsSignature(appleNotificationSigned.SignedPayload); err != nil {
+		return nil, nil, fmt.Errorf("failed to validate apple jws header: %s", err.Error())
+	}
 
+	tokens := strings.Split(appleNotificationSigned.SignedPayload, ".")
 	if len(tokens) < 3 {
 		return nil, nil, fmt.Errorf("unexpected apple jws length: %d", len(tokens))
 	}
 
-	seg := tokens[0]
-	if l := len(seg) % 4; l > 0 {
-		seg += strings.Repeat("=", 4-l)
-	}
-
-	headerByte, err := base64.StdEncoding.DecodeString(seg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	type Header struct {
-		Alg string   `json:"alg"`
-		X5c []string `json:"x5c"`
-	}
-	var header Header
-
-	if err = json.Unmarshal(headerByte, &header); err != nil {
-		return nil, nil, err
-	}
-
-	certs := make([][]byte, 0)
-	for _, encodedCert := range header.X5c {
-		cert, err := base64.StdEncoding.DecodeString(encodedCert)
-		if err != nil {
-			return nil, nil, err
-		}
-		certs = append(certs, cert)
-	}
-
-	rootCert := x509.NewCertPool()
-	ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
-	if !ok {
-		return nil, nil, err
-	}
-
-	interCert, err := x509.ParseCertificate(certs[1])
-	if err != nil {
-		return nil, nil, err
-	}
-	intermediates := x509.NewCertPool()
-	intermediates.AddCert(interCert)
-
-	cert, err := x509.ParseCertificate(certs[2])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	opts := x509.VerifyOptions{
-		Roots:         rootCert,
-		Intermediates: intermediates,
-	}
-
-	_, err = cert.Verify(opts)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	seg = tokens[1]
-	if l := len(seg) % 4; l > 0 {
-		seg += strings.Repeat("=", 4-l)
-	}
-
-	jsonPayload, err := base64.StdEncoding.DecodeString(seg)
+	seg := tokens[1]
+	jsonPayload, err := base64.RawStdEncoding.DecodeString(seg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1230,43 +1230,40 @@ func decodeAppleNotificationSignedPayload(appleNotificationSigned *appleNotifica
 		return nil, nil, err
 	}
 
-	tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
-	if len(tokens) < 3 {
-		return nil, nil, fmt.Errorf("unexpected apple signedTransactionInfo jws length: %d", len(tokens))
-	}
-
-	seg = tokens[1]
-	if l := len(seg) % 4; l > 0 {
-		seg += strings.Repeat("=", 4-l)
-	}
-
-	jsonPayload, err = base64.StdEncoding.DecodeString(seg)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	var signedTransactionInfo *runtime.AppleNotificationTransactionInfo
-	if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
-		return nil, nil, err
+	if notificationPayload.Data.SignedTransactionInfo != "" {
+		tokens = strings.Split(notificationPayload.Data.SignedTransactionInfo, ".")
+		if len(tokens) < 3 {
+			return nil, nil, fmt.Errorf("unexpected apple signedTransactionInfo jws length: %d", len(tokens))
+		}
+
+		seg = tokens[1]
+		jsonPayload, err = base64.RawStdEncoding.DecodeString(seg)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err = json.Unmarshal(jsonPayload, &signedTransactionInfo); err != nil {
+			return nil, nil, err
+		}
 	}
 
-	tokens = strings.Split(notificationPayload.Data.SignedRenewalInfo, ".")
-	if len(tokens) < 3 {
-		return nil, nil, fmt.Errorf("unexpected apple signedRenewalInfo jws length: %d", len(tokens))
-	}
-
-	seg = tokens[1]
-	if l := len(seg) % 4; l > 0 {
-		seg += strings.Repeat("=", 4-l)
-	}
-
-	renewalJsonPayload, err := base64.StdEncoding.DecodeString(seg)
-	if err != nil {
-		return nil, nil, err
-	}
 	var signedRenewalInfo *runtime.AppleNotificationRenewalInfo
-	if err = json.Unmarshal(renewalJsonPayload, &signedRenewalInfo); err != nil {
-		return nil, nil, err
+	if notificationPayload.Data.SignedRenewalInfo != "" {
+		tokens = strings.Split(notificationPayload.Data.SignedRenewalInfo, ".")
+		if len(tokens) < 3 {
+			return nil, nil, fmt.Errorf("unexpected apple signedRenewalInfo jws length: %d", len(tokens))
+		}
+
+		seg = tokens[1]
+		renewalJsonPayload, err := base64.RawStdEncoding.DecodeString(seg)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err = json.Unmarshal(renewalJsonPayload, &signedRenewalInfo); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	data := notificationPayload.Data
@@ -1297,28 +1294,28 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 		}
 		defer r.Body.Close()
 
-		logger = logger.With(zap.String("notification_body", string(body)))
-
 		var notification *googleStoreNotification
 		if err := json.Unmarshal(body, &notification); err != nil {
-			logger.Error("Failed to unmarshal Google Play Billing notification", zap.Error(err))
+			logger.With(zap.String("notification_body", string(body))).Error("Failed to unmarshal Google Play Billing notification", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		jsonData, err := base64.URLEncoding.DecodeString(notification.Message.Data)
 		if err != nil {
-			logger.Error("Failed to base64 decode Google Play Billing notification data")
+			logger.With(zap.String("notification_body", string(body))).Error("Failed to base64 decode Google Play Billing notification data")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		var googleNotification *runtime.GoogleDeveloperNotificationData
 		if err = json.Unmarshal(jsonData, &googleNotification); err != nil {
-			logger.Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
+			logger.With(zap.String("notification_body", string(body))).Error("Failed to json unmarshal Google Play Billing notification payload", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
+		loggerWithNotification := logger.With(zap.String("notification_payload", string(jsonData)))
 
 		switch {
 		case googleNotification.SubscriptionNotification != nil:
@@ -1326,19 +1323,19 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			if err != nil {
 				var vErr *iap.ValidationError
 				if errors.As(err, &vErr) {
-					logger.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+					loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				} else {
-					logger.Error("Error validating Google receipt in notification callback", zap.Error(err))
+					loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))
 				}
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
-			logger.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gSubscription))
+			loggerWithNotification.Debug("Google IAP subscription notification received", zap.Any("api_response", gSubscription))
 
 			uid, err := extractAccountIdentifier(gSubscription)
 			if err != nil {
-				logger.Error("failed to extract account id", zap.Error(err))
+				loggerWithNotification.Error("failed to extract account id", zap.Error(err))
 				w.WriteHeader(http.StatusOK)
 				return
 			}
@@ -1349,15 +1346,15 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			}
 
 			if uid == nil {
-				s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, transactionId)
+				s, err := getSubscriptionByOriginalTransactionId(r.Context(), loggerWithNotification, db, transactionId)
 				if err != nil {
-					logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+					loggerWithNotification.Error("Failed to get subscription by original transaction id", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
 				}
 				if s == nil || s.UserId == "" {
 					// No subscription or user found, we do not want to upsert.
-					logger.Warn("No userId found for this Google IAP notification", zap.Any("notification_payload", googleNotification), zap.Any("provider_payload", gSubscription))
+					loggerWithNotification.Warn("No userId found for this Google IAP notification", zap.Any("provider_payload", gSubscription))
 					w.WriteHeader(http.StatusOK)
 					return
 				} else {
@@ -1411,7 +1408,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					w.WriteHeader(http.StatusOK)
 					return
 				}
-				logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+				loggerWithNotification.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -1438,7 +1435,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				}
 
 				if err := subscriptionNotificationCallback(r.Context(), notificationType, validatedSub, gSubscription); err != nil {
-					logger.Error("Error invoking Google IAP subscription notification function", zap.Error(err), zap.String("notification_type", notificationType.String()), zap.Any("google_subscription", gSubscription))
+					loggerWithNotification.Error("Error invoking Google IAP subscription notification function", zap.Error(err), zap.String("notification_type", notificationType.String()), zap.Any("google_subscription", gSubscription))
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -1449,23 +1446,23 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 		case googleNotification.VoidedPurchaseNotification != nil:
 			if googleNotification.VoidedPurchaseNotification.ProductType == runtime.GoogleProductTypeSubscription {
 				// This is a subscription related refund/voided notification.
-				gSubscription, _, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.SubscriptionNotification.PurchaseToken)
+				gSubscription, _, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.VoidedPurchaseNotification.PurchaseToken)
 				if err != nil {
 					var vErr *iap.ValidationError
 					if errors.As(err, &vErr) {
-						logger.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 					} else {
-						logger.Error("Error validating Google receipt in notification callback", zap.Error(err))
+						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))
 					}
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 
-				logger.Debug("Google IAP subscription notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gSubscription))
+				loggerWithNotification.Debug("Google IAP subscription notification received", zap.Any("api_response", gSubscription))
 
 				uid, err := extractAccountIdentifier(gSubscription)
 				if err != nil {
-					logger.Error("failed to extract account id", zap.Error(err))
+					loggerWithNotification.Error("failed to extract account id", zap.Error(err))
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -1476,15 +1473,15 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				}
 
 				if uid == nil {
-					s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, transactionId)
+					s, err := getSubscriptionByOriginalTransactionId(r.Context(), loggerWithNotification, db, transactionId)
 					if err != nil {
-						logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+						loggerWithNotification.Error("Failed to get subscription by original transaction id", zap.Error(err))
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 						return
 					}
 					if s == nil || s.UserId == "" {
 						// No subscription found, we do not want to upsert.
-						logger.Warn("No userId found for this Google IAP refund notification", zap.Any("notification_payload", googleNotification), zap.Any("google_subscription", gSubscription))
+						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("google_subscription", gSubscription))
 						w.WriteHeader(http.StatusOK)
 						return
 					} else {
@@ -1525,7 +1522,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 						w.WriteHeader(http.StatusOK)
 						return
 					}
-					logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+					loggerWithNotification.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -1552,46 +1549,46 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					}
 
 					if err := subscriptionNotificationCallback(r.Context(), runtime.IAPNotificationRefunded, validatedSub, gSubscription); err != nil {
-						logger.Error("Error invoking Google IAP subscription notification function", zap.Error(err), zap.String("notification_type", runtime.IAPNotificationRefunded.String()), zap.Any("google_subscription", gSubscription))
+						loggerWithNotification.Error("Error invoking Google IAP subscription notification function", zap.Error(err), zap.String("notification_type", runtime.IAPNotificationRefunded.String()), zap.Any("google_subscription", gSubscription))
 						w.WriteHeader(http.StatusOK)
 						return
 					}
 				}
 			} else {
 				// This is a purchase related refund/voided notification.
-				gPurchase, err := iap.GetPurchaseV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.OneTimeProductNotification.PurchaseToken)
+				gPurchase, err := iap.GetPurchaseV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.VoidedPurchaseNotification.PurchaseToken)
 				if err != nil {
 					var vErr *iap.ValidationError
 					if errors.As(err, &vErr) {
-						logger.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 					} else {
-						logger.Error("Error validating Google receipt in notification callback", zap.Error(err))
+						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))
 					}
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 
-				logger.Debug("Google IAP purchase notification received", zap.String("notification_payload", string(jsonData)), zap.Any("api_response", gPurchase))
+				loggerWithNotification.Debug("Google IAP purchase notification received", zap.Any("api_response", gPurchase))
 
 				uid, err := extractAccountIdentifier(gPurchase)
 				if err != nil {
-					logger.Error("failed to extract account id", zap.Error(err))
+					loggerWithNotification.Error("failed to extract account id", zap.Error(err))
 					w.WriteHeader(http.StatusOK)
 					return
 				}
 
-				transactionId := googleNotification.OneTimeProductNotification.PurchaseToken
+				transactionId := googleNotification.VoidedPurchaseNotification.PurchaseToken
 
 				if uid == nil {
-					s, err := GetPurchaseByTransactionId(r.Context(), logger, db, transactionId)
+					s, err := GetPurchaseByTransactionId(r.Context(), loggerWithNotification, db, transactionId)
 					if err != nil {
-						logger.Error("Failed to get purchase by transaction id", zap.Error(err))
+						loggerWithNotification.Error("Failed to get purchase by transaction id", zap.Error(err))
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 						return
 					}
 					if s == nil || s.UserId == "" {
 						// No purchase found, we do not want to upsert.
-						logger.Warn("No userId found for this Google IAP refund notification", zap.Any("notification_payload", googleNotification), zap.Any("purchase", gPurchase))
+						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("purchase", gPurchase))
 						w.WriteHeader(http.StatusOK)
 						return
 					} else {
@@ -1622,7 +1619,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 						w.WriteHeader(http.StatusOK)
 						return
 					}
-					logger.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
+					loggerWithNotification.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -1646,7 +1643,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					}
 
 					if err := purchaseNotificationCallback(r.Context(), runtime.IAPNotificationRefunded, validatedPurchase, gPurchase); err != nil {
-						logger.Error("Error invoking Google IAP purchase notification function", zap.Error(err), zap.String("notification_type", runtime.IAPNotificationRefunded.String()), zap.Any("google_purchase", gPurchase))
+						loggerWithNotification.Error("Error invoking Google IAP purchase notification function", zap.Error(err), zap.String("notification_type", runtime.IAPNotificationRefunded.String()), zap.Any("google_purchase", gPurchase))
 						w.WriteHeader(http.StatusInternalServerError)
 						return
 					}

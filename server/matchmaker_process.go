@@ -614,9 +614,7 @@ func (m *LocalMatchmaker) processCustom(indexesCopy map[string]*MatchmakerIndex)
 	matchedEntries := m.runtime.matchmakerProcessorFunction(m.ctx, entries)
 
 	// Allow the custom function to determine which of the matches should be formed. All others will be discarded.
-	var batchSize int
 	var selectedTickets = map[string]string{}
-	batch := bluge.NewBatch()
 	// Mark tickets as unavailable for further use in this process iteration.
 	for _, matchedEntry := range matchedEntries {
 		for _, ticket := range matchedEntry {
@@ -624,13 +622,6 @@ func (m *LocalMatchmaker) processCustom(indexesCopy map[string]*MatchmakerIndex)
 				continue
 			}
 			selectedTickets[ticket.Ticket] = ticket.Ticket
-			batchSize++
-			batch.Delete(bluge.Identifier(ticket.Ticket))
-		}
-	}
-	if batchSize > 0 {
-		if err := m.indexWriter.Batch(batch); err != nil {
-			m.logger.Error("error deleting matchmaker process entries batch", zap.Error(err))
 		}
 	}
 

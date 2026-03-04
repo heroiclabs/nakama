@@ -96,6 +96,8 @@ type MatchRegistry interface {
 	RemoveMatch(id uuid.UUID, stream PresenceStream)
 	// Update the label entry for a given match.
 	UpdateMatchLabel(id uuid.UUID, tickRate int, handlerName, label string, createTime int64) error
+	// Clear the match label for a given match.
+	ClearMatchLabel(id uuid.UUID, node string) error
 	// List (and optionally filter) currently running matches.
 	// This can list across both authoritative and relayed matches.
 	ListMatches(ctx context.Context, limit int, authoritative *wrapperspb.BoolValue, label *wrapperspb.StringValue, minSize *wrapperspb.Int32Value, maxSize *wrapperspb.Int32Value, query *wrapperspb.StringValue, node *wrapperspb.StringValue) ([]*api.Match, []string, error)
@@ -316,7 +318,9 @@ func (r *LocalMatchRegistry) GetMatch(ctx context.Context, id string) (*api.Matc
 }
 
 func (r *LocalMatchRegistry) RemoveMatch(id uuid.UUID, stream PresenceStream) {
-	r.matches.Delete(id)
+	if _, existed := r.matches.LoadAndDelete(id); !existed {
+		return
+	}
 	matchesRemaining := r.matchCount.Dec()
 	r.metrics.GaugeAuthoritativeMatches(float64(matchesRemaining))
 
@@ -359,6 +363,15 @@ func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handle
 
 	r.pendingUpdatesMutex.Lock()
 	r.pendingUpdates[idStr] = entry
+	r.pendingUpdatesMutex.Unlock()
+
+	return nil
+}
+
+func (r *LocalMatchRegistry) ClearMatchLabel(id uuid.UUID, node string) error {
+	idStr := fmt.Sprintf("%v.%v", id.String(), node)
+	r.pendingUpdatesMutex.Lock()
+	r.pendingUpdates[idStr] = nil
 	r.pendingUpdatesMutex.Unlock()
 
 	return nil

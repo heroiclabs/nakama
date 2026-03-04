@@ -581,6 +581,19 @@ function rpcSeasonPassClaimReward(ctx, logger, nk, payload) {
     passData.updatedAt = new Date().toISOString();
     saveSeasonPassData(nk, logger, ctx.userId, gameId, passData);
     
+    // Grant rewards to wallet
+    var walletChanges = {};
+    if (reward.coins) walletChanges.coins = reward.coins;
+    if (reward.gems) walletChanges.gems = reward.gems;
+    if (Object.keys(walletChanges).length > 0) {
+        try {
+            nk.walletUpdate(ctx.userId, walletChanges, { source: "season_pass", level: level, track: track }, true);
+            logger.info("[SeasonPass] Granted wallet: " + JSON.stringify(walletChanges) + " to " + ctx.userId);
+        } catch (walletErr) {
+            logger.error("[SeasonPass] Wallet grant failed: " + walletErr.message);
+        }
+    }
+    
     logger.info("[SeasonPass] Level " + level + " " + track + " reward claimed by user " + ctx.userId);
     
     return JSON.stringify({
@@ -588,6 +601,7 @@ function rpcSeasonPassClaimReward(ctx, logger, nk, payload) {
         level: level,
         track: track,
         reward: reward,
+        walletGranted: walletChanges,
         timestamp: new Date().toISOString()
     });
 }

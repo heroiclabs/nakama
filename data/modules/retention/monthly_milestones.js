@@ -355,12 +355,26 @@ function rpcMonthlyMilestonesClaimReward(ctx, logger, nk, payload) {
     progress.updatedAt = new Date().toISOString();
     saveMilestonesProgress(nk, logger, ctx.userId, gameId, progress);
     
+    // Grant rewards to wallet
+    var walletChanges = {};
+    if (reward && reward.coins) walletChanges.coins = reward.coins;
+    if (reward && reward.gems) walletChanges.gems = reward.gems;
+    if (Object.keys(walletChanges).length > 0) {
+        try {
+            nk.walletUpdate(ctx.userId, walletChanges, { source: "monthly_milestone", milestoneId: milestoneId }, true);
+            logger.info("[MonthlyMilestones] Granted wallet: " + JSON.stringify(walletChanges) + " to " + ctx.userId);
+        } catch (walletErr) {
+            logger.error("[MonthlyMilestones] Wallet grant failed: " + walletErr.message);
+        }
+    }
+    
     logger.info("[MonthlyMilestones] Reward claimed for " + milestoneId + " by user " + ctx.userId);
     
     return JSON.stringify({
         success: true,
         milestoneId: milestoneId,
         reward: reward,
+        walletGranted: walletChanges,
         timestamp: new Date().toISOString()
     });
 }
@@ -406,11 +420,25 @@ function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
     progress.updatedAt = new Date().toISOString();
     saveMilestonesProgress(nk, logger, ctx.userId, gameId, progress);
     
+    // Grant legendary rewards to wallet
+    var legendaryWallet = {};
+    if (LEGENDARY_REWARD.coins) legendaryWallet.coins = LEGENDARY_REWARD.coins;
+    if (LEGENDARY_REWARD.gems) legendaryWallet.gems = LEGENDARY_REWARD.gems;
+    if (Object.keys(legendaryWallet).length > 0) {
+        try {
+            nk.walletUpdate(ctx.userId, legendaryWallet, { source: "monthly_milestone_legendary" }, true);
+            logger.info("[MonthlyMilestones] Granted legendary wallet: " + JSON.stringify(legendaryWallet) + " to " + ctx.userId);
+        } catch (walletErr) {
+            logger.error("[MonthlyMilestones] Legendary wallet grant failed: " + walletErr.message);
+        }
+    }
+    
     logger.info("[MonthlyMilestones] Legendary reward claimed by user " + ctx.userId);
     
     return JSON.stringify({
         success: true,
         reward: LEGENDARY_REWARD,
+        walletGranted: legendaryWallet,
         message: "Congratulations! You've achieved Monthly Legend status!",
         timestamp: new Date().toISOString()
     });

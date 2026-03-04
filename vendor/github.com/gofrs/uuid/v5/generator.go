@@ -26,7 +26,6 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/binary"
-	"hash"
 	"io"
 	"net"
 	"sync"
@@ -263,8 +262,12 @@ func (g *Gen) NewV1AtTime(atTime time.Time) (UUID, error) {
 }
 
 // NewV3 returns a UUID based on the MD5 hash of the namespace UUID and name.
-func (g *Gen) NewV3(ns UUID, name string) UUID {
-	u := newFromHash(md5.New(), ns, name)
+func (g *Gen) NewV3(ns UUID, name string) (u UUID) {
+	h := md5.New()
+	h.Write(ns[:])
+	h.Write([]byte(name))
+	copy(u[:], h.Sum(make([]byte, 0, md5.Size)))
+
 	u.SetVersion(V3)
 	u.SetVariant(VariantRFC9562)
 
@@ -284,8 +287,12 @@ func (g *Gen) NewV4() (UUID, error) {
 }
 
 // NewV5 returns a UUID based on SHA-1 hash of the namespace UUID and name.
-func (g *Gen) NewV5(ns UUID, name string) UUID {
-	u := newFromHash(sha1.New(), ns, name)
+func (g *Gen) NewV5(ns UUID, name string) (u UUID) {
+	h := sha1.New()
+	h.Write(ns[:])
+	h.Write([]byte(name))
+	copy(u[:], h.Sum(make([]byte, 0, sha1.Size)))
+
 	u.SetVersion(V5)
 	u.SetVariant(VariantRFC9562)
 
@@ -462,16 +469,6 @@ func (g *Gen) getHardwareAddr() ([]byte, error) {
 // and the provided time in 100-nanosecond intervals.
 func (g *Gen) getEpoch(atTime time.Time) uint64 {
 	return epochStart + uint64(atTime.UnixNano()/100)
-}
-
-// Returns the UUID based on the hashing of the namespace UUID and name.
-func newFromHash(h hash.Hash, ns UUID, name string) UUID {
-	u := UUID{}
-	h.Write(ns[:])
-	h.Write([]byte(name))
-	copy(u[:], h.Sum(nil))
-
-	return u
 }
 
 var netInterfaces = net.Interfaces

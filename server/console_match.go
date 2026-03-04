@@ -118,6 +118,10 @@ func (s *ConsoleServer) GetMatchState(ctx context.Context, in *console.MatchStat
 			logger.Error("Error getting match state.", zap.Any("in", in), zap.Error(err))
 		}
 		if errors.Is(err, runtime.ErrMatchNotFound) {
+			// Speed up the clearing of this match label from the registry.
+			if err := s.matchRegistry.ClearMatchLabel(matchID, node); err != nil {
+				logger.Error("Error clearing match label.", zap.Any("in", in), zap.Error(err))
+			}
 			return nil, status.Error(codes.InvalidArgument, "Match not found, or match handler already stopped.")
 		}
 		return nil, status.Error(codes.Internal, "Error listing matches.")

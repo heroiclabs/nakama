@@ -143,8 +143,10 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			config.GetSatori().ServerKey,
 			config.GetSatori().SigningKey,
 			config.GetSession().TokenExpirySec,
-			int64(config.GetSatori().HttpTimeoutSec),
+			int64(config.GetSatori().HttpTimeoutMs),
 			false,
+			config.GetSatori().CacheMode,
+			int64(config.GetSatori().CacheTTLSec),
 		)
 	}
 
@@ -326,6 +328,9 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	for _, handler := range runtime.consoleHttpHandlers {
 		if handler == nil {
 			continue
+		}
+		if !strings.HasPrefix(handler.PathPattern, "/") {
+			logger.Fatal("Failed to register custom console HTTP handler, path pattern must start with '/'", zap.String("path_pattern", handler.PathPattern))
 		}
 		handlerFunc := handler.Handler
 		if strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/") {
@@ -538,6 +543,9 @@ func consoleAuthInterceptor(logger *zap.Logger, config Config, sessionCache Sess
 			return handler(ctx, req)
 		}
 		if info.FullMethod == "/nakama.console.Console/AuthenticateLogout" {
+			return handler(ctx, req)
+		}
+		if info.FullMethod == "/nakama.console.Console/AuthenticatePasswordChange" {
 			return handler(ctx, req)
 		}
 

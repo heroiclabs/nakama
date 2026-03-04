@@ -288,6 +288,19 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     
     utils.logInfo(logger, "User " + userId + " claimed day " + streakData.currentStreak + " reward for game " + gameId);
     
+    // Grant rewards to wallet (tokens mapped to coins)
+    var walletChanges = {};
+    if (reward.tokens) walletChanges.coins = reward.tokens;
+    if (reward.xp) walletChanges.xp = reward.xp;
+    if (Object.keys(walletChanges).length > 0) {
+        try {
+            nk.walletUpdate(userId, walletChanges, { source: "daily_reward", day: streakData.currentStreak, gameId: gameId }, true);
+            logger.info("[DailyRewards] Granted wallet: " + JSON.stringify(walletChanges) + " to " + userId);
+        } catch (walletErr) {
+            logger.error("[DailyRewards] Wallet grant failed: " + walletErr.message);
+        }
+    }
+    
     return JSON.stringify({
         success: true,
         userId: userId,
@@ -295,6 +308,7 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
         currentStreak: streakData.currentStreak,
         totalClaims: streakData.totalClaims,
         reward: reward,
+        walletGranted: walletChanges,
         claimedAt: utils.getCurrentTimestamp()
     });
 }

@@ -51,10 +51,6 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateP
 		}
 	}
 
-	if s.config.GetIAP().Apple.SharedPassword == "" {
-		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
-	}
-
 	if len(in.Receipt) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
 	}

@@ -38,6 +38,8 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 		return nil, status.Error(codes.Internal, "Error processing config.")
 	}
 
+	cfg.GetConsole().SigningKey = ObfuscationString
+
 	cfg.GetConsole().Password = ObfuscationString
 	for i, address := range cfg.GetDatabase().Addresses {
 		rawURL := fmt.Sprintf("postgresql://%s", address)
@@ -99,7 +101,7 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 func (s *ConsoleServer) DeleteAllData(ctx context.Context, in *emptypb.Empty) (*emptypb.Empty, error) {
 	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	query := `TRUNCATE TABLE users, user_edge, user_device, user_tombstone, wallet_ledger, storage, purchase,
-			subscription, notification, message, leaderboard, leaderboard_record, groups, group_edge`
+			subscription, notification, message, leaderboard, leaderboard_record, groups, group_edge, users_notes`
 	if _, err := s.db.ExecContext(ctx, query); err != nil {
 		logger.Debug("Could not cleanup data.", zap.Error(err))
 		return nil, status.Error(codes.Internal, "An error occurred while trying to truncate tables.")

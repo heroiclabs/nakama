@@ -157,6 +157,10 @@ type Registry struct {
 	// properties
 	useAllOfForRefs bool
 
+	// omitArrayItemTypeWhenRefSibling, if set, will omit 'type: object' in array items when $ref is present
+	// to avoid no-$ref-siblings violations in OpenAPI v2
+	omitArrayItemTypeWhenRefSibling bool
+
 	// allowPatchFeature determines whether to use PATCH feature involving update masks (using google.protobuf.FieldMask).
 	allowPatchFeature bool
 
@@ -166,6 +170,9 @@ type Registry struct {
 
 	// enableRpcDeprecation whether to process grpc method's deprecated option
 	enableRpcDeprecation bool
+
+	// enableFieldDeprecation whether to process proto field's deprecated option
+	enableFieldDeprecation bool
 
 	// expandSlashedPathPatterns, if true, for a path parameter carrying a sub-path, described via parameter pattern (i.e.
 	// the pattern contains forward slashes), this will expand the _pattern_ into the URI and will _replace_ the parameter
@@ -885,6 +892,16 @@ func (r *Registry) GetUseAllOfForRefs() bool {
 	return r.useAllOfForRefs
 }
 
+// SetOmitArrayItemTypeWhenRefSibling sets omitArrayItemTypeWhenRefSibling
+func (r *Registry) SetOmitArrayItemTypeWhenRefSibling(omit bool) {
+	r.omitArrayItemTypeWhenRefSibling = omit
+}
+
+// GetOmitArrayItemTypeWhenRefSibling returns omitArrayItemTypeWhenRefSibling
+func (r *Registry) GetOmitArrayItemTypeWhenRefSibling() bool {
+	return r.omitArrayItemTypeWhenRefSibling
+}
+
 // SetAllowPatchFeature sets allowPatchFeature
 func (r *Registry) SetAllowPatchFeature(allow bool) {
 	r.allowPatchFeature = allow
@@ -913,6 +930,16 @@ func (r *Registry) SetEnableRpcDeprecation(enable bool) {
 // GetEnableRpcDeprecation returns enableRpcDeprecation
 func (r *Registry) GetEnableRpcDeprecation() bool {
 	return r.enableRpcDeprecation
+}
+
+// SetEnableFieldDeprecation sets enableFieldDeprecation
+func (r *Registry) SetEnableFieldDeprecation(enable bool) {
+	r.enableFieldDeprecation = enable
+}
+
+// GetEnableFieldDeprecation returns enableFieldDeprecation
+func (r *Registry) GetEnableFieldDeprecation() bool {
+	return r.enableFieldDeprecation
 }
 
 func (r *Registry) SetExpandSlashedPathPatterns(expandSlashedPathPatterns bool) {

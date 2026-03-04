@@ -241,8 +241,8 @@ type (
 	RuntimeEventFunction func(ctx context.Context, logger runtime.Logger, evt *api.Event)
 
 	RuntimeEventCustomFunction       func(ctx context.Context, evt *api.Event)
-	RuntimeEventSessionStartFunction func(userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64)
-	RuntimeEventSessionEndFunction   func(userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64, reason string)
+	RuntimeEventSessionStartFunction func(ctx context.Context, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64)
+	RuntimeEventSessionEndFunction   func(ctx context.Context, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64, reason string)
 	RuntimeShutdownFunction          func(ctx context.Context)
 )
 
@@ -686,8 +686,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		config.GetSatori().ServerKey,
 		config.GetSatori().SigningKey,
 		config.GetSession().TokenExpirySec,
-		int64(config.GetSatori().HttpTimeoutSec),
+		int64(config.GetSatori().HttpTimeoutMs),
 		!config.GetSatori().CacheDisabled,
+		config.GetSatori().CacheMode,
+		int64(config.GetSatori().CacheTTLSec),
 	)
 
 	goModules,

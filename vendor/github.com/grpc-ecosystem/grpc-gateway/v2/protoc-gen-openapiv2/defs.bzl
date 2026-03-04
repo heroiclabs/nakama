@@ -74,8 +74,10 @@ def _run_proto_gen_openapi(
         generate_unbound_methods,
         visibility_restriction_selectors,
         use_allof_for_refs,
+        omit_array_item_type_when_ref_sibling,
         disable_default_responses,
         enable_rpc_deprecation,
+        enable_field_deprecation,
         expand_slashed_path_patterns,
         preserve_rpc_order,
         generate_x_go_type):
@@ -149,11 +151,17 @@ def _run_proto_gen_openapi(
     if use_allof_for_refs:
         args.add("--openapiv2_opt", "use_allof_for_refs=true")
 
+    if omit_array_item_type_when_ref_sibling:
+        args.add("--openapiv2_opt", "omit_array_item_type_when_ref_sibling=true")
+
     if disable_default_responses:
         args.add("--openapiv2_opt", "disable_default_responses=true")
 
     if enable_rpc_deprecation:
         args.add("--openapiv2_opt", "enable_rpc_deprecation=true")
+
+    if enable_field_deprecation:
+        args.add("--openapiv2_opt", "enable_field_deprecation=true")
 
     if expand_slashed_path_patterns:
         args.add("--openapiv2_opt", "expand_slashed_path_patterns=true")
@@ -269,8 +277,10 @@ def _proto_gen_openapi_impl(ctx):
                     generate_unbound_methods = ctx.attr.generate_unbound_methods,
                     visibility_restriction_selectors = ctx.attr.visibility_restriction_selectors,
                     use_allof_for_refs = ctx.attr.use_allof_for_refs,
+                    omit_array_item_type_when_ref_sibling = ctx.attr.omit_array_item_type_when_ref_sibling,
                     disable_default_responses = ctx.attr.disable_default_responses,
                     enable_rpc_deprecation = ctx.attr.enable_rpc_deprecation,
+                    enable_field_deprecation = ctx.attr.enable_field_deprecation,
                     expand_slashed_path_patterns = ctx.attr.expand_slashed_path_patterns,
                     preserve_rpc_order = ctx.attr.preserve_rpc_order,
                     generate_x_go_type = ctx.attr.generate_x_go_type,
@@ -422,6 +432,12 @@ protoc_gen_openapiv2 = rule(
             doc = "if set, will use allOf as container for $ref to preserve" +
                   " same-level properties.",
         ),
+        "omit_array_item_type_when_ref_sibling": attr.bool(
+            default = False,
+            mandatory = False,
+            doc = "if set, will omit 'type: object' in array items when $ref is present" +
+                  " to avoid strict no-$ref-siblings rule violations.",
+        ),
         "disable_default_responses": attr.bool(
             default = False,
             mandatory = False,
@@ -433,6 +449,11 @@ protoc_gen_openapiv2 = rule(
             default = False,
             mandatory = False,
             doc = "whether to process grpc method's deprecated option.",
+        ),
+        "enable_field_deprecation": attr.bool(
+            default = False,
+            mandatory = False,
+            doc = "whether to process proto field's deprecated option.",
         ),
         "expand_slashed_path_patterns": attr.bool(
             default = False,

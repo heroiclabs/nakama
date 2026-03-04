@@ -1669,7 +1669,7 @@ func (n *RuntimeLuaNakamaModule) bcryptHash(l *lua.LState) int {
 		return 0
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(input), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(input), bcryptHashCost)
 	if err != nil {
 		l.RaiseError("error hashing input: %v", err.Error())
 		return 0
@@ -11047,6 +11047,7 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 	satoriFunctions := map[string]lua.LGFunction{
 		"authenticate":          n.satoriAuthenticate,
+		"identity_delete":       n.satoriIdentityDelete,
 		"properties_get":        n.satoriPropertiesGet,
 		"properties_update":     n.satoriPropertiesUpdate,
 		"events_publish":        n.satoriEventsPublish,
@@ -11055,6 +11056,7 @@ func (n *RuntimeLuaNakamaModule) getSatori(l *lua.LState) int {
 		"flags_list":            n.satoriFlagsList,
 		"flags_overrides_list":  n.satoriFlagsOverridesList,
 		"live_events_list":      n.satoriLiveEventsList,
+		"live_event_join":       n.satoriLiveEventJoin,
 		"messages_list":         n.satoriMessagesList,
 		"message_update":        n.satoriMessageUpdate,
 		"message_delete":        n.satoriMessageDelete,
@@ -11117,6 +11119,21 @@ func (n *RuntimeLuaNakamaModule) satoriAuthenticate(l *lua.LState) int {
 
 	l.Push(propertiesTable)
 	return 1
+}
+
+// @group satori
+// @summary Delete an identity and all its associated data.
+// @param identifier(type=string) The identifier of the identity.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriIdentityDelete(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	if err := n.satori.IdentityDelete(l.Context(), identifier); err != nil {
+		l.RaiseError("failed to satori identity delete: %v", err.Error())
+		return 0
+	}
+
+	return 0
 }
 
 // @group satori
@@ -11723,6 +11740,10 @@ func (n *RuntimeLuaNakamaModule) satoriFlagsOverridesList(l *lua.LState) int {
 // @param identifier(type=string) The identifier of the identity.
 // @param names(type=table, optional=true, default=[]) Optional list of live event names to filter.
 // @param labels(type=table, optional=true, default=[]) Optional list of live event labels to filter.
+// @param pastRunCount(type=int, optional=true, default=0) The maximum number of past event runs to return for each live event.
+// @param futureRunCount(type=int, optional=true, default=0) The maximum number of future event runs to return for each live event.
+// @param startTimeSec(type=int64, optional=true, default=0) Start time of the time window filter to apply.
+// @param endTimeSec(type=int64, optional=true, default=0) End time of the time window filter to apply.
 // @return liveEvents(table) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
@@ -11772,7 +11793,12 @@ func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
 		}
 	}
 
-	liveEvents, err := n.satori.LiveEventsList(l.Context(), identifier, namesArray, labelsArray)
+	pastRunCount := int32(l.OptInt(4, 0))
+	futureRunCount := int32(l.OptInt(5, 0))
+	startTimeSec := l.OptInt64(6, 0)
+	endTimeSec := l.OptInt64(7, 0)
+
+	liveEvents, err := n.satori.LiveEventsList(l.Context(), identifier, namesArray, labelsArray, pastRunCount, futureRunCount, startTimeSec, endTimeSec)
 	if err != nil {
 		l.RaiseError("failed to satori list live-events: %v", err.Error())
 		return 0
@@ -11780,7 +11806,7 @@ func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
 
 	liveEventsTable := l.CreateTable(len(liveEvents.LiveEvents), 0)
 	for i, le := range liveEvents.LiveEvents {
-		liveEventTable := l.CreateTable(0, 2)
+		liveEventTable := l.CreateTable(0, 11)
 		liveEventTable.RawSetString("name", lua.LString(le.Name))
 		liveEventTable.RawSetString("value", lua.LString(le.Value))
 		liveEventTable.RawSetString("description", lua.LString(le.Description))
@@ -11791,12 +11817,55 @@ func (n *RuntimeLuaNakamaModule) satoriLiveEventsList(l *lua.LState) int {
 		liveEventTable.RawSetString("end_time", lua.LNumber(le.EndTimeSec))
 		liveEventTable.RawSetString("duration", lua.LNumber(le.DurationSec))
 		liveEventTable.RawSetString("reset_cron", lua.LString(le.ResetCronExpr))
+		liveEventTable.RawSetString("status", lua.LString(le.Status.String()))
 
 		liveEventsTable.RawSetInt(i+1, liveEventTable)
 	}
 
-	l.Push(liveEventsTable)
+	liveEventsWithJoinTable := l.CreateTable(len(liveEvents.ExplicitJoinLiveEvents), 0)
+	for i, le := range liveEvents.ExplicitJoinLiveEvents {
+		liveEventTable := l.CreateTable(0, 11)
+		liveEventTable.RawSetString("name", lua.LString(le.Name))
+		liveEventTable.RawSetString("value", lua.LString(le.Value))
+		liveEventTable.RawSetString("description", lua.LString(le.Description))
+		liveEventTable.RawSetString("active_start_time", lua.LNumber(le.ActiveStartTimeSec))
+		liveEventTable.RawSetString("active_time_end", lua.LNumber(le.ActiveEndTimeSec))
+		liveEventTable.RawSetString("id", lua.LString(le.Id))
+		liveEventTable.RawSetString("start_time", lua.LNumber(le.StartTimeSec))
+		liveEventTable.RawSetString("end_time", lua.LNumber(le.EndTimeSec))
+		liveEventTable.RawSetString("duration", lua.LNumber(le.DurationSec))
+		liveEventTable.RawSetString("reset_cron", lua.LString(le.ResetCronExpr))
+		liveEventTable.RawSetString("status", lua.LString(le.Status.String()))
+
+		liveEventsWithJoinTable.RawSetInt(i+1, liveEventTable)
+	}
+
+	liveEventsListTable := l.CreateTable(0, 2)
+	liveEventsListTable.RawSetString("live_events", liveEventsTable)
+	liveEventsListTable.RawSetString("explicit_join_live_events", liveEventsWithJoinTable)
+
+	l.Push(liveEventsListTable)
 	return 1
+}
+
+// @group satori
+// @summary Join live event.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @param liveEventId(type=string) The identifier of the live event.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) satoriLiveEventJoin(l *lua.LState) int {
+	identifier := l.CheckString(1)
+
+	liveEventId := l.CheckString(2)
+
+	err := n.satori.LiveEventJoin(l.Context(), identifier, liveEventId)
+	if err != nil {
+		l.RaiseError("failed to join satori live-event: %v", err.Error())
+		return 0
+	}
+
+	return 0
 }
 
 // @group satori

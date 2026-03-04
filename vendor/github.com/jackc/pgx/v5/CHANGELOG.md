@@ -1,3 +1,38 @@
+# 5.8.0 (December 26, 2025)
+
+* Require Go 1.24+
+* Remove golang.org/x/crypto dependency
+* Add OptionShouldPing to control ResetSession ping behavior (ilyam8)
+* Fix: Avoid overflow when MaxConns is set to MaxInt32
+* Fix: Close batch pipeline after a query error (Anthonin Bonnefoy)
+* Faster shutdown of pgxpool.Pool background goroutines (Blake Gentry)
+* Add pgxpool ping timeout (Amirsalar Safaei)
+* Fix: Rows.FieldDescriptions for empty query
+* Scan unknown types into *any as string or []byte based on format code
+* Optimize pgtype.Numeric (Philip Dubé)
+* Add AfterNetConnect hook to pgconn.Config
+* Fix: Handle for preparing statements that fail during the Describe phase
+* Fix overflow in numeric scanning (Ilia Demianenko)
+* Fix: json/jsonb sql.Scanner source type is []byte
+* Migrate from math/rand to math/rand/v2 (Mathias Bogaert)
+* Optimize internal iobufpool (Mathias Bogaert)
+* Optimize stmtcache invalidation (Mathias Bogaert)
+* Fix: missing error case in interval parsing (Maxime Soulé)
+* Fix: invalidate statement/description cache in Exec (James Hartig)
+* ColumnTypeLength method return the type length for varbit type (DengChan)
+* Array and Composite codecs handle typed nils
+
+# 5.7.6 (September 8, 2025)
+
+* Use ParseConfigError in pgx.ParseConfig and pgxpool.ParseConfig (Yurasov Ilia)
+* Add PrepareConn hook to pgxpool (Jonathan Hall)
+* Reduce allocations in QueryContext (Dominique Lefevre)
+* Add MarshalJSON and UnmarshalJSON for pgtype.Uint32 (Panos Koutsovasilis)
+* Configure ping behavior on pgxpool with ShouldPing (Christian Kiely)
+* zeronull int types implement Int64Valuer and Int64Scanner (Li Zeghong)
+* Fix panic when receiving terminate connection message during CopyFrom (Michal Drausowski)
+* Fix statement cache not being invalidated on error during batch (Muhammadali Nazarov)
+
 # 5.7.5 (May 17, 2025)
 
 * Support sslnegotiation connection option (divyam234)

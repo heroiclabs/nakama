@@ -383,7 +383,7 @@ nakama.register_rpc(test.printWorld, "helloworld")`,
 	}
 
 	db := NewDB(t)
-	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, nil, nil, runtime)
+	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, nil, nil, nil, nil, nil, nil, nil, runtime, metrics)
 	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, storageIdx, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, metrics, pipeline, runtime)
 	defer apiServer.Stop()
 
@@ -648,7 +648,7 @@ nakama.register_rpc(test, "test")`,
 	}
 
 	payload := "something_to_encrypt"
-	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcrypt.DefaultCost)
+	hash, _ := bcrypt.GenerateFromPassword([]byte(payload), bcryptHashCost)
 	result, err, _ := fn(context.Background(), nil, nil, "", "", "", nil, 0, "", "", "", "", string(hash))
 	if err != nil {
 		t.Fatal(err)

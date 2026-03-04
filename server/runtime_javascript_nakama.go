@@ -1377,7 +1377,7 @@ func (n *RuntimeJavascriptNakamaModule) hmacSHA256Hash(r *goja.Runtime) func(goj
 func (n *RuntimeJavascriptNakamaModule) bcryptHash(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		input := getJsString(r, f.Argument(0))
-		hash, err := bcrypt.GenerateFromPassword([]byte(input), bcrypt.DefaultCost)
+		hash, err := bcrypt.GenerateFromPassword([]byte(input), bcryptHashCost)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error hashing input: %v", err.Error())))
 		}
@@ -8975,6 +8975,7 @@ func (n *RuntimeJavascriptNakamaModule) channelIdBuild(r *goja.Runtime) func(goj
 func (n *RuntimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goja.Object, error) {
 	mappings := map[string]func(goja.FunctionCall) goja.Value{
 		"authenticate":        n.satoriAuthenticate(r),
+		"identityDelete":      n.satoriIdentityDelete(r),
 		"propertiesGet":       n.satoriPropertiesGet(r),
 		"propertiesUpdate":    n.satoriPropertiesUpdate(r),
 		"eventsPublish":       n.satoriPublishEvents(r),
@@ -8983,6 +8984,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriConstructor(r *goja.Runtime) (*goj
 		"flagsList":           n.satoriFlagsList(r),
 		"flagsOverridesList":  n.satoriFlagsOverridesList(r),
 		"liveEventsList":      n.satoriLiveEventsList(r),
+		"liveEventJoin":       n.satoriLiveEventJoin(r),
 		"messagesList":        n.satoriMessagesList(r),
 		"messageUpdate":       n.satoriMessageUpdate(r),
 		"messageDelete":       n.satoriMessageDelete(r),
@@ -9046,8 +9048,8 @@ func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 		}
 
 		var ipAddress string
-		if f.Argument(2) != goja.Undefined() && f.Argument(2) != goja.Null() {
-			ipAddress = getJsString(r, f.Argument(2))
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			ipAddress = getJsString(r, f.Argument(3))
 		}
 
 		properties, err := n.satori.Authenticate(n.ctx, id, defPropsMap, customPropsMap, noSession, ipAddress)
@@ -9061,6 +9063,23 @@ func (n *RuntimeJavascriptNakamaModule) satoriAuthenticate(r *goja.Runtime) func
 			"custom":   properties.Custom,
 			"computed": properties.Computed,
 		})
+	}
+}
+
+// @group satori
+// @summary Delete an identity and all its associated data.
+// @param id(type=string) The identifier of the identity.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) satoriIdentityDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		id := getJsString(r, f.Argument(0))
+
+		if err := n.satori.IdentityDelete(n.ctx, id); err != nil {
+			n.logger.Error("Failed to Satori Identity Delete.", zap.Error(err))
+			panic(r.NewGoError(fmt.Errorf("failed to satori identity delete: %s", err.Error())))
+		}
+
+		return nil
 	}
 }
 
@@ -9505,6 +9524,10 @@ func (n *RuntimeJavascriptNakamaModule) satoriFlagsOverridesList(r *goja.Runtime
 // @param identifier(type=string) The identifier of the identity.
 // @param nameFilters(type=string[], optional=true, default=[]) Optional list of live event names to filter.
 // @param labelFilters(type=string[], optional=true, default=[]) Optional list of live event labels to filter.
+// @param pastRunCount(type=int, optional=true, default=0) The maximum number of past event runs to return for each live event.
+// @param futureRunCount(type=int, optional=true, default=0) The maximum number of future event runs to return for each live event.
+// @param startTimeSec(type=int64, optional=true, default=0) Start time of the time window filter to apply.
+// @param endTimeSec(type=int64, optional=true, default=0) End time of the time window filter to apply.
 // @return liveEvents(*nkruntime.LiveEvent[]) The live event list.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -9531,9 +9554,29 @@ func (n *RuntimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) fu
 			}
 		}
 
-		liveEventsList, err := n.satori.LiveEventsList(n.ctx, identifier, nameFiltersArray, labelFiltersArray)
+		var pastRunCount int32
+		if !goja.IsUndefined(f.Argument(3)) && !goja.IsNull(f.Argument(3)) {
+			pastRunCount = int32(getJsInt(r, f.Argument(3)))
+		}
+
+		var futureRunCount int32
+		if !goja.IsUndefined(f.Argument(4)) && !goja.IsNull(f.Argument(4)) {
+			futureRunCount = int32(getJsInt(r, f.Argument(4)))
+		}
+
+		var startTimeSec int64
+		if !goja.IsUndefined(f.Argument(5)) && !goja.IsNull(f.Argument(5)) {
+			startTimeSec = getJsInt(r, f.Argument(5))
+		}
+
+		var endTimeSec int64
+		if !goja.IsUndefined(f.Argument(6)) && !goja.IsNull(f.Argument(6)) {
+			endTimeSec = getJsInt(r, f.Argument(6))
+		}
+
+		liveEventsList, err := n.satori.LiveEventsList(n.ctx, identifier, nameFiltersArray, labelFiltersArray, pastRunCount, futureRunCount, startTimeSec, endTimeSec)
 		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("failed to list satori live-events %s:", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("failed to list satori live-events: %s", err.Error())))
 		}
 
 		liveEvents := make([]any, 0, len(liveEventsList.LiveEvents))
@@ -9549,12 +9592,51 @@ func (n *RuntimeJavascriptNakamaModule) satoriLiveEventsList(r *goja.Runtime) fu
 				"endTime":         le.EndTimeSec,
 				"duration":        le.DurationSec,
 				"resetCron":       le.ResetCronExpr,
+				"status":          le.Status.String(),
+			})
+		}
+
+		liveEventsWithJoin := make([]any, 0, len(liveEventsList.ExplicitJoinLiveEvents))
+		for _, le := range liveEventsList.ExplicitJoinLiveEvents {
+			liveEventsWithJoin = append(liveEventsWithJoin, map[string]any{
+				"name":            le.Name,
+				"description":     le.Description,
+				"value":           le.Value,
+				"activeStartTime": le.ActiveStartTimeSec,
+				"activeEndTime":   le.ActiveEndTimeSec,
+				"id":              le.Id,
+				"startTime":       le.StartTimeSec,
+				"endTime":         le.EndTimeSec,
+				"duration":        le.DurationSec,
+				"resetCron":       le.ResetCronExpr,
+				"status":          le.Status.String(),
 			})
 		}
 
 		return r.ToValue(map[string]any{
-			"liveEvents": liveEvents,
+			"liveEvents":             liveEvents,
+			"explicitJoinLiveEvents": liveEventsWithJoin,
 		})
+	}
+}
+
+// @group satori
+// @summary Join live event.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param id(type=string) The identifier of the identity.
+// @param liveEventId(type=string) The identifier of the live event.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) satoriLiveEventJoin(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		identifier := getJsString(r, f.Argument(0))
+
+		liveEventId := getJsString(r, f.Argument(1))
+
+		if err := n.satori.LiveEventJoin(n.ctx, identifier, liveEventId); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to join satori live-event: %s", err.Error())))
+		}
+
+		return goja.Undefined()
 	}
 }
 

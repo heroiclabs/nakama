@@ -450,6 +450,19 @@ function rpcWinbackClaimRewards(ctx, logger, nk, payload) {
         logger.warn("[Winback] Failed to log transaction: " + err.message);
     }
     
+    // Grant rewards to wallet
+    var walletChanges = {};
+    if (tier.rewards.coins) walletChanges.coins = tier.rewards.coins;
+    if (tier.rewards.gems) walletChanges.gems = tier.rewards.gems;
+    if (Object.keys(walletChanges).length > 0) {
+        try {
+            nk.walletUpdate(ctx.userId, walletChanges, { source: "winback", tier: tier.tier, daysAway: daysAway }, true);
+            logger.info("[Winback] Granted wallet: " + JSON.stringify(walletChanges) + " to " + ctx.userId);
+        } catch (walletErr) {
+            logger.error("[Winback] Wallet grant failed: " + walletErr.message);
+        }
+    }
+    
     logger.info("[Winback] Rewards claimed by user " + ctx.userId + ", tier: " + tier.tier + ", days away: " + daysAway);
     
     return JSON.stringify({
@@ -458,6 +471,7 @@ function rpcWinbackClaimRewards(ctx, logger, nk, payload) {
         tierName: tier.name,
         message: tier.message,
         rewards: tier.rewards,
+        walletGranted: walletChanges,
         daysAway: daysAway,
         timestamp: new Date().toISOString()
     });

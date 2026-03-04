@@ -28,6 +28,7 @@ import (
 	"github.com/uber-go/tally/v4/prometheus"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 type Metrics interface {
@@ -38,10 +39,12 @@ type Metrics interface {
 	SnapshotRecvKbSec() float64
 	SnapshotSentKbSec() float64
 
-	Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
-	ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool)
+	Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code)
+	ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code)
 	ApiBefore(name string, elapsed time.Duration, isErr bool)
 	ApiAfter(name string, elapsed time.Duration, isErr bool)
+
+	WsRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code)
 
 	Message(recvBytes int64, isErr bool)
 	MessageBytesSent(sentBytes int64)
@@ -50,6 +53,7 @@ type Metrics interface {
 	GaugeLuaRuntimes(value float64)
 	GaugeJsRuntimes(value float64)
 	GaugeAuthoritativeMatches(value float64)
+	GaugeParties(value float64)
 	CountDroppedEvents(delta int64)
 	CountWebsocketOpened(delta int64)
 	CountWebsocketClosed(delta int64)
@@ -235,8 +239,8 @@ func (m *LocalMetrics) SnapshotSentKbSec() float64 {
 	return m.snapshotSentKbSec.Load()
 }
 
-func (m *LocalMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
-	name = strings.TrimPrefix(name, API_PREFIX)
+func (m *LocalMetrics) Api(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code) {
+	id = strings.TrimPrefix(id, API_PREFIX)
 
 	// Increment ongoing statistics for current measurement window.
 	m.currentMsTotal.Add(int64(elapsed / time.Millisecond))
@@ -254,20 +258,28 @@ func (m *LocalMetrics) Api(name string, elapsed time.Duration, recvBytes, sentBy
 	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
 
 	// Per-endpoint stats.
-	m.PrometheusScope.Counter(name + "_count").Inc(1)
-	m.PrometheusScope.Counter(name + "_recv_bytes").Inc(recvBytes)
-	m.PrometheusScope.Counter(name + "_sent_bytes").Inc(sentBytes)
-	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed)
+	m.PrometheusScope.Counter(id + "_count").Inc(1)
+	m.PrometheusScope.Counter(id + "_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter(id + "_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Timer(id + "_latency_ms").Record(elapsed)
 
 	// Error stats if applicable.
-	if isErr {
+	if rpcCode != codes.OK {
 		m.PrometheusScope.Counter("overall_errors").Inc(1)
 		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
-		m.PrometheusScope.Counter(name + "_errors").Inc(1)
+		m.PrometheusScope.Counter(id + "_errors").Inc(1)
 	}
+
+	// New metrics format
+	labels := map[string]string{"transport": "api", "rpc_id": id, "rpc_code": rpcCode.String()}
+	labeledScope := m.PrometheusScope.Tagged(labels)
+	labeledScope.Counter("count").Inc(1)
+	labeledScope.Counter("recv_bytes").Inc(recvBytes)
+	labeledScope.Counter("sent_bytes").Inc(sentBytes)
+	labeledScope.Timer("latency").Record(elapsed)
 }
 
-func (m *LocalMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, isErr bool) {
+func (m *LocalMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code) {
 	// Increment ongoing statistics for current measurement window.
 	m.currentMsTotal.Add(int64(elapsed / time.Millisecond))
 	m.currentReqCount.Inc()
@@ -291,11 +303,58 @@ func (m *LocalMetrics) ApiRpc(id string, elapsed time.Duration, recvBytes, sentB
 	taggedScope.Timer("Rpc_latency_ms").Record(elapsed)
 
 	// Error stats if applicable.
-	if isErr {
+	if rpcCode != codes.OK {
 		m.PrometheusScope.Counter("overall_errors").Inc(1)
 		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
 		taggedScope.Counter("Rpc_errors").Inc(1)
 	}
+
+	// New metrics format
+	labels := map[string]string{"transport": "api_rpc", "rpc_id": id, "rpc_code": rpcCode.String()}
+	labeledScope := m.PrometheusScope.Tagged(labels)
+	labeledScope.Counter("count").Inc(1)
+	labeledScope.Counter("recv_bytes").Inc(recvBytes)
+	labeledScope.Counter("sent_bytes").Inc(sentBytes)
+	labeledScope.Timer("latency").Record(elapsed)
+}
+
+func (m *LocalMetrics) WsRpc(id string, elapsed time.Duration, recvBytes, sentBytes int64, rpcCode codes.Code) {
+	// Increment ongoing statistics for current measurement window.
+	m.currentMsTotal.Add(int64(elapsed / time.Millisecond))
+	m.currentReqCount.Inc()
+	m.currentRecvBytes.Add(recvBytes)
+	m.currentSentBytes.Add(sentBytes)
+
+	// Global stats.
+	m.PrometheusScope.Counter("overall_count").Inc(1)
+	m.PrometheusScope.Counter("overall_request_count").Inc(1)
+	m.PrometheusScope.Counter("overall_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_request_recv_bytes").Inc(recvBytes)
+	m.PrometheusScope.Counter("overall_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Counter("overall_request_sent_bytes").Inc(sentBytes)
+	m.PrometheusScope.Timer("overall_latency_ms").Record(elapsed)
+
+	// Per-endpoint stats.
+	taggedScope := m.PrometheusScope.Tagged(map[string]string{"rpc_id": id})
+	taggedScope.Counter("Rpc_count").Inc(1)
+	taggedScope.Counter("Rpc_recv_bytes").Inc(recvBytes)
+	taggedScope.Counter("Rpc_sent_bytes").Inc(sentBytes)
+	taggedScope.Timer("Rpc_latency_ms").Record(elapsed)
+
+	// Error stats if applicable.
+	if rpcCode != codes.OK {
+		m.PrometheusScope.Counter("overall_errors").Inc(1)
+		m.PrometheusScope.Counter("overall_request_errors").Inc(1)
+		taggedScope.Counter("Rpc_errors").Inc(1)
+	}
+
+	// New metrics format
+	labels := map[string]string{"transport": "ws_rpc", "rpc_id": id, "rpc_code": rpcCode.String()}
+	labeledScope := m.PrometheusScope.Tagged(labels)
+	labeledScope.Counter("count").Inc(1)
+	labeledScope.Counter("recv_bytes").Inc(recvBytes)
+	labeledScope.Counter("sent_bytes").Inc(sentBytes)
+	labeledScope.Timer("latency").Record(elapsed)
 }
 
 func (m *LocalMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool) {
@@ -304,10 +363,12 @@ func (m *LocalMetrics) ApiBefore(name string, elapsed time.Duration, isErr bool)
 	// Global stats.
 	m.PrometheusScope.Counter("overall_before_count").Inc(1)
 	m.PrometheusScope.Timer("overall_before_latency_ms").Record(elapsed)
+	m.PrometheusScope.Timer("overall_before_latency").Record(elapsed)
 
 	// Per-endpoint stats.
 	m.PrometheusScope.Counter(name + "_count").Inc(1)
 	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed)
+	m.PrometheusScope.Timer(name + "_latency").Record(elapsed)
 
 	// Error stats if applicable.
 	if isErr {
@@ -322,10 +383,12 @@ func (m *LocalMetrics) ApiAfter(name string, elapsed time.Duration, isErr bool) 
 	// Global stats.
 	m.PrometheusScope.Counter("overall_after_count").Inc(1)
 	m.PrometheusScope.Timer("overall_after_latency_ms").Record(elapsed)
+	m.PrometheusScope.Timer("overall_after_latency").Record(elapsed)
 
 	// Per-endpoint stats.
 	m.PrometheusScope.Counter(name + "_count").Inc(1)
 	m.PrometheusScope.Timer(name + "_latency_ms").Record(elapsed)
+	m.PrometheusScope.Timer(name + "_latency").Record(elapsed)
 
 	// Error stats if applicable.
 	if isErr {
@@ -392,6 +455,11 @@ func (m *LocalMetrics) GaugeJsRuntimes(value float64) {
 // Set the absolute value of currently running authoritative matches.
 func (m *LocalMetrics) GaugeAuthoritativeMatches(value float64) {
 	m.PrometheusScope.Gauge("authoritative_matches").Update(value)
+}
+
+// Set the absolute value of currently running parties.
+func (m *LocalMetrics) GaugeParties(value float64) {
+	m.PrometheusScope.Gauge("parties").Update(value)
 }
 
 // Increment the number of dropped events.

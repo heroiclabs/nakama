@@ -58,29 +58,37 @@ func fromHexChar(c byte) byte {
 	return 255
 }
 
-// Parse parses the UUID stored in the string text. Parsing and supported
-// formats are the same as UnmarshalText.
-func (u *UUID) Parse(s string) error {
-	switch len(s) {
+// parseBytes parses UUID text representation from a byte slice and populates
+// the provided UUID reference. It centralizes the parsing logic so that both
+// Parse (string input) and UnmarshalText ([]byte input) can delegate to this
+// single implementation, eliminating code duplication.
+//
+// Supported formats and ABNF grammar are documented on UnmarshalText; refer
+// there for full details. This helper simply enforces those rules.
+func parseBytes(b []byte, u *UUID) error {
+	// Fast-path: ensure we don't accidentally mutate the caller's slice.
+	// We will only reslice, never modify the underlying bytes.
+	switch len(b) {
 	case 32: // hash
 	case 36: // canonical
 	case 34, 38:
-		if s[0] != '{' || s[len(s)-1] != '}' {
-			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, s)
+		if b[0] != '{' || b[len(b)-1] != '}' {
+			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b)
 		}
-		s = s[1 : len(s)-1]
+		b = b[1 : len(b)-1]
 	case 41, 45:
-		if s[:9] != "urn:uuid:" {
-			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, s[:9])
+		if string(b[:9]) != "urn:uuid:" {
+			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b[:9])
 		}
-		s = s[9:]
+		b = b[9:]
 	default:
-		return fmt.Errorf("%w %d in string %q", ErrIncorrectLength, len(s), s)
+		return fmt.Errorf("%w %d in string %q", ErrIncorrectLength, len(b), b)
 	}
-	// canonical
-	if len(s) == 36 {
-		if s[8] != '-' || s[13] != '-' || s[18] != '-' || s[23] != '-' {
-			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, s)
+
+	// canonical (36 chars with dashes at fixed positions)
+	if len(b) == 36 {
+		if b[8] != '-' || b[13] != '-' || b[18] != '-' || b[23] != '-' {
+			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b)
 		}
 		for i, x := range [16]byte{
 			0, 2, 4, 6,
@@ -89,8 +97,8 @@ func (u *UUID) Parse(s string) error {
 			19, 21,
 			24, 26, 28, 30, 32, 34,
 		} {
-			v1 := fromHexChar(s[x])
-			v2 := fromHexChar(s[x+1])
+			v1 := fromHexChar(b[x])
+			v2 := fromHexChar(b[x+1])
 			if v1|v2 == 255 {
 				return ErrInvalidFormat
 			}
@@ -98,16 +106,23 @@ func (u *UUID) Parse(s string) error {
 		}
 		return nil
 	}
-	// hash like
+
+	// hash-like (32 hex chars, no dashes)
 	for i := 0; i < 32; i += 2 {
-		v1 := fromHexChar(s[i])
-		v2 := fromHexChar(s[i+1])
+		v1 := fromHexChar(b[i])
+		v2 := fromHexChar(b[i+1])
 		if v1|v2 == 255 {
 			return ErrInvalidFormat
 		}
 		u[i/2] = (v1 << 4) | v2
 	}
 	return nil
+}
+
+// Parse parses the UUID stored in the string text. Parsing and supported
+// formats are the same as UnmarshalText.
+func (u *UUID) Parse(s string) error {
+	return parseBytes([]byte(s), u)
 }
 
 // FromString returns a UUID parsed from the input string.
@@ -136,85 +151,42 @@ func (u UUID) MarshalText() ([]byte, error) {
 	return buf[:], nil
 }
 
-// UnmarshalText implements the encoding.TextUnmarshaler interface.
 // Following formats are supported:
 //
 //	"6ba7b810-9dad-11d1-80b4-00c04fd430c8",
 //	"{6ba7b810-9dad-11d1-80b4-00c04fd430c8}",
 //	"urn:uuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8"
-//	"6ba7b8109dad11d180b400c04fd430c8"
+//	"6ba7b8109dad11d180b400c04fd430c8",
 //	"{6ba7b8109dad11d180b400c04fd430c8}",
 //	"urn:uuid:6ba7b8109dad11d180b400c04fd430c8"
 //
 // ABNF for supported UUID text representation follows:
 //
-//	URN := 'urn'
-//	UUID-NID := 'uuid'
+//	URN       := "urn"
+//	UUID-NID  := "uuid"
 //
-//	hexdig := '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' |
-//	          'a' | 'b' | 'c' | 'd' | 'e' | 'f' |
-//	          'A' | 'B' | 'C' | 'D' | 'E' | 'F'
+//	hexdig    := "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" |
+//	             "a" | "b" | "c" | "d" | "e" | "f" |
+//	             "A" | "B" | "C" | "D" | "E" | "F"
 //
-//	hexoct := hexdig hexdig
-//	2hexoct := hexoct hexoct
-//	4hexoct := 2hexoct 2hexoct
-//	6hexoct := 4hexoct 2hexoct
-//	12hexoct := 6hexoct 6hexoct
+//	hexoct    := hexdig hexdig
+//	2hexoct   := hexoct hexoct
+//	4hexoct   := 2hexoct 2hexoct
+//	6hexoct   := 4hexoct 2hexoct
+//	12hexoct  := 6hexoct 6hexoct
 //
-//	hashlike := 12hexoct
-//	canonical := 4hexoct '-' 2hexoct '-' 2hexoct '-' 6hexoct
+//	hashlike  := 12hexoct
+//	canonical := 4hexoct "-" 2hexoct "-" 2hexoct "-" 2hexoct "-" 6hexoct
 //
-//	plain := canonical | hashlike
-//	uuid := canonical | hashlike | braced | urn
+//	plain     := canonical | hashlike
+//	braced    := "{" plain "}"
+//	urn       := URN ":" UUID-NID ":" plain
 //
-//	braced := '{' plain '}' | '{' hashlike  '}'
-//	urn := URN ':' UUID-NID ':' plain
+//	uuid      := canonical | hashlike | braced | urn
+//
+// The function delegates validation to internal parseBytes().
 func (u *UUID) UnmarshalText(b []byte) error {
-	switch len(b) {
-	case 32: // hash
-	case 36: // canonical
-	case 34, 38:
-		if b[0] != '{' || b[len(b)-1] != '}' {
-			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b)
-		}
-		b = b[1 : len(b)-1]
-	case 41, 45:
-		if string(b[:9]) != "urn:uuid:" {
-			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b[:9])
-		}
-		b = b[9:]
-	default:
-		return fmt.Errorf("%w %d in string %q", ErrIncorrectLength, len(b), b)
-	}
-	if len(b) == 36 {
-		if b[8] != '-' || b[13] != '-' || b[18] != '-' || b[23] != '-' {
-			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b)
-		}
-		for i, x := range [16]byte{
-			0, 2, 4, 6,
-			9, 11,
-			14, 16,
-			19, 21,
-			24, 26, 28, 30, 32, 34,
-		} {
-			v1 := fromHexChar(b[x])
-			v2 := fromHexChar(b[x+1])
-			if v1|v2 == 255 {
-				return ErrInvalidFormat
-			}
-			u[i] = (v1 << 4) | v2
-		}
-		return nil
-	}
-	for i := 0; i < 32; i += 2 {
-		v1 := fromHexChar(b[i])
-		v2 := fromHexChar(b[i+1])
-		if v1|v2 == 255 {
-			return ErrInvalidFormat
-		}
-		u[i/2] = (v1 << 4) | v2
-	}
-	return nil
+	return parseBytes(b, u)
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.

@@ -57,6 +57,7 @@ type sessionWS struct {
 	pingPeriodDuration   time.Duration
 	pongWaitDuration     time.Duration
 	writeWaitDuration    time.Duration
+	closeAckWaitDuration time.Duration
 
 	sessionRegistry SessionRegistry
 	statusRegistry  StatusRegistry
@@ -112,6 +113,7 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessi
 		pingPeriodDuration:   time.Duration(config.GetSocket().PingPeriodMs) * time.Millisecond,
 		pongWaitDuration:     time.Duration(config.GetSocket().PongWaitMs) * time.Millisecond,
 		writeWaitDuration:    time.Duration(config.GetSocket().WriteWaitMs) * time.Millisecond,
+		closeAckWaitDuration: time.Duration(config.GetSocket().CloseAckWaitMs) * time.Millisecond,
 
 		sessionRegistry: sessionRegistry,
 		statusRegistry:  statusRegistry,
@@ -179,7 +181,7 @@ func (s *sessionWS) Expiry() int64 {
 func (s *sessionWS) Consume() {
 	// Fire an event for session start.
 	if fn := s.runtime.EventSessionStart(); fn != nil {
-		fn(s.userID.String(), s.username.Load(), s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix())
+		fn(s.ctx, s.userID.String(), s.username.Load(), s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix())
 	}
 
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
@@ -531,7 +533,7 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 				// This may not be possible if the socket was already fully closed by an error.
 				s.logger.Debug("Could not send close message", zap.Error(err))
 			} else {
-				t := time.NewTimer(10 * time.Second)
+				t := time.NewTimer(s.closeAckWaitDuration)
 				defer t.Stop()
 				select {
 				case <-s.closeWaitCh:
@@ -556,6 +558,6 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 
 	// Fire an event for session end.
 	if fn := s.runtime.EventSessionEnd(); fn != nil {
-		fn(s.userID.String(), s.username.Load(), s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix(), msg)
+		fn(s.ctx, s.userID.String(), s.username.Load(), s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix(), msg)
 	}
 }

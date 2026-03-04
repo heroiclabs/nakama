@@ -25,7 +25,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v5"
@@ -95,12 +94,6 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	}
 	in.Email = strings.ToLower(in.Email)
 
-	if in.Password == "" {
-		return nil, status.Error(codes.InvalidArgument, "Password is required")
-	} else if !isValidPassword(in.Password) {
-		return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long and contain 1 number and 1 upper case character")
-	}
-
 	inviterUsername := ctx.Value(ctxConsoleUsernameKey{}).(string)
 	inviterEmail := ctx.Value(ctxConsoleEmailKey{}).(string)
 	payload := map[string]interface{}{
@@ -129,9 +122,8 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 
 	user, err := s.dbInsertConsoleUser(ctx, logger, in)
 	if err != nil {
-		var statusErr *statusError
-		if errors.As(err, &statusErr) {
-			return nil, statusErr
+		if _, ok := status.FromError(err); ok {
+			return nil, err
 		} else {
 			logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
 			return nil, status.Error(codes.Internal, "Internal Server Error")
@@ -157,16 +149,17 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 }
 
 func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, logger *zap.Logger, in *console.AddUserRequest) (*console.User, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, err
-	}
 	id, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
 	}
 
-	userAclJson, err := acl.New(in.Acl).ToJson()
+	userAcl := acl.New(in.Acl)
+	if userAcl.IsNone() {
+		return nil, status.Error(codes.InvalidArgument, "User must have at least some permissions.")
+	}
+
+	userAclJson, err := userAcl.ToJson()
 	if err != nil {
 		logger.Error("failed to json marshal acl", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error creating console user.")
@@ -176,11 +169,11 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, logger *zap.Log
 	var updateTime *time.Time
 	updated := false
 	mfaEnabled := false
-	query := `INSERT INTO console_user (id, username, email, password, acl, mfa_required) VALUES ($1, $2, $3, $4, $5, $6)
+	query := `INSERT INTO console_user (id, username, email, acl, mfa_required) VALUES ($1, $2, $3, $4, $5)
 						ON CONFLICT (username) DO
-						UPDATE SET password = $4, acl = $5, mfa_required = $6, update_time = now()
+						UPDATE SET acl = $4, mfa_required = $5, update_time = now()
 						RETURNING id, create_time, update_time, create_time != update_time AS updated, mfa_secret IS NOT NULL AS mfa_enabled`
-	err = s.db.QueryRowContext(ctx, query, id.String(), in.Username, in.Email, hashedPassword, userAclJson, in.MfaRequired).Scan(&id, &createTime, &updateTime, &updated, &mfaEnabled)
+	err = s.db.QueryRowContext(ctx, query, id.String(), in.Username, in.Email, userAclJson, in.MfaRequired).Scan(&id, &createTime, &updateTime, &updated, &mfaEnabled)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -264,6 +257,9 @@ func updateUser(ctx context.Context, logger *zap.Logger, tx *sql.Tx, in *console
 	var id uuid.UUID
 	var mfaEnabled, mfaRequired bool
 	role := acl.New(in.Acl)
+	if role.IsNone() {
+		return nil, nil, status.Error(codes.InvalidArgument, "User must have at least some permissions.")
+	}
 	roleJson, err := role.ToJson()
 	if err != nil {
 		logger.Error("failed to json marshal acl", zap.Error(err))
@@ -319,7 +315,7 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 			return status.Error(codes.Internal, "Failed to generate a temporary password for the user.")
 		}
 
-		hashedPassword, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+		hashedPassword, err := bcrypt.GenerateFromPassword(password, bcryptHashCost)
 		if err != nil {
 			logger.Error("Failed to hash the temporary password for the user.", zap.Error(err))
 			return status.Error(codes.Internal, "Failed to hash the temporary password for the user.")
@@ -432,23 +428,6 @@ func (s *ConsoleServer) dbDeleteConsoleUser(ctx context.Context, username string
 		return false, uuid.Nil, err
 	}
 	return true, deletedID, nil
-}
-
-func isValidPassword(pwd string) bool {
-	if len(pwd) < 8 {
-		return false
-	}
-	var number bool
-	var upper bool
-	for _, c := range pwd {
-		switch {
-		case unicode.IsNumber(c):
-			number = true
-		case unicode.IsUpper(c):
-			upper = true
-		}
-	}
-	return number && upper
 }
 
 func (s *ConsoleServer) RequireUserMfa(ctx context.Context, in *console.RequireUserMfaRequest) (*emptypb.Empty, error) {

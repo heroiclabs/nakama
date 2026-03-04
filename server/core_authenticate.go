@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -35,6 +36,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+var bcryptHashCost = int(math.Max(float64(bcrypt.DefaultCost), 13)) // Currently recommended minimum cost is 13.
 
 func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, bundleId, token, username string, create bool) (string, string, bool, error) {
 	profile, err := client.CheckAppleToken(ctx, bundleId, token)
@@ -324,7 +327,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 
 	// Create a new account.
 	userID := uuid.Must(uuid.NewV4()).String()
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptHashCost)
 	if err != nil {
 		logger.Error("Error hashing password.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")

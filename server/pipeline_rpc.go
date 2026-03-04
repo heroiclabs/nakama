@@ -17,10 +17,12 @@ package server
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 func (p *Pipeline) rpc(ctx context.Context, logger *zap.Logger, session Session, envelope *rtapi.Envelope) (bool, *rtapi.Envelope) {
@@ -51,14 +53,26 @@ func (p *Pipeline) rpc(ctx context.Context, logger *zap.Logger, session Session,
 		}
 	}
 
-	result, fnErr, _ := fn(session.Context(), nil, nil, traceID, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
+	start := time.Now().UTC()
+	rpcCode := codes.Unknown
+	recvBytes := int64(len([]byte(rpcMessage.Payload)))
+	var sentBytes int64
+	defer func() {
+		p.metrics.WsRpc(id, time.Since(start), recvBytes, sentBytes, rpcCode)
+	}()
+
+	result, fnErr, code := fn(session.Context(), nil, nil, traceID, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
 	if fnErr != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
 			Message: fnErr.Error(),
 		}}}, true)
+		rpcCode = code
 		return false, nil
 	}
+
+	rpcCode = codes.OK
+	sentBytes = int64(len([]byte(result)))
 
 	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Rpc{Rpc: &api.Rpc{
 		Id:      rpcMessage.Id,

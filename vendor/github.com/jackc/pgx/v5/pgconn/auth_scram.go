@@ -15,15 +15,16 @@ package pgconn
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/jackc/pgx/v5/pgproto3"
-	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/text/secure/precis"
 )
 
@@ -107,7 +108,7 @@ func (c *PgConn) rxSASLFinal() (*pgproto3.AuthenticationSASLFinal, error) {
 
 type scramClient struct {
 	serverAuthMechanisms []string
-	password             []byte
+	password             string
 	clientNonce          []byte
 
 	clientFirstMessageBare []byte
@@ -127,23 +128,17 @@ func newScramClient(serverAuthMechanisms []string, password string) (*scramClien
 	}
 
 	// Ensure server supports SCRAM-SHA-256
-	hasScramSHA256 := false
-	for _, mech := range sc.serverAuthMechanisms {
-		if mech == "SCRAM-SHA-256" {
-			hasScramSHA256 = true
-			break
-		}
-	}
+	hasScramSHA256 := slices.Contains(sc.serverAuthMechanisms, "SCRAM-SHA-256")
 	if !hasScramSHA256 {
 		return nil, errors.New("server does not support SCRAM-SHA-256")
 	}
 
 	// precis.OpaqueString is equivalent to SASLprep for password.
 	var err error
-	sc.password, err = precis.OpaqueString.Bytes([]byte(password))
+	sc.password, err = precis.OpaqueString.String(password)
 	if err != nil {
 		// PostgreSQL allows passwords invalid according to SCRAM / SASLprep.
-		sc.password = []byte(password)
+		sc.password = password
 	}
 
 	buf := make([]byte, clientNonceLen)
@@ -158,8 +153,8 @@ func newScramClient(serverAuthMechanisms []string, password string) (*scramClien
 }
 
 func (sc *scramClient) clientFirstMessage() []byte {
-	sc.clientFirstMessageBare = []byte(fmt.Sprintf("n=,r=%s", sc.clientNonce))
-	return []byte(fmt.Sprintf("n,,%s", sc.clientFirstMessageBare))
+	sc.clientFirstMessageBare = fmt.Appendf(nil, "n=,r=%s", sc.clientNonce)
+	return fmt.Appendf(nil, "n,,%s", sc.clientFirstMessageBare)
 }
 
 func (sc *scramClient) recvServerFirstMessage(serverFirstMessage []byte) error {
@@ -218,9 +213,13 @@ func (sc *scramClient) recvServerFirstMessage(serverFirstMessage []byte) error {
 }
 
 func (sc *scramClient) clientFinalMessage() string {
-	clientFinalMessageWithoutProof := []byte(fmt.Sprintf("c=biws,r=%s", sc.clientAndServerNonce))
+	clientFinalMessageWithoutProof := fmt.Appendf(nil, "c=biws,r=%s", sc.clientAndServerNonce)
 
-	sc.saltedPassword = pbkdf2.Key([]byte(sc.password), sc.salt, sc.iterations, 32, sha256.New)
+	var err error
+	sc.saltedPassword, err = pbkdf2.Key(sha256.New, sc.password, sc.salt, sc.iterations, 32)
+	if err != nil {
+		panic(err) // This should never happen.
+	}
 	sc.authMessage = bytes.Join([][]byte{sc.clientFirstMessageBare, sc.serverFirstMessage, clientFinalMessageWithoutProof}, []byte(","))
 
 	clientProof := computeClientProof(sc.saltedPassword, sc.authMessage)
@@ -254,7 +253,7 @@ func computeClientProof(saltedPassword, authMessage []byte) []byte {
 	clientSignature := computeHMAC(storedKey[:], authMessage)
 
 	clientProof := make([]byte, len(clientSignature))
-	for i := 0; i < len(clientSignature); i++ {
+	for i := range clientSignature {
 		clientProof[i] = clientKey[i] ^ clientSignature[i]
 	}
 
@@ -263,7 +262,7 @@ func computeClientProof(saltedPassword, authMessage []byte) []byte {
 	return buf
 }
 
-func computeServerSignature(saltedPassword []byte, authMessage []byte) []byte {
+func computeServerSignature(saltedPassword, authMessage []byte) []byte {
 	serverKey := computeHMAC(saltedPassword, []byte("Server Key"))
 	serverSignature := computeHMAC(serverKey, authMessage)
 	buf := make([]byte, base64.StdEncoding.EncodedLen(len(serverSignature)))

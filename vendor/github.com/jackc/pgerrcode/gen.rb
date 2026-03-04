@@ -37,6 +37,7 @@ class_name_overrides = {
 
 cls_errs = Array.new
 cls_assertions = Array.new
+all_error_mappings = Array.new  # Store all code -> name mappings for Name function
 last_cls = ""
 last_cls_full = ""
 
@@ -49,6 +50,19 @@ def build_assert_func(last_cls, last_cls_full, cls_errs)
               return true
       }
       return false
+  }
+  GO
+end
+
+def build_name_func(all_error_mappings)
+  <<~GO
+  // Name returns the string name for a given PostgreSQL error code.
+  // Returns an empty string if the error code is not recognized.
+  func Name(code string) string {
+      switch code {
+  #{all_error_mappings.map { |code, name| "    case \"#{code}\":\n        return \"#{name}\"" }.join("\n")}
+      }
+      return ""
   }
   GO
 end
@@ -91,6 +105,7 @@ ARGF.each do |line|
         .gsub("Json", "JSON")
     end
     cls_errs.push(name)
+    all_error_mappings.push([code, name])  # Store mapping for Name function
     puts %Q[#{name} = "#{code}"]
   else
     puts line
@@ -106,3 +121,5 @@ end
 cls_assertions.each do |cls_assertion|
   puts cls_assertion
 end
+
+puts build_name_func(all_error_mappings)
