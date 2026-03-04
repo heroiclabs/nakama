@@ -32,6 +32,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
@@ -458,8 +459,8 @@ func (n *RuntimeGoNakamaModule) AccountGetId(ctx context.Context, userID string)
 // @param userIDs(type=[]string) Array of user IDs to fetch information for. Must be valid UUID.
 // @return account([]*api.Account) An array of accounts.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AccountsGetId(ctx context.Context, userIDs []string) ([]*api.Account, error) {
-	if len(userIDs) == 0 {
+func (n *RuntimeGoNakamaModule) AccountsGetId(ctx context.Context, userIDs, deviceIDs []string) ([]*api.Account, error) {
+	if len(userIDs) == 0 && len(deviceIDs) == 0 {
 		return make([]*api.Account, 0), nil
 	}
 
@@ -469,7 +470,7 @@ func (n *RuntimeGoNakamaModule) AccountsGetId(ctx context.Context, userIDs []str
 		}
 	}
 
-	return GetAccounts(ctx, n.logger, n.db, n.statusRegistry, userIDs)
+	return GetAccounts(ctx, n.logger, n.db, n.statusRegistry, userIDs, deviceIDs)
 }
 
 // @group accounts
@@ -572,6 +573,43 @@ func (n *RuntimeGoNakamaModule) AccountExportId(ctx context.Context, userID stri
 	return string(exportBytes), nil
 }
 
+// @group accounts
+// @summary Import account information, optionally overwriting data for a specified user ID.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param data(type=string) Data to import
+// @param userID(type=string, optional=true) User ID to import data into. Must be valid UUID.
+// @return account(*api.Account) All account information including wallet, device IDs and more.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) AccountImportId(ctx context.Context, data, userID string) (*api.Account, error) {
+	if data == "" {
+		return nil, errors.New("expects data to be present")
+	}
+	d := &console.AccountExport{}
+	if err := json.Unmarshal([]byte(data), d); err != nil {
+		return nil, errors.New("expects data to be a valid account export format")
+	}
+
+	u := uuid.Nil
+	if userID != "" {
+		var err error
+		u, err = uuid.FromString(userID)
+		if err != nil {
+			return nil, errors.New("expects user ID to be a valid identifier")
+		}
+	}
+
+	account, err := ImportAccount(ctx, n.logger, n.db, n.statusRegistry, u, d)
+	if err != nil {
+		return nil, fmt.Errorf("error importing account: %v", err.Error())
+	}
+
+	if account == nil {
+		return nil, errors.New("account import returned no data")
+	}
+
+	return account.Account, nil
+}
+
 // @group users
 // @summary Fetch one or more users by ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
@@ -579,7 +617,7 @@ func (n *RuntimeGoNakamaModule) AccountExportId(ctx context.Context, userID stri
 // @param facebookIDs(type=[]string) An array of Facebook IDs to fetch.
 // @return users([]*api.User) A list of user record objects.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs []string, facebookIDs []string) ([]*api.User, error) {
+func (n *RuntimeGoNakamaModule) UsersGetId(ctx context.Context, userIDs, facebookIDs []string) ([]*api.User, error) {
 	if len(userIDs) == 0 && len(facebookIDs) == 0 {
 		return make([]*api.User, 0), nil
 	}

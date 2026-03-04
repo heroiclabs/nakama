@@ -142,14 +142,29 @@ WHERE u.id = $1`
 	}, nil
 }
 
-func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userIDs []string) ([]*api.Account, error) {
+func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userIDs, deviceIDs []string) ([]*api.Account, error) {
+	if len(userIDs) == 0 && len(deviceIDs) == 0 {
+		return []*api.Account{}, nil
+	}
+
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
 	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
-FROM users u
-WHERE u.id = ANY($1)`
-	rows, err := db.QueryContext(ctx, query, userIDs)
+FROM users u`
+	params := make([]interface{}, 0, 2)
+	switch {
+	case len(userIDs) > 0 && len(deviceIDs) > 0:
+		query += " WHERE u.id = ANY($1) OR u.id IN (SELECT ud.user_id FROM user_device ud WHERE ud.id = ANY($2))"
+		params = append(params, userIDs, deviceIDs)
+	case len(userIDs) > 0:
+		query += " WHERE u.id = ANY($1)"
+		params = append(params, userIDs)
+	case len(deviceIDs) > 0:
+		query += " WHERE u.id IN (SELECT ud.user_id FROM user_device ud WHERE ud.id = ANY($1))"
+		params = append(params, deviceIDs)
+	}
+	rows, err := db.QueryContext(ctx, query, params...)
 	if err != nil {
 		logger.Error("Error retrieving user accounts.", zap.Error(err))
 		return nil, err
