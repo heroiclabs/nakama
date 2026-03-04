@@ -1,0 +1,89 @@
+{
+  "compilerOptions": {
+    // Target ES2020 for modern JavaScript features
+    "target": "ES2020",
+    
+    // Generate ES2020 modules (import/export), NOT CommonJS
+    // This is CRITICAL for Nakama compatibility
+    "module": "ES2020",
+    
+    // Include ES2020 standard library
+    "lib": ["ES2020"],
+    
+    // Module resolution strategy
+    "moduleResolution": "node",
+    
+    // Output directory for compiled JavaScript
+    "outDir": "./build",
+    
+    // Source directory for TypeScript files
+    "rootDir": "./src",
+    
+    // Enable all strict type checking options
+    "strict": true,
+    
+    // Emit interoperable code
+    "esModuleInterop": true,
+    
+    // Skip type checking of declaration files
+    "skipLibCheck": true,
+    
+    // Ensure consistent casing in file names
+    "forceConsistentCasingInFileNames": true,
+    
+    // Allow importing JSON files
+    "resolveJsonModule": true,
+    
+    // Generate .d.ts declaration files
+    "declaration": true,
+    
+    // Generate declaration source maps
+    "declarationMap": true,
+    
+    // Don't emit source maps (smaller output)
+    "sourceMap": false,
+    
+    // Remove comments from output
+    "removeComments": true,
+    
+    // Don't emit if there are errors
+    "noEmitOnError": true,
+    
+    // Strict type checking options
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    
+    // Additional checks
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    
+    // Advanced options
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "exactOptionalPropertyTypes": false
+  },
+  
+  // Include all TypeScript files in src directory
+  "include": [
+    "src/**/*"
+  ],
+  
+  // Exclude these directories from compilation
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}
