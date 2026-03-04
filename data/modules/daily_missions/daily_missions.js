@@ -353,12 +353,26 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
     
     utils.logInfo(logger, "User " + userId + " claimed mission reward for " + missionId);
     
+    // Grant rewards to wallet (tokens mapped to coins)
+    var walletChanges = {};
+    if (missionConfig.rewards.tokens) walletChanges.coins = missionConfig.rewards.tokens;
+    if (missionConfig.rewards.xp) walletChanges.xp = missionConfig.rewards.xp;
+    if (Object.keys(walletChanges).length > 0) {
+        try {
+            nk.walletUpdate(userId, walletChanges, { source: "daily_mission", missionId: missionId, gameId: gameId }, true);
+            logger.info("[DailyMissions] Granted wallet: " + JSON.stringify(walletChanges) + " to " + userId);
+        } catch (walletErr) {
+            logger.error("[DailyMissions] Wallet grant failed: " + walletErr.message);
+        }
+    }
+    
     return JSON.stringify({
         success: true,
         userId: userId,
         gameId: gameId,
         missionId: missionId,
         rewards: missionConfig.rewards,
+        walletGranted: walletChanges,
         claimedAt: utils.getCurrentTimestamp()
     });
 }

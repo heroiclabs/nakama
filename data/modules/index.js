@@ -81,6 +81,38 @@ function handleError(ctx, err, message) {
 }
 
 /**
+ * Log an RPC error to the analytics_error_events collection for tracking.
+ * Safe to call from any RPC catch block. Failures are silently ignored.
+ */
+function logRpcError(nk, logger, rpcName, errorMessage, userId, gameId) {
+    try {
+        var now = new Date();
+        var dateStr = now.toISOString().slice(0, 10);
+        var key = "err_" + rpcName + "_" + (userId || "system") + "_" + Date.now();
+        nk.storageWrite([{
+            collection: "analytics_error_events",
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000",
+            value: {
+                rpc_name: rpcName,
+                error_message: errorMessage,
+                user_id: userId || null,
+                game_id: gameId || null,
+                date: dateStr,
+                timestamp: now.toISOString(),
+                unix_ts: Math.floor(now.getTime() / 1000)
+            },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        if (logger) {
+            logger.warn("[ErrorTracking] Failed to log error event: " + e.message);
+        }
+    }
+}
+
+/**
  * Log info message
  * @param {object} logger - Logger instance
  * @param {string} msg - Message to log
@@ -18352,6 +18384,6583 @@ function rpcCompatibilityListSessions(ctx, logger, nk, payload) {
 }
 
 
+
+// ============================================================================
+// EVENT PIPELINE - player_event_submit mega-RPC + rewards_pending
+// ============================================================================
+
+// event_pipeline.js - Unified event ingestion and reward-pending checks
+// Compatible with Nakama JavaScript runtime (no ES modules)
+
+var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function generateUUID() {
+    var d = new Date().getTime();
+    var d2 = (typeof performance !== 'undefined' && performance.now && (performance.now() * 1000)) || 0;
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16;
+        if (d > 0) {
+            r = (d + r) % 16 | 0;
+            d = Math.floor(d / 16);
+        } else {
+            r = (d2 + r) % 16 | 0;
+            d2 = Math.floor(d2 / 16);
+        }
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+function safeRead(nk, collection, key, userId) {
+    try {
+        var recs = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+        if (recs && recs.length > 0) return recs[0].value;
+    } catch (_) { /* swallow */ }
+    return null;
+}
+
+function safeWrite(nk, collection, key, userId, value) {
+    nk.storageWrite([{
+        collection: collection,
+        key: key,
+        userId: userId,
+        value: value,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function nowISO() {
+    return new Date().toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// Fan-out helpers – each returns { success, data?, error? }
+// ---------------------------------------------------------------------------
+
+function fanOutLogEvent(nk, logger, userId, eventType, eventData, deviceId, gameId) {
+    var logEntry = {
+        event_type: eventType,
+        event_data: eventData,
+        device_id: deviceId,
+        game_id: gameId,
+        timestamp: nowISO()
+    };
+    safeWrite(nk, "event_pipeline_log", eventType + ":" + generateUUID(), userId, logEntry);
+    return { success: true };
+}
+
+function fanOutGrantXP(nk, logger, userId, xpAmount, source) {
+    if (xpAmount <= 0) return { success: true, xp: 0 };
+    var xpInt = Math.floor(xpAmount);
+    try {
+        nk.walletUpdate(userId, { coins: 0, gems: 0, xp: xpInt }, { source: source }, true);
+        return { success: true, xp: xpInt };
+    } catch (err) {
+        logger.warn("[event_pipeline] XP grant failed: " + err.message);
+        return { success: false, error: err.message };
+    }
+}
+
+function fanOutMasteryXP(nk, logger, userId, category, xpAmount, gameId) {
+    if (!category) return { success: true, skipped: true };
+    var key = "mastery:" + gameId + ":" + category;
+    var existing = safeRead(nk, "mastery_xp", key, userId);
+    var record = existing || { category: category, game_id: gameId, total_xp: 0, level: 1 };
+    record.total_xp += Math.floor(xpAmount);
+    record.level = Math.floor(record.total_xp / 1000) + 1;
+    record.updated_at = nowISO();
+    safeWrite(nk, "mastery_xp", key, userId, record);
+    return { success: true, total_xp: record.total_xp, level: record.level };
+}
+
+function fanOutAchievements(nk, logger, userId, eventType, eventData, gameId) {
+    var key = "progress:" + gameId;
+    var progress = safeRead(nk, "achievements_progress", key, userId) || { events: {} };
+    var count = (progress.events[eventType] || 0) + 1;
+    progress.events[eventType] = count;
+    progress.updated_at = nowISO();
+    safeWrite(nk, "achievements_progress", key, userId, progress);
+    return { success: true, event_count: count };
+}
+
+function fanOutSeasonPass(nk, logger, userId, xpAmount, gameId) {
+    var key = "season_pass:" + gameId;
+    var sp = safeRead(nk, "season_pass", key, userId) || { xp: 0, level: 0, claimed_levels: [] };
+    sp.xp += Math.floor(xpAmount);
+    sp.level = Math.floor(sp.xp / 500);
+    sp.updated_at = nowISO();
+    safeWrite(nk, "season_pass", key, userId, sp);
+    return { success: true, xp: sp.xp, level: sp.level };
+}
+
+function fanOutWeeklyGoals(nk, logger, userId, eventType, eventData, gameId) {
+    var now = new Date();
+    var weekKey = "weekly:" + gameId + ":" + now.getFullYear() + "W" + Math.ceil((now.getDate() + now.getDay()) / 7);
+    var goals = safeRead(nk, "weekly_goals", weekKey, userId) || { tasks: {}, completed: false };
+    var count = (goals.tasks[eventType] || 0) + 1;
+    goals.tasks[eventType] = count;
+    goals.updated_at = nowISO();
+    safeWrite(nk, "weekly_goals", weekKey, userId, goals);
+    return { success: true, tasks: goals.tasks };
+}
+
+function fanOutDailyMissions(nk, logger, userId, eventType, eventData, gameId) {
+    var today = nowISO().substring(0, 10);
+    var key = "daily_mission:" + gameId + ":" + today;
+    var missions = safeRead(nk, "daily_missions", key, userId) || { tasks: {}, completed: false, claimed: false };
+    var count = (missions.tasks[eventType] || 0) + 1;
+    missions.tasks[eventType] = count;
+    missions.updated_at = nowISO();
+    safeWrite(nk, "daily_missions", key, userId, missions);
+    return { success: true, tasks: missions.tasks };
+}
+
+function fanOutDailyStreak(nk, logger, userId, gameId) {
+    var today = nowISO().substring(0, 10);
+    var key = "daily_streak:" + gameId;
+    var streak = safeRead(nk, "daily_streaks", key, userId) || { current: 0, longest: 0, last_login: "", claimed: false };
+    if (streak.last_login === today) return { success: true, already_logged: true, current: streak.current };
+    var yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+    streak.current = (streak.last_login === yesterday) ? streak.current + 1 : 1;
+    if (streak.current > streak.longest) streak.longest = streak.current;
+    streak.last_login = today;
+    streak.claimed = false;
+    streak.updated_at = nowISO();
+    safeWrite(nk, "daily_streaks", key, userId, streak);
+    return { success: true, current: streak.current, longest: streak.longest };
+}
+
+function fanOutAnalytics(nk, logger, userId, eventType, eventData, gameId) {
+    var entry = {
+        user_id: userId,
+        game_id: gameId,
+        event_type: eventType,
+        event_data: eventData,
+        timestamp: nowISO()
+    };
+    safeWrite(nk, "analytics_events", eventType + ":" + generateUUID(), userId, entry);
+    return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// RPC 1 – rpcPlayerEventSubmit
+// ---------------------------------------------------------------------------
+
+/**
+ * Mega-RPC: ingests a player event and fans out to every subsystem.
+ * Payload: { device_id, game_id, event_type, event_data }
+ */
+function rpcPlayerEventSubmit(ctx, logger, nk, payload) {
+    logger.info("[event_pipeline] rpcPlayerEventSubmit called");
+
+    try {
+        var data = JSON.parse(payload || '{}');
+
+        if (!data.event_type) {
+            return JSON.stringify({ success: false, error: "event_type is required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var deviceId = data.device_id || "";
+        var gameId = data.game_id || "";
+        var eventType = data.event_type;
+        var eventData = data.event_data || {};
+        var rewards = [];
+        var fanOutResults = {};
+        var xpEarned = 0;
+
+        // ----- Event-specific logic -----
+
+        if (eventType === "quiz_complete") {
+            var score = Number(eventData.score) || 0;
+            xpEarned = Math.floor(score * 0.1);
+            try {
+                fanOutResults.xp_grant = fanOutGrantXP(nk, logger, userId, xpEarned, "quiz_complete");
+            } catch (e) { fanOutResults.xp_grant = { success: false, error: e.message }; }
+
+            try {
+                fanOutResults.mastery = fanOutMasteryXP(nk, logger, userId, eventData.category, xpEarned, gameId);
+            } catch (e) { fanOutResults.mastery = { success: false, error: e.message }; }
+
+            try {
+                fanOutResults.analytics = fanOutAnalytics(nk, logger, userId, eventType, eventData, gameId);
+            } catch (e) { fanOutResults.analytics = { success: false, error: e.message }; }
+
+            if (xpEarned > 0) rewards.push({ type: "xp", amount: xpEarned, source: "quiz_complete" });
+
+        } else if (eventType === "match_complete") {
+            var survivalTime = Number(eventData.survival_time) || 0;
+            xpEarned = Math.floor(survivalTime * 0.5);
+            try {
+                fanOutResults.xp_grant = fanOutGrantXP(nk, logger, userId, xpEarned, "match_complete");
+            } catch (e) { fanOutResults.xp_grant = { success: false, error: e.message }; }
+
+            try {
+                fanOutResults.analytics = fanOutAnalytics(nk, logger, userId, eventType, eventData, gameId);
+            } catch (e) { fanOutResults.analytics = { success: false, error: e.message }; }
+
+            if (xpEarned > 0) rewards.push({ type: "xp", amount: xpEarned, source: "match_complete" });
+
+        } else if (eventType === "login") {
+            try {
+                fanOutResults.daily_streak = fanOutDailyStreak(nk, logger, userId, gameId);
+            } catch (e) { fanOutResults.daily_streak = { success: false, error: e.message }; }
+
+            try {
+                fanOutResults.analytics = fanOutAnalytics(nk, logger, userId, eventType, eventData, gameId);
+            } catch (e) { fanOutResults.analytics = { success: false, error: e.message }; }
+
+        } else {
+            // purchase, friend_added, multiplayer_win, etc.
+            try {
+                fanOutResults.analytics = fanOutAnalytics(nk, logger, userId, eventType, eventData, gameId);
+            } catch (e) { fanOutResults.analytics = { success: false, error: e.message }; }
+        }
+
+        // ----- Common fan-out for ALL events -----
+
+        try {
+            fanOutResults.event_log = fanOutLogEvent(nk, logger, userId, eventType, eventData, deviceId, gameId);
+        } catch (e) { fanOutResults.event_log = { success: false, error: e.message }; }
+
+        try {
+            fanOutResults.achievements = fanOutAchievements(nk, logger, userId, eventType, eventData, gameId);
+        } catch (e) { fanOutResults.achievements = { success: false, error: e.message }; }
+
+        try {
+            fanOutResults.season_pass = fanOutSeasonPass(nk, logger, userId, xpEarned > 0 ? xpEarned : 10, gameId);
+        } catch (e) { fanOutResults.season_pass = { success: false, error: e.message }; }
+
+        try {
+            fanOutResults.weekly_goals = fanOutWeeklyGoals(nk, logger, userId, eventType, eventData, gameId);
+        } catch (e) { fanOutResults.weekly_goals = { success: false, error: e.message }; }
+
+        try {
+            fanOutResults.daily_missions = fanOutDailyMissions(nk, logger, userId, eventType, eventData, gameId);
+        } catch (e) { fanOutResults.daily_missions = { success: false, error: e.message }; }
+
+        return JSON.stringify({
+            success: true,
+            event_type: eventType,
+            fan_out_results: fanOutResults,
+            rewards_earned: rewards
+        });
+
+    } catch (err) {
+        logger.error("[event_pipeline] rpcPlayerEventSubmit error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RPC 2 – rpcRewardsPending
+// ---------------------------------------------------------------------------
+
+/**
+ * Scans every reward sub-system for unclaimed rewards.
+ * Payload: { device_id, game_id }
+ */
+function rpcRewardsPending(ctx, logger, nk, payload) {
+    logger.info("[event_pipeline] rpcRewardsPending called");
+
+    try {
+        var data = JSON.parse(payload || '{}');
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var gameId = data.game_id || "";
+        var unclaimed = [];
+        var totalCoins = 0;
+        var totalGems = 0;
+        var totalXP = 0;
+
+        // 1. Daily streak reward
+        try {
+            var streakKey = "daily_streak:" + gameId;
+            var streak = safeRead(nk, "daily_streaks", streakKey, userId);
+            if (streak && !streak.claimed && streak.current > 0) {
+                var streakCoins = streak.current * 50;
+                unclaimed.push({
+                    source: "daily_streak",
+                    description: "Day " + streak.current + " streak reward",
+                    reward: { coins: streakCoins, gems: 0, xp: 0 }
+                });
+                totalCoins += streakCoins;
+            }
+        } catch (e) {
+            logger.warn("[event_pipeline] streak check failed: " + e.message);
+        }
+
+        // 2. Daily missions
+        try {
+            var today = nowISO().substring(0, 10);
+            var missionKey = "daily_mission:" + gameId + ":" + today;
+            var missions = safeRead(nk, "daily_missions", missionKey, userId);
+            if (missions && missions.completed && !missions.claimed) {
+                unclaimed.push({
+                    source: "daily_missions",
+                    description: "Daily missions complete",
+                    reward: { coins: 100, gems: 5, xp: 50 }
+                });
+                totalCoins += 100;
+                totalGems += 5;
+                totalXP += 50;
+            }
+        } catch (e) {
+            logger.warn("[event_pipeline] daily missions check failed: " + e.message);
+        }
+
+        // 3. Weekly goals
+        try {
+            var now = new Date();
+            var weekKey = "weekly:" + gameId + ":" + now.getFullYear() + "W" + Math.ceil((now.getDate() + now.getDay()) / 7);
+            var goals = safeRead(nk, "weekly_goals", weekKey, userId);
+            if (goals && goals.completed && !goals.claimed) {
+                unclaimed.push({
+                    source: "weekly_goals",
+                    description: "Weekly goals complete",
+                    reward: { coins: 500, gems: 20, xp: 200 }
+                });
+                totalCoins += 500;
+                totalGems += 20;
+                totalXP += 200;
+            }
+        } catch (e) {
+            logger.warn("[event_pipeline] weekly goals check failed: " + e.message);
+        }
+
+        // 4. Season pass – unclaimed levels
+        try {
+            var spKey = "season_pass:" + gameId;
+            var sp = safeRead(nk, "season_pass", spKey, userId);
+            if (sp && sp.level > 0) {
+                var claimed = sp.claimed_levels || [];
+                for (var lvl = 1; lvl <= sp.level; lvl++) {
+                    if (claimed.indexOf(lvl) === -1) {
+                        var lvlCoins = lvl * 100;
+                        var lvlGems = lvl * 5;
+                        unclaimed.push({
+                            source: "season_pass",
+                            description: "Season pass level " + lvl,
+                            reward: { coins: lvlCoins, gems: lvlGems, xp: 0 }
+                        });
+                        totalCoins += lvlCoins;
+                        totalGems += lvlGems;
+                    }
+                }
+            }
+        } catch (e) {
+            logger.warn("[event_pipeline] season pass check failed: " + e.message);
+        }
+
+        // 5. Monthly milestones
+        try {
+            var monthKey = "milestone:" + gameId + ":" + nowISO().substring(0, 7);
+            var milestones = safeRead(nk, "monthly_milestones", monthKey, userId);
+            if (milestones && milestones.completed && !milestones.claimed) {
+                unclaimed.push({
+                    source: "monthly_milestones",
+                    description: "Monthly milestone complete",
+                    reward: { coins: 1000, gems: 50, xp: 500 }
+                });
+                totalCoins += 1000;
+                totalGems += 50;
+                totalXP += 500;
+            }
+        } catch (e) {
+            logger.warn("[event_pipeline] monthly milestones check failed: " + e.message);
+        }
+
+        return JSON.stringify({
+            success: true,
+            unclaimed: unclaimed,
+            total_value: { coins: totalCoins, gems: totalGems, xp: totalXP }
+        });
+
+    } catch (err) {
+        logger.error("[event_pipeline] rpcRewardsPending error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// SOCIAL V2 - Challenge flow, rivalry, team play, group quests, activity feed
+// ============================================================================
+
+// social_v2.js - Social features: challenges, rivalries, teams, duos, group quests
+// Compatible with Nakama JavaScript runtime (no ES modules)
+
+var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+// Notification codes (arbitrary ints, must be > 0)
+var NOTIFY_CHALLENGE_ACCEPTED = 100;
+var NOTIFY_CHALLENGE_DECLINED = 101;
+var NOTIFY_CHALLENGE_RECEIVED = 102;
+var NOTIFY_DUO_INVITE = 110;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function generateUUID() {
+    var d = new Date().getTime();
+    var d2 = (typeof performance !== 'undefined' && performance.now && (performance.now() * 1000)) || 0;
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16;
+        if (d > 0) {
+            r = (d + r) % 16 | 0;
+            d = Math.floor(d / 16);
+        } else {
+            r = (d2 + r) % 16 | 0;
+            d2 = Math.floor(d2 / 16);
+        }
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+function nowISO() {
+    return new Date().toISOString();
+}
+
+function safeRead(nk, collection, key, userId) {
+    try {
+        var recs = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+        if (recs && recs.length > 0) return recs[0].value;
+    } catch (_) { /* swallow */ }
+    return null;
+}
+
+function safeWrite(nk, collection, key, userId, value) {
+    nk.storageWrite([{
+        collection: collection,
+        key: key,
+        userId: userId,
+        value: value,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function generateJoinCode() {
+    var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    var code = "";
+    for (var i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+
+// ---------------------------------------------------------------------------
+// 1. rpcChallengeAccept
+// ---------------------------------------------------------------------------
+
+function rpcChallengeAccept(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcChallengeAccept called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.challenge_id) {
+            return JSON.stringify({ success: false, error: "challenge_id is required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var challenge = safeRead(nk, "challenges", data.challenge_id, SYSTEM_USER_ID);
+        if (!challenge) {
+            return JSON.stringify({ success: false, error: "Challenge not found" });
+        }
+        if (challenge.status !== "pending") {
+            return JSON.stringify({ success: false, error: "Challenge is not pending" });
+        }
+
+        challenge.status = "accepted";
+        challenge.accepted_by = userId;
+        challenge.accepted_at = nowISO();
+        safeWrite(nk, "challenges", data.challenge_id, SYSTEM_USER_ID, challenge);
+
+        try {
+            nk.notificationSend(
+                challenge.challenger_id,
+                "Challenge accepted",
+                NOTIFY_CHALLENGE_ACCEPTED,
+                { challenge_id: data.challenge_id, accepted_by: userId },
+                userId
+            );
+        } catch (e) {
+            logger.warn("[social_v2] notification send failed: " + e.message);
+        }
+
+        return JSON.stringify({ success: true, challenge: challenge });
+    } catch (err) {
+        logger.error("[social_v2] rpcChallengeAccept error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 2. rpcChallengeDecline
+// ---------------------------------------------------------------------------
+
+function rpcChallengeDecline(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcChallengeDecline called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.challenge_id) {
+            return JSON.stringify({ success: false, error: "challenge_id is required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var challenge = safeRead(nk, "challenges", data.challenge_id, SYSTEM_USER_ID);
+        if (!challenge) {
+            return JSON.stringify({ success: false, error: "Challenge not found" });
+        }
+
+        challenge.status = "declined";
+        challenge.declined_by = userId;
+        challenge.declined_at = nowISO();
+        safeWrite(nk, "challenges", data.challenge_id, SYSTEM_USER_ID, challenge);
+
+        try {
+            nk.notificationSend(
+                challenge.challenger_id,
+                "Challenge declined",
+                NOTIFY_CHALLENGE_DECLINED,
+                { challenge_id: data.challenge_id, declined_by: userId },
+                userId
+            );
+        } catch (e) {
+            logger.warn("[social_v2] notification send failed: " + e.message);
+        }
+
+        return JSON.stringify({ success: true, challenge: challenge });
+    } catch (err) {
+        logger.error("[social_v2] rpcChallengeDecline error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 3. rpcChallengeList
+// ---------------------------------------------------------------------------
+
+function rpcChallengeList(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcChallengeList called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var gameId = data.game_id || "";
+        var statusFilter = data.status || "";
+
+        var records = [];
+        try {
+            var result = nk.storageList(userId, "challenges_v2", 100, "");
+            if (result && result.length) {
+                records = result;
+            } else if (result && result.objects) {
+                records = result.objects;
+            }
+        } catch (e) {
+            logger.warn("[social_v2] storageList failed: " + e.message);
+        }
+
+        var filtered = [];
+        for (var i = 0; i < records.length; i++) {
+            var val = records[i].value || records[i];
+            if (gameId && val.game_id && val.game_id !== gameId) continue;
+            if (statusFilter && val.status && val.status !== statusFilter) continue;
+            filtered.push(val);
+        }
+
+        return JSON.stringify({ success: true, challenges: filtered, count: filtered.length });
+    } catch (err) {
+        logger.error("[social_v2] rpcChallengeList error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 4. rpcGetRivalry
+// ---------------------------------------------------------------------------
+
+function rpcGetRivalry(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcGetRivalry called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.target_user_id) {
+            return JSON.stringify({ success: false, error: "target_user_id is required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var gameId = data.game_id || "";
+        var pairKey = [userId, data.target_user_id].sort().join(":");
+        var key = "rivalry:" + gameId + ":" + pairKey;
+
+        var rivalry = safeRead(nk, "rivalries", key, SYSTEM_USER_ID);
+        if (!rivalry) {
+            return JSON.stringify({
+                success: true,
+                rivalry: { wins: 0, losses: 0, draws: 0, last_match: null, streak: 0 },
+                exists: false
+            });
+        }
+
+        var perspective = {
+            wins: (rivalry.player_a === userId) ? rivalry.a_wins : rivalry.b_wins,
+            losses: (rivalry.player_a === userId) ? rivalry.b_wins : rivalry.a_wins,
+            draws: rivalry.draws || 0,
+            last_match: rivalry.last_match || null,
+            streak: rivalry.streak || 0
+        };
+
+        return JSON.stringify({ success: true, rivalry: perspective, exists: true });
+    } catch (err) {
+        logger.error("[social_v2] rpcGetRivalry error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 5. rpcFriendScoreAlert
+// ---------------------------------------------------------------------------
+
+function rpcFriendScoreAlert(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcFriendScoreAlert called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var gameId = data.game_id || "";
+
+        var friends = [];
+        try {
+            var friendsResult = nk.friendsList(userId, 100, 0, "");
+            if (friendsResult && friendsResult.friends) {
+                friends = friendsResult.friends;
+            } else if (friendsResult && friendsResult.length) {
+                friends = friendsResult;
+            }
+        } catch (e) {
+            logger.warn("[social_v2] friendsList failed: " + e.message);
+            return JSON.stringify({ success: true, alerts: [], message: "Could not retrieve friends" });
+        }
+
+        var leaderboardId = "leaderboard_" + gameId;
+        var userRecord = null;
+        try {
+            var ownerRecords = nk.leaderboardRecordsList(leaderboardId, [userId], 1, "", 0);
+            if (ownerRecords && ownerRecords.ownerRecords && ownerRecords.ownerRecords.length > 0) {
+                userRecord = ownerRecords.ownerRecords[0];
+            } else if (ownerRecords && ownerRecords.records && ownerRecords.records.length > 0) {
+                userRecord = ownerRecords.records[0];
+            }
+        } catch (e) {
+            logger.warn("[social_v2] leaderboard lookup failed: " + e.message);
+        }
+
+        var userScore = userRecord ? (userRecord.score || 0) : 0;
+        var alerts = [];
+
+        for (var i = 0; i < friends.length; i++) {
+            var friend = friends[i];
+            var friendId = friend.user ? friend.user.userId : (friend.userId || friend.id);
+            if (!friendId) continue;
+
+            try {
+                var friendRecords = nk.leaderboardRecordsList(leaderboardId, [friendId], 1, "", 0);
+                var friendRec = null;
+                if (friendRecords && friendRecords.ownerRecords && friendRecords.ownerRecords.length > 0) {
+                    friendRec = friendRecords.ownerRecords[0];
+                } else if (friendRecords && friendRecords.records && friendRecords.records.length > 0) {
+                    friendRec = friendRecords.records[0];
+                }
+                if (friendRec && (friendRec.score || 0) > userScore) {
+                    var friendUsername = friend.user ? friend.user.username : (friend.username || "Friend");
+                    alerts.push({
+                        friend_id: friendId,
+                        friend_username: friendUsername,
+                        friend_score: friendRec.score,
+                        your_score: userScore,
+                        difference: friendRec.score - userScore
+                    });
+                }
+            } catch (_) { /* skip friend */ }
+        }
+
+        alerts.sort(function (a, b) { return b.difference - a.difference; });
+
+        return JSON.stringify({ success: true, alerts: alerts, count: alerts.length });
+    } catch (err) {
+        logger.error("[social_v2] rpcFriendScoreAlert error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 6. rpcTeamQuizCreate
+// ---------------------------------------------------------------------------
+
+function rpcTeamQuizCreate(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcTeamQuizCreate called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.game_id || !data.team_name) {
+            return JSON.stringify({ success: false, error: "game_id and team_name are required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var quizId = generateUUID();
+        var joinCode = generateJoinCode();
+        var maxMembers = data.max_members || 4;
+
+        var teamQuiz = {
+            quiz_id: quizId,
+            game_id: data.game_id,
+            team_name: data.team_name,
+            join_code: joinCode,
+            max_members: maxMembers,
+            creator_id: userId,
+            members: [userId],
+            status: "waiting",
+            created_at: nowISO()
+        };
+
+        safeWrite(nk, "team_quizzes", quizId, SYSTEM_USER_ID, teamQuiz);
+
+        // Also index by join_code for quick lookup
+        safeWrite(nk, "team_quiz_codes", joinCode, SYSTEM_USER_ID, { quiz_id: quizId });
+
+        return JSON.stringify({ success: true, quiz_id: quizId, join_code: joinCode, team_quiz: teamQuiz });
+    } catch (err) {
+        logger.error("[social_v2] rpcTeamQuizCreate error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 7. rpcTeamQuizJoin
+// ---------------------------------------------------------------------------
+
+function rpcTeamQuizJoin(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcTeamQuizJoin called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.join_code) {
+            return JSON.stringify({ success: false, error: "join_code is required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var codeEntry = safeRead(nk, "team_quiz_codes", data.join_code, SYSTEM_USER_ID);
+        if (!codeEntry || !codeEntry.quiz_id) {
+            return JSON.stringify({ success: false, error: "Invalid join code" });
+        }
+
+        var quiz = safeRead(nk, "team_quizzes", codeEntry.quiz_id, SYSTEM_USER_ID);
+        if (!quiz) {
+            return JSON.stringify({ success: false, error: "Team quiz not found" });
+        }
+        if (quiz.status !== "waiting") {
+            return JSON.stringify({ success: false, error: "Team quiz is no longer accepting members" });
+        }
+        if (quiz.members.length >= quiz.max_members) {
+            return JSON.stringify({ success: false, error: "Team quiz is full" });
+        }
+
+        for (var i = 0; i < quiz.members.length; i++) {
+            if (quiz.members[i] === userId) {
+                return JSON.stringify({ success: false, error: "Already a member of this team quiz" });
+            }
+        }
+
+        quiz.members.push(userId);
+        quiz.updated_at = nowISO();
+        safeWrite(nk, "team_quizzes", codeEntry.quiz_id, SYSTEM_USER_ID, quiz);
+
+        return JSON.stringify({ success: true, quiz_id: codeEntry.quiz_id, team_quiz: quiz });
+    } catch (err) {
+        logger.error("[social_v2] rpcTeamQuizJoin error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 8. rpcDailyDuoCreate
+// ---------------------------------------------------------------------------
+
+function rpcDailyDuoCreate(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcDailyDuoCreate called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.game_id || !data.partner_user_id) {
+            return JSON.stringify({ success: false, error: "game_id and partner_user_id are required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var duoId = generateUUID();
+        var today = nowISO().substring(0, 10);
+
+        var duo = {
+            duo_id: duoId,
+            game_id: data.game_id,
+            creator_id: userId,
+            partner_id: data.partner_user_id,
+            date: today,
+            creator_completed: false,
+            partner_completed: false,
+            status: "active",
+            created_at: nowISO()
+        };
+
+        safeWrite(nk, "daily_duos", duoId, SYSTEM_USER_ID, duo);
+
+        try {
+            nk.notificationSend(
+                data.partner_user_id,
+                "You've been invited to a Daily Duo!",
+                NOTIFY_DUO_INVITE,
+                { duo_id: duoId, game_id: data.game_id, from: userId },
+                userId
+            );
+        } catch (e) {
+            logger.warn("[social_v2] duo notification failed: " + e.message);
+        }
+
+        return JSON.stringify({ success: true, duo_id: duoId, duo: duo });
+    } catch (err) {
+        logger.error("[social_v2] rpcDailyDuoCreate error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 9. rpcDailyDuoStatus
+// ---------------------------------------------------------------------------
+
+function rpcDailyDuoStatus(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcDailyDuoStatus called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.duo_id) {
+            return JSON.stringify({ success: false, error: "duo_id is required" });
+        }
+
+        var duo = safeRead(nk, "daily_duos", data.duo_id, SYSTEM_USER_ID);
+        if (!duo) {
+            return JSON.stringify({ success: false, error: "Daily duo not found" });
+        }
+
+        var bothDone = duo.creator_completed && duo.partner_completed;
+
+        return JSON.stringify({
+            success: true,
+            duo: duo,
+            both_completed: bothDone,
+            status: bothDone ? "completed" : "in_progress"
+        });
+    } catch (err) {
+        logger.error("[social_v2] rpcDailyDuoStatus error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 10. rpcGroupQuestCreate
+// ---------------------------------------------------------------------------
+
+function rpcGroupQuestCreate(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcGroupQuestCreate called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.group_id || !data.quest_name || !data.target_type || !data.target_value) {
+            return JSON.stringify({ success: false, error: "group_id, quest_name, target_type, and target_value are required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var questId = generateUUID();
+        var durationHours = data.duration_hours || 24;
+        var expiresAt = new Date(Date.now() + durationHours * 3600000).toISOString();
+
+        var quest = {
+            quest_id: questId,
+            group_id: data.group_id,
+            quest_name: data.quest_name,
+            target_type: data.target_type,
+            target_value: Number(data.target_value),
+            current_value: 0,
+            duration_hours: durationHours,
+            expires_at: expiresAt,
+            creator_id: userId,
+            contributors: {},
+            status: "active",
+            created_at: nowISO()
+        };
+
+        safeWrite(nk, "group_quests", questId, SYSTEM_USER_ID, quest);
+
+        return JSON.stringify({ success: true, quest_id: questId, quest: quest });
+    } catch (err) {
+        logger.error("[social_v2] rpcGroupQuestCreate error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 11. rpcGroupQuestProgress
+// ---------------------------------------------------------------------------
+
+function rpcGroupQuestProgress(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcGroupQuestProgress called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.quest_id) {
+            return JSON.stringify({ success: false, error: "quest_id is required" });
+        }
+
+        var userId = ctx.userId || SYSTEM_USER_ID;
+        var increment = Number(data.increment) || 1;
+
+        var quest = safeRead(nk, "group_quests", data.quest_id, SYSTEM_USER_ID);
+        if (!quest) {
+            return JSON.stringify({ success: false, error: "Quest not found" });
+        }
+        if (quest.status !== "active") {
+            return JSON.stringify({ success: false, error: "Quest is no longer active" });
+        }
+
+        if (new Date(quest.expires_at) < new Date()) {
+            quest.status = "expired";
+            safeWrite(nk, "group_quests", data.quest_id, SYSTEM_USER_ID, quest);
+            return JSON.stringify({ success: false, error: "Quest has expired" });
+        }
+
+        quest.current_value += increment;
+        quest.contributors[userId] = (quest.contributors[userId] || 0) + increment;
+        quest.updated_at = nowISO();
+
+        var justCompleted = false;
+        if (quest.current_value >= quest.target_value && quest.status === "active") {
+            quest.status = "completed";
+            quest.completed_at = nowISO();
+            justCompleted = true;
+        }
+
+        safeWrite(nk, "group_quests", data.quest_id, SYSTEM_USER_ID, quest);
+
+        // Log activity
+        try {
+            var activityId = generateUUID();
+            safeWrite(nk, "group_activity", activityId, SYSTEM_USER_ID, {
+                group_id: quest.group_id,
+                user_id: userId,
+                action: justCompleted ? "quest_completed" : "quest_progress",
+                quest_id: data.quest_id,
+                quest_name: quest.quest_name,
+                increment: increment,
+                new_total: quest.current_value,
+                timestamp: nowISO()
+            });
+        } catch (_) { /* best effort */ }
+
+        return JSON.stringify({
+            success: true,
+            quest: quest,
+            just_completed: justCompleted,
+            progress_percent: Math.min(100, Math.floor((quest.current_value / quest.target_value) * 100))
+        });
+    } catch (err) {
+        logger.error("[social_v2] rpcGroupQuestProgress error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 12. rpcGroupActivityFeed
+// ---------------------------------------------------------------------------
+
+function rpcGroupActivityFeed(ctx, logger, nk, payload) {
+    logger.info("[social_v2] rpcGroupActivityFeed called");
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.group_id) {
+            return JSON.stringify({ success: false, error: "group_id is required" });
+        }
+
+        var limit = data.limit || 20;
+        if (limit > 100) limit = 100;
+
+        var allRecords = [];
+        try {
+            var result = nk.storageList(SYSTEM_USER_ID, "group_activity", limit, "");
+            if (result && result.objects) {
+                allRecords = result.objects;
+            } else if (result && result.length) {
+                allRecords = result;
+            }
+        } catch (e) {
+            logger.warn("[social_v2] storageList failed: " + e.message);
+        }
+
+        var events = [];
+        for (var i = 0; i < allRecords.length; i++) {
+            var val = allRecords[i].value || allRecords[i];
+            if (val.group_id === data.group_id) {
+                events.push(val);
+            }
+        }
+
+        events.sort(function (a, b) {
+            return (b.timestamp || "").localeCompare(a.timestamp || "");
+        });
+
+        if (events.length > limit) {
+            events = events.slice(0, limit);
+        }
+
+        return JSON.stringify({ success: true, events: events, count: events.length });
+    } catch (err) {
+        logger.error("[social_v2] rpcGroupActivityFeed error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// LIVE OPS - Flash events, mystery boxes, happy hour, streak celebrations
+// ============================================================================
+
+// Live Ops module for Nakama game server
+// Flash events, mystery boxes, daily spotlights, streaks, comeback rewards, lucky draws, happy hour
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function nowSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
+function uuid() {
+  var s = [];
+  var hex = "0123456789abcdef";
+  for (var i = 0; i < 36; i++) {
+    if (i === 8 || i === 13 || i === 18 || i === 23) {
+      s.push("-");
+    } else if (i === 14) {
+      s.push("4");
+    } else {
+      s.push(hex.charAt(Math.floor(Math.random() * 16)));
+    }
+  }
+  return s.join("");
+}
+
+function todayKey() {
+  var d = new Date();
+  return d.getUTCFullYear() + "-" +
+    ("0" + (d.getUTCMonth() + 1)).slice(-2) + "-" +
+    ("0" + d.getUTCDate()).slice(-2);
+}
+
+function weightedPick(table) {
+  var total = 0;
+  var i;
+  for (i = 0; i < table.length; i++) {
+    total += table[i].weight;
+  }
+  var roll = Math.random() * total;
+  var cumulative = 0;
+  for (i = 0; i < table.length; i++) {
+    cumulative += table[i].weight;
+    if (roll <= cumulative) {
+      return table[i];
+    }
+  }
+  return table[table.length - 1];
+}
+
+// ─── Mystery Box reward tables ──────────────────────────────────────────────
+
+var MYSTERY_BOX_TABLES = {
+  common: [
+    { weight: 50, reward: { coins: 100 },  label: "100 Coins" },
+    { weight: 30, reward: { coins: 250 },  label: "250 Coins" },
+    { weight: 15, reward: { coins: 500 },  label: "500 Coins" },
+    { weight: 4,  reward: { gems: 5 },     label: "5 Gems" },
+    { weight: 1,  reward: { gems: 15 },    label: "15 Gems" }
+  ],
+  rare: [
+    { weight: 35, reward: { coins: 500 },  label: "500 Coins" },
+    { weight: 30, reward: { coins: 1000 }, label: "1000 Coins" },
+    { weight: 20, reward: { gems: 10 },    label: "10 Gems" },
+    { weight: 10, reward: { gems: 25 },    label: "25 Gems" },
+    { weight: 5,  reward: { gems: 50 },    label: "50 Gems" }
+  ],
+  epic: [
+    { weight: 25, reward: { coins: 2000 },             label: "2000 Coins" },
+    { weight: 25, reward: { gems: 30 },                label: "30 Gems" },
+    { weight: 20, reward: { gems: 60 },                label: "60 Gems" },
+    { weight: 15, reward: { coins: 5000 },             label: "5000 Coins" },
+    { weight: 10, reward: { gems: 100 },               label: "100 Gems" },
+    { weight: 5,  reward: { gems: 100, badge: "epic_unboxer" }, label: "100 Gems + Epic Badge" }
+  ],
+  legendary: [
+    { weight: 20, reward: { gems: 100 },                           label: "100 Gems" },
+    { weight: 20, reward: { coins: 10000 },                        label: "10000 Coins" },
+    { weight: 20, reward: { gems: 200 },                           label: "200 Gems" },
+    { weight: 15, reward: { gems: 500 },                           label: "500 Gems" },
+    { weight: 10, reward: { gems: 300, badge: "legendary_luck" },  label: "300 Gems + Legendary Badge" },
+    { weight: 10, reward: { coins: 25000, gems: 250 },             label: "25000 Coins + 250 Gems" },
+    { weight: 5,  reward: { gems: 1000, avatar: "golden_phoenix" }, label: "1000 Gems + Exclusive Avatar" }
+  ]
+};
+
+// ─── Streak milestone definitions ───────────────────────────────────────────
+
+var STREAK_MILESTONES = {
+  7:   { coins: 500,   gems: 10,  badge: "week_warrior" },
+  14:  { coins: 1500,  gems: 25,  badge: "fortnight_fighter" },
+  30:  { coins: 3000,  gems: 50,  badge: "monthly_master" },
+  50:  { coins: 5000,  gems: 100, badge: "fifty_fierce" },
+  100: { coins: 10000, gems: 250, badge: "century_champion" },
+  365: { coins: 50000, gems: 1000, badge: "year_legend" }
+};
+
+// ─── 1. Flash Event Create ──────────────────────────────────────────────────
+
+var rpcFlashEventCreate = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var gameId = input.game_id;
+  var eventName = input.event_name;
+  var eventType = input.event_type;
+  var multiplier = input.multiplier || 2;
+  var durationMinutes = input.duration_minutes || 60;
+  var description = input.description || "";
+
+  var validTypes = ["double_xp", "bonus_coins", "special_category", "tournament_blitz", "happy_hour"];
+  if (validTypes.indexOf(eventType) === -1) {
+    throw Error("invalid event_type: " + eventType);
+  }
+
+  var now = nowSeconds();
+  var eventId = uuid();
+
+  var eventData = {
+    event_id: eventId,
+    game_id: gameId,
+    event_name: eventName,
+    event_type: eventType,
+    multiplier: multiplier,
+    duration_minutes: durationMinutes,
+    description: description,
+    start_time: now,
+    end_time: now + (durationMinutes * 60),
+    created_by: ctx.userId,
+    created_at: now
+  };
+
+  nk.storageWrite([{
+    collection: "flash_events",
+    key: eventId,
+    userId: "00000000-0000-0000-0000-000000000000",
+    value: eventData,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+
+  logger.info("Flash event created: %s (%s) for game %s", eventName, eventType, gameId);
+  return JSON.stringify({ success: true, event: eventData });
+};
+
+// ─── 2. Flash Event List Active ─────────────────────────────────────────────
+
+var rpcFlashEventListActive = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var gameId = input.game_id;
+  var now = nowSeconds();
+
+  var query = "+collection:flash_events +value.game_id:" + gameId;
+  var results = nk.storageIndexList("flash_events_idx", query, 100);
+
+  var active = [];
+  if (results && results.objects) {
+    for (var i = 0; i < results.objects.length; i++) {
+      var obj = results.objects[i];
+      var val = obj.value;
+      if (val.start_time <= now && val.end_time > now) {
+        val.time_remaining_seconds = val.end_time - now;
+        active.push(val);
+      }
+    }
+  }
+
+  // Fallback: list via storageList if index not available
+  if (active.length === 0) {
+    var cursor = "";
+    var systemId = "00000000-0000-0000-0000-000000000000";
+    var listed = nk.storageList(systemId, "flash_events", 100, cursor);
+    if (listed && listed.objects) {
+      for (var j = 0; j < listed.objects.length; j++) {
+        var item = listed.objects[j];
+        var v = item.value;
+        if (v.game_id === gameId && v.start_time <= now && v.end_time > now) {
+          v.time_remaining_seconds = v.end_time - now;
+          active.push(v);
+        }
+      }
+    }
+  }
+
+  return JSON.stringify({ active_events: active, count: active.length });
+};
+
+// ─── 3. Mystery Box Grant ───────────────────────────────────────────────────
+
+var rpcMysteryBoxGrant = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var userId = input.user_id;
+  var gameId = input.game_id;
+  var boxType = input.box_type || "common";
+  var source = input.source || "unknown";
+
+  var validBoxTypes = ["common", "rare", "epic", "legendary"];
+  if (validBoxTypes.indexOf(boxType) === -1) {
+    throw Error("invalid box_type: " + boxType);
+  }
+
+  var boxId = uuid();
+  var now = nowSeconds();
+
+  var boxData = {
+    box_id: boxId,
+    game_id: gameId,
+    box_type: boxType,
+    source: source,
+    granted_to: userId,
+    granted_at: now,
+    opened: false,
+    opened_at: null,
+    reward: null
+  };
+
+  nk.storageWrite([{
+    collection: "mystery_boxes",
+    key: boxId,
+    userId: userId,
+    value: boxData,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+
+  logger.info("Mystery box (%s) granted to %s from %s", boxType, userId, source);
+  return JSON.stringify({ success: true, box: boxData });
+};
+
+// ─── 4. Mystery Box Open ────────────────────────────────────────────────────
+
+var rpcMysteryBoxOpen = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var boxId = input.box_id;
+  var gameId = input.game_id;
+  var userId = ctx.userId;
+
+  var records = nk.storageRead([{
+    collection: "mystery_boxes",
+    key: boxId,
+    userId: userId
+  }]);
+
+  if (!records || records.length === 0) {
+    throw Error("mystery box not found: " + boxId);
+  }
+
+  var box = records[0].value;
+
+  if (box.opened) {
+    throw Error("mystery box already opened: " + boxId);
+  }
+
+  if (box.game_id !== gameId) {
+    throw Error("box does not belong to game: " + gameId);
+  }
+
+  var table = MYSTERY_BOX_TABLES[box.box_type];
+  if (!table) {
+    throw Error("unknown box_type on stored box: " + box.box_type);
+  }
+
+  var pick = weightedPick(table);
+  var walletChangeset = {};
+  if (pick.reward.coins) { walletChangeset.coins = pick.reward.coins; }
+  if (pick.reward.gems)  { walletChangeset.gems = pick.reward.gems; }
+
+  if (walletChangeset.coins || walletChangeset.gems) {
+    nk.walletUpdate(userId, walletChangeset, { source: "mystery_box", box_type: box.box_type, box_id: boxId }, true);
+  }
+
+  var now = nowSeconds();
+  box.opened = true;
+  box.opened_at = now;
+  box.reward = {
+    label: pick.label,
+    coins: pick.reward.coins || 0,
+    gems: pick.reward.gems || 0,
+    badge: pick.reward.badge || null,
+    avatar: pick.reward.avatar || null
+  };
+
+  nk.storageWrite([{
+    collection: "mystery_boxes",
+    key: boxId,
+    userId: userId,
+    value: box,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+
+  logger.info("Mystery box %s opened by %s: %s", boxId, userId, pick.label);
+  return JSON.stringify({ success: true, reward: box.reward, box_type: box.box_type });
+};
+
+// ─── 5. Daily Spotlight ─────────────────────────────────────────────────────
+
+var SPOTLIGHT_CATEGORIES = [
+  "Science", "History", "Geography", "Entertainment",
+  "Sports", "Technology", "Art", "Music", "Literature", "Nature"
+];
+
+var rpcDailySpotlight = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var gameId = input.game_id;
+  var today = todayKey();
+  var spotlightKey = gameId + "_" + today;
+
+  var records = nk.storageRead([{
+    collection: "daily_spotlight",
+    key: spotlightKey,
+    userId: "00000000-0000-0000-0000-000000000000"
+  }]);
+
+  if (records && records.length > 0) {
+    return JSON.stringify({ spotlight: records[0].value, cached: true });
+  }
+
+  // Generate today's spotlight
+  var featuredCategoryIdx = Math.floor(Math.random() * SPOTLIGHT_CATEGORIES.length);
+  var bonusCategoryIdx = (featuredCategoryIdx + 1 + Math.floor(Math.random() * (SPOTLIGHT_CATEGORIES.length - 1))) % SPOTLIGHT_CATEGORIES.length;
+
+  var spotlight = {
+    game_id: gameId,
+    date: today,
+    featured_category: SPOTLIGHT_CATEGORIES[featuredCategoryIdx],
+    bonus_category: SPOTLIGHT_CATEGORIES[bonusCategoryIdx],
+    bonus_multiplier: 2,
+    featured_player: null,
+    featured_group: null,
+    tip_of_the_day: "Challenge a friend today for bonus rewards!",
+    created_at: nowSeconds()
+  };
+
+  // Try to find top scorer via leaderboard
+  try {
+    var leaderboardId = gameId + "_daily";
+    var topRecords = nk.leaderboardRecordsList(leaderboardId, null, 1, null, 0);
+    if (topRecords && topRecords.records && topRecords.records.length > 0) {
+      var topRecord = topRecords.records[0];
+      spotlight.featured_player = {
+        user_id: topRecord.ownerId,
+        username: topRecord.username || "Anonymous",
+        score: topRecord.score
+      };
+    }
+  } catch (e) {
+    logger.warn("Could not fetch leaderboard for spotlight: %s", e.message);
+  }
+
+  // Try to find most active group
+  try {
+    var groups = nk.groupsList(null, null, null, null, 1, null);
+    if (groups && groups.groups && groups.groups.length > 0) {
+      var g = groups.groups[0];
+      spotlight.featured_group = {
+        group_id: g.id,
+        name: g.name,
+        member_count: g.edgeCount
+      };
+    }
+  } catch (e) {
+    logger.warn("Could not fetch groups for spotlight: %s", e.message);
+  }
+
+  nk.storageWrite([{
+    collection: "daily_spotlight",
+    key: spotlightKey,
+    userId: "00000000-0000-0000-0000-000000000000",
+    value: spotlight,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+
+  return JSON.stringify({ spotlight: spotlight, cached: false });
+};
+
+// ─── 6. Streak Milestone Celebrate ──────────────────────────────────────────
+
+var rpcStreakMilestoneCelebrate = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var deviceId = input.device_id;
+  var gameId = input.game_id;
+  var streakCount = input.streak_count;
+  var userId = ctx.userId;
+
+  var milestoneReward = STREAK_MILESTONES[streakCount];
+  if (!milestoneReward) {
+    return JSON.stringify({
+      milestone_reached: false,
+      streak_count: streakCount,
+      message: "No milestone at streak " + streakCount + ". Keep going!"
+    });
+  }
+
+  var milestoneKey = gameId + "_" + userId + "_streak_" + streakCount;
+
+  var existing = nk.storageRead([{
+    collection: "streak_milestones",
+    key: milestoneKey,
+    userId: userId
+  }]);
+
+  if (existing && existing.length > 0) {
+    return JSON.stringify({
+      milestone_reached: true,
+      already_claimed: true,
+      streak_count: streakCount,
+      reward: existing[0].value.reward
+    });
+  }
+
+  var walletChangeset = {};
+  if (milestoneReward.coins) { walletChangeset.coins = milestoneReward.coins; }
+  if (milestoneReward.gems)  { walletChangeset.gems = milestoneReward.gems; }
+
+  nk.walletUpdate(userId, walletChangeset, {
+    source: "streak_milestone",
+    streak_count: streakCount,
+    game_id: gameId
+  }, true);
+
+  var milestoneData = {
+    game_id: gameId,
+    device_id: deviceId,
+    streak_count: streakCount,
+    reward: {
+      coins: milestoneReward.coins || 0,
+      gems: milestoneReward.gems || 0,
+      badge: milestoneReward.badge || null
+    },
+    claimed_at: nowSeconds()
+  };
+
+  nk.storageWrite([{
+    collection: "streak_milestones",
+    key: milestoneKey,
+    userId: userId,
+    value: milestoneData,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+
+  logger.info("Streak milestone %d claimed by %s: %d coins, %d gems, badge=%s",
+    streakCount, userId, milestoneReward.coins, milestoneReward.gems, milestoneReward.badge);
+
+  return JSON.stringify({
+    milestone_reached: true,
+    already_claimed: false,
+    streak_count: streakCount,
+    reward: milestoneData.reward,
+    celebration: "Congratulations on your " + streakCount + "-day streak!"
+  });
+};
+
+// ─── 7. Comeback Surprise ───────────────────────────────────────────────────
+
+var rpcComebackSurprise = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var deviceId = input.device_id;
+  var gameId = input.game_id;
+  var daysAway = input.days_away || 1;
+  var userId = ctx.userId;
+
+  var coins = 0;
+  var gems = 0;
+  var message = "";
+  var tier = "";
+
+  if (daysAway >= 90) {
+    tier = "legendary_comeback";
+    coins = 25000;
+    gems = 500;
+    message = "A LEGEND RETURNS! We've missed you incredibly. Here's a legendary welcome-back package!";
+  } else if (daysAway >= 30) {
+    tier = "epic_comeback";
+    coins = 10000;
+    gems = 200;
+    message = "Welcome back, champion! It's been a while. Here's an epic care package just for you!";
+  } else if (daysAway >= 14) {
+    tier = "rare_comeback";
+    coins = 5000;
+    gems = 75;
+    message = "Great to see you again! We saved some special rewards for your return!";
+  } else if (daysAway >= 7) {
+    tier = "uncommon_comeback";
+    coins = 2000;
+    gems = 30;
+    message = "Hey, welcome back! Here's a little something to get you going again!";
+  } else if (daysAway >= 3) {
+    tier = "common_comeback";
+    coins = 500;
+    gems = 10;
+    message = "Good to see you! Here are some comeback goodies!";
+  } else {
+    tier = "quick_return";
+    coins = 100;
+    gems = 0;
+    message = "Welcome back! Here's a small token of appreciation.";
+  }
+
+  var walletChangeset = { coins: coins };
+  if (gems > 0) { walletChangeset.gems = gems; }
+
+  nk.walletUpdate(userId, walletChangeset, {
+    source: "comeback_surprise",
+    days_away: daysAway,
+    tier: tier,
+    game_id: gameId
+  }, true);
+
+  var comebackData = {
+    game_id: gameId,
+    device_id: deviceId,
+    days_away: daysAway,
+    tier: tier,
+    coins: coins,
+    gems: gems,
+    message: message,
+    claimed_at: nowSeconds()
+  };
+
+  nk.storageWrite([{
+    collection: "comeback_surprises",
+    key: gameId + "_" + userId + "_" + todayKey(),
+    userId: userId,
+    value: comebackData,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+
+  logger.info("Comeback surprise (%s) granted to %s: %d coins, %d gems", tier, userId, coins, gems);
+
+  return JSON.stringify({
+    success: true,
+    tier: tier,
+    reward: { coins: coins, gems: gems },
+    message: message,
+    days_away: daysAway
+  });
+};
+
+// ─── 8. Lucky Draw Enter ────────────────────────────────────────────────────
+
+var rpcLuckyDrawEnter = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var gameId = input.game_id;
+  var userId = ctx.userId;
+  var today = todayKey();
+  var entryKey = gameId + "_" + today + "_" + userId;
+
+  var existing = nk.storageRead([{
+    collection: "lucky_draw",
+    key: entryKey,
+    userId: userId
+  }]);
+
+  if (existing && existing.length > 0) {
+    return JSON.stringify({
+      entered: false,
+      already_entered: true,
+      draw_date: today,
+      message: "You've already entered today's lucky draw. Come back tomorrow!"
+    });
+  }
+
+  var entryData = {
+    game_id: gameId,
+    user_id: userId,
+    draw_date: today,
+    entry_time: nowSeconds(),
+    status: "pending"
+  };
+
+  nk.storageWrite([{
+    collection: "lucky_draw",
+    key: entryKey,
+    userId: userId,
+    value: entryData,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+
+  logger.info("Lucky draw entry for %s on %s (game: %s)", userId, today, gameId);
+
+  return JSON.stringify({
+    entered: true,
+    already_entered: false,
+    draw_date: today,
+    message: "You're in! Good luck in today's draw!"
+  });
+};
+
+// ─── 9. Happy Hour Status ───────────────────────────────────────────────────
+
+var rpcHappyHourStatus = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var gameId = input.game_id;
+  var now = nowSeconds();
+
+  var active = false;
+  var multiplier = 1;
+  var timeRemaining = 0;
+  var eventName = "";
+
+  // Scan flash_events for happy_hour type
+  var systemId = "00000000-0000-0000-0000-000000000000";
+  try {
+    var listed = nk.storageList(systemId, "flash_events", 100, "");
+    if (listed && listed.objects) {
+      for (var i = 0; i < listed.objects.length; i++) {
+        var val = listed.objects[i].value;
+        if (val.game_id === gameId && val.event_type === "happy_hour" &&
+            val.start_time <= now && val.end_time > now) {
+          active = true;
+          multiplier = val.multiplier || 2;
+          timeRemaining = val.end_time - now;
+          eventName = val.event_name || "Happy Hour";
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn("Could not list flash events for happy hour: %s", e.message);
+  }
+
+  return JSON.stringify({
+    active: active,
+    multiplier: multiplier,
+    time_remaining_seconds: timeRemaining,
+    event_name: eventName,
+    game_id: gameId
+  });
+};
+
+// ============================================================================
+// PERSONALIZATION - AI-driven missions and recommendations
+// ============================================================================
+
+// Personalization module for Nakama game server
+// Smart missions and recommendations based on player behavior
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function uuid() {
+  var s = [];
+  var hex = "0123456789abcdef";
+  for (var i = 0; i < 36; i++) {
+    if (i === 8 || i === 13 || i === 18 || i === 23) {
+      s.push("-");
+    } else if (i === 14) {
+      s.push("4");
+    } else {
+      s.push(hex.charAt(Math.floor(Math.random() * 16)));
+    }
+  }
+  return s.join("");
+}
+
+function nowSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
+function todayKey() {
+  var d = new Date();
+  return d.getUTCFullYear() + "-" +
+    ("0" + (d.getUTCMonth() + 1)).slice(-2) + "-" +
+    ("0" + d.getUTCDate()).slice(-2);
+}
+
+var ALL_CATEGORIES = [
+  "Science", "History", "Geography", "Entertainment",
+  "Sports", "Technology", "Art", "Music", "Literature", "Nature"
+];
+
+var DISCOVERABLE_FEATURES = [
+  { id: "tournament", label: "Tournaments", description: "Compete in a tournament" },
+  { id: "daily_duo", label: "Daily Duo", description: "Play a Daily Duo match with a friend" },
+  { id: "group_challenge", label: "Group Challenge", description: "Join a group challenge" },
+  { id: "leaderboard", label: "Leaderboards", description: "Check and climb the leaderboards" },
+  { id: "mystery_box", label: "Mystery Box", description: "Open a mystery box" },
+  { id: "lucky_draw", label: "Lucky Draw", description: "Enter the daily lucky draw" },
+  { id: "streak_bonus", label: "Streak Bonus", description: "Maintain your daily streak" }
+];
+
+// ─── Internal: load player quiz history ─────────────────────────────────────
+
+function loadQuizHistory(nk, userId, gameId) {
+  var categoryStats = {};
+  var totalQuizzes = 0;
+
+  var collections = ["quiz_results_" + gameId, "quizverse_analytics"];
+  for (var c = 0; c < collections.length; c++) {
+    try {
+      var records = nk.storageRead([{
+        collection: collections[c],
+        key: "stats",
+        userId: userId
+      }]);
+      if (records && records.length > 0) {
+        var stats = records[0].value;
+        if (stats.category_stats) { categoryStats = stats.category_stats; }
+        if (stats.total_quizzes) { totalQuizzes = stats.total_quizzes; }
+        break;
+      }
+    } catch (e) {
+      // continue to next collection
+    }
+  }
+
+  return { categoryStats: categoryStats, totalQuizzes: totalQuizzes };
+}
+
+// ─── Internal: load player achievements ─────────────────────────────────────
+
+function loadAchievements(nk, userId, gameId) {
+  var achievements = [];
+  try {
+    var records = nk.storageRead([{
+      collection: "achievements",
+      key: gameId + "_progress",
+      userId: userId
+    }]);
+    if (records && records.length > 0 && records[0].value.achievements) {
+      achievements = records[0].value.achievements;
+    }
+  } catch (e) {
+    // no achievements yet
+  }
+  return achievements;
+}
+
+// ─── Internal: count friends ────────────────────────────────────────────────
+
+function countFriends(nk, userId) {
+  var count = 0;
+  try {
+    var friendsList = nk.friendsList(userId, 100, 0, "");
+    if (friendsList && friendsList.friends) {
+      count = friendsList.friends.length;
+    }
+  } catch (e) {
+    // no friends data
+  }
+  return count;
+}
+
+// ─── Internal: load player state ────────────────────────────────────────────
+
+function loadPlayerState(nk, userId, gameId) {
+  var state = {
+    streak: 0,
+    last_login: 0,
+    wallet: { coins: 0, gems: 0 },
+    features_used: []
+  };
+
+  try {
+    var records = nk.storageRead([{
+      collection: "player_state",
+      key: gameId,
+      userId: userId
+    }]);
+    if (records && records.length > 0) {
+      var val = records[0].value;
+      if (val.streak !== undefined) { state.streak = val.streak; }
+      if (val.last_login !== undefined) { state.last_login = val.last_login; }
+      if (val.features_used) { state.features_used = val.features_used; }
+    }
+  } catch (e) {
+    // defaults
+  }
+
+  try {
+    var account = nk.accountGetId(userId);
+    if (account && account.wallet) {
+      var w = JSON.parse(account.wallet);
+      if (w.coins !== undefined) { state.wallet.coins = w.coins; }
+      if (w.gems !== undefined) { state.wallet.gems = w.gems; }
+    }
+  } catch (e) {
+    // default wallet
+  }
+
+  return state;
+}
+
+// ─── Internal: load friends recent activity ─────────────────────────────────
+
+function loadFriendsActivity(nk, userId, gameId) {
+  var activities = [];
+  try {
+    var friendsList = nk.friendsList(userId, 20, 0, "");
+    if (friendsList && friendsList.friends) {
+      for (var i = 0; i < friendsList.friends.length && i < 5; i++) {
+        var friend = friendsList.friends[i];
+        var friendId = friend.user.userId || friend.user.id;
+        try {
+          var records = nk.storageRead([{
+            collection: "player_state",
+            key: gameId,
+            userId: friendId
+          }]);
+          if (records && records.length > 0) {
+            activities.push({
+              user_id: friendId,
+              username: friend.user.username || "Friend",
+              last_login: records[0].value.last_login || 0,
+              streak: records[0].value.streak || 0
+            });
+          }
+        } catch (e) {
+          // skip this friend
+        }
+      }
+    }
+  } catch (e) {
+    // no friend activity
+  }
+  return activities;
+}
+
+// ─── Internal: load active events ───────────────────────────────────────────
+
+function loadActiveEvents(nk, gameId) {
+  var events = [];
+  var now = nowSeconds();
+  var systemId = "00000000-0000-0000-0000-000000000000";
+
+  try {
+    var listed = nk.storageList(systemId, "flash_events", 100, "");
+    if (listed && listed.objects) {
+      for (var i = 0; i < listed.objects.length; i++) {
+        var val = listed.objects[i].value;
+        if (val.game_id === gameId && val.start_time <= now && val.end_time > now) {
+          events.push(val);
+        }
+      }
+    }
+  } catch (e) {
+    // no events
+  }
+
+  return events;
+}
+
+// ─── Internal: find strongest & weakest categories ──────────────────────────
+
+function analyzeCategoryStrength(categoryStats) {
+  var strongest = null;
+  var weakest = null;
+  var bestScore = -1;
+  var worstScore = Infinity;
+  var triedCategories = [];
+
+  for (var cat in categoryStats) {
+    if (!categoryStats.hasOwnProperty(cat)) continue;
+    triedCategories.push(cat);
+    var stat = categoryStats[cat];
+    var accuracy = stat.correct / Math.max(stat.total, 1);
+    if (accuracy > bestScore) {
+      bestScore = accuracy;
+      strongest = cat;
+    }
+    if (accuracy < worstScore) {
+      worstScore = accuracy;
+      weakest = cat;
+    }
+  }
+
+  var untried = [];
+  for (var i = 0; i < ALL_CATEGORIES.length; i++) {
+    if (triedCategories.indexOf(ALL_CATEGORIES[i]) === -1) {
+      untried.push(ALL_CATEGORIES[i]);
+    }
+  }
+
+  return {
+    strongest: strongest,
+    weakest: weakest,
+    bestAccuracy: bestScore,
+    worstAccuracy: worstScore,
+    triedCategories: triedCategories,
+    untriedCategories: untried
+  };
+}
+
+// ─── 1. Get Personalized Missions ───────────────────────────────────────────
+
+var rpcGetPersonalizedMissions = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var deviceId = input.device_id;
+  var gameId = input.game_id;
+  var userId = ctx.userId;
+  var today = todayKey();
+  var missionsKey = gameId + "_" + today;
+
+  // Return cached missions if generated today
+  var cached = nk.storageRead([{
+    collection: "personalized_missions",
+    key: missionsKey,
+    userId: userId
+  }]);
+
+  if (cached && cached.length > 0) {
+    return JSON.stringify(cached[0].value);
+  }
+
+  var quizData = loadQuizHistory(nk, userId, gameId);
+  var achievements = loadAchievements(nk, userId, gameId);
+  var friendCount = countFriends(nk, userId);
+  var playerState = loadPlayerState(nk, userId, gameId);
+  var analysis = analyzeCategoryStrength(quizData.categoryStats);
+
+  var missions = [];
+  var reasons = [];
+
+  // (a) Comfort mission – strongest category, easy target
+  var comfortCategory = analysis.strongest || ALL_CATEGORIES[0];
+  var comfortTarget = 3;
+  missions.push({
+    id: uuid(),
+    title: comfortCategory + " Champion",
+    description: "Score well in " + comfortTarget + " " + comfortCategory + " quizzes",
+    objective: "complete_quizzes",
+    category: comfortCategory,
+    target: comfortTarget,
+    reward: { coins: 200, gems: 5 },
+    difficulty: "easy",
+    type: "comfort"
+  });
+  reasons.push("Comfort mission in your strongest category: " + comfortCategory);
+
+  // (b) Stretch mission – weaker or untried category, moderate target
+  var stretchCategory;
+  if (analysis.untriedCategories.length > 0) {
+    stretchCategory = analysis.untriedCategories[Math.floor(Math.random() * analysis.untriedCategories.length)];
+    reasons.push("Stretch mission in an untried category: " + stretchCategory);
+  } else if (analysis.weakest && analysis.weakest !== comfortCategory) {
+    stretchCategory = analysis.weakest;
+    reasons.push("Stretch mission in your weakest category: " + stretchCategory);
+  } else {
+    stretchCategory = ALL_CATEGORIES[Math.floor(Math.random() * ALL_CATEGORIES.length)];
+    reasons.push("Stretch mission in a random category: " + stretchCategory);
+  }
+
+  missions.push({
+    id: uuid(),
+    title: "Explore " + stretchCategory,
+    description: "Answer 5 questions correctly in " + stretchCategory,
+    objective: "correct_answers",
+    category: stretchCategory,
+    target: 5,
+    reward: { coins: 400, gems: 15 },
+    difficulty: "moderate",
+    type: "stretch"
+  });
+
+  // (c) Social mission – depends on friend count
+  var socialMission;
+  if (friendCount === 0) {
+    socialMission = {
+      id: uuid(),
+      title: "Make a Friend",
+      description: "Send a friend request or join a group",
+      objective: "social_connect",
+      category: "social",
+      target: 1,
+      reward: { coins: 300, gems: 10 },
+      difficulty: "easy",
+      type: "social"
+    };
+    reasons.push("Social mission: you have no friends yet — time to connect!");
+  } else if (friendCount < 5) {
+    socialMission = {
+      id: uuid(),
+      title: "Challenge a Friend",
+      description: "Send a quiz challenge to a friend",
+      objective: "send_challenge",
+      category: "social",
+      target: 1,
+      reward: { coins: 350, gems: 10 },
+      difficulty: "easy",
+      type: "social"
+    };
+    reasons.push("Social mission: challenge one of your " + friendCount + " friends");
+  } else {
+    socialMission = {
+      id: uuid(),
+      title: "Squad Goals",
+      description: "Play " + Math.min(friendCount, 3) + " matches with friends",
+      objective: "play_with_friends",
+      category: "social",
+      target: Math.min(friendCount, 3),
+      reward: { coins: 500, gems: 20 },
+      difficulty: "moderate",
+      type: "social"
+    };
+    reasons.push("Social mission: play with your friends");
+  }
+  missions.push(socialMission);
+
+  // (d) Discovery mission – feature not yet used
+  var unusedFeatures = [];
+  for (var f = 0; f < DISCOVERABLE_FEATURES.length; f++) {
+    if (playerState.features_used.indexOf(DISCOVERABLE_FEATURES[f].id) === -1) {
+      unusedFeatures.push(DISCOVERABLE_FEATURES[f]);
+    }
+  }
+
+  var discoveryFeature;
+  if (unusedFeatures.length > 0) {
+    discoveryFeature = unusedFeatures[Math.floor(Math.random() * unusedFeatures.length)];
+  } else {
+    discoveryFeature = DISCOVERABLE_FEATURES[Math.floor(Math.random() * DISCOVERABLE_FEATURES.length)];
+  }
+
+  missions.push({
+    id: uuid(),
+    title: "Discover: " + discoveryFeature.label,
+    description: discoveryFeature.description,
+    objective: "try_feature",
+    category: "discovery",
+    target: 1,
+    reward: { coins: 250, gems: 10 },
+    difficulty: "easy",
+    type: "discovery",
+    feature_id: discoveryFeature.id
+  });
+  reasons.push("Discovery mission: try " + discoveryFeature.label);
+
+  var result = {
+    missions: missions,
+    personalization_reason: reasons.join("; "),
+    generated_at: nowSeconds(),
+    date: today,
+    game_id: gameId
+  };
+
+  nk.storageWrite([{
+    collection: "personalized_missions",
+    key: missionsKey,
+    userId: userId,
+    value: result,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+
+  logger.info("Generated %d personalized missions for %s (game: %s)", missions.length, userId, gameId);
+  return JSON.stringify(result);
+};
+
+// ─── 2. Get Smart Recommendations ──────────────────────────────────────────
+
+var rpcGetSmartRecommendations = function (ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var deviceId = input.device_id;
+  var gameId = input.game_id;
+  var userId = ctx.userId;
+
+  var playerState = loadPlayerState(nk, userId, gameId);
+  var quizData = loadQuizHistory(nk, userId, gameId);
+  var achievements = loadAchievements(nk, userId, gameId);
+  var friendsActivity = loadFriendsActivity(nk, userId, gameId);
+  var activeEvents = loadActiveEvents(nk, gameId);
+  var analysis = analyzeCategoryStrength(quizData.categoryStats);
+  var friendCount = countFriends(nk, userId);
+
+  var recommendations = [];
+  var nextBestAction = "";
+  var reason = "";
+
+  // Priority 1: active events
+  if (activeEvents.length > 0) {
+    var topEvent = activeEvents[0];
+    recommendations.push({
+      type: "event",
+      value: topEvent.event_name,
+      reason: topEvent.event_type + " is active now! " + (topEvent.multiplier || 2) + "x rewards for " +
+        Math.round((topEvent.end_time - nowSeconds()) / 60) + " more minutes"
+    });
+  }
+
+  // Priority 2: streak at risk
+  var now = nowSeconds();
+  var hoursSinceLogin = (now - playerState.last_login) / 3600;
+  if (playerState.streak > 0 && hoursSinceLogin > 18) {
+    nextBestAction = "play_now";
+    reason = "Your " + playerState.streak + "-day streak is at risk! Play a quick round to keep it alive.";
+    recommendations.push({
+      type: "feature",
+      value: "streak_bonus",
+      reason: "Don't lose your " + playerState.streak + "-day streak!"
+    });
+  }
+
+  // Category recommendations
+  if (analysis.untriedCategories.length > 0) {
+    var suggestCat = analysis.untriedCategories[Math.floor(Math.random() * analysis.untriedCategories.length)];
+    recommendations.push({
+      type: "category",
+      value: suggestCat,
+      reason: "You haven't tried " + suggestCat + " yet — it could be your hidden strength!"
+    });
+  }
+
+  if (analysis.weakest) {
+    recommendations.push({
+      type: "category",
+      value: analysis.weakest,
+      reason: "Practice " + analysis.weakest + " to improve — currently your weakest area (" +
+        Math.round(analysis.worstAccuracy * 100) + "% accuracy)"
+    });
+  }
+
+  // Friend recommendations
+  if (friendCount === 0) {
+    recommendations.push({
+      type: "friend",
+      value: "find_friends",
+      reason: "Playing with friends makes quizzes more fun — add some friends to get started!"
+    });
+  } else if (friendsActivity.length > 0) {
+    var activeFriend = null;
+    for (var i = 0; i < friendsActivity.length; i++) {
+      if ((now - friendsActivity[i].last_login) < 86400) {
+        activeFriend = friendsActivity[i];
+        break;
+      }
+    }
+    if (activeFriend) {
+      recommendations.push({
+        type: "friend",
+        value: activeFriend.username,
+        reason: activeFriend.username + " is active today — challenge them to a match!"
+      });
+    }
+  }
+
+  // Group recommendation if not in many groups
+  try {
+    var userGroups = nk.userGroupsList(userId, 100, null, "");
+    if (!userGroups || !userGroups.userGroups || userGroups.userGroups.length === 0) {
+      recommendations.push({
+        type: "group",
+        value: "join_group",
+        reason: "Join a group to unlock group challenges and earn bonus rewards"
+      });
+    }
+  } catch (e) {
+    // skip group recommendation
+  }
+
+  // Tournament recommendation if events running
+  for (var t = 0; t < activeEvents.length; t++) {
+    if (activeEvents[t].event_type === "tournament_blitz") {
+      recommendations.push({
+        type: "tournament",
+        value: activeEvents[t].event_name,
+        reason: "A tournament blitz is running — compete for top prizes!"
+      });
+      break;
+    }
+  }
+
+  // Achievement push — find one close to completion
+  var nearComplete = null;
+  for (var a = 0; a < achievements.length; a++) {
+    var ach = achievements[a];
+    if (!ach.completed && ach.progress && ach.target) {
+      var pct = ach.progress / ach.target;
+      if (pct >= 0.7 && pct < 1.0) {
+        nearComplete = ach;
+        break;
+      }
+    }
+  }
+  if (nearComplete) {
+    recommendations.push({
+      type: "achievement",
+      value: nearComplete.name || nearComplete.id,
+      reason: "You're " + Math.round((nearComplete.progress / nearComplete.target) * 100) +
+        "% done with '" + (nearComplete.name || nearComplete.id) + "' — finish it!"
+    });
+  }
+
+  // Feature discovery
+  var unusedFeatures = [];
+  for (var fe = 0; fe < DISCOVERABLE_FEATURES.length; fe++) {
+    if (playerState.features_used.indexOf(DISCOVERABLE_FEATURES[fe].id) === -1) {
+      unusedFeatures.push(DISCOVERABLE_FEATURES[fe]);
+    }
+  }
+  if (unusedFeatures.length > 0) {
+    var feat = unusedFeatures[Math.floor(Math.random() * unusedFeatures.length)];
+    recommendations.push({
+      type: "feature",
+      value: feat.id,
+      reason: "Try " + feat.label + " — " + feat.description.toLowerCase()
+    });
+  }
+
+  // Determine next best action if not already set
+  if (!nextBestAction) {
+    if (activeEvents.length > 0) {
+      nextBestAction = "join_event";
+      reason = "A live event is happening right now — don't miss out on bonus rewards!";
+    } else if (quizData.totalQuizzes === 0) {
+      nextBestAction = "play_first_quiz";
+      reason = "Start your journey by playing your first quiz!";
+    } else if (analysis.untriedCategories.length > 3) {
+      nextBestAction = "explore_categories";
+      reason = "You've only tried " + analysis.triedCategories.length + " out of " +
+        ALL_CATEGORIES.length + " categories. Explore more to find your strengths!";
+    } else if (friendCount === 0) {
+      nextBestAction = "add_friends";
+      reason = "Add friends to unlock social features and compete together!";
+    } else {
+      nextBestAction = "keep_playing";
+      reason = "You're doing great! Keep playing to climb the leaderboard.";
+    }
+  }
+
+  var result = {
+    next_best_action: nextBestAction,
+    reason: reason,
+    recommendations: recommendations,
+    context: {
+      streak: playerState.streak,
+      total_quizzes: quizData.totalQuizzes,
+      friend_count: friendCount,
+      active_events: activeEvents.length,
+      categories_tried: analysis.triedCategories.length
+    },
+    generated_at: nowSeconds(),
+    game_id: gameId
+  };
+
+  logger.info("Generated %d recommendations for %s (game: %s), next action: %s",
+    recommendations.length, userId, gameId, nextBestAction);
+
+  return JSON.stringify(result);
+};
+
+// ============================================================================
+// QUIZVERSE DEPTH - Knowledge map, streak quiz, adaptive difficulty, etc.
+// ============================================================================
+
+// quizverse_depth.js - Deep QuizVerse RPCs: Knowledge Maps, Streaks, Adaptive Difficulty, and more
+// Nakama V8 JavaScript runtime (No ES Modules)
+
+// ============================================================================
+// UTILITY HELPERS
+// ============================================================================
+
+function qvdParsePayload(payload, requiredFields) {
+    var data = {};
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (e) {
+        throw Error("Invalid JSON payload");
+    }
+    for (var i = 0; i < requiredFields.length; i++) {
+        if (data[requiredFields[i]] === undefined || data[requiredFields[i]] === null) {
+            throw Error("Missing required field: " + requiredFields[i]);
+        }
+    }
+    return data;
+}
+
+function qvdStorageRead(nk, collection, key, userId) {
+    var records = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+    if (records && records.length > 0 && records[0].value) {
+        return records[0].value;
+    }
+    return null;
+}
+
+function qvdStorageWrite(nk, collection, key, userId, value) {
+    nk.storageWrite([{
+        collection: collection,
+        key: key,
+        userId: userId,
+        value: value,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function qvdTodayKey() {
+    var now = new Date();
+    var y = now.getUTCFullYear();
+    var m = ("0" + (now.getUTCMonth() + 1)).slice(-2);
+    var d = ("0" + now.getUTCDate()).slice(-2);
+    return y + "-" + m + "-" + d;
+}
+
+// ============================================================================
+// 1. KNOWLEDGE MAP
+// ============================================================================
+
+function rpcQuizverseKnowledgeMap(ctx, logger, nk, payload) {
+    try {
+        var data = qvdParsePayload(payload, ["game_id"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_quiz_history";
+
+        var history = qvdStorageRead(nk, collection, "history", userId);
+        if (!history || !history.entries) {
+            return JSON.stringify({
+                success: true,
+                categories: {},
+                overall_coverage_pct: 0,
+                strongest: null,
+                weakest: null,
+                total_quizzes: 0
+            });
+        }
+
+        var cats = {};
+        var totalQuizzes = history.entries.length;
+
+        for (var i = 0; i < history.entries.length; i++) {
+            var entry = history.entries[i];
+            var cat = entry.category || "general";
+            if (!cats[cat]) {
+                cats[cat] = { total_questions: 0, correct: 0, total_time_ms: 0 };
+            }
+            cats[cat].total_questions += 1;
+            if (entry.correct) {
+                cats[cat].correct += 1;
+            }
+            cats[cat].total_time_ms += (entry.time_ms || 0);
+        }
+
+        var strongest = null;
+        var weakest = null;
+        var highAcc = -1;
+        var lowAcc = 101;
+        var catKeys = Object.keys(cats);
+
+        for (var j = 0; j < catKeys.length; j++) {
+            var k = catKeys[j];
+            var c = cats[k];
+            var acc = c.total_questions > 0 ? Math.round((c.correct / c.total_questions) * 100) : 0;
+            var avgTime = c.total_questions > 0 ? Math.round(c.total_time_ms / c.total_questions) : 0;
+
+            var level = "weak";
+            if (acc >= 90) {
+                level = "expert";
+            } else if (acc >= 70) {
+                level = "strong";
+            } else if (acc >= 40) {
+                level = "moderate";
+            }
+
+            cats[k] = {
+                total_questions: c.total_questions,
+                correct: c.correct,
+                accuracy_pct: acc,
+                avg_time_ms: avgTime,
+                strength_level: level
+            };
+
+            if (acc > highAcc) { highAcc = acc; strongest = k; }
+            if (acc < lowAcc) { lowAcc = acc; weakest = k; }
+        }
+
+        var knownCategories = catKeys.length;
+        var assumedTotal = Math.max(knownCategories, 10);
+        var coveragePct = Math.round((knownCategories / assumedTotal) * 100);
+
+        return JSON.stringify({
+            success: true,
+            categories: cats,
+            overall_coverage_pct: coveragePct,
+            strongest: strongest,
+            weakest: weakest,
+            total_quizzes: totalQuizzes
+        });
+
+    } catch (err) {
+        logger.error("rpcQuizverseKnowledgeMap error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 2. STREAK QUIZ
+// ============================================================================
+
+function rpcQuizverseStreakQuiz(ctx, logger, nk, payload) {
+    try {
+        var data = qvdParsePayload(payload, ["game_id", "action"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_streak_quizzes";
+
+        var streak = qvdStorageRead(nk, collection, "current", userId) || {
+            current_streak: 0,
+            best_streak: 0,
+            alive: false
+        };
+
+        var reward = null;
+
+        if (data.action === "start") {
+            streak.current_streak = 0;
+            streak.alive = true;
+
+        } else if (data.action === "answer") {
+            if (!streak.alive) {
+                return JSON.stringify({ success: false, error: "No active streak session" });
+            }
+            if (data.answer_correct) {
+                streak.current_streak += 1;
+            } else {
+                streak.alive = false;
+            }
+
+        } else if (data.action === "end") {
+            streak.alive = false;
+            if (streak.current_streak > streak.best_streak) {
+                streak.best_streak = streak.current_streak;
+            }
+            var coins = streak.current_streak * 10;
+            if (coins > 0) {
+                nk.walletUpdate(userId, { coins: coins }, { reason: "streak_reward", streak: streak.current_streak }, true);
+                reward = { coins: coins };
+            }
+
+        } else {
+            return JSON.stringify({ success: false, error: "Invalid action. Use start, answer, or end" });
+        }
+
+        qvdStorageWrite(nk, collection, "current", userId, streak);
+
+        return JSON.stringify({
+            success: true,
+            current_streak: streak.current_streak,
+            best_streak: streak.best_streak,
+            alive: streak.alive,
+            reward: reward
+        });
+
+    } catch (err) {
+        logger.error("rpcQuizverseStreakQuiz error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 3. ADAPTIVE DIFFICULTY
+// ============================================================================
+
+function rpcQuizverseAdaptiveDifficulty(ctx, logger, nk, payload) {
+    try {
+        var data = qvdParsePayload(payload, ["game_id", "category", "recent_accuracy"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var category = data.category;
+        var recentAccuracy = data.recent_accuracy;
+        var collection = gameId + "_adaptive_difficulty";
+
+        var record = qvdStorageRead(nk, collection, category, userId) || {
+            difficulty: 5,
+            history: []
+        };
+
+        var currentDiff = record.difficulty;
+        var newDiff = currentDiff;
+
+        if (recentAccuracy < 40) {
+            newDiff = Math.max(1, currentDiff - 1);
+        } else if (recentAccuracy > 70) {
+            newDiff = Math.min(10, currentDiff + 1);
+        }
+
+        record.difficulty = newDiff;
+        record.history.push({ accuracy: recentAccuracy, difficulty: newDiff, timestamp: Date.now() });
+        if (record.history.length > 50) {
+            record.history = record.history.slice(-50);
+        }
+
+        qvdStorageWrite(nk, collection, category, userId, record);
+
+        var playerLevel = "beginner";
+        if (newDiff >= 8) {
+            playerLevel = "expert";
+        } else if (newDiff >= 5) {
+            playerLevel = "intermediate";
+        }
+
+        return JSON.stringify({
+            success: true,
+            recommended_difficulty: newDiff,
+            category: category,
+            player_level: playerLevel
+        });
+
+    } catch (err) {
+        logger.error("rpcQuizverseAdaptiveDifficulty error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 4. DAILY PUZZLE
+// ============================================================================
+
+function rpcQuizverseDailyPuzzle(ctx, logger, nk, payload) {
+    try {
+        var data = qvdParsePayload(payload, ["game_id", "action"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var today = qvdTodayKey();
+        var collection = gameId + "_daily_puzzles";
+        var leaderboardId = gameId + "_daily_puzzle_leaderboard";
+
+        if (data.action === "get") {
+            var puzzle = qvdStorageRead(nk, collection, today, userId);
+            if (!puzzle) {
+                var seed = 0;
+                for (var i = 0; i < today.length; i++) {
+                    seed += today.charCodeAt(i);
+                }
+                puzzle = {
+                    date: today,
+                    seed: seed,
+                    puzzle_type: ["word_scramble", "logic", "trivia", "pattern"][seed % 4],
+                    difficulty: (seed % 5) + 1,
+                    completed: false,
+                    created_at: Date.now()
+                };
+                qvdStorageWrite(nk, collection, today, userId, puzzle);
+            }
+
+            return JSON.stringify({
+                success: true,
+                puzzle: puzzle
+            });
+
+        } else if (data.action === "submit") {
+            if (!data.solve_time_ms) {
+                return JSON.stringify({ success: false, error: "solve_time_ms required for submit" });
+            }
+
+            var existing = qvdStorageRead(nk, collection, today, userId);
+            if (existing && existing.completed) {
+                return JSON.stringify({ success: false, error: "Already submitted today" });
+            }
+
+            var solveTime = data.solve_time_ms;
+            var score = Math.max(0, 100000 - solveTime);
+
+            try {
+                nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", score, 0, { date: today, solve_time_ms: solveTime });
+            } catch (lbErr) {
+                logger.warn("Leaderboard write failed (may not exist): " + lbErr.message);
+            }
+
+            var result = {
+                date: today,
+                solve_time_ms: solveTime,
+                score: score,
+                completed: true,
+                completed_at: Date.now()
+            };
+            qvdStorageWrite(nk, collection, today, userId, result);
+
+            return JSON.stringify({
+                success: true,
+                result: result
+            });
+
+        } else {
+            return JSON.stringify({ success: false, error: "Invalid action. Use get or submit" });
+        }
+
+    } catch (err) {
+        logger.error("rpcQuizverseDailyPuzzle error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 5. CATEGORY WAR
+// ============================================================================
+
+function rpcQuizverseCategoryWar(ctx, logger, nk, payload) {
+    try {
+        var data = qvdParsePayload(payload, ["game_id", "action"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_category_wars";
+        var today = qvdTodayKey();
+        var warKey = "war_" + today;
+
+        var war = qvdStorageRead(nk, collection, warKey, "00000000-0000-0000-0000-000000000000");
+        if (!war) {
+            var seed = 0;
+            for (var s = 0; s < today.length; s++) {
+                seed += today.charCodeAt(s);
+            }
+            var allCats = ["science", "history", "geography", "entertainment", "sports", "technology", "art", "literature"];
+            var catA = allCats[seed % allCats.length];
+            var catB = allCats[(seed + 3) % allCats.length];
+            if (catA === catB) { catB = allCats[(seed + 5) % allCats.length]; }
+
+            war = {
+                war_id: warKey,
+                categories: [catA, catB],
+                scores: {},
+                players: {},
+                created_at: Date.now(),
+                expires_at: Date.now() + 86400000
+            };
+            war.scores[catA] = 0;
+            war.scores[catB] = 0;
+        }
+
+        if (data.action === "get_status") {
+            var mySide = (war.players && war.players[userId]) ? war.players[userId] : null;
+            return JSON.stringify({
+                success: true,
+                war_id: war.war_id,
+                categories: war.categories,
+                scores: war.scores,
+                your_side: mySide,
+                time_remaining: Math.max(0, war.expires_at - Date.now())
+            });
+
+        } else if (data.action === "join") {
+            if (!data.category_choice) {
+                return JSON.stringify({ success: false, error: "category_choice required" });
+            }
+            if (war.categories.indexOf(data.category_choice) === -1) {
+                return JSON.stringify({ success: false, error: "Invalid category. Choose one of: " + war.categories.join(", ") });
+            }
+            if (!war.players) { war.players = {}; }
+            war.players[userId] = data.category_choice;
+
+            qvdStorageWrite(nk, collection, warKey, "00000000-0000-0000-0000-000000000000", war);
+
+            return JSON.stringify({
+                success: true,
+                war_id: war.war_id,
+                categories: war.categories,
+                scores: war.scores,
+                your_side: data.category_choice,
+                time_remaining: Math.max(0, war.expires_at - Date.now())
+            });
+
+        } else if (data.action === "submit_score") {
+            if (!data.score) {
+                return JSON.stringify({ success: false, error: "score required" });
+            }
+            var playerSide = war.players ? war.players[userId] : null;
+            if (!playerSide) {
+                return JSON.stringify({ success: false, error: "Must join a side first" });
+            }
+            war.scores[playerSide] = (war.scores[playerSide] || 0) + data.score;
+
+            qvdStorageWrite(nk, collection, warKey, "00000000-0000-0000-0000-000000000000", war);
+
+            return JSON.stringify({
+                success: true,
+                war_id: war.war_id,
+                categories: war.categories,
+                scores: war.scores,
+                your_side: playerSide,
+                time_remaining: Math.max(0, war.expires_at - Date.now())
+            });
+
+        } else {
+            return JSON.stringify({ success: false, error: "Invalid action. Use get_status, join, or submit_score" });
+        }
+
+    } catch (err) {
+        logger.error("rpcQuizverseCategoryWar error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 6. KNOWLEDGE DUEL
+// ============================================================================
+
+function rpcQuizverseKnowledgeDuel(ctx, logger, nk, payload) {
+    try {
+        var data = qvdParsePayload(payload, ["game_id", "action"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_knowledge_duels";
+
+        if (data.action === "create") {
+            if (!data.opponent_id) {
+                return JSON.stringify({ success: false, error: "opponent_id required" });
+            }
+            var duelId = gameId + "_duel_" + userId.substring(0, 8) + "_" + Date.now();
+            var duel = {
+                duel_id: duelId,
+                creator: userId,
+                opponent: data.opponent_id,
+                status: "pending",
+                scores: {},
+                created_at: Date.now(),
+                expires_at: Date.now() + 3600000
+            };
+            duel.scores[userId] = null;
+            duel.scores[data.opponent_id] = null;
+
+            qvdStorageWrite(nk, collection, duelId, userId, duel);
+
+            try {
+                nk.notificationSend(
+                    data.opponent_id,
+                    "Knowledge Duel Challenge",
+                    2,
+                    { duel_id: duelId, challenger: userId, challenger_name: ctx.username || "Unknown" },
+                    userId
+                );
+            } catch (notifErr) {
+                logger.warn("Could not send duel notification: " + notifErr.message);
+            }
+
+            return JSON.stringify({
+                success: true,
+                duel_id: duelId,
+                status: "pending",
+                your_score: null,
+                opponent_score: null,
+                winner: null
+            });
+
+        } else if (data.action === "join") {
+            if (!data.duel_id) {
+                return JSON.stringify({ success: false, error: "duel_id required" });
+            }
+            var records = nk.storageRead([{ collection: collection, key: data.duel_id, userId: "*" }]);
+            var joinDuel = null;
+            if (records && records.length > 0) {
+                joinDuel = records[0].value;
+            }
+            if (!joinDuel) {
+                return JSON.stringify({ success: false, error: "Duel not found" });
+            }
+            if (joinDuel.opponent !== userId) {
+                return JSON.stringify({ success: false, error: "You are not the invited opponent" });
+            }
+            joinDuel.status = "active";
+            qvdStorageWrite(nk, collection, data.duel_id, joinDuel.creator, joinDuel);
+
+            return JSON.stringify({
+                success: true,
+                duel_id: joinDuel.duel_id,
+                status: "active",
+                your_score: null,
+                opponent_score: null,
+                winner: null
+            });
+
+        } else if (data.action === "submit") {
+            if (!data.duel_id || data.score === undefined) {
+                return JSON.stringify({ success: false, error: "duel_id and score required" });
+            }
+            var subRecords = nk.storageRead([{ collection: collection, key: data.duel_id, userId: "*" }]);
+            var subDuel = null;
+            var storageOwner = null;
+            if (subRecords && subRecords.length > 0) {
+                subDuel = subRecords[0].value;
+                storageOwner = subRecords[0].userId;
+            }
+            if (!subDuel) {
+                return JSON.stringify({ success: false, error: "Duel not found" });
+            }
+            subDuel.scores[userId] = data.score;
+
+            var winner = null;
+            if (subDuel.scores[subDuel.creator] !== null && subDuel.scores[subDuel.opponent] !== null) {
+                subDuel.status = "completed";
+                if (subDuel.scores[subDuel.creator] > subDuel.scores[subDuel.opponent]) {
+                    winner = subDuel.creator;
+                } else if (subDuel.scores[subDuel.opponent] > subDuel.scores[subDuel.creator]) {
+                    winner = subDuel.opponent;
+                } else {
+                    winner = "draw";
+                }
+                subDuel.winner = winner;
+
+                var loserId = winner === subDuel.creator ? subDuel.opponent : subDuel.creator;
+                if (winner !== "draw") {
+                    nk.walletUpdate(winner, { coins: 50 }, { reason: "duel_win", duel_id: subDuel.duel_id }, true);
+                    try {
+                        nk.notificationSend(loserId, "Duel Result", 3, { duel_id: subDuel.duel_id, result: "lost" }, winner);
+                        nk.notificationSend(winner, "Duel Result", 3, { duel_id: subDuel.duel_id, result: "won" }, loserId);
+                    } catch (nErr) {
+                        logger.warn("Duel result notification failed: " + nErr.message);
+                    }
+                }
+            }
+
+            qvdStorageWrite(nk, collection, data.duel_id, storageOwner || subDuel.creator, subDuel);
+
+            var myScore = subDuel.scores[userId];
+            var oppId = userId === subDuel.creator ? subDuel.opponent : subDuel.creator;
+            var oppScore = subDuel.scores[oppId];
+
+            return JSON.stringify({
+                success: true,
+                duel_id: subDuel.duel_id,
+                status: subDuel.status,
+                your_score: myScore,
+                opponent_score: oppScore,
+                winner: winner
+            });
+
+        } else if (data.action === "result") {
+            if (!data.duel_id) {
+                return JSON.stringify({ success: false, error: "duel_id required" });
+            }
+            var resRecords = nk.storageRead([{ collection: collection, key: data.duel_id, userId: "*" }]);
+            var resDuel = null;
+            if (resRecords && resRecords.length > 0) {
+                resDuel = resRecords[0].value;
+            }
+            if (!resDuel) {
+                return JSON.stringify({ success: false, error: "Duel not found" });
+            }
+            var resOppId = userId === resDuel.creator ? resDuel.opponent : resDuel.creator;
+
+            return JSON.stringify({
+                success: true,
+                duel_id: resDuel.duel_id,
+                status: resDuel.status,
+                your_score: resDuel.scores[userId],
+                opponent_score: resDuel.scores[resOppId],
+                winner: resDuel.winner || null
+            });
+
+        } else {
+            return JSON.stringify({ success: false, error: "Invalid action. Use create, join, submit, or result" });
+        }
+
+    } catch (err) {
+        logger.error("rpcQuizverseKnowledgeDuel error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 7. STUDY MODE
+// ============================================================================
+
+function rpcQuizverseStudyMode(ctx, logger, nk, payload) {
+    try {
+        var data = qvdParsePayload(payload, ["game_id", "action"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_study_progress";
+
+        var progress = qvdStorageRead(nk, collection, "progress", userId) || {
+            wrong_answers: [],
+            attempts: {},
+            started_at: Date.now()
+        };
+
+        if (data.action === "get_weak_areas") {
+            var weakMap = {};
+            for (var i = 0; i < progress.wrong_answers.length; i++) {
+                var wa = progress.wrong_answers[i];
+                var cat = wa.category || "general";
+                if (!weakMap[cat]) {
+                    weakMap[cat] = { wrong_count: 0, questions: [] };
+                }
+                weakMap[cat].wrong_count += 1;
+                weakMap[cat].questions.push(wa.question_id);
+            }
+
+            var weakAreas = [];
+            var wKeys = Object.keys(weakMap);
+            for (var w = 0; w < wKeys.length; w++) {
+                weakAreas.push({
+                    category: wKeys[w],
+                    wrong_count: weakMap[wKeys[w]].wrong_count,
+                    question_ids: weakMap[wKeys[w]].questions
+                });
+            }
+            weakAreas.sort(function(a, b) { return b.wrong_count - a.wrong_count; });
+
+            return JSON.stringify({
+                success: true,
+                weak_areas: weakAreas,
+                total_wrong: progress.wrong_answers.length
+            });
+
+        } else if (data.action === "record_attempt") {
+            if (!data.question_id) {
+                return JSON.stringify({ success: false, error: "question_id required" });
+            }
+            var qid = data.question_id;
+            if (!progress.attempts[qid]) {
+                progress.attempts[qid] = { total: 0, correct: 0 };
+            }
+            progress.attempts[qid].total += 1;
+
+            if (data.was_correct) {
+                progress.attempts[qid].correct += 1;
+                progress.wrong_answers = progress.wrong_answers.filter(function(item) {
+                    return item.question_id !== qid;
+                });
+            } else {
+                var alreadyTracked = false;
+                for (var a = 0; a < progress.wrong_answers.length; a++) {
+                    if (progress.wrong_answers[a].question_id === qid) {
+                        alreadyTracked = true;
+                        break;
+                    }
+                }
+                if (!alreadyTracked) {
+                    progress.wrong_answers.push({
+                        question_id: qid,
+                        category: data.category || "general",
+                        added_at: Date.now()
+                    });
+                }
+            }
+
+            qvdStorageWrite(nk, collection, "progress", userId, progress);
+
+            return JSON.stringify({
+                success: true,
+                question_id: qid,
+                attempts: progress.attempts[qid],
+                remaining_weak: progress.wrong_answers.length
+            });
+
+        } else if (data.action === "get_improvement") {
+            var totalAttempts = 0;
+            var totalCorrect = 0;
+            var attemptKeys = Object.keys(progress.attempts);
+            for (var t = 0; t < attemptKeys.length; t++) {
+                var att = progress.attempts[attemptKeys[t]];
+                totalAttempts += att.total;
+                totalCorrect += att.correct;
+            }
+            var improvementPct = totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 100) : 0;
+
+            return JSON.stringify({
+                success: true,
+                total_questions_studied: attemptKeys.length,
+                total_attempts: totalAttempts,
+                total_correct: totalCorrect,
+                accuracy_pct: improvementPct,
+                remaining_weak: progress.wrong_answers.length,
+                study_duration_ms: Date.now() - (progress.started_at || Date.now())
+            });
+
+        } else {
+            return JSON.stringify({ success: false, error: "Invalid action. Use get_weak_areas, record_attempt, or get_improvement" });
+        }
+
+    } catch (err) {
+        logger.error("rpcQuizverseStudyMode error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 8. TRIVIA NIGHT
+// ============================================================================
+
+function rpcQuizverseTriviaNight(ctx, logger, nk, payload) {
+    try {
+        var data = qvdParsePayload(payload, ["game_id", "action"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_trivia_nights";
+        var systemUser = "00000000-0000-0000-0000-000000000000";
+
+        if (data.action === "schedule") {
+            var eventId = gameId + "_trivia_" + Date.now();
+            var scheduledAt = data.scheduled_at || (Date.now() + 3600000);
+            var eventData = {
+                event_id: eventId,
+                title: data.title || "Trivia Night",
+                scheduled_at: scheduledAt,
+                status: "upcoming",
+                registered_players: [],
+                scores: {},
+                category: data.category || "mixed",
+                created_by: userId,
+                created_at: Date.now()
+            };
+
+            qvdStorageWrite(nk, collection, eventId, systemUser, eventData);
+
+            return JSON.stringify({
+                success: true,
+                event_id: eventId,
+                scheduled_at: scheduledAt,
+                status: "upcoming"
+            });
+
+        } else if (data.action === "get_upcoming") {
+            var upcoming = qvdStorageRead(nk, collection, "upcoming_index", systemUser) || { events: [] };
+            var now = Date.now();
+            var active = [];
+            for (var i = 0; i < upcoming.events.length; i++) {
+                if (upcoming.events[i].scheduled_at > now || upcoming.events[i].status === "active") {
+                    active.push(upcoming.events[i]);
+                }
+            }
+
+            return JSON.stringify({
+                success: true,
+                events: active
+            });
+
+        } else if (data.action === "register") {
+            if (!data.event_id) {
+                return JSON.stringify({ success: false, error: "event_id required" });
+            }
+            var regEvent = qvdStorageRead(nk, collection, data.event_id, systemUser);
+            if (!regEvent) {
+                return JSON.stringify({ success: false, error: "Event not found" });
+            }
+            if (!regEvent.registered_players) {
+                regEvent.registered_players = [];
+            }
+            var alreadyRegistered = false;
+            for (var r = 0; r < regEvent.registered_players.length; r++) {
+                if (regEvent.registered_players[r] === userId) {
+                    alreadyRegistered = true;
+                    break;
+                }
+            }
+            if (!alreadyRegistered) {
+                regEvent.registered_players.push(userId);
+                qvdStorageWrite(nk, collection, data.event_id, systemUser, regEvent);
+            }
+
+            return JSON.stringify({
+                success: true,
+                event_id: data.event_id,
+                registered: true,
+                total_registered: regEvent.registered_players.length
+            });
+
+        } else if (data.action === "submit_score") {
+            if (!data.event_id || data.score === undefined) {
+                return JSON.stringify({ success: false, error: "event_id and score required" });
+            }
+            var scoreEvent = qvdStorageRead(nk, collection, data.event_id, systemUser);
+            if (!scoreEvent) {
+                return JSON.stringify({ success: false, error: "Event not found" });
+            }
+            if (!scoreEvent.scores) { scoreEvent.scores = {}; }
+            scoreEvent.scores[userId] = data.score;
+
+            qvdStorageWrite(nk, collection, data.event_id, systemUser, scoreEvent);
+
+            var leaderboardId = gameId + "_trivia_" + data.event_id;
+            try {
+                nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", data.score, 0, { event_id: data.event_id });
+            } catch (lbErr) {
+                logger.warn("Trivia leaderboard write failed: " + lbErr.message);
+            }
+
+            return JSON.stringify({
+                success: true,
+                event_id: data.event_id,
+                your_score: data.score,
+                total_participants: Object.keys(scoreEvent.scores).length
+            });
+
+        } else {
+            return JSON.stringify({ success: false, error: "Invalid action. Use schedule, get_upcoming, register, or submit_score" });
+        }
+
+    } catch (err) {
+        logger.error("rpcQuizverseTriviaNight error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// REGISTRATION
+// ============================================================================
+
+function registerQuizverseDepthRPCs(initializer, logger) {
+    logger.info("[QuizverseDepth] Initializing QuizVerse Depth RPCs...");
+
+    if (!globalThis.__registeredRPCs) {
+        globalThis.__registeredRPCs = new Set();
+    }
+
+    var rpcs = [
+        { id: "quizverse_knowledge_map", handler: rpcQuizverseKnowledgeMap },
+        { id: "quizverse_streak_quiz", handler: rpcQuizverseStreakQuiz },
+        { id: "quizverse_adaptive_difficulty", handler: rpcQuizverseAdaptiveDifficulty },
+        { id: "quizverse_daily_puzzle", handler: rpcQuizverseDailyPuzzle },
+        { id: "quizverse_category_war", handler: rpcQuizverseCategoryWar },
+        { id: "quizverse_knowledge_duel", handler: rpcQuizverseKnowledgeDuel },
+        { id: "quizverse_study_mode", handler: rpcQuizverseStudyMode },
+        { id: "quizverse_trivia_night", handler: rpcQuizverseTriviaNight }
+    ];
+
+    var registered = 0;
+    var skipped = 0;
+
+    for (var i = 0; i < rpcs.length; i++) {
+        var rpc = rpcs[i];
+        if (!globalThis.__registeredRPCs.has(rpc.id)) {
+            try {
+                initializer.registerRpc(rpc.id, rpc.handler);
+                globalThis.__registeredRPCs.add(rpc.id);
+                logger.info("[QuizverseDepth] Registered RPC: " + rpc.id);
+                registered++;
+            } catch (err) {
+                logger.error("[QuizverseDepth] Failed to register " + rpc.id + ": " + err.message);
+            }
+        } else {
+            logger.info("[QuizverseDepth] Skipped (already registered): " + rpc.id);
+            skipped++;
+        }
+    }
+
+    logger.info("[QuizverseDepth] Registration complete: " + registered + " registered, " + skipped + " skipped");
+}
+
+// ============================================================================
+// LASTTOLIVE DEPTH - Weapon mastery, nemesis, bounties, loadouts
+// ============================================================================
+
+// lasttolive_depth.js - Deep LastToLive RPCs: Weapon Mastery, Nemesis, Bounties, and more
+// Nakama V8 JavaScript runtime (No ES Modules)
+
+// ============================================================================
+// UTILITY HELPERS
+// ============================================================================
+
+function ltlParsePayload(payload, requiredFields) {
+    var data = {};
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (e) {
+        throw Error("Invalid JSON payload");
+    }
+    for (var i = 0; i < requiredFields.length; i++) {
+        if (data[requiredFields[i]] === undefined || data[requiredFields[i]] === null) {
+            throw Error("Missing required field: " + requiredFields[i]);
+        }
+    }
+    return data;
+}
+
+function ltlStorageRead(nk, collection, key, userId) {
+    var records = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+    if (records && records.length > 0 && records[0].value) {
+        return records[0].value;
+    }
+    return null;
+}
+
+function ltlStorageWrite(nk, collection, key, userId, value) {
+    nk.storageWrite([{
+        collection: collection,
+        key: key,
+        userId: userId,
+        value: value,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function ltlGetMasteryTier(kills) {
+    if (kills >= 500) return { tier: "Master", next: null, progress: 100 };
+    if (kills >= 200) return { tier: "Expert", next: 500, progress: Math.round(((kills - 200) / 300) * 100) };
+    if (kills >= 50) return { tier: "Apprentice", next: 200, progress: Math.round(((kills - 50) / 150) * 100) };
+    return { tier: "Novice", next: 50, progress: Math.round((kills / 50) * 100) };
+}
+
+// ============================================================================
+// 1. WEAPON MASTERY
+// ============================================================================
+
+function rpcLasttoliveWeaponMastery(ctx, logger, nk, payload) {
+    try {
+        var data = ltlParsePayload(payload, ["game_id", "action"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_weapon_mastery";
+
+        var mastery = ltlStorageRead(nk, collection, "weapons", userId) || { weapons: {} };
+
+        if (data.action === "get") {
+            var weaponList = [];
+            var wKeys = Object.keys(mastery.weapons);
+            for (var i = 0; i < wKeys.length; i++) {
+                var w = mastery.weapons[wKeys[i]];
+                var tierInfo = ltlGetMasteryTier(w.kills);
+                weaponList.push({
+                    weapon_id: wKeys[i],
+                    kills: w.kills,
+                    damage: w.damage,
+                    headshots: w.headshots || 0,
+                    tier: tierInfo.tier,
+                    progress_to_next: tierInfo.progress
+                });
+            }
+
+            return JSON.stringify({
+                success: true,
+                weapons: weaponList
+            });
+
+        } else if (data.action === "update") {
+            if (!data.weapon_id) {
+                return JSON.stringify({ success: false, error: "weapon_id required" });
+            }
+            var wid = data.weapon_id;
+            if (!mastery.weapons[wid]) {
+                mastery.weapons[wid] = { kills: 0, damage: 0, headshots: 0 };
+            }
+
+            var oldKills = mastery.weapons[wid].kills;
+            mastery.weapons[wid].kills += (data.kills || 0);
+            mastery.weapons[wid].damage += (data.damage || 0);
+            mastery.weapons[wid].headshots += (data.headshots || 0);
+            var newKills = mastery.weapons[wid].kills;
+
+            var oldTier = ltlGetMasteryTier(oldKills);
+            var newTier = ltlGetMasteryTier(newKills);
+
+            var tierUpReward = null;
+            if (oldTier.tier !== newTier.tier) {
+                var rewardCoins = 0;
+                if (newTier.tier === "Apprentice") rewardCoins = 100;
+                else if (newTier.tier === "Expert") rewardCoins = 250;
+                else if (newTier.tier === "Master") rewardCoins = 500;
+
+                if (rewardCoins > 0) {
+                    nk.walletUpdate(userId, { coins: rewardCoins }, {
+                        reason: "weapon_mastery_tier_up",
+                        weapon_id: wid,
+                        new_tier: newTier.tier
+                    }, true);
+                    tierUpReward = { coins: rewardCoins, new_tier: newTier.tier };
+                }
+            }
+
+            ltlStorageWrite(nk, collection, "weapons", userId, mastery);
+
+            var updatedList = [];
+            var allKeys = Object.keys(mastery.weapons);
+            for (var u = 0; u < allKeys.length; u++) {
+                var uw = mastery.weapons[allKeys[u]];
+                var uTier = ltlGetMasteryTier(uw.kills);
+                updatedList.push({
+                    weapon_id: allKeys[u],
+                    kills: uw.kills,
+                    damage: uw.damage,
+                    headshots: uw.headshots || 0,
+                    tier: uTier.tier,
+                    progress_to_next: uTier.progress
+                });
+            }
+
+            return JSON.stringify({
+                success: true,
+                weapons: updatedList,
+                tier_up: tierUpReward
+            });
+
+        } else {
+            return JSON.stringify({ success: false, error: "Invalid action. Use get or update" });
+        }
+
+    } catch (err) {
+        logger.error("rpcLasttoliveWeaponMastery error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 2. NEMESIS
+// ============================================================================
+
+function rpcLasttoliveNemesisGet(ctx, logger, nk, payload) {
+    try {
+        var data = ltlParsePayload(payload, ["game_id"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_nemesis_data";
+
+        var nemesisData = ltlStorageRead(nk, collection, "nemesis", userId);
+
+        if (!nemesisData) {
+            return JSON.stringify({
+                success: true,
+                nemesis: null,
+                your_nemesis_of: []
+            });
+        }
+
+        return JSON.stringify({
+            success: true,
+            nemesis: nemesisData.nemesis || null,
+            your_nemesis_of: nemesisData.your_nemesis_of || []
+        });
+
+    } catch (err) {
+        logger.error("rpcLasttoliveNemesisGet error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 3. HIGHLIGHT REEL
+// ============================================================================
+
+function rpcLasttoliveHighlightReel(ctx, logger, nk, payload) {
+    try {
+        var data = ltlParsePayload(payload, ["game_id"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_player_highlights";
+
+        var highlightData = ltlStorageRead(nk, collection, "highlights", userId);
+
+        if (!highlightData || !highlightData.highlights) {
+            return JSON.stringify({
+                success: true,
+                highlights: []
+            });
+        }
+
+        return JSON.stringify({
+            success: true,
+            highlights: highlightData.highlights
+        });
+
+    } catch (err) {
+        logger.error("rpcLasttoliveHighlightReel error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 4. REVENGE MATCH
+// ============================================================================
+
+function rpcLasttoliveRevengeMatch(ctx, logger, nk, payload) {
+    try {
+        var data = ltlParsePayload(payload, ["game_id", "target_user_id"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_revenge_matches";
+
+        var matchId = gameId + "_revenge_" + userId.substring(0, 8) + "_" + Date.now();
+        var revengeData = {
+            match_id: matchId,
+            challenger: userId,
+            challenger_name: ctx.username || "Unknown",
+            target: data.target_user_id,
+            status: "pending",
+            created_at: Date.now(),
+            expires_at: Date.now() + 3600000
+        };
+
+        ltlStorageWrite(nk, collection, matchId, userId, revengeData);
+
+        try {
+            nk.notificationSend(
+                data.target_user_id,
+                "Revenge Match Challenge",
+                2,
+                {
+                    match_id: matchId,
+                    challenger: userId,
+                    challenger_name: ctx.username || "Unknown"
+                },
+                userId
+            );
+        } catch (notifErr) {
+            logger.warn("Could not send revenge notification: " + notifErr.message);
+        }
+
+        return JSON.stringify({
+            success: true,
+            match_id: matchId,
+            status: "pending"
+        });
+
+    } catch (err) {
+        logger.error("rpcLasttoliveRevengeMatch error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 5. BOUNTY CREATE
+// ============================================================================
+
+function rpcLasttoliveBountyCreate(ctx, logger, nk, payload) {
+    try {
+        var data = ltlParsePayload(payload, ["game_id", "target_user_id", "reward_amount"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_bounties";
+        var rewardAmount = data.reward_amount;
+
+        if (rewardAmount <= 0) {
+            return JSON.stringify({ success: false, error: "reward_amount must be positive" });
+        }
+        if (data.target_user_id === userId) {
+            return JSON.stringify({ success: false, error: "Cannot place a bounty on yourself" });
+        }
+
+        nk.walletUpdate(userId, { coins: -rewardAmount }, {
+            reason: "bounty_placement",
+            target: data.target_user_id
+        }, true);
+
+        var bountyId = gameId + "_bounty_" + userId.substring(0, 8) + "_" + Date.now();
+        var bountyData = {
+            bounty_id: bountyId,
+            target: data.target_user_id,
+            reward: rewardAmount,
+            created_by: userId,
+            created_by_name: ctx.username || "Unknown",
+            status: "active",
+            created_at: Date.now(),
+            expires_at: Date.now() + 86400000
+        };
+
+        ltlStorageWrite(nk, collection, bountyId, userId, bountyData);
+
+        var indexData = ltlStorageRead(nk, collection, "active_index", "00000000-0000-0000-0000-000000000000") || { bounties: [] };
+        indexData.bounties.push({
+            bounty_id: bountyId,
+            target: data.target_user_id,
+            reward: rewardAmount,
+            created_by: userId,
+            expires_at: bountyData.expires_at
+        });
+        ltlStorageWrite(nk, collection, "active_index", "00000000-0000-0000-0000-000000000000", indexData);
+
+        return JSON.stringify({
+            success: true,
+            bounty_id: bountyId,
+            target: data.target_user_id,
+            reward: rewardAmount,
+            expires_at: bountyData.expires_at
+        });
+
+    } catch (err) {
+        logger.error("rpcLasttoliveBountyCreate error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 6. BOUNTY LIST
+// ============================================================================
+
+function rpcLasttoliveBountyList(ctx, logger, nk, payload) {
+    try {
+        var data = ltlParsePayload(payload, ["game_id"]);
+        var gameId = data.game_id;
+        var collection = gameId + "_bounties";
+
+        var indexData = ltlStorageRead(nk, collection, "active_index", "00000000-0000-0000-0000-000000000000");
+        if (!indexData || !indexData.bounties) {
+            return JSON.stringify({ success: true, bounties: [] });
+        }
+
+        var now = Date.now();
+        var activeBounties = [];
+        for (var i = 0; i < indexData.bounties.length; i++) {
+            var b = indexData.bounties[i];
+            if (b.expires_at > now) {
+                activeBounties.push({
+                    id: b.bounty_id,
+                    target: b.target,
+                    reward: b.reward,
+                    created_by: b.created_by,
+                    expires_at: b.expires_at
+                });
+            }
+        }
+
+        return JSON.stringify({
+            success: true,
+            bounties: activeBounties
+        });
+
+    } catch (err) {
+        logger.error("rpcLasttoliveBountyList error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 7. LOADOUT SAVE
+// ============================================================================
+
+function rpcLasttoliveLoadoutSave(ctx, logger, nk, payload) {
+    try {
+        var data = ltlParsePayload(payload, ["game_id", "loadout_name", "weapons"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_loadouts";
+
+        var allLoadouts = ltlStorageRead(nk, collection, "loadouts", userId) || { loadouts: [] };
+
+        if (allLoadouts.loadouts.length >= 5) {
+            return JSON.stringify({ success: false, error: "Maximum 5 loadouts allowed. Delete one first." });
+        }
+
+        var loadoutId = gameId + "_loadout_" + userId.substring(0, 8) + "_" + Date.now();
+        var newLoadout = {
+            id: loadoutId,
+            name: data.loadout_name,
+            weapons: data.weapons,
+            attachments: data.attachments || [],
+            created_at: Date.now()
+        };
+
+        allLoadouts.loadouts.push(newLoadout);
+        ltlStorageWrite(nk, collection, "loadouts", userId, allLoadouts);
+
+        return JSON.stringify({
+            success: true,
+            loadout_id: loadoutId
+        });
+
+    } catch (err) {
+        logger.error("rpcLasttoliveLoadoutSave error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// 8. LOADOUT LIST
+// ============================================================================
+
+function rpcLasttoliveLoadoutList(ctx, logger, nk, payload) {
+    try {
+        var data = ltlParsePayload(payload, ["game_id"]);
+        var userId = ctx.userId;
+        var gameId = data.game_id;
+        var collection = gameId + "_loadouts";
+
+        var allLoadouts = ltlStorageRead(nk, collection, "loadouts", userId) || { loadouts: [] };
+
+        return JSON.stringify({
+            success: true,
+            loadouts: allLoadouts.loadouts
+        });
+
+    } catch (err) {
+        logger.error("rpcLasttoliveLoadoutList error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// REGISTRATION
+// ============================================================================
+
+function registerLasttoliveDepthRPCs(initializer, logger) {
+    logger.info("[LasttoliveDepth] Initializing LastToLive Depth RPCs...");
+
+    if (!globalThis.__registeredRPCs) {
+        globalThis.__registeredRPCs = new Set();
+    }
+
+    var rpcs = [
+        { id: "lasttolive_weapon_mastery", handler: rpcLasttoliveWeaponMastery },
+        { id: "lasttolive_nemesis_get", handler: rpcLasttoliveNemesisGet },
+        { id: "lasttolive_highlight_reel", handler: rpcLasttoliveHighlightReel },
+        { id: "lasttolive_revenge_match", handler: rpcLasttoliveRevengeMatch },
+        { id: "lasttolive_bounty_create", handler: rpcLasttoliveBountyCreate },
+        { id: "lasttolive_bounty_list", handler: rpcLasttoliveBountyList },
+        { id: "lasttolive_loadout_save", handler: rpcLasttoliveLoadoutSave },
+        { id: "lasttolive_loadout_list", handler: rpcLasttoliveLoadoutList }
+    ];
+
+    var registered = 0;
+    var skipped = 0;
+
+    for (var i = 0; i < rpcs.length; i++) {
+        var rpc = rpcs[i];
+        if (!globalThis.__registeredRPCs.has(rpc.id)) {
+            try {
+                initializer.registerRpc(rpc.id, rpc.handler);
+                globalThis.__registeredRPCs.add(rpc.id);
+                logger.info("[LasttoliveDepth] Registered RPC: " + rpc.id);
+                registered++;
+            } catch (err) {
+                logger.error("[LasttoliveDepth] Failed to register " + rpc.id + ": " + err.message);
+            }
+        } else {
+            logger.info("[LasttoliveDepth] Skipped (already registered): " + rpc.id);
+            skipped++;
+        }
+    }
+
+    logger.info("[LasttoliveDepth] Registration complete: " + registered + " registered, " + skipped + " skipped");
+}
+
+// ============================================================================
+// CROSS-GAME - Cross-game bonuses, profiles, composite leaderboards
+// ============================================================================
+
+// cross_game.js - Cross-game RPCs for multi-game ecosystem features
+// Compatible with Nakama V8 JavaScript runtime (no ES modules)
+
+var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+var KNOWN_GAMES = ["quizverse", "lasttolive"];
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function generateCrossGameUUID() {
+    var d = new Date().getTime();
+    var d2 = (typeof performance !== 'undefined' && performance.now && (performance.now() * 1000)) || 0;
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16;
+        if (d > 0) {
+            r = (d + r) % 16 | 0;
+            d = Math.floor(d / 16);
+        } else {
+            r = (d2 + r) % 16 | 0;
+            d2 = Math.floor(d2 / 16);
+        }
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+function crossGameSafeRead(nk, collection, key, userId) {
+    try {
+        var recs = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+        if (recs && recs.length > 0) return recs[0].value;
+    } catch (_) { /* swallow */ }
+    return null;
+}
+
+function crossGameSafeWrite(nk, collection, key, userId, value) {
+    nk.storageWrite([{
+        collection: collection,
+        key: key,
+        userId: userId,
+        value: value,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function nowISO() {
+    return new Date().toISOString();
+}
+
+function resolveUserId(nk, data, ctx) {
+    if (ctx.userId && ctx.userId !== SYSTEM_USER_ID) {
+        return ctx.userId;
+    }
+    if (data.device_id) {
+        try {
+            var users = nk.usersGetId([data.device_id]);
+            if (users && users.length > 0) return users[0].id;
+        } catch (_) { /* fall through */ }
+        try {
+            var auth = nk.authenticateDevice(data.device_id, null, false);
+            if (auth && auth.id) return auth.id;
+        } catch (_) { /* fall through */ }
+    }
+    return ctx.userId || SYSTEM_USER_ID;
+}
+
+// ============================================================================
+// RPC 1 – rpcCrossGameBonus
+// ============================================================================
+
+/**
+ * When a player performs an action in one game, grant a bonus in another game.
+ * Payload: { device_id, source_game_id, target_game_id, event_type }
+ */
+function rpcCrossGameBonus(ctx, logger, nk, payload) {
+    logger.info("[cross_game] rpcCrossGameBonus called");
+
+    try {
+        var data = JSON.parse(payload || '{}');
+
+        if (!data.source_game_id || !data.target_game_id) {
+            return JSON.stringify({ success: false, error: "source_game_id and target_game_id are required" });
+        }
+        if (!data.event_type) {
+            return JSON.stringify({ success: false, error: "event_type is required" });
+        }
+
+        var userId = resolveUserId(nk, data, ctx);
+        var bonusId = generateCrossGameUUID();
+        var bonusAmount = 50;
+
+        var bonusRecord = {
+            bonus_id: bonusId,
+            source_game_id: data.source_game_id,
+            target_game_id: data.target_game_id,
+            event_type: data.event_type,
+            coins_granted: bonusAmount,
+            granted_at: nowISO()
+        };
+
+        crossGameSafeWrite(nk, "cross_game_bonuses", "bonus:" + bonusId, userId, bonusRecord);
+
+        try {
+            nk.walletUpdate(userId, { coins: bonusAmount }, {
+                source: "cross_game_bonus",
+                source_game: data.source_game_id,
+                target_game: data.target_game_id,
+                event_type: data.event_type
+            }, true);
+        } catch (walletErr) {
+            logger.warn("[cross_game] Wallet update failed, using storage fallback: " + walletErr.message);
+            var walletKey = "wallet:" + data.target_game_id;
+            var wallet = crossGameSafeRead(nk, "cross_game_wallets", walletKey, userId) || { coins: 0 };
+            wallet.coins = (wallet.coins || 0) + bonusAmount;
+            wallet.updated_at = nowISO();
+            crossGameSafeWrite(nk, "cross_game_wallets", walletKey, userId, wallet);
+        }
+
+        logger.info("[cross_game] Bonus granted: " + bonusAmount + " coins from " + data.source_game_id + " -> " + data.target_game_id);
+
+        return JSON.stringify({
+            success: true,
+            bonus_granted: bonusAmount,
+            source_game: data.source_game_id,
+            target_game: data.target_game_id
+        });
+
+    } catch (err) {
+        logger.error("[cross_game] rpcCrossGameBonus error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// RPC 2 – rpcCrossGameProfile
+// ============================================================================
+
+/**
+ * Aggregate player data across all games.
+ * Payload: { device_id }
+ */
+function rpcCrossGameProfile(ctx, logger, nk, payload) {
+    logger.info("[cross_game] rpcCrossGameProfile called");
+
+    try {
+        var data = JSON.parse(payload || '{}');
+        var userId = resolveUserId(nk, data, ctx);
+
+        var gamesPlayed = [];
+        var totalXP = 0;
+        var totalCoins = 0;
+        var achievementsCount = 0;
+
+        for (var i = 0; i < KNOWN_GAMES.length; i++) {
+            var gameId = KNOWN_GAMES[i];
+            var profileKey = "profile_" + userId;
+            var profile = crossGameSafeRead(nk, gameId + "_profiles", profileKey, userId);
+
+            var walletKey = "wallet_" + userId;
+            var wallet = crossGameSafeRead(nk, gameId + "_wallets", walletKey, userId);
+
+            var achieveKey = "progress:" + gameId;
+            var achievements = crossGameSafeRead(nk, "achievements_progress", achieveKey, userId);
+
+            var level = 0;
+            var xp = 0;
+            var playtime = 0;
+            var coins = 0;
+
+            if (profile) {
+                level = profile.level || 0;
+                xp = profile.xp || 0;
+                playtime = profile.playtime || 0;
+            }
+
+            if (wallet) {
+                coins = wallet.balance || 0;
+            }
+
+            var gameAchievements = 0;
+            if (achievements && achievements.events) {
+                var keys = Object.keys(achievements.events);
+                gameAchievements = keys.length;
+            }
+
+            gamesPlayed.push({
+                game_id: gameId,
+                level: level,
+                xp: xp,
+                playtime: playtime
+            });
+
+            totalXP += xp;
+            totalCoins += coins;
+            achievementsCount += gameAchievements;
+        }
+
+        return JSON.stringify({
+            success: true,
+            games_played: gamesPlayed,
+            total_xp: totalXP,
+            total_coins: totalCoins,
+            achievements_count: achievementsCount
+        });
+
+    } catch (err) {
+        logger.error("[cross_game] rpcCrossGameProfile error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// RPC 3 – rpcCrossGameChallenge
+// ============================================================================
+
+/**
+ * Create a multi-game challenge between two players.
+ * Payload: { device_id, target_user_id, game_ids }
+ */
+function rpcCrossGameChallenge(ctx, logger, nk, payload) {
+    logger.info("[cross_game] rpcCrossGameChallenge called");
+
+    try {
+        var data = JSON.parse(payload || '{}');
+
+        if (!data.target_user_id) {
+            return JSON.stringify({ success: false, error: "target_user_id is required" });
+        }
+        if (!data.game_ids || !data.game_ids.length) {
+            return JSON.stringify({ success: false, error: "game_ids array is required" });
+        }
+
+        var userId = resolveUserId(nk, data, ctx);
+        var challengeId = generateCrossGameUUID();
+
+        var challenge = {
+            challenge_id: challengeId,
+            challenger_id: userId,
+            target_user_id: data.target_user_id,
+            game_ids: data.game_ids,
+            status: "pending",
+            scores: {},
+            created_at: nowISO()
+        };
+
+        for (var i = 0; i < data.game_ids.length; i++) {
+            challenge.scores[data.game_ids[i]] = {
+                challenger: 0,
+                target: 0
+            };
+        }
+
+        crossGameSafeWrite(nk, "cross_game_challenges", "challenge:" + challengeId, userId, challenge);
+        crossGameSafeWrite(nk, "cross_game_challenges", "challenge:" + challengeId, data.target_user_id, challenge);
+
+        try {
+            nk.notificationsSend([{
+                userId: data.target_user_id,
+                subject: "Cross-Game Challenge!",
+                content: {
+                    challenge_id: challengeId,
+                    challenger_id: userId,
+                    games: data.game_ids
+                },
+                code: 100,
+                persistent: true,
+                senderId: userId
+            }]);
+        } catch (notifErr) {
+            logger.warn("[cross_game] Challenge notification failed: " + notifErr.message);
+        }
+
+        logger.info("[cross_game] Challenge created: " + challengeId + " across " + data.game_ids.length + " games");
+
+        return JSON.stringify({
+            success: true,
+            challenge_id: challengeId,
+            games: data.game_ids,
+            status: "pending"
+        });
+
+    } catch (err) {
+        logger.error("[cross_game] rpcCrossGameChallenge error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// RPC 4 – rpcGameDiscoveryReward
+// ============================================================================
+
+/**
+ * First-time bonus for trying a new game.
+ * Payload: { device_id, game_id }
+ */
+function rpcGameDiscoveryReward(ctx, logger, nk, payload) {
+    logger.info("[cross_game] rpcGameDiscoveryReward called");
+
+    try {
+        var data = JSON.parse(payload || '{}');
+
+        if (!data.game_id) {
+            return JSON.stringify({ success: false, error: "game_id is required" });
+        }
+
+        var userId = resolveUserId(nk, data, ctx);
+        var claimKey = "discovery:" + data.game_id;
+
+        var existing = crossGameSafeRead(nk, "cross_game_bonuses", claimKey, userId);
+        if (existing) {
+            return JSON.stringify({
+                success: true,
+                first_time: false,
+                reward: null,
+                message: "Discovery reward already claimed for " + data.game_id
+            });
+        }
+
+        var reward = { coins: 100, gems: 25 };
+
+        try {
+            nk.walletUpdate(userId, { coins: reward.coins, gems: reward.gems }, {
+                source: "game_discovery",
+                game_id: data.game_id
+            }, true);
+        } catch (walletErr) {
+            logger.warn("[cross_game] Discovery wallet update failed, using storage: " + walletErr.message);
+            var walletKey = "wallet:" + data.game_id;
+            var wallet = crossGameSafeRead(nk, "cross_game_wallets", walletKey, userId) || { coins: 0, gems: 0 };
+            wallet.coins = (wallet.coins || 0) + reward.coins;
+            wallet.gems = (wallet.gems || 0) + reward.gems;
+            wallet.updated_at = nowISO();
+            crossGameSafeWrite(nk, "cross_game_wallets", walletKey, userId, wallet);
+        }
+
+        var claimRecord = {
+            game_id: data.game_id,
+            reward: reward,
+            claimed_at: nowISO()
+        };
+        crossGameSafeWrite(nk, "cross_game_bonuses", claimKey, userId, claimRecord);
+
+        logger.info("[cross_game] Discovery reward granted for " + data.game_id + ": " + reward.coins + " coins + " + reward.gems + " gems");
+
+        return JSON.stringify({
+            success: true,
+            first_time: true,
+            reward: reward
+        });
+
+    } catch (err) {
+        logger.error("[cross_game] rpcGameDiscoveryReward error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// RPC 5 – rpcGlobalLeaderboardComposite
+// ============================================================================
+
+/**
+ * Read top scores from multiple game leaderboards, compute combined ranking.
+ * Payload: { limit }
+ */
+function rpcGlobalLeaderboardComposite(ctx, logger, nk, payload) {
+    logger.info("[cross_game] rpcGlobalLeaderboardComposite called");
+
+    try {
+        var data = JSON.parse(payload || '{}');
+        var limit = data.limit || 10;
+        if (limit < 1) limit = 1;
+        if (limit > 100) limit = 100;
+
+        var leaderboardIds = [
+            "quizverse_weekly",
+            "lasttolive_survivor_rank"
+        ];
+
+        var playerScores = {};
+
+        for (var i = 0; i < leaderboardIds.length; i++) {
+            var lbId = leaderboardIds[i];
+            try {
+                var result = nk.leaderboardRecordsList(lbId, null, 100, null, 0);
+                var records = (result && result.records) ? result.records : [];
+
+                for (var j = 0; j < records.length; j++) {
+                    var rec = records[j];
+                    var uid = rec.ownerId || rec.owner_id;
+                    if (!uid) continue;
+
+                    if (!playerScores[uid]) {
+                        playerScores[uid] = {
+                            user_id: uid,
+                            username: rec.username || "",
+                            total_score: 0,
+                            game_scores: {}
+                        };
+                    }
+
+                    var score = Number(rec.score) || 0;
+                    playerScores[uid].game_scores[lbId] = score;
+                    playerScores[uid].total_score += score;
+
+                    if (rec.username && !playerScores[uid].username) {
+                        playerScores[uid].username = rec.username;
+                    }
+                }
+            } catch (lbErr) {
+                logger.warn("[cross_game] Leaderboard " + lbId + " read failed: " + lbErr.message);
+            }
+        }
+
+        var rankings = [];
+        var uids = Object.keys(playerScores);
+        for (var k = 0; k < uids.length; k++) {
+            rankings.push(playerScores[uids[k]]);
+        }
+
+        rankings.sort(function (a, b) {
+            return b.total_score - a.total_score;
+        });
+
+        if (rankings.length > limit) {
+            rankings = rankings.slice(0, limit);
+        }
+
+        return JSON.stringify({
+            success: true,
+            rankings: rankings
+        });
+
+    } catch (err) {
+        logger.error("[cross_game] rpcGlobalLeaderboardComposite error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// REGISTRATION
+// ============================================================================
+
+function registerCrossGameRPCs(initializer, logger) {
+    logger.info('[CrossGame] Initializing Cross-Game RPC Module...');
+
+    if (!globalThis.__registeredRPCs) {
+        globalThis.__registeredRPCs = new Set();
+    }
+
+    var rpcs = [
+        { id: 'cross_game_bonus', handler: rpcCrossGameBonus },
+        { id: 'cross_game_profile', handler: rpcCrossGameProfile },
+        { id: 'cross_game_challenge', handler: rpcCrossGameChallenge },
+        { id: 'game_discovery_reward', handler: rpcGameDiscoveryReward },
+        { id: 'global_leaderboard_composite', handler: rpcGlobalLeaderboardComposite }
+    ];
+
+    var registered = 0;
+    var skipped = 0;
+
+    for (var i = 0; i < rpcs.length; i++) {
+        var rpc = rpcs[i];
+        if (!globalThis.__registeredRPCs.has(rpc.id)) {
+            try {
+                initializer.registerRpc(rpc.id, rpc.handler);
+                globalThis.__registeredRPCs.add(rpc.id);
+                registered++;
+            } catch (err) {
+                logger.error('[CrossGame] Failed to register ' + rpc.id + ': ' + err.message);
+            }
+        } else {
+            skipped++;
+        }
+    }
+
+    logger.info('[CrossGame] Registration complete: ' + registered + ' registered, ' + skipped + ' skipped');
+}
+
+
+// ============================================================================
+// ANALYTICS V2 - Dashboard, retention, engagement, sessions, funnel, economy
+// ============================================================================
+
+// analytics_v2.js - Advanced Analytics RPCs for Nakama
+// Self-contained, ES5 compatible, no imports/exports
+
+var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function analyticsNowSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
+function analyticsDateString(date) {
+  var d = date || new Date();
+  return d.getUTCFullYear() + "-" +
+    ("0" + (d.getUTCMonth() + 1)).slice(-2) + "-" +
+    ("0" + d.getUTCDate()).slice(-2);
+}
+
+function analyticsDaysAgo(n) {
+  var d = new Date();
+  d.setUTCDate(d.getUTCDate() - n);
+  return analyticsDateString(d);
+}
+
+function analyticsDateFromString(str) {
+  var parts = str.split("-");
+  return new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+}
+
+function analyticsDaysBetween(dateStrA, dateStrB) {
+  var a = analyticsDateFromString(dateStrA);
+  var b = analyticsDateFromString(dateStrB);
+  return Math.round(Math.abs(b - a) / 86400000);
+}
+
+function analyticsSafeRead(nk, collection, key, userId) {
+  try {
+    var recs = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+    if (recs && recs.length > 0) return recs[0].value;
+  } catch (_) { /* swallow */ }
+  return null;
+}
+
+function analyticsSafeWrite(nk, collection, key, userId, value) {
+  nk.storageWrite([{
+    collection: collection,
+    key: key,
+    userId: userId,
+    value: value,
+    permissionRead: 1,
+    permissionWrite: 0
+  }]);
+}
+
+function analyticsSafeList(nk, userId, collection, limit, cursor) {
+  try {
+    return nk.storageList(userId, collection, limit, cursor);
+  } catch (_) { /* swallow */ }
+  return { objects: [], cursor: "" };
+}
+
+function analyticsSafeJsonParse(payload) {
+  if (!payload || payload === "") return {};
+  try {
+    return JSON.parse(payload);
+  } catch (_) {
+    return {};
+  }
+}
+
+function analyticsUniqueArray(arr) {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    if (!seen[arr[i]]) {
+      seen[arr[i]] = true;
+      out.push(arr[i]);
+    }
+  }
+  return out;
+}
+
+function analyticsMedian(sorted) {
+  if (sorted.length === 0) return 0;
+  var mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+function analyticsPercentile(sorted, p) {
+  if (sorted.length === 0) return 0;
+  var idx = Math.ceil(p / 100 * sorted.length) - 1;
+  if (idx < 0) idx = 0;
+  if (idx >= sorted.length) idx = sorted.length - 1;
+  return sorted[idx];
+}
+
+function analyticsGini(values) {
+  if (values.length === 0) return 0;
+  var sorted = values.slice().sort(function (a, b) { return a - b; });
+  var n = sorted.length;
+  var sum = 0;
+  var weightedSum = 0;
+  for (var i = 0; i < n; i++) {
+    sum += sorted[i];
+    weightedSum += (i + 1) * sorted[i];
+  }
+  if (sum === 0) return 0;
+  return (2 * weightedSum) / (n * sum) - (n + 1) / n;
+}
+
+function analyticsRound(val, decimals) {
+  var factor = Math.pow(10, decimals || 2);
+  return Math.round(val * factor) / factor;
+}
+
+// Read DAU record for a specific game + date
+function readDauRecord(nk, gameId, dateStr) {
+  var key = "dau_" + gameId + "_" + dateStr;
+  return analyticsSafeRead(nk, "analytics_dau", key, SYSTEM_USER);
+}
+
+// Collect unique users from DAU records across a date range for a game
+function collectDauUsers(nk, gameId, days) {
+  var users = [];
+  for (var i = 0; i < days; i++) {
+    var dateStr = analyticsDaysAgo(i);
+    var rec = readDauRecord(nk, gameId, dateStr);
+    if (rec && rec.users) {
+      for (var j = 0; j < rec.users.length; j++) {
+        users.push(rec.users[j]);
+      }
+    }
+  }
+  return users;
+}
+
+// Discover game IDs from recent DAU entries by scanning system storage
+function discoverGameIds(nk, days) {
+  var gameIds = {};
+  var result = analyticsSafeList(nk, SYSTEM_USER, "analytics_dau", 100, "");
+  if (result && result.objects) {
+    for (var i = 0; i < result.objects.length; i++) {
+      var val = result.objects[i].value;
+      if (val && val.gameId) {
+        gameIds[val.gameId] = true;
+      }
+    }
+  }
+  var out = [];
+  for (var gid in gameIds) {
+    if (gameIds.hasOwnProperty(gid)) {
+      out.push(gid);
+    }
+  }
+  return out;
+}
+
+// Sample user IDs from DAU or first_session storage
+function sampleUserIds(nk, limit) {
+  var userIds = [];
+  var seen = {};
+  var result = analyticsSafeList(nk, null, "first_session", limit || 100, "");
+  if (result && result.objects) {
+    for (var i = 0; i < result.objects.length; i++) {
+      var uid = result.objects[i].userId;
+      if (uid && !seen[uid]) {
+        seen[uid] = true;
+        userIds.push(uid);
+      }
+    }
+  }
+  return userIds;
+}
+
+// ---------------------------------------------------------------------------
+// 1. rpcAnalyticsDashboard
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var gameIds = data.game_id ? [data.game_id] : discoverGameIds(nk, 7);
+    var todayStr = analyticsDaysAgo(0);
+
+    var dauUsersToday = [];
+    var wauUsers = [];
+    var mauUsers = [];
+    var topGames = [];
+
+    for (var g = 0; g < gameIds.length; g++) {
+      var gid = gameIds[g];
+
+      var todayRec = readDauRecord(nk, gid, todayStr);
+      var gameDau = (todayRec && todayRec.users) ? todayRec.users.length : 0;
+      topGames.push({ game_id: gid, dau: gameDau });
+
+      var usersToday = (todayRec && todayRec.users) ? todayRec.users : [];
+      for (var t = 0; t < usersToday.length; t++) dauUsersToday.push(usersToday[t]);
+
+      var w = collectDauUsers(nk, gid, 7);
+      for (var wi = 0; wi < w.length; wi++) wauUsers.push(w[wi]);
+
+      var m = collectDauUsers(nk, gid, 30);
+      for (var mi = 0; mi < m.length; mi++) mauUsers.push(m[mi]);
+    }
+
+    var dau = analyticsUniqueArray(dauUsersToday).length;
+    var wau = analyticsUniqueArray(wauUsers).length;
+    var mau = analyticsUniqueArray(mauUsers).length;
+    var dauMauRatio = mau > 0 ? analyticsRound(dau / mau, 4) : 0;
+
+    // Avg session duration from recent summaries
+    var totalDuration = 0;
+    var sessionCount = 0;
+    var newUsersToday = 0;
+    var returningUsersToday = 0;
+
+    var uniqueToday = analyticsUniqueArray(dauUsersToday);
+    for (var u = 0; u < uniqueToday.length; u++) {
+      var uid = uniqueToday[u];
+      var sessionList = analyticsSafeList(nk, uid, "analytics_session_summaries", 10, "");
+      if (sessionList && sessionList.objects) {
+        for (var s = 0; s < sessionList.objects.length; s++) {
+          var sess = sessionList.objects[s].value;
+          if (sess && sess.duration) {
+            totalDuration += sess.duration;
+            sessionCount++;
+          }
+        }
+      }
+      var firstSess = analyticsSafeRead(nk, "first_session", "session_data", uid);
+      if (firstSess) {
+        var firstDate = new Date(firstSess.firstSessionAt);
+        if (analyticsDateString(firstDate) === todayStr) {
+          newUsersToday++;
+        } else {
+          returningUsersToday++;
+        }
+      } else {
+        newUsersToday++;
+      }
+    }
+    var avgSessionDuration = sessionCount > 0 ? analyticsRound(totalDuration / sessionCount, 1) : 0;
+
+    // 7-day DAU trend
+    var dau7dAgo = 0;
+    for (var gt = 0; gt < gameIds.length; gt++) {
+      var rec7 = readDauRecord(nk, gameIds[gt], analyticsDaysAgo(7));
+      if (rec7 && rec7.users) dau7dAgo += rec7.users.length;
+    }
+    var dau7dChangePct = dau7dAgo > 0 ? analyticsRound(((dau - dau7dAgo) / dau7dAgo) * 100, 1) : 0;
+
+    topGames.sort(function (a, b) { return b.dau - a.dau; });
+
+    return JSON.stringify({
+      dau: dau,
+      wau: wau,
+      mau: mau,
+      dau_mau_ratio: dauMauRatio,
+      avg_session_duration_seconds: avgSessionDuration,
+      new_users_today: newUsersToday,
+      returning_users_today: returningUsersToday,
+      top_games: topGames,
+      period: "today",
+      trends: { dau_7d_change_pct: dau7dChangePct }
+    });
+  } catch (e) {
+    logger.error("rpcAnalyticsDashboard error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2. rpcAnalyticsRetentionCohort
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsRetentionCohort(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var cohortDate = data.cohort_date || analyticsDaysAgo(1);
+    var gameId = data.game_id;
+    var gameIds = gameId ? [gameId] : discoverGameIds(nk, 30);
+
+    var cohortStart = analyticsDateFromString(cohortDate).getTime();
+    var cohortEnd = cohortStart + 86400000;
+
+    // Find users whose first session falls on cohortDate
+    var cohortUsers = [];
+    var allUsers = sampleUserIds(nk, 100);
+    for (var i = 0; i < allUsers.length; i++) {
+      var fs = analyticsSafeRead(nk, "first_session", "session_data", allUsers[i]);
+      if (fs && fs.firstSessionAt >= cohortStart && fs.firstSessionAt < cohortEnd) {
+        cohortUsers.push(allUsers[i]);
+      }
+    }
+
+    var checkDays = [1, 3, 7, 14, 30];
+    var rawCounts = { d1: 0, d3: 0, d7: 0, d14: 0, d30: 0 };
+
+    for (var ci = 0; ci < cohortUsers.length; ci++) {
+      var uid = cohortUsers[ci];
+      for (var di = 0; di < checkDays.length; di++) {
+        var dayOffset = checkDays[di];
+        var checkDate = new Date(cohortStart + dayOffset * 86400000);
+        var checkDateStr = analyticsDateString(checkDate);
+        var found = false;
+        for (var gi = 0; gi < gameIds.length; gi++) {
+          var dauRec = readDauRecord(nk, gameIds[gi], checkDateStr);
+          if (dauRec && dauRec.users && dauRec.users.indexOf(uid) !== -1) {
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          rawCounts["d" + dayOffset]++;
+        }
+      }
+    }
+
+    var cohortSize = cohortUsers.length;
+    var pct = function (count) {
+      return cohortSize > 0 ? analyticsRound((count / cohortSize) * 100, 1) : 0;
+    };
+
+    return JSON.stringify({
+      cohort_date: cohortDate,
+      cohort_size: cohortSize,
+      d1_pct: pct(rawCounts.d1),
+      d3_pct: pct(rawCounts.d3),
+      d7_pct: pct(rawCounts.d7),
+      d14_pct: pct(rawCounts.d14),
+      d30_pct: pct(rawCounts.d30),
+      raw_counts: rawCounts
+    });
+  } catch (e) {
+    logger.error("rpcAnalyticsRetentionCohort error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. rpcAnalyticsEngagementScore
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsEngagementScore(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var userId = data.user_id || ctx.userId;
+    var gameId = data.game_id;
+
+    if (!userId) {
+      return JSON.stringify({ error: "user_id required" });
+    }
+
+    // First session data
+    var firstSess = analyticsSafeRead(nk, "first_session", "session_data", userId);
+    var totalSessions = (firstSess && firstSess.totalSessions) ? firstSess.totalSessions : 0;
+    var firstSessionAt = (firstSess && firstSess.firstSessionAt) ? firstSess.firstSessionAt : Date.now();
+    var lastActive = (firstSess && firstSess.lastSessionAt) ? new Date(firstSess.lastSessionAt).toISOString() : "";
+    var daysSinceFirst = Math.floor((Date.now() - firstSessionAt) / 86400000);
+
+    // Sessions in last 7 days: count DAU appearances
+    var sessionsLast7d = 0;
+    var gameIds = gameId ? [gameId] : discoverGameIds(nk, 7);
+    for (var d = 0; d < 7; d++) {
+      var dateStr = analyticsDaysAgo(d);
+      for (var gi = 0; gi < gameIds.length; gi++) {
+        var dauRec = readDauRecord(nk, gameIds[gi], dateStr);
+        if (dauRec && dauRec.users && dauRec.users.indexOf(userId) !== -1) {
+          sessionsLast7d++;
+          break;
+        }
+      }
+    }
+
+    // Events in last 7 days
+    var eventsLast7d = 0;
+    var eventResult = analyticsSafeList(nk, userId, "analytics_events", 100, "");
+    var sevenDaysAgoSec = analyticsNowSeconds() - 7 * 86400;
+    if (eventResult && eventResult.objects) {
+      for (var ei = 0; ei < eventResult.objects.length; ei++) {
+        var evt = eventResult.objects[ei].value;
+        if (evt && evt.unixTimestamp && evt.unixTimestamp >= sevenDaysAgoSec) {
+          if (!gameId || evt.gameId === gameId) eventsLast7d++;
+        }
+      }
+    }
+
+    // Friends count
+    var friendsCount = 0;
+    try {
+      var fr = nk.friendsList(userId, null, 100, "");
+      if (fr && fr.friends) friendsCount = fr.friends.length;
+    } catch (_) { /* swallow */ }
+
+    // Wallet transactions
+    var txCount = 0;
+    try {
+      var ledger = nk.walletLedgerList(userId, 100, "");
+      if (ledger && ledger.items) txCount = ledger.items.length;
+    } catch (_) { /* swallow */ }
+
+    // Has group
+    var hasGroup = false;
+    try {
+      var groups = nk.userGroupsList(userId, 100, null, "");
+      if (groups && groups.userGroups && groups.userGroups.length > 0) hasGroup = true;
+    } catch (_) { /* swallow */ }
+
+    // Score components (0-25 each except social which is 0-25)
+    var sessionFrequency = Math.min(sessionsLast7d / 7, 1) * 25;
+    var actionDensity = Math.min(eventsLast7d / 50, 1) * 25;
+    var socialScore = Math.min(friendsCount / 10, 1) * 20 + (hasGroup ? 5 : 0);
+    var spendingScore = Math.min(txCount / 20, 1) * 25;
+
+    var score = analyticsRound(sessionFrequency + actionDensity + socialScore + spendingScore, 1);
+    if (score > 100) score = 100;
+
+    var riskLevel = "churning";
+    if (score >= 80) riskLevel = "power_user";
+    else if (score >= 60) riskLevel = "engaged";
+    else if (score >= 40) riskLevel = "moderate";
+    else if (score >= 20) riskLevel = "at_risk";
+
+    return JSON.stringify({
+      user_id: userId,
+      engagement_score: score,
+      risk_level: riskLevel,
+      breakdown: {
+        session_frequency: analyticsRound(sessionFrequency, 1),
+        action_density: analyticsRound(actionDensity, 1),
+        social_score: analyticsRound(socialScore, 1),
+        spending_score: analyticsRound(spendingScore, 1)
+      },
+      last_active: lastActive,
+      days_since_first: daysSinceFirst
+    });
+  } catch (e) {
+    logger.error("rpcAnalyticsEngagementScore error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. rpcAnalyticsSessionStats
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var gameId = data.game_id;
+    var days = data.days || 7;
+    var cutoffSec = analyticsNowSeconds() - days * 86400;
+
+    var durations = [];
+    var dailyMap = {};
+    var hourBuckets = {};
+    for (var h = 0; h < 24; h++) hourBuckets[h] = 0;
+
+    // Scan session summaries from sampled users
+    var userIds = sampleUserIds(nk, 100);
+    for (var u = 0; u < userIds.length; u++) {
+      var result = analyticsSafeList(nk, userIds[u], "analytics_session_summaries", 50, "");
+      if (!result || !result.objects) continue;
+      for (var s = 0; s < result.objects.length; s++) {
+        var sess = result.objects[s].value;
+        if (!sess || !sess.startTime) continue;
+        if (sess.startTime < cutoffSec) continue;
+        if (gameId && sess.gameId !== gameId) continue;
+
+        var dur = sess.duration || 0;
+        durations.push(dur);
+
+        var sessDate = analyticsDateString(new Date(sess.startTime * 1000));
+        if (!dailyMap[sessDate]) dailyMap[sessDate] = { sessions: 0, totalDur: 0 };
+        dailyMap[sessDate].sessions++;
+        dailyMap[sessDate].totalDur += dur;
+
+        var sessHour = new Date(sess.startTime * 1000).getUTCHours();
+        hourBuckets[sessHour]++;
+      }
+    }
+
+    durations.sort(function (a, b) { return a - b; });
+
+    var totalSessions = durations.length;
+    var sumDur = 0;
+    for (var di = 0; di < durations.length; di++) sumDur += durations[di];
+    var avgDur = totalSessions > 0 ? analyticsRound(sumDur / totalSessions, 1) : 0;
+    var medDur = analyticsMedian(durations);
+    var p95Dur = analyticsPercentile(durations, 95);
+
+    var peakHours = [];
+    for (var ph = 0; ph < 24; ph++) {
+      if (hourBuckets[ph] > 0) {
+        peakHours.push({ hour: ph, count: hourBuckets[ph] });
+      }
+    }
+    peakHours.sort(function (a, b) { return b.count - a.count; });
+
+    var dailyBreakdown = [];
+    for (var dk in dailyMap) {
+      if (dailyMap.hasOwnProperty(dk)) {
+        var entry = dailyMap[dk];
+        dailyBreakdown.push({
+          date: dk,
+          sessions: entry.sessions,
+          avg_duration: entry.sessions > 0 ? analyticsRound(entry.totalDur / entry.sessions, 1) : 0
+        });
+      }
+    }
+    dailyBreakdown.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+
+    var sessPerDayAvg = days > 0 ? analyticsRound(totalSessions / days, 1) : 0;
+
+    return JSON.stringify({
+      total_sessions: totalSessions,
+      avg_duration_seconds: avgDur,
+      median_duration_seconds: medDur,
+      p95_duration_seconds: p95Dur,
+      min_duration_seconds: durations.length > 0 ? durations[0] : 0,
+      max_duration_seconds: durations.length > 0 ? durations[durations.length - 1] : 0,
+      sessions_per_day_avg: sessPerDayAvg,
+      peak_hours: peakHours.slice(0, 5),
+      daily_breakdown: dailyBreakdown
+    });
+  } catch (e) {
+    logger.error("rpcAnalyticsSessionStats error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. rpcAnalyticsFunnel
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var gameId = data.game_id;
+    var days = data.days || 30;
+
+    var userIds = sampleUserIds(nk, 100);
+    var totalUsers = userIds.length;
+
+    var stepDefs = [
+      { name: "account_created",      check: function () { return totalUsers; } },
+      { name: "onboarding_started",   check: function () { return countOnboardingStep(nk, userIds, "started"); } },
+      { name: "onboarding_completed", check: function () { return countOnboardingStep(nk, userIds, "completed"); } },
+      { name: "first_quiz_played",    check: function () { return countOnboardingStep(nk, userIds, "first_quiz"); } },
+      { name: "second_session",       check: function () { return countSessionMilestone(nk, userIds, 2); } },
+      { name: "made_purchase",        check: function () { return countEventType(nk, userIds, gameId, "purchase"); } },
+      { name: "joined_group",         check: function () { return countWithGroups(nk, userIds); } },
+      { name: "played_multiplayer",   check: function () { return countEventType(nk, userIds, gameId, "match_complete"); } },
+      { name: "day_7_return",         check: function () { return countD7Return(nk, userIds); } }
+    ];
+
+    var steps = [];
+    var worstDropOff = { step: "", drop_pct: 0 };
+
+    for (var i = 0; i < stepDefs.length; i++) {
+      var count = stepDefs[i].check();
+      var pctOfTotal = totalUsers > 0 ? analyticsRound((count / totalUsers) * 100, 1) : 0;
+      var prevCount = (i > 0 && steps[i - 1]) ? steps[i - 1].count : totalUsers;
+      var pctOfPrev = prevCount > 0 ? analyticsRound((count / prevCount) * 100, 1) : 0;
+      var dropOff = 100 - pctOfPrev;
+
+      steps.push({
+        name: stepDefs[i].name,
+        count: count,
+        pct_of_total: pctOfTotal,
+        pct_of_previous: pctOfPrev,
+        drop_off_pct: analyticsRound(dropOff, 1)
+      });
+
+      if (i > 0 && dropOff > worstDropOff.drop_pct) {
+        worstDropOff = { step: stepDefs[i].name, drop_pct: analyticsRound(dropOff, 1) };
+      }
+    }
+
+    return JSON.stringify({
+      steps: steps,
+      total_users: totalUsers,
+      worst_drop_off: worstDropOff
+    });
+  } catch (e) {
+    logger.error("rpcAnalyticsFunnel error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+// Funnel helpers
+
+function countOnboardingStep(nk, userIds, stepType) {
+  var count = 0;
+  for (var i = 0; i < userIds.length; i++) {
+    var ob = analyticsSafeRead(nk, "onboarding_state", "state", userIds[i]);
+    if (!ob) continue;
+    if (stepType === "started" && ob.currentStep && ob.currentStep > 0) count++;
+    else if (stepType === "completed" && ob.onboardingComplete === true) count++;
+    else if (stepType === "first_quiz" && ob.firstQuizCompleted === true) count++;
+  }
+  return count;
+}
+
+function countSessionMilestone(nk, userIds, minSessions) {
+  var count = 0;
+  for (var i = 0; i < userIds.length; i++) {
+    var fs = analyticsSafeRead(nk, "first_session", "session_data", userIds[i]);
+    if (fs && fs.totalSessions >= minSessions) count++;
+  }
+  return count;
+}
+
+function countEventType(nk, userIds, gameId, eventName) {
+  var count = 0;
+  for (var i = 0; i < userIds.length; i++) {
+    var result = analyticsSafeList(nk, userIds[i], "analytics_events", 100, "");
+    if (!result || !result.objects) continue;
+    var found = false;
+    for (var j = 0; j < result.objects.length; j++) {
+      var evt = result.objects[j].value;
+      if (evt && evt.eventName === eventName) {
+        if (!gameId || evt.gameId === gameId) { found = true; break; }
+      }
+    }
+    if (found) count++;
+  }
+  return count;
+}
+
+function countWithGroups(nk, userIds) {
+  var count = 0;
+  for (var i = 0; i < userIds.length; i++) {
+    try {
+      var groups = nk.userGroupsList(userIds[i], 1, null, "");
+      if (groups && groups.userGroups && groups.userGroups.length > 0) count++;
+    } catch (_) { /* swallow */ }
+  }
+  return count;
+}
+
+function countD7Return(nk, userIds) {
+  var count = 0;
+  for (var i = 0; i < userIds.length; i++) {
+    var fs = analyticsSafeRead(nk, "first_session", "session_data", userIds[i]);
+    if (fs && fs.d7Returned === true) count++;
+  }
+  return count;
+}
+
+// ---------------------------------------------------------------------------
+// 6. rpcAnalyticsEconomyHealth
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var gameId = data.game_id;
+
+    var userIds = sampleUserIds(nk, 100);
+    var sampleSize = userIds.length;
+    if (sampleSize === 0) {
+      return JSON.stringify({
+        total_coins: 0, total_gems: 0, avg_coins: 0, median_coins: 0,
+        max_coins: 0, min_coins: 0, gini_coefficient: 0,
+        source_sink_ratio: { sources_total: 0, sinks_total: 0, ratio: 0 },
+        whale_count: 0, sample_size: 0
+      });
+    }
+
+    var coinBalances = [];
+    var totalCoins = 0;
+    var totalGems = 0;
+    var sourcesTotal = 0;
+    var sinksTotal = 0;
+
+    // Batch fetch accounts
+    var accounts = [];
+    try {
+      accounts = nk.accountsGetId(userIds);
+    } catch (_) { /* swallow */ }
+
+    for (var a = 0; a < accounts.length; a++) {
+      var acct = accounts[a];
+      var wallet = {};
+      if (acct && acct.wallet) {
+        if (typeof acct.wallet === "string") {
+          try { wallet = JSON.parse(acct.wallet); } catch (_) { /* swallow */ }
+        } else {
+          wallet = acct.wallet;
+        }
+      }
+      var coins = wallet.coins || wallet.tokens || 0;
+      var gems = wallet.gems || wallet.diamonds || 0;
+      totalCoins += coins;
+      totalGems += gems;
+      coinBalances.push(coins);
+    }
+
+    // Ledger sampling for source/sink
+    var ledgerSampleSize = Math.min(userIds.length, 20);
+    for (var li = 0; li < ledgerSampleSize; li++) {
+      try {
+        var ledger = nk.walletLedgerList(userIds[li], 50, "");
+        if (ledger && ledger.items) {
+          for (var lj = 0; lj < ledger.items.length; lj++) {
+            var changeset = ledger.items[lj].changeset;
+            if (typeof changeset === "string") {
+              try { changeset = JSON.parse(changeset); } catch (_) { continue; }
+            }
+            for (var ck in changeset) {
+              if (changeset.hasOwnProperty(ck)) {
+                var val = changeset[ck];
+                if (val > 0) sourcesTotal += val;
+                else if (val < 0) sinksTotal += Math.abs(val);
+              }
+            }
+          }
+        }
+      } catch (_) { /* swallow */ }
+    }
+
+    coinBalances.sort(function (a, b) { return a - b; });
+    var avgCoins = sampleSize > 0 ? analyticsRound(totalCoins / sampleSize, 1) : 0;
+    var medCoins = analyticsMedian(coinBalances);
+    var maxCoins = coinBalances.length > 0 ? coinBalances[coinBalances.length - 1] : 0;
+    var minCoins = coinBalances.length > 0 ? coinBalances[0] : 0;
+    var gini = analyticsRound(analyticsGini(coinBalances), 4);
+
+    // Whale detection: top 1%
+    var whaleThresholdIdx = Math.floor(coinBalances.length * 0.99);
+    var whaleCount = coinBalances.length - whaleThresholdIdx;
+
+    var ssRatio = sinksTotal > 0 ? analyticsRound(sourcesTotal / sinksTotal, 2) : (sourcesTotal > 0 ? 999 : 0);
+
+    return JSON.stringify({
+      total_coins: totalCoins,
+      total_gems: totalGems,
+      avg_coins: avgCoins,
+      median_coins: medCoins,
+      max_coins: maxCoins,
+      min_coins: minCoins,
+      gini_coefficient: gini,
+      source_sink_ratio: {
+        sources_total: sourcesTotal,
+        sinks_total: sinksTotal,
+        ratio: ssRatio
+      },
+      whale_count: whaleCount,
+      sample_size: sampleSize
+    });
+  } catch (e) {
+    logger.error("rpcAnalyticsEconomyHealth error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 7. rpcAnalyticsErrorLog
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var gameId = data.game_id;
+    var days = data.days || 7;
+    var cutoffSec = analyticsNowSeconds() - days * 86400;
+
+    var result = analyticsSafeList(nk, SYSTEM_USER, "analytics_error_events", 100, "");
+    var errors = [];
+    if (result && result.objects) {
+      for (var i = 0; i < result.objects.length; i++) {
+        var val = result.objects[i].value;
+        if (!val) continue;
+        if (val.timestamp && val.timestamp < cutoffSec) continue;
+        if (gameId && val.game_id && val.game_id !== gameId) continue;
+        errors.push(val);
+      }
+    }
+
+    // Group by rpc_name
+    var rpcMap = {};
+    var dailyMap = {};
+    for (var ei = 0; ei < errors.length; ei++) {
+      var err = errors[ei];
+      var rpcName = err.rpc_name || "unknown";
+      if (!rpcMap[rpcName]) {
+        rpcMap[rpcName] = { count: 0, last_occurred: "", sample_error: "" };
+      }
+      rpcMap[rpcName].count++;
+      var errTime = err.timestamp_iso || "";
+      if (errTime > rpcMap[rpcName].last_occurred) {
+        rpcMap[rpcName].last_occurred = errTime;
+        rpcMap[rpcName].sample_error = err.error_message || "";
+      }
+
+      var errDate = err.date || "";
+      if (errDate) {
+        if (!dailyMap[errDate]) dailyMap[errDate] = 0;
+        dailyMap[errDate]++;
+      }
+    }
+
+    var errorsByRpc = [];
+    var mostFailing = { name: "", count: 0 };
+    for (var rk in rpcMap) {
+      if (rpcMap.hasOwnProperty(rk)) {
+        errorsByRpc.push({
+          rpc_name: rk,
+          count: rpcMap[rk].count,
+          last_occurred: rpcMap[rk].last_occurred,
+          sample_error: rpcMap[rk].sample_error
+        });
+        if (rpcMap[rk].count > mostFailing.count) {
+          mostFailing = { name: rk, count: rpcMap[rk].count };
+        }
+      }
+    }
+    errorsByRpc.sort(function (a, b) { return b.count - a.count; });
+
+    var errorTrendDaily = [];
+    for (var dk in dailyMap) {
+      if (dailyMap.hasOwnProperty(dk)) {
+        errorTrendDaily.push({ date: dk, count: dailyMap[dk] });
+      }
+    }
+    errorTrendDaily.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+
+    return JSON.stringify({
+      total_errors: errors.length,
+      errors_by_rpc: errorsByRpc,
+      error_trend_daily: errorTrendDaily,
+      most_failing_rpc: mostFailing
+    });
+  } catch (e) {
+    logger.error("rpcAnalyticsErrorLog error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 8. rpcAnalyticsFeatureAdoption
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var gameId = data.game_id;
+
+    var userIds = sampleUserIds(nk, 100);
+    var totalSampled = userIds.length;
+
+    var featureDefs = [
+      { name: "tournaments",    collection: "tournament_records" },
+      { name: "challenges",     collection: "challenges_v2" },
+      { name: "daily_missions", collection: "daily_missions" },
+      { name: "weekly_goals",   collection: "weekly_goals" },
+      { name: "season_pass",    collection: "season_pass" },
+      { name: "mystery_box",    collection: "mystery_box" },
+      { name: "bounties",       collection: "bounties" },
+      { name: "duels",          collection: "duels" },
+      { name: "team_quiz",      collection: "team_quiz" },
+      { name: "daily_duo",      collection: "daily_duo" },
+      { name: "knowledge_duel", collection: "knowledge_duel" },
+      { name: "trivia_night",   collection: "trivia_night" },
+      { name: "loadouts",       collection: "loadouts" },
+      { name: "group_quests",   collection: "group_quests" }
+    ];
+
+    var features = [];
+    var mostAdopted = { name: "", users_count: 0 };
+    var leastAdopted = { name: "", users_count: totalSampled + 1 };
+
+    for (var fi = 0; fi < featureDefs.length; fi++) {
+      var def = featureDefs[fi];
+      var usersWithFeature = 0;
+
+      for (var ui = 0; ui < userIds.length; ui++) {
+        var result = analyticsSafeList(nk, userIds[ui], def.collection, 1, "");
+        if (result && result.objects && result.objects.length > 0) {
+          usersWithFeature++;
+        }
+      }
+
+      var adoptionPct = totalSampled > 0 ? analyticsRound((usersWithFeature / totalSampled) * 100, 1) : 0;
+      features.push({
+        name: def.name,
+        users_count: usersWithFeature,
+        adoption_pct: adoptionPct,
+        collection: def.collection
+      });
+
+      if (usersWithFeature > mostAdopted.users_count) {
+        mostAdopted = { name: def.name, users_count: usersWithFeature };
+      }
+      if (usersWithFeature < leastAdopted.users_count) {
+        leastAdopted = { name: def.name, users_count: usersWithFeature };
+      }
+    }
+
+    features.sort(function (a, b) { return b.users_count - a.users_count; });
+
+    // Generate recommendations based on adoption
+    var recommendations = [];
+    for (var ri = 0; ri < features.length; ri++) {
+      if (features[ri].adoption_pct < 10) {
+        recommendations.push("Feature '" + features[ri].name + "' has very low adoption (" + features[ri].adoption_pct + "%). Consider improving discoverability or onboarding for this feature.");
+      }
+    }
+    if (recommendations.length === 0) {
+      recommendations.push("All features have reasonable adoption rates.");
+    }
+
+    return JSON.stringify({
+      features: features,
+      total_users_sampled: totalSampled,
+      most_adopted: mostAdopted.name,
+      least_adopted: leastAdopted.name,
+      recommendations: recommendations
+    });
+  } catch (e) {
+    logger.error("rpcAnalyticsFeatureAdoption error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 9. rpcAnalyticsLogError (helper RPC for error tracking)
+// ---------------------------------------------------------------------------
+
+function rpcAnalyticsLogError(ctx, logger, nk, payload) {
+  try {
+    var data = analyticsSafeJsonParse(payload);
+    var rpcName = data.rpc_name || "unknown";
+    var errorMessage = data.error_message || "";
+    var userId = data.user_id || ctx.userId || "";
+    var gameId = data.game_id || "";
+    var stackTrace = data.stack_trace || "";
+    var nowSec = analyticsNowSeconds();
+    var todayStr = analyticsDaysAgo(0);
+
+    var errorRecord = {
+      rpc_name: rpcName,
+      error_message: errorMessage,
+      user_id: userId,
+      game_id: gameId,
+      stack_trace: stackTrace,
+      timestamp: nowSec,
+      timestamp_iso: new Date().toISOString(),
+      date: todayStr
+    };
+
+    var key = "error_" + rpcName + "_" + nowSec + "_" + Math.floor(Math.random() * 10000);
+    analyticsSafeWrite(nk, "analytics_error_events", key, SYSTEM_USER, errorRecord);
+
+    logger.warn("Error logged for RPC '%s': %s", rpcName, errorMessage);
+
+    return JSON.stringify({ success: true });
+  } catch (e) {
+    logger.error("rpcAnalyticsLogError error: %s", e.message || e);
+    return JSON.stringify({ error: e.message || "Internal error" });
+  }
+}
+
+
+// ============================================================================
+// GAME METRICS - Universal metrics capture, query, and aggregation
+// ============================================================================
+
+// game_metrics.js — Universal game metrics capture, query, and aggregation
+//
+// Collections:
+//   game_metrics_{gameId}  — per-user match/session results (user-owned)
+//   game_metrics_index     — game-wide metric summaries (system-owned)
+//
+// Works for ANY game (cricket, quiz, survival, etc.) with a flexible schema.
+
+var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function gmDateStr() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function gmNow() {
+    return new Date().toISOString();
+}
+
+function gmUnix() {
+    return Math.floor(Date.now() / 1000);
+}
+
+function gmSafeRead(nk, collection, key, userId) {
+    try {
+        var r = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+        if (r && r.length > 0 && r[0].value) return r[0].value;
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+function gmSafeWrite(nk, collection, key, userId, value) {
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: userId,
+            value: value,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function gmSafeList(nk, userId, collection, limit, cursor) {
+    try {
+        return nk.storageList(userId, collection, limit, cursor);
+    } catch (e) {
+        return { objects: [], cursor: "" };
+    }
+}
+
+function gmMedian(arr) {
+    if (!arr.length) return 0;
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    var mid = Math.floor(s.length / 2);
+    return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
+}
+
+function gmPercentile(arr, p) {
+    if (!arr.length) return 0;
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    var idx = Math.ceil((p / 100) * s.length) - 1;
+    return s[Math.max(0, idx)];
+}
+
+function gmRound(n, d) {
+    var f = Math.pow(10, d || 2);
+    return Math.round(n * f) / f;
+}
+
+// ============================================================================
+// RPC: game_metrics_submit
+// ============================================================================
+
+function rpcGameMetricsSubmit(ctx, logger, nk, payload) {
+    logger.info("[GameMetrics] RPC game_metrics_submit called");
+
+    try {
+        var data = JSON.parse(payload || "{}");
+    } catch (e) {
+        return JSON.stringify({ success: false, error: "Invalid JSON payload" });
+    }
+
+    var gameId = data.game_id;
+    if (!gameId) {
+        return JSON.stringify({ success: false, error: "Missing required field: game_id" });
+    }
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ success: false, error: "User not authenticated" });
+    }
+
+    var metricType = data.metric_type || "match_result";
+    var metrics = data.metrics || {};
+    var tags = data.tags || {};
+    var ts = gmNow();
+    var unix = gmUnix();
+
+    // Build the record
+    var record = {
+        game_id: gameId,
+        user_id: userId,
+        metric_type: metricType,
+        metrics: metrics,
+        tags: tags,
+        date: gmDateStr(),
+        timestamp: ts,
+        unix_ts: unix
+    };
+
+    // Store with unique key
+    var collection = "game_metrics_" + gameId;
+    var key = metricType + "_" + userId + "_" + unix;
+    gmSafeWrite(nk, collection, key, userId, record);
+
+    // Update the per-game summary index for aggregation
+    try {
+        var indexKey = "summary_" + gameId;
+        var summary = gmSafeRead(nk, "game_metrics_index", indexKey, SYSTEM_USER) || {
+            game_id: gameId,
+            total_submissions: 0,
+            unique_users: [],
+            metric_types: {},
+            last_updated: ts
+        };
+
+        summary.total_submissions += 1;
+        if (summary.unique_users.indexOf(userId) === -1) {
+            summary.unique_users.push(userId);
+        }
+
+        if (!summary.metric_types[metricType]) {
+            summary.metric_types[metricType] = { count: 0, last_seen: ts };
+        }
+        summary.metric_types[metricType].count += 1;
+        summary.metric_types[metricType].last_seen = ts;
+        summary.last_updated = ts;
+
+        // Keep running stats for numeric metric fields
+        if (!summary.numeric_stats) summary.numeric_stats = {};
+        for (var field in metrics) {
+            if (typeof metrics[field] === "number") {
+                if (!summary.numeric_stats[field]) {
+                    summary.numeric_stats[field] = {
+                        count: 0, sum: 0, min: metrics[field], max: metrics[field]
+                    };
+                }
+                var stat = summary.numeric_stats[field];
+                stat.count += 1;
+                stat.sum += metrics[field];
+                if (metrics[field] < stat.min) stat.min = metrics[field];
+                if (metrics[field] > stat.max) stat.max = metrics[field];
+                stat.avg = gmRound(stat.sum / stat.count);
+            }
+        }
+
+        gmSafeWrite(nk, "game_metrics_index", indexKey, SYSTEM_USER, summary);
+    } catch (indexErr) {
+        logger.warn("[GameMetrics] Failed to update index: " + indexErr.message);
+    }
+
+    logger.info("[GameMetrics] Submitted " + metricType + " for user " + userId + " in game " + gameId);
+
+    return JSON.stringify({
+        success: true,
+        game_id: gameId,
+        metric_type: metricType,
+        record_key: key,
+        timestamp: ts
+    });
+}
+
+// ============================================================================
+// RPC: game_metrics_query
+// ============================================================================
+
+function rpcGameMetricsQuery(ctx, logger, nk, payload) {
+    logger.info("[GameMetrics] RPC game_metrics_query called");
+
+    try {
+        var data = JSON.parse(payload || "{}");
+    } catch (e) {
+        return JSON.stringify({ success: false, error: "Invalid JSON payload" });
+    }
+
+    var gameId = data.game_id;
+    if (!gameId) {
+        return JSON.stringify({ success: false, error: "Missing required field: game_id" });
+    }
+
+    var userId = data.user_id || (ctx.userId || null);
+    if (!userId) {
+        return JSON.stringify({ success: false, error: "Missing user_id (or authenticate)" });
+    }
+
+    var metricType = data.metric_type || null;
+    var limit = data.limit || 50;
+    var cursor = data.cursor || null;
+
+    if (limit < 1) limit = 1;
+    if (limit > 100) limit = 100;
+
+    var collection = "game_metrics_" + gameId;
+    var result = gmSafeList(nk, userId, collection, limit, cursor);
+
+    var records = [];
+    if (result && result.objects) {
+        for (var i = 0; i < result.objects.length; i++) {
+            var obj = result.objects[i];
+            var val = obj.value || {};
+
+            // Filter by metric_type if specified
+            if (metricType && val.metric_type !== metricType) {
+                continue;
+            }
+
+            records.push({
+                key: obj.key,
+                metric_type: val.metric_type,
+                metrics: val.metrics,
+                tags: val.tags,
+                date: val.date,
+                timestamp: val.timestamp
+            });
+        }
+    }
+
+    return JSON.stringify({
+        success: true,
+        game_id: gameId,
+        user_id: userId,
+        records: records,
+        count: records.length,
+        cursor: (result && result.cursor) ? result.cursor : null,
+        filter: metricType ? { metric_type: metricType } : null
+    });
+}
+
+// ============================================================================
+// RPC: game_metrics_aggregate
+// ============================================================================
+
+function rpcGameMetricsAggregate(ctx, logger, nk, payload) {
+    logger.info("[GameMetrics] RPC game_metrics_aggregate called");
+
+    try {
+        var data = JSON.parse(payload || "{}");
+    } catch (e) {
+        return JSON.stringify({ success: false, error: "Invalid JSON payload" });
+    }
+
+    var gameId = data.game_id;
+    if (!gameId) {
+        return JSON.stringify({ success: false, error: "Missing required field: game_id" });
+    }
+
+    var metricType = data.metric_type || null;
+    var fields = data.fields || [];
+    var sampleSize = data.sample_size || 50;
+    if (sampleSize > 200) sampleSize = 200;
+
+    // Read the game summary index for quick stats
+    var indexKey = "summary_" + gameId;
+    var summary = gmSafeRead(nk, "game_metrics_index", indexKey, SYSTEM_USER);
+
+    if (!summary) {
+        return JSON.stringify({
+            success: true,
+            game_id: gameId,
+            message: "No metrics data found for this game",
+            summary: null,
+            field_stats: {},
+            sample_size: 0
+        });
+    }
+
+    // If fields are requested, sample actual records for detailed aggregation
+    var fieldStats = {};
+    var sampled = 0;
+
+    if (fields.length > 0 && summary.unique_users && summary.unique_users.length > 0) {
+        var fieldValues = {};
+        for (var fi = 0; fi < fields.length; fi++) {
+            fieldValues[fields[fi]] = [];
+        }
+
+        var collection = "game_metrics_" + gameId;
+        var usersToSample = summary.unique_users.slice(0, Math.min(20, summary.unique_users.length));
+
+        for (var ui = 0; ui < usersToSample.length && sampled < sampleSize; ui++) {
+            var userRecords = gmSafeList(nk, usersToSample[ui], collection, 20, null);
+            if (userRecords && userRecords.objects) {
+                for (var ri = 0; ri < userRecords.objects.length && sampled < sampleSize; ri++) {
+                    var rec = userRecords.objects[ri].value;
+                    if (!rec || !rec.metrics) continue;
+                    if (metricType && rec.metric_type !== metricType) continue;
+
+                    for (var fj = 0; fj < fields.length; fj++) {
+                        var fname = fields[fj];
+                        if (rec.metrics[fname] !== undefined && typeof rec.metrics[fname] === "number") {
+                            fieldValues[fname].push(rec.metrics[fname]);
+                        }
+                    }
+                    sampled++;
+                }
+            }
+        }
+
+        // Compute stats per field
+        for (var fk = 0; fk < fields.length; fk++) {
+            var fname2 = fields[fk];
+            var vals = fieldValues[fname2];
+            if (vals.length > 0) {
+                var sum = 0;
+                var min = vals[0];
+                var max = vals[0];
+                for (var vi = 0; vi < vals.length; vi++) {
+                    sum += vals[vi];
+                    if (vals[vi] < min) min = vals[vi];
+                    if (vals[vi] > max) max = vals[vi];
+                }
+                fieldStats[fname2] = {
+                    count: vals.length,
+                    sum: gmRound(sum),
+                    avg: gmRound(sum / vals.length),
+                    min: gmRound(min),
+                    max: gmRound(max),
+                    median: gmRound(gmMedian(vals)),
+                    p95: gmRound(gmPercentile(vals, 95)),
+                    distribution: {
+                        below_avg: vals.filter(function (v) { return v < (sum / vals.length); }).length,
+                        above_avg: vals.filter(function (v) { return v >= (sum / vals.length); }).length
+                    }
+                };
+            } else {
+                fieldStats[fname2] = { count: 0, message: "No data for this field" };
+            }
+        }
+    } else if (summary.numeric_stats) {
+        // Use the running stats from the index
+        fieldStats = summary.numeric_stats;
+    }
+
+    // Build metric type breakdown
+    var typeBreakdown = [];
+    if (summary.metric_types) {
+        for (var mt in summary.metric_types) {
+            typeBreakdown.push({
+                metric_type: mt,
+                count: summary.metric_types[mt].count,
+                last_seen: summary.metric_types[mt].last_seen
+            });
+        }
+        typeBreakdown.sort(function (a, b) { return b.count - a.count; });
+    }
+
+    return JSON.stringify({
+        success: true,
+        game_id: gameId,
+        summary: {
+            total_submissions: summary.total_submissions,
+            unique_players: summary.unique_users ? summary.unique_users.length : 0,
+            metric_types: typeBreakdown,
+            last_updated: summary.last_updated
+        },
+        field_stats: fieldStats,
+        sample_size: sampled,
+        filter: metricType ? { metric_type: metricType } : null
+    });
+}
+
+// ============================================================================
+// PLAYER-TO-PLAYER GIFTING SYSTEM
+// Storage collections: player_gifts, player_gifts_inbox
+// ============================================================================
+
+var GIFT_LIMITS = {
+    max_pending_per_sender: 20,
+    max_pending_per_recipient: 50,
+    max_quantity_per_gift: 1000,
+    cooldown_same_pair_seconds: 300,
+    allowed_item_types: ["coins", "gems", "xp", "item", "mystery_box"]
+};
+
+function rpcGiftSend(ctx, logger, nk, payload) {
+    logger.info('[Gifting] gift_send called');
+
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Authentication required' });
+        }
+
+        var data = JSON.parse(payload || '{}');
+
+        if (!data.to_user_id || !data.item_type || !data.quantity) {
+            return JSON.stringify({
+                success: false,
+                error: 'to_user_id, item_type, and quantity are required'
+            });
+        }
+
+        var senderId = ctx.userId;
+        var recipientId = data.to_user_id;
+        var itemType = data.item_type;
+        var itemId = data.item_id || null;
+        var quantity = parseInt(data.quantity, 10);
+        var message = data.message || '';
+        var gameId = data.game_id || 'global';
+
+        if (senderId === recipientId) {
+            return JSON.stringify({ success: false, error: 'Cannot send gift to yourself' });
+        }
+
+        if (quantity <= 0 || quantity > GIFT_LIMITS.max_quantity_per_gift) {
+            return JSON.stringify({
+                success: false,
+                error: 'Quantity must be between 1 and ' + GIFT_LIMITS.max_quantity_per_gift
+            });
+        }
+
+        if (GIFT_LIMITS.allowed_item_types.indexOf(itemType) === -1) {
+            return JSON.stringify({
+                success: false,
+                error: 'Invalid item_type. Allowed: ' + GIFT_LIMITS.allowed_item_types.join(', ')
+            });
+        }
+
+        try {
+            nk.accountGetId(recipientId);
+        } catch (e) {
+            return JSON.stringify({ success: false, error: 'Recipient not found' });
+        }
+
+        var senderGifts = nk.storageList(senderId, "player_gifts", GIFT_LIMITS.max_pending_per_sender + 1, "");
+        var senderPending = 0;
+        if (senderGifts && senderGifts.length) {
+            for (var i = 0; i < senderGifts.length; i++) {
+                if (senderGifts[i].value && senderGifts[i].value.status === 'pending' && senderGifts[i].value.sender_id === senderId) {
+                    senderPending++;
+                }
+            }
+        }
+        if (senderPending >= GIFT_LIMITS.max_pending_per_sender) {
+            return JSON.stringify({ success: false, error: 'Too many pending gifts. Wait for some to be claimed.' });
+        }
+
+        var nowMs = Date.now();
+        if (senderGifts && senderGifts.length) {
+            for (var j = 0; j < senderGifts.length; j++) {
+                var g = senderGifts[j].value;
+                if (g && g.recipient_id === recipientId && g.status === 'pending') {
+                    var giftAge = (nowMs - (g.created_at_unix || 0)) / 1000;
+                    if (giftAge < GIFT_LIMITS.cooldown_same_pair_seconds) {
+                        return JSON.stringify({
+                            success: false,
+                            error: 'Cooldown active. Wait ' + Math.ceil(GIFT_LIMITS.cooldown_same_pair_seconds - giftAge) + 's before sending another gift to this player.'
+                        });
+                    }
+                }
+            }
+        }
+
+        if (itemType === 'coins' || itemType === 'gems' || itemType === 'xp') {
+            var deduction = {};
+            deduction[itemType] = -quantity;
+            try {
+                nk.walletUpdate(senderId, deduction, {
+                    source: 'gift_send',
+                    to_user_id: recipientId,
+                    game_id: gameId
+                }, false);
+            } catch (walletErr) {
+                return JSON.stringify({
+                    success: false,
+                    error: 'Insufficient ' + itemType + ' balance to send gift'
+                });
+            }
+        }
+
+        var giftId = 'gift_' + senderId.slice(0, 8) + '_' + recipientId.slice(0, 8) + '_' + nowMs;
+        var giftData = {
+            gift_id: giftId,
+            sender_id: senderId,
+            sender_username: ctx.username || 'Unknown',
+            recipient_id: recipientId,
+            item_type: itemType,
+            item_id: itemId,
+            quantity: quantity,
+            message: message,
+            game_id: gameId,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+            created_at_unix: nowMs,
+            claimed_at: null
+        };
+
+        nk.storageWrite([{
+            collection: 'player_gifts',
+            key: giftId,
+            userId: senderId,
+            value: giftData,
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+
+        var inboxKey = 'inbox_' + recipientId + '_' + nowMs;
+        nk.storageWrite([{
+            collection: 'player_gifts_inbox',
+            key: inboxKey,
+            userId: '00000000-0000-0000-0000-000000000000',
+            value: giftData,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+
+        try {
+            nk.notificationSend(recipientId, 'You received a gift!', 100, {
+                gift_id: giftId,
+                sender_username: ctx.username,
+                item_type: itemType,
+                quantity: quantity,
+                message: message
+            }, senderId);
+        } catch (notifErr) {
+            logger.warn('[Gifting] Notification failed: ' + notifErr.message);
+        }
+
+        logger.info('[Gifting] Gift sent: ' + giftId + ' from ' + senderId + ' to ' + recipientId);
+
+        return JSON.stringify({
+            success: true,
+            gift_id: giftId,
+            sender_id: senderId,
+            recipient_id: recipientId,
+            item_type: itemType,
+            item_id: itemId,
+            quantity: quantity,
+            status: 'pending',
+            created_at: giftData.created_at
+        });
+
+    } catch (err) {
+        logger.error('[Gifting] gift_send error: ' + err.message);
+        logRpcError(nk, logger, 'gift_send', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcGiftInbox(ctx, logger, nk, payload) {
+    logger.info('[Gifting] gift_inbox called');
+
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Authentication required' });
+        }
+
+        var data = JSON.parse(payload || '{}');
+        var limit = parseInt(data.limit, 10) || 50;
+        var cursor = data.cursor || '';
+        var userId = ctx.userId;
+
+        var records = nk.storageList('00000000-0000-0000-0000-000000000000', 'player_gifts_inbox', limit, cursor);
+        var gifts = [];
+        var nextCursor = '';
+
+        if (records) {
+            if (typeof records === 'object' && records.objects) {
+                nextCursor = records.cursor || '';
+                records = records.objects;
+            }
+            for (var i = 0; i < records.length; i++) {
+                var gift = records[i].value;
+                if (gift && gift.recipient_id === userId && gift.status === 'pending') {
+                    gifts.push({
+                        gift_id: gift.gift_id,
+                        sender_id: gift.sender_id,
+                        sender_username: gift.sender_username,
+                        item_type: gift.item_type,
+                        item_id: gift.item_id,
+                        quantity: gift.quantity,
+                        message: gift.message,
+                        game_id: gift.game_id,
+                        created_at: gift.created_at,
+                        inbox_key: records[i].key
+                    });
+                }
+            }
+        }
+
+        return JSON.stringify({
+            success: true,
+            user_id: userId,
+            pending_gifts: gifts,
+            count: gifts.length,
+            cursor: nextCursor
+        });
+
+    } catch (err) {
+        logger.error('[Gifting] gift_inbox error: ' + err.message);
+        logRpcError(nk, logger, 'gift_inbox', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcGiftClaim(ctx, logger, nk, payload) {
+    logger.info('[Gifting] gift_claim called');
+
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Authentication required' });
+        }
+
+        var data = JSON.parse(payload || '{}');
+
+        if (!data.gift_id) {
+            return JSON.stringify({ success: false, error: 'gift_id is required' });
+        }
+
+        var userId = ctx.userId;
+        var giftId = data.gift_id;
+
+        var inboxRecords = nk.storageList('00000000-0000-0000-0000-000000000000', 'player_gifts_inbox', 100, '');
+        var foundGift = null;
+        var foundKey = null;
+        var allRecords = inboxRecords;
+        if (typeof inboxRecords === 'object' && inboxRecords.objects) {
+            allRecords = inboxRecords.objects;
+        }
+
+        for (var i = 0; i < allRecords.length; i++) {
+            var record = allRecords[i];
+            if (record.value && record.value.gift_id === giftId && record.value.recipient_id === userId) {
+                foundGift = record.value;
+                foundKey = record.key;
+                break;
+            }
+        }
+
+        if (!foundGift) {
+            return JSON.stringify({ success: false, error: 'Gift not found or not addressed to you' });
+        }
+
+        if (foundGift.status !== 'pending') {
+            return JSON.stringify({ success: false, error: 'Gift already claimed' });
+        }
+
+        var walletGranted = {};
+        if (foundGift.item_type === 'coins' || foundGift.item_type === 'gems' || foundGift.item_type === 'xp') {
+            walletGranted[foundGift.item_type] = foundGift.quantity;
+            try {
+                nk.walletUpdate(userId, walletGranted, {
+                    source: 'gift_claim',
+                    gift_id: giftId,
+                    from_user_id: foundGift.sender_id,
+                    game_id: foundGift.game_id
+                }, true);
+            } catch (walletErr) {
+                logger.error('[Gifting] Wallet grant failed: ' + walletErr.message);
+                return JSON.stringify({ success: false, error: 'Failed to grant gift to wallet' });
+            }
+        } else if (foundGift.item_type === 'item' || foundGift.item_type === 'mystery_box') {
+            var inventoryKey = foundGift.item_type + '_' + (foundGift.item_id || 'generic') + '_' + Date.now();
+            nk.storageWrite([{
+                collection: 'player_inventory',
+                key: inventoryKey,
+                userId: userId,
+                value: {
+                    item_type: foundGift.item_type,
+                    item_id: foundGift.item_id,
+                    quantity: foundGift.quantity,
+                    source: 'gift',
+                    gift_id: giftId,
+                    from_user_id: foundGift.sender_id,
+                    granted_at: new Date().toISOString()
+                },
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+        }
+
+        foundGift.status = 'claimed';
+        foundGift.claimed_at = new Date().toISOString();
+        foundGift.claimed_at_unix = Date.now();
+        nk.storageWrite([{
+            collection: 'player_gifts_inbox',
+            key: foundKey,
+            userId: '00000000-0000-0000-0000-000000000000',
+            value: foundGift,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+
+        try {
+            var senderRecords = nk.storageRead([{
+                collection: 'player_gifts',
+                key: giftId,
+                userId: foundGift.sender_id
+            }]);
+            if (senderRecords && senderRecords.length > 0) {
+                var senderGift = senderRecords[0].value;
+                senderGift.status = 'claimed';
+                senderGift.claimed_at = foundGift.claimed_at;
+                nk.storageWrite([{
+                    collection: 'player_gifts',
+                    key: giftId,
+                    userId: foundGift.sender_id,
+                    value: senderGift,
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+            }
+        } catch (e) {
+            logger.warn('[Gifting] Failed to update sender copy: ' + e.message);
+        }
+
+        try {
+            nk.notificationSend(foundGift.sender_id, 'Your gift was claimed!', 101, {
+                gift_id: giftId,
+                claimed_by: ctx.username || userId,
+                item_type: foundGift.item_type,
+                quantity: foundGift.quantity
+            }, userId);
+        } catch (notifErr) {
+            logger.warn('[Gifting] Claim notification failed: ' + notifErr.message);
+        }
+
+        logger.info('[Gifting] Gift claimed: ' + giftId + ' by ' + userId);
+
+        return JSON.stringify({
+            success: true,
+            gift_id: giftId,
+            item_type: foundGift.item_type,
+            item_id: foundGift.item_id,
+            quantity: foundGift.quantity,
+            wallet_granted: walletGranted,
+            claimed_at: foundGift.claimed_at
+        });
+
+    } catch (err) {
+        logger.error('[Gifting] gift_claim error: ' + err.message);
+        logRpcError(nk, logger, 'gift_claim', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// CHAT MODERATION PIPELINE
+// Storage collections: chat_reports, chat_reports_by_reporter, chat_moderation_user_stats
+// ============================================================================
+
+var PROFANITY_WORDS = [
+    "fuck", "shit", "ass", "bitch", "dick", "cunt", "damn", "bastard",
+    "nigger", "nigga", "faggot", "retard", "whore", "slut",
+    "kill yourself", "kys", "die", "rape"
+];
+
+var SPAM_PATTERNS = [
+    /(.)\1{5,}/,
+    /https?:\/\/[^\s]+/,
+    /\b(free|cheap|buy now|click here|subscribe)\b/i
+];
+
+var MODERATION_CONFIG = {
+    max_reports_before_auto_mute: 5,
+    report_cooldown_seconds: 60,
+    auto_filter_enabled: true,
+    max_message_length: 1000
+};
+
+function checkProfanity(text) {
+    var lower = text.toLowerCase();
+    var matched = [];
+    for (var i = 0; i < PROFANITY_WORDS.length; i++) {
+        if (lower.indexOf(PROFANITY_WORDS[i]) !== -1) {
+            matched.push(PROFANITY_WORDS[i]);
+        }
+    }
+    var severity = 'clean';
+    if (matched.length > 0) severity = 'mild';
+    if (matched.length >= 3) severity = 'severe';
+    for (var j = 0; j < matched.length; j++) {
+        var w = matched[j];
+        if (w === 'nigger' || w === 'nigga' || w === 'faggot' || w === 'kill yourself' || w === 'kys' || w === 'rape') {
+            severity = 'severe';
+            break;
+        }
+    }
+    return { flagged: matched.length > 0, matched_words: matched, severity: severity };
+}
+
+function checkSpam(text) {
+    var flags = [];
+    for (var i = 0; i < SPAM_PATTERNS.length; i++) {
+        if (SPAM_PATTERNS[i].test(text)) {
+            flags.push('spam_pattern_' + i);
+        }
+    }
+    if (text.length > MODERATION_CONFIG.max_message_length) {
+        flags.push('message_too_long');
+    }
+    return { flagged: flags.length > 0, flags: flags };
+}
+
+function filterMessage(text) {
+    var filtered = text;
+    for (var i = 0; i < PROFANITY_WORDS.length; i++) {
+        var word = PROFANITY_WORDS[i];
+        var replacement = '';
+        for (var c = 0; c < word.length; c++) replacement += '*';
+        var regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        filtered = filtered.replace(regex, replacement);
+    }
+    return filtered;
+}
+
+function rpcChatReportMessage(ctx, logger, nk, payload) {
+    logger.info('[Moderation] chat_report_message called');
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Authentication required' });
+        }
+        var data = JSON.parse(payload || '{}');
+        if (!data.message_id || !data.reason) {
+            return JSON.stringify({ success: false, error: 'message_id and reason are required' });
+        }
+        var reporterId = ctx.userId;
+        var messageId = data.message_id;
+        var reason = data.reason;
+        var channelType = data.channel_type || 'unknown';
+        var channelId = data.channel_id || '';
+        var reportedUserId = data.reported_user_id || '';
+        var messageContent = data.message_content || '';
+        var additionalInfo = data.additional_info || '';
+
+        var recentReports = nk.storageList(reporterId, 'chat_reports_by_reporter', 10, '');
+        var allRecent = recentReports;
+        if (typeof recentReports === 'object' && recentReports.objects) {
+            allRecent = recentReports.objects;
+        }
+        var nowMs = Date.now();
+        if (allRecent && allRecent.length > 0) {
+            var lastReport = allRecent[allRecent.length - 1];
+            if (lastReport && lastReport.value && lastReport.value.created_at_unix) {
+                var elapsed = (nowMs - lastReport.value.created_at_unix) / 1000;
+                if (elapsed < MODERATION_CONFIG.report_cooldown_seconds) {
+                    return JSON.stringify({
+                        success: false,
+                        error: 'Report cooldown active. Wait ' + Math.ceil(MODERATION_CONFIG.report_cooldown_seconds - elapsed) + 's.'
+                    });
+                }
+            }
+        }
+
+        var profanityCheck = messageContent ? checkProfanity(messageContent) : { flagged: false, matched_words: [], severity: 'unknown' };
+        var spamCheck = messageContent ? checkSpam(messageContent) : { flagged: false, flags: [] };
+
+        var reportId = 'report_' + reporterId.slice(0, 8) + '_' + nowMs;
+        var reportData = {
+            report_id: reportId, message_id: messageId, channel_type: channelType, channel_id: channelId,
+            reporter_id: reporterId, reporter_username: ctx.username || 'Unknown', reported_user_id: reportedUserId,
+            message_content: messageContent, reason: reason, additional_info: additionalInfo,
+            auto_analysis: { profanity: profanityCheck, spam: spamCheck },
+            status: 'pending', created_at: new Date().toISOString(), created_at_unix: nowMs,
+            reviewed_at: null, reviewed_by: null, action_taken: null
+        };
+
+        if (profanityCheck.severity === 'severe') {
+            reportData.status = 'auto_flagged_severe';
+        }
+
+        nk.storageWrite([{
+            collection: 'chat_reports', key: reportId,
+            userId: '00000000-0000-0000-0000-000000000000',
+            value: reportData, permissionRead: 1, permissionWrite: 0
+        }]);
+
+        nk.storageWrite([{
+            collection: 'chat_reports_by_reporter', key: reportId,
+            userId: reporterId,
+            value: { report_id: reportId, created_at_unix: nowMs },
+            permissionRead: 1, permissionWrite: 0
+        }]);
+
+        if (reportedUserId) {
+            var userReportCountKey = 'report_count_' + reportedUserId;
+            var existing = null;
+            try {
+                var countRecords = nk.storageRead([{
+                    collection: 'chat_moderation_user_stats', key: userReportCountKey,
+                    userId: '00000000-0000-0000-0000-000000000000'
+                }]);
+                if (countRecords && countRecords.length > 0) existing = countRecords[0].value;
+            } catch (e) { /* first report */ }
+
+            var totalReportsCount = (existing ? existing.total_reports : 0) + 1;
+            var autoMuted = existing ? existing.auto_muted : false;
+
+            if (totalReportsCount >= MODERATION_CONFIG.max_reports_before_auto_mute && !autoMuted) {
+                autoMuted = true;
+                reportData.action_taken = 'auto_muted';
+                logger.warn('[Moderation] Auto-muted user ' + reportedUserId + ' after ' + totalReportsCount + ' reports');
+            }
+
+            nk.storageWrite([{
+                collection: 'chat_moderation_user_stats', key: userReportCountKey,
+                userId: '00000000-0000-0000-0000-000000000000',
+                value: { user_id: reportedUserId, total_reports: totalReportsCount, auto_muted: autoMuted, last_report_at: new Date().toISOString() },
+                permissionRead: 1, permissionWrite: 0
+            }]);
+        }
+
+        logger.info('[Moderation] Report created: ' + reportId);
+        return JSON.stringify({ success: true, report_id: reportId, auto_analysis: reportData.auto_analysis, status: reportData.status, action_taken: reportData.action_taken });
+
+    } catch (err) {
+        logger.error('[Moderation] chat_report_message error: ' + err.message);
+        logRpcError(nk, logger, 'chat_report_message', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcChatModerationReview(ctx, logger, nk, payload) {
+    logger.info('[Moderation] chat_moderation_review called');
+    try {
+        var data = JSON.parse(payload || '{}');
+        var action = data.action || 'list';
+
+        if (action === 'list') {
+            var limit = parseInt(data.limit, 10) || 50;
+            var statusFilter = data.status || 'pending';
+            var cursor = data.cursor || '';
+            var records = nk.storageList('00000000-0000-0000-0000-000000000000', 'chat_reports', limit, cursor);
+            var reports = [];
+            var nextCursor = '';
+            var allRecords = records;
+            if (typeof records === 'object' && records.objects) { nextCursor = records.cursor || ''; allRecords = records.objects; }
+            for (var i = 0; i < allRecords.length; i++) {
+                var r = allRecords[i].value;
+                if (r && (statusFilter === 'all' || r.status === statusFilter || r.status === 'auto_flagged_severe')) { reports.push(r); }
+            }
+            return JSON.stringify({ success: true, reports: reports, count: reports.length, cursor: nextCursor });
+        }
+
+        if (action === 'resolve') {
+            if (!data.report_id || !data.resolution) {
+                return JSON.stringify({ success: false, error: 'report_id and resolution are required for resolve action' });
+            }
+            var reportRecords = nk.storageRead([{ collection: 'chat_reports', key: data.report_id, userId: '00000000-0000-0000-0000-000000000000' }]);
+            if (!reportRecords || reportRecords.length === 0) {
+                return JSON.stringify({ success: false, error: 'Report not found' });
+            }
+            var report = reportRecords[0].value;
+            report.status = 'resolved';
+            report.reviewed_at = new Date().toISOString();
+            report.reviewed_by = ctx.userId || 'admin';
+            report.action_taken = data.resolution;
+            report.resolution_notes = data.notes || '';
+            nk.storageWrite([{ collection: 'chat_reports', key: data.report_id, userId: '00000000-0000-0000-0000-000000000000', value: report, permissionRead: 1, permissionWrite: 0 }]);
+            if (data.resolution === 'ban' && report.reported_user_id) {
+                try { nk.usersBanId([report.reported_user_id]); logger.warn('[Moderation] Banned user: ' + report.reported_user_id); } catch (banErr) { logger.error('[Moderation] Ban failed: ' + banErr.message); }
+            }
+            return JSON.stringify({ success: true, report_id: data.report_id, new_status: 'resolved', action_taken: data.resolution });
+        }
+
+        return JSON.stringify({ success: false, error: 'Unknown action. Use "list" or "resolve".' });
+    } catch (err) {
+        logger.error('[Moderation] chat_moderation_review error: ' + err.message);
+        logRpcError(nk, logger, 'chat_moderation_review', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcChatModerationStats(ctx, logger, nk, payload) {
+    logger.info('[Moderation] chat_moderation_stats called');
+    try {
+        var records = nk.storageList('00000000-0000-0000-0000-000000000000', 'chat_reports', 100, '');
+        var allRecords = records;
+        if (typeof records === 'object' && records.objects) { allRecords = records.objects; }
+        var stats = { total_reports: 0, pending: 0, auto_flagged_severe: 0, resolved: 0, by_reason: {}, by_channel_type: {}, top_reported_users: {}, profanity_detections: 0, spam_detections: 0 };
+        for (var i = 0; i < allRecords.length; i++) {
+            var r = allRecords[i].value;
+            if (!r) continue;
+            stats.total_reports++;
+            if (r.status === 'pending') stats.pending++;
+            else if (r.status === 'auto_flagged_severe') stats.auto_flagged_severe++;
+            else if (r.status === 'resolved') stats.resolved++;
+            if (r.reason) stats.by_reason[r.reason] = (stats.by_reason[r.reason] || 0) + 1;
+            if (r.channel_type) stats.by_channel_type[r.channel_type] = (stats.by_channel_type[r.channel_type] || 0) + 1;
+            if (r.reported_user_id) stats.top_reported_users[r.reported_user_id] = (stats.top_reported_users[r.reported_user_id] || 0) + 1;
+            if (r.auto_analysis) {
+                if (r.auto_analysis.profanity && r.auto_analysis.profanity.flagged) stats.profanity_detections++;
+                if (r.auto_analysis.spam && r.auto_analysis.spam.flagged) stats.spam_detections++;
+            }
+        }
+        var sortedUsers = [];
+        for (var uid in stats.top_reported_users) { sortedUsers.push({ user_id: uid, reports: stats.top_reported_users[uid] }); }
+        sortedUsers.sort(function(a, b) { return b.reports - a.reports; });
+        stats.top_reported_users = sortedUsers.slice(0, 10);
+        return JSON.stringify({ success: true, stats: stats });
+    } catch (err) {
+        logger.error('[Moderation] chat_moderation_stats error: ' + err.message);
+        logRpcError(nk, logger, 'chat_moderation_stats', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcChatFilterMessage(ctx, logger, nk, payload) {
+    logger.info('[Moderation] chat_filter_message called');
+    try {
+        var data = JSON.parse(payload || '{}');
+        if (!data.message) { return JSON.stringify({ success: false, error: 'message is required' }); }
+        var profanityResult = checkProfanity(data.message);
+        var spamResult = checkSpam(data.message);
+        var filteredText = filterMessage(data.message);
+        var allowed = true;
+        if (profanityResult.severity === 'severe') allowed = false;
+        if (spamResult.flags.length > 2) allowed = false;
+        return JSON.stringify({ success: true, original: data.message, filtered: filteredText, allowed: allowed, profanity: profanityResult, spam: spamResult });
+    } catch (err) {
+        logger.error('[Moderation] chat_filter_message error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// DAILY REWARD CALENDAR (30-DAY VIEW)
+// ============================================================================
+
+var CALENDAR_REWARD_CONFIGS = {
+    "default": [
+        { day: 1,  xp: 50,   tokens: 40,   name: "Welcome Back",         tier: "common",    icon: "coin_stack" },
+        { day: 2,  xp: 75,   tokens: 50,   name: "Steady Start",         tier: "common",    icon: "coin_stack" },
+        { day: 3,  xp: 100,  tokens: 65,   name: "Power-Up Day",         tier: "uncommon",  icon: "lightning" },
+        { day: 4,  xp: 150,  tokens: 80,   name: "Momentum Builder",     tier: "common",    icon: "coin_stack" },
+        { day: 5,  xp: 200,  tokens: 100,  name: "XP Boost",             tier: "uncommon",  icon: "star", multiplier: "2x XP" },
+        { day: 6,  xp: 275,  tokens: 125,  name: "Almost There",         tier: "uncommon",  icon: "fire" },
+        { day: 7,  xp: 400,  tokens: 200,  name: "Weekly Champion",      tier: "rare",      icon: "trophy",   bonus: "weekly_badge" },
+        { day: 8,  xp: 60,   tokens: 45,   name: "Fresh Week",           tier: "common",    icon: "sunrise" },
+        { day: 9,  xp: 90,   tokens: 55,   name: "Keeping It Up",        tier: "common",    icon: "thumbsup" },
+        { day: 10, xp: 150,  tokens: 75,   name: "Double Digits",        tier: "uncommon",  icon: "sparkles" },
+        { day: 11, xp: 175,  tokens: 90,   name: "Committed Player",     tier: "common",    icon: "muscle" },
+        { day: 12, xp: 225,  tokens: 110,  name: "Power Surge",          tier: "uncommon",  icon: "lightning", multiplier: "2x XP" },
+        { day: 13, xp: 300,  tokens: 140,  name: "Lucky 13",             tier: "uncommon",  icon: "clover" },
+        { day: 14, xp: 500,  tokens: 250,  name: "Two-Week Legend",      tier: "rare",      icon: "crown",    bonus: "biweekly_chest" },
+        { day: 15, xp: 75,   tokens: 50,   name: "Halfway Point",        tier: "common",    icon: "flag" },
+        { day: 16, xp: 100,  tokens: 60,   name: "Steady Grinder",       tier: "common",    icon: "pickaxe" },
+        { day: 17, xp: 175,  tokens: 85,   name: "Streak Fire",          tier: "uncommon",  icon: "fire" },
+        { day: 18, xp: 200,  tokens: 100,  name: "Bonus Round",          tier: "uncommon",  icon: "gift" },
+        { day: 19, xp: 250,  tokens: 120,  name: "XP Rush",              tier: "uncommon",  icon: "rocket",   multiplier: "3x XP" },
+        { day: 20, xp: 350,  tokens: 160,  name: "Dedication Reward",    tier: "rare",      icon: "medal" },
+        { day: 21, xp: 600,  tokens: 300,  name: "Three-Week Warrior",   tier: "epic",      icon: "shield",   bonus: "mystery_box" },
+        { day: 22, xp: 100,  tokens: 65,   name: "Final Stretch",        tier: "common",    icon: "runner" },
+        { day: 23, xp: 150,  tokens: 80,   name: "Almost Legendary",     tier: "common",    icon: "hourglass" },
+        { day: 24, xp: 200,  tokens: 100,  name: "Power Player",         tier: "uncommon",  icon: "lightning" },
+        { day: 25, xp: 275,  tokens: 130,  name: "Quarter Century",      tier: "uncommon",  icon: "sparkles" },
+        { day: 26, xp: 350,  tokens: 150,  name: "XP Mega Boost",        tier: "rare",      icon: "rocket",   multiplier: "4x XP" },
+        { day: 27, xp: 400,  tokens: 175,  name: "Penultimate Push",     tier: "rare",      icon: "fire" },
+        { day: 28, xp: 500,  tokens: 200,  name: "Four-Week Hero",       tier: "epic",      icon: "crown",    bonus: "exclusive_avatar" },
+        { day: 29, xp: 600,  tokens: 250,  name: "The Final Countdown",  tier: "epic",      icon: "alarm" },
+        { day: 30, xp: 1000, tokens: 500,  name: "LEGENDARY REWARD",     tier: "legendary", icon: "dragon",   bonus: "legendary_chest", multiplier: "5x XP" }
+    ]
+};
+
+function getCalendarConfig(gameId) {
+    return CALENDAR_REWARD_CONFIGS[gameId] || CALENDAR_REWARD_CONFIGS["default"];
+}
+
+function rpcDailyRewardGetCalendar(ctx, logger, nk, payload) {
+    logger.info('[DailyRewardCalendar] daily_reward_get_calendar called');
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Authentication required' });
+        }
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id || data.gameId || 'default';
+        var userId = ctx.userId;
+
+        var streakData = null;
+        try {
+            var streakKey = gameId + '_user_daily_streak_' + userId;
+            var streakRecords = nk.storageRead([{ collection: 'daily_streaks', key: streakKey, userId: userId }]);
+            if (streakRecords && streakRecords.length > 0) streakData = streakRecords[0].value;
+        } catch (e) { logger.warn('[DailyRewardCalendar] Could not read streak data: ' + e.message); }
+
+        if (!streakData) {
+            try {
+                var altKey = 'user_daily_streak_' + userId + '_' + gameId;
+                var altRecords = nk.storageRead([{ collection: 'daily_streaks', key: altKey, userId: userId }]);
+                if (altRecords && altRecords.length > 0) streakData = altRecords[0].value;
+            } catch (e) { /* no streak yet */ }
+        }
+
+        var currentStreak = streakData ? (streakData.currentStreak || 0) : 0;
+        var lastClaimTimestamp = streakData ? (streakData.lastClaimTimestamp || 0) : 0;
+        var totalClaims = streakData ? (streakData.totalClaims || 0) : 0;
+
+        var canClaimToday = true;
+        if (lastClaimTimestamp > 0) {
+            var lastClaimDate = new Date(lastClaimTimestamp * 1000);
+            var today = new Date();
+            lastClaimDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+            if (lastClaimDate.getTime() === today.getTime()) canClaimToday = false;
+            var nowUnix = Math.floor(Date.now() / 1000);
+            if ((nowUnix - lastClaimTimestamp) > 48 * 3600) currentStreak = 0;
+        }
+
+        var config = getCalendarConfig(gameId);
+        var calendar = [];
+        var totalTokens = 0;
+        var totalXp = 0;
+
+        for (var day = 1; day <= 30; day++) {
+            var dayConfig = null;
+            for (var c = 0; c < config.length; c++) {
+                if (config[c].day === day) { dayConfig = config[c]; break; }
+            }
+            if (!dayConfig) {
+                var weekDay = ((day - 1) % 7);
+                dayConfig = config[weekDay] || config[0];
+                var weekNum = Math.floor((day - 1) / 7) + 1;
+                dayConfig = {
+                    day: day, xp: Math.round(dayConfig.xp * (1 + (weekNum - 1) * 0.15)),
+                    tokens: Math.round(dayConfig.tokens * (1 + (weekNum - 1) * 0.15)),
+                    name: dayConfig.name, tier: dayConfig.tier, icon: dayConfig.icon
+                };
+            }
+            totalTokens += dayConfig.tokens || 0;
+            totalXp += dayConfig.xp || 0;
+
+            var status = 'locked';
+            if (day <= currentStreak) status = 'claimed';
+            else if (day === currentStreak + 1 && canClaimToday) status = 'available';
+            else if (day === currentStreak + 1 && !canClaimToday) status = 'claimed_today';
+
+            calendar.push({
+                day: day, name: dayConfig.name, tier: dayConfig.tier || 'common', icon: dayConfig.icon || 'coin_stack',
+                rewards: { xp: dayConfig.xp || 0, tokens: dayConfig.tokens || 0, multiplier: dayConfig.multiplier || null, bonus: dayConfig.bonus || null },
+                status: status
+            });
+        }
+
+        var milestones = [];
+        for (var m = 0; m < config.length; m++) {
+            if (config[m].tier === 'rare' || config[m].tier === 'epic' || config[m].tier === 'legendary') {
+                milestones.push({ day: config[m].day, name: config[m].name, tier: config[m].tier, reached: config[m].day <= currentStreak });
+            }
+        }
+
+        return JSON.stringify({
+            success: true, user_id: userId, game_id: gameId, current_streak: currentStreak,
+            total_claims: totalClaims, can_claim_today: canClaimToday, calendar: calendar,
+            milestones: milestones,
+            totals: { total_tokens_30_days: totalTokens, total_xp_30_days: totalXp, claimed_tokens: 0, claimed_xp: 0 },
+            streak_status: currentStreak === 0 ? 'new' : (canClaimToday ? 'active' : 'claimed_today'),
+            next_milestone: null
+        });
+
+    } catch (err) {
+        logger.error('[DailyRewardCalendar] Error: ' + err.message);
+        logRpcError(nk, logger, 'daily_reward_get_calendar', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// PLAYER-FACING AI FEATURES (LLM-powered)
+// Supports: Claude (Anthropic), OpenAI (GPT-4o), xAI (Grok)
+// ============================================================================
+
+var LLM_PROVIDERS = {
+    claude: { url: 'https://api.anthropic.com/v1/messages', model: 'claude-sonnet-4-20250514', envKey: 'ANTHROPIC_API_KEY' },
+    openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini', envKey: 'OPENAI_API_KEY' },
+    xai: { url: 'https://api.x.ai/v1/chat/completions', model: 'grok-3-mini', envKey: 'XAI_API_KEY' }
+};
+
+function getActiveProvider(ctx) {
+    var preferred = (ctx.env && ctx.env['LLM_PROVIDER']) || 'claude';
+    var provider = LLM_PROVIDERS[preferred];
+    if (!provider) provider = LLM_PROVIDERS.claude;
+    var apiKey = ctx.env ? ctx.env[provider.envKey] : null;
+    if (!apiKey) {
+        for (var name in LLM_PROVIDERS) {
+            var p = LLM_PROVIDERS[name];
+            var k = ctx.env ? ctx.env[p.envKey] : null;
+            if (k) return { name: name, config: p, apiKey: k };
+        }
+        return null;
+    }
+    return { name: preferred, config: provider, apiKey: apiKey };
+}
+
+function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
+    var provider = getActiveProvider(ctx);
+    if (!provider) {
+        return { success: false, error: 'No LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY.' };
+    }
+    maxTokens = maxTokens || 500;
+    try {
+        var response;
+        if (provider.name === 'claude') {
+            response = nk.httpRequest(provider.config.url, 'post', {
+                'Content-Type': 'application/json',
+                'x-api-key': provider.apiKey,
+                'anthropic-version': '2023-06-01'
+            }, JSON.stringify({
+                model: provider.config.model, max_tokens: maxTokens,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: userMessage }]
+            }));
+        } else {
+            response = nk.httpRequest(provider.config.url, 'post', {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + provider.apiKey
+            }, JSON.stringify({
+                model: provider.config.model, max_tokens: maxTokens,
+                messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }]
+            }));
+        }
+        if (response.code !== 200) {
+            logger.error('[AI] LLM API returned ' + response.code + ': ' + response.body);
+            return { success: false, error: 'LLM API error: ' + response.code };
+        }
+        var parsed = JSON.parse(response.body);
+        var text = '';
+        if (provider.name === 'claude') {
+            text = parsed.content && parsed.content[0] ? parsed.content[0].text : '';
+        } else {
+            text = parsed.choices && parsed.choices[0] ? parsed.choices[0].message.content : '';
+        }
+        return { success: true, text: text, provider: provider.name, model: provider.config.model };
+    } catch (err) {
+        logger.error('[AI] LLM call failed: ' + err.message);
+        return { success: false, error: 'LLM call failed: ' + err.message };
+    }
+}
+
+function gatherPlayerContext(nk, logger, userId, gameId) {
+    var context = { userId: userId, gameId: gameId };
+    try {
+        var accounts = nk.accountGetId(userId);
+        if (accounts) { context.username = accounts.user.username || 'Player'; context.displayName = accounts.user.displayName || context.username; context.createTime = accounts.user.createTime; }
+    } catch (e) { context.username = 'Player'; }
+    try {
+        var streakKey = gameId + '_user_daily_streak_' + userId;
+        var streakRecords = nk.storageRead([{ collection: 'daily_streaks', key: streakKey, userId: userId }]);
+        if (streakRecords && streakRecords.length > 0) context.streak = streakRecords[0].value;
+    } catch (e) { /* no streak */ }
+    if (!context.streak) {
+        try {
+            var altKey = 'user_daily_streak_' + userId + '_' + gameId;
+            var altRecords = nk.storageRead([{ collection: 'daily_streaks', key: altKey, userId: userId }]);
+            if (altRecords && altRecords.length > 0) context.streak = altRecords[0].value;
+        } catch (e) { /* no streak */ }
+    }
+    try {
+        var quizRecords = nk.storageList(userId, 'quiz_results', 10, '');
+        var items = quizRecords;
+        if (typeof quizRecords === 'object' && quizRecords.objects) items = quizRecords.objects;
+        if (items && items.length > 0) { var scores = []; for (var i = 0; i < items.length; i++) { if (items[i].value) scores.push(items[i].value); } context.recentQuizzes = scores; }
+    } catch (e) { /* no quiz data */ }
+    try {
+        var achieveRecords = nk.storageList(userId, 'achievements', 10, '');
+        var aItems = achieveRecords;
+        if (typeof achieveRecords === 'object' && achieveRecords.objects) aItems = achieveRecords.objects;
+        if (aItems && aItems.length > 0) { context.achievements = []; for (var a = 0; a < aItems.length; a++) { if (aItems[a].value && aItems[a].value.name) context.achievements.push(aItems[a].value.name); } }
+    } catch (e) { /* no achievements */ }
+    try {
+        var metaRecords = nk.storageRead([{ collection: 'player_metadata', key: 'user_identity', userId: userId }]);
+        if (metaRecords && metaRecords.length > 0 && metaRecords[0].value) {
+            var meta = metaRecords[0].value;
+            context.totalSessions = meta.totalSessions || 0; context.level = meta.level || 1; context.favoriteCategory = meta.favoriteCategory || null;
+        }
+    } catch (e) { /* no metadata */ }
+    return context;
+}
+
+function rpcAiCoachAdvice(ctx, logger, nk, payload) {
+    logger.info('[AI] ai_coach_advice called');
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id || 'default';
+        var topic = data.topic || 'general';
+        var context = gatherPlayerContext(nk, logger, ctx.userId, gameId);
+        var systemPrompt = 'You are a fun, encouraging game coach inside a mobile game. You have access to the player\'s actual game data. Give short, actionable advice (2-3 sentences max). Be specific to their data. Use a casual, energetic tone with occasional emojis. Never be condescending.';
+        var userMsg = 'Player: ' + context.username + '\nTopic: ' + topic + '\nStreak: ' + (context.streak ? context.streak.currentStreak + ' days' : 'none') + '\nLevel: ' + (context.level || 1) + '\nAchievements: ' + (context.achievements ? context.achievements.join(', ') : 'none yet') + '\nGive coaching advice.';
+        var result = callLLM(nk, logger, ctx, systemPrompt, userMsg, 300);
+        if (!result.success) return JSON.stringify(result);
+        nk.storageWrite([{ collection: 'ai_interactions', key: 'coach_' + ctx.userId + '_' + Date.now(), userId: ctx.userId, value: { type: 'coach', topic: topic, provider: result.provider, timestamp: new Date().toISOString() }, permissionRead: 1, permissionWrite: 0 }]);
+        return JSON.stringify({ success: true, advice: result.text, topic: topic, provider: result.provider, player_context: { streak: context.streak ? context.streak.currentStreak : 0, level: context.level || 1, sessions: context.totalSessions || 0 } });
+    } catch (err) {
+        logger.error('[AI] ai_coach_advice error: ' + err.message);
+        logRpcError(nk, logger, 'ai_coach_advice', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcAiMatchRecap(ctx, logger, nk, payload) {
+    logger.info('[AI] ai_match_recap called');
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id || 'default';
+        var matchData = data.match_data || {};
+        var context = gatherPlayerContext(nk, logger, ctx.userId, gameId);
+        var systemPrompt = 'You are a sports-style commentator generating exciting post-match recaps for a mobile game. Write like a highlight reel narrator — dramatic, fun, personal. 3-4 sentences max. Reference specific stats. Make the player feel like the main character.';
+        var userMsg = 'Player: ' + context.username + '\nMatch data: ' + JSON.stringify(matchData) + '\nStreak: ' + (context.streak ? context.streak.currentStreak + ' days' : 'fresh start') + '\nLevel: ' + (context.level || 1) + '\nGenerate an exciting match recap.';
+        var result = callLLM(nk, logger, ctx, systemPrompt, userMsg, 400);
+        if (!result.success) return JSON.stringify(result);
+        nk.storageWrite([{ collection: 'ai_interactions', key: 'recap_' + ctx.userId + '_' + Date.now(), userId: ctx.userId, value: { type: 'recap', game_id: gameId, provider: result.provider, timestamp: new Date().toISOString() }, permissionRead: 1, permissionWrite: 0 }]);
+        return JSON.stringify({ success: true, recap: result.text, provider: result.provider, match_data: matchData });
+    } catch (err) {
+        logger.error('[AI] ai_match_recap error: ' + err.message);
+        logRpcError(nk, logger, 'ai_match_recap', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcAiPlayerJourney(ctx, logger, nk, payload) {
+    logger.info('[AI] ai_player_journey called');
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id || 'default';
+        var context = gatherPlayerContext(nk, logger, ctx.userId, gameId);
+        var systemPrompt = 'You are a master storyteller narrating a player\'s gaming journey as an epic tale. Turn their stats into a dramatic narrative. Reference real data. Make it personal and emotional. 4-5 sentences. Write in second person ("You"). End with something forward-looking.';
+        var daysSinceJoin = 'unknown';
+        if (context.createTime) { var joinDate = new Date(context.createTime); daysSinceJoin = Math.floor((new Date() - joinDate) / (1000 * 60 * 60 * 24)); }
+        var userMsg = 'Player: ' + context.username + '\nDays since joining: ' + daysSinceJoin + '\nStreak: ' + (context.streak ? context.streak.currentStreak + ' days' : '0') + '\nTotal claims: ' + (context.streak ? context.streak.totalClaims : 0) + '\nLevel: ' + (context.level || 1) + '\nSessions: ' + (context.totalSessions || 0) + '\nAchievements: ' + (context.achievements ? context.achievements.join(', ') : 'none yet') + '\nNarrate their epic journey.';
+        var result = callLLM(nk, logger, ctx, systemPrompt, userMsg, 500);
+        if (!result.success) return JSON.stringify(result);
+        nk.storageWrite([{ collection: 'ai_interactions', key: 'journey_' + ctx.userId + '_' + Date.now(), userId: ctx.userId, value: { type: 'journey', game_id: gameId, provider: result.provider, timestamp: new Date().toISOString() }, permissionRead: 1, permissionWrite: 0 }]);
+        return JSON.stringify({ success: true, journey: result.text, provider: result.provider, stats: { days_since_join: daysSinceJoin, streak: context.streak ? context.streak.currentStreak : 0, level: context.level || 1, achievements_count: context.achievements ? context.achievements.length : 0 } });
+    } catch (err) {
+        logger.error('[AI] ai_player_journey error: ' + err.message);
+        logRpcError(nk, logger, 'ai_player_journey', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcAiRivalTaunt(ctx, logger, nk, payload) {
+    logger.info('[AI] ai_rival_taunt called');
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var rivalId = data.rival_user_id;
+        var mood = data.mood || 'playful';
+        if (!rivalId) return JSON.stringify({ success: false, error: 'rival_user_id is required' });
+        var username = 'Player';
+        var rivalUsername = 'Rival';
+        try { username = nk.accountGetId(ctx.userId).user.username || 'Player'; } catch (e) {}
+        try { rivalUsername = nk.accountGetId(rivalId).user.username || 'Rival'; } catch (e) {}
+        var systemPrompt = 'You are generating a short, playful trash-talk message between two friends in a mobile game. Mood: ' + mood + '. Keep it FUN and FRIENDLY — never mean, never offensive. One sentence only.';
+        var userMsg = 'Sender: ' + username + '\nRival: ' + rivalUsername + '\nMood: ' + mood + '\nGenerate a playful taunt from ' + username + ' to ' + rivalUsername + '.';
+        var result = callLLM(nk, logger, ctx, systemPrompt, userMsg, 150);
+        if (!result.success) return JSON.stringify(result);
+        return JSON.stringify({ success: true, taunt: result.text, from: username, to: rivalUsername, mood: mood, provider: result.provider });
+    } catch (err) {
+        logger.error('[AI] ai_rival_taunt error: ' + err.message);
+        logRpcError(nk, logger, 'ai_rival_taunt', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcAiTriviaGenerate(ctx, logger, nk, payload) {
+    logger.info('[AI] ai_trivia_generate called');
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var category = data.category || 'general knowledge';
+        var difficulty = data.difficulty || 'medium';
+        var count = Math.min(parseInt(data.count, 10) || 5, 10);
+        var gameId = data.game_id || 'default';
+        var context = gatherPlayerContext(nk, logger, ctx.userId, gameId);
+        var systemPrompt = 'You are a trivia question generator for a mobile quiz game. Generate EXACTLY ' + count + ' questions in valid JSON array format. Each question must have: question (string), options (array of 4 strings), correct_index (0-3), explanation (1 sentence), fun_fact (1 sentence). Category: ' + category + '. Difficulty: ' + difficulty + '. Make questions interesting and surprising. RESPOND WITH ONLY THE JSON ARRAY, NO OTHER TEXT.';
+        var userMsg = 'Player level: ' + (context.level || 1) + '\nCategory: ' + category + '\nDifficulty: ' + difficulty + '\nCount: ' + count;
+        var result = callLLM(nk, logger, ctx, systemPrompt, userMsg, 2000);
+        if (!result.success) return JSON.stringify(result);
+        var questions = [];
+        try {
+            var text = result.text.trim();
+            if (text.indexOf('```') !== -1) { text = text.replace(/```json\n?/g, '').replace(/```\n?/g, ''); }
+            questions = JSON.parse(text);
+        } catch (parseErr) {
+            return JSON.stringify({ success: false, error: 'Failed to parse generated questions', raw_response: result.text });
+        }
+        nk.storageWrite([{ collection: 'ai_interactions', key: 'trivia_' + ctx.userId + '_' + Date.now(), userId: ctx.userId, value: { type: 'trivia', category: category, difficulty: difficulty, count: questions.length, provider: result.provider, timestamp: new Date().toISOString() }, permissionRead: 1, permissionWrite: 0 }]);
+        return JSON.stringify({ success: true, questions: questions, category: category, difficulty: difficulty, count: questions.length, provider: result.provider });
+    } catch (err) {
+        logger.error('[AI] ai_trivia_generate error: ' + err.message);
+        logRpcError(nk, logger, 'ai_trivia_generate', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcAiDailyBriefing(ctx, logger, nk, payload) {
+    logger.info('[AI] ai_daily_briefing called');
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id || 'default';
+        var context = gatherPlayerContext(nk, logger, ctx.userId, gameId);
+        var flashEvent = null;
+        try {
+            var eventRecords = nk.storageList('00000000-0000-0000-0000-000000000000', 'flash_events', 5, '');
+            var eventItems = eventRecords;
+            if (typeof eventRecords === 'object' && eventRecords.objects) eventItems = eventRecords.objects;
+            if (eventItems) { var now = Date.now(); for (var e = 0; e < eventItems.length; e++) { var ev = eventItems[e].value; if (ev && ev.end_time && new Date(ev.end_time).getTime() > now) { flashEvent = ev; break; } } }
+        } catch (e) { /* no flash events */ }
+        var canClaim = true;
+        if (context.streak && context.streak.lastClaimTimestamp) {
+            var lastDate = new Date(context.streak.lastClaimTimestamp * 1000); var today = new Date();
+            lastDate.setHours(0, 0, 0, 0); today.setHours(0, 0, 0, 0);
+            if (lastDate.getTime() === today.getTime()) canClaim = false;
+        }
+        var systemPrompt = 'You are a friendly daily game briefing bot — like a morning news anchor but for a mobile game. Greet the player by name. Tell them: what\'s happening today, their streak status, any active events, and one motivating thing to do. Keep it SHORT (3-4 sentences), PUNCHY, and exciting.';
+        var userMsg = 'Player: ' + context.username + '\nStreak: ' + (context.streak ? context.streak.currentStreak + ' days' : 'none') + '\nCan claim daily reward: ' + (canClaim ? 'YES' : 'already claimed') + '\nLevel: ' + (context.level || 1) + '\nFlash event: ' + (flashEvent ? flashEvent.name || 'yes' : 'none') + '\nGenerate their daily briefing.';
+        var result = callLLM(nk, logger, ctx, systemPrompt, userMsg, 350);
+        if (!result.success) return JSON.stringify(result);
+        nk.storageWrite([{ collection: 'ai_interactions', key: 'briefing_' + ctx.userId + '_' + Date.now(), userId: ctx.userId, value: { type: 'daily_briefing', game_id: gameId, provider: result.provider, timestamp: new Date().toISOString() }, permissionRead: 1, permissionWrite: 0 }]);
+        return JSON.stringify({ success: true, briefing: result.text, provider: result.provider, today: { can_claim_reward: canClaim, streak: context.streak ? context.streak.currentStreak : 0, flash_event: flashEvent ? flashEvent.name || 'active' : null } });
+    } catch (err) {
+        logger.error('[AI] ai_daily_briefing error: ' + err.message);
+        logRpcError(nk, logger, 'ai_daily_briefing', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcAiGroupHype(ctx, logger, nk, payload) {
+    logger.info('[AI] ai_group_hype called');
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var groupId = data.group_id;
+        var eventType = data.event_type || 'general';
+        var eventData = data.event_data || {};
+        if (!groupId) return JSON.stringify({ success: false, error: 'group_id is required' });
+        var context = gatherPlayerContext(nk, logger, ctx.userId, data.game_id || 'default');
+        var systemPrompt = 'You are an AI hype bot in a gaming group chat. Celebrate group moments. Be SHORT (1-2 sentences), ENERGETIC, use emojis. Reference the player name and achievement. Never be generic.';
+        var userMsg = 'Player: ' + context.username + '\nEvent: ' + eventType + '\nDetails: ' + JSON.stringify(eventData) + '\nGenerate a hype message.';
+        var result = callLLM(nk, logger, ctx, systemPrompt, userMsg, 200);
+        if (!result.success) return JSON.stringify(result);
+        try {
+            var msgKey = 'msg:' + groupId + ':' + Date.now() + ':ai_bot';
+            nk.storageWrite([{ collection: 'group_chat', key: msgKey, userId: ctx.userId, value: { message_id: msgKey, group_id: groupId, user_id: 'ai_hype_bot', username: 'HypeBot', message: result.text, metadata: { ai_generated: true, event_type: eventType, provider: result.provider }, created_at: new Date().toISOString() }, permissionRead: 2, permissionWrite: 0 }]);
+        } catch (chatErr) { logger.warn('[AI] Failed to post hype to group: ' + chatErr.message); }
+        return JSON.stringify({ success: true, hype_message: result.text, event_type: eventType, group_id: groupId, posted_to_chat: true, provider: result.provider });
+    } catch (err) {
+        logger.error('[AI] ai_group_hype error: ' + err.message);
+        logRpcError(nk, logger, 'ai_group_hype', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Starting JavaScript Runtime Initialization');
@@ -19116,9 +25725,220 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[CompatibilityQuiz] Failed to initialize: ' + err.message);
     }
 
+    // ============================================================================
+    // EVENT PIPELINE SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[EventPipeline] Initializing Event Pipeline Module...');
+        initializer.registerRpc('player_event_submit', rpcPlayerEventSubmit);
+        logger.info('[EventPipeline] Registered RPC: player_event_submit');
+        initializer.registerRpc('rewards_pending', rpcRewardsPending);
+        logger.info('[EventPipeline] Registered RPC: rewards_pending');
+        logger.info('[EventPipeline] Successfully registered 2 Event Pipeline RPCs');
+    } catch (err) {
+        logger.error('[EventPipeline] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // SOCIAL V2 SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[SocialV2] Initializing Social V2 Module...');
+        initializer.registerRpc('challenge_accept', rpcChallengeAccept);
+        initializer.registerRpc('challenge_decline', rpcChallengeDecline);
+        initializer.registerRpc('challenge_list', rpcChallengeList);
+        initializer.registerRpc('get_rivalry', rpcGetRivalry);
+        initializer.registerRpc('friend_score_alert', rpcFriendScoreAlert);
+        initializer.registerRpc('team_quiz_create', rpcTeamQuizCreate);
+        initializer.registerRpc('team_quiz_join', rpcTeamQuizJoin);
+        initializer.registerRpc('daily_duo_create', rpcDailyDuoCreate);
+        initializer.registerRpc('daily_duo_status', rpcDailyDuoStatus);
+        initializer.registerRpc('group_quest_create', rpcGroupQuestCreate);
+        initializer.registerRpc('group_quest_progress', rpcGroupQuestProgress);
+        initializer.registerRpc('group_activity_feed', rpcGroupActivityFeed);
+        logger.info('[SocialV2] Successfully registered 12 Social V2 RPCs');
+    } catch (err) {
+        logger.error('[SocialV2] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // LIVE OPS SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[LiveOps] Initializing Live Ops Module...');
+        initializer.registerRpc('flash_event_create', rpcFlashEventCreate);
+        initializer.registerRpc('flash_event_list_active', rpcFlashEventListActive);
+        initializer.registerRpc('mystery_box_grant', rpcMysteryBoxGrant);
+        initializer.registerRpc('mystery_box_open', rpcMysteryBoxOpen);
+        initializer.registerRpc('daily_spotlight', rpcDailySpotlight);
+        initializer.registerRpc('streak_milestone_celebrate', rpcStreakMilestoneCelebrate);
+        initializer.registerRpc('comeback_surprise', rpcComebackSurprise);
+        initializer.registerRpc('lucky_draw_enter', rpcLuckyDrawEnter);
+        initializer.registerRpc('happy_hour_status', rpcHappyHourStatus);
+        logger.info('[LiveOps] Successfully registered 9 Live Ops RPCs');
+    } catch (err) {
+        logger.error('[LiveOps] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // PERSONALIZATION SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[Personalization] Initializing Personalization Module...');
+        initializer.registerRpc('get_personalized_missions', rpcGetPersonalizedMissions);
+        initializer.registerRpc('get_smart_recommendations', rpcGetSmartRecommendations);
+        logger.info('[Personalization] Successfully registered 2 Personalization RPCs');
+    } catch (err) {
+        logger.error('[Personalization] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // QUIZVERSE DEPTH SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[QuizverseDepth] Initializing QuizVerse Depth Module...');
+        initializer.registerRpc('quizverse_knowledge_map', rpcQuizverseKnowledgeMap);
+        initializer.registerRpc('quizverse_streak_quiz', rpcQuizverseStreakQuiz);
+        initializer.registerRpc('quizverse_adaptive_difficulty', rpcQuizverseAdaptiveDifficulty);
+        initializer.registerRpc('quizverse_daily_puzzle', rpcQuizverseDailyPuzzle);
+        initializer.registerRpc('quizverse_category_war', rpcQuizverseCategoryWar);
+        initializer.registerRpc('quizverse_knowledge_duel', rpcQuizverseKnowledgeDuel);
+        initializer.registerRpc('quizverse_study_mode', rpcQuizverseStudyMode);
+        initializer.registerRpc('quizverse_trivia_night', rpcQuizverseTriviaNight);
+        logger.info('[QuizverseDepth] Successfully registered 8 QuizVerse Depth RPCs');
+    } catch (err) {
+        logger.error('[QuizverseDepth] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // LASTTOLIVE DEPTH SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[LasttoliveDepth] Initializing LastToLive Depth Module...');
+        initializer.registerRpc('lasttolive_weapon_mastery', rpcLasttoliveWeaponMastery);
+        initializer.registerRpc('lasttolive_nemesis_get', rpcLasttoliveNemesisGet);
+        initializer.registerRpc('lasttolive_highlight_reel', rpcLasttoliveHighlightReel);
+        initializer.registerRpc('lasttolive_revenge_match', rpcLasttoliveRevengeMatch);
+        initializer.registerRpc('lasttolive_bounty_create', rpcLasttoliveBountyCreate);
+        initializer.registerRpc('lasttolive_bounty_list', rpcLasttoliveBountyList);
+        initializer.registerRpc('lasttolive_loadout_save', rpcLasttoliveLoadoutSave);
+        initializer.registerRpc('lasttolive_loadout_list', rpcLasttoliveLoadoutList);
+        logger.info('[LasttoliveDepth] Successfully registered 8 LastToLive Depth RPCs');
+    } catch (err) {
+        logger.error('[LasttoliveDepth] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // CROSS-GAME SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[CrossGame] Initializing Cross-Game Module...');
+        initializer.registerRpc('cross_game_bonus', rpcCrossGameBonus);
+        initializer.registerRpc('cross_game_profile', rpcCrossGameProfile);
+        initializer.registerRpc('cross_game_challenge', rpcCrossGameChallenge);
+        initializer.registerRpc('game_discovery_reward', rpcGameDiscoveryReward);
+        initializer.registerRpc('global_leaderboard_composite', rpcGlobalLeaderboardComposite);
+        logger.info('[CrossGame] Successfully registered 5 Cross-Game RPCs');
+    } catch (err) {
+        logger.error('[CrossGame] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // ANALYTICS V2 SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[AnalyticsV2] Initializing Analytics V2 Module...');
+        initializer.registerRpc('analytics_dashboard', rpcAnalyticsDashboard);
+        initializer.registerRpc('analytics_retention_cohort', rpcAnalyticsRetentionCohort);
+        initializer.registerRpc('analytics_engagement_score', rpcAnalyticsEngagementScore);
+        initializer.registerRpc('analytics_session_stats', rpcAnalyticsSessionStats);
+        initializer.registerRpc('analytics_funnel', rpcAnalyticsFunnel);
+        initializer.registerRpc('analytics_economy_health', rpcAnalyticsEconomyHealth);
+        initializer.registerRpc('analytics_error_log', rpcAnalyticsErrorLog);
+        initializer.registerRpc('analytics_feature_adoption', rpcAnalyticsFeatureAdoption);
+        initializer.registerRpc('analytics_log_error', rpcAnalyticsLogError);
+        logger.info('[AnalyticsV2] Successfully registered 9 Analytics V2 RPCs');
+    } catch (err) {
+        logger.error('[AnalyticsV2] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // GAME METRICS SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[GameMetrics] Initializing Game Metrics Module...');
+        initializer.registerRpc('game_metrics_submit', rpcGameMetricsSubmit);
+        initializer.registerRpc('game_metrics_query', rpcGameMetricsQuery);
+        initializer.registerRpc('game_metrics_aggregate', rpcGameMetricsAggregate);
+        logger.info('[GameMetrics] Successfully registered 3 Game Metrics RPCs');
+    } catch (err) {
+        logger.error('[GameMetrics] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // PLAYER-TO-PLAYER GIFTING SYSTEM
+    // ============================================================================
+    try {
+        logger.info('[Gifting] Initializing Player Gifting Module...');
+        initializer.registerRpc('gift_send', rpcGiftSend);
+        initializer.registerRpc('gift_inbox', rpcGiftInbox);
+        initializer.registerRpc('gift_claim', rpcGiftClaim);
+        logger.info('[Gifting] Successfully registered 3 Gifting RPCs');
+    } catch (err) {
+        logger.error('[Gifting] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // CHAT MODERATION PIPELINE
+    // ============================================================================
+    try {
+        logger.info('[ChatModeration] Initializing Chat Moderation Module...');
+        initializer.registerRpc('chat_report_message', rpcChatReportMessage);
+        initializer.registerRpc('chat_moderation_review', rpcChatModerationReview);
+        initializer.registerRpc('chat_moderation_stats', rpcChatModerationStats);
+        initializer.registerRpc('chat_filter_message', rpcChatFilterMessage);
+        logger.info('[ChatModeration] Successfully registered 4 Chat Moderation RPCs');
+    } catch (err) {
+        logger.error('[ChatModeration] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // DAILY REWARD CALENDAR
+    // ============================================================================
+    try {
+        logger.info('[DailyRewardCalendar] Initializing Daily Reward Calendar...');
+        initializer.registerRpc('daily_reward_get_calendar', rpcDailyRewardGetCalendar);
+        logger.info('[DailyRewardCalendar] Successfully registered 1 Calendar RPC');
+    } catch (err) {
+        logger.error('[DailyRewardCalendar] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // PLAYER-FACING AI FEATURES (LLM-powered)
+    // ============================================================================
+    try {
+        logger.info('[AI] Initializing Player AI Module...');
+        initializer.registerRpc('ai_coach_advice', rpcAiCoachAdvice);
+        initializer.registerRpc('ai_match_recap', rpcAiMatchRecap);
+        initializer.registerRpc('ai_player_journey', rpcAiPlayerJourney);
+        initializer.registerRpc('ai_rival_taunt', rpcAiRivalTaunt);
+        initializer.registerRpc('ai_trivia_generate', rpcAiTriviaGenerate);
+        initializer.registerRpc('ai_daily_briefing', rpcAiDailyBriefing);
+        initializer.registerRpc('ai_group_hype', rpcAiGroupHype);
+        logger.info('[AI] Successfully registered 7 Player AI RPCs');
+        var aiProvider = getActiveProvider(ctx);
+        if (aiProvider) {
+            logger.info('[AI] Active LLM provider: ' + aiProvider.name + ' (' + aiProvider.config.model + ')');
+        } else {
+            logger.warn('[AI] No LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY in environment.');
+        }
+    } catch (err) {
+        logger.error('[AI] Failed to initialize: ' + err.message);
+    }
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 175');
+    logger.info('Total System RPCs: 234');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
@@ -19134,6 +25954,19 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('  - Collections System: 4');
     logger.info('  - Winback System: 4');
     logger.info('  - Compatibility Quiz: 6');
+    logger.info('  - Event Pipeline: 2');
+    logger.info('  - Social V2: 12');
+    logger.info('  - Live Ops: 9');
+    logger.info('  - Personalization: 2');
+    logger.info('  - QuizVerse Depth: 8');
+    logger.info('  - LastToLive Depth: 8');
+    logger.info('  - Cross-Game: 5');
+    logger.info('  - Analytics V2: 9');
+    logger.info('  - Game Metrics: 3');
+    logger.info('  - Player Gifting: 3');
+    logger.info('  - Chat Moderation: 4');
+    logger.info('  - Daily Reward Calendar: 1');
+    logger.info('  - Player AI (LLM): 7');
     logger.info('  - Plus existing Copilot RPCs');
     logger.info('========================================');
     logger.info('✓ All server gaps have been filled!');

@@ -435,12 +435,27 @@ function rpcWeeklyGoalsClaimReward(ctx, logger, nk, payload) {
         logger.warn("[WeeklyGoals] Failed to log transaction: " + err.message);
     }
     
+    // Grant rewards to wallet
+    var walletChanges = {};
+    if (reward.coins) walletChanges.coins = reward.coins;
+    if (reward.gems) walletChanges.gems = reward.gems;
+    if (reward.xp) walletChanges.xp = reward.xp;
+    if (Object.keys(walletChanges).length > 0) {
+        try {
+            nk.walletUpdate(ctx.userId, walletChanges, { source: "weekly_goal", goalId: goalId }, true);
+            logger.info("[WeeklyGoals] Granted wallet: " + JSON.stringify(walletChanges) + " to " + ctx.userId);
+        } catch (walletErr) {
+            logger.error("[WeeklyGoals] Wallet grant failed: " + walletErr.message);
+        }
+    }
+    
     logger.info("[WeeklyGoals] Reward claimed for goal " + goalId + " by user " + ctx.userId);
     
     return JSON.stringify({
         success: true,
         goalId: goalId,
         reward: reward,
+        walletGranted: walletChanges,
         weekStreak: progress.weekStreak,
         timestamp: new Date().toISOString()
     });
@@ -495,11 +510,25 @@ function rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload) {
     progress.updatedAt = new Date().toISOString();
     saveWeeklyGoalsProgress(nk, logger, ctx.userId, gameId, progress);
     
+    // Grant bonus rewards to wallet
+    var bonusWalletChanges = {};
+    if (bonus.coins) bonusWalletChanges.coins = bonus.coins;
+    if (bonus.gems) bonusWalletChanges.gems = bonus.gems;
+    if (Object.keys(bonusWalletChanges).length > 0) {
+        try {
+            nk.walletUpdate(ctx.userId, bonusWalletChanges, { source: "weekly_goal_bonus", weekStreak: progress.weekStreak }, true);
+            logger.info("[WeeklyGoals] Granted bonus wallet: " + JSON.stringify(bonusWalletChanges) + " to " + ctx.userId);
+        } catch (walletErr) {
+            logger.error("[WeeklyGoals] Bonus wallet grant failed: " + walletErr.message);
+        }
+    }
+    
     logger.info("[WeeklyGoals] Week bonus claimed by user " + ctx.userId + ", streak: " + progress.weekStreak);
     
     return JSON.stringify({
         success: true,
         bonus: bonus,
+        walletGranted: bonusWalletChanges,
         weekStreak: progress.weekStreak,
         message: progress.weekStreak >= 4 ? "4+ Week Streak! DOUBLE REWARDS!" : "Week " + progress.weekStreak + " completed!",
         timestamp: new Date().toISOString()
