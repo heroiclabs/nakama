@@ -35,7 +35,7 @@ The server is simple to setup and run for local development and can be deployed 
 
 ### Docker
 
-<a href="https://heroiclabs.com/docs/install-docker-quickstart/"><img src="https://upload.wikimedia.org/wikipedia/en/f/f4/Docker_logo.svg" width="170"></a>
+<a href="https://heroiclabs.com/docs/install-docker-quickstart/"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Docker_Logo.svg" width="170"></a>
 
 The fastest way to run the server and the database is with Docker. Setup Docker and start the daemon.
 
