@@ -77,7 +77,7 @@ namespace SatoriFeatureFlags {
   }
 
   function rpcSet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    // Admin RPC
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.name) return RpcHelpers.errorResponse("Flag name required");
 

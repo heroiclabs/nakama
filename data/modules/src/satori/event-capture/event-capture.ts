@@ -126,8 +126,9 @@ namespace SatoriEventCapture {
       });
     }
 
+    var preCount = events.length;
     captureEvents(nk, logger, userId, events);
-    return RpcHelpers.successResponse({ captured: events.length });
+    return RpcHelpers.successResponse({ captured: preCount, submitted: data.events.length });
   }
 
   export function register(initializer: nkruntime.Initializer): void {

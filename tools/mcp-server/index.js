@@ -1034,7 +1034,8 @@ server.tool(
     const check = requireAuth();
     if (check) return check;
     const r = await rpcCall("satori_metrics_prometheus", {});
-    return { content: [{ type: "text", text: `Prometheus metrics:\n${fmtResponse(r)}` }] };
+    const text = r?.data?.text || fmtResponse(r);
+    return { content: [{ type: "text", text: `Prometheus metrics:\n${text}` }] };
   }
 );
 

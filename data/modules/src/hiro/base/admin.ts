@@ -3,6 +3,7 @@ namespace AdminConsole {
   // ---- Hiro Config CRUD ----
 
   function rpcConfigGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required (e.g. economy, inventory, achievements)");
 
@@ -11,6 +12,7 @@ namespace AdminConsole {
   }
 
   function rpcConfigSet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system || !data.config) return RpcHelpers.errorResponse("system and config required");
 
@@ -19,6 +21,7 @@ namespace AdminConsole {
   }
 
   function rpcConfigDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required");
 
@@ -30,6 +33,7 @@ namespace AdminConsole {
   // ---- Satori Config CRUD ----
 
   function rpcSatoriConfigGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required (e.g. flags, experiments, audiences, live_events, messages, metrics)");
 
@@ -38,6 +42,7 @@ namespace AdminConsole {
   }
 
   function rpcSatoriConfigSet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system || !data.config) return RpcHelpers.errorResponse("system and config required");
 
@@ -48,6 +53,7 @@ namespace AdminConsole {
   // ---- Bulk Import/Export ----
 
   function rpcBulkExport(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var hiroSystems = ["economy", "inventory", "achievements", "progression", "energy", "stats", "streaks", "store", "challenges", "tutorials", "unlockables", "auctions", "incentives"];
     var satoriSystems = ["audiences", "flags", "experiments", "live_events", "messages", "metrics", "webhooks", "taxonomy", "data_lake"];
 
@@ -67,6 +73,7 @@ namespace AdminConsole {
   }
 
   function rpcBulkImport(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     var imported = { hiro: 0, satori: 0 };
 
@@ -90,6 +97,7 @@ namespace AdminConsole {
   // ---- Cache Management ----
 
   function rpcCacheInvalidate(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     ConfigLoader.invalidateCache(data.system);
     return RpcHelpers.successResponse({ invalidated: data.system || "all" });
@@ -98,6 +106,7 @@ namespace AdminConsole {
   // ---- User Data Management ----
 
   function rpcUserDataGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.collection) return RpcHelpers.errorResponse("userId and collection required");
 
@@ -107,6 +116,7 @@ namespace AdminConsole {
   }
 
   function rpcUserDataSet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.collection || !data.data) return RpcHelpers.errorResponse("userId, collection, and data required");
 
@@ -116,6 +126,7 @@ namespace AdminConsole {
   }
 
   function rpcUserDataDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.collection) return RpcHelpers.errorResponse("userId and collection required");
 
@@ -127,6 +138,7 @@ namespace AdminConsole {
   // ---- Player Full Profile Inspector ----
 
   function rpcPlayerInspect(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
 
@@ -156,16 +168,16 @@ namespace AdminConsole {
 
     var collections = [
       { name: "wallet", collection: Constants.WALLETS_COLLECTION, key: "wallet" },
-      { name: "inventory", collection: Constants.HIRO_INVENTORY_COLLECTION, key: "state" },
-      { name: "achievements", collection: Constants.HIRO_ACHIEVEMENTS_COLLECTION, key: "state" },
+      { name: "inventory", collection: Constants.HIRO_INVENTORY_COLLECTION, key: "items" },
+      { name: "achievements", collection: Constants.HIRO_ACHIEVEMENTS_COLLECTION, key: "progress" },
       { name: "progression", collection: Constants.HIRO_PROGRESSION_COLLECTION, key: "state" },
       { name: "energy", collection: Constants.HIRO_ENERGY_COLLECTION, key: "state" },
-      { name: "stats", collection: Constants.HIRO_STATS_COLLECTION, key: "state" },
+      { name: "stats", collection: Constants.HIRO_STATS_COLLECTION, key: "values" },
       { name: "streaks", collection: Constants.HIRO_STREAKS_COLLECTION, key: "state" },
-      { name: "tutorials", collection: Constants.HIRO_TUTORIALS_COLLECTION, key: "state" },
+      { name: "tutorials", collection: Constants.HIRO_TUTORIALS_COLLECTION, key: "progress" },
       { name: "unlockables", collection: Constants.HIRO_UNLOCKABLES_COLLECTION, key: "state" },
-      { name: "satoriIdentity", collection: Constants.SATORI_IDENTITY_COLLECTION, key: "properties" },
-      { name: "satoriAssignments", collection: Constants.SATORI_ASSIGNMENTS_COLLECTION, key: "state" },
+      { name: "satoriIdentity", collection: Constants.SATORI_IDENTITY_COLLECTION, key: "props" },
+      { name: "satoriAssignments", collection: Constants.SATORI_ASSIGNMENTS_COLLECTION, key: "assignments" },
       { name: "mailbox", collection: Constants.HIRO_MAILBOX_COLLECTION, key: "inbox" }
     ];
 
@@ -197,6 +209,7 @@ namespace AdminConsole {
   // ---- Wallet Direct Operations ----
 
   function rpcWalletView(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
 
@@ -205,6 +218,7 @@ namespace AdminConsole {
   }
 
   function rpcWalletGrant(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.currencies) return RpcHelpers.errorResponse("userId and currencies required (e.g. { userId: '...', currencies: { coins: 100, gems: 5 } })");
 
@@ -219,6 +233,7 @@ namespace AdminConsole {
   }
 
   function rpcWalletReset(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
 
@@ -230,6 +245,7 @@ namespace AdminConsole {
   // ---- Storage Collections Browser ----
 
   function rpcStorageList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.collection) return RpcHelpers.errorResponse("collection required");
 
@@ -260,114 +276,114 @@ namespace AdminConsole {
   // ---- Feature Flag Quick Toggle ----
 
   function rpcFlagToggle(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.name) return RpcHelpers.errorResponse("name required (flag name to toggle)");
 
-    var flagsConfig = ConfigLoader.loadSatoriConfig<any>(nk, "flags", { flags: [] });
-    var flags = flagsConfig.flags || [];
-    var found = false;
+    var flagsConfig = ConfigLoader.loadSatoriConfig<Satori.FlagsConfig>(nk, "flags", { flags: {} });
+    if (!flagsConfig.flags) flagsConfig.flags = {};
 
-    for (var i = 0; i < flags.length; i++) {
-      if (flags[i].name === data.name) {
-        flags[i].enabled = data.enabled !== undefined ? data.enabled : !flags[i].enabled;
-        found = true;
-        break;
-      }
-    }
+    var existing = flagsConfig.flags[data.name];
+    var now = Math.floor(Date.now() / 1000);
 
-    if (!found && data.value !== undefined) {
-      flags.push({
+    if (existing) {
+      existing.enabled = data.enabled !== undefined ? data.enabled : !existing.enabled;
+      if (data.value !== undefined) existing.value = String(data.value);
+      if (data.conditionsByAudience) existing.conditionsByAudience = data.conditionsByAudience;
+      existing.updatedAt = now;
+    } else if (data.value !== undefined) {
+      flagsConfig.flags[data.name] = {
         name: data.name,
         value: String(data.value),
+        description: data.description || "",
+        conditionsByAudience: data.conditionsByAudience,
         enabled: data.enabled !== undefined ? data.enabled : true,
-        audiences: data.audiences || []
-      });
-      found = true;
+        createdAt: now,
+        updatedAt: now
+      };
+    } else {
+      return RpcHelpers.errorResponse("Flag '" + data.name + "' not found. Provide value to create.");
     }
 
-    if (!found) return RpcHelpers.errorResponse("Flag '" + data.name + "' not found. Provide value to create.");
-
-    flagsConfig.flags = flags;
     ConfigLoader.saveSatoriConfig(nk, "flags", flagsConfig);
-
-    var flag = flags.filter(function(f: any) { return f.name === data.name; })[0];
-    return RpcHelpers.successResponse({ flag: flag, action: found ? "toggled" : "created" });
+    return RpcHelpers.successResponse({ flag: flagsConfig.flags[data.name], action: existing ? "toggled" : "created" });
   }
 
   // ---- Live Event Quick Schedule ----
 
   function rpcLiveEventSchedule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.id || !data.name) return RpcHelpers.errorResponse("id and name required");
 
-    var eventsConfig = ConfigLoader.loadSatoriConfig<any>(nk, "live_events", { events: [] });
-    var events = eventsConfig.events || [];
+    var eventsConfig = ConfigLoader.loadSatoriConfig<{ [id: string]: any }>(nk, "live_events", {});
+    var now = Math.floor(Date.now() / 1000);
 
-    var now = Date.now();
     var newEvent: any = {
       id: data.id,
       name: data.name,
       description: data.description || "",
-      startTimeSec: data.startTimeSec || Math.floor(now / 1000),
-      endTimeSec: data.endTimeSec || Math.floor(now / 1000) + 86400,
-      audiences: data.audiences || [],
-      rewards: data.rewards || [],
-      maxClaims: data.maxClaims || 1,
-      activeGames: data.activeGames || [],
-      enabled: data.enabled !== undefined ? data.enabled : true
+      startAt: data.startTimeSec || data.startAt || now,
+      endAt: data.endTimeSec || data.endAt || now + 86400,
+      audienceId: (data.audiences && data.audiences[0]) || data.audienceId || undefined,
+      reward: data.reward || undefined,
+      config: data.config || {},
+      recurrenceCron: data.recurrenceCron,
+      recurrenceIntervalSec: data.recurrenceIntervalSec,
+      sticky: data.sticky || false,
+      requiresJoin: data.requiresJoin || false,
+      category: data.category || "",
+      flagOverrides: data.flagOverrides,
+      onJoinMessageId: data.onJoinMessageId,
+      createdAt: (eventsConfig[data.id] && eventsConfig[data.id].createdAt) || now,
+      updatedAt: now
     };
 
-    var replaced = false;
-    for (var i = 0; i < events.length; i++) {
-      if (events[i].id === data.id) {
-        events[i] = newEvent;
-        replaced = true;
-        break;
-      }
-    }
-    if (!replaced) events.push(newEvent);
-
-    eventsConfig.events = events;
+    var action = eventsConfig[data.id] ? "updated" : "created";
+    eventsConfig[data.id] = newEvent;
     ConfigLoader.saveSatoriConfig(nk, "live_events", eventsConfig);
-    return RpcHelpers.successResponse({ event: newEvent, action: replaced ? "updated" : "created" });
+    return RpcHelpers.successResponse({ event: newEvent, action: action });
   }
 
   // ---- Experiment Quick Setup ----
 
   function rpcExperimentSetup(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.id || !data.name || !data.variants) return RpcHelpers.errorResponse("id, name, and variants[] required");
 
-    var expConfig = ConfigLoader.loadSatoriConfig<any>(nk, "experiments", { experiments: [] });
-    var experiments = expConfig.experiments || [];
+    var expConfig = ConfigLoader.loadSatoriConfig<{ [id: string]: any }>(nk, "experiments", {});
+    var now = Math.floor(Date.now() / 1000);
 
     var newExp: any = {
       id: data.id,
       name: data.name,
       description: data.description || "",
-      audiences: data.audiences || [],
-      enabled: data.enabled !== undefined ? data.enabled : true,
-      variants: data.variants
+      status: data.status || (data.enabled === false ? "draft" : "running"),
+      audienceId: (data.audiences && data.audiences[0]) || data.audienceId || undefined,
+      variants: data.variants,
+      goalMetric: data.goalMetric,
+      splitKey: data.splitKey,
+      lockParticipation: data.lockParticipation || false,
+      admissionDeadline: data.admissionDeadline,
+      startAt: data.startAt,
+      endAt: data.endAt,
+      phases: data.phases,
+      experimentType: data.experimentType || "custom",
+      createdAt: (expConfig[data.id] && expConfig[data.id].createdAt) || now,
+      updatedAt: now
     };
 
-    var replaced = false;
-    for (var i = 0; i < experiments.length; i++) {
-      if (experiments[i].id === data.id) {
-        experiments[i] = newExp;
-        replaced = true;
-        break;
-      }
-    }
-    if (!replaced) experiments.push(newExp);
-
-    expConfig.experiments = experiments;
+    var action = expConfig[data.id] ? "updated" : "created";
+    expConfig[data.id] = newExp;
     ConfigLoader.saveSatoriConfig(nk, "experiments", expConfig);
-    return RpcHelpers.successResponse({ experiment: newExp, action: replaced ? "updated" : "created" });
+    return RpcHelpers.successResponse({ experiment: newExp, action: action });
   }
 
   // ---- User Search ----
 
   function rpcUserSearch(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.username) return RpcHelpers.errorResponse("username required");
 
@@ -395,6 +411,7 @@ namespace AdminConsole {
   // ---- Player Inventory Grant (admin shortcut) ----
 
   function rpcInventoryGrant(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.itemId) return RpcHelpers.errorResponse("userId and itemId required. Optional: quantity (default 1)");
 
@@ -416,6 +433,7 @@ namespace AdminConsole {
   // ---- Send Admin Mailbox Message ----
 
   function rpcMailboxSend(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.subject) return RpcHelpers.errorResponse("userId and subject required. Optional: body, rewards, expiresInSec");
 
@@ -444,6 +462,7 @@ namespace AdminConsole {
   // ---- Satori Events Timeline (recent events for a user) ----
 
   function rpcEventsTimeline(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
 

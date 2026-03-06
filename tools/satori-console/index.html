@@ -416,11 +416,14 @@ const App = {
     try { flagsData = await this.rpc('admin_satori_config_get', { system: 'flags' }); } catch { flagsData = {}; }
     try { expData = await this.rpc('admin_satori_config_get', { system: 'experiments' }); } catch { expData = {}; }
     try { evData = await this.rpc('admin_satori_config_get', { system: 'live_events' }); } catch { evData = {}; }
-    const flags = flagsData.config?.flags || [];
-    const exps = expData.config?.experiments || [];
-    const events = evData.config?.events || [];
+    const flagsObj = (flagsData.data || flagsData).config?.flags || {};
+    const flags = Object.values(flagsObj);
+    const expsObj = (expData.data || expData).config || {};
+    const exps = Object.values(expsObj);
+    const evsObj = (evData.data || evData).config || {};
+    const events = Object.values(evsObj);
     const now = Math.floor(Date.now() / 1000);
-    const activeEvents = events.filter(e => e.enabled && e.startTimeSec <= now && e.endTimeSec > now);
+    const activeEvents = events.filter(e => e.startAt <= now && e.endAt > now);
 
     el.innerHTML = `
       <div class="stats-grid">
@@ -431,7 +434,7 @@ const App = {
       <div class="card">
         <div class="card-header"><span class="card-title">Active Live Events</span></div>
         ${activeEvents.length ? `<table><tr><th>ID</th><th>Name</th><th>Ends</th></tr>
-          ${activeEvents.map(e => `<tr><td>${e.id}</td><td>${e.name}</td><td>${new Date(e.endTimeSec*1000).toLocaleString()}</td></tr>`).join('')}
+          ${activeEvents.map(e => `<tr><td>${e.id}</td><td>${e.name}</td><td>${new Date((e.endAt||0)*1000).toLocaleString()}</td></tr>`).join('')}
         </table>` : '<div class="empty">No active events right now</div>'}
       </div>`;
   },
@@ -439,7 +442,8 @@ const App = {
   // ─── PAGE: Audiences ──────────────────────────────────────────────────
   async pageAudiences(el) {
     const r = await this.rpc('admin_satori_config_get', { system: 'audiences' });
-    const auds = r.config?.audiences || [];
+    const audsObj = (r.data || r).config || {};
+    const auds = Object.values(audsObj);
     el.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -460,7 +464,8 @@ const App = {
   // ─── PAGE: Feature Flags ──────────────────────────────────────────────
   async pageFlags(el) {
     const r = await this.rpc('admin_satori_config_get', { system: 'flags' });
-    const flags = r.config?.flags || [];
+    const flagsObj = (r.data || r).config?.flags || {};
+    const flags = Object.values(flagsObj);
     el.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -512,7 +517,8 @@ const App = {
   // ─── PAGE: Experiments ────────────────────────────────────────────────
   async pageExperiments(el) {
     const r = await this.rpc('admin_satori_config_get', { system: 'experiments' });
-    const exps = r.config?.experiments || [];
+    const expsObj = (r.data || r).config || {};
+    const exps = Object.values(expsObj);
     el.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -523,9 +529,9 @@ const App = {
           ${exps.map(e => `<tr>
             <td style="font-family:var(--mono)">${e.id}</td>
             <td>${e.name}</td>
-            <td><span class="tag ${e.enabled ? 'tag-running' : 'tag-disabled'}">${e.enabled ? 'Running' : 'Paused'}</span></td>
-            <td>${(e.variants||[]).map(v => `${v.name}(${v.weight}%)`).join(', ')}</td>
-            <td style="font-size:12px;color:var(--text-muted)">${(e.audiences||[]).join(', ') || 'All'}</td>
+            <td><span class="tag ${e.status === 'running' ? 'tag-running' : 'tag-disabled'}">${e.status || 'draft'}</span></td>
+            <td>${(e.variants||[]).map(v => `${v.name||v.id}(${v.weight}%)`).join(', ')}</td>
+            <td style="font-size:12px;color:var(--text-muted)">${e.audienceId || 'All'}</td>
           </tr>`).join('')}
         </table>` : '<div class="empty">No experiments configured</div>'}
       </div>`;
@@ -563,7 +569,8 @@ const App = {
   // ─── PAGE: Live Events ────────────────────────────────────────────────
   async pageLiveEvents(el) {
     const r = await this.rpc('admin_satori_config_get', { system: 'live_events' });
-    const events = r.config?.events || [];
+    const evsObj = (r.data || r).config || {};
+    const events = Object.values(evsObj);
     const now = Math.floor(Date.now() / 1000);
     el.innerHTML = `
       <div class="card">
@@ -574,16 +581,16 @@ const App = {
         ${events.length ? `<table><tr><th>ID</th><th>Name</th><th>Status</th><th>Start</th><th>End</th></tr>
           ${events.map(e => {
             let status = 'Scheduled', cls = 'tag-disabled';
-            if (!e.enabled) { status = 'Disabled'; }
-            else if (now >= e.startTimeSec && now < e.endTimeSec) { status = 'Running'; cls = 'tag-running'; }
-            else if (now >= e.endTimeSec) { status = 'Ended'; cls = 'tag-disabled'; }
+            const st = e.startAt || 0, en = e.endAt || 0;
+            if (now >= st && now < en) { status = 'Running'; cls = 'tag-running'; }
+            else if (now >= en) { status = 'Ended'; cls = 'tag-disabled'; }
             else { status = 'Upcoming'; cls = 'tag-enabled'; }
             return `<tr>
               <td style="font-family:var(--mono)">${e.id}</td>
               <td>${e.name}</td>
               <td><span class="tag ${cls}">${status}</span></td>
-              <td style="font-size:12px">${new Date(e.startTimeSec*1000).toLocaleString()}</td>
-              <td style="font-size:12px">${new Date(e.endTimeSec*1000).toLocaleString()}</td>
+              <td style="font-size:12px">${new Date(st*1000).toLocaleString()}</td>
+              <td style="font-size:12px">${new Date(en*1000).toLocaleString()}</td>
             </tr>`;
           }).join('')}
         </table>` : '<div class="empty">No live events scheduled</div>'}
@@ -627,7 +634,8 @@ const App = {
   // ─── PAGE: Metrics ────────────────────────────────────────────────────
   async pageMetrics(el) {
     const r = await this.rpc('admin_satori_config_get', { system: 'metrics' });
-    const metrics = r.config?.metrics || [];
+    const metricsObj = (r.data || r).config || {};
+    const metrics = Object.values(metricsObj);
     el.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -642,7 +650,7 @@ const App = {
             <td style="font-family:var(--mono)">${m.id}</td>
             <td>${m.name || m.id}</td>
             <td>${m.aggregation || 'count'}</td>
-            <td style="font-size:12px;color:var(--text-muted)">${m.event || '*'}</td>
+            <td style="font-size:12px;color:var(--text-muted)">${m.eventName || '*'}</td>
           </tr>`).join('')}
         </table>` : '<div class="empty">No metrics defined</div>'}
       </div>`;
@@ -660,11 +668,12 @@ const App = {
   async getPrometheus() {
     try {
       const r = await this.rpc('satori_metrics_prometheus');
+      const data = r.data || r;
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay';
       overlay.innerHTML = `<div class="modal">
         <div class="modal-title">Prometheus Metrics</div>
-        <div class="json-view">${typeof r === 'string' ? r : JSON.stringify(r, null, 2)}</div>
+        <div class="json-view">${data.text || JSON.stringify(data, null, 2)}</div>
         <button class="btn btn-outline" style="margin-top:16px" onclick="this.closest('.modal-overlay').remove()">Close</button>
       </div>`;
       document.body.appendChild(overlay);
@@ -674,7 +683,8 @@ const App = {
   // ─── PAGE: Messages ───────────────────────────────────────────────────
   async pageMessages(el) {
     const r = await this.rpc('admin_satori_config_get', { system: 'messages' });
-    const templates = r.config?.templates || [];
+    const msgsObj = (r.data || r).config || {};
+    const templates = Object.values(msgsObj);
     el.innerHTML = `
       <div class="card">
         <div class="card-header">

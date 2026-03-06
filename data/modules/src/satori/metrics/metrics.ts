@@ -134,7 +134,7 @@ namespace SatoriMetrics {
   }
 
   function rpcDefine(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    // Admin RPC
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.id || !data.name || !data.eventName || !data.aggregation) {
       return RpcHelpers.errorResponse("id, name, eventName, and aggregation required");
@@ -155,6 +155,7 @@ namespace SatoriMetrics {
   }
 
   function rpcSetAlert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.metricId || !data.name || data.threshold === undefined || !data.operator) {
       return RpcHelpers.errorResponse("metricId, name, threshold, and operator required");
@@ -176,6 +177,7 @@ namespace SatoriMetrics {
   }
 
   function rpcPrometheus(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var definitions = getMetricDefinitions(nk);
     var lines: string[] = [];
     for (var id in definitions) {
@@ -194,7 +196,7 @@ namespace SatoriMetrics {
       lines.push("# TYPE " + safeName + " gauge");
       lines.push(safeName + " " + latestValue);
     }
-    return lines.join("\n");
+    return RpcHelpers.successResponse({ text: lines.join("\n") });
   }
 
   export function register(initializer: nkruntime.Initializer): void {
