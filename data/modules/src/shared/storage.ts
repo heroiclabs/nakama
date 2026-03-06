@@ -55,4 +55,54 @@ namespace Storage {
       cursor: result.cursor || ""
     };
   }
+
+  function rpcStorageWrite(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.collection || !data.key) return RpcHelpers.errorResponse("collection and key required");
+
+    var targetUserId = data.user_id || userId;
+    var value = typeof data.value === "string" ? JSON.parse(data.value) : (data.value || {});
+    var permRead = (data.permission_read !== undefined ? data.permission_read : 1) as nkruntime.ReadPermissionValues;
+    var permWrite = (data.permission_write !== undefined ? data.permission_write : 1) as nkruntime.WritePermissionValues;
+
+    var acks = nk.storageWrite([{
+      collection: data.collection,
+      key: data.key,
+      userId: targetUserId,
+      value: value,
+      permissionRead: permRead,
+      permissionWrite: permWrite
+    }]);
+
+    return RpcHelpers.successResponse({
+      version: acks && acks.length > 0 ? acks[0].version : ""
+    });
+  }
+
+  function rpcStorageRead(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.collection || !data.key) return RpcHelpers.errorResponse("collection and key required");
+
+    var targetUserId = data.user_id || userId;
+    var records = nk.storageRead([{
+      collection: data.collection,
+      key: data.key,
+      userId: targetUserId
+    }]);
+
+    if (records && records.length > 0) {
+      return RpcHelpers.successResponse({
+        value: records[0].value,
+        version: records[0].version || ""
+      });
+    }
+    return RpcHelpers.successResponse({ value: null, version: "" });
+  }
+
+  export function register(initializer: nkruntime.Initializer): void {
+    initializer.registerRpc("storage_write", rpcStorageWrite);
+    initializer.registerRpc("storage_read", rpcStorageRead);
+  }
 }

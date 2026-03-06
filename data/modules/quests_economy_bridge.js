@@ -22,7 +22,7 @@ var DEFAULT_GAME_ID = 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
  */
 var GAME_CONVERSION_RATIOS = {};
 
-function InitModule(ctx, logger, nk, initializer) {
+function _QuestsBridgeInit(ctx, logger, nk, initializer) {
     QUESTS_API_URL = (ctx.env['QUESTS_ECONOMY_API_URL'] || 'http://localhost:3001').replace(/\/$/, '');
     WEBHOOK_SECRET = ctx.env['NAKAMA_WEBHOOK_SECRET'] || '';
     DEFAULT_GAME_ID = ctx.env['DEFAULT_GAME_ID'] || DEFAULT_GAME_ID;

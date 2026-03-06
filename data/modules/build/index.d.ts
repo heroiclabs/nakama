@@ -1,3 +1,4 @@
+declare function LegacyInitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
 declare namespace HiroAchievements {
     function getConfig(nk: nkruntime.Nakama): Hiro.AchievementsConfig;
@@ -379,6 +380,7 @@ declare namespace Storage {
         records: nkruntime.StorageObject[];
         cursor: string;
     };
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace WalletHelpers {
     interface GameWallet {

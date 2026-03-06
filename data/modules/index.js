@@ -19619,9 +19619,9 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
 }
 
 
-function InitModule(ctx, logger, nk, initializer) {
+function _LegacyInitModule_v1(ctx, logger, nk, initializer) {
     logger.info('========================================');
-    logger.info('Starting JavaScript Runtime Initialization');
+    logger.info('Starting JavaScript Runtime Initialization (v1 - unused)');
     logger.info('========================================');
 
     // Register Copilot Wallet Mapping RPCs
@@ -26204,9 +26204,9 @@ function rpcAiGroupHype(ctx, logger, nk, payload) {
     }
 }
 
-function InitModule(ctx, logger, nk, initializer) {
+function LegacyInitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
-    logger.info('Starting JavaScript Runtime Initialization');
+    logger.info('Legacy JavaScript Runtime Initialization');
     logger.info('========================================');
 
     // Register Copilot Wallet Mapping RPCs
