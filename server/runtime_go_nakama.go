@@ -456,7 +456,8 @@ func (n *RuntimeGoNakamaModule) AccountGetId(ctx context.Context, userID string)
 // @group accounts
 // @summary Fetch information for multiple accounts by user IDs.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param userIDs(type=[]string) Array of user IDs to fetch information for. Must be valid UUID.
+// @param userIDs(type=[]string, optional=true) Array of user IDs to fetch information for. Must be valid UUID when supplied.
+// @param deviceIDs(type=[]string, optional=true) Array of device IDs to fetch information for.
 // @return account([]*api.Account) An array of accounts.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) AccountsGetId(ctx context.Context, userIDs, deviceIDs []string) ([]*api.Account, error) {

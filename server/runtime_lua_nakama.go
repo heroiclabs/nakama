@@ -2564,8 +2564,8 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 
 // @group accounts
 // @summary Fetch information for multiple accounts by user IDs.
-// @param userIDs(type=table) Table of user IDs to fetch information for. Must be valid UUID.
-// @param deviceIDs(type=table) Optional table of device IDs to fetch information for.
+// @param userIDs(type=table, optional=true) Table of user IDs to fetch information for. Must be valid UUID when supplied.
+// @param deviceIDs(type=table, optional=true) Table of device IDs to fetch information for.
 // @return account(Table) Table of accounts.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
@@ -2607,7 +2607,7 @@ func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 				return
 			}
 			if v.Type() != lua.LTString {
-				l.ArgError(1, "device id must be a string")
+				l.ArgError(2, "device id must be a string")
 				conversionError = true
 				return
 			}
@@ -9948,7 +9948,7 @@ func (n *RuntimeLuaNakamaModule) accountExportId(l *lua.LState) int {
 // @summary Import user account data, optionally overwriting a given user ID.
 // @param data(type=string) An account export string to import.
 // @param userID(type=string, optional=true) Optional user ID to import into. Must be valid UUID.
-// @return export(string) Account information for the provided user ID, in JSON format.
+// @return account(table) All account information including wallet, device IDs and more.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) accountImportId(l *lua.LState) int {
 	data := l.CheckString(1)
@@ -10063,7 +10063,6 @@ func (n *RuntimeLuaNakamaModule) accountImportId(l *lua.LState) int {
 	}
 
 	l.Push(accountTable)
-	return 1
 	return 1
 }
 

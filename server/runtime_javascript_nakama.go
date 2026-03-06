@@ -187,7 +187,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"accountUpdateId":                      n.accountUpdateId(r),
 		"accountDeleteId":                      n.accountDeleteId(r),
 		"accountExportId":                      n.accountExportId(r),
-		"accountImportId":                      n.accountExportId(r),
+		"accountImportId":                      n.accountImportId(r),
 		"usersGetId":                           n.usersGetId(r),
 		"usersGetUsername":                     n.usersGetUsername(r),
 		"usersGetFriendStatus":                 n.usersGetFriendStatus(r),
@@ -2020,8 +2020,8 @@ func (n *RuntimeJavascriptNakamaModule) accountGetId(r *goja.Runtime) func(goja.
 
 // @group accounts
 // @summary Fetch information for multiple accounts by user IDs.
-// @param userIDs(type=[]string) Optional array of user IDs to fetch information for. Must be valid UUID when supplied.
-// @param deviceIDs(type=[]string) Optional array of device IDs to fetch information for.
+// @param userIDs(type=[]string, optional=true) Array of user IDs to fetch information for. Must be valid UUID when supplied.
+// @param deviceIDs(type=[]string, optional=true) Array of device IDs to fetch information for.
 // @return account(nkruntime.Account[]) Array of accounts.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -2043,7 +2043,7 @@ func (n *RuntimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja
 
 		deviceIDs := f.Argument(1)
 		var dids []string
-		if deviceIDs != goja.Undefined() && deviceIDs == goja.Null() {
+		if deviceIDs != goja.Undefined() && deviceIDs != goja.Null() {
 			dids, err = exportToSlice[[]string](deviceIDs)
 			if err != nil {
 				panic(r.NewTypeError("expects an array of strings"))
@@ -2233,7 +2233,7 @@ func (n *RuntimeJavascriptNakamaModule) accountImportId(r *goja.Runtime) func(go
 
 		account, err := ImportAccount(n.ctx, n.logger, n.db, n.statusRegistry, uid, d)
 		if err != nil {
-			panic(r.NewGoError(fmt.Errorf("error getting account: %v", err.Error())))
+			panic(r.NewGoError(fmt.Errorf("error importing account: %v", err.Error())))
 		}
 
 		if account == nil {
