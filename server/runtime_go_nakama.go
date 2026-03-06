@@ -577,7 +577,7 @@ func (n *RuntimeGoNakamaModule) AccountExportId(ctx context.Context, userID stri
 // @group accounts
 // @summary Import account information, optionally overwriting data for a specified user ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param data(type=string) Data to import
+// @param data(type=string) Data to import.
 // @param userID(type=string, optional=true) User ID to import data into. Must be valid UUID.
 // @return account(*api.Account) All account information including wallet, device IDs and more.
 // @return error(error) An optional error value if an error occurred.
