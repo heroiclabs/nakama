@@ -1,0 +1,19 @@
+{
+  "name": "nakama-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Nakama game server analytics, engagement, and data exploration",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.2",
+    "@types/node": "^22.13.10"
+  }
+}

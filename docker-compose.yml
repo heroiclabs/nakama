@@ -43,6 +43,9 @@ services:
       - NAKAMA_WEBHOOK_SECRET=${NAKAMA_WEBHOOK_SECRET:-}
       - DEFAULT_GAME_ID=${DEFAULT_GAME_ID:-f6f7fe36-03de-43b8-8b5d-1a1892da4eed}
     volumes:
+      # IMPORTANT: JavaScript modules MUST use ES Module syntax (import/export)
+      # CommonJS (require/module.exports) is NOT supported
+      # See: ESM_MIGRATION_COMPLETE_GUIDE.md
       - ./:/nakama/data
     expose:
       - "7349"

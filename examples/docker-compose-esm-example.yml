@@ -1,0 +1,146 @@
+version: '3.8'
+
+services:
+  # CockroachDB Database
+  cockroachdb:
+    image: cockroachdb/cockroach:latest-v24.1
+    container_name: nakama-cockroachdb
+    command: start-single-node --insecure --store=attrs=ssd,path=/var/lib/cockroach/
+    restart: unless-stopped
+    volumes:
+      - cockroach_data:/var/lib/cockroach
+    expose:
+      - "8080"
+      - "26257"
+    ports:
+      - "26257:26257"  # SQL interface
+      - "8080:8080"    # Admin UI
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    networks:
+      - nakama
+
+  # Nakama Server
+  nakama:
+    image: heroiclabs/nakama:3.22.0
+    container_name: nakama-server
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+        /nakama/nakama migrate up --database.address root@cockroachdb:26257 &&
+        exec /nakama/nakama 
+        --name nakama1 
+        --database.address root@cockroachdb:26257 
+        --logger.level INFO 
+        --session.token_expiry_sec 7200
+        --console.username admin
+        --console.password password
+    restart: unless-stopped
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+    volumes:
+      # ✅ CRITICAL: Mount your ES modules directory here
+      # This maps ./examples/esm-modules to /nakama/data/modules inside the container
+      # Nakama will look for index.js at /nakama/data/modules/index.js
+      - ./examples/esm-modules:/nakama/data/modules:ro
+    environment:
+      # Database connection
+      - NAKAMA_DATABASE_ADDRESS=root@cockroachdb:26257
+      # Logging
+      - NAKAMA_LOGGER_LEVEL=INFO
+      # Session
+      - NAKAMA_SESSION_TOKEN_EXPIRY_SEC=7200
+    expose:
+      - "7349"
+      - "7350"
+      - "7351"
+    ports:
+      - "7349:7349"  # gRPC API
+      - "7350:7350"  # HTTP API
+      - "7351:7351"  # Console UI
+    healthcheck:
+      test: ["CMD", "/nakama/nakama", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nakama
+
+networks:
+  nakama:
+    driver: bridge
+
+volumes:
+  cockroach_data:
+    driver: local
+
+# ==============================================================================
+# USAGE INSTRUCTIONS
+# ==============================================================================
+#
+# 1. Start services:
+#    docker-compose -f docker-compose-esm-example.yml up
+#
+# 2. View logs:
+#    docker-compose -f docker-compose-esm-example.yml logs -f nakama
+#
+# 3. Stop services:
+#    docker-compose -f docker-compose-esm-example.yml down
+#
+# 4. Access Nakama Console:
+#    Open browser: http://localhost:7351
+#    Username: admin
+#    Password: password
+#
+# 5. Access CockroachDB Console:
+#    Open browser: http://localhost:8080
+#
+# ==============================================================================
+# EXPECTED SUCCESSFUL LOGS
+# ==============================================================================
+#
+# When everything works correctly, you should see these logs:
+#
+# {"level":"info","msg":"Nakama starting"}
+# {"level":"info","msg":"Database connection verified"}
+# {"level":"info","msg":"Loading JavaScript modules"}
+# {"level":"info","msg":"========================================"}
+# {"level":"info","msg":"JavaScript Runtime Initialization Started"}
+# {"level":"info","msg":"Runtime: ES Modules (ESM)"}
+# {"level":"info","msg":"========================================"}
+# {"level":"info","msg":"[Wallet] Initializing Wallet Module..."}
+# {"level":"info","msg":"[Wallet] ✅ Registered RPC: wallet_get_all"}
+# {"level":"info","msg":"[Wallet] ✅ Registered RPC: wallet_update"}
+# {"level":"info","msg":"[Leaderboards] Initializing Leaderboard Module..."}
+# {"level":"info","msg":"[Leaderboards] ✅ Registered RPC: leaderboard_submit"}
+# {"level":"info","msg":"[Leaderboards] ✅ Registered RPC: leaderboard_get"}
+# {"level":"info","msg":"========================================"}
+# {"level":"info","msg":"✅ Successfully registered 4 RPC functions"}
+# {"level":"info","msg":"🎉 JavaScript Runtime Initialization Complete"}
+# {"level":"info","msg":"========================================"}
+# {"level":"info","msg":"Startup done"}
+# {"level":"info","msg":"API server listening","port":7350}
+#
+# ==============================================================================
+# TROUBLESHOOTING
+# ==============================================================================
+#
+# If you see "ReferenceError: require is not defined":
+# - Your JavaScript files are using CommonJS (require/module.exports)
+# - Solution: Convert to ES modules (import/export)
+#
+# If modules don't load:
+# - Check volume mount path: ./examples/esm-modules:/nakama/data/modules
+# - Verify index.js exists at ./examples/esm-modules/index.js
+# - Ensure index.js has: export default function InitModule
+#
+# If database connection fails:
+# - Wait for cockroachdb healthcheck to pass
+# - Check database is running: docker-compose ps
+#
+# ==============================================================================

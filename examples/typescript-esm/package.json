@@ -1,0 +1,28 @@
+{
+  "name": "nakama-typescript-esm-example",
+  "version": "1.0.0",
+  "description": "Nakama JavaScript runtime modules built with TypeScript and ES2020 modules",
+  "type": "module",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf build",
+    "prebuild": "npm run clean",
+    "check": "tsc --noEmit",
+    "lint": "echo 'Add ESLint for linting'"
+  },
+  "keywords": [
+    "nakama",
+    "typescript",
+    "esm",
+    "es-modules",
+    "game-server"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@heroiclabs/nakama-runtime": "^1.0.0",
+    "typescript": "^5.3.3"
+  }
+}
