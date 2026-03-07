@@ -23,7 +23,7 @@ services:
       - "-ecx"
       - >
           /nakama/nakama migrate up --database.address root@cockroachdb:26257 &&
-          exec /nakama/nakama --name nakama1 --database.address root@cockroachdb:26257 --logger.level DEBUG --session.token_expiry_sec 7200 --metrics.prometheus_port 9100 --runtime.path ${NAKAMA_RUNTIME_PATH:-data/modules}
+          exec /nakama/nakama --name nakama1 --database.address root@cockroachdb:26257 --logger.level DEBUG --session.token_expiry_sec 7200 --metrics.prometheus_port 9100 --runtime.path ${NAKAMA_RUNTIME_PATH:-data/runtime}
     restart: "no"
     links:
       - "cockroachdb:db"
@@ -38,15 +38,12 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - XAI_API_KEY=${XAI_API_KEY:-}
-      - NAKAMA_RUNTIME_PATH=${NAKAMA_RUNTIME_PATH:-data/modules}
+      - NAKAMA_RUNTIME_PATH=${NAKAMA_RUNTIME_PATH:-data/runtime}
       - QUESTS_ECONOMY_API_URL=${QUESTS_ECONOMY_API_URL:-http://localhost:3001}
       - NAKAMA_WEBHOOK_SECRET=${NAKAMA_WEBHOOK_SECRET:-}
       - DEFAULT_GAME_ID=${DEFAULT_GAME_ID:-f6f7fe36-03de-43b8-8b5d-1a1892da4eed}
     volumes:
-      # IMPORTANT: JavaScript modules MUST use ES Module syntax (import/export)
-      # CommonJS (require/module.exports) is NOT supported
-      # See: ESM_MIGRATION_COMPLETE_GUIDE.md
-      - ./:/nakama/data
+      - ./data:/nakama/data
     expose:
       - "7349"
       - "7350"

@@ -34,7 +34,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./:/nakama/data
+      - ./data:/nakama/data
     expose:
       - "7349"
       - "7350"
