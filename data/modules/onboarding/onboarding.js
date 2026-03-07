@@ -24,7 +24,7 @@ const KEY_RETENTION = "retention";
 /**
  * Initialize onboarding module
  */
-function InitModule(ctx, logger, nk, initializer) {
+function _OnboardingInit(ctx, logger, nk, initializer) {
     logger.info("[Onboarding] Initializing onboarding module...");
 
     // Register RPCs

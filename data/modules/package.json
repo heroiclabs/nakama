@@ -1,0 +1,15 @@
+{
+  "name": "intelliverse-x-nakama-modules",
+  "version": "1.0.0",
+  "description": "IntelliVerse-X Nakama server runtime with custom Hiro + Satori systems",
+  "scripts": {
+    "build": "npx tsc && cp *.lua build/ 2>/dev/null; echo 'Build complete'",
+    "build:watch": "npx tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "nakama-common": "https://github.com/heroiclabs/nakama-common"
+  }
+}

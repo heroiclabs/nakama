@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "outFile": "./build/index.js",
+    "target": "es5",
+    "strict": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "typeRoots": ["./node_modules"],
+    "declaration": true,
+    "sourceMap": false,
+    "lib": ["es2015"]
+  },
+  "files": [
+    "./node_modules/nakama-common/index.d.ts"
+  ],
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "build"
+  ]
+}

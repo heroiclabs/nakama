@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Satori Console — IntelliVerse-X</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f12;
+  --bg-surface: #18181f;
+  --bg-raised: #1f1f2a;
+  --bg-hover: #272736;
+  --border: #2a2a3a;
+  --border-active: #6c5ce7;
+  --text: #e8e8f0;
+  --text-muted: #8888a0;
+  --text-dim: #555570;
+  --accent: #6c5ce7;
+  --accent-light: #a29bfe;
+  --accent-bg: rgba(108,92,231,0.12);
+  --green: #00d2a0;
+  --green-bg: rgba(0,210,160,0.12);
+  --red: #ff6b6b;
+  --red-bg: rgba(255,107,107,0.12);
+  --yellow: #ffd93d;
+  --yellow-bg: rgba(255,217,61,0.12);
+  --blue: #74b9ff;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font: 'Inter', -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --sidebar-w: 240px;
+  --header-h: 56px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
+input, select, textarea, button { font-family: inherit; font-size: inherit; }
+
+/* Layout */
+.app { display: flex; height: 100vh; }
+.sidebar { width: var(--sidebar-w); background: var(--bg-surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.header { height: var(--header-h); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; background: var(--bg-surface); gap: 16px; }
+.content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* Sidebar */
+.sidebar-brand { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.sidebar-brand h2 { font-size: 16px; font-weight: 700; color: var(--accent-light); }
+.sidebar-brand span { font-size: 11px; color: var(--text-muted); }
+.sidebar-nav { flex: 1; padding: 8px; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius); cursor: pointer; color: var(--text-muted); transition: all 0.15s; font-size: 13px; font-weight: 500; }
+.nav-item:hover { background: var(--bg-hover); color: var(--text); }
+.nav-item.active { background: var(--accent-bg); color: var(--accent-light); border-left: 2px solid var(--accent); }
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.nav-section { padding: 16px 12px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-dim); font-weight: 600; }
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim); }
+
+/* Header */
+.header-title { font-size: 16px; font-weight: 600; }
+.header-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-red { background: var(--red-bg); color: var(--red); }
+.header-spacer { flex: 1; }
+.header-btn { padding: 6px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.15s; }
+.header-btn:hover { border-color: var(--accent); color: var(--accent-light); }
+
+/* Cards */
+.card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-title { font-size: 14px; font-weight: 600; }
+.card-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* Stats Grid */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; }
+.stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+.stat-value { font-size: 28px; font-weight: 700; font-family: var(--mono); }
+.stat-change { font-size: 11px; margin-top: 4px; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); border-bottom: 1px solid var(--border); font-weight: 600; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:hover td { background: var(--bg-hover); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.tag-enabled { background: var(--green-bg); color: var(--green); }
+.tag-disabled { background: var(--red-bg); color: var(--red); }
+.tag-running { background: var(--accent-bg); color: var(--accent-light); }
+
+/* Forms */
+.form-row { margin-bottom: 14px; }
+.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
+.form-input { width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); outline: none; transition: border-color 0.15s; }
+.form-input:focus { border-color: var(--accent); }
+textarea.form-input { min-height: 80px; font-family: var(--mono); font-size: 12px; resize: vertical; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #5a4bd6; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent-light); }
+.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid transparent; }
+.btn-danger:hover { border-color: var(--red); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-group { display: flex; gap: 8px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tab { padding: 10px 18px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+
+/* JSON viewer */
+.json-view { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; line-height: 1.6; }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; padding: 24px; }
+.modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 500; z-index: 200; animation: slideIn 0.3s ease; }
+.toast-success { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
+.toast-error { background: var(--red-bg); border: 1px solid var(--red); color: var(--red); }
+@keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Login */
+.login-page { display: flex; align-items: center; justify-content: center; height: 100vh; background: var(--bg); }
+.login-box { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 40px; width: 400px; text-align: center; }
+.login-box h1 { font-size: 20px; margin-bottom: 8px; color: var(--accent-light); }
+.login-box p { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+
+/* Loading */
+.loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--text-muted); }
+.spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Empty state */
+.empty { text-align: center; padding: 40px; color: var(--text-muted); }
+.empty-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.3; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Satori Console — IntelliVerse-X
+// Self-contained SPA communicating with Nakama via HTTP API + admin RPCs
+// ═══════════════════════════════════════════════════════════════════════════
+
+const App = {
+  state: {
+    page: 'overview',
+    connected: false,
+    serverUrl: localStorage.getItem('satori_url') || 'http://127.0.0.1:7350',
+    serverKey: localStorage.getItem('satori_key') || 'defaultkey',
+    token: localStorage.getItem('satori_token') || '',
+    health: null,
+    data: {}
+  },
+
+  // ─── HTTP helpers ─────────────────────────────────────────────────────
+  async httpJson(method, url, body, headers = {}) {
+    const opts = { method, headers: { 'Content-Type': 'application/json', ...headers } };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(url, opts);
+    return res.json();
+  },
+
+  authHeader() {
+    return this.state.token
+      ? { Authorization: `Bearer ${this.state.token}` }
+      : { Authorization: `Basic ${btoa(this.state.serverKey + ':')}` };
+  },
+
+  async rpc(id, payload = {}) {
+    const url = `${this.state.serverUrl}/v2/rpc/${id}`;
+    const r = await this.httpJson('POST', url, { payload: JSON.stringify(payload) }, this.authHeader());
+    if (r.payload) return JSON.parse(r.payload);
+    return r;
+  },
+
+  async authenticate(deviceId) {
+    const url = `${this.state.serverUrl}/v2/account/authenticate/device?create=true`;
+    const body = { id: deviceId };
+    const headers = { Authorization: `Basic ${btoa(this.state.serverKey + ':')}` };
+    const r = await this.httpJson('POST', url, body, headers);
+    if (r.token) {
+      this.state.token = r.token;
+      this.state.connected = true;
+      localStorage.setItem('satori_token', r.token);
+      return true;
+    }
+    return false;
+  },
+
+  // ─── Toast ────────────────────────────────────────────────────────────
+  toast(msg, type = 'success') {
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  },
+
+  // ─── Navigation ───────────────────────────────────────────────────────
+  NAV: [
+    { section: 'Overview' },
+    { id: 'overview', label: 'Overview', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+    { id: 'dashboard', label: 'Dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' },
+    { section: 'Satori' },
+    { id: 'audiences', label: 'Audiences', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+    { id: 'flags', label: 'Feature Flags', icon: 'M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9' },
+    { id: 'experiments', label: 'Experiments', icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
+    { id: 'liveevents', label: 'Live Events', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+    { id: 'metrics', label: 'Metrics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+    { id: 'messages', label: 'Messages', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+    { id: 'taxonomy', label: 'Taxonomy', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
+    { section: 'Admin' },
+    { id: 'webhooks', label: 'Webhooks', icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
+    { id: 'datalake', label: 'Data Lake', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' },
+    { id: 'players', label: 'Players', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+  ],
+
+  svgIcon(path) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="${path}"/></svg>`;
+  },
+
+  // ─── Render ───────────────────────────────────────────────────────────
+  render() {
+    const el = document.getElementById('app');
+    if (!this.state.connected) {
+      el.innerHTML = this.renderLogin();
+      this.bindLogin();
+      return;
+    }
+    el.innerHTML = `
+      <div class="app">
+        ${this.renderSidebar()}
+        <div class="main">
+          ${this.renderHeader()}
+          <div class="content" id="page-content">
+            <div class="loading"><div class="spinner"></div> Loading...</div>
+          </div>
+        </div>
+      </div>`;
+    this.bindNav();
+    this.loadPage(this.state.page);
+  },
+
+  renderLogin() {
+    return `
+      <div class="login-page">
+        <div class="login-box">
+          <h1>Satori Console</h1>
+          <p>IntelliVerse-X LiveOps Dashboard</p>
+          <div class="form-row">
+            <label class="form-label">Server URL</label>
+            <input class="form-input" id="login-url" value="${this.state.serverUrl}" placeholder="http://127.0.0.1:7350">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Server Key</label>
+            <input class="form-input" id="login-key" value="${this.state.serverKey}" placeholder="defaultkey">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Admin Device ID</label>
+            <input class="form-input" id="login-device" value="satori-console-admin" placeholder="admin-device-id">
+          </div>
+          <button class="btn btn-primary" id="login-btn" style="width:100%;margin-top:8px;justify-content:center">Connect</button>
+        </div>
+      </div>`;
+  },
+
+  renderSidebar() {
+    let html = `<div class="sidebar">
+      <div class="sidebar-brand"><h2>Satori</h2><span>IntelliVerse-X Console</span></div>
+      <div class="sidebar-nav">`;
+    for (const item of this.NAV) {
+      if (item.section) {
+        html += `<div class="nav-section">${item.section}</div>`;
+      } else {
+        html += `<div class="nav-item ${this.state.page === item.id ? 'active' : ''}" data-page="${item.id}">
+          ${this.svgIcon(item.icon)} ${item.label}
+        </div>`;
+      }
+    }
+    html += `</div><div class="sidebar-footer">v2.0 — Custom Hiro + Satori</div></div>`;
+    return html;
+  },
+
+  renderHeader() {
+    const page = this.NAV.find(n => n.id === this.state.page);
+    const label = page ? page.label : 'Console';
+    return `<div class="header">
+      <span class="header-title">${label}</span>
+      <span class="header-badge ${this.state.health ? 'badge-green' : 'badge-red'}">${this.state.health ? 'Connected' : 'Checking...'}</span>
+      <div class="header-spacer"></div>
+      <button class="header-btn" onclick="App.loadPage(App.state.page)">Refresh</button>
+      <button class="header-btn" onclick="App.logout()">Logout</button>
+    </div>`;
+  },
+
+  // ─── Navigation Binding ───────────────────────────────────────────────
+  bindNav() {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.addEventListener('click', () => {
+        this.state.page = el.dataset.page;
+        this.render();
+      });
+    });
+  },
+
+  bindLogin() {
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      this.state.serverUrl = document.getElementById('login-url').value.replace(/\/$/, '');
+      this.state.serverKey = document.getElementById('login-key').value;
+      localStorage.setItem('satori_url', this.state.serverUrl);
+      localStorage.setItem('satori_key', this.state.serverKey);
+      const deviceId = document.getElementById('login-device').value || 'satori-console-admin';
+      try {
+        const ok = await this.authenticate(deviceId);
+        if (ok) {
+          this.render();
+          this.checkHealth();
+        } else {
+          this.toast('Authentication failed', 'error');
+        }
+      } catch (e) {
+        this.toast('Connection failed: ' + e.message, 'error');
+      }
+    });
+  },
+
+  async checkHealth() {
+    try {
+      const r = await this.rpc('admin_health_check');
+      this.state.health = r.success !== false ? r : null;
+    } catch { this.state.health = null; }
+  },
+
+  logout() {
+    this.state.connected = false;
+    this.state.token = '';
+    localStorage.removeItem('satori_token');
+    this.render();
+  },
+
+  // ─── Page Loader ──────────────────────────────────────────────────────
+  async loadPage(page) {
+    const el = document.getElementById('page-content');
+    if (!el) return;
+    el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+    try {
+      switch (page) {
+        case 'overview': await this.pageOverview(el); break;
+        case 'dashboard': await this.pageDashboard(el); break;
+        case 'audiences': await this.pageAudiences(el); break;
+        case 'flags': await this.pageFlags(el); break;
+        case 'experiments': await this.pageExperiments(el); break;
+        case 'liveevents': await this.pageLiveEvents(el); break;
+        case 'metrics': await this.pageMetrics(el); break;
+        case 'messages': await this.pageMessages(el); break;
+        case 'taxonomy': await this.pageTaxonomy(el); break;
+        case 'webhooks': await this.pageWebhooks(el); break;
+        case 'datalake': await this.pageDataLake(el); break;
+        case 'players': await this.pagePlayers(el); break;
+        case 'settings': await this.pageSettings(el); break;
+        default: el.innerHTML = '<div class="empty">Page not found</div>';
+      }
+    } catch (e) {
+      el.innerHTML = `<div class="card"><p style="color:var(--red)">Error loading page: ${e.message}</p></div>`;
+    }
+  },
+
+  // ─── PAGE: Overview ───────────────────────────────────────────────────
+  async pageOverview(el) {
+    const health = await this.rpc('admin_health_check');
+    const h = health.data || health;
+    el.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Status</div><div class="stat-value" style="color:var(--green)">${h.status || 'unknown'}</div></div>
+        <div class="stat-card"><div class="stat-label">Version</div><div class="stat-value">${h.version || '?'}</div></div>
+        <div class="stat-card"><div class="stat-label">Hiro Systems</div><div class="stat-value">${h.systems?.hiro?.length || 0}</div></div>
+        <div class="stat-card"><div class="stat-label">Satori Systems</div><div class="stat-value">${h.systems?.satori?.length || 0}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Registered Systems</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div><h4 style="margin-bottom:8px;color:var(--accent-light)">Hiro</h4>
+            ${(h.systems?.hiro || []).map(s => `<div style="padding:4px 0;font-size:13px">${s}</div>`).join('')}
+          </div>
+          <div><h4 style="margin-bottom:8px;color:var(--accent-light)">Satori</h4>
+            ${(h.systems?.satori || []).map(s => `<div style="padding:4px 0;font-size:13px">${s}</div>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Storage Collections</span></div>
+        <div class="json-view">${JSON.stringify(h.collections, null, 2)}</div>
+      </div>`;
+  },
+
+  // ─── PAGE: Dashboard ──────────────────────────────────────────────────
+  async pageDashboard(el) {
+    let flagsData, expData, evData;
+    try { flagsData = await this.rpc('admin_satori_config_get', { system: 'flags' }); } catch { flagsData = {}; }
+    try { expData = await this.rpc('admin_satori_config_get', { system: 'experiments' }); } catch { expData = {}; }
+    try { evData = await this.rpc('admin_satori_config_get', { system: 'live_events' }); } catch { evData = {}; }
+    const flagsObj = (flagsData.data || flagsData).config?.flags || {};
+    const flags = Object.values(flagsObj);
+    const expsObj = (expData.data || expData).config || {};
+    const exps = Object.values(expsObj);
+    const evsObj = (evData.data || evData).config || {};
+    const events = Object.values(evsObj);
+    const now = Math.floor(Date.now() / 1000);
+    const activeEvents = events.filter(e => e.startAt <= now && e.endAt > now);
+
+    el.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Feature Flags</div><div class="stat-value">${flags.length}</div><div class="stat-change" style="color:var(--green)">${flags.filter(f=>f.enabled).length} enabled</div></div>
+        <div class="stat-card"><div class="stat-label">Experiments</div><div class="stat-value">${exps.length}</div><div class="stat-change" style="color:var(--accent-light)">${exps.filter(e=>e.enabled).length} active</div></div>
+        <div class="stat-card"><div class="stat-label">Live Events</div><div class="stat-value">${events.length}</div><div class="stat-change" style="color:var(--yellow)">${activeEvents.length} running now</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Active Live Events</span></div>
+        ${activeEvents.length ? `<table><tr><th>ID</th><th>Name</th><th>Ends</th></tr>
+          ${activeEvents.map(e => `<tr><td>${e.id}</td><td>${e.name}</td><td>${new Date((e.endAt||0)*1000).toLocaleString()}</td></tr>`).join('')}
+        </table>` : '<div class="empty">No active events right now</div>'}
+      </div>`;
+  },
+
+  // ─── PAGE: Audiences ──────────────────────────────────────────────────
+  async pageAudiences(el) {
+    const r = await this.rpc('admin_satori_config_get', { system: 'audiences' });
+    const audsObj = (r.data || r).config || {};
+    const auds = Object.values(audsObj);
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Audiences (${auds.length})</span>
+          <button class="btn btn-primary btn-sm" onclick="App.showAudienceEditor()">+ New Audience</button>
+        </div>
+        ${auds.length ? `<table><tr><th>ID</th><th>Name</th><th>Filters</th></tr>
+          ${auds.map(a => `<tr><td style="font-family:var(--mono)">${a.id}</td><td>${a.name || a.id}</td><td>${(a.filters || []).length} rules</td></tr>`).join('')}
+        </table>` : '<div class="empty">No audiences defined</div>'}
+      </div>
+      <div class="card"><div class="card-title">Raw Config</div><div class="json-view">${JSON.stringify(r.config, null, 2)}</div></div>`;
+  },
+
+  showAudienceEditor() {
+    this.toast('Use MCP tools or Settings > Raw Config to create audiences', 'success');
+  },
+
+  // ─── PAGE: Feature Flags ──────────────────────────────────────────────
+  async pageFlags(el) {
+    const r = await this.rpc('admin_satori_config_get', { system: 'flags' });
+    const flagsObj = (r.data || r).config?.flags || {};
+    const flags = Object.values(flagsObj);
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Feature Flags (${flags.length})</span>
+          <button class="btn btn-primary btn-sm" onclick="App.showFlagCreator()">+ New Flag</button>
+        </div>
+        ${flags.length ? `<table><tr><th>Name</th><th>Value</th><th>Status</th><th>Audiences</th><th>Actions</th></tr>
+          ${flags.map((f, i) => `<tr>
+            <td style="font-family:var(--mono);font-weight:500">${f.name}</td>
+            <td style="font-family:var(--mono);font-size:12px">${String(f.value).substring(0,50)}</td>
+            <td><span class="tag ${f.enabled ? 'tag-enabled' : 'tag-disabled'}">${f.enabled ? 'ON' : 'OFF'}</span></td>
+            <td style="font-size:12px;color:var(--text-muted)">${(f.audiences||[]).join(', ') || 'All'}</td>
+            <td><button class="btn btn-outline btn-sm" onclick="App.toggleFlag('${f.name}', ${!f.enabled})">${f.enabled ? 'Disable' : 'Enable'}</button></td>
+          </tr>`).join('')}
+        </table>` : '<div class="empty">No feature flags configured</div>'}
+      </div>`;
+  },
+
+  async toggleFlag(name, enabled) {
+    await this.rpc('admin_flag_toggle', { name, enabled });
+    this.toast(`Flag "${name}" ${enabled ? 'enabled' : 'disabled'}`);
+    this.loadPage('flags');
+  },
+
+  showFlagCreator() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal">
+      <div class="modal-title">Create Feature Flag</div>
+      <div class="form-row"><label class="form-label">Name</label><input class="form-input" id="ff-name"></div>
+      <div class="form-row"><label class="form-label">Value</label><input class="form-input" id="ff-value"></div>
+      <div class="btn-group" style="margin-top:16px">
+        <button class="btn btn-primary" id="ff-save">Create</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#ff-save').addEventListener('click', async () => {
+      const name = document.getElementById('ff-name').value;
+      const value = document.getElementById('ff-value').value;
+      if (!name) return;
+      await this.rpc('admin_flag_toggle', { name, value, enabled: true });
+      overlay.remove();
+      this.toast('Flag created');
+      this.loadPage('flags');
+    });
+  },
+
+  // ─── PAGE: Experiments ────────────────────────────────────────────────
+  async pageExperiments(el) {
+    const r = await this.rpc('admin_satori_config_get', { system: 'experiments' });
+    const expsObj = (r.data || r).config || {};
+    const exps = Object.values(expsObj);
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Experiments (${exps.length})</span>
+          <button class="btn btn-primary btn-sm" onclick="App.showExpCreator()">+ New Experiment</button>
+        </div>
+        ${exps.length ? `<table><tr><th>ID</th><th>Name</th><th>Status</th><th>Variants</th><th>Audiences</th></tr>
+          ${exps.map(e => `<tr>
+            <td style="font-family:var(--mono)">${e.id}</td>
+            <td>${e.name}</td>
+            <td><span class="tag ${e.status === 'running' ? 'tag-running' : 'tag-disabled'}">${e.status || 'draft'}</span></td>
+            <td>${(e.variants||[]).map(v => `${v.name||v.id}(${v.weight}%)`).join(', ')}</td>
+            <td style="font-size:12px;color:var(--text-muted)">${e.audienceId || 'All'}</td>
+          </tr>`).join('')}
+        </table>` : '<div class="empty">No experiments configured</div>'}
+      </div>`;
+  },
+
+  showExpCreator() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal">
+      <div class="modal-title">Create Experiment</div>
+      <div class="form-row"><label class="form-label">ID</label><input class="form-input" id="exp-id"></div>
+      <div class="form-row"><label class="form-label">Name</label><input class="form-input" id="exp-name"></div>
+      <div class="form-row"><label class="form-label">Variants (JSON)</label>
+        <textarea class="form-input" id="exp-variants" placeholder='[{"name":"control","weight":50},{"name":"variant_a","weight":50}]'></textarea>
+      </div>
+      <div class="btn-group" style="margin-top:16px">
+        <button class="btn btn-primary" id="exp-save">Create</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#exp-save').addEventListener('click', async () => {
+      const id = document.getElementById('exp-id').value;
+      const name = document.getElementById('exp-name').value;
+      let variants;
+      try { variants = JSON.parse(document.getElementById('exp-variants').value); } catch { this.toast('Invalid JSON', 'error'); return; }
+      if (!id || !name) return;
+      await this.rpc('admin_experiment_setup', { id, name, variants });
+      overlay.remove();
+      this.toast('Experiment created');
+      this.loadPage('experiments');
+    });
+  },
+
+  // ─── PAGE: Live Events ────────────────────────────────────────────────
+  async pageLiveEvents(el) {
+    const r = await this.rpc('admin_satori_config_get', { system: 'live_events' });
+    const evsObj = (r.data || r).config || {};
+    const events = Object.values(evsObj);
+    const now = Math.floor(Date.now() / 1000);
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Live Events (${events.length})</span>
+          <button class="btn btn-primary btn-sm" onclick="App.showEventCreator()">+ Schedule Event</button>
+        </div>
+        ${events.length ? `<table><tr><th>ID</th><th>Name</th><th>Status</th><th>Start</th><th>End</th></tr>
+          ${events.map(e => {
+            let status = 'Scheduled', cls = 'tag-disabled';
+            const st = e.startAt || 0, en = e.endAt || 0;
+            if (now >= st && now < en) { status = 'Running'; cls = 'tag-running'; }
+            else if (now >= en) { status = 'Ended'; cls = 'tag-disabled'; }
+            else { status = 'Upcoming'; cls = 'tag-enabled'; }
+            return `<tr>
+              <td style="font-family:var(--mono)">${e.id}</td>
+              <td>${e.name}</td>
+              <td><span class="tag ${cls}">${status}</span></td>
+              <td style="font-size:12px">${new Date(st*1000).toLocaleString()}</td>
+              <td style="font-size:12px">${new Date(en*1000).toLocaleString()}</td>
+            </tr>`;
+          }).join('')}
+        </table>` : '<div class="empty">No live events scheduled</div>'}
+      </div>`;
+  },
+
+  showEventCreator() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal">
+      <div class="modal-title">Schedule Live Event</div>
+      <div class="form-row"><label class="form-label">ID</label><input class="form-input" id="ev-id"></div>
+      <div class="form-row"><label class="form-label">Name</label><input class="form-input" id="ev-name"></div>
+      <div class="form-row"><label class="form-label">Description</label><input class="form-input" id="ev-desc"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-row"><label class="form-label">Start</label><input type="datetime-local" class="form-input" id="ev-start"></div>
+        <div class="form-row"><label class="form-label">End</label><input type="datetime-local" class="form-input" id="ev-end"></div>
+      </div>
+      <div class="btn-group" style="margin-top:16px">
+        <button class="btn btn-primary" id="ev-save">Schedule</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#ev-save').addEventListener('click', async () => {
+      const id = document.getElementById('ev-id').value;
+      const name = document.getElementById('ev-name').value;
+      const start = document.getElementById('ev-start').value;
+      const end = document.getElementById('ev-end').value;
+      if (!id || !name) return;
+      const payload = { id, name, description: document.getElementById('ev-desc').value };
+      if (start) payload.startTimeSec = Math.floor(new Date(start).getTime() / 1000);
+      if (end) payload.endTimeSec = Math.floor(new Date(end).getTime() / 1000);
+      await this.rpc('admin_live_event_schedule', payload);
+      overlay.remove();
+      this.toast('Event scheduled');
+      this.loadPage('liveevents');
+    });
+  },
+
+  // ─── PAGE: Metrics ────────────────────────────────────────────────────
+  async pageMetrics(el) {
+    const r = await this.rpc('admin_satori_config_get', { system: 'metrics' });
+    const metricsObj = (r.data || r).config || {};
+    const metrics = Object.values(metricsObj);
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Defined Metrics (${metrics.length})</span>
+          <div class="btn-group">
+            <button class="btn btn-outline btn-sm" onclick="App.queryMetric()">Query</button>
+            <button class="btn btn-outline btn-sm" onclick="App.getPrometheus()">Prometheus</button>
+          </div>
+        </div>
+        ${metrics.length ? `<table><tr><th>ID</th><th>Name</th><th>Aggregation</th><th>Event</th></tr>
+          ${metrics.map(m => `<tr>
+            <td style="font-family:var(--mono)">${m.id}</td>
+            <td>${m.name || m.id}</td>
+            <td>${m.aggregation || 'count'}</td>
+            <td style="font-size:12px;color:var(--text-muted)">${m.eventName || '*'}</td>
+          </tr>`).join('')}
+        </table>` : '<div class="empty">No metrics defined</div>'}
+      </div>`;
+  },
+
+  async queryMetric() {
+    const id = prompt('Metric ID to query:');
+    if (!id) return;
+    try {
+      const r = await this.rpc('satori_metrics_query', { metricId: id });
+      alert(JSON.stringify(r, null, 2));
+    } catch (e) { this.toast('Query failed: ' + e.message, 'error'); }
+  },
+
+  async getPrometheus() {
+    try {
+      const r = await this.rpc('satori_metrics_prometheus');
+      const data = r.data || r;
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `<div class="modal">
+        <div class="modal-title">Prometheus Metrics</div>
+        <div class="json-view">${data.text || JSON.stringify(data, null, 2)}</div>
+        <button class="btn btn-outline" style="margin-top:16px" onclick="this.closest('.modal-overlay').remove()">Close</button>
+      </div>`;
+      document.body.appendChild(overlay);
+    } catch (e) { this.toast('Failed: ' + e.message, 'error'); }
+  },
+
+  // ─── PAGE: Messages ───────────────────────────────────────────────────
+  async pageMessages(el) {
+    const r = await this.rpc('admin_satori_config_get', { system: 'messages' });
+    const msgsObj = (r.data || r).config || {};
+    const templates = Object.values(msgsObj);
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Message Templates (${templates.length})</span>
+          <button class="btn btn-primary btn-sm" onclick="App.showBroadcast()">Broadcast</button>
+        </div>
+        ${templates.length ? `<table><tr><th>ID</th><th>Title</th><th>Channel</th></tr>
+          ${templates.map(t => `<tr><td style="font-family:var(--mono)">${t.id || '—'}</td><td>${t.title}</td><td>${t.channel || 'inbox'}</td></tr>`).join('')}
+        </table>` : '<div class="empty">No message templates defined</div>'}
+      </div>
+      <div class="card"><div class="card-title">Raw Config</div><div class="json-view">${JSON.stringify(r.config, null, 2)}</div></div>`;
+  },
+
+  showBroadcast() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal">
+      <div class="modal-title">Broadcast Message</div>
+      <div class="form-row"><label class="form-label">Title</label><input class="form-input" id="bc-title"></div>
+      <div class="form-row"><label class="form-label">Body</label><textarea class="form-input" id="bc-body"></textarea></div>
+      <div class="form-row"><label class="form-label">Audience ID (optional)</label><input class="form-input" id="bc-aud"></div>
+      <div class="btn-group" style="margin-top:16px">
+        <button class="btn btn-primary" id="bc-send">Send</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#bc-send').addEventListener('click', async () => {
+      const title = document.getElementById('bc-title').value;
+      const body = document.getElementById('bc-body').value;
+      const aud = document.getElementById('bc-aud').value;
+      if (!title) return;
+      const payload = { title, body };
+      if (aud) payload.audienceId = aud;
+      await this.rpc('satori_messages_broadcast', payload);
+      overlay.remove();
+      this.toast('Message broadcast sent');
+    });
+  },
+
+  // ─── PAGE: Taxonomy ───────────────────────────────────────────────────
+  async pageTaxonomy(el) {
+    const r = await this.rpc('satori_taxonomy_schemas');
+    const data = r.data || r;
+    const schemas = data.schemas || {};
+    const keys = Object.keys(schemas);
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Event Schemas (${keys.length})</span>
+          <div class="btn-group">
+            <span class="tag ${data.enforceStrict ? 'tag-enabled' : 'tag-disabled'}" style="margin-right:8px">Strict: ${data.enforceStrict ? 'ON' : 'OFF'}</span>
+            <button class="btn btn-primary btn-sm" onclick="App.showSchemaCreator()">+ New Schema</button>
+          </div>
+        </div>
+        ${keys.length ? `<table><tr><th>Event Name</th><th>Category</th><th>Required Keys</th><th>Deprecated</th></tr>
+          ${keys.map(k => { const s = schemas[k]; return `<tr>
+            <td style="font-family:var(--mono)">${s.name}</td>
+            <td><span class="tag tag-enabled">${s.category || 'custom'}</span></td>
+            <td style="font-size:12px">${(s.requiredMetadata||[]).join(', ') || '—'}</td>
+            <td>${s.deprecated ? '<span class="tag tag-disabled">Yes</span>' : '—'}</td>
+          </tr>`; }).join('')}
+        </table>` : '<div class="empty">No event schemas defined. Events are accepted without validation.</div>'}
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Categories</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${(data.categories || []).map(c => `<span class="tag tag-enabled">${c}</span>`).join('')}
+        </div>
+      </div>`;
+  },
+
+  showSchemaCreator() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal">
+      <div class="modal-title">Create Event Schema</div>
+      <div class="form-row"><label class="form-label">Event Name</label><input class="form-input" id="ts-name"></div>
+      <div class="form-row"><label class="form-label">Description</label><input class="form-input" id="ts-desc"></div>
+      <div class="form-row"><label class="form-label">Category</label>
+        <select class="form-input" id="ts-cat">
+          <option>engagement</option><option>monetization</option><option>progression</option><option>social</option><option>system</option><option>custom</option>
+        </select>
+      </div>
+      <div class="form-row"><label class="form-label">Required Metadata Keys (comma-separated)</label><input class="form-input" id="ts-req"></div>
+      <div class="btn-group" style="margin-top:16px">
+        <button class="btn btn-primary" id="ts-save">Create</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#ts-save').addEventListener('click', async () => {
+      const name = document.getElementById('ts-name').value;
+      const desc = document.getElementById('ts-desc').value;
+      const cat = document.getElementById('ts-cat').value;
+      const req = document.getElementById('ts-req').value.split(',').map(s => s.trim()).filter(Boolean);
+      if (!name) return;
+      await this.rpc('satori_taxonomy_upsert', { name, description: desc, category: cat, requiredMetadata: req });
+      overlay.remove();
+      this.toast('Schema created');
+      this.loadPage('taxonomy');
+    });
+  },
+
+  // ─── PAGE: Webhooks ───────────────────────────────────────────────────
+  async pageWebhooks(el) {
+    const r = await this.rpc('satori_webhooks_list');
+    const data = r.data || r;
+    const webhooks = data.webhooks || [];
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Outbound Webhooks (${webhooks.length})</span>
+          <button class="btn btn-primary btn-sm" onclick="App.showWebhookCreator()">+ New Webhook</button>
+        </div>
+        ${webhooks.length ? `<table><tr><th>ID</th><th>URL</th><th>Events</th><th>Status</th><th>Actions</th></tr>
+          ${webhooks.map(w => `<tr>
+            <td style="font-family:var(--mono)">${w.id}</td>
+            <td style="font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis">${w.url}</td>
+            <td style="font-size:12px">${(w.events||[]).join(', ')}</td>
+            <td><span class="tag ${w.enabled ? 'tag-enabled' : 'tag-disabled'}">${w.enabled ? 'Active' : 'Disabled'}</span></td>
+            <td class="btn-group">
+              <button class="btn btn-outline btn-sm" onclick="App.testWebhook('${w.id}')">Test</button>
+              <button class="btn btn-danger btn-sm" onclick="App.deleteWebhook('${w.id}')">Delete</button>
+            </td>
+          </tr>`).join('')}
+        </table>` : '<div class="empty">No webhooks configured. Webhooks dispatch HTTP callbacks when game events occur.</div>'}
+      </div>`;
+  },
+
+  showWebhookCreator() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal">
+      <div class="modal-title">Create Webhook</div>
+      <div class="form-row"><label class="form-label">ID</label><input class="form-input" id="wh-id"></div>
+      <div class="form-row"><label class="form-label">URL</label><input class="form-input" id="wh-url" placeholder="https://example.com/webhook"></div>
+      <div class="form-row"><label class="form-label">Events (comma-separated, or * for all)</label><input class="form-input" id="wh-events" value="*"></div>
+      <div class="form-row"><label class="form-label">Secret (optional, for HMAC signing)</label><input class="form-input" id="wh-secret"></div>
+      <div class="btn-group" style="margin-top:16px">
+        <button class="btn btn-primary" id="wh-save">Create</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#wh-save').addEventListener('click', async () => {
+      const id = document.getElementById('wh-id').value;
+      const url = document.getElementById('wh-url').value;
+      const events = document.getElementById('wh-events').value.split(',').map(s => s.trim());
+      const secret = document.getElementById('wh-secret').value;
+      if (!id || !url) return;
+      await this.rpc('satori_webhooks_upsert', { id, url, events, secret: secret || undefined, enabled: true });
+      overlay.remove();
+      this.toast('Webhook created');
+      this.loadPage('webhooks');
+    });
+  },
+
+  async testWebhook(id) {
+    try {
+      await this.rpc('satori_webhooks_test', { id });
+      this.toast('Test ping sent');
+    } catch (e) { this.toast('Test failed: ' + e.message, 'error'); }
+  },
+
+  async deleteWebhook(id) {
+    if (!confirm(`Delete webhook "${id}"?`)) return;
+    await this.rpc('satori_webhooks_delete', { id });
+    this.toast('Webhook deleted');
+    this.loadPage('webhooks');
+  },
+
+  // ─── PAGE: Data Lake ──────────────────────────────────────────────────
+  async pageDataLake(el) {
+    const r = await this.rpc('satori_datalake_config');
+    const data = r.data || r;
+    const targets = data.targets || [];
+    el.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Global Export</div><div class="stat-value" style="color:${data.enabledGlobally ? 'var(--green)' : 'var(--red)'}">${data.enabledGlobally ? 'ON' : 'OFF'}</div></div>
+        <div class="stat-card"><div class="stat-label">Retention</div><div class="stat-value">${data.retentionDays || 90}d</div></div>
+        <div class="stat-card"><div class="stat-label">Targets</div><div class="stat-value">${targets.length}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Export Targets</span>
+          <div class="btn-group">
+            <button class="btn btn-outline btn-sm" onclick="App.manualExport()">Manual Export</button>
+            <button class="btn btn-primary btn-sm" onclick="App.showTargetCreator()">+ Add Target</button>
+          </div>
+        </div>
+        ${targets.length ? `<table><tr><th>ID</th><th>Type</th><th>Status</th><th>Batch Size</th><th>Actions</th></tr>
+          ${targets.map(t => `<tr>
+            <td style="font-family:var(--mono)">${t.id}</td>
+            <td><span class="tag tag-enabled">${t.type}</span></td>
+            <td><span class="tag ${t.enabled ? 'tag-enabled' : 'tag-disabled'}">${t.enabled ? 'Active' : 'Disabled'}</span></td>
+            <td>${t.batchSize || 100}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="App.deleteTarget('${t.id}')">Delete</button></td>
+          </tr>`).join('')}
+        </table>` : '<div class="empty">No export targets configured. Add BigQuery, Snowflake, Redshift, or S3 targets.</div>'}
+      </div>`;
+  },
+
+  showTargetCreator() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal">
+      <div class="modal-title">Add Export Target</div>
+      <div class="form-row"><label class="form-label">ID</label><input class="form-input" id="dl-id"></div>
+      <div class="form-row"><label class="form-label">Type</label>
+        <select class="form-input" id="dl-type"><option>s3</option><option>bigquery</option><option>snowflake</option><option>redshift</option></select>
+      </div>
+      <div class="form-row"><label class="form-label">Config (JSON)</label>
+        <textarea class="form-input" id="dl-config" placeholder='{"endpoint":"...","bucket":"...","apiKey":"..."}'></textarea>
+      </div>
+      <div class="btn-group" style="margin-top:16px">
+        <button class="btn btn-primary" id="dl-save">Add</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#dl-save').addEventListener('click', async () => {
+      const id = document.getElementById('dl-id').value;
+      const type = document.getElementById('dl-type').value;
+      let config;
+      try { config = JSON.parse(document.getElementById('dl-config').value); } catch { this.toast('Invalid JSON', 'error'); return; }
+      if (!id) return;
+      await this.rpc('satori_datalake_upsert_target', { id, type, config, enabled: true });
+      overlay.remove();
+      this.toast('Target added');
+      this.loadPage('datalake');
+    });
+  },
+
+  async deleteTarget(id) {
+    if (!confirm(`Delete target "${id}"?`)) return;
+    await this.rpc('satori_datalake_delete_target', { id });
+    this.toast('Target deleted');
+    this.loadPage('datalake');
+  },
+
+  async manualExport() {
+    try {
+      const r = await this.rpc('satori_datalake_manual_export', { limit: 500 });
+      this.toast(`Exported ${(r.data || r).exportedCount || 0} events`);
+    } catch (e) { this.toast('Export failed: ' + e.message, 'error'); }
+  },
+
+  // ─── PAGE: Players ────────────────────────────────────────────────────
+  async pagePlayers(el) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header"><span class="card-title">Player Search</span></div>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="ps-user" placeholder="Username" style="flex:1">
+          <button class="btn btn-primary" id="ps-search">Search</button>
+        </div>
+        <div id="ps-results" style="margin-top:16px"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Player Inspector</span></div>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="pi-uid" placeholder="User ID" style="flex:1">
+          <button class="btn btn-primary" id="pi-inspect">Inspect</button>
+        </div>
+        <div id="pi-results" style="margin-top:16px"></div>
+      </div>`;
+
+    document.getElementById('ps-search').addEventListener('click', async () => {
+      const username = document.getElementById('ps-user').value;
+      if (!username) return;
+      const r = await this.rpc('admin_user_search', { username });
+      const data = r.data || r;
+      const res = document.getElementById('ps-results');
+      if (data.found && data.users) {
+        res.innerHTML = `<table><tr><th>User ID</th><th>Username</th><th>Display Name</th><th>Action</th></tr>
+          ${data.users.map(u => `<tr><td style="font-family:var(--mono);font-size:12px">${u.userId}</td><td>${u.username}</td><td>${u.displayName || '—'}</td>
+            <td><button class="btn btn-outline btn-sm" onclick="document.getElementById('pi-uid').value='${u.userId}';document.getElementById('pi-inspect').click()">Inspect</button></td></tr>`).join('')}
+        </table>`;
+      } else {
+        res.innerHTML = '<div class="empty">No users found</div>';
+      }
+    });
+
+    document.getElementById('pi-inspect').addEventListener('click', async () => {
+      const uid = document.getElementById('pi-uid').value;
+      if (!uid) return;
+      const r = await this.rpc('admin_player_inspect', { userId: uid });
+      const data = r.data || r;
+      document.getElementById('pi-results').innerHTML = `<div class="json-view">${JSON.stringify(data, null, 2)}</div>`;
+    });
+  },
+
+  // ─── PAGE: Settings ───────────────────────────────────────────────────
+  async pageSettings(el) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header"><span class="card-title">Connection</span></div>
+        <div class="form-row"><label class="form-label">Server URL</label><input class="form-input" id="set-url" value="${this.state.serverUrl}"></div>
+        <div class="form-row"><label class="form-label">Server Key</label><input class="form-input" id="set-key" value="${this.state.serverKey}"></div>
+        <button class="btn btn-primary" id="set-save" style="margin-top:8px">Save & Reconnect</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Raw Config Editor</span></div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <select class="form-input" id="rc-type" style="width:120px"><option>hiro</option><option>satori</option></select>
+          <input class="form-input" id="rc-system" placeholder="System name (e.g. economy, flags)" style="flex:1">
+          <button class="btn btn-outline" id="rc-load">Load</button>
+        </div>
+        <textarea class="form-input" id="rc-json" style="min-height:300px;font-family:var(--mono)"></textarea>
+        <button class="btn btn-primary" id="rc-save" style="margin-top:8px">Save Config</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Bulk Operations</span></div>
+        <div class="btn-group">
+          <button class="btn btn-outline" id="bo-export">Export All Configs</button>
+          <button class="btn btn-outline" id="bo-invalidate">Invalidate Cache</button>
+        </div>
+        <div id="bo-result" style="margin-top:12px"></div>
+      </div>`;
+
+    document.getElementById('set-save').addEventListener('click', () => {
+      this.state.serverUrl = document.getElementById('set-url').value.replace(/\/$/, '');
+      this.state.serverKey = document.getElementById('set-key').value;
+      localStorage.setItem('satori_url', this.state.serverUrl);
+      localStorage.setItem('satori_key', this.state.serverKey);
+      this.state.connected = false;
+      this.state.token = '';
+      localStorage.removeItem('satori_token');
+      this.render();
+    });
+
+    document.getElementById('rc-load').addEventListener('click', async () => {
+      const type = document.getElementById('rc-type').value;
+      const system = document.getElementById('rc-system').value;
+      if (!system) return;
+      const rpcId = type === 'hiro' ? 'admin_config_get' : 'admin_satori_config_get';
+      const r = await this.rpc(rpcId, { system });
+      document.getElementById('rc-json').value = JSON.stringify((r.data || r).config, null, 2);
+    });
+
+    document.getElementById('rc-save').addEventListener('click', async () => {
+      const type = document.getElementById('rc-type').value;
+      const system = document.getElementById('rc-system').value;
+      if (!system) return;
+      let config;
+      try { config = JSON.parse(document.getElementById('rc-json').value); } catch { this.toast('Invalid JSON', 'error'); return; }
+      const rpcId = type === 'hiro' ? 'admin_config_set' : 'admin_satori_config_set';
+      await this.rpc(rpcId, { system, config });
+      this.toast('Config saved');
+    });
+
+    document.getElementById('bo-export').addEventListener('click', async () => {
+      const r = await this.rpc('admin_bulk_export');
+      document.getElementById('bo-result').innerHTML = `<div class="json-view">${JSON.stringify(r.data || r, null, 2)}</div>`;
+    });
+
+    document.getElementById('bo-invalidate').addEventListener('click', async () => {
+      await this.rpc('admin_cache_invalidate', {});
+      this.toast('Cache invalidated');
+    });
+  },
+
+  // ─── Init ─────────────────────────────────────────────────────────────
+  async init() {
+    if (this.state.token) {
+      this.state.connected = true;
+    }
+    this.render();
+    if (this.state.connected) {
+      await this.checkHealth();
+      this.render();
+    }
+  }
+};
+
+App.init();
+</script>
+</body>
+</html>

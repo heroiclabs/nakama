@@ -3315,7 +3315,49 @@ function rpcWalletGetBalances(ctx, logger, nk, payload) {
     var gameBalance = currencies.game || currencies.tokens || 0;
     var globalBalance = globalCurrencies.global || globalCurrencies.xut || 0;
 
-    logInfo(logger, "Returning balances - game: " + gameBalance + ", global: " + globalBalance);
+    // Read conversion ratio for this game
+    var conversionRatio = 0;
+    var globalEquivalent = 0;
+    try {
+        var configRecords = nk.storageRead([{
+            collection: 'economy_config',
+            key: 'game_conversion_ratios',
+            userId: '00000000-0000-0000-0000-000000000000',
+        }]);
+        if (configRecords && configRecords.length > 0 && configRecords[0].value && configRecords[0].value.ratios) {
+            conversionRatio = configRecords[0].value.ratios[gameId] || 0;
+        }
+    } catch (e) {
+        if (gameId === '126bf539-dae2-4bcf-964d-316c0fa1f92b') {
+            conversionRatio = 1000;
+        }
+    }
+    if (conversionRatio > 0) {
+        globalEquivalent = Math.floor(gameBalance / conversionRatio);
+    }
+
+    // Fetch authoritative global balance from quests-economy
+    var questsEconomyBalance = null;
+    try {
+        var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+        var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+        var qeGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+        var requestBody = JSON.stringify({});
+        var signature = nk.hmacSha256Hash(webhookSecret, requestBody);
+        var response = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/balance', 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': signature, 'X-User-Id': userId, 'X-Game-Id': qeGameId },
+            requestBody
+        );
+        if (response.code >= 200 && response.code < 300) {
+            questsEconomyBalance = JSON.parse(response.body).balance || 0;
+        }
+    } catch (syncErr) {
+        logWarn(logger, "[WalletBalances] Failed to fetch quests-economy balance: " + (syncErr.message || syncErr));
+    }
+
+    logInfo(logger, "Returning balances - game: " + gameBalance + ", global: " + globalBalance +
+        ", conversionRatio: " + conversionRatio + ", globalEquivalent: " + globalEquivalent);
 
     return JSON.stringify({
         success: true,
@@ -3324,6 +3366,13 @@ function rpcWalletGetBalances(ctx, logger, nk, payload) {
         game_balance: gameBalance,
         global_balance: globalBalance,
         currencies: currencies,
+        conversion: {
+            ratio: conversionRatio,
+            globalEquivalent: globalEquivalent,
+            canConvert: conversionRatio > 0 && gameBalance >= conversionRatio,
+            minConvertAmount: conversionRatio,
+        },
+        questsEconomyBalance: questsEconomyBalance,
         timestamp: getCurrentTimestamp()
     });
 }
@@ -5850,6 +5899,26 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
         newBalance: wallet.currencies[currency]
     });
 
+    // Sync to quests-economy PointsLedger
+    try {
+        var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+        var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+        var qeGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+        var s2sEndpoint = operation === 'add' ? 'earn' : 'spend';
+        var syncBody = JSON.stringify({ amount: amount, sourceType: 'nakama_global_wallet', sourceId: 'nakama:' + userId, description: 'Nakama global wallet ' + operation + ': ' + currency });
+        var syncSignature = nk.hmacSha256Hash(webhookSecret, syncBody);
+        var syncResponse = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/' + s2sEndpoint, 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': syncSignature, 'X-User-Id': userId, 'X-Game-Id': qeGameId },
+            syncBody
+        );
+        if (syncResponse.code < 200 || syncResponse.code >= 300) {
+            logWarn(logger, "[WalletUpdateGlobal] Sync returned " + syncResponse.code + ": " + syncResponse.body);
+        }
+    } catch (syncErr) {
+        logWarn(logger, "[WalletUpdateGlobal] Failed to sync to quests-economy: " + (syncErr.message || syncErr));
+    }
+
     return JSON.stringify({
         success: true,
         userId: userId,
@@ -6053,7 +6122,477 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     });
 }
 
-// Export RPC functions (ES Module syntax)
+// ============================================================================
+// WALLET CONVERSION: GAME COINS TO GLOBAL WALLET
+// ============================================================================
+
+var WALLET_CONVERSION_COLLECTION = 'economy_config';
+var WALLET_CONVERSION_KEY = 'game_conversion_ratios';
+var WALLET_SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
+
+function getConversionRatios(nk, logger) {
+    var ratios = {};
+    try {
+        var records = nk.storageRead([{
+            collection: WALLET_CONVERSION_COLLECTION,
+            key: WALLET_CONVERSION_KEY,
+            userId: WALLET_SYSTEM_USER,
+        }]);
+        if (records && records.length > 0 && records[0].value && records[0].value.ratios) {
+            ratios = records[0].value.ratios;
+        }
+    } catch (e) {
+        logWarn(logger, '[WalletConvert] Could not read conversion ratios from storage');
+    }
+    if (!ratios['126bf539-dae2-4bcf-964d-316c0fa1f92b']) {
+        ratios['126bf539-dae2-4bcf-964d-316c0fa1f92b'] = 1000;
+    }
+    return ratios;
+}
+
+function rpcWalletConvertPreview(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC wallet_convert_preview called");
+
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success) return handleError(ctx, null, "Invalid JSON payload");
+
+    var data = parsed.data;
+    var validation = validatePayload(data, ['gameId']);
+    if (!validation.valid) return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+
+    var gameId = data.gameId;
+    if (!isValidUUID(gameId)) return handleError(ctx, null, "Invalid gameId UUID format");
+
+    var userId = ctx.userId;
+    if (!userId) return handleError(ctx, null, "User not authenticated");
+
+    var ratios = getConversionRatios(nk, logger);
+    var ratio = ratios[gameId] || 0;
+    if (ratio <= 0) {
+        return JSON.stringify({ success: false, error: "No conversion ratio configured for game " + gameId });
+    }
+
+    var wallet = getGameWallet(nk, logger, userId, gameId);
+    var gameBalance = (wallet.currencies && (wallet.currencies.game || wallet.currencies.tokens)) || 0;
+    var requestedAmount = data.amount ? Number(data.amount) : gameBalance;
+    if (requestedAmount <= 0) {
+        return JSON.stringify({ success: false, error: "No game coins to convert" });
+    }
+
+    var globalPointsYield = Math.floor(requestedAmount / ratio);
+    var coinsUsed = globalPointsYield * ratio;
+    var coinsLeftOver = requestedAmount - coinsUsed;
+
+    var questsBalance = null;
+    try {
+        var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+        var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+        var defaultGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+        var requestBody = JSON.stringify({});
+        var signature = nk.hmacSha256Hash(webhookSecret, requestBody);
+        var response = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/balance', 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': signature, 'X-User-Id': userId, 'X-Game-Id': defaultGameId },
+            requestBody
+        );
+        if (response.code >= 200 && response.code < 300) {
+            questsBalance = JSON.parse(response.body).balance || 0;
+        }
+    } catch (e) { /* non-critical */ }
+
+    return JSON.stringify({
+        success: true,
+        userId: userId,
+        gameId: gameId,
+        gameBalance: gameBalance,
+        requestedAmount: requestedAmount,
+        ratio: ratio,
+        globalPointsYield: globalPointsYield,
+        coinsUsed: coinsUsed,
+        coinsLeftOver: coinsLeftOver,
+        currentGlobalBalance: questsBalance,
+        projectedGlobalBalance: questsBalance !== null ? questsBalance + globalPointsYield : null,
+        canConvert: gameBalance >= ratio,
+        minConvertAmount: ratio,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
+function rpcWalletConvertToGlobal(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC wallet_convert_to_global called");
+
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success) return handleError(ctx, null, "Invalid JSON payload");
+
+    var data = parsed.data;
+    var validation = validatePayload(data, ['gameId', 'amount']);
+    if (!validation.valid) return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+
+    var gameId = data.gameId;
+    if (!isValidUUID(gameId)) return handleError(ctx, null, "Invalid gameId UUID format");
+
+    var userId = ctx.userId;
+    if (!userId) return handleError(ctx, null, "User not authenticated");
+
+    var amount = Number(data.amount);
+    if (isNaN(amount) || amount <= 0) return handleError(ctx, null, "amount must be a positive number");
+
+    var ratios = getConversionRatios(nk, logger);
+    var ratio = ratios[gameId] || 0;
+    if (ratio <= 0) {
+        return JSON.stringify({ success: false, error: "No conversion ratio configured for game " + gameId });
+    }
+    if (amount < ratio) {
+        return JSON.stringify({ success: false, error: "Minimum conversion is " + ratio + " game coins (= 1 global point)" });
+    }
+
+    var wallet = getGameWallet(nk, logger, userId, gameId);
+    var gameBalance = (wallet.currencies && (wallet.currencies.game || wallet.currencies.tokens)) || 0;
+    if (gameBalance < amount) {
+        return JSON.stringify({ success: false, error: "Insufficient game balance. Have " + gameBalance + ", need " + amount });
+    }
+
+    var globalPointsEarned = Math.floor(amount / ratio);
+    var coinsBurned = globalPointsEarned * ratio;
+
+    var keysToUpdate = ['game', 'tokens'];
+    for (var i = 0; i < keysToUpdate.length; i++) {
+        var k = keysToUpdate[i];
+        if (wallet.currencies[k] !== undefined) {
+            wallet.currencies[k] -= coinsBurned;
+            if (wallet.currencies[k] < 0) wallet.currencies[k] = 0;
+        }
+    }
+    if (!saveGameWallet(nk, logger, userId, gameId, wallet)) {
+        return handleError(ctx, null, "Failed to deduct game coins");
+    }
+
+    var newGlobalBalance = null;
+    try {
+        var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+        var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+        var defaultGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+        var requestBody = JSON.stringify({
+            amount: globalPointsEarned,
+            sourceType: 'game_to_global_conversion',
+            sourceId: gameId,
+            description: 'Converted ' + coinsBurned + ' game coins -> ' + globalPointsEarned + ' global points (ratio ' + ratio + ':1)',
+        });
+        var signature = nk.hmacSha256Hash(webhookSecret, requestBody);
+        var response = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/earn', 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': signature, 'X-User-Id': userId, 'X-Game-Id': defaultGameId },
+            requestBody
+        );
+        if (response.code >= 200 && response.code < 300) {
+            var result = JSON.parse(response.body);
+            newGlobalBalance = result.newBalance;
+        } else {
+            throw { message: 'API returned ' + response.code + ': ' + response.body };
+        }
+    } catch (e) {
+        for (var i = 0; i < keysToUpdate.length; i++) {
+            var k = keysToUpdate[i];
+            if (wallet.currencies[k] !== undefined) {
+                wallet.currencies[k] += coinsBurned;
+            }
+        }
+        saveGameWallet(nk, logger, userId, gameId, wallet);
+        logWarn(logger, "[WalletConvert] Rolled back deduction for " + userId + ": " + (e.message || e));
+        return JSON.stringify({ success: false, error: "Failed to credit global wallet, game coins restored" });
+    }
+
+    logTransaction(nk, logger, userId, {
+        type: "game_to_global_conversion",
+        gameId: gameId,
+        coinsBurned: coinsBurned,
+        globalPointsEarned: globalPointsEarned,
+        ratio: ratio
+    });
+
+    var newGameBalance = (wallet.currencies.game || wallet.currencies.tokens || 0);
+
+    logInfo(logger, "User " + userId + " converted " + coinsBurned + " game coins -> " +
+        globalPointsEarned + " global pts (game " + gameId + ", ratio " + ratio + ":1)");
+
+    return JSON.stringify({
+        success: true,
+        userId: userId,
+        gameId: gameId,
+        coinsBurned: coinsBurned,
+        globalPointsEarned: globalPointsEarned,
+        ratio: ratio,
+        newGameBalance: newGameBalance,
+        newGlobalBalance: newGlobalBalance,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
+function rpcWalletConversionRate(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC wallet_conversion_rate called");
+
+    var parsed = safeJsonParse(payload);
+    var data = (parsed.success && parsed.data) ? parsed.data : {};
+
+    var ratios = getConversionRatios(nk, logger);
+
+    if (data.gameId) {
+        var r = ratios[data.gameId] || 0;
+        return JSON.stringify({
+            success: true,
+            gameId: data.gameId,
+            ratio: r,
+            configured: r > 0,
+            description: r > 0 ? (r + " game coins = 1 global point") : "No conversion configured",
+            timestamp: getCurrentTimestamp()
+        });
+    }
+
+    return JSON.stringify({
+        success: true,
+        ratios: ratios,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
+// ============================================================================
+// GLOBAL TO GAME CONVERT RPC
+// ============================================================================
+
+function rpcGlobalToGameConvert(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC global_to_game_convert called");
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ success: false, error: "Authentication required" });
+    }
+
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success || !parsed.data) {
+        return JSON.stringify({ success: false, error: "Invalid payload" });
+    }
+
+    var data = parsed.data;
+    var gameId = data.gameId || "";
+    var amount = parseInt(data.amount, 10) || 0;
+
+    if (!gameId) return JSON.stringify({ success: false, error: "gameId required" });
+    if (amount <= 0) return JSON.stringify({ success: false, error: "amount must be > 0" });
+
+    var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+    var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+
+    // Step 1: Spend points from global wallet via quests-economy
+    var spendBody = JSON.stringify({ amount: amount, sourceType: 'global_to_game_convert', sourceId: 'game:' + gameId, description: 'Convert ' + amount + ' global points to game currency' });
+    var spendSignature = nk.hmacSha256Hash(webhookSecret, spendBody);
+    var spendResp;
+    try {
+        spendResp = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/spend', 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': spendSignature, 'X-User-Id': userId, 'X-Game-Id': gameId },
+            spendBody
+        );
+        if (spendResp.code < 200 || spendResp.code >= 300) {
+            return JSON.stringify({ success: false, error: "Insufficient global balance or spend failed" });
+        }
+    } catch (err) {
+        return JSON.stringify({ success: false, error: "Failed to spend global points: " + (err.message || err) });
+    }
+
+    // Step 2: Get conversion ratio
+    var ratios = getConversionRatios(nk, logger);
+    var ratio = ratios[gameId] || 100;
+    var gameCurrency = amount * ratio;
+
+    // Step 3: Credit game wallet
+    var gameWalletKey = 'game_wallet_' + gameId;
+    var currency = data.currency || 'coins';
+    try {
+        var existing = nk.storageRead([{ collection: 'wallets', key: gameWalletKey, userId: userId }]);
+        var wallet = (existing && existing.length > 0 && existing[0].value) ? existing[0].value : { currencies: {} };
+        wallet.currencies = wallet.currencies || {};
+        wallet.currencies[currency] = (wallet.currencies[currency] || 0) + gameCurrency;
+        nk.storageWrite([{ collection: 'wallets', key: gameWalletKey, userId: userId, value: wallet, permissionRead: 1, permissionWrite: 0 }]);
+    } catch (walletErr) {
+        // Rollback: re-earn the global points since game wallet failed
+        try {
+            var rollbackBody = JSON.stringify({ amount: amount, sourceType: 'global_to_game_rollback', sourceId: 'game:' + gameId, description: 'Rollback: game wallet credit failed' });
+            var rollbackSig = nk.hmacSha256Hash(webhookSecret, rollbackBody);
+            nk.httpRequest(
+                questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/earn', 'post',
+                { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': rollbackSig, 'X-User-Id': userId, 'X-Game-Id': gameId },
+                rollbackBody
+            );
+        } catch (rbErr) {
+            logWarn(logger, "[GlobalToGameConvert] Rollback also failed: " + (rbErr.message || rbErr));
+        }
+        return JSON.stringify({ success: false, error: "Game wallet credit failed, points refunded" });
+    }
+
+    return JSON.stringify({
+        success: true,
+        userId: userId,
+        gameId: gameId,
+        globalPointsSpent: amount,
+        gameCurrencyEarned: gameCurrency,
+        conversionRatio: ratio,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
+// ============================================================================
+// DAILY REWARD SYNC WRAPPER
+// ============================================================================
+
+var _originalDailyRewardsClaim = typeof rpcDailyRewardsClaim === 'function' ? rpcDailyRewardsClaim : null;
+
+function rpcDailyRewardsClaimWithSync(ctx, logger, nk, payload) {
+    var result = _originalDailyRewardsClaim(ctx, logger, nk, payload);
+    var parsed = safeJsonParse(result);
+    if (parsed.success && parsed.data && parsed.data.reward && parsed.data.reward.amount > 0) {
+        try {
+            var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+            var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+            var qeGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+            var syncBody = JSON.stringify({ amount: parsed.data.reward.amount, sourceType: 'daily_reward', sourceId: 'daily:day_' + (parsed.data.day || '0'), description: 'Daily reward day ' + (parsed.data.day || '?') });
+            var syncSig = nk.hmacSha256Hash(webhookSecret, syncBody);
+            nk.httpRequest(
+                questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/earn', 'post',
+                { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': syncSig, 'X-User-Id': ctx.userId, 'X-Game-Id': qeGameId },
+                syncBody
+            );
+        } catch (syncErr) {
+            logWarn(logger, "[DailyRewardSync] Failed to sync to PointsLedger: " + (syncErr.message || syncErr));
+        }
+    }
+    return result;
+}
+
+var _originalMissionRewardClaim = typeof rpcClaimMissionReward === 'function' ? rpcClaimMissionReward : null;
+
+function rpcClaimMissionRewardWithSync(ctx, logger, nk, payload) {
+    var result = _originalMissionRewardClaim(ctx, logger, nk, payload);
+    var parsed = safeJsonParse(result);
+    if (parsed.success && parsed.data && parsed.data.reward && parsed.data.reward > 0) {
+        try {
+            var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+            var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+            var qeGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+            var syncBody = JSON.stringify({ amount: parsed.data.reward, sourceType: 'mission_reward', sourceId: 'mission:' + (parsed.data.missionId || 'unknown'), description: 'Mission reward claimed' });
+            var syncSig = nk.hmacSha256Hash(webhookSecret, syncBody);
+            nk.httpRequest(
+                questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/earn', 'post',
+                { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': syncSig, 'X-User-Id': ctx.userId, 'X-Game-Id': qeGameId },
+                syncBody
+            );
+        } catch (syncErr) {
+            logWarn(logger, "[MissionRewardSync] Failed to sync to PointsLedger: " + (syncErr.message || syncErr));
+        }
+    }
+    return result;
+}
+
+// ============================================================================
+// QUESTS ECONOMY BRIDGE RPCs (from quests_economy_bridge.js)
+// ============================================================================
+
+function rpcGlobalWalletBalance(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return JSON.stringify({ success: false, error: "Authentication required" });
+    var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+    var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+    var qeGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+    try {
+        var reqBody = JSON.stringify({});
+        var sig = nk.hmacSha256Hash(webhookSecret, reqBody);
+        var resp = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/balance', 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': sig, 'X-User-Id': userId, 'X-Game-Id': qeGameId },
+            reqBody
+        );
+        if (resp.code >= 200 && resp.code < 300) {
+            var body = JSON.parse(resp.body);
+            return JSON.stringify({ success: true, balance: body });
+        }
+        return JSON.stringify({ success: false, error: "API returned " + resp.code });
+    } catch (err) {
+        return JSON.stringify({ success: false, error: (err.message || err) });
+    }
+}
+
+function rpcGlobalWalletEarn(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return JSON.stringify({ success: false, error: "Authentication required" });
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success || !parsed.data || !parsed.data.amount) return JSON.stringify({ success: false, error: "amount required" });
+    var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+    var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+    var qeGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+    try {
+        var reqBody = JSON.stringify({ amount: parsed.data.amount, sourceType: parsed.data.sourceType || 'nakama_rpc', sourceId: parsed.data.sourceId || ('rpc:' + userId), description: parsed.data.description || 'Earn via Nakama RPC' });
+        var sig = nk.hmacSha256Hash(webhookSecret, reqBody);
+        var resp = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/earn', 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': sig, 'X-User-Id': userId, 'X-Game-Id': qeGameId },
+            reqBody
+        );
+        if (resp.code >= 200 && resp.code < 300) {
+            return JSON.stringify({ success: true, result: JSON.parse(resp.body) });
+        }
+        return JSON.stringify({ success: false, error: "API returned " + resp.code });
+    } catch (err) {
+        return JSON.stringify({ success: false, error: (err.message || err) });
+    }
+}
+
+function rpcGlobalWalletSpend(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return JSON.stringify({ success: false, error: "Authentication required" });
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success || !parsed.data || !parsed.data.amount) return JSON.stringify({ success: false, error: "amount required" });
+    var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+    var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+    var qeGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+    try {
+        var reqBody = JSON.stringify({ amount: parsed.data.amount, sourceType: parsed.data.sourceType || 'nakama_rpc', sourceId: parsed.data.sourceId || ('rpc:' + userId), description: parsed.data.description || 'Spend via Nakama RPC' });
+        var sig = nk.hmacSha256Hash(webhookSecret, reqBody);
+        var resp = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/spend', 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': sig, 'X-User-Id': userId, 'X-Game-Id': qeGameId },
+            reqBody
+        );
+        if (resp.code >= 200 && resp.code < 300) {
+            return JSON.stringify({ success: true, result: JSON.parse(resp.body) });
+        }
+        return JSON.stringify({ success: false, error: "API returned " + resp.code });
+    } catch (err) {
+        return JSON.stringify({ success: false, error: (err.message || err) });
+    }
+}
+
+function rpcGlobalWalletHistory(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return JSON.stringify({ success: false, error: "Authentication required" });
+    var questsApiUrl = (ctx.env && ctx.env['QUESTS_ECONOMY_API_URL']) || 'http://localhost:3001';
+    var webhookSecret = (ctx.env && ctx.env['NAKAMA_WEBHOOK_SECRET']) || '';
+    var qeGameId = (ctx.env && ctx.env['DEFAULT_GAME_ID']) || 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+    try {
+        var parsed = safeJsonParse(payload);
+        var reqBody = JSON.stringify({ page: (parsed.data && parsed.data.page) || 1, limit: (parsed.data && parsed.data.limit) || 20 });
+        var sig = nk.hmacSha256Hash(webhookSecret, reqBody);
+        var resp = nk.httpRequest(
+            questsApiUrl.replace(/\/$/, '') + '/game-bridge/s2s/wallet/history', 'post',
+            { 'Content-Type': 'application/json', 'X-Source': 'nakama-rpc', 'X-Webhook-Signature': sig, 'X-User-Id': userId, 'X-Game-Id': qeGameId },
+            reqBody
+        );
+        if (resp.code >= 200 && resp.code < 300) {
+            return JSON.stringify({ success: true, result: JSON.parse(resp.body) });
+        }
+        return JSON.stringify({ success: false, error: "API returned " + resp.code });
+    } catch (err) {
+        return JSON.stringify({ success: false, error: (err.message || err) });
+    }
+}
 
 // ============================================================================
 // ANALYTICS/ANALYTICS.JS
@@ -14562,6 +15101,18 @@ function rpcOnboardingGetTomorrowPreview(ctx, logger, nk, payload) {
     }
 }
 
+function incrementRetentionCounter(nk, logger, field) {
+    try {
+        var counters = readStorage(nk, logger, "analytics_retention_agg", "retention_counters", "00000000-0000-0000-0000-000000000000") || {
+            totalSignups: 0, d1Returns: 0, d7Returns: 0, d30Returns: 0
+        };
+        counters[field] = (counters[field] || 0) + 1;
+        writeStorage(nk, logger, "analytics_retention_agg", "retention_counters", "00000000-0000-0000-0000-000000000000", counters);
+    } catch (e) {
+        logWarn(logger, "[Retention] Failed to increment counter " + field + ": " + (e.message || e));
+    }
+}
+
 /**
  * RPC: onboarding_track_session - Track session for retention
  */
@@ -14587,12 +15138,20 @@ function rpcOnboardingTrackSession(ctx, logger, nk, payload) {
 
             if (!sessionData.d1Returned && hoursSinceFirst >= 20 && hoursSinceFirst <= 48) {
                 sessionData.d1Returned = true;
+                incrementRetentionCounter(nk, logger, "d1Returns");
                 logger.info("[Onboarding] User " + userId + " returned on D1!");
             }
 
             if (!sessionData.d7Returned && hoursSinceFirst >= 144 && hoursSinceFirst <= 192) {
                 sessionData.d7Returned = true;
+                incrementRetentionCounter(nk, logger, "d7Returns");
                 logger.info("[Onboarding] User " + userId + " returned on D7!");
+            }
+
+            if (!sessionData.d30Returned && hoursSinceFirst >= 696 && hoursSinceFirst <= 744) {
+                sessionData.d30Returned = true;
+                incrementRetentionCounter(nk, logger, "d30Returns");
+                logger.info("[Onboarding] User " + userId + " returned on D30!");
             }
 
             if (input.quizzesPlayed) {
@@ -14652,9 +15211,11 @@ function rpcOnboardingGetRetentionData(ctx, logger, nk, payload) {
                 longestStreak: sessionData.longestStreak,
                 d1Returned: sessionData.d1Returned,
                 d7Returned: sessionData.d7Returned,
+                d30Returned: sessionData.d30Returned || false,
                 daysSinceFirstSession: daysSinceFirst,
                 isD1: daysSinceFirst === 1,
-                isD7: daysSinceFirst === 7
+                isD7: daysSinceFirst === 7,
+                isD30: daysSinceFirst === 30
             }
         });
     } catch (e) {
@@ -15090,6 +15651,207 @@ function rpcRetentionClaimWelcomeBonus(ctx, logger, nk, payload) {
     }
 }
 
+
+// ============================================================================
+// COHORT RETENTION ANALYTICS + ARPU
+// Platform-wide aggregate D1/D7/D30 and revenue metrics
+// ============================================================================
+
+function rpcAnalyticsCohortRetention(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC analytics_cohort_retention called");
+
+    var parsed = safeJsonParse(payload);
+    var data = (parsed.success && parsed.data) ? parsed.data : {};
+    var gameId = data.gameId || null;
+    var daysBack = parseInt(data.daysBack, 10) || 60;
+
+    var now = Date.now();
+    var cohorts = [];
+
+    for (var d = 0; d < daysBack; d++) {
+        var cohortDay = new Date(now - d * 86400000);
+        var cohortKey = cohortDay.toISOString().split('T')[0];
+        var dauKey = gameId
+            ? "dau_" + gameId + "_" + cohortKey
+            : "dau_platform_" + cohortKey;
+
+        var dauData = readStorage(nk, logger, "analytics_dau", dauKey, "00000000-0000-0000-0000-000000000000");
+        if (dauData && dauData.uniqueUsers) {
+            cohorts.push({
+                date: cohortKey,
+                dau: dauData.uniqueUsers.length || 0,
+                newUsers: dauData.newUsers || 0
+            });
+        }
+    }
+
+    // Read aggregate retention counters from platform storage
+    var retentionData = readStorage(nk, logger, "analytics_retention_agg", "retention_counters", "00000000-0000-0000-0000-000000000000") || {};
+
+    return JSON.stringify({
+        success: true,
+        cohorts: cohorts,
+        retention: {
+            totalSignups: retentionData.totalSignups || 0,
+            d1Returns: retentionData.d1Returns || 0,
+            d7Returns: retentionData.d7Returns || 0,
+            d30Returns: retentionData.d30Returns || 0,
+            d1Rate: retentionData.totalSignups > 0 ? ((retentionData.d1Returns || 0) / retentionData.totalSignups * 100).toFixed(1) + "%" : "0%",
+            d7Rate: retentionData.totalSignups > 0 ? ((retentionData.d7Returns || 0) / retentionData.totalSignups * 100).toFixed(1) + "%" : "0%",
+            d30Rate: retentionData.totalSignups > 0 ? ((retentionData.d30Returns || 0) / retentionData.totalSignups * 100).toFixed(1) + "%" : "0%"
+        },
+        gameId: gameId,
+        daysBack: daysBack,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
+function rpcAnalyticsTrackRetentionEvent(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC analytics_track_retention_event called");
+
+    var userId = ctx.userId;
+    if (!userId) return JSON.stringify({ success: false, error: "Authentication required" });
+
+    var parsed = safeJsonParse(payload);
+    var data = (parsed.success && parsed.data) ? parsed.data : {};
+    var eventType = data.eventType || "session";
+
+    // Update aggregate counters atomically
+    var counters = readStorage(nk, logger, "analytics_retention_agg", "retention_counters", "00000000-0000-0000-0000-000000000000") || {
+        totalSignups: 0, d1Returns: 0, d7Returns: 0, d30Returns: 0
+    };
+
+    if (eventType === "signup") {
+        counters.totalSignups = (counters.totalSignups || 0) + 1;
+    } else if (eventType === "d1_return") {
+        counters.d1Returns = (counters.d1Returns || 0) + 1;
+    } else if (eventType === "d7_return") {
+        counters.d7Returns = (counters.d7Returns || 0) + 1;
+    } else if (eventType === "d30_return") {
+        counters.d30Returns = (counters.d30Returns || 0) + 1;
+    }
+
+    writeStorage(nk, logger, "analytics_retention_agg", "retention_counters", "00000000-0000-0000-0000-000000000000", counters);
+
+    // Track platform-level DAU
+    var today = new Date().toISOString().split('T')[0];
+    var platformDauKey = "dau_platform_" + today;
+    var platformDau = readStorage(nk, logger, "analytics_dau", platformDauKey, "00000000-0000-0000-0000-000000000000") || { uniqueUsers: [], count: 0, newUsers: 0 };
+    if (platformDau.uniqueUsers.indexOf(userId) === -1) {
+        platformDau.uniqueUsers.push(userId);
+        platformDau.count = platformDau.uniqueUsers.length;
+        if (eventType === "signup") platformDau.newUsers = (platformDau.newUsers || 0) + 1;
+        writeStorage(nk, logger, "analytics_dau", platformDauKey, "00000000-0000-0000-0000-000000000000", platformDau);
+    }
+
+    return JSON.stringify({ success: true, eventType: eventType });
+}
+
+function rpcAnalyticsArpu(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC analytics_arpu called");
+
+    var parsed = safeJsonParse(payload);
+    var data = (parsed.success && parsed.data) ? parsed.data : {};
+    var period = data.period || "30d";
+    var gameId = data.gameId || null;
+
+    var daysBack = period === "7d" ? 7 : period === "90d" ? 90 : 30;
+    var now = Date.now();
+
+    var totalRevenue = 0;
+    var totalPurchases = 0;
+    var uniquePayingUsers = [];
+    var totalActiveUsers = 0;
+
+    for (var d = 0; d < daysBack; d++) {
+        var dayStr = new Date(now - d * 86400000).toISOString().split('T')[0];
+        var revenueKey = "revenue_" + dayStr;
+        var revData = readStorage(nk, logger, "analytics_revenue", revenueKey, "00000000-0000-0000-0000-000000000000");
+        if (revData) {
+            totalRevenue += revData.totalAmount || 0;
+            totalPurchases += revData.purchaseCount || 0;
+            if (revData.payingUsers) {
+                for (var i = 0; i < revData.payingUsers.length; i++) {
+                    if (uniquePayingUsers.indexOf(revData.payingUsers[i]) === -1) {
+                        uniquePayingUsers.push(revData.payingUsers[i]);
+                    }
+                }
+            }
+        }
+
+        var dauKey = gameId
+            ? "dau_" + gameId + "_" + dayStr
+            : "dau_platform_" + dayStr;
+        var dauData = readStorage(nk, logger, "analytics_dau", dauKey, "00000000-0000-0000-0000-000000000000");
+        if (dauData && dauData.count) {
+            totalActiveUsers += dauData.count;
+        }
+    }
+
+    var avgDau = daysBack > 0 ? Math.round(totalActiveUsers / daysBack) : 0;
+    var arpu = avgDau > 0 ? (totalRevenue / avgDau).toFixed(2) : "0.00";
+    var arppu = uniquePayingUsers.length > 0 ? (totalRevenue / uniquePayingUsers.length).toFixed(2) : "0.00";
+
+    return JSON.stringify({
+        success: true,
+        period: period,
+        daysBack: daysBack,
+        totalRevenue: totalRevenue,
+        totalPurchases: totalPurchases,
+        uniquePayingUsers: uniquePayingUsers.length,
+        avgDau: avgDau,
+        arpu: parseFloat(arpu),
+        arppu: parseFloat(arppu),
+        conversionRate: avgDau > 0 ? ((uniquePayingUsers.length / avgDau) * 100).toFixed(2) + "%" : "0%",
+        gameId: gameId,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
+function rpcAnalyticsTrackRevenue(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC analytics_track_revenue called");
+
+    var userId = ctx.userId;
+    if (!userId) return JSON.stringify({ success: false, error: "Authentication required" });
+
+    var parsed = safeJsonParse(payload);
+    if (!parsed.success || !parsed.data) return JSON.stringify({ success: false, error: "Invalid payload" });
+
+    var data = parsed.data;
+    var amount = parseFloat(data.amount) || 0;
+    var currency = data.currency || "USD";
+    var productId = data.productId || "unknown";
+
+    if (amount <= 0) return JSON.stringify({ success: false, error: "amount must be > 0" });
+
+    var today = new Date().toISOString().split('T')[0];
+    var revenueKey = "revenue_" + today;
+
+    var revData = readStorage(nk, logger, "analytics_revenue", revenueKey, "00000000-0000-0000-0000-000000000000") || {
+        totalAmount: 0, purchaseCount: 0, payingUsers: [], transactions: []
+    };
+
+    revData.totalAmount = (revData.totalAmount || 0) + amount;
+    revData.purchaseCount = (revData.purchaseCount || 0) + 1;
+    if (revData.payingUsers.indexOf(userId) === -1) {
+        revData.payingUsers.push(userId);
+    }
+    revData.transactions = revData.transactions || [];
+    revData.transactions.push({
+        userId: userId,
+        amount: amount,
+        currency: currency,
+        productId: productId,
+        timestamp: getCurrentTimestamp()
+    });
+
+    writeStorage(nk, logger, "analytics_revenue", revenueKey, "00000000-0000-0000-0000-000000000000", revData);
+
+    return JSON.stringify({
+        success: true,
+        tracked: { userId: userId, amount: amount, currency: currency, productId: productId }
+    });
+}
 
 // ============================================================================
 // D7/D30 RETENTION SYSTEMS - Weekly Goals, Season Pass, Milestones, Collections
@@ -19619,9 +20381,9 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
 }
 
 
-function _LegacyInitModule_v1(ctx, logger, nk, initializer) {
+function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
-    logger.info('Starting JavaScript Runtime Initialization (v1 - unused)');
+    logger.info('Starting JavaScript Runtime Initialization');
     logger.info('========================================');
 
     // Register Copilot Wallet Mapping RPCs
@@ -26204,9 +26966,363 @@ function rpcAiGroupHype(ctx, logger, nk, payload) {
     }
 }
 
-function LegacyInitModule(ctx, logger, nk, initializer) {
+// ============================================================================
+// GAME GIFT CARD SHOP - Purchase gift cards / rewards with game coins
+// ============================================================================
+
+function rpcGameGiftCardList(ctx, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id;
+        if (!gameId) return JSON.stringify({ success: false, error: 'game_id required' });
+
+        var records = [];
+        try {
+            var result = nk.storageRead([{ collection: 'game_gift_cards', key: 'catalog:' + gameId, userId: SYSTEM_USER_ID }]);
+            if (result && result.length > 0 && result[0].value && result[0].value.cards) {
+                records = result[0].value.cards;
+            }
+        } catch (_) { /* empty catalog */ }
+
+        var now = Date.now();
+        var active = [];
+        for (var i = 0; i < records.length; i++) {
+            var c = records[i];
+            if (c.status !== 'active') continue;
+            if (c.valid_from && new Date(c.valid_from).getTime() > now) continue;
+            if (c.valid_until && new Date(c.valid_until).getTime() < now) continue;
+            if (c.stock_total !== null && c.stock_sold >= c.stock_total) continue;
+            active.push(c);
+        }
+
+        return JSON.stringify({ success: true, cards: active, total: active.length });
+    } catch (err) {
+        logger.error('[GameGiftCards] list error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcGameGiftCardPurchase(ctx, logger, nk, payload) {
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id;
+        var cardId = data.card_id;
+        if (!gameId || !cardId) return JSON.stringify({ success: false, error: 'game_id and card_id required' });
+
+        var catalogRecs = nk.storageRead([{ collection: 'game_gift_cards', key: 'catalog:' + gameId, userId: SYSTEM_USER_ID }]);
+        if (!catalogRecs || catalogRecs.length === 0) {
+            return JSON.stringify({ success: false, error: 'No gift card catalog for this game' });
+        }
+        var cards = catalogRecs[0].value.cards || [];
+        var card = null;
+        var cardIdx = -1;
+        for (var i = 0; i < cards.length; i++) {
+            if (cards[i].id === cardId) { card = cards[i]; cardIdx = i; break; }
+        }
+        if (!card) return JSON.stringify({ success: false, error: 'Gift card not found' });
+        if (card.status !== 'active') return JSON.stringify({ success: false, error: 'Gift card not available' });
+
+        var now = Date.now();
+        if (card.valid_from && new Date(card.valid_from).getTime() > now) {
+            return JSON.stringify({ success: false, error: 'Gift card not yet available' });
+        }
+        if (card.valid_until && new Date(card.valid_until).getTime() < now) {
+            return JSON.stringify({ success: false, error: 'Gift card has expired' });
+        }
+        if (card.stock_total !== null && card.stock_sold >= card.stock_total) {
+            return JSON.stringify({ success: false, error: 'Gift card sold out' });
+        }
+
+        if (card.max_per_user > 0) {
+            var purchaseKey = 'purchases:' + gameId + ':' + ctx.userId;
+            var userPurchases = safeRead(nk, 'game_gift_card_purchases', purchaseKey, ctx.userId);
+            var userCount = 0;
+            if (userPurchases && userPurchases.purchases) {
+                for (var j = 0; j < userPurchases.purchases.length; j++) {
+                    if (userPurchases.purchases[j].card_id === cardId) userCount++;
+                }
+            }
+            if (userCount >= card.max_per_user) {
+                return JSON.stringify({ success: false, error: 'Maximum purchases per user reached' });
+            }
+        }
+
+        var currency = card.coin_currency || 'coins';
+        var debitChangeset = {};
+        debitChangeset[currency] = -card.coin_price;
+
+        var walletResult;
+        try {
+            walletResult = nk.walletUpdate(ctx.userId, debitChangeset, { reason: 'game_gift_card:' + cardId }, true);
+        } catch (walletErr) {
+            return JSON.stringify({ success: false, error: 'Insufficient coins: ' + walletErr.message });
+        }
+
+        cards[cardIdx].stock_sold = (cards[cardIdx].stock_sold || 0) + 1;
+        if (cards[cardIdx].stock_total !== null && cards[cardIdx].stock_sold >= cards[cardIdx].stock_total) {
+            cards[cardIdx].status = 'sold_out';
+        }
+        nk.storageWrite([{
+            collection: 'game_gift_cards',
+            key: 'catalog:' + gameId,
+            userId: SYSTEM_USER_ID,
+            value: { cards: cards, updated_at: new Date().toISOString() },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+
+        var purchaseRecord = {
+            purchase_id: generateUUID(),
+            card_id: cardId,
+            card_name: card.name,
+            coin_price: card.coin_price,
+            coin_currency: currency,
+            reward_type: card.reward_type,
+            reward_payload: card.reward_payload,
+            purchased_at: new Date().toISOString()
+        };
+
+        var purchaseHistoryKey = 'purchases:' + gameId + ':' + ctx.userId;
+        var existing = safeRead(nk, 'game_gift_card_purchases', purchaseHistoryKey, ctx.userId);
+        var allPurchases = (existing && existing.purchases) ? existing.purchases : [];
+        allPurchases.push(purchaseRecord);
+        nk.storageWrite([{
+            collection: 'game_gift_card_purchases',
+            key: purchaseHistoryKey,
+            userId: ctx.userId,
+            value: { purchases: allPurchases, updated_at: new Date().toISOString() },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+
+        logger.info('[GameGiftCards] Purchase: user=' + ctx.userId + ' card=' + card.name + ' price=' + card.coin_price + ' ' + currency);
+
+        return JSON.stringify({
+            success: true,
+            purchase: purchaseRecord,
+            new_wallet: walletResult || {},
+            message: 'Gift card purchased successfully'
+        });
+    } catch (err) {
+        logger.error('[GameGiftCards] purchase error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcGameGiftCardSyncCatalog(ctx, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id;
+        var cards = data.cards;
+        if (!gameId || !cards) return JSON.stringify({ success: false, error: 'game_id and cards[] required' });
+
+        nk.storageWrite([{
+            collection: 'game_gift_cards',
+            key: 'catalog:' + gameId,
+            userId: SYSTEM_USER_ID,
+            value: { cards: cards, synced_at: new Date().toISOString() },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+
+        logger.info('[GameGiftCards] Catalog synced for game ' + gameId + ' with ' + cards.length + ' cards');
+        return JSON.stringify({ success: true, synced: cards.length });
+    } catch (err) {
+        logger.error('[GameGiftCards] sync catalog error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// GAME COUPONS - Create and redeem coupons with game coins
+// ============================================================================
+
+function rpcGameCouponList(ctx, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id;
+        if (!gameId) return JSON.stringify({ success: false, error: 'game_id required' });
+
+        var records = [];
+        try {
+            var result = nk.storageRead([{ collection: 'game_coupons', key: 'catalog:' + gameId, userId: SYSTEM_USER_ID }]);
+            if (result && result.length > 0 && result[0].value && result[0].value.coupons) {
+                records = result[0].value.coupons;
+            }
+        } catch (_) { /* empty catalog */ }
+
+        var now = Date.now();
+        var active = [];
+        for (var i = 0; i < records.length; i++) {
+            var c = records[i];
+            if (c.status !== 'active') continue;
+            if (c.valid_from && new Date(c.valid_from).getTime() > now) continue;
+            if (c.valid_until && new Date(c.valid_until).getTime() < now) continue;
+            if (c.max_redemptions !== null && c.current_redemptions >= c.max_redemptions) continue;
+            active.push(c);
+        }
+
+        return JSON.stringify({ success: true, coupons: active, total: active.length });
+    } catch (err) {
+        logger.error('[GameCoupons] list error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcGameCouponRedeem(ctx, logger, nk, payload) {
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id;
+        var couponId = data.coupon_id;
+        if (!gameId || !couponId) return JSON.stringify({ success: false, error: 'game_id and coupon_id required' });
+
+        var catalogRecs = nk.storageRead([{ collection: 'game_coupons', key: 'catalog:' + gameId, userId: SYSTEM_USER_ID }]);
+        if (!catalogRecs || catalogRecs.length === 0) {
+            return JSON.stringify({ success: false, error: 'No coupon catalog for this game' });
+        }
+        var coupons = catalogRecs[0].value.coupons || [];
+        var coupon = null;
+        var couponIdx = -1;
+        for (var i = 0; i < coupons.length; i++) {
+            if (coupons[i].id === couponId) { coupon = coupons[i]; couponIdx = i; break; }
+        }
+        if (!coupon) return JSON.stringify({ success: false, error: 'Coupon not found' });
+        if (coupon.status !== 'active') return JSON.stringify({ success: false, error: 'Coupon not available' });
+
+        var now = Date.now();
+        if (coupon.valid_from && new Date(coupon.valid_from).getTime() > now) {
+            return JSON.stringify({ success: false, error: 'Coupon not yet available' });
+        }
+        if (coupon.valid_until && new Date(coupon.valid_until).getTime() < now) {
+            return JSON.stringify({ success: false, error: 'Coupon has expired' });
+        }
+        if (coupon.max_redemptions !== null && coupon.current_redemptions >= coupon.max_redemptions) {
+            return JSON.stringify({ success: false, error: 'Coupon fully redeemed' });
+        }
+
+        if (coupon.max_per_user > 0) {
+            var redemptionKey = 'redemptions:' + gameId + ':' + ctx.userId;
+            var userRedemptions = safeRead(nk, 'game_coupon_redemptions', redemptionKey, ctx.userId);
+            var userCount = 0;
+            if (userRedemptions && userRedemptions.redemptions) {
+                for (var j = 0; j < userRedemptions.redemptions.length; j++) {
+                    if (userRedemptions.redemptions[j].coupon_id === couponId) userCount++;
+                }
+            }
+            if (userCount >= coupon.max_per_user) {
+                return JSON.stringify({ success: false, error: 'Maximum redemptions per user reached' });
+            }
+        }
+
+        if (coupon.coin_cost > 0) {
+            var currency = coupon.coin_currency || 'coins';
+            var debitChangeset = {};
+            debitChangeset[currency] = -coupon.coin_cost;
+            try {
+                nk.walletUpdate(ctx.userId, debitChangeset, { reason: 'game_coupon:' + couponId }, true);
+            } catch (walletErr) {
+                return JSON.stringify({ success: false, error: 'Insufficient coins: ' + walletErr.message });
+            }
+        }
+
+        coupons[couponIdx].current_redemptions = (coupons[couponIdx].current_redemptions || 0) + 1;
+        if (coupons[couponIdx].max_redemptions !== null && coupons[couponIdx].current_redemptions >= coupons[couponIdx].max_redemptions) {
+            coupons[couponIdx].status = 'exhausted';
+        }
+        nk.storageWrite([{
+            collection: 'game_coupons',
+            key: 'catalog:' + gameId,
+            userId: SYSTEM_USER_ID,
+            value: { coupons: coupons, updated_at: new Date().toISOString() },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+
+        var redemptionRecord = {
+            redemption_id: generateUUID(),
+            coupon_id: couponId,
+            coupon_title: coupon.title,
+            coupon_code: coupon.coupon_code,
+            coin_cost: coupon.coin_cost,
+            discount_type: coupon.discount_type,
+            discount_value: coupon.discount_value,
+            reward_payload: coupon.reward_payload,
+            redeemed_at: new Date().toISOString()
+        };
+
+        var historyKey = 'redemptions:' + gameId + ':' + ctx.userId;
+        var existing = safeRead(nk, 'game_coupon_redemptions', historyKey, ctx.userId);
+        var allRedemptions = (existing && existing.redemptions) ? existing.redemptions : [];
+        allRedemptions.push(redemptionRecord);
+        nk.storageWrite([{
+            collection: 'game_coupon_redemptions',
+            key: historyKey,
+            userId: ctx.userId,
+            value: { redemptions: allRedemptions, updated_at: new Date().toISOString() },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+
+        logger.info('[GameCoupons] Redeemed: user=' + ctx.userId + ' coupon=' + coupon.title + ' cost=' + coupon.coin_cost);
+
+        return JSON.stringify({
+            success: true,
+            redemption: redemptionRecord,
+            message: 'Coupon redeemed successfully'
+        });
+    } catch (err) {
+        logger.error('[GameCoupons] redeem error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcGameCouponSyncCatalog(ctx, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id;
+        var coupons = data.coupons;
+        if (!gameId || !coupons) return JSON.stringify({ success: false, error: 'game_id and coupons[] required' });
+
+        nk.storageWrite([{
+            collection: 'game_coupons',
+            key: 'catalog:' + gameId,
+            userId: SYSTEM_USER_ID,
+            value: { coupons: coupons, synced_at: new Date().toISOString() },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+
+        logger.info('[GameCoupons] Catalog synced for game ' + gameId + ' with ' + coupons.length + ' coupons');
+        return JSON.stringify({ success: true, synced: coupons.length });
+    } catch (err) {
+        logger.error('[GameCoupons] sync catalog error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function rpcGameGiftCardGetPurchases(ctx, logger, nk, payload) {
+    try {
+        if (!ctx.userId) return JSON.stringify({ success: false, error: 'Authentication required' });
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id;
+        if (!gameId) return JSON.stringify({ success: false, error: 'game_id required' });
+
+        var purchaseKey = 'purchases:' + gameId + ':' + ctx.userId;
+        var existing = safeRead(nk, 'game_gift_card_purchases', purchaseKey, ctx.userId);
+        var purchases = (existing && existing.purchases) ? existing.purchases : [];
+
+        return JSON.stringify({ success: true, purchases: purchases, total: purchases.length });
+    } catch (err) {
+        logger.error('[GameGiftCards] get purchases error: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
-    logger.info('Legacy JavaScript Runtime Initialization');
+    logger.info('Starting JavaScript Runtime Initialization');
     logger.info('========================================');
 
     // Register Copilot Wallet Mapping RPCs
@@ -26303,8 +27419,8 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[DailyRewards] Initializing Daily Rewards Module...');
         initializer.registerRpc('daily_rewards_get_status', rpcDailyRewardsGetStatus);
         logger.info('[DailyRewards] Registered RPC: daily_rewards_get_status');
-        initializer.registerRpc('daily_rewards_claim', rpcDailyRewardsClaim);
-        logger.info('[DailyRewards] Registered RPC: daily_rewards_claim');
+        initializer.registerRpc('daily_rewards_claim', rpcDailyRewardsClaimWithSync);
+        logger.info('[DailyRewards] Registered RPC: daily_rewards_claim (with PointsLedger sync)');
         logger.info('[DailyRewards] Successfully registered 2 Daily Rewards RPCs');
     } catch (err) {
         logger.error('[DailyRewards] Failed to initialize: ' + err.message);
@@ -26347,8 +27463,8 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[DailyMissions] Registered RPC: get_daily_missions');
         initializer.registerRpc('submit_mission_progress', rpcSubmitMissionProgress);
         logger.info('[DailyMissions] Registered RPC: submit_mission_progress');
-        initializer.registerRpc('claim_mission_reward', rpcClaimMissionReward);
-        logger.info('[DailyMissions] Registered RPC: claim_mission_reward');
+        initializer.registerRpc('claim_mission_reward', rpcClaimMissionRewardWithSync);
+        logger.info('[DailyMissions] Registered RPC: claim_mission_reward (with PointsLedger sync)');
         logger.info('[DailyMissions] Successfully registered 3 Daily Missions RPCs');
     } catch (err) {
         logger.error('[DailyMissions] Failed to initialize: ' + err.message);
@@ -26370,8 +27486,23 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         // NEW:
         initializer.registerRpc('wallet_get_balances', rpcWalletGetBalances);
         logger.info('[Wallet] Registered RPC: wallet_get_balances');
+        initializer.registerRpc('wallet_convert_preview', rpcWalletConvertPreview);
+        logger.info('[Wallet] Registered RPC: wallet_convert_preview');
+        initializer.registerRpc('wallet_convert_to_global', rpcWalletConvertToGlobal);
+        logger.info('[Wallet] Registered RPC: wallet_convert_to_global');
+        initializer.registerRpc('wallet_conversion_rate', rpcWalletConversionRate);
+        logger.info('[Wallet] Registered RPC: wallet_conversion_rate');
+        initializer.registerRpc('global_to_game_convert', rpcGlobalToGameConvert);
+        logger.info('[Wallet] Registered RPC: global_to_game_convert');
 
-        logger.info('[Wallet] Successfully registered 5 Enhanced Wallet RPCs');
+        // Bridge RPCs — authoritative global wallet via quests-economy PointsLedger
+        initializer.registerRpc('global_wallet_balance', rpcGlobalWalletBalance);
+        initializer.registerRpc('global_wallet_earn', rpcGlobalWalletEarn);
+        initializer.registerRpc('global_wallet_spend', rpcGlobalWalletSpend);
+        initializer.registerRpc('global_wallet_history', rpcGlobalWalletHistory);
+        logger.info('[Wallet] Registered 4 bridge RPCs (global_wallet_*)');
+
+        logger.info('[Wallet] Successfully registered 13 Enhanced Wallet RPCs');
     } catch (err) {
         logger.error('[Wallet] Failed to initialize: ' + err.message);
     }
@@ -26804,6 +27935,17 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.error('[Retention] Failed to initialize: ' + err.message);
     }
 
+    // Register Cohort Analytics + ARPU RPCs
+    try {
+        initializer.registerRpc('analytics_cohort_retention', rpcAnalyticsCohortRetention);
+        initializer.registerRpc('analytics_track_retention_event', rpcAnalyticsTrackRetentionEvent);
+        initializer.registerRpc('analytics_arpu', rpcAnalyticsArpu);
+        initializer.registerRpc('analytics_track_revenue', rpcAnalyticsTrackRevenue);
+        logger.info('[Analytics] Registered 4 cohort/ARPU analytics RPCs');
+    } catch (err) {
+        logger.error('[Analytics] Cohort/ARPU RPCs failed: ' + err.message);
+    }
+
     // ============================================================================
     // D7/D30 RETENTION SYSTEMS - Weekly Goals, Season Pass, Milestones, Collections
     // ============================================================================
@@ -27006,9 +28148,45 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.error('[Collectables] Failed to initialize: ' + err.message);
     }
 
+    // ============================================================================
+    // GAME GIFT CARD SHOP - In-Game Coin-Based Gift Cards
+    // ============================================================================
+
+    try {
+        logger.info('[GameGiftCards] Initializing Game Gift Card Shop Module...');
+        initializer.registerRpc('game_gift_card_list', rpcGameGiftCardList);
+        logger.info('[GameGiftCards] Registered RPC: game_gift_card_list');
+        initializer.registerRpc('game_gift_card_purchase', rpcGameGiftCardPurchase);
+        logger.info('[GameGiftCards] Registered RPC: game_gift_card_purchase');
+        initializer.registerRpc('game_gift_card_sync_catalog', rpcGameGiftCardSyncCatalog);
+        logger.info('[GameGiftCards] Registered RPC: game_gift_card_sync_catalog');
+        initializer.registerRpc('game_gift_card_get_purchases', rpcGameGiftCardGetPurchases);
+        logger.info('[GameGiftCards] Registered RPC: game_gift_card_get_purchases');
+        logger.info('[GameGiftCards] Successfully registered 4 Game Gift Card RPCs');
+    } catch (err) {
+        logger.error('[GameGiftCards] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // GAME COUPONS - In-Game Coin-Based Coupons
+    // ============================================================================
+
+    try {
+        logger.info('[GameCoupons] Initializing Game Coupon Module...');
+        initializer.registerRpc('game_coupon_list', rpcGameCouponList);
+        logger.info('[GameCoupons] Registered RPC: game_coupon_list');
+        initializer.registerRpc('game_coupon_redeem', rpcGameCouponRedeem);
+        logger.info('[GameCoupons] Registered RPC: game_coupon_redeem');
+        initializer.registerRpc('game_coupon_sync_catalog', rpcGameCouponSyncCatalog);
+        logger.info('[GameCoupons] Registered RPC: game_coupon_sync_catalog');
+        logger.info('[GameCoupons] Successfully registered 3 Game Coupon RPCs');
+    } catch (err) {
+        logger.error('[GameCoupons] Failed to initialize: ' + err.message);
+    }
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 184');
+    logger.info('Total System RPCs: 191');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
@@ -27026,6 +28204,8 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     logger.info('  - Compatibility Quiz: 6');
     logger.info('  - Badges System: 5');
     logger.info('  - Collectables System: 4');
+    logger.info('  - Game Gift Card Shop: 4');
+    logger.info('  - Game Coupon System: 3');
     logger.info('  - Plus existing Copilot RPCs');
     logger.info('========================================');
     logger.info('✓ All server gaps have been filled!');
