@@ -655,7 +655,11 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 
 	modCache, err := cacheJavascriptModules(startupLogger, path, entrypoint)
 	if err != nil {
-		startupLogger.Fatal("Failed to load JavaScript files", zap.Error(err))
+		startupLogger.Warn("Failed to load JavaScript files, server will start without JavaScript runtime modules", zap.Error(err))
+		modCache = &RuntimeJSModuleCache{
+			Names:   make([]string, 0),
+			Modules: make(map[string]*RuntimeJSModule),
+		}
 	}
 
 	jsprotojsonMarshaler := &protojson.MarshalOptions{
@@ -1734,8 +1738,8 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 		}
 	}, false)
 	if err != nil {
-		logger.Error("Failed to eval JavaScript modules.", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		startupLogger.Warn("Failed to eval JavaScript modules, server will start without JavaScript runtime modules", zap.Error(err))
+		return make([]string, 0), rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
 	}
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {

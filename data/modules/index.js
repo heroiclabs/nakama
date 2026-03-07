@@ -19618,7 +19618,7 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
     }
 }
 
-function LegacyInitModule(ctx, logger, nk, initializer) {
+function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Legacy JavaScript Runtime Initialization');
     logger.info('========================================');
@@ -20446,6 +20446,3 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
 }
 
-function InitModule(ctx, logger, nk, initializer) {
-    LegacyInitModule(ctx, logger, nk, initializer);
-}

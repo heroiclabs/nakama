@@ -1,0 +1,12 @@
+data/modules/build/
+data/modules/src/
+data/modules/node_modules/
+data/modules/*.bak
+data/modules/*.d.ts
+data/modules/tsconfig.json
+data/modules/package.json
+data/modules/package-lock.json
+data/modules/*.md
+data/modules/NAKAMA_MODULE_FIX_VERIFICATION.md
+data/modules_test/
+data/runtime/
