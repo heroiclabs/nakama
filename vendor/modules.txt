@@ -225,6 +225,9 @@ github.com/prometheus/procfs/internal/util
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/require
+# github.com/teambition/rrule-go v1.8.2
+## explicit; go 1.16
+github.com/teambition/rrule-go
 # github.com/twmb/murmur3 v1.1.8
 ## explicit; go 1.11
 github.com/twmb/murmur3
