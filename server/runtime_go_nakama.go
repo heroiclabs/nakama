@@ -32,7 +32,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/internal/recurrence"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -862,7 +862,7 @@ func (n *RuntimeGoNakamaModule) LinkSteam(ctx context.Context, userID, username,
 // @return nextTs(int64) The next UTC seconds timestamp (number) that matches the given CRON expression, and is immediately after the given timestamp.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) CronNext(expression string, timestamp int64) (int64, error) {
-	expr, err := cronexpr.Parse(expression)
+	expr, err := recurrence.NewCronParser().Parse(expression)
 	if err != nil {
 		return 0, errors.New("expects a valid cron string")
 	}
@@ -881,7 +881,7 @@ func (n *RuntimeGoNakamaModule) CronNext(expression string, timestamp int64) (in
 // @return prevTs(int64) The previous UTC seconds timestamp (number) that matches the given CRON expression, and is immediately before the given timestamp.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) CronPrev(expression string, timestamp int64) (int64, error) {
-	expr, err := cronexpr.Parse(expression)
+	expr, err := recurrence.NewCronParser().Parse(expression)
 	if err != nil {
 		return 0, errors.New("expects a valid cron string")
 	}
@@ -2485,7 +2485,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, leaderboa
 	}
 
 	if resetSchedule != "" {
-		if _, err := cronexpr.Parse(resetSchedule); err != nil {
+		if _, err := recurrence.NewCronParser().Parse(resetSchedule); err != nil {
 			return errors.New("expects reset schedule to be a valid CRON expression")
 		}
 	}
@@ -2825,7 +2825,7 @@ func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string,
 	}
 
 	if resetSchedule != "" {
-		if _, err := cronexpr.Parse(resetSchedule); err != nil {
+		if _, err := recurrence.NewCronParser().Parse(resetSchedule); err != nil {
 			return errors.New("expects reset schedule to be a valid CRON expression")
 		}
 	}

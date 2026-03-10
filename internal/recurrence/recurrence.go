@@ -37,13 +37,13 @@ type Recurrence interface {
 	NextN(fromTime time.Time, n uint) []time.Time
 }
 
-type ScheduleParser interface {
+type RecurrenceParser interface {
 
 	// Parse returns a new Recurrence pointer. An error is returned if a malformed
 	// expression is supplied.
-	Parse(expr string) (*Recurrence, error)
+	Parse(expr string) (Recurrence, error)
 
 	// MustParse returns a new Recurrence pointer. It expects a well-formed
 	// expression. If a malformed expression is supplied, it will `panic`.
-	MustParse(expr string) *Recurrence
+	MustParse(expr string) Recurrence
 }

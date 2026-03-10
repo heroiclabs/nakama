@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/internal/recurrence"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
-	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -701,7 +701,7 @@ func LeaderboardsGet(leaderboardCache LeaderboardCache, leaderboardIDs []string)
 	return leaderboards
 }
 
-func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule *cronexpr.Expression) int64 {
+func calculatePrevReset(currentTime time.Time, startTime int64, resetSchedule recurrence.Recurrence) int64 {
 	if resetSchedule == nil {
 		return 0
 	}

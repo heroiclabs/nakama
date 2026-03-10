@@ -6,24 +6,28 @@ import (
 	rrule "github.com/teambition/rrule-go"
 )
 
-type RRuleRecurrenceParser struct{}
+type rRuleRecurrenceParser struct{}
 
-func (p *RRuleRecurrenceParser) Parse(expr string) (*Recurrence, error) {
+func (p *rRuleRecurrenceParser) Parse(expr string) (Recurrence, error) {
 	rule, err := rrule.StrToRRule(expr)
 	if err != nil {
 		return nil, err
 	}
 
 	var schedule Recurrence = &RRuleRecurrence{rule: rule}
-	return &schedule, nil
+	return schedule, nil
 }
 
-func (p *RRuleRecurrenceParser) MustParse(expr string) *Recurrence {
+func (p *rRuleRecurrenceParser) MustParse(expr string) Recurrence {
 	schedule, err := p.Parse(expr)
 	if err != nil {
 		panic(err)
 	}
 	return schedule
+}
+
+func NewRRuleParser() RecurrenceParser {
+	return &rRuleRecurrenceParser{}
 }
 
 type RRuleRecurrence struct {

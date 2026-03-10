@@ -18,12 +18,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/internal/recurrence"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTournamentEveryFourteenDaysFromFirst(t *testing.T) {
-	sched, err := cronexpr.Parse("0 9 */14 * *")
+	sched, err := recurrence.NewCronParser().Parse("0 9 */14 * *")
 	if err != nil {
 		t.Fatal("Invalid cron schedule", err)
 		return
@@ -46,7 +46,7 @@ func TestTournamentEveryFourteenDaysFromFirst(t *testing.T) {
 }
 
 func TestTournamentEveryDayMonThruFri(t *testing.T) {
-	sched, err := cronexpr.Parse("0 22 * * 1-5")
+	sched, err := recurrence.NewCronParser().Parse("0 22 * * 1-5")
 	if err != nil {
 		t.Fatal("Invalid cron schedule", err)
 		return
@@ -69,7 +69,7 @@ func TestTournamentEveryDayMonThruFri(t *testing.T) {
 }
 
 func TestTournamentNowIsResetTime(t *testing.T) {
-	sched, err := cronexpr.Parse("0 9 14 * *")
+	sched, err := recurrence.NewCronParser().Parse("0 9 14 * *")
 	if err != nil {
 		t.Fatal("Invalid cron schedule", err)
 		return
@@ -92,7 +92,7 @@ func TestTournamentNowIsResetTime(t *testing.T) {
 }
 
 func TestTournamentNowIsBeforeStart(t *testing.T) {
-	sched, err := cronexpr.Parse("0 9 14 * *")
+	sched, err := recurrence.NewCronParser().Parse("0 9 14 * *")
 	if err != nil {
 		t.Fatal("Invalid cron schedule", err)
 		return

@@ -47,8 +47,8 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
+	"github.com/heroiclabs/nakama/v3/internal/recurrence"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -862,7 +862,7 @@ func (n *RuntimeLuaNakamaModule) cronNext(l *lua.LState) int {
 		return 0
 	}
 
-	expr, err := cronexpr.Parse(expression)
+	expr, err := recurrence.NewCronParser().Parse(expression)
 	if err != nil {
 		l.ArgError(1, "expects a valid cron string")
 		return 0
@@ -892,7 +892,7 @@ func (n *RuntimeLuaNakamaModule) cronPrev(l *lua.LState) int {
 		return 0
 	}
 
-	expr, err := cronexpr.Parse(expression)
+	expr, err := recurrence.NewCronParser().Parse(expression)
 	if err != nil {
 		l.ArgError(1, "expects a valid cron string")
 		return 0
@@ -7212,7 +7212,7 @@ func (n *RuntimeLuaNakamaModule) leaderboardCreate(l *lua.LState) int {
 
 	resetSchedule := l.OptString(5, "")
 	if resetSchedule != "" {
-		if _, err := cronexpr.Parse(resetSchedule); err != nil {
+		if _, err := recurrence.NewCronParser().Parse(resetSchedule); err != nil {
 			l.ArgError(5, "expects reset schedule to be a valid CRON expression")
 			return 0
 		}
@@ -8221,7 +8221,7 @@ func (n *RuntimeLuaNakamaModule) tournamentCreate(l *lua.LState) int {
 
 	resetSchedule := l.OptString(6, "")
 	if resetSchedule != "" {
-		if _, err := cronexpr.Parse(resetSchedule); err != nil {
+		if _, err := recurrence.NewCronParser().Parse(resetSchedule); err != nil {
 			l.ArgError(6, "expects reset schedule to be a valid CRON expression")
 			return 0
 		}

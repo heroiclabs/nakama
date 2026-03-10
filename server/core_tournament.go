@@ -27,7 +27,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/internal/recurrence"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -711,7 +711,7 @@ func TournamentRecordsHaystack(ctx context.Context, logger *zap.Logger, db *sql.
 	return tournamentRecordList, nil
 }
 
-func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSchedule *cronexpr.Expression, t time.Time) (int64, int64, int64) {
+func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSchedule recurrence.Recurrence, t time.Time) (int64, int64, int64) {
 	tUnix := t.UTC().Unix()
 	if resetSchedule != nil {
 		var startActiveUnix int64
@@ -799,9 +799,10 @@ func parseTournament(scannable Scannable, now time.Time) (*api.Tournament, error
 		return nil, runtime.ErrTournamentNotFound
 	}
 
-	var resetSchedule *cronexpr.Expression
+	var resetSchedule recurrence.Recurrence
 	if dbResetSchedule.Valid {
-		resetSchedule = cronexpr.MustParse(dbResetSchedule.String)
+		parser := recurrence.NewCronParser()
+		resetSchedule = parser.MustParse(dbResetSchedule.String)
 	}
 
 	canEnter := true

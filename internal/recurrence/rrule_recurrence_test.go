@@ -8,7 +8,7 @@ import (
 func mustParseRRuleRecurrence(t *testing.T, expr string) Recurrence {
 	t.Helper()
 
-	parser := &RRuleRecurrenceParser{}
+	parser := &rRuleRecurrenceParser{}
 	schedule, err := parser.Parse(expr)
 	if err != nil {
 		t.Fatalf("Parse(%q) returned error: %v", expr, err)
@@ -49,7 +49,7 @@ func assertTimeEqual(t *testing.T, got, want time.Time) {
 }
 
 func TestRRuleRecurrenceParserParse(t *testing.T) {
-	parser := &RRuleRecurrenceParser{}
+	parser := &rRuleRecurrenceParser{}
 
 	schedule, err := parser.Parse("FREQ=DAILY;COUNT=3;DTSTART=20240101T090000Z")
 	if err != nil {
@@ -72,7 +72,7 @@ func TestRRuleRecurrenceParserParse(t *testing.T) {
 }
 
 func TestRRuleRecurrenceParserMustParse(t *testing.T) {
-	parser := &RRuleRecurrenceParser{}
+	parser := &rRuleRecurrenceParser{}
 
 	if parser.MustParse("FREQ=DAILY;COUNT=1;DTSTART=20240101T090000Z") == nil {
 		t.Fatal("MustParse(valid) returned nil schedule")
@@ -87,7 +87,7 @@ func TestRRuleRecurrenceParserMustParse(t *testing.T) {
 }
 
 func TestRRuleRecurrenceParserParse_WithoutDTSTART(t *testing.T) {
-	parser := &RRuleRecurrenceParser{}
+	parser := &rRuleRecurrenceParser{}
 
 	schedule, err := parser.Parse("FREQ=DAILY;COUNT=2")
 	if err != nil {
@@ -109,7 +109,7 @@ func TestRRuleRecurrenceParserParse_WithoutDTSTART(t *testing.T) {
 }
 
 func TestRRuleRecurrenceParserParse_WithoutDTSTART_BoundedCount(t *testing.T) {
-	parser := &RRuleRecurrenceParser{}
+	parser := &rRuleRecurrenceParser{}
 
 	schedule, err := parser.Parse("FREQ=DAILY;COUNT=1")
 	if err != nil {

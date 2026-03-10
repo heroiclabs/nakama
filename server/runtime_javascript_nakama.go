@@ -47,7 +47,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/internal/recurrence"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -646,7 +646,7 @@ func (n *RuntimeJavascriptNakamaModule) cronNext(r *goja.Runtime) func(goja.Func
 		expression := getJsString(r, f.Argument(0))
 		timestamp := getJsInt(r, f.Argument(1))
 
-		expr, err := cronexpr.Parse(expression)
+		expr, err := recurrence.NewCronParser().Parse(expression)
 		if err != nil {
 			panic(r.NewTypeError("expects a valid cron string"))
 		}
@@ -670,7 +670,7 @@ func (n *RuntimeJavascriptNakamaModule) cronPrev(r *goja.Runtime) func(goja.Func
 		expression := getJsString(r, f.Argument(0))
 		timestamp := getJsInt(r, f.Argument(1))
 
-		expr, err := cronexpr.Parse(expression)
+		expr, err := recurrence.NewCronParser().Parse(expression)
 		if err != nil {
 			panic(r.NewTypeError("expects a valid cron string"))
 		}
@@ -5571,7 +5571,7 @@ func (n *RuntimeJavascriptNakamaModule) leaderboardCreate(r *goja.Runtime) func(
 			resetSchedule = getJsString(r, f.Argument(4))
 		}
 		if resetSchedule != "" {
-			if _, err := cronexpr.Parse(resetSchedule); err != nil {
+			if _, err := recurrence.NewCronParser().Parse(resetSchedule); err != nil {
 				panic(r.NewTypeError("expects reset schedule to be a valid CRON expression"))
 			}
 		}
@@ -6564,7 +6564,7 @@ func (n *RuntimeJavascriptNakamaModule) tournamentCreate(r *goja.Runtime) func(g
 			resetSchedule = getJsString(r, f.Argument(5))
 		}
 		if resetSchedule != "" {
-			if _, err := cronexpr.Parse(resetSchedule); err != nil {
+			if _, err := recurrence.NewCronParser().Parse(resetSchedule); err != nil {
 				panic(r.NewTypeError("expects reset schedule to be a valid CRON expression"))
 			}
 		}

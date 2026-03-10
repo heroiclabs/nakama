@@ -28,9 +28,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/heroiclabs/nakama/v3/internal/recurrence"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
@@ -53,7 +53,7 @@ type Leaderboard struct {
 	SortOrder        int
 	Operator         int
 	ResetScheduleStr string
-	ResetSchedule    *cronexpr.Expression
+	ResetSchedule    recurrence.Recurrence
 	Metadata         string
 	CreateTime       int64
 	Category         int
@@ -271,7 +271,7 @@ FROM leaderboard`
 				EnableRanks:  enableRanks,
 			}
 			if resetSchedule.Valid {
-				expr, err := cronexpr.Parse(resetSchedule.String)
+				expr, err := recurrence.NewCronParser().Parse(resetSchedule.String)
 				if err != nil {
 					_ = rows.Close()
 					l.logger.Error("Error parsing leaderboard reset schedule from database", zap.Error(err))
@@ -374,10 +374,10 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 	}
 	l.RUnlock()
 
-	var expr *cronexpr.Expression
+	var expr recurrence.Recurrence
 	var err error
 	if resetSchedule != "" {
-		expr, err = cronexpr.Parse(resetSchedule)
+		expr, err = recurrence.NewCronParser().Parse(resetSchedule)
 		if err != nil {
 			l.logger.Error("Error parsing leaderboard reset schedule", zap.Error(err))
 			return nil, false, err
@@ -409,7 +409,7 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 				return nil, false, err
 			}
 			if resetSchedule != "" {
-				expr, err = cronexpr.Parse(resetSchedule)
+				expr, err = recurrence.NewCronParser().Parse(resetSchedule)
 				if err != nil {
 					l.logger.Error("Error parsing leaderboard reset schedule", zap.Error(err))
 					return nil, false, err
@@ -449,10 +449,10 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 }
 
 func (l *LocalLeaderboardCache) Insert(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata string, createTime int64, enableRanks bool) {
-	var expr *cronexpr.Expression
+	var expr recurrence.Recurrence
 	var err error
 	if resetSchedule != "" {
-		expr, err = cronexpr.Parse(resetSchedule)
+		expr, err = recurrence.NewCronParser().Parse(resetSchedule)
 		if err != nil {
 			// Not expected, this insert is as a result of a previous create that has succeeded.
 			l.logger.Error("Error parsing leaderboard reset schedule for insert", zap.Error(err))
@@ -630,7 +630,7 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 				return nil, false, err
 			}
 			if resetSchedule != "" {
-				resetCron, err = cronexpr.Parse(resetSchedule)
+				resetCron, err = recurrence.NewCronParser().Parse(resetSchedule)
 				if err != nil {
 					l.logger.Error("Error parsing tournament reset schedule", zap.Error(err))
 					return nil, false, err
@@ -682,10 +682,10 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 }
 
 func (l *LocalLeaderboardCache) InsertTournament(id string, authoritative bool, sortOrder, operator int, resetSchedule, metadata, title, description string, category, duration, maxSize, maxNumScore int, joinRequired bool, createTime, startTime, endTime int64, enableRanks bool) {
-	var expr *cronexpr.Expression
+	var expr recurrence.Recurrence
 	var err error
 	if resetSchedule != "" {
-		expr, err = cronexpr.Parse(resetSchedule)
+		expr, err = recurrence.NewCronParser().Parse(resetSchedule)
 		if err != nil {
 			// Not expected, this insert is as a result of a previous create that has succeeded.
 			l.logger.Error("Error parsing tournament reset schedule for insert", zap.Error(err))
@@ -893,7 +893,7 @@ func (l *LocalLeaderboardCache) Remove(id string) {
 	l.Unlock()
 }
 
-func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, maxSize, maxNumScore int) (*cronexpr.Expression, error) {
+func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, maxSize, maxNumScore int) (recurrence.Recurrence, error) {
 	if startTime < 0 {
 		return nil, fmt.Errorf("tournament start time must be a unix UTC time in the future")
 	}
@@ -914,9 +914,9 @@ func checkTournamentConfig(resetSchedule string, startTime, endTime, duration, m
 		return nil, fmt.Errorf("tournament end time cannot be before start time")
 	}
 
-	var cron *cronexpr.Expression
+	var cron recurrence.Recurrence
 	if resetSchedule != "" {
-		expr, err := cronexpr.Parse(resetSchedule)
+		expr, err := recurrence.NewCronParser().Parse(resetSchedule)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse reset schedule: %s", err.Error())
 		}
