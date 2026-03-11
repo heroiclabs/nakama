@@ -47,6 +47,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
@@ -186,6 +187,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"accountUpdateId":                      n.accountUpdateId(r),
 		"accountDeleteId":                      n.accountDeleteId(r),
 		"accountExportId":                      n.accountExportId(r),
+		"accountImportId":                      n.accountImportId(r),
 		"usersGetId":                           n.usersGetId(r),
 		"usersGetUsername":                     n.usersGetUsername(r),
 		"usersGetFriendStatus":                 n.usersGetFriendStatus(r),
@@ -2018,27 +2020,37 @@ func (n *RuntimeJavascriptNakamaModule) accountGetId(r *goja.Runtime) func(goja.
 
 // @group accounts
 // @summary Fetch information for multiple accounts by user IDs.
-// @param userIDs(type=[]string) Array of user IDs to fetch information for. Must be valid UUID.
+// @param userIDs(type=[]string, optional=true) Array of user IDs to fetch information for. Must be valid UUID when supplied.
+// @param deviceIDs(type=[]string, optional=true) Array of device IDs to fetch information for.
 // @return account(nkruntime.Account[]) Array of accounts.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) accountsGetId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userIDs := f.Argument(0)
-		if userIDs == goja.Undefined() || userIDs == goja.Null() {
-			panic(r.NewTypeError("expects an array of user ids"))
-		}
-
-		uids, err := exportToSlice[[]string](userIDs)
-		if err != nil {
-			panic(r.NewTypeError("expects an array of strings"))
-		}
-		for _, uid := range uids {
-			if _, err := uuid.FromString(uid); err != nil {
-				panic(r.NewTypeError(fmt.Sprintf("invalid user id: %s", uid)))
+		var uids []string
+		var err error
+		if userIDs != goja.Undefined() && userIDs != goja.Null() {
+			uids, err = exportToSlice[[]string](userIDs)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+			for _, uid := range uids {
+				if _, err := uuid.FromString(uid); err != nil {
+					panic(r.NewTypeError(fmt.Sprintf("invalid user id: %s", uid)))
+				}
 			}
 		}
 
-		accounts, err := GetAccounts(n.ctx, n.logger, n.db, n.statusRegistry, uids)
+		deviceIDs := f.Argument(1)
+		var dids []string
+		if deviceIDs != goja.Undefined() && deviceIDs != goja.Null() {
+			dids, err = exportToSlice[[]string](deviceIDs)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of strings"))
+			}
+		}
+
+		accounts, err := GetAccounts(n.ctx, n.logger, n.db, n.statusRegistry, uids, dids)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to get accounts: %s", err.Error())))
 		}
@@ -2182,6 +2194,58 @@ func (n *RuntimeJavascriptNakamaModule) accountExportId(r *goja.Runtime) func(go
 		}
 
 		return r.ToValue(string(exportString))
+	}
+}
+
+// @group accounts
+// @summary Import user account data, optionally overwriting a given user
+// @param data(type=string) An account export string to import.
+// @param userID(type=string, optional=true) Optional user ID to import into. Must be valid UUID.
+// @return account(nkruntime.Account) All account information including wallet, device IDs and more.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) accountImportId(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		data := getJsString(r, f.Argument(0))
+		if data == "" {
+			panic(r.NewTypeError("expects data to be present"))
+		}
+		d := &console.AccountExport{}
+		if err := json.Unmarshal([]byte(data), d); err != nil {
+			panic(r.NewTypeError("expects data to be a valid account export format"))
+		}
+
+		userID := f.Argument(1)
+		uid := uuid.Nil
+		if userID != goja.Undefined() && userID != goja.Null() {
+			u, ok := userID.Export().(string)
+			if !ok {
+				panic(r.NewTypeError("expects user id to be a string"))
+			}
+			if u == "" {
+				panic(r.NewTypeError("expects user id"))
+			}
+			var err error
+			uid, err = uuid.FromString(u)
+			if err != nil {
+				panic(r.NewTypeError("invalid user id"))
+			}
+		}
+
+		account, err := ImportAccount(n.ctx, n.logger, n.db, n.statusRegistry, uid, d)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error importing account: %v", err.Error())))
+		}
+
+		if account == nil {
+			panic(r.NewGoError(errors.New("account import returned no data")))
+		}
+
+		accountData, err := accountToJsObject(account.Account)
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		return r.ToValue(accountData)
 	}
 }
 
