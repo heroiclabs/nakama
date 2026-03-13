@@ -53,10 +53,12 @@ type LocalLeaderboardScheduler struct {
 	fnTournamentReset  RuntimeTournamentResetFunction
 	fnTournamentEnd    RuntimeTournamentEndFunction
 
-	endActiveTimer *time.Timer
-	expiryTimer    *time.Timer
-	lastEnd        int64
-	lastExpiry     int64
+	endActiveTimer     *time.Timer
+	expiryTimer        *time.Timer
+	lastEnd            int64
+	lastExpiry         int64
+	scheduledEndActive int64
+	scheduledExpiry    int64
 
 	started bool
 	queue   chan *LeaderboardSchedulerCallback
@@ -79,6 +81,8 @@ func NewLocalLeaderboardScheduler(logger *zap.Logger, db *sql.DB, config Config,
 		// expiryTimer only initialized when needed.
 		// lastEnd only initialized when needed.
 		// lastExpiry only initialized when needed.
+		scheduledEndActive: -1,
+		scheduledExpiry:    -1,
 
 		queue:  make(chan *LeaderboardSchedulerCallback, config.GetLeaderboard().CallbackQueueSize),
 		active: atomic.NewUint32(1),
@@ -132,20 +136,10 @@ func (ls *LocalLeaderboardScheduler) Pause() {
 
 	ls.Lock()
 	if ls.endActiveTimer != nil {
-		if !ls.endActiveTimer.Stop() {
-			select {
-			case <-ls.endActiveTimer.C:
-			default:
-			}
-		}
+		ls.endActiveTimer.Stop()
 	}
 	if ls.expiryTimer != nil {
-		if !ls.expiryTimer.Stop() {
-			select {
-			case <-ls.expiryTimer.C:
-			default:
-			}
-		}
+		ls.expiryTimer.Stop()
 	}
 	ls.Unlock()
 }
@@ -165,20 +159,10 @@ func (ls *LocalLeaderboardScheduler) Stop() {
 	ls.Lock()
 	ls.ctxCancelFn()
 	if ls.endActiveTimer != nil {
-		if !ls.endActiveTimer.Stop() {
-			select {
-			case <-ls.endActiveTimer.C:
-			default:
-			}
-		}
+		ls.endActiveTimer.Stop()
 	}
 	if ls.expiryTimer != nil {
-		if !ls.expiryTimer.Stop() {
-			select {
-			case <-ls.expiryTimer.C:
-			default:
-			}
-		}
+		ls.expiryTimer.Stop()
 	}
 	ls.Unlock()
 }
@@ -270,34 +254,48 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	}
 
 	// Replace IDs earmarked for end and expiry, and restart timers as needed.
+	// Only replace a timer when its target cycle changes — if the computed target is the
+	// same Unix second as the currently scheduled timer, leave it running.  This prevents
+	// queueEndActiveElapse's Update() call (which fires while the expiry timer for the
+	// same second is still pending) from inadvertently cancelling that expiry timer.
 	ls.Lock()
-	if ls.endActiveTimer != nil {
-		if !ls.endActiveTimer.Stop() {
-			select {
-			case <-ls.endActiveTimer.C:
-			default:
-			}
-		}
-	}
-	if ls.expiryTimer != nil {
-		if !ls.expiryTimer.Stop() {
-			select {
-			case <-ls.expiryTimer.C:
-			default:
-			}
-		}
-	}
 	if endActiveDuration > -1 {
-		ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActiveDuration), zap.Strings("ids", endActiveLeaderboardIds))
-		ls.endActiveTimer = time.AfterFunc(endActiveDuration, func() {
-			ls.queueEndActiveElapse(time.Unix(earliestEndActive, 0).UTC(), endActiveLeaderboardIds)
-		})
+		if earliestEndActive != ls.scheduledEndActive {
+			if ls.endActiveTimer != nil {
+				ls.endActiveTimer.Stop()
+				ls.endActiveTimer = nil
+			}
+			ls.scheduledEndActive = earliestEndActive
+			ls.logger.Debug("Setting timer to run end active function", zap.Duration("end_active", endActiveDuration), zap.Strings("ids", endActiveLeaderboardIds))
+			ls.endActiveTimer = time.AfterFunc(endActiveDuration, func() {
+				ls.queueEndActiveElapse(time.Unix(earliestEndActive, 0).UTC(), endActiveLeaderboardIds)
+			})
+		}
+	} else {
+		if ls.endActiveTimer != nil {
+			ls.endActiveTimer.Stop()
+			ls.endActiveTimer = nil
+		}
+		ls.scheduledEndActive = -1
 	}
 	if expiryDuration > -1 {
-		ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiryDuration), zap.Strings("ids", expiryLeaderboardIds))
-		ls.expiryTimer = time.AfterFunc(expiryDuration, func() {
-			ls.queueExpiryElapse(time.Unix(earliestExpiry, 0).UTC(), expiryLeaderboardIds)
-		})
+		if earliestExpiry != ls.scheduledExpiry {
+			if ls.expiryTimer != nil {
+				ls.expiryTimer.Stop()
+				ls.expiryTimer = nil
+			}
+			ls.scheduledExpiry = earliestExpiry
+			ls.logger.Debug("Setting timer to run expiry function", zap.Duration("expiry", expiryDuration), zap.Strings("ids", expiryLeaderboardIds))
+			ls.expiryTimer = time.AfterFunc(expiryDuration, func() {
+				ls.queueExpiryElapse(time.Unix(earliestExpiry, 0).UTC(), expiryLeaderboardIds)
+			})
+		}
+	} else {
+		if ls.expiryTimer != nil {
+			ls.expiryTimer.Stop()
+			ls.expiryTimer = nil
+		}
+		ls.scheduledExpiry = -1
 	}
 	ls.Unlock()
 
@@ -311,7 +309,7 @@ func (ls *LocalLeaderboardScheduler) queueEndActiveElapse(t time.Time, ids []str
 	}
 
 	ts := t.Unix()
-	tMinusOne := time.Unix(ts-1, 0).UTC()
+	tMinusOne := time.Unix(ts-1, 0).UTC() // Subtract 1s so that the calculated deadline is for the current cycle, not the next.
 
 	// Immediately schedule the next invocation to avoid any gaps caused by time spent processing below.
 	ls.Update()
