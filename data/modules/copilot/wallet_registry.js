@@ -150,11 +150,3 @@ function getAllWallets(nk, logger, limit) {
         throw err;
     }
 }
-
-// Export functions for use in other modules (ES Module syntax)
-export {
-    getWalletByUserId,
-    createWalletRecord,
-    updateWalletGames,
-    getAllWallets
-};

@@ -10,16 +10,16 @@
  */
 
 // Collection names
-const COLLECTION_ONBOARDING = "onboarding_state";
-const COLLECTION_PREFERENCES = "user_preferences";
-const COLLECTION_FIRST_SESSION = "first_session";
-const COLLECTION_RETENTION = "retention_data";
+var COLLECTION_ONBOARDING = "onboarding_state";
+var COLLECTION_PREFERENCES = "user_preferences";
+var COLLECTION_FIRST_SESSION = "first_session";
+var COLLECTION_RETENTION = "retention_data";
 
 // Keys
-const KEY_ONBOARDING = "state";
-const KEY_PREFERENCES = "prefs";
-const KEY_SESSION = "session";
-const KEY_RETENTION = "retention";
+var KEY_ONBOARDING = "state";
+var KEY_PREFERENCES = "prefs";
+var KEY_SESSION = "session";
+var KEY_RETENTION = "retention";
 
 /**
  * Initialize onboarding module
@@ -53,11 +53,11 @@ function _OnboardingInit(ctx, logger, nk, initializer) {
  * After authentication hook - Initialize new users
  */
 function afterAuthHook(ctx, logger, nk, data, request) {
-    const userId = ctx.userId;
+    var userId = ctx.userId;
     
     try {
         // Check if user has onboarding state
-        const existing = nk.storageRead([{
+        var existing = nk.storageRead([{
             collection: COLLECTION_ONBOARDING,
             key: KEY_ONBOARDING,
             userId: userId
@@ -80,10 +80,10 @@ function afterAuthHook(ctx, logger, nk, data, request) {
  * Initialize new user with default onboarding state
  */
 function initializeNewUser(nk, logger, userId) {
-    const now = Date.now();
+    var now = Date.now();
     
     // Default onboarding state
-    const onboardingState = {
+    var onboardingState = {
         userId: userId,
         createdAt: now,
         currentStep: 1,
@@ -97,7 +97,7 @@ function initializeNewUser(nk, logger, userId) {
     };
 
     // Default preferences
-    const preferences = {
+    var preferences = {
         userId: userId,
         interests: [],
         preferredDifficulty: "easy",
@@ -109,7 +109,7 @@ function initializeNewUser(nk, logger, userId) {
     };
 
     // Session data
-    const sessionData = {
+    var sessionData = {
         userId: userId,
         firstSessionAt: now,
         totalSessions: 1,
@@ -158,17 +158,17 @@ function initializeNewUser(nk, logger, userId) {
  */
 function trackUserSession(nk, logger, userId) {
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_FIRST_SESSION,
             key: KEY_SESSION,
             userId: userId
         }]);
 
         if (result.length > 0) {
-            const sessionData = result[0].value;
-            const now = Date.now();
-            const firstSession = sessionData.firstSessionAt;
-            const hoursSinceFirst = (now - firstSession) / (1000 * 60 * 60);
+            var sessionData = result[0].value;
+            var now = Date.now();
+            var firstSession = sessionData.firstSessionAt;
+            var hoursSinceFirst = (now - firstSession) / (1000 * 60 * 60);
 
             sessionData.totalSessions++;
             sessionData.lastSessionAt = now;
@@ -205,10 +205,10 @@ function trackUserSession(nk, logger, userId) {
  * RPC: Get user's onboarding state
  */
 function rpcGetOnboardingState(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
+    var userId = ctx.userId;
     
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_ONBOARDING,
             key: KEY_ONBOARDING,
             userId: userId
@@ -246,11 +246,11 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
  * RPC: Update onboarding state
  */
 function rpcUpdateOnboardingState(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
-    const input = JSON.parse(payload);
+    var userId = ctx.userId;
+    var input = JSON.parse(payload);
 
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_ONBOARDING,
             key: KEY_ONBOARDING,
             userId: userId
@@ -260,7 +260,7 @@ function rpcUpdateOnboardingState(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "No onboarding state found" });
         }
 
-        const state = result[0].value;
+        var state = result[0].value;
         
         // Update fields
         if (input.currentStep !== undefined) state.currentStep = input.currentStep;
@@ -288,12 +288,12 @@ function rpcUpdateOnboardingState(ctx, logger, nk, payload) {
  * RPC: Complete a specific onboarding step
  */
 function rpcCompleteStep(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
-    const input = JSON.parse(payload);
-    const stepId = input.stepId;
+    var userId = ctx.userId;
+    var input = JSON.parse(payload);
+    var stepId = input.stepId;
 
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_ONBOARDING,
             key: KEY_ONBOARDING,
             userId: userId
@@ -303,7 +303,7 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "No onboarding state" });
         }
 
-        const state = result[0].value;
+        var state = result[0].value;
         
         // Add step to completed if not already
         if (!state.completedSteps.includes(stepId)) {
@@ -333,7 +333,7 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
         }]);
 
         // Return rewards for completing step
-        const rewards = getStepRewards(stepId);
+        var rewards = getStepRewards(stepId);
 
         return JSON.stringify({ 
             success: true, 
@@ -350,17 +350,17 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
  * RPC: Set user interests/preferences
  */
 function rpcSetInterests(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
-    const input = JSON.parse(payload);
+    var userId = ctx.userId;
+    var input = JSON.parse(payload);
 
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_PREFERENCES,
             key: KEY_PREFERENCES,
             userId: userId
         }]);
 
-        let prefs;
+        var prefs;
         if (result.length === 0) {
             prefs = {
                 userId: userId,
@@ -404,10 +404,10 @@ function rpcSetInterests(ctx, logger, nk, payload) {
  * RPC: Get user interests
  */
 function rpcGetInterests(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
+    var userId = ctx.userId;
 
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_PREFERENCES,
             key: KEY_PREFERENCES,
             userId: userId
@@ -434,11 +434,11 @@ function rpcGetInterests(ctx, logger, nk, payload) {
  * RPC: Claim welcome bonus (50 coins for new users)
  */
 function rpcClaimWelcomeBonus(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
-    const WELCOME_BONUS = 50;
+    var userId = ctx.userId;
+    var WELCOME_BONUS = 50;
 
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_ONBOARDING,
             key: KEY_ONBOARDING,
             userId: userId
@@ -448,7 +448,7 @@ function rpcClaimWelcomeBonus(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "No onboarding state" });
         }
 
-        const state = result[0].value;
+        var state = result[0].value;
 
         if (state.welcomeBonusClaimed) {
             return JSON.stringify({ 
@@ -459,8 +459,8 @@ function rpcClaimWelcomeBonus(ctx, logger, nk, payload) {
         }
 
         // Grant coins via wallet
-        const changeset = { coins: WELCOME_BONUS };
-        const metadata = { source: "welcome_bonus" };
+        var changeset = { coins: WELCOME_BONUS };
+        var metadata = { source: "welcome_bonus" };
         nk.walletUpdate(userId, changeset, metadata, true);
 
         // Update state
@@ -493,12 +493,12 @@ function rpcClaimWelcomeBonus(ctx, logger, nk, payload) {
  * RPC: First quiz completed - award bonus
  */
 function rpcFirstQuizComplete(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
-    const input = JSON.parse(payload);
-    const FIRST_QUIZ_BONUS = 200;
+    var userId = ctx.userId;
+    var input = JSON.parse(payload);
+    var FIRST_QUIZ_BONUS = 200;
 
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_ONBOARDING,
             key: KEY_ONBOARDING,
             userId: userId
@@ -508,7 +508,7 @@ function rpcFirstQuizComplete(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "No onboarding state" });
         }
 
-        const state = result[0].value;
+        var state = result[0].value;
 
         if (state.firstQuizCompleted) {
             return JSON.stringify({ 
@@ -519,8 +519,8 @@ function rpcFirstQuizComplete(ctx, logger, nk, payload) {
         }
 
         // Grant bonus
-        const changeset = { coins: FIRST_QUIZ_BONUS };
-        const metadata = { 
+        var changeset = { coins: FIRST_QUIZ_BONUS };
+        var metadata = { 
             source: "first_quiz_bonus",
             score: input.score || 0,
             correctAnswers: input.correctAnswers || 0
@@ -567,26 +567,26 @@ function rpcFirstQuizComplete(ctx, logger, nk, payload) {
  * RPC: Get tomorrow's preview (personalized hook)
  */
 function rpcGetTomorrowPreview(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
+    var userId = ctx.userId;
 
     try {
         // Get user preferences
-        const prefsResult = nk.storageRead([{
+        var prefsResult = nk.storageRead([{
             collection: COLLECTION_PREFERENCES,
             key: KEY_PREFERENCES,
             userId: userId
         }]);
 
-        let interests = ["General Knowledge"];
+        var interests = ["General Knowledge"];
         if (prefsResult.length > 0 && prefsResult[0].value.interests.length > 0) {
             interests = prefsResult[0].value.interests;
         }
 
         // Pick a random interest for tomorrow's quiz
-        const tomorrowCategory = interests[Math.floor(Math.random() * interests.length)];
+        var tomorrowCategory = interests[Math.floor(Math.random() * interests.length)];
 
         // Generate preview
-        const preview = {
+        var preview = {
             category: tomorrowCategory,
             xpMultiplier: 2,
             bonusCoins: 100,
@@ -606,8 +606,8 @@ function rpcGetTomorrowPreview(ctx, logger, nk, payload) {
  * RPC: Track session for retention analytics
  */
 function rpcTrackSession(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
-    const input = JSON.parse(payload);
+    var userId = ctx.userId;
+    var input = JSON.parse(payload);
 
     try {
         trackUserSession(nk, logger, userId);
@@ -627,10 +627,10 @@ function rpcTrackSession(ctx, logger, nk, payload) {
  * RPC: Get retention data for analytics
  */
 function rpcGetRetentionData(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
+    var userId = ctx.userId;
 
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_FIRST_SESSION,
             key: KEY_SESSION,
             userId: userId
@@ -640,18 +640,19 @@ function rpcGetRetentionData(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "No session data" });
         }
 
-        const sessionData = result[0].value;
-        const now = Date.now();
-        const daysSinceFirst = Math.floor((now - sessionData.firstSessionAt) / (1000 * 60 * 60 * 24));
+        var sessionData = result[0].value;
+        var now = Date.now();
+        var daysSinceFirst = Math.floor((now - sessionData.firstSessionAt) / (1000 * 60 * 60 * 24));
+
+        var data = {};
+        for (var k in sessionData) { data[k] = sessionData[k]; }
+        data.daysSinceFirstSession = daysSinceFirst;
+        data.isD1 = daysSinceFirst === 1;
+        data.isD7 = daysSinceFirst === 7;
 
         return JSON.stringify({
             success: true,
-            data: {
-                ...sessionData,
-                daysSinceFirstSession: daysSinceFirst,
-                isD1: daysSinceFirst === 1,
-                isD7: daysSinceFirst === 7
-            }
+            data: data
         });
     } catch (e) {
         logger.error(`[Onboarding] Get retention data error: ${e.message}`);
@@ -663,12 +664,12 @@ function rpcGetRetentionData(ctx, logger, nk, payload) {
  * RPC: Grant streak shield to user
  */
 function rpcGrantStreakShield(ctx, logger, nk, payload) {
-    const userId = ctx.userId;
-    const input = JSON.parse(payload);
-    const hours = input.hours || 48;
+    var userId = ctx.userId;
+    var input = JSON.parse(payload);
+    var hours = input.hours || 48;
 
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_ONBOARDING,
             key: KEY_ONBOARDING,
             userId: userId
@@ -678,7 +679,7 @@ function rpcGrantStreakShield(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "No onboarding state" });
         }
 
-        const state = result[0].value;
+        var state = result[0].value;
         state.streakShieldExpiry = Date.now() + (hours * 60 * 60 * 1000);
         state.lastUpdated = Date.now();
 
@@ -708,7 +709,7 @@ function rpcGrantStreakShield(ctx, logger, nk, payload) {
  * Get rewards for completing a specific step
  */
 function getStepRewards(stepId) {
-    const stepRewards = {
+    var stepRewards = {
         1: { coins: 0, message: "Welcome to QuizVerse!" },
         2: { coins: 50, message: "Interests saved! +50 coins" },
         3: { coins: 200, message: "First quiz done! +200 coins + Streak Shield!" },
@@ -723,14 +724,14 @@ function getStepRewards(stepId) {
  */
 function updateSessionStats(nk, logger, userId, stats) {
     try {
-        const result = nk.storageRead([{
+        var result = nk.storageRead([{
             collection: COLLECTION_FIRST_SESSION,
             key: KEY_SESSION,
             userId: userId
         }]);
 
         if (result.length > 0) {
-            const sessionData = result[0].value;
+            var sessionData = result[0].value;
             
             if (stats.quizzesPlayed) {
                 sessionData.totalQuizzesPlayed += stats.quizzesPlayed;

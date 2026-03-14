@@ -443,12 +443,3 @@ function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
         timestamp: new Date().toISOString()
     });
 }
-
-// Export functions
-export {
-    rpcMonthlyMilestonesGetStatus,
-    rpcMonthlyMilestonesUpdateProgress,
-    rpcMonthlyMilestonesClaimReward,
-    rpcMonthlyMilestonesClaimLegendary
-};
-

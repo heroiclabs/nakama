@@ -1,7 +1,5 @@
 // wallet.js - Enhanced Wallet System (Global + Per-Game Sub-Wallets)
 
-import * as utils from "../copilot/utils.js";
-
 /**
  * Get or create global wallet for user
  * @param {object} nk - Nakama runtime
@@ -448,13 +446,3 @@ function rpcWalletGetBalances(ctx, logger, nk, payload) {
         timestamp:      utils.getCurrentTimestamp()
     });
 }
-
-
-// Export RPC functions (ES Module syntax)
-export {
-    rpcWalletGetAll,
-    rpcWalletUpdateGlobal,
-    rpcWalletUpdateGameWallet,
-    rpcWalletTransferBetweenGameWallets,
-    rpcWalletGetBalances  
-};

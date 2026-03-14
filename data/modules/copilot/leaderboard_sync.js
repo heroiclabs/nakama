@@ -1,85 +1,60 @@
-// leaderboard_sync.js - Base score synchronization between per-game and global leaderboards
+// leaderboard_sync.js - Score synchronization between per-game and global leaderboards
+// ES5 compatible for Nakama goja runtime
 
-// Import utils
-import * as utils from './utils.js';
-
-/**
- * RPC: submit_score_sync
- * Synchronizes score between per-game and global leaderboards
- */
-function submitScoreSync(ctx, logger, nk, payload) {
+function rpcSubmitScoreSync(ctx, logger, nk, payload) {
     try {
-        // Validate authentication
         if (!ctx.userId) {
-            return utils.handleError(ctx, null, "Authentication required");
+            return copilotHandleError(ctx, null, "Authentication required");
         }
 
-        // Parse and validate payload
-        let data;
+        var data;
         try {
             data = JSON.parse(payload);
         } catch (err) {
-            return utils.handleError(ctx, err, "Invalid JSON payload");
+            return copilotHandleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = utils.validatePayload(data, ['gameId', 'score']);
+        var validation = copilotValidatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
-            return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
+            return copilotHandleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
 
-        const gameId = data.gameId;
-        const score = parseInt(data.score);
-        
+        var gameId = data.gameId;
+        var score = parseInt(data.score);
+
         if (isNaN(score)) {
-            return utils.handleError(ctx, null, "Score must be a valid number");
+            return copilotHandleError(ctx, null, "Score must be a valid number");
         }
 
-        const userId = ctx.userId;
-        const username = ctx.username || userId;
-        const submittedAt = new Date().toISOString();
+        var userId = ctx.userId;
+        var username = ctx.username || userId;
+        var submittedAt = new Date().toISOString();
 
-        // Create metadata
-        const metadata = {
+        var metadata = {
             source: "submit_score_sync",
             gameId: gameId,
             submittedAt: submittedAt
         };
 
-        const gameLeaderboardId = "leaderboard_" + gameId;
-        const globalLeaderboardId = "leaderboard_global";
+        var gameLeaderboardId = "leaderboard_" + gameId;
+        var globalLeaderboardId = "leaderboard_global";
 
-        utils.logInfo(logger, "Submitting score: " + score + " for user " + username + " to game " + gameId);
+        copilotLogInfo(logger, "Submitting score: " + score + " for user " + username + " to game " + gameId);
 
-        // Write to per-game leaderboard
         try {
-            nk.leaderboardRecordWrite(
-                gameLeaderboardId,
-                userId,
-                username,
-                score,
-                0, // subscore
-                metadata
-            );
-            utils.logInfo(logger, "Score written to game leaderboard: " + gameLeaderboardId);
+            nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
+            copilotLogInfo(logger, "Score written to game leaderboard: " + gameLeaderboardId);
         } catch (err) {
-            utils.logError(logger, "Failed to write to game leaderboard: " + err.message);
-            return utils.handleError(ctx, err, "Failed to write score to game leaderboard");
+            copilotLogError(logger, "Failed to write to game leaderboard: " + err.message);
+            return copilotHandleError(ctx, err, "Failed to write score to game leaderboard");
         }
 
-        // Write to global leaderboard
         try {
-            nk.leaderboardRecordWrite(
-                globalLeaderboardId,
-                userId,
-                username,
-                score,
-                0, // subscore
-                metadata
-            );
-            utils.logInfo(logger, "Score written to global leaderboard: " + globalLeaderboardId);
+            nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
+            copilotLogInfo(logger, "Score written to global leaderboard: " + globalLeaderboardId);
         } catch (err) {
-            utils.logError(logger, "Failed to write to global leaderboard: " + err.message);
-            return utils.handleError(ctx, err, "Failed to write score to global leaderboard");
+            copilotLogError(logger, "Failed to write to global leaderboard: " + err.message);
+            return copilotHandleError(ctx, err, "Failed to write score to global leaderboard");
         }
 
         return JSON.stringify({
@@ -91,16 +66,7 @@ function submitScoreSync(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        utils.logError(logger, "Unexpected error in submitScoreSync: " + err.message);
-        return utils.handleError(ctx, err, "An error occurred while processing your request");
+        copilotLogError(logger, "Unexpected error in rpcSubmitScoreSync: " + err.message);
+        return copilotHandleError(ctx, err, "An error occurred while processing your request");
     }
 }
-
-// Register RPC in InitModule context if available
-var rpcSubmitScoreSync = submitScoreSync;
-
-// Export for module systems (ES Module syntax)
-export {
-    submitScoreSync,
-    rpcSubmitScoreSync
-};

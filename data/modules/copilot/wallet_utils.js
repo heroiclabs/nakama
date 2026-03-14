@@ -9,20 +9,20 @@
 function decodeJWT(token) {
     try {
         // JWT structure: header.payload.signature
-        const parts = token.split('.');
+        var parts = token.split('.');
         if (parts.length !== 3) {
             throw new Error('Invalid JWT format');
         }
         
         // Decode base64url payload
-        const payload = parts[1];
+        var payload = parts[1];
         // Replace base64url chars with base64 standard
-        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        var base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
         // Add padding if needed
-        const padded = base64 + '=='.substring(0, (4 - base64.length % 4) % 4);
+        var padded = base64 + '=='.substring(0, (4 - base64.length % 4) % 4);
         
         // Decode base64 and parse JSON
-        const decoded = JSON.parse(atob(padded));
+        var decoded = JSON.parse(atob(padded));
         return decoded;
     } catch (err) {
         throw new Error('Failed to decode JWT: ' + err.message);
@@ -35,7 +35,7 @@ function decodeJWT(token) {
  * @returns {object} User info with sub and email
  */
 function extractUserInfo(token) {
-    const decoded = decodeJWT(token);
+    var decoded = decodeJWT(token);
     
     // Validate required fields
     if (!decoded.sub) {
@@ -59,7 +59,7 @@ function validateJWTStructure(token) {
         return false;
     }
     
-    const parts = token.split('.');
+    var parts = token.split('.');
     return parts.length === 3;
 }
 
@@ -91,7 +91,7 @@ function logWalletOperation(logger, operation, details) {
  * @returns {object} Standardized error response
  */
 function handleWalletError(logger, operation, error) {
-    const errorMsg = error.message || String(error);
+    var errorMsg = error.message || String(error);
     logger.error('[Wallet Error] ' + operation + ': ' + errorMsg);
     
     return {
@@ -101,12 +101,3 @@ function handleWalletError(logger, operation, error) {
     };
 }
 
-// Export functions for use in other modules (ES Module syntax)
-export {
-    decodeJWT,
-    extractUserInfo,
-    validateJWTStructure,
-    generateWalletId,
-    logWalletOperation,
-    handleWalletError
-};

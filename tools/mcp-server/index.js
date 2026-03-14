@@ -29,6 +29,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { execSync } from "child_process";
 import http from "http";
+import https from "https";
 
 const NAKAMA_HTTP = process.env.NAKAMA_HTTP_URL || "http://127.0.0.1:7350";
 const NAKAMA_SERVER_KEY = process.env.NAKAMA_SERVER_KEY || "defaultkey";
@@ -51,7 +52,7 @@ function httpJson(method, url, body, headers = {}) {
     const payload = body != null ? (typeof body === "string" ? body : JSON.stringify(body)) : undefined;
     const opts = {
       hostname: u.hostname,
-      port: u.port,
+      port: u.port || (u.protocol === "https:" ? 443 : 80),
       path: u.pathname + u.search,
       method,
       headers: {
@@ -60,7 +61,8 @@ function httpJson(method, url, body, headers = {}) {
         ...(payload ? { "Content-Length": Buffer.byteLength(payload) } : {}),
       },
     };
-    const req = http.request(opts, (res) => {
+    const transport = u.protocol === "https:" ? https : http;
+    const req = transport.request(opts, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {

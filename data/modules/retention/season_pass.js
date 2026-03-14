@@ -657,13 +657,3 @@ function rpcSeasonPassPurchasePremium(ctx, logger, nk, payload) {
         timestamp: new Date().toISOString()
     });
 }
-
-// Export functions
-export {
-    rpcSeasonPassGetStatus,
-    rpcSeasonPassAddXP,
-    rpcSeasonPassCompleteQuest,
-    rpcSeasonPassClaimReward,
-    rpcSeasonPassPurchasePremium
-};
-

@@ -1,13 +1,11 @@
 // quiz_results.js - Quiz Results Tracking & Analytics System
 // Stores ALL quiz results from ALL game modes for analytics, history, and leaderboards
 
-import * as utils from "../copilot/utils.js";
-
 /**
  * Quiz Result Schema
  * Captures comprehensive data about each quiz attempt
  */
-const QUIZ_RESULT_SCHEMA = {
+var QUIZ_RESULT_SCHEMA = {
     // Required fields
     gameId: "string",           // Game UUID
     gameMode: "string",         // QuickPlay, DailyChallenge, Championship, etc.
@@ -68,15 +66,15 @@ function generateResultKey(userId, timestamp) {
  * Calculate performance metrics
  */
 function calculateMetrics(result) {
-    const accuracy = result.totalQuestions > 0 
+    var accuracy = result.totalQuestions > 0 
         ? (result.correctAnswers / result.totalQuestions) * 100 
         : 0;
     
-    const avgTimePerQuestion = result.totalQuestions > 0 
+    var avgTimePerQuestion = result.totalQuestions > 0 
         ? result.timeTakenSeconds / result.totalQuestions 
         : 0;
     
-    const isPerfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
+    var isPerfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
     
     return {
         accuracy: Math.round(accuracy * 100) / 100,
@@ -90,7 +88,7 @@ function calculateMetrics(result) {
  * Calculate performance rating (1-5 stars)
  */
 function calculatePerformanceRating(accuracy, avgTime, won) {
-    let rating = 0;
+    var rating = 0;
     
     // Accuracy contribution (0-2.5 stars)
     if (accuracy >= 90) rating += 2.5;
@@ -114,11 +112,11 @@ function calculatePerformanceRating(accuracy, avgTime, won) {
  * Update user's aggregate statistics
  */
 function updateUserStats(nk, logger, userId, gameId, result, metrics) {
-    const collection = getUserStatsCollection(gameId);
-    const key = "stats_" + userId;
+    var collection = getUserStatsCollection(gameId);
+    var key = "stats_" + userId;
     
     // Get existing stats
-    let stats = utils.readStorage(nk, logger, collection, key, userId);
+    var stats = utils.readStorage(nk, logger, collection, key, userId);
     
     if (!stats) {
         stats = {
@@ -163,7 +161,7 @@ function updateUserStats(nk, logger, userId, gameId, result, metrics) {
     stats.lastPlayedAt = utils.getCurrentTimestamp();
     
     // Update per-mode stats
-    const mode = result.gameMode || "unknown";
+    var mode = result.gameMode || "unknown";
     if (!stats.modeStats[mode]) {
         stats.modeStats[mode] = {
             games: 0,
@@ -210,16 +208,16 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
     utils.logInfo(logger, "RPC quiz_submit_result called");
     
     // Parse payload
-    const parsed = utils.safeJsonParse(payload);
+    var parsed = utils.safeJsonParse(payload);
     if (!parsed.success) {
         return utils.handleError(ctx, null, "Invalid JSON payload");
     }
     
-    const data = parsed.data;
+    var data = parsed.data;
     
     // Validate required fields
-    const required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
-    const validation = utils.validatePayload(data, required);
+    var required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
+    var validation = utils.validatePayload(data, required);
     if (!validation.valid) {
         return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -229,16 +227,16 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
         return utils.handleError(ctx, null, "Invalid gameId UUID format");
     }
     
-    const userId = ctx.userId;
+    var userId = ctx.userId;
     if (!userId) {
         return utils.handleError(ctx, null, "User not authenticated");
     }
     
-    const username = ctx.username || "unknown";
-    const timestamp = utils.getUnixTimestamp();
+    var username = ctx.username || "unknown";
+    var timestamp = utils.getUnixTimestamp();
     
     // Build result object
-    const result = {
+    var result = {
         id: generateResultKey(userId, timestamp),
         userId: userId,
         username: username,
@@ -274,25 +272,25 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
     };
     
     // Calculate metrics
-    const metrics = calculateMetrics(result);
+    var metrics = calculateMetrics(result);
     result.metrics = metrics;
     result.perfectScore = metrics.isPerfect;
     
     try {
         // 1. Store the result
-        const collection = getResultsCollection(data.gameId);
-        const resultKey = result.id;
+        var collection = getResultsCollection(data.gameId);
+        var resultKey = result.id;
         utils.writeStorage(nk, logger, collection, resultKey, userId, result);
         utils.logInfo(logger, "Stored quiz result: " + resultKey);
         
         // 2. Update user stats
-        const updatedStats = updateUserStats(nk, logger, userId, data.gameId, result, metrics);
+        var updatedStats = updateUserStats(nk, logger, userId, data.gameId, result, metrics);
         
         // 3. Update leaderboard if score > 0
         if (result.score > 0) {
             try {
-                const leaderboardId = "leaderboard_" + data.gameId;
-                const leaderboardMetadata = {
+                var leaderboardId = "leaderboard_" + data.gameId;
+                var leaderboardMetadata = {
                     gameMode: result.gameMode,
                     accuracy: metrics.accuracy,
                     submittedAt: result.submittedAt
@@ -314,7 +312,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
         }
         
         // 4. Store in transaction log for analytics
-        const transactionKey = "quiz_result_" + userId + "_" + timestamp;
+        var transactionKey = "quiz_result_" + userId + "_" + timestamp;
         utils.writeStorage(nk, logger, "transaction_logs", transactionKey, userId, {
             type: "quiz_result",
             resultId: result.id,
@@ -362,32 +360,32 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
 function rpcQuizGetHistory(ctx, logger, nk, payload) {
     utils.logInfo(logger, "RPC quiz_get_history called");
     
-    const parsed = utils.safeJsonParse(payload);
+    var parsed = utils.safeJsonParse(payload);
     if (!parsed.success) {
         return utils.handleError(ctx, null, "Invalid JSON payload");
     }
     
-    const data = parsed.data;
-    const validation = utils.validatePayload(data, ['gameId']);
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return utils.handleError(ctx, null, "Missing gameId");
     }
     
-    const userId = ctx.userId;
+    var userId = ctx.userId;
     if (!userId) {
         return utils.handleError(ctx, null, "User not authenticated");
     }
     
-    const collection = getResultsCollection(data.gameId);
-    const limit = Math.min(parseInt(data.limit) || 20, 100);
+    var collection = getResultsCollection(data.gameId);
+    var limit = Math.min(parseInt(data.limit) || 20, 100);
     
     try {
         // List storage objects for this user
-        const objects = nk.storageList(userId, collection, limit, data.cursor || "");
+        var objects = nk.storageList(userId, collection, limit, data.cursor || "");
         
-        let results = [];
-        for (const obj of objects.objects || []) {
-            const result = JSON.parse(obj.value);
+        var results = [];
+        for (var obj of objects.objects || []) {
+            var result = JSON.parse(obj.value);
             
             // Filter by gameMode if specified
             if (data.gameMode && result.gameMode !== data.gameMode) {
@@ -430,26 +428,26 @@ function rpcQuizGetHistory(ctx, logger, nk, payload) {
 function rpcQuizGetStats(ctx, logger, nk, payload) {
     utils.logInfo(logger, "RPC quiz_get_stats called");
     
-    const parsed = utils.safeJsonParse(payload);
+    var parsed = utils.safeJsonParse(payload);
     if (!parsed.success) {
         return utils.handleError(ctx, null, "Invalid JSON payload");
     }
     
-    const data = parsed.data;
-    const validation = utils.validatePayload(data, ['gameId']);
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return utils.handleError(ctx, null, "Missing gameId");
     }
     
-    const userId = ctx.userId;
+    var userId = ctx.userId;
     if (!userId) {
         return utils.handleError(ctx, null, "User not authenticated");
     }
     
-    const collection = getUserStatsCollection(data.gameId);
-    const key = "stats_" + userId;
+    var collection = getUserStatsCollection(data.gameId);
+    var key = "stats_" + userId;
     
-    const stats = utils.readStorage(nk, logger, collection, key, userId);
+    var stats = utils.readStorage(nk, logger, collection, key, userId);
     
     if (!stats) {
         return JSON.stringify({
@@ -471,15 +469,15 @@ function rpcQuizGetStats(ctx, logger, nk, payload) {
     }
     
     // Calculate derived stats
-    const winRate = stats.totalGames > 0 
+    var winRate = stats.totalGames > 0 
         ? Math.round((stats.totalWins / stats.totalGames) * 100) 
         : 0;
     
-    const averageScore = stats.totalGames > 0 
+    var averageScore = stats.totalGames > 0 
         ? Math.round(stats.totalScore / stats.totalGames) 
         : 0;
     
-    const accuracy = stats.totalQuestions > 0 
+    var accuracy = stats.totalQuestions > 0 
         ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100) 
         : 0;
     
@@ -526,21 +524,21 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
     utils.logInfo(logger, "RPC quiz_check_daily_completion called");
     
     // Parse payload
-    const parsed = utils.safeJsonParse(payload);
+    var parsed = utils.safeJsonParse(payload);
     if (!parsed.success) {
         return utils.handleError(ctx, null, "Invalid JSON payload");
     }
     
-    const data = parsed.data;
+    var data = parsed.data;
     
     // Validate required fields (only gameMode is required now)
-    const validation = utils.validatePayload(data, ['gameMode']);
+    var validation = utils.validatePayload(data, ['gameMode']);
     if (!validation.valid) {
         return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
     
     // Validate gameMode
-    const validModes = ['DailyChallenge', 'DailyPremiumQuiz'];
+    var validModes = ['DailyChallenge', 'DailyPremiumQuiz'];
     if (validModes.indexOf(data.gameMode) === -1) {
         return utils.handleError(ctx, null, "Invalid gameMode. Must be 'DailyChallenge' or 'DailyPremiumQuiz'");
     }
@@ -550,34 +548,34 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
         return utils.handleError(ctx, null, "Invalid gameId UUID format");
     }
     
-    const userId = ctx.userId;
+    var userId = ctx.userId;
     if (!userId) {
         return utils.handleError(ctx, null, "User not authenticated");
     }
     
     try {
         // Get today's start timestamp (00:00:00 UTC)
-        const todayStart = utils.getStartOfDay();
-        const todayEnd = todayStart + 86400; // End of day (24 hours later)
+        var todayStart = utils.getStartOfDay();
+        var todayEnd = todayStart + 86400; // End of day (24 hours later)
         
         // Get current date string for response (YYYY-MM-DD)
-        const today = new Date();
-        const dateString = today.getUTCFullYear() + "-" + 
+        var today = new Date();
+        var dateString = today.getUTCFullYear() + "-" + 
                           String(today.getUTCMonth() + 1).padStart(2, '0') + "-" + 
                           String(today.getUTCDate()).padStart(2, '0');
         
-        let completed = false;
+        var completed = false;
         
         // If gameId is provided, only check that specific collection
         if (data.gameId) {
-            const collection = getResultsCollection(data.gameId);
-            const limit = 100; // Check last 100 results (should be enough for daily check)
+            var collection = getResultsCollection(data.gameId);
+            var limit = 100; // Check last 100 results (should be enough for daily check)
             
-            const objects = nk.storageList(userId, collection, limit, "");
+            var objects = nk.storageList(userId, collection, limit, "");
             
             // Check if any result matches gameMode and was submitted today
-            for (const obj of objects.objects || []) {
-                const result = JSON.parse(obj.value);
+            for (var obj of objects.objects || []) {
+                var result = JSON.parse(obj.value);
                 
                 // Check if gameMode matches
                 if (result.gameMode !== data.gameMode) {
@@ -594,34 +592,34 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
             }
         } else {
             // No gameId provided - query transaction_logs which stores all quiz results
-            const transactionCollection = "transaction_logs";
-            const limit = 1000; // Higher limit to check more results
-            const transactionObjects = nk.storageList(userId, transactionCollection, limit, "");
+            var transactionCollection = "transaction_logs";
+            var limit = 1000; // Higher limit to check more results
+            var transactionObjects = nk.storageList(userId, transactionCollection, limit, "");
             
             // Check transaction logs for quiz results submitted today
-            for (const obj of transactionObjects.objects || []) {
-                const transaction = JSON.parse(obj.value);
+            for (var obj of transactionObjects.objects || []) {
+                var transaction = JSON.parse(obj.value);
                 
                 // Check if this is a quiz result transaction
                 if (transaction.type === "quiz_result" && 
                     transaction.gameMode === data.gameMode) {
                     
                     // Parse timestamp from submittedAt (ISO string) or use timestamp if available
-                    let transactionTimestamp = null;
+                    var transactionTimestamp = null;
                     if (transaction.timestamp) {
                         // If timestamp is a Unix timestamp (seconds)
                         if (typeof transaction.timestamp === 'number') {
                             transactionTimestamp = transaction.timestamp;
                         } else if (typeof transaction.timestamp === 'string') {
                             // If it's an ISO string, convert to Unix timestamp
-                            const dateObj = new Date(transaction.timestamp);
+                            var dateObj = new Date(transaction.timestamp);
                             if (!isNaN(dateObj.getTime())) {
                                 transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
                             }
                         }
                     } else if (transaction.submittedAt) {
                         // Fallback to submittedAt if timestamp not available
-                        const dateObj = new Date(transaction.submittedAt);
+                        var dateObj = new Date(transaction.submittedAt);
                         if (!isNaN(dateObj.getTime())) {
                             transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
                         }
@@ -653,11 +651,3 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
         });
     }
 }
-
-// Export RPC functions (ES Module syntax)
-export {
-    rpcQuizSubmitResult,
-    rpcQuizGetHistory,
-    rpcQuizGetStats,
-    rpcQuizCheckDailyCompletion
-};

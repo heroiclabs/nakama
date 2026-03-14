@@ -1,7 +1,5 @@
 // friends.js - Enhanced Friend System
 
-import * as utils from "../copilot/utils.js";
-
 /**
  * RPC: Block user
  * @param {object} ctx - Request context
@@ -344,13 +342,3 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
         timestamp: utils.getCurrentTimestamp()
     });
 }
-
-// Export RPC functions (ES Module syntax)
-export {
-    rpcFriendsBlock,
-    rpcFriendsUnblock,
-    rpcFriendsRemove,
-    rpcFriendsList,
-    rpcFriendsChallengeUser,
-    rpcFriendsSpectate
-};

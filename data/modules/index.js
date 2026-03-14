@@ -8510,33 +8510,18 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId) {
         updated_at: new Date().toISOString()
     };
 
-    // Write wallet to storage with real userId
-    var userId = deviceId; // Use deviceId as userId for wallet storage
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
     try {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: userId,
+            userId: SYSTEM_USER,
             value: wallet,
             permissionRead: 1,
-            permissionWrite: 0,
-            version: "*"
+            permissionWrite: 0
         }]);
 
-        // Create Nakama wallet entry for admin visibility
-        try {
-            var walletMetadata = {
-                game_id: gameId,
-                wallet_type: "game_wallet",
-                currency: wallet.currency
-            };
-            nk.walletUpdate(userId, { [wallet.currency]: 0 }, walletMetadata, false);
-            logger.info("[NAKAMA] Created Nakama wallet entry for " + wallet.currency);
-        } catch (walletErr) {
-            logger.warn("[NAKAMA] Could not create Nakama wallet entry: " + walletErr.message);
-        }
-
-        logger.info("[NAKAMA] Created game wallet with balance 0 for user " + userId);
+        logger.info("[NAKAMA] Created game wallet with balance 0 for device " + deviceId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write game wallet: " + err.message);
         throw err;
@@ -8559,13 +8544,12 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
 
     logger.info("[NAKAMA] Looking for global wallet: " + key);
 
-    // Try to read existing global wallet
-    var userId = deviceId; // Use deviceId as userId for wallet storage
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
     try {
         var records = nk.storageRead([{
             collection: collection,
             key: key,
-            userId: userId
+            userId: SYSTEM_USER
         }]);
 
         if (records && records.length > 0 && records[0].value) {
@@ -8577,7 +8561,7 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
     }
 
     // Create new global wallet
-    logger.info("[NAKAMA] Creating new global wallet for user " + userId);
+    logger.info("[NAKAMA] Creating new global wallet for device " + deviceId);
 
     var wallet = {
         wallet_id: globalWalletId,
@@ -8589,32 +8573,17 @@ function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
         updated_at: new Date().toISOString()
     };
 
-    // Write wallet to storage with real userId
-    var userId = deviceId; // Use deviceId as userId for wallet storage
     try {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: userId,
+            userId: SYSTEM_USER,
             value: wallet,
             permissionRead: 1,
-            permissionWrite: 0,
-            version: "*"
+            permissionWrite: 0
         }]);
 
-        // Create Nakama wallet entry for admin visibility
-        try {
-            var walletMetadata = {
-                wallet_type: "global_wallet",
-                currency: wallet.currency
-            };
-            nk.walletUpdate(userId, { [wallet.currency]: 0 }, walletMetadata, false);
-            logger.info("[NAKAMA] Created Nakama wallet entry for global currency");
-        } catch (walletErr) {
-            logger.warn("[NAKAMA] Could not create Nakama wallet entry: " + walletErr.message);
-        }
-
-        logger.info("[NAKAMA] Created global wallet with balance 0 for user " + userId);
+        logger.info("[NAKAMA] Created global wallet with balance 0 for device " + deviceId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write global wallet: " + err.message);
         throw err;
@@ -8904,24 +8873,31 @@ function rpcUpdateGameRewardConfig(ctx, logger, nk, payload) {
 function updateGameWalletBalance(nk, logger, deviceId, gameId, scoreToAdd) {
     var collection = "quizverse";
     var key = "wallet:" + deviceId + ":" + gameId;
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 
     logger.info("[NAKAMA] Incrementing game wallet balance by " + scoreToAdd);
 
-    // Read current wallet with real userId
-    var userId = deviceId; // Use deviceId as userId for wallet storage
     var wallet;
     try {
         var records = nk.storageRead([{
             collection: collection,
             key: key,
-            userId: userId
+            userId: SYSTEM_USER
         }]);
 
         if (records && records.length > 0 && records[0].value) {
             wallet = records[0].value;
         } else {
-            logger.error("[NAKAMA] Wallet not found for update");
-            throw new Error("Wallet not found");
+            logger.warn("[NAKAMA] Wallet not found, auto-creating for device " + deviceId);
+            wallet = {
+                wallet_id: generateUUID(),
+                device_id: deviceId,
+                game_id: gameId,
+                balance: 0,
+                currency: "coins",
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
         }
     } catch (err) {
         logger.error("[NAKAMA] Failed to read wallet for update: " + err.message);
@@ -8938,33 +8914,16 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, scoreToAdd) {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: userId,
+            userId: SYSTEM_USER,
             value: wallet,
             permissionRead: 1,
-            permissionWrite: 0,
-            version: "*"
+            permissionWrite: 0
         }]);
-
-        // Update Nakama wallet for admin visibility
-        try {
-            var changeset = {};
-            changeset[wallet.currency] = scoreToAdd;
-            var walletMetadata = {
-                game_id: gameId,
-                transaction_type: "score_reward",
-                old_balance: oldBalance,
-                new_balance: wallet.balance
-            };
-            nk.walletUpdate(userId, changeset, walletMetadata, false);
-            logger.info("[NAKAMA] Updated Nakama wallet: +" + scoreToAdd + " " + wallet.currency);
-        } catch (walletErr) {
-            logger.warn("[NAKAMA] Could not update Nakama wallet: " + walletErr.message);
-        }
 
         // Log transaction for history
         try {
             var transactionLog = {
-                user_id: userId,
+                device_id: deviceId,
                 game_id: gameId,
                 transaction_type: "score_reward",
                 currency: wallet.currency,
@@ -8973,21 +8932,20 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, scoreToAdd) {
                 new_balance: wallet.balance,
                 timestamp: wallet.updated_at
             };
-            var txKey = "transaction:" + userId + ":" + gameId + ":" + Date.now();
+            var txKey = "transaction:" + deviceId + ":" + gameId + ":" + Date.now();
             nk.storageWrite([{
                 collection: collection,
                 key: txKey,
-                userId: userId,
+                userId: SYSTEM_USER,
                 value: transactionLog,
                 permissionRead: 1,
-                permissionWrite: 0,
-                version: "*"
+                permissionWrite: 0
             }]);
         } catch (txErr) {
             logger.warn("[NAKAMA] Could not log transaction: " + txErr.message);
         }
 
-        logger.info("[NAKAMA] Wallet balance updated: " + oldBalance + " + " + scoreToAdd + " = " + wallet.balance + " for user " + userId);
+        logger.info("[NAKAMA] Wallet balance updated: " + oldBalance + " + " + scoreToAdd + " = " + wallet.balance + " for device " + deviceId);
     } catch (err) {
         logger.error("[NAKAMA] Failed to write updated wallet: " + err.message);
         throw err;
@@ -9643,7 +9601,7 @@ function getOrCreateUserIdForDevice(nk, logger, deviceId, ctx) {
             if (isValidUUID(existingUserId)) {
                 logger.info("[UserId] Retrieved existing mapping: device=" + normalizedDeviceId + " -> user=" + existingUserId);
 
-                // Update last_seen timestamp
+                // Update last_seen timestamp (unconditional overwrite)
                 try {
                     mapping.lastSeen = new Date().toISOString();
                     mapping.accessCount = (mapping.accessCount || 0) + 1;
@@ -9654,11 +9612,10 @@ function getOrCreateUserIdForDevice(nk, logger, deviceId, ctx) {
                         userId: systemUserId,
                         value: mapping,
                         permissionRead: 1,
-                        permissionWrite: 0,
-                        version: "*"
+                        permissionWrite: 0
                     }]);
                 } catch (updateErr) {
-                    logger.warn("[UserId] Failed to update mapping timestamp: " + updateErr.message);
+                    logger.debug("[UserId] Failed to update mapping timestamp: " + updateErr.message);
                 }
 
                 return existingUserId;
@@ -9692,14 +9649,12 @@ function getOrCreateUserIdForDevice(nk, logger, deviceId, ctx) {
             userId: systemUserId,
             value: mapping,
             permissionRead: 1,
-            permissionWrite: 0,
-            version: "*"
+            permissionWrite: 0
         }]);
 
         logger.info("[UserId] Stored device-to-user mapping successfully");
     } catch (writeErr) {
         logger.error("[UserId] CRITICAL: Failed to store device mapping: " + writeErr.message);
-        // Don't throw - still return userId even if storage fails
     }
 
     // Create reverse mapping (user -> devices) for audit trail
@@ -9725,14 +9680,29 @@ function linkDeviceToUser(nk, logger, deviceId, userId) {
     var mappingKey = "device_" + deviceId;
     var systemUserId = "00000000-0000-0000-0000-000000000000";
 
+    // Read existing mapping to preserve accessCount
+    var existingMapping = null;
+    try {
+        var records = nk.storageRead([{
+            collection: collection,
+            key: mappingKey,
+            userId: systemUserId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            existingMapping = records[0].value;
+        }
+    } catch (readErr) {
+        // No existing mapping
+    }
+
     var mapping = {
         deviceId: deviceId,
         userId: userId,
-        createdAt: new Date().toISOString(),
+        createdAt: existingMapping ? existingMapping.createdAt : new Date().toISOString(),
         lastSeen: new Date().toISOString(),
-        accessCount: 1,
+        accessCount: (existingMapping ? (existingMapping.accessCount || 0) : 0) + 1,
         linkedVia: "authentication",
-        version: "1. 0"
+        version: "1.0"
     };
 
     nk.storageWrite([{
@@ -9741,8 +9711,7 @@ function linkDeviceToUser(nk, logger, deviceId, userId) {
         userId: systemUserId,
         value: mapping,
         permissionRead: 1,
-        permissionWrite: 0,
-        version: "*"
+        permissionWrite: 0
     }]);
 
     logger.info("[UserId] Linked device " + deviceId + " to authenticated user " + userId);
@@ -10457,30 +10426,47 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
  */
 function updatePlayerMetadata(nk, logger, userId, gameId, metadata) {
     var collection = "player_data";
-    var key = "player_metadata";
+    var key = "player_metadata:" + userId;
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 
     logger.info("[PlayerMetadata] Updating metadata for user: " + userId + " game: " + gameId);
 
-    // Read existing metadata
+    // Read existing metadata (try system-owned key first, fall back to legacy user-owned key)
     var playerMeta;
     try {
         var records = nk.storageRead([{
             collection: collection,
             key: key,
-            userId: userId
+            userId: SYSTEM_USER
         }]);
 
         if (records && records.length > 0 && records[0].value) {
             playerMeta = records[0].value;
             logger.info("[PlayerMetadata] Found existing metadata for user " + userId);
         } else {
-            // Create new metadata
-            playerMeta = {
-                user_id: userId,
-                created_at: new Date().toISOString(),
-                games: []
-            };
-            logger.info("[PlayerMetadata] Creating new metadata for user " + userId);
+            // Try legacy key format (user-owned, no userId in key)
+            try {
+                var legacyRecords = nk.storageRead([{
+                    collection: collection,
+                    key: "player_metadata",
+                    userId: userId
+                }]);
+                if (legacyRecords && legacyRecords.length > 0 && legacyRecords[0].value) {
+                    playerMeta = legacyRecords[0].value;
+                    logger.info("[PlayerMetadata] Migrated metadata from legacy format for user " + userId);
+                }
+            } catch (legacyErr) {
+                // Legacy read may fail if userId doesn't exist in users table
+            }
+
+            if (!playerMeta) {
+                playerMeta = {
+                    user_id: userId,
+                    created_at: new Date().toISOString(),
+                    games: []
+                };
+                logger.info("[PlayerMetadata] Creating new metadata for user " + userId);
+            }
         }
     } catch (err) {
         logger.warn("[PlayerMetadata] Failed to read metadata: " + err.message);
@@ -10533,30 +10519,33 @@ function updatePlayerMetadata(nk, logger, userId, gameId, metadata) {
     playerMeta.updated_at = now;
     playerMeta.total_games = playerMeta.games.length;
 
-    // Write metadata to storage
+    // Write metadata to storage using system user to avoid FK violations
     try {
         nk.storageWrite([{
             collection: collection,
             key: key,
-            userId: userId,
+            userId: SYSTEM_USER,
             value: playerMeta,
-            permissionRead: 2, // Public read for admin visibility
-            permissionWrite: 0,
-            version: "*"
+            permissionRead: 2,
+            permissionWrite: 0
         }]);
 
         logger.info("[PlayerMetadata] Saved metadata for user " + userId + " (" + playerMeta.total_games + " games)");
 
-        // Also update account metadata for quick access
+        // Update account metadata only if user exists in Nakama
+        // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
         try {
-            nk.accountUpdateId(userId, null, {
-                cognito_user_id: playerMeta.cognito_user_id || "",
-                email: playerMeta.email || "",
-                total_games: playerMeta.total_games || 0,
-                last_game_id: gameId
-            }, null, null, null, null);
+            var users = nk.usersGetId([userId]);
+            if (users && users.length > 0) {
+                nk.accountUpdateId(userId, null, null, null, null, null, null, {
+                    cognito_user_id: String(playerMeta.cognito_user_id || ""),
+                    email: String(playerMeta.email || ""),
+                    total_games: String(playerMeta.total_games || 0),
+                    last_game_id: String(gameId || "")
+                });
+            }
         } catch (acctErr) {
-            logger.warn("[PlayerMetadata] Could not update account: " + acctErr.message);
+            logger.debug("[PlayerMetadata] Could not update account metadata (user may not exist): " + acctErr.message);
         }
     } catch (err) {
         logger.error("[PlayerMetadata] Failed to write metadata: " + err.message);
@@ -10582,18 +10571,35 @@ function rpcGetPlayerPortfolio(ctx, logger, nk, payload) {
             });
         }
 
-        // Get player metadata
+        // Get player metadata (try new system-user key, fall back to legacy)
+        var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
         var metadata;
         try {
             var records = nk.storageRead([{
                 collection: "player_data",
-                key: "player_metadata",
-                userId: userId
+                key: "player_metadata:" + userId,
+                userId: SYSTEM_USER
             }]);
 
             if (records && records.length > 0 && records[0].value) {
                 metadata = records[0].value;
             } else {
+                // Fall back to legacy format
+                try {
+                    var legacyRecords = nk.storageRead([{
+                        collection: "player_data",
+                        key: "player_metadata",
+                        userId: userId
+                    }]);
+                    if (legacyRecords && legacyRecords.length > 0 && legacyRecords[0].value) {
+                        metadata = legacyRecords[0].value;
+                    }
+                } catch (legacyErr) {
+                    // Legacy read may fail
+                }
+            }
+
+            if (!metadata) {
                 return JSON.stringify({
                     success: false,
                     error: 'No player metadata found'
@@ -10616,7 +10622,7 @@ function rpcGetPlayerPortfolio(ctx, logger, nk, payload) {
                 var walletRecords = nk.storageRead([{
                     collection: "quizverse",
                     key: walletKey,
-                    userId: userId
+                    userId: SYSTEM_USER
                 }]);
 
                 if (walletRecords && walletRecords.length > 0) {
@@ -11152,13 +11158,17 @@ function rpcCheckGeoAndUpdateProfile(ctx, logger, nk, payload) {
         logger.info('[RPC] check_geo_and_update_profile - Valid coordinates: ' + latitude + ', ' + longitude);
 
         // 2.2 Call Google Maps Reverse Geocoding API
-        var apiKey = ctx.env["GOOGLE_MAPS_API_KEY"];
+        var apiKey = ctx.env ? ctx.env["GOOGLE_MAPS_API_KEY"] : null;
 
         if (!apiKey) {
-            logger.error('[RPC] check_geo_and_update_profile - GOOGLE_MAPS_API_KEY not configured');
+            logger.debug('[RPC] check_geo_and_update_profile - GOOGLE_MAPS_API_KEY not configured, returning allowed without geo data');
             return JSON.stringify({
-                success: false,
-                error: 'Geocoding service not configured'
+                success: true,
+                allowed: true,
+                country: null,
+                region: null,
+                city: null,
+                reason: 'Geocoding service not configured - location check skipped'
             });
         }
 
@@ -20065,79 +20075,98 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[MultiGameRPCs] Failed to initialize: ' + err.message);
     }
 
-    // Register Achievement System RPCs
-    try {
-        logger.info('[Achievements] Initializing Achievement System Module...');
-        initializer.registerRpc('achievements_get_all', rpcAchievementsGetAll);
-        logger.info('[Achievements] Registered RPC: achievements_get_all');
-        initializer.registerRpc('achievements_update_progress', rpcAchievementsUpdateProgress);
-        logger.info('[Achievements] Registered RPC: achievements_update_progress');
-        initializer.registerRpc('achievements_create_definition', rpcAchievementsCreateDefinition);
-        logger.info('[Achievements] Registered RPC: achievements_create_definition');
-        initializer.registerRpc('achievements_bulk_create', rpcAchievementsBulkCreate);
-        logger.info('[Achievements] Registered RPC: achievements_bulk_create');
-        logger.info('[Achievements] Successfully registered 4 Achievement RPCs');
-    } catch (err) {
-        logger.error('[Achievements] Failed to initialize: ' + err.message);
+    // Register Achievement System RPCs (implementations loaded from achievements/achievements.js)
+    var achievementRpcs = [
+        { id: 'achievements_get_all', handler: rpcAchievementsGetAll },
+        { id: 'achievements_update_progress', handler: rpcAchievementsUpdateProgress },
+        { id: 'achievements_create_definition', handler: rpcAchievementsCreateDefinition },
+        { id: 'achievements_bulk_create', handler: rpcAchievementsBulkCreate }
+    ];
+    var achieveCount = 0;
+    for (var ai = 0; ai < achievementRpcs.length; ai++) {
+        if (typeof achievementRpcs[ai].handler === 'function') {
+            try {
+                initializer.registerRpc(achievementRpcs[ai].id, achievementRpcs[ai].handler);
+                achieveCount++;
+            } catch (err) {
+                logger.warn('[Achievements] Failed to register ' + achievementRpcs[ai].id + ': ' + err.message);
+            }
+        } else {
+            logger.info('[Achievements] Skipping ' + achievementRpcs[ai].id + ' (handler not loaded)');
+        }
     }
+    if (achieveCount > 0) logger.info('[Achievements] Registered ' + achieveCount + ' Achievement RPCs');
 
-    // Register Matchmaking System RPCs
-    try {
-        logger.info('[Matchmaking] Initializing Matchmaking System Module...');
-        initializer.registerRpc('matchmaking_find_match', rpcMatchmakingFindMatch);
-        logger.info('[Matchmaking] Registered RPC: matchmaking_find_match');
-        initializer.registerRpc('matchmaking_cancel', rpcMatchmakingCancel);
-        logger.info('[Matchmaking] Registered RPC: matchmaking_cancel');
-        initializer.registerRpc('matchmaking_get_status', rpcMatchmakingGetStatus);
-        logger.info('[Matchmaking] Registered RPC: matchmaking_get_status');
-        initializer.registerRpc('matchmaking_create_party', rpcMatchmakingCreateParty);
-        logger.info('[Matchmaking] Registered RPC: matchmaking_create_party');
-        initializer.registerRpc('matchmaking_join_party', rpcMatchmakingJoinParty);
-        logger.info('[Matchmaking] Registered RPC: matchmaking_join_party');
-        logger.info('[Matchmaking] Successfully registered 5 Matchmaking RPCs');
-    } catch (err) {
-        logger.error('[Matchmaking] Failed to initialize: ' + err.message);
+    // Register Matchmaking System RPCs (implementations loaded from matchmaking/matchmaking.js)
+    var matchmakingRpcs = [
+        { id: 'matchmaking_find_match', handler: rpcMatchmakingFindMatch },
+        { id: 'matchmaking_cancel', handler: rpcMatchmakingCancel },
+        { id: 'matchmaking_get_status', handler: rpcMatchmakingGetStatus },
+        { id: 'matchmaking_create_party', handler: rpcMatchmakingCreateParty },
+        { id: 'matchmaking_join_party', handler: rpcMatchmakingJoinParty }
+    ];
+    var matchCount = 0;
+    for (var mi = 0; mi < matchmakingRpcs.length; mi++) {
+        if (typeof matchmakingRpcs[mi].handler === 'function') {
+            try {
+                initializer.registerRpc(matchmakingRpcs[mi].id, matchmakingRpcs[mi].handler);
+                matchCount++;
+            } catch (err) {
+                logger.warn('[Matchmaking] Failed to register ' + matchmakingRpcs[mi].id + ': ' + err.message);
+            }
+        } else {
+            logger.info('[Matchmaking] Skipping ' + matchmakingRpcs[mi].id + ' (handler not loaded)');
+        }
     }
+    if (matchCount > 0) logger.info('[Matchmaking] Registered ' + matchCount + ' Matchmaking RPCs');
 
-    // Register Tournament System RPCs
-    try {
-        logger.info('[Tournament] Initializing Tournament System Module...');
-        initializer.registerRpc('tournament_create', rpcTournamentCreate);
-        logger.info('[Tournament] Registered RPC: tournament_create');
-        initializer.registerRpc('tournament_join', rpcTournamentJoin);
-        logger.info('[Tournament] Registered RPC: tournament_join');
-        initializer.registerRpc('tournament_list_active', rpcTournamentListActive);
-        logger.info('[Tournament] Registered RPC: tournament_list_active');
-        initializer.registerRpc('tournament_submit_score', rpcTournamentSubmitScore);
-        logger.info('[Tournament] Registered RPC: tournament_submit_score');
-        initializer.registerRpc('tournament_get_leaderboard', rpcTournamentGetLeaderboard);
-        logger.info('[Tournament] Registered RPC: tournament_get_leaderboard');
-        initializer.registerRpc('tournament_claim_rewards', rpcTournamentClaimRewards);
-        logger.info('[Tournament] Registered RPC: tournament_claim_rewards');
-        logger.info('[Tournament] Successfully registered 6 Tournament RPCs');
-    } catch (err) {
-        logger.error('[Tournament] Failed to initialize: ' + err.message);
+    // Register Tournament System RPCs (implementations loaded from tournaments/tournaments.js)
+    var tournamentRpcs = [
+        { id: 'tournament_create', handler: rpcTournamentCreate },
+        { id: 'tournament_join', handler: rpcTournamentJoin },
+        { id: 'tournament_list_active', handler: rpcTournamentListActive },
+        { id: 'tournament_submit_score', handler: rpcTournamentSubmitScore },
+        { id: 'tournament_get_leaderboard', handler: rpcTournamentGetLeaderboard },
+        { id: 'tournament_claim_rewards', handler: rpcTournamentClaimRewards }
+    ];
+    var tournamentCount = 0;
+    for (var ti = 0; ti < tournamentRpcs.length; ti++) {
+        if (typeof tournamentRpcs[ti].handler === 'function') {
+            try {
+                initializer.registerRpc(tournamentRpcs[ti].id, tournamentRpcs[ti].handler);
+                tournamentCount++;
+            } catch (err) {
+                logger.warn('[Tournament] Failed to register ' + tournamentRpcs[ti].id + ': ' + err.message);
+            }
+        } else {
+            logger.info('[Tournament] Skipping ' + tournamentRpcs[ti].id + ' (handler not loaded)');
+        }
     }
+    if (tournamentCount > 0) logger.info('[Tournament] Registered ' + tournamentCount + ' Tournament RPCs');
 
-    // Register Infrastructure RPCs (Batch, Rate Limiting, Caching)
-    try {
-        logger.info('[Infrastructure] Initializing Infrastructure Module...');
-        initializer.registerRpc('batch_execute', rpcBatchExecute);
-        logger.info('[Infrastructure] Registered RPC: batch_execute');
-        initializer.registerRpc('batch_wallet_operations', rpcBatchWalletOperations);
-        logger.info('[Infrastructure] Registered RPC: batch_wallet_operations');
-        initializer.registerRpc('batch_achievement_progress', rpcBatchAchievementProgress);
-        logger.info('[Infrastructure] Registered RPC: batch_achievement_progress');
-        initializer.registerRpc('rate_limit_status', rpcRateLimitStatus);
-        logger.info('[Infrastructure] Registered RPC: rate_limit_status');
-        initializer.registerRpc('cache_stats', rpcCacheStats);
-        logger.info('[Infrastructure] Registered RPC: cache_stats');
-        initializer.registerRpc('cache_clear', rpcCacheClear);
-        logger.info('[Infrastructure] Registered RPC: cache_clear');
-        logger.info('[Infrastructure] Successfully registered 6 Infrastructure RPCs');
-    } catch (err) {
-        logger.error('[Infrastructure] Failed to initialize: ' + err.message);
+    // Register Infrastructure RPCs (implementations loaded from infrastructure/*.js)
+    var infraRpcs = [
+        { id: 'batch_execute', handler: rpcBatchExecute },
+        { id: 'batch_wallet_operations', handler: rpcBatchWalletOperations },
+        { id: 'batch_achievement_progress', handler: rpcBatchAchievementProgress },
+        { id: 'rate_limit_status', handler: rpcRateLimitStatus },
+        { id: 'cache_stats', handler: rpcCacheStats },
+        { id: 'cache_clear', handler: rpcCacheClear }
+    ];
+    var infraCount = 0;
+    for (var ii = 0; ii < infraRpcs.length; ii++) {
+        if (typeof infraRpcs[ii].handler === 'function') {
+            try {
+                initializer.registerRpc(infraRpcs[ii].id, infraRpcs[ii].handler);
+                infraCount++;
+            } catch (err) {
+                logger.warn('[Infrastructure] Failed to register ' + infraRpcs[ii].id + ': ' + err.message);
+            }
+        } else {
+            logger.info('[Infrastructure] Skipping ' + infraRpcs[ii].id + ' (handler not loaded)');
+        }
     }
+    if (infraCount > 0) logger.info('[Infrastructure] Registered ' + infraCount + ' Infrastructure RPCs');
 
     // Register QuizVerse Multiplayer-Specific RPCs
     try {

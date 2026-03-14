@@ -1,7 +1,5 @@
 // daily_missions.js - Daily Missions System (Per gameId UUID)
 
-import * as utils from "../copilot/utils.js";
-
 /**
  * Mission configurations per gameId UUID
  * This can be extended or moved to storage for dynamic configuration
@@ -376,10 +374,3 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
         claimedAt: utils.getCurrentTimestamp()
     });
 }
-
-// Export RPC functions (ES Module syntax)
-export {
-    rpcGetDailyMissions,
-    rpcSubmitMissionProgress,
-    rpcClaimMissionReward
-};

@@ -2,8 +2,6 @@
 // Unity does NOT use AWS SDK - Unity only sends raw push tokens
 // Nakama forwards to AWS Lambda Function URL for endpoint creation
 
-import * as utils from "../copilot/utils.js";
-
 /**
  * Lambda Function URL for push endpoint registration
  * This should be configured in your environment
@@ -374,10 +372,3 @@ function rpcPushGetEndpoints(ctx, logger, nk, payload) {
         timestamp: utils.getCurrentTimestamp()
     });
 }
-
-// Export RPC functions (ES Module syntax)
-export {
-    rpcPushRegisterToken,
-    rpcPushSendEvent,
-    rpcPushGetEndpoints
-};

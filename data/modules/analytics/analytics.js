@@ -1,7 +1,5 @@
 // analytics.js - Analytics System (Per gameId UUID)
 
-import * as utils from "../copilot/utils.js";
-
 /**
  * RPC: Log analytics event
  * @param {object} ctx - Request context
@@ -149,8 +147,3 @@ function trackSession(nk, logger, userId, gameId, eventName, eventData) {
         }
     }
 }
-
-// Export RPC functions (ES Module syntax)
-export {
-    rpcAnalyticsLogEvent
-};

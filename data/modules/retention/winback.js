@@ -556,12 +556,3 @@ function rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
         timestamp: new Date().toISOString()
     });
 }
-
-// Export functions
-export {
-    rpcWinbackCheckStatus,
-    rpcWinbackClaimRewards,
-    rpcWinbackRecordSession,
-    rpcWinbackScheduleReengagement
-};
-

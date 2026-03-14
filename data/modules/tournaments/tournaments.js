@@ -7,8 +7,8 @@
  * - tournament_entries: Stores player registrations
  */
 
-const TOURNAMENT_COLLECTION = "tournaments";
-const TOURNAMENT_ENTRIES_COLLECTION = "tournament_entries";
+var TOURNAMENT_COLLECTION = "tournaments";
+var TOURNAMENT_ENTRIES_COLLECTION = "tournament_entries";
 
 /**
  * RPC: tournament_create (Admin only)

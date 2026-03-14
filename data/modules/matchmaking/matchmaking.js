@@ -7,8 +7,8 @@
  * - matchmaking_history: Stores match history for analytics
  */
 
-const MATCHMAKING_TICKETS_COLLECTION = "matchmaking_tickets";
-const MATCHMAKING_HISTORY_COLLECTION = "matchmaking_history";
+var MATCHMAKING_TICKETS_COLLECTION = "matchmaking_tickets";
+var MATCHMAKING_HISTORY_COLLECTION = "matchmaking_history";
 
 /**
  * RPC: matchmaking_find_match

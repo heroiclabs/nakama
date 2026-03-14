@@ -586,13 +586,3 @@ function getRoleName(state) {
     if (state === GROUP_ROLES.MEMBER) return "Member";
     return "Unknown";
 }
-
-// Export functions (ES Module syntax)
-export {
-    rpcCreateGameGroup,
-    rpcUpdateGroupXP,
-    rpcGetGroupWallet,
-    rpcUpdateGroupWallet,
-    rpcGetUserGroups,
-    GROUP_ROLES
-};

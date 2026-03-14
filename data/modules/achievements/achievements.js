@@ -7,8 +7,8 @@
  * - achievement_progress: Stores player progress per game
  */
 
-const ACHIEVEMENT_COLLECTION = "achievements";
-const ACHIEVEMENT_PROGRESS_COLLECTION = "achievement_progress";
+var ACHIEVEMENT_COLLECTION = "achievements";
+var ACHIEVEMENT_PROGRESS_COLLECTION = "achievement_progress";
 
 /**
  * RPC: achievements_get_all

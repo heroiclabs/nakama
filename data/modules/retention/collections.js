@@ -509,12 +509,3 @@ function rpcCollectionsAddMasteryXP(ctx, logger, nk, payload) {
         timestamp: new Date().toISOString()
     });
 }
-
-// Export functions
-export {
-    rpcCollectionsGetStatus,
-    rpcCollectionsUnlockItem,
-    rpcCollectionsEquipItem,
-    rpcCollectionsAddMasteryXP
-};
-

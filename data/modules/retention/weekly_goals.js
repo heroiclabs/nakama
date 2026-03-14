@@ -534,12 +534,3 @@ function rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload) {
         timestamp: new Date().toISOString()
     });
 }
-
-// Export functions
-export {
-    rpcWeeklyGoalsGetStatus,
-    rpcWeeklyGoalsUpdateProgress,
-    rpcWeeklyGoalsClaimReward,
-    rpcWeeklyGoalsClaimBonus
-};
-
