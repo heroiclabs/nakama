@@ -398,6 +398,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     // Step 3: Read Existing Metadata
     // -------------------------------------------------------------------------
     var existing = null;
+    var existingVersion = null;
     var isNewUser = false;
 
     try {
@@ -409,7 +410,8 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
 
         if (records && records.length > 0 && records[0].value) {
             existing = records[0].value;
-            logger.debug("[PlayerMetadata:" + requestId + "] Found existing metadata");
+            existingVersion = records[0].version;
+            logger.debug("[PlayerMetadata:" + requestId + "] Found existing metadata (version: " + existingVersion + ")");
 
             // Rate limiting check
             if (existing.updated_at) {
@@ -550,25 +552,56 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId);
 
     // -------------------------------------------------------------------------
-    // Step 11: Write to Storage (for additional metadata tracking)
+    // Step 11: Write to Storage with optimistic concurrency + retry
     // -------------------------------------------------------------------------
     var storageWriteSuccess = true;
-    try {
-        nk.storageWrite([{
-            collection: PLAYER_METADATA_COLLECTION,
-            key: PLAYER_METADATA_KEY,
-            userId: userId,
-            value: merged,
-            permissionRead: PERMISSION_READ_OWNER,
-            permissionWrite: PERMISSION_WRITE_NONE,
-            version: "*"
-        }]);
+    var WRITE_MAX_RETRIES = 3;
 
-        logger.info("[PlayerMetadata:" + requestId + "] Metadata saved successfully");
-    } catch (err) {
-        logger.error("[PlayerMetadata:" + requestId + "] Storage write failed (Account already synced): " + err.message);
-        storageWriteSuccess = false;
-        // Don't return error - Account tab was already updated
+    for (var writeAttempt = 0; writeAttempt <= WRITE_MAX_RETRIES; writeAttempt++) {
+        try {
+            nk.storageWrite([{
+                collection: PLAYER_METADATA_COLLECTION,
+                key: PLAYER_METADATA_KEY,
+                userId: userId,
+                value: merged,
+                permissionRead: PERMISSION_READ_OWNER,
+                permissionWrite: PERMISSION_WRITE_NONE,
+                version: existingVersion || "*"
+            }]);
+
+            logger.info("[PlayerMetadata:" + requestId + "] Metadata saved successfully" +
+                (writeAttempt > 0 ? " (after " + writeAttempt + " retries)" : ""));
+            break;
+        } catch (err) {
+            if (writeAttempt < WRITE_MAX_RETRIES) {
+                logger.warn("[PlayerMetadata:" + requestId + "] Storage version conflict (attempt " +
+                    (writeAttempt + 1) + "/" + WRITE_MAX_RETRIES + "), re-reading and retrying");
+                try {
+                    var freshRecords = nk.storageRead([{
+                        collection: PLAYER_METADATA_COLLECTION,
+                        key: PLAYER_METADATA_KEY,
+                        userId: userId
+                    }]);
+                    if (freshRecords && freshRecords.length > 0 && freshRecords[0].value) {
+                        existingVersion = freshRecords[0].version;
+                        var freshData = freshRecords[0].value;
+                        merged = buildMergedMetadata(freshData, sanitized, now, false, userId, ctx);
+                        if (sanitized.game_id && isValidUUIDFormat(sanitized.game_id)) {
+                            merged = updateGameHistory(merged, sanitized.game_id, now);
+                        }
+                        merged = updateGeolocation(merged, sanitized, now);
+                        merged = updateDeviceInfo(merged, sanitized, now);
+                        merged = updateSessionAnalytics(merged, now, false);
+                    }
+                } catch (readErr) {
+                    logger.error("[PlayerMetadata:" + requestId + "] Re-read failed during retry: " + readErr.message);
+                }
+            } else {
+                logger.error("[PlayerMetadata:" + requestId + "] Storage write failed after " +
+                    WRITE_MAX_RETRIES + " retries (Account already synced): " + err.message);
+                storageWriteSuccess = false;
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -1740,6 +1773,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     // Step 3: Read Existing Metadata
     // -------------------------------------------------------------------------
     var existing = null;
+    var existingVersion = null;
     var isNewUser = false;
 
     try {
@@ -1751,7 +1785,8 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
 
         if (records && records.length > 0 && records[0].value) {
             existing = records[0].value;
-            logger.debug("[PlayerMetadata:" + requestId + "] Found existing metadata");
+            existingVersion = records[0].version;
+            logger.debug("[PlayerMetadata:" + requestId + "] Found existing metadata (version: " + existingVersion + ")");
 
             // Rate limiting check (log only, don't reject)
             if (existing.updated_at) {
@@ -1907,25 +1942,56 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId);
 
     // -------------------------------------------------------------------------
-    // Step 11: Write to Storage (for additional metadata tracking)
+    // Step 11: Write to Storage with optimistic concurrency + retry
     // -------------------------------------------------------------------------
     var storageWriteSuccess = true;
-    try {
-        nk.storageWrite([{
-            collection: PLAYER_METADATA_COLLECTION,
-            key: PLAYER_METADATA_KEY,
-            userId: userId,
-            value: merged,
-            permissionRead: PERMISSION_READ_OWNER,
-            permissionWrite: PERMISSION_WRITE_NONE,
-            version: "*"
-        }]);
+    var WRITE_MAX_RETRIES = 3;
 
-        logger.info("[PlayerMetadata:" + requestId + "] Metadata saved successfully");
-    } catch (err) {
-        logger.error("[PlayerMetadata:" + requestId + "] Storage write failed (Account already synced): " + err.message);
-        storageWriteSuccess = false;
-        // Don't return error - Account tab was already updated successfully
+    for (var writeAttempt = 0; writeAttempt <= WRITE_MAX_RETRIES; writeAttempt++) {
+        try {
+            nk.storageWrite([{
+                collection: PLAYER_METADATA_COLLECTION,
+                key: PLAYER_METADATA_KEY,
+                userId: userId,
+                value: merged,
+                permissionRead: PERMISSION_READ_OWNER,
+                permissionWrite: PERMISSION_WRITE_NONE,
+                version: existingVersion || "*"
+            }]);
+
+            logger.info("[PlayerMetadata:" + requestId + "] Metadata saved successfully" +
+                (writeAttempt > 0 ? " (after " + writeAttempt + " retries)" : ""));
+            break;
+        } catch (err) {
+            if (writeAttempt < WRITE_MAX_RETRIES) {
+                logger.warn("[PlayerMetadata:" + requestId + "] Storage version conflict (attempt " +
+                    (writeAttempt + 1) + "/" + WRITE_MAX_RETRIES + "), re-reading and retrying");
+                try {
+                    var freshRecords = nk.storageRead([{
+                        collection: PLAYER_METADATA_COLLECTION,
+                        key: PLAYER_METADATA_KEY,
+                        userId: userId
+                    }]);
+                    if (freshRecords && freshRecords.length > 0 && freshRecords[0].value) {
+                        existingVersion = freshRecords[0].version;
+                        var freshData = freshRecords[0].value;
+                        merged = buildMergedMetadata(freshData, sanitized, now, false, userId, ctx);
+                        if (sanitized.game_id && isValidUUIDFormat(sanitized.game_id)) {
+                            merged = updateGameHistory(merged, sanitized.game_id, now);
+                        }
+                        merged = updateGeolocation(merged, sanitized, now);
+                        merged = updateDeviceInfo(merged, sanitized, now);
+                        merged = updateSessionAnalytics(merged, now, false);
+                    }
+                } catch (readErr) {
+                    logger.error("[PlayerMetadata:" + requestId + "] Re-read failed during retry: " + readErr.message);
+                }
+            } else {
+                logger.error("[PlayerMetadata:" + requestId + "] Storage write failed after " +
+                    WRITE_MAX_RETRIES + " retries (Account already synced): " + err.message);
+                storageWriteSuccess = false;
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -2026,21 +2092,34 @@ function rpcChangeUsername(ctx, logger, nk, payload) {
         nk.accountUpdateId(userId, normalized, null, null, null, null, null, null);
         logger.info("[ChangeUsername:" + requestId + "] Updated username to " + normalized + " for user " + userId);
 
-        var records = nk.storageRead([{ collection: PLAYER_METADATA_COLLECTION, key: PLAYER_METADATA_KEY, userId: userId }]);
-        if (records && records.length > 0 && records[0].value) {
-            var meta = records[0].value;
-            meta.username = normalized;
-            meta.nakama_username = normalized;
-            meta.updated_at = new Date().toISOString();
-            nk.storageWrite([{
-                collection: PLAYER_METADATA_COLLECTION,
-                key: PLAYER_METADATA_KEY,
-                userId: userId,
-                value: meta,
-                permissionRead: PERMISSION_READ_OWNER,
-                permissionWrite: PERMISSION_WRITE_NONE,
-                version: records[0].version
-            }]);
+        for (var usernameWriteAttempt = 0; usernameWriteAttempt <= 3; usernameWriteAttempt++) {
+            var records = nk.storageRead([{ collection: PLAYER_METADATA_COLLECTION, key: PLAYER_METADATA_KEY, userId: userId }]);
+            if (records && records.length > 0 && records[0].value) {
+                var meta = records[0].value;
+                meta.username = normalized;
+                meta.nakama_username = normalized;
+                meta.updated_at = new Date().toISOString();
+                try {
+                    nk.storageWrite([{
+                        collection: PLAYER_METADATA_COLLECTION,
+                        key: PLAYER_METADATA_KEY,
+                        userId: userId,
+                        value: meta,
+                        permissionRead: PERMISSION_READ_OWNER,
+                        permissionWrite: PERMISSION_WRITE_NONE,
+                        version: records[0].version
+                    }]);
+                    break;
+                } catch (writeErr) {
+                    if (usernameWriteAttempt < 3) {
+                        logger.warn("[ChangeUsername:" + requestId + "] Storage version conflict, retrying (" + (usernameWriteAttempt + 1) + "/3)");
+                        continue;
+                    }
+                    logger.error("[ChangeUsername:" + requestId + "] Storage write failed after retries: " + writeErr.message);
+                }
+            } else {
+                break;
+            }
         }
 
         return JSON.stringify({ success: true, username: normalized, request_id: requestId });
