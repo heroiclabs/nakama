@@ -243,14 +243,14 @@ function readStorage(nk, logger, collection, key, userId) {
  * =============================================================================
  * RPC: rpc_update_player_metadata (UNIFIED - Production Ready)
  * =============================================================================
- * 
+ *
  * STORAGE SPECIFICATION:
  *   Collection: "player_metadata"
  *   Key: "user_identity"
- *   Permissions: 
+ *   Permissions:
  *     - permissionRead: 1 (OWNER_READ)
  *     - permissionWrite: 0 (NO_WRITE - server only)
- * 
+ *
  * FEATURES:
  *   - Single source of truth for player identity
  *   - Game history tracking (list of all games played)
@@ -263,7 +263,7 @@ function readStorage(nk, logger, collection, key, userId) {
  *   - Comprehensive validation and error handling
  *   - Rate limiting protection
  *   - Data sanitization
- * 
+ *
  * EXPECTED PAYLOAD:
  * {
  *   "role": "user",
@@ -286,7 +286,7 @@ function readStorage(nk, logger, collection, key, userId) {
  *   "device_model": "Pixel 7",
  *   "os_version": "14.0"
  * }
- * 
+ *
  * =============================================================================
  */
 
@@ -467,11 +467,11 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     // -------------------------------------------------------------------------
     if (merged.has_location_data && !merged.has_resolved_location) {
         // We have lat/long but no city/country - try to resolve automatically
-        logger.info("[PlayerMetadata:" + requestId + "] Attempting auto-resolution for coordinates: " + 
+        logger.info("[PlayerMetadata:" + requestId + "] Attempting auto-resolution for coordinates: " +
             merged.latitude + ", " + merged.longitude);
-        
+
         var resolved = resolveLocationFromCoordinates(nk, logger, ctx, merged.latitude, merged.longitude);
-        
+
         if (resolved) {
             // Update merged metadata with resolved location
             if (resolved.country) {
@@ -488,7 +488,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
             if (resolved.city) {
                 merged.city = resolved.city;
             }
-            
+
             // Update location history entry with resolved data
             if (merged.location_history && merged.location_history.length > 0) {
                 var lastEntry = merged.location_history[merged.location_history.length - 1];
@@ -496,37 +496,37 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
                 if (resolved.city) lastEntry.city = resolved.city;
                 if (resolved.region) lastEntry.region = resolved.region;
             }
-            
+
             // Update most_visited_location if exists
             if (merged.most_visited_location) {
                 if (resolved.city) merged.most_visited_location.city = resolved.city;
                 if (resolved.country_code) merged.most_visited_location.country_code = resolved.country_code;
             }
-            
+
             // Build formatted location strings
             var locationParts = [];
             if (merged.city) locationParts.push(merged.city);
             if (merged.region) locationParts.push(merged.region);
             if (merged.country) locationParts.push(merged.country);
-            
+
             if (locationParts.length > 0) {
                 merged.formatted_location = locationParts.join(", ");
             }
-            
+
             if (merged.city && merged.country_code) {
                 merged.location_short = merged.city + ", " + merged.country_code;
             } else if (merged.country_code) {
                 merged.location_short = merged.country_code;
             }
-            
+
             // Update flags
             merged.has_resolved_location = true;
             merged.location_resolved_at = now;
             merged.unique_countries_visited = merged.unique_countries_visited || 1;
             merged.unique_cities_visited = merged.unique_cities_visited || (merged.city ? 1 : 0);
-            
-            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " + 
-                (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " + 
+
+            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " +
+                (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " +
                 (merged.country_code || "N/A"));
         } else {
             logger.warn("[PlayerMetadata:" + requestId + "] Could not auto-resolve location from coordinates");
@@ -1256,7 +1256,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 /**
  * Resolve location from latitude/longitude using Google Maps Reverse Geocoding API
  * Returns resolved location data or null if resolution fails
- * 
+ *
  * @param {object} nk - Nakama runtime
  * @param {object} logger - Logger instance
  * @param {object} ctx - Request context (for env vars)
@@ -1268,25 +1268,25 @@ function resolveLocationFromCoordinates(nk, logger, ctx, latitude, longitude) {
     try {
         // Get API key from environment
         var apiKey = ctx.env ? ctx.env["GOOGLE_MAPS_API_KEY"] : null;
-        
+
         if (!apiKey) {
             logger.warn("[LocationResolver] GOOGLE_MAPS_API_KEY not configured, skipping location resolution");
             return null;
         }
-        
+
         // Validate coordinates
         var lat = Number(latitude);
         var lon = Number(longitude);
-        
+
         if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
             logger.warn("[LocationResolver] Invalid coordinates: " + latitude + ", " + longitude);
             return null;
         }
-        
+
         // Call Google Maps Reverse Geocoding API
         var geocodeUrl = 'https://maps.googleapis.com/maps/api/geocode/json?latlng=' +
             lat + ',' + lon + '&key=' + apiKey;
-        
+
         var geocodeResponse;
         try {
             geocodeResponse = nk.httpRequest(
@@ -1298,12 +1298,12 @@ function resolveLocationFromCoordinates(nk, logger, ctx, latitude, longitude) {
             logger.error("[LocationResolver] HTTP request failed: " + httpErr.message);
             return null;
         }
-        
+
         if (geocodeResponse.code !== 200) {
             logger.warn("[LocationResolver] API returned status " + geocodeResponse.code);
             return null;
         }
-        
+
         // Parse response
         var geocodeData;
         try {
@@ -1312,12 +1312,12 @@ function resolveLocationFromCoordinates(nk, logger, ctx, latitude, longitude) {
             logger.error("[LocationResolver] Failed to parse response: " + parseErr.message);
             return null;
         }
-        
+
         if (geocodeData.status !== 'OK' || !geocodeData.results || geocodeData.results.length === 0) {
             logger.warn("[LocationResolver] No results from API: " + geocodeData.status);
             return null;
         }
-        
+
         // Extract location components
         var result = {
             country: null,
@@ -1325,24 +1325,24 @@ function resolveLocationFromCoordinates(nk, logger, ctx, latitude, longitude) {
             region: null,
             city: null
         };
-        
+
         var addressComponents = geocodeData.results[0].address_components;
-        
+
         for (var i = 0; i < addressComponents.length; i++) {
             var component = addressComponents[i];
             var types = component.types;
-            
+
             // Country
             if (types.indexOf('country') !== -1) {
                 result.country = component.long_name;
                 result.country_code = component.short_name;
             }
-            
+
             // Region/State
             if (types.indexOf('administrative_area_level_1') !== -1) {
                 result.region = component.long_name;
             }
-            
+
             // City - try multiple types
             if (types.indexOf('locality') !== -1) {
                 result.city = component.long_name;
@@ -1352,14 +1352,14 @@ function resolveLocationFromCoordinates(nk, logger, ctx, latitude, longitude) {
                 result.city = component.long_name;
             }
         }
-        
-        logger.info("[LocationResolver] Resolved: " + 
-            (result.city || "N/A") + ", " + 
-            (result.region || "N/A") + ", " + 
+
+        logger.info("[LocationResolver] Resolved: " +
+            (result.city || "N/A") + ", " +
+            (result.region || "N/A") + ", " +
             (result.country || "N/A") + " (" + (result.country_code || "N/A") + ")");
-        
+
         return result;
-        
+
     } catch (err) {
         logger.error("[LocationResolver] Error resolving location: " + err.message);
         return null;
@@ -1562,7 +1562,7 @@ function syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId) {
     try {
         // Build display name from various sources
         var displayName = null;
-        
+
         // Priority 1: Explicit display_name
         if (merged.display_name && typeof merged.display_name === 'string' && merged.display_name.trim() !== "") {
             displayName = merged.display_name.trim();
@@ -1641,8 +1641,8 @@ function syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId) {
         }
 
         // Log what we're syncing
-        logger.info("[PlayerMetadata:" + requestId + "] Syncing to account: displayName=" + 
-            (displayName || "(none)") + ", timezone=" + (timezone || "(none)") + 
+        logger.info("[PlayerMetadata:" + requestId + "] Syncing to account: displayName=" +
+            (displayName || "(none)") + ", timezone=" + (timezone || "(none)") +
             ", location=" + (location || "(none)") + ", langTag=" + (langTag || "(none)") +
             ", hasMetadata=" + hasMetadata);
 
@@ -1818,11 +1818,11 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     // -------------------------------------------------------------------------
     if (merged.has_location_data && !merged.has_resolved_location) {
         // We have lat/long but no city/country - try to resolve automatically
-        logger.info("[PlayerMetadata:" + requestId + "] Attempting auto-resolution for coordinates: " + 
+        logger.info("[PlayerMetadata:" + requestId + "] Attempting auto-resolution for coordinates: " +
             merged.latitude + ", " + merged.longitude);
-        
+
         var resolved = resolveLocationFromCoordinates(nk, logger, ctx, merged.latitude, merged.longitude);
-        
+
         if (resolved) {
             // Update merged metadata with resolved location
             if (resolved.country) {
@@ -1839,7 +1839,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
             if (resolved.city) {
                 merged.city = resolved.city;
             }
-            
+
             // Update location history entry with resolved data
             if (merged.location_history && merged.location_history.length > 0) {
                 var lastEntry = merged.location_history[merged.location_history.length - 1];
@@ -1847,37 +1847,37 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
                 if (resolved.city) lastEntry.city = resolved.city;
                 if (resolved.region) lastEntry.region = resolved.region;
             }
-            
+
             // Update most_visited_location if exists
             if (merged.most_visited_location) {
                 if (resolved.city) merged.most_visited_location.city = resolved.city;
                 if (resolved.country_code) merged.most_visited_location.country_code = resolved.country_code;
             }
-            
+
             // Build formatted location strings
             var locationParts = [];
             if (merged.city) locationParts.push(merged.city);
             if (merged.region) locationParts.push(merged.region);
             if (merged.country) locationParts.push(merged.country);
-            
+
             if (locationParts.length > 0) {
                 merged.formatted_location = locationParts.join(", ");
             }
-            
+
             if (merged.city && merged.country_code) {
                 merged.location_short = merged.city + ", " + merged.country_code;
             } else if (merged.country_code) {
                 merged.location_short = merged.country_code;
             }
-            
+
             // Update flags
             merged.has_resolved_location = true;
             merged.location_resolved_at = now;
             merged.unique_countries_visited = merged.unique_countries_visited || 1;
             merged.unique_cities_visited = merged.unique_cities_visited || (merged.city ? 1 : 0);
-            
-            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " + 
-                (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " + 
+
+            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " +
+                (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " +
                 (merged.country_code || "N/A"));
         } else {
             logger.warn("[PlayerMetadata:" + requestId + "] Could not auto-resolve location from coordinates");
@@ -2156,20 +2156,20 @@ function rpcAdminDeletePlayerMetadata(ctx, logger, nk, payload) {
     }
 }
 /**
- * RPC:     
- * 
+ * RPC:
+ *
  * Stores or updates per-user metadata in Nakama Storage.
- * 
+ *
  * Storage:
  *   collection: "player_metadata"
  *   key: "metadata"
  *   userId: ctx.userId (authenticated user)
- * 
+ *
  * Behavior:
  * - If a record exists, merge new fields on top (new values override).
  * - If no record exists, create one with provided payload.
  * - Always ensure only one record per (collection, key, userId).
- * 
+ *
  * Expected payload (example):
  * {
  *   "role": "guest",
@@ -2249,8 +2249,8 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
 
     // Log received geolocation data for debugging
     if (meta.latitude !== undefined || meta.longitude !== undefined) {
-        logger. info("[PlayerMetadata:" + requestId + "] Received geolocation: lat=" + 
-            meta.latitude + ", lon=" + meta.longitude + 
+        logger. info("[PlayerMetadata:" + requestId + "] Received geolocation: lat=" +
+            meta.latitude + ", lon=" + meta.longitude +
             ", country=" + (meta.country_code || meta.geo_location || "N/A") +
             ", city=" + (meta.city || "N/A") +
             ", source=" + (meta. location_source || "N/A"));
@@ -2329,7 +2329,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     // ============================================================================
     // HANDLE GEOLOCATION FIELDS EXPLICITLY
     // ============================================================================
-    
+
     // Latitude - ensure it's stored as a number with validation
     if (meta.latitude !== undefined && meta.latitude !== null && meta.latitude !== "") {
         var lat = parseFloat(meta.latitude);
@@ -2341,7 +2341,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
             logger. warn("[PlayerMetadata:" + requestId + "] ✗ Invalid latitude value: " + meta. latitude);
         }
     }
-    
+
     // Longitude - ensure it's stored as a number with validation
     if (meta.longitude !== undefined && meta.longitude !== null && meta.longitude !== "") {
         var lon = parseFloat(meta.longitude);
@@ -2353,7 +2353,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
             logger. warn("[PlayerMetadata:" + requestId + "] ✗ Invalid longitude value: " + meta.longitude);
         }
     }
-    
+
     // Country code (prefer country_code, fallback to geo_location)
     if (meta.country_code && meta.country_code !== "") {
         merged.country_code = meta.country_code;
@@ -2362,27 +2362,27 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
         merged.country_code = meta.geo_location;
         merged.geo_location = meta.geo_location;
     }
-    
+
     // Country name
     if (meta. country && meta.country !== "") {
         merged.country = meta.country;
     }
-    
+
     // Region/State
     if (meta.region && meta. region !== "") {
         merged.region = meta.region;
     }
-    
+
     // City
     if (meta.city && meta.city !== "") {
         merged.city = meta. city;
     }
-    
+
     // Timezone from location
     if (meta. location_timezone && meta.location_timezone !== "") {
         merged.location_timezone = meta. location_timezone;
     }
-    
+
     // Location source (gps, ip, etc.)
     if (meta.location_source && meta. location_source !== "") {
         merged. location_source = meta.location_source;
@@ -2392,15 +2392,15 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     if (merged.latitude !== undefined && merged.longitude !== undefined && merged.country_code) {
         merged.has_resolved_location = true;
         merged.location_updated_at = now;
-        logger.info("[PlayerMetadata:" + requestId + "] ✓ Location fully resolved: " + 
-            (merged.city || "Unknown") + ", " + (merged.region || "Unknown") + ", " + 
-            (merged.country || merged.country_code) + " (" + merged.country_code + ") via " + 
+        logger.info("[PlayerMetadata:" + requestId + "] ✓ Location fully resolved: " +
+            (merged.city || "Unknown") + ", " + (merged.region || "Unknown") + ", " +
+            (merged.country || merged.country_code) + " (" + merged.country_code + ") via " +
             (merged.location_source || "unknown"));
     } else if (merged.latitude !== undefined && merged. longitude !== undefined) {
         merged.has_resolved_location = false;
         merged. has_location_data = true;
         merged.location_updated_at = now;
-        logger.info("[PlayerMetadata:" + requestId + "] Location coords only: lat=" + 
+        logger.info("[PlayerMetadata:" + requestId + "] Location coords only: lat=" +
             merged.latitude + ", lon=" + merged. longitude);
     } else if (merged.country_code || merged.geo_location) {
         merged.has_resolved_location = false;
@@ -2451,7 +2451,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     if (meta. account_status) merged.account_status = meta.account_status;
     if (meta.wallet_address) merged.wallet_address = meta.wallet_address;
     if (meta.cognito_user_id) merged.cognito_user_id = meta.cognito_user_id;
-    
+
     // Handle is_adult (keep as string for compatibility)
     if (meta.is_adult !== undefined && meta. is_adult !== null) {
         if (typeof meta.is_adult === "string") {
@@ -2473,9 +2473,9 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     if (gameId) {
         merged.current_game_id = gameId;
         merged.game_id = gameId;
-        
+
         if (! merged.games) merged.games = [];
-        
+
         var gameIndex = -1;
         for (var g = 0; g < merged.games. length; g++) {
             if (merged.games[g]. game_id === gameId) {
@@ -2483,7 +2483,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
                 break;
             }
         }
-        
+
         if (gameIndex >= 0) {
             merged.games[gameIndex].last_played = now;
             merged.games[gameIndex].session_count = (merged.games[gameIndex].session_count || 0) + 1;
@@ -2497,7 +2497,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
                 total_playtime_seconds: 0
             });
         }
-        
+
         merged.total_games = merged.games.length;
         merged.last_game_played_at = now;
     }
@@ -2507,9 +2507,9 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     // ============================================================================
     if (meta.device_id) {
         merged.current_device_id = meta.device_id;
-        
+
         if (!merged. devices) merged.devices = [];
-        
+
         var deviceIndex = -1;
         for (var d = 0; d < merged.devices.length; d++) {
             if (merged. devices[d].device_id === meta. device_id) {
@@ -2517,7 +2517,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
                 break;
             }
         }
-        
+
         if (deviceIndex >= 0) {
             merged.devices[deviceIndex].last_seen = now;
             merged.devices[deviceIndex].session_count = (merged.devices[deviceIndex].session_count || 0) + 1;
@@ -2548,7 +2548,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
                 session_count: 1
             });
         }
-        
+
         merged.total_devices = merged. devices.length;
     }
 
@@ -2570,18 +2570,18 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     } else {
         merged.analytics.last_session = now;
         merged.analytics.total_sessions = (merged.analytics. total_sessions || 0) + 1;
-        
+
         var today = now.split('T')[0];
         var lastActiveDate = merged.analytics.last_active_date;
-        
+
         if (lastActiveDate !== today) {
             merged.analytics.days_active = (merged.analytics.days_active || 0) + 1;
-            
+
             // Check streak
             var yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             var yesterdayStr = yesterday.toISOString().split('T')[0];
-            
+
             if (lastActiveDate === yesterdayStr) {
                 merged.analytics. current_streak = (merged.analytics. current_streak || 0) + 1;
                 if (merged.analytics. current_streak > (merged.analytics.longest_streak || 0)) {
@@ -2590,10 +2590,10 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
             } else {
                 merged.analytics.current_streak = 1;
             }
-            
+
             merged.analytics.last_active_date = today;
         }
-        
+
         // Calculate days since first session
         if (merged.analytics.first_session) {
             var firstDate = new Date(merged.analytics.first_session);
@@ -2601,9 +2601,9 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
             var diffTime = Math.abs(nowDate - firstDate);
             var diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             merged.analytics.days_since_first_session = diffDays;
-            
+
             if (diffDays > 0) {
-                merged.analytics.average_sessions_per_day = 
+                merged.analytics.average_sessions_per_day =
                     Math.round((merged.analytics.total_sessions / diffDays) * 100) / 100;
             }
         }
@@ -2637,19 +2637,19 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     try {
         nk.storageWrite([write]);
         logger.info("[PlayerMetadata:" + requestId + "] ✓ Metadata saved successfully for user " + userId);
-        
+
         // Log final status
         if (merged.has_resolved_location) {
-            logger. info("[PlayerMetadata:" + requestId + "] ✓ Location: " + 
-                (merged.city || "") + ", " + (merged.region || "") + ", " + 
-                (merged. country || merged.country_code) + 
+            logger. info("[PlayerMetadata:" + requestId + "] ✓ Location: " +
+                (merged.city || "") + ", " + (merged.region || "") + ", " +
+                (merged. country || merged.country_code) +
                 " | Coords: " + merged.latitude + ", " + merged.longitude +
                 " | Source: " + (merged.location_source || "unknown"));
         }
-        logger.info("[PlayerMetadata:" + requestId + "] ✓ is_guest: " + merged.is_guest + 
-            " | Games: " + (merged.total_games || 0) + 
+        logger.info("[PlayerMetadata:" + requestId + "] ✓ is_guest: " + merged.is_guest +
+            " | Games: " + (merged.total_games || 0) +
             " | Sessions: " + (merged.total_sessions || 1));
-        
+
     } catch (err) {
         logger. error("[PlayerMetadata:" + requestId + "] ✗ Error writing metadata for user " + userId + ": " + err.message);
         return JSON.stringify({
@@ -2680,7 +2680,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
             login_type: merged.login_type,
             account_status: merged. account_status,
             nakama_username: merged.nakama_username,
-            
+
             // Geolocation
             latitude: merged.latitude,
             longitude: merged.longitude,
@@ -2695,7 +2695,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
             location_updated_at: merged.location_updated_at,
             has_location_data: merged. has_location_data,
             has_resolved_location: merged.has_resolved_location,
-            
+
             // Device
             device_id: merged.current_device_id,
             platform: merged.platform,
@@ -2704,14 +2704,14 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
             app_version: merged.app_version,
             locale: merged.locale,
             total_devices: merged. total_devices,
-            
+
             // Games & Analytics
             games: merged.games,
             total_games: merged.total_games,
             total_sessions: merged. total_sessions,
             last_game_played_at: merged.last_game_played_at,
             analytics: merged.analytics,
-            
+
             // Timestamps
             created_at: merged.created_at,
             updated_at: merged. updated_at,
@@ -3036,7 +3036,7 @@ function getAllWallets(nk, logger, limit) {
 /**
  * RPC: get_user_wallet
  * Retrieves or creates a wallet for a Cognito user
- * 
+ *
  * @param {object} ctx - Nakama context
  * @param {object} logger - Nakama logger
  * @param {object} nk - Nakama runtime
@@ -3134,7 +3134,7 @@ function getUserWallet(ctx, logger, nk, payload) {
 /**
  * RPC: link_wallet_to_game
  * Links a wallet to a specific game
- * 
+ *
  * @param {object} ctx - Nakama context
  * @param {object} logger - Nakama logger
  * @param {object} nk - Nakama runtime
@@ -3224,7 +3224,7 @@ function linkWalletToGame(ctx, logger, nk, payload) {
 /**
  * RPC: get_wallet_registry
  * Returns all wallets in the registry (admin function)
- * 
+ *
  * @param {object} ctx - Nakama context
  * @param {object} logger - Nakama logger
  * @param {object} nk - Nakama runtime
@@ -4586,16 +4586,16 @@ function generateQuizResultKey(userId, timestamp) {
  * Calculate quiz performance metrics
  */
 function calculateQuizMetrics(result) {
-    var accuracy = result.totalQuestions > 0 
-        ? (result.correctAnswers / result.totalQuestions) * 100 
+    var accuracy = result.totalQuestions > 0
+        ? (result.correctAnswers / result.totalQuestions) * 100
         : 0;
-    
-    var avgTimePerQuestion = result.totalQuestions > 0 
-        ? result.timeTakenSeconds / result.totalQuestions 
+
+    var avgTimePerQuestion = result.totalQuestions > 0
+        ? result.timeTakenSeconds / result.totalQuestions
         : 0;
-    
+
     var isPerfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
-    
+
     // Calculate performance rating (1-5 stars)
     var rating = 0;
     if (accuracy >= 90) rating += 2.5;
@@ -4603,13 +4603,13 @@ function calculateQuizMetrics(result) {
     else if (accuracy >= 50) rating += 1.5;
     else if (accuracy >= 30) rating += 1.0;
     else rating += 0.5;
-    
+
     if (avgTimePerQuestion <= 5) rating += 1.5;
     else if (avgTimePerQuestion <= 10) rating += 1.0;
     else if (avgTimePerQuestion <= 15) rating += 0.5;
-    
+
     if (result.won) rating += 1.0;
-    
+
     return {
         accuracy: Math.round(accuracy * 100) / 100,
         avgTimePerQuestion: Math.round(avgTimePerQuestion * 100) / 100,
@@ -4624,9 +4624,9 @@ function calculateQuizMetrics(result) {
 function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
     var collection = getQuizUserStatsCollection(gameId);
     var key = "stats_" + userId;
-    
+
     var stats = readStorage(nk, logger, collection, key, userId);
-    
+
     if (!stats) {
         stats = {
             userId: userId,
@@ -4646,14 +4646,14 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
             createdAt: getCurrentTimestamp()
         };
     }
-    
+
     // Update totals
     stats.totalGames++;
     stats.totalScore += result.score || 0;
     stats.totalCorrect += result.correctAnswers || 0;
     stats.totalQuestions += result.totalQuestions || 0;
     stats.totalTimePlayed += result.timeTakenSeconds || 0;
-    
+
     if (result.won) {
         stats.totalWins++;
         stats.currentStreak++;
@@ -4661,14 +4661,14 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
     } else {
         stats.currentStreak = 0;
     }
-    
+
     if (metrics.isPerfect) {
         stats.perfectGames++;
     }
-    
+
     stats.highestScore = Math.max(stats.highestScore, result.score || 0);
     stats.lastPlayedAt = getCurrentTimestamp();
-    
+
     // Update per-mode stats
     var mode = result.gameMode || "unknown";
     if (!stats.modeStats[mode]) {
@@ -4683,21 +4683,21 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
     if (result.won) stats.modeStats[mode].wins++;
     stats.modeStats[mode].totalScore += result.score || 0;
     stats.modeStats[mode].highestScore = Math.max(
-        stats.modeStats[mode].highestScore, 
+        stats.modeStats[mode].highestScore,
         result.score || 0
     );
-    
+
     stats.updatedAt = getCurrentTimestamp();
-    
+
     writeStorage(nk, logger, collection, key, userId, stats);
-    
+
     return stats;
 }
 
 /**
  * RPC: quiz_submit_result
  * Submit quiz result from any game mode with detailed question-level data
- * 
+ *
  * Required payload:
  * {
  *   gameId: "uuid",
@@ -4707,7 +4707,7 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
  *   totalQuestions: 10,
  *   timeTakenSeconds: 120,
  *   won: true,
- *   
+ *
  *   // Optional - Detailed question data
  *   questionDetails: [
  *     {
@@ -4735,38 +4735,38 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
  */
 function rpcQuizSubmitResult(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_submit_result called");
-    
+
     var parsed = safeJsonParse(payload);
     if (!parsed.success) {
         return handleError(ctx, null, "Invalid JSON payload");
     }
-    
+
     var data = parsed.data;
-    
+
     // Validate required fields
     var required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
     var validation = validatePayload(data, required);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
-    
+
     if (!isValidUUID(data.gameId)) {
         return handleError(ctx, null, "Invalid gameId UUID format");
     }
-    
+
     var userId = ctx.userId;
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
-    
+
     var username = ctx.username || "unknown";
     var timestamp = getUnixTimestamp();
-    
+
     // Process question details to extract missed/mastered concepts
     var questionDetails = data.questionDetails || [];
     var missedConcepts = data.missedConcepts || [];
     var masteredConcepts = data.masteredConcepts || [];
-    
+
     // Auto-extract concepts from question details if not provided
     if (questionDetails.length > 0 && missedConcepts.length === 0 && masteredConcepts.length === 0) {
         var conceptTracker = {};
@@ -4781,7 +4781,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
                 conceptTracker[concept].correct++;
             }
         }
-        
+
         // Classify concepts based on accuracy
         for (var concept in conceptTracker) {
             var stats = conceptTracker[concept];
@@ -4793,7 +4793,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
             }
         }
     }
-    
+
     // Build result object with all details
     var result = {
         id: generateQuizResultKey(userId, timestamp),
@@ -4806,7 +4806,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
         totalQuestions: parseInt(data.totalQuestions) || 0,
         timeTakenSeconds: parseFloat(data.timeTakenSeconds) || 0,
         won: data.won === true || data.won === "true",
-        
+
         // Optional summary fields
         difficulty: data.difficulty || "normal",
         categoryId: data.categoryId || null,
@@ -4827,24 +4827,24 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
         maxStreak: parseInt(data.maxStreak) || 0,
         perfectAnswerCount: parseInt(data.perfectAnswerCount) || 0,
         metadata: data.metadata || {},
-        
+
         // NEW: Detailed question-level data
         questionDetails: questionDetails,
         questionCount: questionDetails.length,
-        
+
         // NEW: Concept tracking for learning insights
         missedConcepts: missedConcepts,
         masteredConcepts: masteredConcepts,
-        
+
         timestamp: timestamp,
         submittedAt: getCurrentTimestamp()
     };
-    
+
     // Calculate metrics
     var metrics = calculateQuizMetrics(result);
     result.metrics = metrics;
     result.perfectScore = metrics.isPerfect;
-    
+
     // Add learning insights
     result.learningInsights = {
         needsImprovement: missedConcepts,
@@ -4852,17 +4852,17 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
         conceptAccuracy: {},
         recommendedTopics: missedConcepts.slice(0, 3) // Top 3 concepts to practice
     };
-    
+
     try {
         // 1. Store the result
         var collection = getQuizResultsCollection(data.gameId);
         var resultKey = result.id;
         writeStorage(nk, logger, collection, resultKey, userId, result);
         logInfo(logger, "Stored quiz result: " + resultKey);
-        
+
         // 2. Update user stats
         var updatedStats = updateQuizUserStats(nk, logger, userId, data.gameId, result, metrics);
-        
+
         // 3. Update leaderboard if score > 0
         if (result.score > 0) {
             try {
@@ -4872,7 +4872,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
                     accuracy: metrics.accuracy,
                     submittedAt: result.submittedAt
                 };
-                
+
                 nk.leaderboardRecordWrite(
                     leaderboardId,
                     userId,
@@ -4887,7 +4887,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
                 logWarning(logger, "Leaderboard update failed (non-critical): " + lbErr.message);
             }
         }
-        
+
         // 4. Store in transaction log for analytics
         var transactionKey = "quiz_result_" + userId + "_" + timestamp;
         writeStorage(nk, logger, "transaction_logs", transactionKey, userId, {
@@ -4898,9 +4898,9 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
             won: result.won,
             timestamp: result.submittedAt
         });
-        
+
         logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
-        
+
         return JSON.stringify({
             success: true,
             resultId: result.id,
@@ -4912,7 +4912,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
                 highestScore: updatedStats.highestScore
             }
         });
-        
+
     } catch (err) {
         logError(logger, "Failed to submit quiz result: " + err.message);
         return JSON.stringify({
@@ -4928,38 +4928,38 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
  */
 function rpcQuizGetHistory(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_get_history called");
-    
+
     var parsed = safeJsonParse(payload);
     if (!parsed.success) {
         return handleError(ctx, null, "Invalid JSON payload");
     }
-    
+
     var data = parsed.data;
     var validation = validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing gameId");
     }
-    
+
     var userId = ctx.userId;
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
-    
+
     var collection = getQuizResultsCollection(data.gameId);
     var limit = Math.min(parseInt(data.limit) || 20, 100);
-    
+
     try {
         var objects = nk.storageList(userId, collection, limit, data.cursor || "");
-        
+
         var results = [];
         for (var i = 0; i < (objects.objects || []).length; i++) {
             var obj = objects.objects[i];
             var result = JSON.parse(obj.value);
-            
+
             if (data.gameMode && result.gameMode !== data.gameMode) {
                 continue;
             }
-            
+
             results.push({
                 id: result.id,
                 gameMode: result.gameMode,
@@ -4972,14 +4972,14 @@ function rpcQuizGetHistory(ctx, logger, nk, payload) {
                 submittedAt: result.submittedAt
             });
         }
-        
+
         return JSON.stringify({
             success: true,
             results: results,
             cursor: objects.cursor || null,
             count: results.length
         });
-        
+
     } catch (err) {
         logError(logger, "Failed to get quiz history: " + err.message);
         return JSON.stringify({
@@ -4995,28 +4995,28 @@ function rpcQuizGetHistory(ctx, logger, nk, payload) {
  */
 function rpcQuizGetStats(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_get_stats called");
-    
+
     var parsed = safeJsonParse(payload);
     if (!parsed.success) {
         return handleError(ctx, null, "Invalid JSON payload");
     }
-    
+
     var data = parsed.data;
     var validation = validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing gameId");
     }
-    
+
     var userId = ctx.userId;
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
-    
+
     var collection = getQuizUserStatsCollection(data.gameId);
     var key = "stats_" + userId;
-    
+
     var stats = readStorage(nk, logger, collection, key, userId);
-    
+
     if (!stats) {
         return JSON.stringify({
             success: true,
@@ -5035,19 +5035,19 @@ function rpcQuizGetStats(ctx, logger, nk, payload) {
             }
         });
     }
-    
-    var winRate = stats.totalGames > 0 
-        ? Math.round((stats.totalWins / stats.totalGames) * 100) 
+
+    var winRate = stats.totalGames > 0
+        ? Math.round((stats.totalWins / stats.totalGames) * 100)
         : 0;
-    
-    var averageScore = stats.totalGames > 0 
-        ? Math.round(stats.totalScore / stats.totalGames) 
+
+    var averageScore = stats.totalGames > 0
+        ? Math.round(stats.totalScore / stats.totalGames)
         : 0;
-    
-    var accuracy = stats.totalQuestions > 0 
-        ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100) 
+
+    var accuracy = stats.totalQuestions > 0
+        ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100)
         : 0;
-    
+
     return JSON.stringify({
         success: true,
         stats: {
@@ -5072,13 +5072,13 @@ function rpcQuizGetStats(ctx, logger, nk, payload) {
  * RPC: quiz_check_daily_completion
  * Check if user has completed a quiz for a specific game mode today
  * Based on user UUID - queries across all quiz result collections for the user
- * 
+ *
  * Payload:
  * {
  *   gameMode: "DailyChallenge" | "DailyPremiumQuiz"
  *   gameId: "uuid" (optional - if provided, only checks that specific game)
  * }
- * 
+ *
  * Returns:
  * {
  *   success: true,
@@ -5089,66 +5089,66 @@ function rpcQuizGetStats(ctx, logger, nk, payload) {
  */
 function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_check_daily_completion called");
-    
+
     var parsed = safeJsonParse(payload);
     if (!parsed.success) {
         return handleError(ctx, null, "Invalid JSON payload");
     }
-    
+
     var data = parsed.data;
-    
+
     // Validate required fields (only gameMode is required now)
     var validation = validatePayload(data, ['gameMode']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
-    
+
     // Validate gameMode
     var validModes = ['DailyChallenge', 'DailyPremiumQuiz'];
     if (validModes.indexOf(data.gameMode) === -1) {
         return handleError(ctx, null, "Invalid gameMode. Must be 'DailyChallenge' or 'DailyPremiumQuiz'");
     }
-    
+
     // Validate gameId if provided (optional)
     if (data.gameId && !isValidUUID(data.gameId)) {
         return handleError(ctx, null, "Invalid gameId UUID format");
     }
-    
+
     var userId = ctx.userId;
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
-    
+
     try {
         // Get today's start timestamp (00:00:00 UTC)
         var todayStart = getStartOfDay();
         var todayEnd = todayStart + 86400; // End of day (24 hours later)
-        
+
         // Get current date string for response (YYYY-MM-DD)
         var today = new Date();
-        var dateString = today.getUTCFullYear() + "-" + 
-                        String(today.getUTCMonth() + 1).padStart(2, '0') + "-" + 
+        var dateString = today.getUTCFullYear() + "-" +
+                        String(today.getUTCMonth() + 1).padStart(2, '0') + "-" +
                         String(today.getUTCDate()).padStart(2, '0');
-        
+
         var completed = false;
-        
+
         // If gameId is provided, only check that specific collection
         if (data.gameId) {
             var collection = getQuizResultsCollection(data.gameId);
             var limit = 100; // Check last 100 results (should be enough for daily check)
-            
+
             var objects = nk.storageList(userId, collection, limit, "");
-            
+
             // Check if any result matches gameMode and was submitted today
             for (var i = 0; i < (objects.objects || []).length; i++) {
                 var obj = objects.objects[i];
                 var result = JSON.parse(obj.value);
-                
+
                 // Check if gameMode matches
                 if (result.gameMode !== data.gameMode) {
                     continue;
                 }
-                
+
                 // Check if submitted today
                 // result.timestamp is Unix timestamp in seconds
                 if (result.timestamp >= todayStart && result.timestamp < todayEnd) {
@@ -5162,26 +5162,26 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
             // We'll check common collection patterns and user's storage objects
             // Since we can't list all collections, we'll use a different approach:
             // Query the user's storage objects with a pattern match
-            
+
             // Get all storage objects for this user (with a reasonable limit)
             // We'll search for objects in collections that match "quiz_results_*"
             var limit = 1000; // Higher limit to check more results across collections
-            
+
             // Try to find quiz results by querying known collections or using storage index
             // Since Nakama doesn't support wildcard collection queries directly,
             // we'll use a workaround: check transaction_logs which stores all quiz results
             var transactionCollection = "transaction_logs";
             var transactionObjects = nk.storageList(userId, transactionCollection, limit, "");
-            
+
             // Check transaction logs for quiz results submitted today
             for (var i = 0; i < (transactionObjects.objects || []).length; i++) {
                 var obj = transactionObjects.objects[i];
                 var transaction = JSON.parse(obj.value);
-                
+
                 // Check if this is a quiz result transaction
-                if (transaction.type === "quiz_result" && 
+                if (transaction.type === "quiz_result" &&
                     transaction.gameMode === data.gameMode) {
-                    
+
                     // Parse timestamp from submittedAt (ISO string) or use timestamp if available
                     var transactionTimestamp = null;
                     if (transaction.timestamp) {
@@ -5202,7 +5202,7 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
                             transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
                         }
                     }
-                    
+
                     // Check if submitted today
                     if (transactionTimestamp && transactionTimestamp >= todayStart && transactionTimestamp < todayEnd) {
                         completed = true;
@@ -5211,7 +5211,7 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
                     }
                 }
             }
-            
+
             // If not found in transaction logs, try to query known game collections
             // This is a fallback - in production, you might want to maintain a registry of gameIds
             if (!completed) {
@@ -5220,14 +5220,14 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
                 logInfo(logger, "User " + userId + " daily completion check: not found in transaction logs, may need gameId");
             }
         }
-        
+
         return JSON.stringify({
             success: true,
             completed: completed,
             gameMode: data.gameMode,
             date: dateString
         });
-        
+
     } catch (err) {
         logError(logger, "Failed to check daily completion: " + err.message);
         return JSON.stringify({
@@ -6573,7 +6573,7 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
 
 /**
  * Groups/Clans/Guilds System
- * 
+ *
  * Features:
  * - Create and manage groups with roles (Owner, Admin, Member)
  * - Group leaderboards and shared wallets
@@ -7261,7 +7261,7 @@ function getAllEndpointArns(nk, logger, userId, gameId) {
  * RPC: Register device token
  * Unity sends raw device token, Nakama forwards to Lambda
  * Lambda creates SNS endpoint and returns ARN
- * 
+ *
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
@@ -7370,7 +7370,7 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
 /**
  * RPC: Send push notification event
  * Server-side triggered push notifications
- * 
+ *
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
@@ -8657,7 +8657,7 @@ var GAME_REWARD_CONFIGS = {
  * Calculate reward amount based on game-specific rules
  * CRITICAL: This ensures wallet balance is NEVER set equal to score
  * Instead, it calculates a DERIVED reward based on score
- * 
+ *
  * @param {string} gameId - Game UUID
  * @param {number} score - Player's score
  * @param {number} currentStreak - Current win streak (optional)
@@ -9242,7 +9242,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
  * RPC: create_or_sync_user
  * Production-grade user identity management with proper error handling,
  * idempotency, security validation, and comprehensive logging
- * 
+ *
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
@@ -11067,21 +11067,21 @@ function rpcGetLeaderboard(ctx, logger, nk, payload) {
 
 /**
  * RPC: check_geo_and_update_profile
- * Validates geolocation, calls Google Maps Reverse Geocoding API, 
+ * Validates geolocation, calls Google Maps Reverse Geocoding API,
  * applies business logic, and updates user metadata
- * 
+ *
  * @param {object} ctx - Nakama context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime API
  * @param {string} payload - JSON: { latitude: float, longitude: float }
  * @returns {string} JSON response with allowed status and location details
- * 
+ *
  * Example payload:
  * {
  *   "latitude": 29.7604,
  *   "longitude": -95.3698
  * }
- * 
+ *
  * Example response (allowed):
  * {
  *   "allowed": true,
@@ -11090,7 +11090,7 @@ function rpcGetLeaderboard(ctx, logger, nk, payload) {
  *   "city": "Houston",
  *   "reason": null
  * }
- * 
+ *
  * Example response (blocked):
  * {
  *   "allowed": false,
@@ -13844,12 +13844,12 @@ function lasttoliveAdminGrantItem(context, logger, nk, payload) {
  * - Username starting with "guest_test_" pattern
  * - role === "guest" in metadata
  * - login_type === "guest" in metadata
- * 
+ *
  * This function also cleans up:
  * - device_user_mappings entries for guest users
- * 
+ *
  * This function should be called daily to clean up guest user data.
- * 
+ *
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
@@ -13858,10 +13858,10 @@ function lasttoliveAdminGrantItem(context, logger, nk, payload) {
  */
 function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
     logger.info("[GuestCleanup] Starting guest user metadata cleanup job");
-    
+
     var dryRun = false;
     var limit = 1000;
-    
+
     // Parse optional payload
     if (payload && payload !== "") {
         try {
@@ -13876,54 +13876,54 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
             logger.warn("[GuestCleanup] Invalid payload, using defaults: " + err.message);
         }
     }
-    
+
     var collection = PLAYER_METADATA_COLLECTION;
     var deletedCount = 0;
     var deviceMappingsDeleted = 0;
     var processedCount = 0;
     var guestUsersFound = [];
     var errors = [];
-    
+
     try {
         // List all player metadata records
         var cursor = null;
         var hasMore = true;
-        
+
         while (hasMore && processedCount < limit) {
             var batchSize = Math.min(100, limit - processedCount);
             var result = nk.storageList(null, collection, batchSize, cursor);
-            
+
             if (!result || !result.objects || result.objects.length === 0) {
                 hasMore = false;
                 break;
             }
-            
+
             for (var i = 0; i < result.objects.length; i++) {
                 var obj = result.objects[i];
                 processedCount++;
-                
+
                 var isGuestUser = false;
                 var guestReason = "";
                 var deviceIds = [];
-                
+
                 // Check if metadata has is_guest flag
                 if (obj.value && obj.value.is_guest === true) {
                     isGuestUser = true;
                     guestReason = "is_guest flag";
                 }
-                
+
                 // Check if role === "guest" in metadata
                 if (!isGuestUser && obj.value && obj.value.role === "guest") {
                     isGuestUser = true;
                     guestReason = "role=guest";
                 }
-                
+
                 // Check if login_type === "guest" in metadata
                 if (!isGuestUser && obj.value && obj.value.login_type === "guest") {
                     isGuestUser = true;
                     guestReason = "login_type=guest";
                 }
-                
+
                 // If not identified by metadata flags, check username pattern
                 if (!isGuestUser && obj.userId) {
                     try {
@@ -13939,7 +13939,7 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                         logger.warn("[GuestCleanup] Failed to get user info for " + obj.userId + ": " + userErr.message);
                     }
                 }
-                
+
                 // Collect device IDs from metadata for cleanup
                 if (isGuestUser && obj.value) {
                     // Get device_id from metadata
@@ -13959,7 +13959,7 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                         }
                     }
                 }
-                
+
                 if (isGuestUser) {
                     guestUsersFound.push({
                         userId: obj.userId,
@@ -13967,7 +13967,7 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                         reason: guestReason,
                         deviceIds: deviceIds
                     });
-                    
+
                     if (!dryRun) {
                         // Delete player metadata
                         try {
@@ -13986,7 +13986,7 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                             });
                             logger.error("[GuestCleanup] Failed to delete metadata for user " + obj.userId + ": " + deleteErr.message);
                         }
-                        
+
                         // Delete device_user_mappings for each device
                         for (var di = 0; di < deviceIds.length; di++) {
                             var devId = deviceIds[di];
@@ -14017,14 +14017,14 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
                     }
                 }
             }
-            
+
             // Get next cursor for pagination
             cursor = result.cursor;
             if (!cursor || cursor === "") {
                 hasMore = false;
             }
         }
-        
+
         var summary = {
             success: true,
             dryRun: dryRun,
@@ -14035,19 +14035,19 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
             errors: errors,
             timestamp: new Date().toISOString()
         };
-        
+
         if (dryRun) {
             summary.guestUsers = guestUsersFound;
         }
-        
-        logger.info("[GuestCleanup] Cleanup complete. Processed: " + processedCount + 
-            ", Guest users found: " + guestUsersFound.length + 
-            ", Metadata deleted: " + deletedCount + 
+
+        logger.info("[GuestCleanup] Cleanup complete. Processed: " + processedCount +
+            ", Guest users found: " + guestUsersFound.length +
+            ", Metadata deleted: " + deletedCount +
             ", Device mappings deleted: " + deviceMappingsDeleted +
             ", Errors: " + errors.length);
-        
+
         return JSON.stringify(summary);
-        
+
     } catch (err) {
         logger.error("[GuestCleanup] Cleanup job failed: " + err.message);
         return JSON.stringify({
@@ -14065,22 +14065,22 @@ function rpcCleanupGuestUserMetadata(ctx, logger, nk, payload) {
  * Scheduled function to clean up guest user metadata daily.
  * This function is intended to be called by a cron job configured externally.
  * Cron expression for daily at 3 AM UTC: "0 3 * * *"
- * 
+ *
  * Note: In Nakama, scheduled tasks are typically configured in the server config
  * or via external schedulers. This function provides the implementation that
  * can be invoked via the RPC cleanup_guest_user_metadata.
- * 
+ *
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
  */
 function scheduledCleanupGuestUserMetadata(ctx, logger, nk) {
     logger.info("[GuestCleanup] Daily scheduled cleanup started");
-    
+
     try {
         var result = rpcCleanupGuestUserMetadata(ctx, logger, nk, JSON.stringify({ dryRun: false, limit: GUEST_CLEANUP_DEFAULT_LIMIT }));
         var parsed = JSON.parse(result);
-        
+
         if (parsed.success) {
             logger.info("[GuestCleanup] Daily cleanup completed successfully. Deleted " + parsed.deletedCount + " guest user metadata records");
         } else {
@@ -14110,7 +14110,7 @@ var KEY_SESSION = "session";
  */
 function initializeNewOnboardingUser(nk, logger, userId) {
     var now = Date.now();
-    
+
     var onboardingState = {
         userId: userId,
         createdAt: now,
@@ -14197,7 +14197,7 @@ function getOnboardingStepRewards(stepId) {
  */
 function rpcOnboardingGetState(ctx, logger, nk, payload) {
     var userId = ctx.userId;
-    
+
     try {
         var result = nk.storageRead([{
             collection: COLLECTION_ONBOARDING,
@@ -14251,7 +14251,7 @@ function rpcOnboardingUpdateState(ctx, logger, nk, payload) {
         }
 
         var state = result[0].value;
-        
+
         if (input.currentStep !== undefined) state.currentStep = input.currentStep;
         if (input.completedSteps !== undefined) state.completedSteps = input.completedSteps;
         if (input.onboardingComplete !== undefined) state.onboardingComplete = input.onboardingComplete;
@@ -14293,7 +14293,7 @@ function rpcOnboardingCompleteStep(ctx, logger, nk, payload) {
         }
 
         var state = result[0].value;
-        
+
         if (state.completedSteps.indexOf(stepId) === -1) {
             state.completedSteps.push(stepId);
         }
@@ -14320,8 +14320,8 @@ function rpcOnboardingCompleteStep(ctx, logger, nk, payload) {
 
         var rewards = getOnboardingStepRewards(stepId);
 
-        return JSON.stringify({ 
-            success: true, 
+        return JSON.stringify({
+            success: true,
             state: state,
             rewards: rewards
         });
@@ -14399,8 +14399,8 @@ function rpcOnboardingGetInterests(ctx, logger, nk, payload) {
         }]);
 
         if (result.length === 0) {
-            return JSON.stringify({ 
-                success: true, 
+            return JSON.stringify({
+                success: true,
                 preferences: {
                     interests: [],
                     preferredDifficulty: "easy"
@@ -14436,8 +14436,8 @@ function rpcOnboardingClaimWelcomeBonus(ctx, logger, nk, payload) {
         var state = result[0].value;
 
         if (state.welcomeBonusClaimed) {
-            return JSON.stringify({ 
-                success: false, 
+            return JSON.stringify({
+                success: false,
                 error: "Welcome bonus already claimed",
                 alreadyClaimed: true
             });
@@ -14461,8 +14461,8 @@ function rpcOnboardingClaimWelcomeBonus(ctx, logger, nk, payload) {
 
         logger.info("[Onboarding] User " + userId + " claimed welcome bonus: " + WELCOME_BONUS + " coins");
 
-        return JSON.stringify({ 
-            success: true, 
+        return JSON.stringify({
+            success: true,
             coinsAwarded: WELCOME_BONUS,
             message: "Welcome! Here's 50 free coins! 🎉"
         });
@@ -14494,15 +14494,15 @@ function rpcOnboardingFirstQuizComplete(ctx, logger, nk, payload) {
         var state = result[0].value;
 
         if (state.firstQuizCompleted) {
-            return JSON.stringify({ 
-                success: false, 
+            return JSON.stringify({
+                success: false,
                 error: "First quiz bonus already claimed",
                 alreadyClaimed: true
             });
         }
 
         var changeset = { coins: FIRST_QUIZ_BONUS };
-        var metadata = { 
+        var metadata = {
             source: "first_quiz_bonus",
             score: input.score || 0,
             correctAnswers: input.correctAnswers || 0
@@ -14524,8 +14524,8 @@ function rpcOnboardingFirstQuizComplete(ctx, logger, nk, payload) {
 
         logger.info("[Onboarding] User " + userId + " completed first quiz: " + FIRST_QUIZ_BONUS + " coins + streak shield");
 
-        return JSON.stringify({ 
-            success: true, 
+        return JSON.stringify({
+            success: true,
             coinsAwarded: FIRST_QUIZ_BONUS,
             streakShieldHours: 48,
             message: "Amazing! First Quiz Bonus: +200 Coins! 🎉\n🛡️ Streak Shield activated for 48 hours!"
@@ -14842,7 +14842,7 @@ function rpcRetentionScheduleNotification(ctx, logger, nk, payload) {
         try {
             var scheduledTime = new Date(input.scheduledTime);
             var delaySeconds = Math.max(0, (scheduledTime.getTime() - Date.now()) / 1000);
-            
+
             // Note: Server-side push would require integration with FCM/APNS
             logger.info("[Retention] Scheduled notification for user " + userId + " in " + delaySeconds + " seconds");
         } catch (scheduleErr) {
@@ -14964,7 +14964,7 @@ function rpcOnboardingCreateLinkQuiz(ctx, logger, nk, payload) {
     try {
         // In production, this would call AI service to generate quiz
         // For now, return mock quiz based on URL patterns
-        
+
         var generatedQuiz = {
             title: title,
             sourceUrl: url,
@@ -15018,7 +15018,7 @@ function generatePreviewQuestions(url) {
     // In production, AI would generate these from the actual content
     // For demo, return topic-appropriate questions
     url = url.toLowerCase();
-    
+
     if (url.includes("solar") || url.includes("space")) {
         return [
             {
@@ -15033,7 +15033,7 @@ function generatePreviewQuestions(url) {
             }
         ];
     }
-    
+
     // Default questions
     return [
         {
@@ -15131,18 +15131,18 @@ function getCurrentDayOfWeek() {
 
 function rpcWeeklyGoalsGetStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload || "{}");
         var gameId = data.gameId || "quiz-verse";
         var currentWeek = getCurrentWeekNumber();
         var currentDay = getCurrentDayOfWeek();
-        
+
         var key = "weekly_goals_" + currentWeek;
         var records = nk.storageRead([{ collection: "weekly_goals", key: key, userId: ctx.userId }]);
-        
+
         var progress = records.length > 0 ? records[0].value : null;
-        
+
         if (!progress) {
             progress = { weekNumber: currentWeek, weekStreak: 1, goals: {}, allCompleted: false };
             for (var i = 0; i < DEFAULT_WEEKLY_GOALS.length; i++) {
@@ -15151,12 +15151,12 @@ function rpcWeeklyGoalsGetStatus(ctx, logger, nk, payload) {
             }
             nk.storageWrite([{ collection: "weekly_goals", key: key, userId: ctx.userId, value: progress, permissionRead: 1, permissionWrite: 0 }]);
         }
-        
+
         var goalsArray = DEFAULT_WEEKLY_GOALS.map(function(g) {
             var p = progress.goals[g.id] || { current: 0, target: g.target || 1, completed: false, claimed: false };
             return { id: g.id, day: g.day, title: g.title, description: g.description, current: p.current, target: p.target, completed: p.completed, claimed: p.claimed, reward: g.reward, isUnlocked: g.day <= currentDay };
         });
-        
+
         return JSON.stringify({ success: true, weekNumber: currentWeek, currentDay: currentDay, weekStreak: progress.weekStreak || 1, goals: goalsArray, allCompleted: progress.allCompleted });
     } catch (e) {
         logger.error("[WeeklyGoals] Error: " + e.message);
@@ -15166,25 +15166,25 @@ function rpcWeeklyGoalsGetStatus(ctx, logger, nk, payload) {
 
 function rpcWeeklyGoalsUpdateProgress(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var goalId = data.goalId;
         var value = data.value || 1;
         var currentWeek = getCurrentWeekNumber();
-        
+
         var key = "weekly_goals_" + currentWeek;
         var records = nk.storageRead([{ collection: "weekly_goals", key: key, userId: ctx.userId }]);
-        
+
         if (records.length === 0) return JSON.stringify({ success: false, error: "Goals not initialized" });
-        
+
         var progress = records[0].value;
         var goal = progress.goals[goalId];
         if (!goal) return JSON.stringify({ success: false, error: "Goal not found" });
-        
+
         goal.current = Math.min(goal.current + value, goal.target);
         if (goal.current >= goal.target && !goal.completed) goal.completed = true;
-        
+
         var allDone = true;
         for (var gid in progress.goals) {
             if (gid !== "complete_all" && !progress.goals[gid].completed) allDone = false;
@@ -15193,9 +15193,9 @@ function rpcWeeklyGoalsUpdateProgress(ctx, logger, nk, payload) {
             progress.goals["complete_all"].completed = true;
             progress.allCompleted = true;
         }
-        
+
         nk.storageWrite([{ collection: "weekly_goals", key: key, userId: ctx.userId, value: progress, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, goalId: goalId, current: goal.current, target: goal.target, completed: goal.completed, allCompleted: progress.allCompleted });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15204,28 +15204,28 @@ function rpcWeeklyGoalsUpdateProgress(ctx, logger, nk, payload) {
 
 function rpcWeeklyGoalsClaimReward(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var goalId = data.goalId;
         var currentWeek = getCurrentWeekNumber();
-        
+
         var key = "weekly_goals_" + currentWeek;
         var records = nk.storageRead([{ collection: "weekly_goals", key: key, userId: ctx.userId }]);
-        
+
         if (records.length === 0) return JSON.stringify({ success: false, error: "Goals not initialized" });
-        
+
         var progress = records[0].value;
         var goal = progress.goals[goalId];
-        
+
         if (!goal || !goal.completed) return JSON.stringify({ success: false, error: "Goal not completed" });
         if (goal.claimed) return JSON.stringify({ success: false, error: "Already claimed" });
-        
+
         goal.claimed = true;
         nk.storageWrite([{ collection: "weekly_goals", key: key, userId: ctx.userId, value: progress, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         var reward = DEFAULT_WEEKLY_GOALS.find(function(g) { return g.id === goalId; }).reward;
-        
+
         return JSON.stringify({ success: true, goalId: goalId, reward: reward });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15234,21 +15234,21 @@ function rpcWeeklyGoalsClaimReward(ctx, logger, nk, payload) {
 
 function rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var currentWeek = getCurrentWeekNumber();
         var key = "weekly_goals_" + currentWeek;
         var records = nk.storageRead([{ collection: "weekly_goals", key: key, userId: ctx.userId }]);
-        
+
         if (records.length === 0) return JSON.stringify({ success: false, error: "Goals not initialized" });
-        
+
         var progress = records[0].value;
         if (!progress.allCompleted) return JSON.stringify({ success: false, error: "Not all goals completed" });
         if (progress.bonusClaimed) return JSON.stringify({ success: false, error: "Bonus already claimed" });
-        
+
         progress.bonusClaimed = true;
         nk.storageWrite([{ collection: "weekly_goals", key: key, userId: ctx.userId, value: progress, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, bonus: { coins: 500, gems: 100, mysteryBox: true }, weekStreak: progress.weekStreak });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15261,21 +15261,21 @@ var SEASON_CONFIG = { maxLevel: 50, xpPerLevel: 1000 };
 
 function rpcSeasonPassGetStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload || "{}");
         var now = new Date();
         var seasonNumber = (now.getFullYear() * 12) + now.getMonth() + 1;
-        
+
         var key = "season_pass_" + seasonNumber;
         var records = nk.storageRead([{ collection: "season_pass", key: key, userId: ctx.userId }]);
-        
+
         var passData = records.length > 0 ? records[0].value : { seasonNumber: seasonNumber, level: 1, xp: 0, totalXpEarned: 0, isPremium: false, freeRewardsClaimed: {}, premiumRewardsClaimed: {} };
-        
+
         if (records.length === 0) {
             nk.storageWrite([{ collection: "season_pass", key: key, userId: ctx.userId, value: passData, permissionRead: 1, permissionWrite: 0 }]);
         }
-        
+
         return JSON.stringify({ success: true, seasonNumber: seasonNumber, level: passData.level, xp: passData.xp, totalXpEarned: passData.totalXpEarned, isPremium: passData.isPremium, maxLevel: SEASON_CONFIG.maxLevel, xpPerLevel: SEASON_CONFIG.xpPerLevel, freeRewardsClaimed: passData.freeRewardsClaimed, premiumRewardsClaimed: passData.premiumRewardsClaimed });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15284,25 +15284,25 @@ function rpcSeasonPassGetStatus(ctx, logger, nk, payload) {
 
 function rpcSeasonPassAddXP(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var xpToAdd = parseInt(data.xp) || 0;
         var now = new Date();
         var seasonNumber = (now.getFullYear() * 12) + now.getMonth() + 1;
-        
+
         var key = "season_pass_" + seasonNumber;
         var records = nk.storageRead([{ collection: "season_pass", key: key, userId: ctx.userId }]);
-        
+
         var passData = records.length > 0 ? records[0].value : { seasonNumber: seasonNumber, level: 1, xp: 0, totalXpEarned: 0, isPremium: false };
-        
+
         var oldLevel = passData.level;
         passData.xp += xpToAdd;
         passData.totalXpEarned += xpToAdd;
         passData.level = Math.min(Math.floor(passData.totalXpEarned / SEASON_CONFIG.xpPerLevel) + 1, SEASON_CONFIG.maxLevel);
-        
+
         nk.storageWrite([{ collection: "season_pass", key: key, userId: ctx.userId, value: passData, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, xpAdded: xpToAdd, level: passData.level, oldLevel: oldLevel, leveledUp: passData.level > oldLevel, totalXp: passData.totalXpEarned });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15321,28 +15321,28 @@ function rpcSeasonPassCompleteQuest(ctx, logger, nk, payload) {
 
 function rpcSeasonPassClaimReward(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var level = parseInt(data.level);
         var track = data.track || "free";
         var now = new Date();
         var seasonNumber = (now.getFullYear() * 12) + now.getMonth() + 1;
-        
+
         var key = "season_pass_" + seasonNumber;
         var records = nk.storageRead([{ collection: "season_pass", key: key, userId: ctx.userId }]);
-        
+
         if (records.length === 0) return JSON.stringify({ success: false, error: "Season pass not initialized" });
-        
+
         var passData = records[0].value;
         if (passData.level < level) return JSON.stringify({ success: false, error: "Level not reached" });
-        
+
         var claimedMap = track === "premium" ? passData.premiumRewardsClaimed : passData.freeRewardsClaimed;
         if (claimedMap[level]) return JSON.stringify({ success: false, error: "Already claimed" });
-        
+
         claimedMap[level] = true;
         nk.storageWrite([{ collection: "season_pass", key: key, userId: ctx.userId, value: passData, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, level: level, track: track, reward: { coins: level * 50 } });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15351,18 +15351,18 @@ function rpcSeasonPassClaimReward(ctx, logger, nk, payload) {
 
 function rpcSeasonPassPurchasePremium(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var now = new Date();
         var seasonNumber = (now.getFullYear() * 12) + now.getMonth() + 1;
         var key = "season_pass_" + seasonNumber;
         var records = nk.storageRead([{ collection: "season_pass", key: key, userId: ctx.userId }]);
-        
+
         var passData = records.length > 0 ? records[0].value : { seasonNumber: seasonNumber, level: 1, xp: 0, totalXpEarned: 0, isPremium: false };
         passData.isPremium = true;
-        
+
         nk.storageWrite([{ collection: "season_pass", key: key, userId: ctx.userId, value: passData, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, isPremium: true });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15381,16 +15381,16 @@ var MONTHLY_MILESTONES = [
 
 function rpcMonthlyMilestonesGetStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var now = new Date();
         var monthKey = now.getFullYear() + "_" + (now.getMonth() + 1);
-        
+
         var key = "monthly_milestones_" + monthKey;
         var records = nk.storageRead([{ collection: "monthly_milestones", key: key, userId: ctx.userId }]);
-        
+
         var progress = records.length > 0 ? records[0].value : null;
-        
+
         if (!progress) {
             progress = { monthKey: monthKey, milestones: {}, totalCompleted: 0, allCompleted: false, legendaryRewardClaimed: false };
             for (var i = 0; i < MONTHLY_MILESTONES.length; i++) {
@@ -15399,12 +15399,12 @@ function rpcMonthlyMilestonesGetStatus(ctx, logger, nk, payload) {
             }
             nk.storageWrite([{ collection: "monthly_milestones", key: key, userId: ctx.userId, value: progress, permissionRead: 1, permissionWrite: 0 }]);
         }
-        
+
         var milestonesArray = MONTHLY_MILESTONES.map(function(m) {
             var p = progress.milestones[m.id];
             return { id: m.id, title: m.title, description: m.description, current: p.current, target: p.target, completed: p.completed, claimed: p.claimed, reward: m.reward };
         });
-        
+
         return JSON.stringify({ success: true, monthKey: monthKey, milestones: milestonesArray, totalCompleted: progress.totalCompleted, allCompleted: progress.allCompleted, legendaryRewardClaimed: progress.legendaryRewardClaimed });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15413,36 +15413,36 @@ function rpcMonthlyMilestonesGetStatus(ctx, logger, nk, payload) {
 
 function rpcMonthlyMilestonesUpdateProgress(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var milestoneId = data.milestoneId;
         var value = data.value || 1;
         var setMax = data.setMax || false;
-        
+
         var now = new Date();
         var monthKey = now.getFullYear() + "_" + (now.getMonth() + 1);
         var key = "monthly_milestones_" + monthKey;
-        
+
         var records = nk.storageRead([{ collection: "monthly_milestones", key: key, userId: ctx.userId }]);
         if (records.length === 0) return JSON.stringify({ success: false, error: "Milestones not initialized" });
-        
+
         var progress = records[0].value;
         var milestone = progress.milestones[milestoneId];
         if (!milestone) return JSON.stringify({ success: false, error: "Milestone not found" });
-        
+
         if (setMax) milestone.current = Math.max(milestone.current, value);
         else milestone.current = Math.min(milestone.current + value, milestone.target);
-        
+
         if (milestone.current >= milestone.target && !milestone.completed) {
             milestone.completed = true;
             progress.totalCompleted++;
         }
-        
+
         if (progress.totalCompleted >= MONTHLY_MILESTONES.length) progress.allCompleted = true;
-        
+
         nk.storageWrite([{ collection: "monthly_milestones", key: key, userId: ctx.userId, value: progress, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, milestoneId: milestoneId, current: milestone.current, target: milestone.target, completed: milestone.completed, allCompleted: progress.allCompleted });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15451,27 +15451,27 @@ function rpcMonthlyMilestonesUpdateProgress(ctx, logger, nk, payload) {
 
 function rpcMonthlyMilestonesClaimReward(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var milestoneId = data.milestoneId;
-        
+
         var now = new Date();
         var monthKey = now.getFullYear() + "_" + (now.getMonth() + 1);
         var key = "monthly_milestones_" + monthKey;
-        
+
         var records = nk.storageRead([{ collection: "monthly_milestones", key: key, userId: ctx.userId }]);
         if (records.length === 0) return JSON.stringify({ success: false, error: "Not initialized" });
-        
+
         var progress = records[0].value;
         var milestone = progress.milestones[milestoneId];
-        
+
         if (!milestone || !milestone.completed) return JSON.stringify({ success: false, error: "Not completed" });
         if (milestone.claimed) return JSON.stringify({ success: false, error: "Already claimed" });
-        
+
         milestone.claimed = true;
         nk.storageWrite([{ collection: "monthly_milestones", key: key, userId: ctx.userId, value: progress, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         var reward = MONTHLY_MILESTONES.find(function(m) { return m.id === milestoneId; }).reward;
         return JSON.stringify({ success: true, milestoneId: milestoneId, reward: reward });
     } catch (e) {
@@ -15481,22 +15481,22 @@ function rpcMonthlyMilestonesClaimReward(ctx, logger, nk, payload) {
 
 function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var now = new Date();
         var monthKey = now.getFullYear() + "_" + (now.getMonth() + 1);
         var key = "monthly_milestones_" + monthKey;
-        
+
         var records = nk.storageRead([{ collection: "monthly_milestones", key: key, userId: ctx.userId }]);
         if (records.length === 0) return JSON.stringify({ success: false, error: "Not initialized" });
-        
+
         var progress = records[0].value;
         if (!progress.allCompleted) return JSON.stringify({ success: false, error: "Not all milestones completed" });
         if (progress.legendaryRewardClaimed) return JSON.stringify({ success: false, error: "Already claimed" });
-        
+
         progress.legendaryRewardClaimed = true;
         nk.storageWrite([{ collection: "monthly_milestones", key: key, userId: ctx.userId, value: progress, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, reward: { coins: 5000, gems: 500, avatar: "legendary_monthly", title: "Monthly Legend" } });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15507,22 +15507,22 @@ function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
 
 function rpcCollectionsGetStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var key = "collections_" + ctx.userId;
         var records = nk.storageRead([{ collection: "user_collections", key: key, userId: ctx.userId }]);
-        
+
         var collectionData = records.length > 0 ? records[0].value : {
             unlocked: { avatars: ["avatar_default"], badges: [], titles: ["title_newbie"], frames: ["frame_default"] },
             equipped: { avatar: "avatar_default", title: "title_newbie", frame: "frame_default", badge: null },
             mastery: {},
             prestige: { level: 0, totalXp: 0 }
         };
-        
+
         if (records.length === 0) {
             nk.storageWrite([{ collection: "user_collections", key: key, userId: ctx.userId, value: collectionData, permissionRead: 1, permissionWrite: 0 }]);
         }
-        
+
         return JSON.stringify({ success: true, unlocked: collectionData.unlocked, equipped: collectionData.equipped, mastery: collectionData.mastery, prestige: collectionData.prestige });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15531,25 +15531,25 @@ function rpcCollectionsGetStatus(ctx, logger, nk, payload) {
 
 function rpcCollectionsUnlockItem(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var collectionType = data.collectionType;
         var itemId = data.itemId;
-        
+
         var key = "collections_" + ctx.userId;
         var records = nk.storageRead([{ collection: "user_collections", key: key, userId: ctx.userId }]);
-        
+
         if (records.length === 0) return JSON.stringify({ success: false, error: "Collections not initialized" });
-        
+
         var collectionData = records[0].value;
         if (collectionData.unlocked[collectionType].indexOf(itemId) !== -1) {
             return JSON.stringify({ success: true, alreadyUnlocked: true });
         }
-        
+
         collectionData.unlocked[collectionType].push(itemId);
         nk.storageWrite([{ collection: "user_collections", key: key, userId: ctx.userId, value: collectionData, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, itemId: itemId, collectionType: collectionType });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15558,21 +15558,21 @@ function rpcCollectionsUnlockItem(ctx, logger, nk, payload) {
 
 function rpcCollectionsEquipItem(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var slot = data.slot;
         var itemId = data.itemId;
-        
+
         var key = "collections_" + ctx.userId;
         var records = nk.storageRead([{ collection: "user_collections", key: key, userId: ctx.userId }]);
-        
+
         if (records.length === 0) return JSON.stringify({ success: false, error: "Collections not initialized" });
-        
+
         var collectionData = records[0].value;
         collectionData.equipped[slot] = itemId;
         nk.storageWrite([{ collection: "user_collections", key: key, userId: ctx.userId, value: collectionData, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, slot: slot, itemId: itemId, equipped: collectionData.equipped });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15581,26 +15581,26 @@ function rpcCollectionsEquipItem(ctx, logger, nk, payload) {
 
 function rpcCollectionsAddMasteryXP(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var data = JSON.parse(payload);
         var category = data.category;
         var xpToAdd = parseInt(data.xp) || 0;
-        
+
         var key = "collections_" + ctx.userId;
         var records = nk.storageRead([{ collection: "user_collections", key: key, userId: ctx.userId }]);
-        
+
         var collectionData = records.length > 0 ? records[0].value : { unlocked: {}, equipped: {}, mastery: {}, prestige: { level: 0, totalXp: 0 } };
-        
+
         if (!collectionData.mastery[category]) collectionData.mastery[category] = { level: 1, xp: 0 };
-        
+
         collectionData.mastery[category].xp += xpToAdd;
         collectionData.mastery[category].level = Math.min(5, Math.floor(collectionData.mastery[category].xp / 1000) + 1);
         collectionData.prestige.totalXp += xpToAdd;
         collectionData.prestige.level = Math.min(5, Math.floor(collectionData.prestige.totalXp / 50000));
-        
+
         nk.storageWrite([{ collection: "user_collections", key: key, userId: ctx.userId, value: collectionData, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, category: category, mastery: collectionData.mastery[category], prestige: collectionData.prestige });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15618,17 +15618,17 @@ var COMEBACK_TIERS = [
 
 function rpcWinbackCheckStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var records = nk.storageRead([{ collection: "user_sessions", key: "last_session", userId: ctx.userId }]);
-        
+
         if (records.length === 0) {
             return JSON.stringify({ success: true, isReturningUser: false, daysAway: 0, hasRewards: false });
         }
-        
+
         var lastSession = new Date(records[0].value.lastSessionTime);
         var daysAway = Math.floor((new Date() - lastSession) / (1000 * 60 * 60 * 24));
-        
+
         var tier = null;
         for (var i = COMEBACK_TIERS.length - 1; i >= 0; i--) {
             if (daysAway >= COMEBACK_TIERS[i].minDays && daysAway <= COMEBACK_TIERS[i].maxDays) {
@@ -15636,7 +15636,7 @@ function rpcWinbackCheckStatus(ctx, logger, nk, payload) {
                 break;
             }
         }
-        
+
         return JSON.stringify({ success: true, isReturningUser: daysAway > 0, daysAway: daysAway, hasRewards: tier !== null, tier: tier });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15645,14 +15645,14 @@ function rpcWinbackCheckStatus(ctx, logger, nk, payload) {
 
 function rpcWinbackClaimRewards(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var records = nk.storageRead([{ collection: "user_sessions", key: "last_session", userId: ctx.userId }]);
         if (records.length === 0) return JSON.stringify({ success: false, error: "No previous session" });
-        
+
         var lastSession = new Date(records[0].value.lastSessionTime);
         var daysAway = Math.floor((new Date() - lastSession) / (1000 * 60 * 60 * 24));
-        
+
         var tier = null;
         for (var i = COMEBACK_TIERS.length - 1; i >= 0; i--) {
             if (daysAway >= COMEBACK_TIERS[i].minDays && daysAway <= COMEBACK_TIERS[i].maxDays) {
@@ -15660,16 +15660,16 @@ function rpcWinbackClaimRewards(ctx, logger, nk, payload) {
                 break;
             }
         }
-        
+
         if (!tier) return JSON.stringify({ success: false, error: "Not eligible for comeback rewards" });
-        
+
         var winbackRecords = nk.storageRead([{ collection: "winback", key: "claimed", userId: ctx.userId }]);
         if (winbackRecords.length > 0 && winbackRecords[0].value.lastTier === tier.tier) {
             return JSON.stringify({ success: false, error: "Already claimed" });
         }
-        
+
         nk.storageWrite([{ collection: "winback", key: "claimed", userId: ctx.userId, value: { lastTier: tier.tier, claimedAt: new Date().toISOString() }, permissionRead: 1, permissionWrite: 0 }]);
-        
+
         return JSON.stringify({ success: true, tier: tier.tier, rewards: tier.rewards, daysAway: daysAway });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15678,11 +15678,11 @@ function rpcWinbackClaimRewards(ctx, logger, nk, payload) {
 
 function rpcWinbackRecordSession(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
-    
+
     try {
         var records = nk.storageRead([{ collection: "user_sessions", key: "last_session", userId: ctx.userId }]);
         var sessionCount = records.length > 0 ? (records[0].value.totalSessions || 0) + 1 : 1;
-        
+
         nk.storageWrite([{
             collection: "user_sessions",
             key: "last_session",
@@ -15691,7 +15691,7 @@ function rpcWinbackRecordSession(ctx, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-        
+
         return JSON.stringify({ success: true, sessionCount: sessionCount });
     } catch (e) {
         return JSON.stringify({ success: false, error: e.message });
@@ -15710,7 +15710,7 @@ function rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
 /**
  * Progressive Content Unlocks Module
  * Unlocks game features over the first 7 days to maintain engagement
- * 
+ *
  * Impact: D7 +5% retention
  */
 
@@ -15798,14 +15798,14 @@ function getUnlockData(nk, userId) {
             key: STORAGE_KEY_UNLOCKS,
             userId: userId
         }]);
-        
+
         if (objects && objects.length > 0) {
             return objects[0].value;
         }
     } catch (e) {
         // No data yet
     }
-    
+
     // Initialize default data
     return {
         firstLoginDate: Date.now(),
@@ -15820,7 +15820,7 @@ function getUnlockData(nk, userId) {
 
 function saveUnlockData(nk, userId, data) {
     data.lastUpdated = Date.now();
-    
+
     nk.storageWrite([{
         collection: STORAGE_COLLECTION_PROG,
         key: STORAGE_KEY_UNLOCKS,
@@ -15839,7 +15839,7 @@ function calculateCurrentDay(firstLoginDate) {
 
 function checkRequirementProgressive(data, requirement) {
     if (!requirement) return true;
-    
+
     switch (requirement.type) {
         case "login":
             return data.currentDay >= requirement.day;
@@ -15854,25 +15854,25 @@ function checkRequirementProgressive(data, requirement) {
 
 function grantRewardsProgressive(nk, userId, rewards, logger) {
     if (!rewards) return;
-    
+
     try {
         // Grant coins
         if (rewards.coins) {
             nk.walletUpdate(userId, { coins: rewards.coins }, {}, true);
             logger.info("Granted " + rewards.coins + " coins to " + userId);
         }
-        
+
         // Grant gems
         if (rewards.gems) {
             nk.walletUpdate(userId, { gems: rewards.gems }, {}, true);
             logger.info("Granted " + rewards.gems + " gems to " + userId);
         }
-        
+
         // Grant energy
         if (rewards.energy) {
             nk.walletUpdate(userId, { energy: rewards.energy }, {}, true);
         }
-        
+
         // Grant premium days
         if (rewards.premium_days) {
             var premiumExpiry = Date.now() + (rewards.premium_days * 24 * 60 * 60 * 1000);
@@ -15885,7 +15885,7 @@ function grantRewardsProgressive(nk, userId, rewards, logger) {
                 permissionWrite: 0
             }]);
         }
-        
+
         // Grant mystery box
         if (rewards.mystery_box) {
             var inventoryData = { mystery_boxes: rewards.mystery_box };
@@ -15908,21 +15908,21 @@ function rpcGetUnlockState(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
-    
+
     var data = getUnlockData(nk, ctx.userId);
-    
+
     // Update current day
     data.currentDay = calculateCurrentDay(data.firstLoginDate);
     saveUnlockData(nk, ctx.userId, data);
-    
+
     // Calculate next unlock info
     var nextDay = null;
     var nextUnlock = null;
-    
+
     for (var day = 1; day <= 7; day++) {
         var dayKey = "day" + day;
         var config = UNLOCK_CONFIG[dayKey];
-        
+
         if (config && data.claimedDays.indexOf(day) === -1) {
             nextDay = day;
             nextUnlock = {
@@ -15936,7 +15936,7 @@ function rpcGetUnlockState(ctx, logger, nk, payload) {
             break;
         }
     }
-    
+
     // Build locked features list
     var lockedFeatures = [];
     ALL_FEATURES_PROGRESSIVE.forEach(function(feature) {
@@ -15944,7 +15944,7 @@ function rpcGetUnlockState(ctx, logger, nk, payload) {
             lockedFeatures.push(feature);
         }
     });
-    
+
     return JSON.stringify({
         success: true,
         data: {
@@ -15969,48 +15969,48 @@ function rpcClaimUnlock(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
-    
+
     var request = {};
     try {
         request = JSON.parse(payload || "{}");
     } catch (e) {
         return JSON.stringify({ success: false, error: "Invalid payload" });
     }
-    
+
     var day = request.day;
     if (!day || day < 1 || day > 7) {
         return JSON.stringify({ success: false, error: "Invalid day" });
     }
-    
+
     var data = getUnlockData(nk, ctx.userId);
     data.currentDay = calculateCurrentDay(data.firstLoginDate);
-    
+
     // Check if already claimed
     if (data.claimedDays.indexOf(day) !== -1) {
         return JSON.stringify({ success: false, error: "Already claimed" });
     }
-    
+
     // Check if day is reachable
     if (day > data.currentDay) {
         return JSON.stringify({ success: false, error: "Day not yet available" });
     }
-    
+
     // Check requirements
     var dayKey = "day" + day;
     var config = UNLOCK_CONFIG[dayKey];
-    
+
     if (!config) {
         return JSON.stringify({ success: false, error: "Invalid day config" });
     }
-    
+
     if (!checkRequirementProgressive(data, config.requirement)) {
-        return JSON.stringify({ 
-            success: false, 
+        return JSON.stringify({
+            success: false,
             error: "Requirement not met",
             requirement: config.requirement
         });
     }
-    
+
     // Claim the unlock
     data.claimedDays.push(day);
     config.features.forEach(function(feature) {
@@ -16018,15 +16018,15 @@ function rpcClaimUnlock(ctx, logger, nk, payload) {
             data.unlockedFeatures.push(feature);
         }
     });
-    
+
     // Grant rewards
     grantRewardsProgressive(nk, ctx.userId, config.rewards, logger);
-    
+
     // Save
     saveUnlockData(nk, ctx.userId, data);
-    
+
     logger.info("User " + ctx.userId + " claimed Day " + day + " unlock");
-    
+
     return JSON.stringify({
         success: true,
         data: {
@@ -16046,22 +16046,22 @@ function rpcCheckFeatureUnlocked(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
-    
+
     var request = {};
     try {
         request = JSON.parse(payload || "{}");
     } catch (e) {
         return JSON.stringify({ success: false, error: "Invalid payload" });
     }
-    
+
     var feature = request.feature;
     if (!feature) {
         return JSON.stringify({ success: false, error: "Feature required" });
     }
-    
+
     var data = getUnlockData(nk, ctx.userId);
     var isUnlocked = data.unlockedFeatures.indexOf(feature) !== -1;
-    
+
     // Find which day unlocks this feature
     var unlockDay = null;
     for (var day = 1; day <= 7; day++) {
@@ -16071,7 +16071,7 @@ function rpcCheckFeatureUnlocked(ctx, logger, nk, payload) {
             break;
         }
     }
-    
+
     return JSON.stringify({
         success: true,
         data: {
@@ -16090,26 +16090,26 @@ function rpcUpdateProgressProgressive(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
-    
+
     var request = {};
     try {
         request = JSON.parse(payload || "{}");
     } catch (e) {
         return JSON.stringify({ success: false, error: "Invalid payload" });
     }
-    
+
     var data = getUnlockData(nk, ctx.userId);
-    
+
     if (request.quizCompleted) {
         data.totalQuizzesCompleted++;
     }
     if (request.quizWon) {
         data.totalQuizzesWon++;
     }
-    
+
     data.currentDay = calculateCurrentDay(data.firstLoginDate);
     saveUnlockData(nk, ctx.userId, data);
-    
+
     // Check if any new unlocks are available
     var newUnlocksAvailable = [];
     for (var day = 1; day <= data.currentDay; day++) {
@@ -16124,7 +16124,7 @@ function rpcUpdateProgressProgressive(ctx, logger, nk, payload) {
             }
         }
     }
-    
+
     return JSON.stringify({
         success: true,
         data: {
@@ -16142,7 +16142,7 @@ function rpcUpdateProgressProgressive(ctx, logger, nk, payload) {
 /**
  * Prestige & Category Mastery System
  * Rewards deep engagement with specific categories and long-term progression
- * 
+ *
  * Impact: D30 +10% retention, increases session duration
  */
 
@@ -16164,7 +16164,7 @@ var MASTERY_CONFIG_PROG = {
         15000,  // Level 8
         30000   // Level 9 (Platinum Badge)
     ],
-    
+
     // Rewards for reaching levels
     rewards: {
         3: { coins: 500, badge: "bronze" },
@@ -16172,7 +16172,7 @@ var MASTERY_CONFIG_PROG = {
         7: { coins: 5000, gems: 100, badge: "gold" },
         9: { coins: 15000, gems: 500, badge: "platinum" }
     },
-    
+
     // Prestige configuration
     prestige: {
         maxMasteryLevel: 9,
@@ -16204,14 +16204,14 @@ function getMasteryDataProg(nk, userId) {
             key: STORAGE_KEY_MASTERY_PROG,
             userId: userId
         }]);
-        
+
         if (objects && objects.length > 0) {
             return objects[0].value;
         }
     } catch (e) {
         // No data yet
     }
-    
+
     return {
         categories: {}, // categoryId -> { xp, level, badges: [] }
         totalMasteryLevel: 0,
@@ -16226,14 +16226,14 @@ function getPrestigeDataProg(nk, userId) {
             key: STORAGE_KEY_PRESTIGE_PROG,
             userId: userId
         }]);
-        
+
         if (objects && objects.length > 0) {
             return objects[0].value;
         }
     } catch (e) {
         // No data yet
     }
-    
+
     return {
         prestigeLevel: 0,
         unlockedPrestigeNames: [],
@@ -16291,39 +16291,39 @@ function rpcProgressionAddMasteryXp(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
-    
+
     var request = {};
     try {
         request = JSON.parse(payload || "{}");
     } catch (e) {
         return JSON.stringify({ success: false, error: "Invalid payload" });
     }
-    
+
     var categoryId = request.categoryId;
     var xpToAdd = request.xp || 0;
-    
+
     if (!categoryId) {
         return JSON.stringify({ success: false, error: "Category ID required" });
     }
-    
+
     var masteryData = getMasteryDataProg(nk, ctx.userId);
     var prestigeData = getPrestigeDataProg(nk, ctx.userId);
-    
+
     // Apply prestige boost
     var boostedXp = Math.floor(xpToAdd * (prestigeData.currentXpBoost || 1.0));
-    
+
     if (!masteryData.categories[categoryId]) {
         masteryData.categories[categoryId] = { xp: 0, level: 0, badges: [] };
     }
-    
+
     var oldLevel = masteryData.categories[categoryId].level;
     masteryData.categories[categoryId].xp += boostedXp;
     var newLevel = calculateLevelProg(masteryData.categories[categoryId].xp);
-    
+
     var levelUps = [];
     if (newLevel > oldLevel) {
         masteryData.categories[categoryId].level = newLevel;
-        
+
         // Grant rewards for each level up
         for (var l = oldLevel + 1; l <= newLevel; l++) {
             var reward = MASTERY_CONFIG_PROG.rewards[l];
@@ -16332,21 +16332,21 @@ function rpcProgressionAddMasteryXp(ctx, logger, nk, payload) {
                 var walletChanges = {};
                 if (reward.coins) walletChanges.coins = reward.coins;
                 if (reward.gems) walletChanges.gems = reward.gems;
-                
+
                 if (Object.keys(walletChanges).length > 0) {
                     nk.walletUpdate(ctx.userId, walletChanges, {}, true);
                 }
-                
+
                 if (reward.badge) {
                     masteryData.categories[categoryId].badges.push(reward.badge);
                 }
-                
+
                 levelUps.push({ level: l, reward: reward });
             } else {
                 levelUps.push({ level: l });
             }
         }
-        
+
         // Update total mastery level
         var total = 0;
         for (var cat in masteryData.categories) {
@@ -16354,9 +16354,9 @@ function rpcProgressionAddMasteryXp(ctx, logger, nk, payload) {
         }
         masteryData.totalMasteryLevel = total;
     }
-    
+
     saveMasteryDataProg(nk, ctx.userId, masteryData);
-    
+
     return JSON.stringify({
         success: true,
         data: {
@@ -16377,10 +16377,10 @@ function rpcProgressionGetState(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
-    
+
     var masteryData = getMasteryDataProg(nk, ctx.userId);
     var prestigeData = getPrestigeDataProg(nk, ctx.userId);
-    
+
     // Check if new prestige levels are available
     var nextPrestige = null;
     for (var i = 0; i < MASTERY_CONFIG_PROG.prestige.prestigeLevels.length; i++) {
@@ -16398,7 +16398,7 @@ function rpcProgressionGetState(ctx, logger, nk, payload) {
             break;
         }
     }
-    
+
     return JSON.stringify({
         success: true,
         data: {
@@ -16417,38 +16417,38 @@ function rpcProgressionClaimPrestige(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
-    
+
     var masteryData = getMasteryDataProg(nk, ctx.userId);
     var prestigeData = getPrestigeDataProg(nk, ctx.userId);
-    
+
     var nextLevelId = prestigeData.prestigeLevel + 1;
     var nextLevelConfig = null;
-    
+
     for (var i = 0; i < MASTERY_CONFIG_PROG.prestige.prestigeLevels.length; i++) {
         if (MASTERY_CONFIG_PROG.prestige.prestigeLevels[i].id === nextLevelId) {
             nextLevelConfig = MASTERY_CONFIG_PROG.prestige.prestigeLevels[i];
             break;
         }
     }
-    
+
     if (!nextLevelConfig) {
         return JSON.stringify({ success: false, error: "No more prestige levels" });
     }
-    
+
     if (masteryData.totalMasteryLevel < nextLevelConfig.requirements.totalMastery) {
         return JSON.stringify({ success: false, error: "Requirements not met" });
     }
-    
+
     // Update prestige
     prestigeData.prestigeLevel = nextLevelConfig.id;
     prestigeData.unlockedPrestigeNames.push(nextLevelConfig.name);
     prestigeData.currentXpBoost = nextLevelConfig.xpBoost;
     prestigeData.currentCoinBoost = nextLevelConfig.coinBoost;
-    
+
     savePrestigeDataProg(nk, ctx.userId, prestigeData);
-    
+
     logger.info("User " + ctx.userId + " reached prestige level " + nextLevelConfig.id + " (" + nextLevelConfig.name + ")");
-    
+
     return JSON.stringify({
         success: true,
         data: {
@@ -17045,22 +17045,22 @@ var GAME_MODE_COSTS = {
     "championship": { entryCost: 25, rewardOnComplete: 10, rewardOnWin: 50, freeDaily: 2 },
     "daily_challenge": { entryCost: 15, rewardOnComplete: 20, rewardOnWin: 40, freeDaily: 1 },
     "practice": { entryCost: 5, rewardOnComplete: 2, rewardOnWin: 5, freeDaily: 5 },
-    
+
     // Topic-Based
     "topic_quiz": { entryCost: 15, rewardOnComplete: 8, rewardOnWin: 25, freeDaily: 2 },
     "category_quiz": { entryCost: 15, rewardOnComplete: 8, rewardOnWin: 25, freeDaily: 2 },
     "pic_a_topic": { entryCost: 20, rewardOnComplete: 10, rewardOnWin: 30, freeDaily: 2 },
-    
+
     // Multiplayer
     "online_multiplayer": { entryCost: 30, rewardOnComplete: 10, rewardOnWin: 60, freeDaily: 2 },
     "local_multiplayer": { entryCost: 20, rewardOnComplete: 8, rewardOnWin: 40, freeDaily: 3 },
     "party_mode": { entryCost: 25, rewardOnComplete: 10, rewardOnWin: 50, freeDaily: 2 },
-    
+
     // Premium
     "daily_premium": { entryCost: 50, rewardOnComplete: 30, rewardOnWin: 100, freeDaily: 1 },
     "study_mode": { entryCost: 15, rewardOnComplete: 5, rewardOnWin: 10, freeDaily: 3 },
     "upload_doc": { entryCost: 30, rewardOnComplete: 15, rewardOnWin: 30, freeDaily: 2 },
-    
+
     // Special
     "tournament": { entryCost: 100, rewardOnComplete: 25, rewardOnWin: 500, freeDaily: 0 },
     "weekly_challenge": { entryCost: 40, rewardOnComplete: 20, rewardOnWin: 150, freeDaily: 1 }
@@ -17072,23 +17072,23 @@ var GAME_MODE_COSTS = {
  */
 function rpcGameEntryValidate(ctx, logger, nk, payload) {
     logger.info('[GameEntry] Validating game entry');
-    
+
     try {
         var data = JSON.parse(payload || '{}');
         var userId = ctx.userId;
         var gameId = data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse default
         var gameMode = data.gameMode;
         var entryMethod = data.entryMethod || "coins"; // "coins", "free_play", "ad_entry"
-        
+
         if (!gameMode) {
             return JSON.stringify({ success: false, error: "gameMode required" });
         }
-        
+
         var config = GAME_MODE_COSTS[gameMode];
         if (!config) {
             return JSON.stringify({ success: false, error: "Unknown game mode: " + gameMode });
         }
-        
+
         // Get user's wallet
         var walletKey = "wallet_" + userId + "_" + gameId;
         var walletRecords = nk.storageRead([{
@@ -17096,10 +17096,10 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
             key: walletKey,
             userId: userId
         }]);
-        
+
         var wallet = (walletRecords && walletRecords.length > 0) ? walletRecords[0].value : null;
         var currentBalance = wallet && wallet.currencies ? (wallet.currencies.game || wallet.currencies.tokens || 0) : 0;
-        
+
         // Get daily tracking
         var today = new Date().toISOString().split('T')[0];
         var dailyKey = "game_entry_daily_" + userId + "_" + today;
@@ -17108,21 +17108,21 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
             key: dailyKey,
             userId: userId
         }]);
-        
+
         var dailyData = (dailyRecords && dailyRecords.length > 0) ? dailyRecords[0].value : {
             freePlaysUsed: {},
             adEntriesUsed: {},
             date: today
         };
-        
+
         var freePlaysUsed = dailyData.freePlaysUsed[gameMode] || 0;
         var adEntriesUsed = dailyData.adEntriesUsed[gameMode] || 0;
         var MAX_AD_ENTRIES = 10;
-        
+
         var entryGranted = false;
         var coinsDeducted = 0;
         var method = "";
-        
+
         // Process entry based on method
         if (entryMethod === "free_play") {
             if (freePlaysUsed < config.freeDaily) {
@@ -17158,7 +17158,7 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
                     wallet.currencies.game = (wallet.currencies.game || 0) - config.entryCost;
                     wallet.currencies.tokens = (wallet.currencies.tokens || 0) - config.entryCost;
                     wallet.updatedAt = new Date().toISOString();
-                    
+
                     nk.storageWrite([{
                         collection: "wallets",
                         key: walletKey,
@@ -17167,7 +17167,7 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
                         permissionRead: 1,
                         permissionWrite: 0
                     }]);
-                    
+
                     coinsDeducted = config.entryCost;
                     entryGranted = true;
                     method = "coins";
@@ -17183,11 +17183,11 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
                 });
             }
         }
-        
+
         if (!entryGranted) {
             return JSON.stringify({ success: false, error: "Entry not granted" });
         }
-        
+
         // Save daily tracking
         nk.storageWrite([{
             collection: "game_entry_tracking",
@@ -17197,10 +17197,10 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-        
+
         // Generate entry token for game session validation
         var entryToken = generateEntryToken(userId, gameMode, Date.now());
-        
+
         // Log the entry
         nk.storageWrite([{
             collection: "game_entry_logs",
@@ -17217,7 +17217,7 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-        
+
         return JSON.stringify({
             success: true,
             entryGranted: true,
@@ -17232,7 +17232,7 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
                 onWin: config.rewardOnWin
             }
         });
-        
+
     } catch (err) {
         logger.error("[GameEntry] Error: " + err.message);
         return JSON.stringify({ success: false, error: err.message });
@@ -17245,7 +17245,7 @@ function rpcGameEntryValidate(ctx, logger, nk, payload) {
  */
 function rpcGameEntryComplete(ctx, logger, nk, payload) {
     logger.info('[GameEntry] Processing game completion');
-    
+
     try {
         var data = JSON.parse(payload || '{}');
         var userId = ctx.userId;
@@ -17254,26 +17254,26 @@ function rpcGameEntryComplete(ctx, logger, nk, payload) {
         var won = data.won === true;
         var score = data.score || 0;
         var entryToken = data.entryToken;
-        
+
         if (!gameMode) {
             return JSON.stringify({ success: false, error: "gameMode required" });
         }
-        
+
         var config = GAME_MODE_COSTS[gameMode];
         if (!config) {
             return JSON.stringify({ success: false, error: "Unknown game mode" });
         }
-        
+
         // Calculate rewards
         var reward = config.rewardOnComplete;
         if (won) {
             reward += config.rewardOnWin;
         }
-        
+
         // Bonus for high scores (10% of score, capped at 50)
         var scoreBonus = Math.min(Math.floor(score / 10), 50);
         reward += scoreBonus;
-        
+
         // Get and update wallet
         var walletKey = "wallet_" + userId + "_" + gameId;
         var walletRecords = nk.storageRead([{
@@ -17281,18 +17281,18 @@ function rpcGameEntryComplete(ctx, logger, nk, payload) {
             key: walletKey,
             userId: userId
         }]);
-        
+
         var wallet = (walletRecords && walletRecords.length > 0) ? walletRecords[0].value : {
             userId: userId,
             currencies: { game: 0, tokens: 0 },
             createdAt: new Date().toISOString()
         };
-        
+
         // Add reward
         wallet.currencies.game = (wallet.currencies.game || 0) + reward;
         wallet.currencies.tokens = (wallet.currencies.tokens || 0) + reward;
         wallet.updatedAt = new Date().toISOString();
-        
+
         nk.storageWrite([{
             collection: "wallets",
             key: walletKey,
@@ -17301,9 +17301,9 @@ function rpcGameEntryComplete(ctx, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-        
+
         logger.info("[GameEntry] Awarded " + reward + " coins for " + gameMode + " (won: " + won + ", score: " + score + ")");
-        
+
         return JSON.stringify({
             success: true,
             reward: reward,
@@ -17315,7 +17315,7 @@ function rpcGameEntryComplete(ctx, logger, nk, payload) {
             won: won,
             newBalance: wallet.currencies.game
         });
-        
+
     } catch (err) {
         logger.error("[GameEntry] Complete error: " + err.message);
         return JSON.stringify({ success: false, error: err.message });
@@ -17331,7 +17331,7 @@ function rpcGameEntryGetStatus(ctx, logger, nk, payload) {
         var data = JSON.parse(payload || '{}');
         var userId = ctx.userId;
         var gameId = data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b";
-        
+
         // Get wallet balance
         var walletKey = "wallet_" + userId + "_" + gameId;
         var walletRecords = nk.storageRead([{
@@ -17341,7 +17341,7 @@ function rpcGameEntryGetStatus(ctx, logger, nk, payload) {
         }]);
         var wallet = (walletRecords && walletRecords.length > 0) ? walletRecords[0].value : null;
         var currentBalance = wallet && wallet.currencies ? (wallet.currencies.game || 0) : 0;
-        
+
         // Get daily tracking
         var today = new Date().toISOString().split('T')[0];
         var dailyKey = "game_entry_daily_" + userId + "_" + today;
@@ -17354,15 +17354,15 @@ function rpcGameEntryGetStatus(ctx, logger, nk, payload) {
             freePlaysUsed: {},
             adEntriesUsed: {}
         };
-        
+
         var MAX_AD_ENTRIES = 10;
         var modeStatuses = [];
-        
+
         for (var mode in GAME_MODE_COSTS) {
             var config = GAME_MODE_COSTS[mode];
             var freePlaysUsed = dailyData.freePlaysUsed[mode] || 0;
             var adEntriesUsed = dailyData.adEntriesUsed[mode] || 0;
-            
+
             modeStatuses.push({
                 mode: mode,
                 entryCost: config.entryCost,
@@ -17371,19 +17371,19 @@ function rpcGameEntryGetStatus(ctx, logger, nk, payload) {
                 adEntriesRemaining: Math.max(0, MAX_AD_ENTRIES - adEntriesUsed),
                 rewardOnComplete: config.rewardOnComplete,
                 rewardOnWin: config.rewardOnWin,
-                hasAnyEntry: (currentBalance >= config.entryCost) || 
-                             (freePlaysUsed < config.freeDaily) || 
+                hasAnyEntry: (currentBalance >= config.entryCost) ||
+                             (freePlaysUsed < config.freeDaily) ||
                              (adEntriesUsed < MAX_AD_ENTRIES)
             });
         }
-        
+
         return JSON.stringify({
             success: true,
             currentBalance: currentBalance,
             modes: modeStatuses,
             resetAt: new Date(new Date().setHours(24, 0, 0, 0)).toISOString()
         });
-        
+
     } catch (err) {
         logger.error("[GameEntry] GetStatus error: " + err.message);
         return JSON.stringify({ success: false, error: err.message });
@@ -17455,12 +17455,12 @@ function compatibilitySessionToUnityFormat(session) {
         'cancelled': 4
     };
     var numericStatus = typeof session.status === 'number' ? session.status : (statusMap[session.status] || 0);
-    
+
     // Check expiry
     if (Date.now() > session.expiresAt && numericStatus < 2) {
         numericStatus = 3; // Expired
     }
-    
+
     return {
         sessionId: session.sessionId || '',
         quizId: session.quizId || 'compatibility_quiz_v1',
@@ -17506,20 +17506,20 @@ function compatibilitySessionToUnityFormat(session) {
 function compatibilityCalculateTraitSimilarity(traits1, traits2, relevantTraits) {
     var similarity = 0;
     var count = 0;
-    
+
     for (var i = 0; i < relevantTraits.length; i++) {
         var trait = relevantTraits[i];
         var score1 = traits1[trait] || 0;
         var score2 = traits2[trait] || 0;
-        
+
         var norm1 = Math.min(score1 / 5, 1);
         var norm2 = Math.min(score2 / 5, 1);
-        
+
         var diff = Math.abs(norm1 - norm2);
         similarity += (1 - diff);
         count++;
     }
-    
+
     return count > 0 ? similarity / count : 0.5;
 }
 
@@ -17529,16 +17529,16 @@ function compatibilityCalculateTraitSimilarity(traits1, traits2, relevantTraits)
 function compatibilityCountMatchingAnswers(answers1, answers2) {
     var matches = 0;
     var minLen = Math.min(answers1.length, answers2.length);
-    
+
     for (var i = 0; i < minLen; i++) {
         var a1 = answers1[i];
         var a2 = answers2[i];
-        
+
         if (a1 && a2 && a1.optionId === a2.optionId) {
             matches++;
         }
     }
-    
+
     return matches;
 }
 
@@ -17549,7 +17549,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     var totalScore = 0;
     var categoryCount = 0;
     var breakdown = {};
-    
+
     // 1. Communication Style
     var commScore = compatibilityCalculateTraitSimilarity(
         creatorTraits,
@@ -17559,7 +17559,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     breakdown.communicationStyle = Math.round(commScore * 100);
     totalScore += commScore;
     categoryCount++;
-    
+
     // 2. Emotional Connection
     var emotionalScore = compatibilityCalculateTraitSimilarity(
         creatorTraits,
@@ -17569,7 +17569,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     breakdown.emotionalConnection = Math.round(emotionalScore * 100);
     totalScore += emotionalScore;
     categoryCount++;
-    
+
     // 3. Shared Values
     var valuesScore = compatibilityCalculateTraitSimilarity(
         creatorTraits,
@@ -17579,7 +17579,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     breakdown.sharedValues = Math.round(valuesScore * 100);
     totalScore += valuesScore;
     categoryCount++;
-    
+
     // 4. Direct answer matching bonus
     var matchingAnswers = compatibilityCountMatchingAnswers(creatorAnswers, partnerAnswers);
     var maxLen = Math.max(creatorAnswers.length, partnerAnswers.length, 1);
@@ -17587,9 +17587,9 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     breakdown.answerAlignment = Math.round(matchRatio * 100);
     totalScore += matchRatio * 0.5;
     categoryCount += 0.5;
-    
+
     var finalScore = (totalScore / categoryCount) * 100;
-    
+
     var message;
     var emoji;
     if (finalScore >= 90) {
@@ -17608,7 +17608,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
         message = "Different perspectives! Diversity makes life interesting!";
         emoji = "star";
     }
-    
+
     // Determine compatibility level string
     var level;
     if (finalScore >= 90) {
@@ -17622,41 +17622,41 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     } else {
         level = "Different Perspectives";
     }
-    
+
     // Generate matching traits based on category scores
     var matchingTraits = [];
     var differentTraits = [];
-    
+
     if (breakdown.communicationStyle >= 70) {
         matchingTraits.push("Communication Style");
     } else if (breakdown.communicationStyle < 40) {
         differentTraits.push("Communication Style");
     }
-    
+
     if (breakdown.emotionalConnection >= 70) {
         matchingTraits.push("Emotional Connection");
     } else if (breakdown.emotionalConnection < 40) {
         differentTraits.push("Emotional Connection");
     }
-    
+
     if (breakdown.sharedValues >= 70) {
         matchingTraits.push("Shared Values");
     } else if (breakdown.sharedValues < 40) {
         differentTraits.push("Shared Values");
     }
-    
+
     if (breakdown.answerAlignment >= 60) {
         matchingTraits.push("Similar Thinking");
     } else if (breakdown.answerAlignment < 30) {
         differentTraits.push("Different Viewpoints");
     }
-    
+
     // Add personality-based traits
-    if (creatorTraits['mbti:E'] && partnerTraits['mbti:E'] && 
+    if (creatorTraits['mbti:E'] && partnerTraits['mbti:E'] &&
         creatorTraits['mbti:E'] > 2 && partnerTraits['mbti:E'] > 2) {
         matchingTraits.push("Both Outgoing");
     }
-    if (creatorTraits['mbti:I'] && partnerTraits['mbti:I'] && 
+    if (creatorTraits['mbti:I'] && partnerTraits['mbti:I'] &&
         creatorTraits['mbti:I'] > 2 && partnerTraits['mbti:I'] > 2) {
         matchingTraits.push("Both Thoughtful");
     }
@@ -17668,7 +17668,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
         creatorTraits['big_five:high_agreeableness'] > 2 && partnerTraits['big_five:high_agreeableness'] > 2) {
         matchingTraits.push("Caring Hearts");
     }
-    
+
     // Ensure we have at least one matching trait or different trait
     if (matchingTraits.length === 0 && finalScore >= 50) {
         matchingTraits.push("Open to Growth");
@@ -17676,7 +17676,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     if (differentTraits.length === 0 && finalScore < 50) {
         differentTraits.push("Unique Perspectives");
     }
-    
+
     // Format category scores for Unity frontend
     var categoryScores = {
         communication: breakdown.communicationStyle || 0,
@@ -17685,7 +17685,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
         lifestyle: Math.round((breakdown.answerAlignment || 0) * 0.8), // Derive lifestyle from answer alignment
         interests: Math.round(finalScore * 0.9) // Derive interests from overall score
     };
-    
+
     // Generate growth areas from low-scoring categories
     var growthAreas = [];
     if (categoryScores.communication < 50) growthAreas.push("Communication Skills");
@@ -17693,12 +17693,12 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     if (categoryScores.values < 50) growthAreas.push("Aligning Core Values");
     if (categoryScores.lifestyle < 50) growthAreas.push("Lifestyle Balance");
     if (categoryScores.interests < 50) growthAreas.push("Discovering Shared Interests");
-    
+
     // Ensure at least one growth area
     if (growthAreas.length === 0) {
         growthAreas.push("Keep Growing Together");
     }
-    
+
     // Generate relationship advice based on score
     var relationshipAdvice;
     if (finalScore >= 85) {
@@ -17712,7 +17712,7 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     } else {
         relationshipAdvice = "Your different perspectives can lead to amazing growth. Stay curious! 🌟";
     }
-    
+
     return {
         score: finalScore,
         overallScore: finalScore, // Alias for Unity compatibility
@@ -17738,14 +17738,14 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
  */
 function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
     logger.debug('[CompatibilityQuiz] Creating session for user: ' + ctx.userId);
-    
+
     var request;
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
         return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
-    
+
     try {
         // CRITICAL: Validate userId - use from context or fallback to payload
         var userId = ctx.userId;
@@ -17753,14 +17753,14 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
             userId = request.userId;
         }
         if (!userId || typeof userId !== 'string' || userId.length < 10) {
-            return JSON.stringify({ 
-                success: false, 
-                message: 'User authentication required. Please ensure you are logged in.', 
+            return JSON.stringify({
+                success: false,
+                message: 'User authentication required. Please ensure you are logged in.',
                 data: null,
                 errorCode: 'AUTH_REQUIRED'
             });
         }
-        
+
         var quizId = request.quizId || 'compatibility_quiz_v1';
         var quizTitle = request.quizTitle || 'Compatibility Quiz';
         var playerDisplayName = request.playerDisplayName || 'Unknown';
@@ -17768,7 +17768,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
         var shareCode = compatibilityGenerateShareCode(sessionId);
         var now = Date.now();
         var expiresAt = now + (48 * 60 * 60 * 1000);
-        
+
         // Fetch user display name (with fallback)
         var displayName = playerDisplayName;
         try {
@@ -17779,7 +17779,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
         } catch (userErr) {
             logger.warn('[CompatibilityQuiz] Could not fetch user info: ' + userErr.message);
         }
-        
+
         // Internal storage format
         var sessionStorage = {
             sessionId: sessionId,
@@ -17801,7 +17801,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
             partnerTraitScores: null,
             compatibilityResult: null
         };
-        
+
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
@@ -17810,7 +17810,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
             permissionRead: 2,
             permissionWrite: 1
         }]);
-        
+
         // Store code mapping with system user ID for public lookup
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
@@ -17820,9 +17820,9 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
             permissionRead: 2,
             permissionWrite: 0
         }]);
-        
+
         logger.info('[CompatibilityQuiz] Session created: ' + sessionId + ' with code: ' + shareCode);
-        
+
         // Response format matching Unity client expectations
         return JSON.stringify({
             success: true,
@@ -17863,14 +17863,14 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
  */
 function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
     logger.debug('[CompatibilityQuiz] User ' + ctx.userId + ' attempting to join session');
-    
+
     var request;
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
         return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
-    
+
     try {
         // CRITICAL: Validate userId - use from context or fallback to payload
         var userId = ctx.userId;
@@ -17878,19 +17878,19 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
             userId = request.userId;
         }
         if (!userId || typeof userId !== 'string' || userId.length < 10) {
-            return JSON.stringify({ 
-                success: false, 
-                message: 'User authentication required. Please ensure you are logged in.', 
+            return JSON.stringify({
+                success: false,
+                message: 'User authentication required. Please ensure you are logged in.',
                 data: null,
                 errorCode: 'AUTH_REQUIRED'
             });
         }
-        
+
         var shareCode = (request.shareCode || request.shareCodeOrSessionId || '').toUpperCase().trim();
         if (!shareCode || shareCode.length < 6) {
             return JSON.stringify({ success: false, message: 'Invalid share code', data: null });
         }
-        
+
         // Note: We must read using the creator's ID, but we don't know it yet.
         // First, try to find the code record by listing storage with the code key pattern.
         // For now, we'll use a different approach - store the code mapping with system user.
@@ -17899,39 +17899,39 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
             key: 'code_' + shareCode,
             userId: '00000000-0000-0000-0000-000000000000'
         }]);
-        
+
         if (codeResults.length === 0) {
             return JSON.stringify({ success: false, message: 'Session not found', data: null });
         }
-        
+
         var codeRecord = codeResults[0].value;
         var sessionId = codeRecord.sessionId;
         var creatorId = codeRecord.creatorId;
-        
+
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
             userId: creatorId
         }]);
-        
+
         if (sessionResults.length === 0) {
             return JSON.stringify({ success: false, message: 'Session data not found', data: null });
         }
-        
+
         var session = sessionResults[0].value;
-        
+
         if (session.status === 3 || session.status === 'expired' || Date.now() > session.expiresAt) {
             return JSON.stringify({ success: false, message: 'Session has expired', data: null });
         }
-        
+
         if (session.partnerId !== null && session.partnerId !== userId) {
             return JSON.stringify({ success: false, message: 'Session already has a partner', data: null });
         }
-        
+
         if (session.creatorId === userId) {
             return JSON.stringify({ success: false, message: 'Cannot join your own session', data: null });
         }
-        
+
         // Fetch user display name (with fallback)
         var displayName = request.playerDisplayName || 'Unknown';
         try {
@@ -17942,11 +17942,11 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
         } catch (userErr) {
             logger.warn('[CompatibilityQuiz] Could not fetch user info: ' + userErr.message);
         }
-        
+
         session.partnerId = userId;
         session.partnerName = displayName;
         session.status = 1; // PartnerJoined
-        
+
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
@@ -17955,15 +17955,15 @@ function rpcCompatibilityJoinSession(ctx, logger, nk, payload) {
             permissionRead: 2,
             permissionWrite: 1
         }]);
-        
+
         compatibilitySendNotification(nk, session.creatorId,
             'Partner Joined!',
             displayName + ' has joined your compatibility quiz!',
             { type: 'partner_joined', sessionId: sessionId }
         );
-        
+
         logger.info('[CompatibilityQuiz] User ' + userId + ' joined session ' + sessionId);
-        
+
         return JSON.stringify({
             success: true,
             message: 'Successfully joined session',
@@ -17986,7 +17986,7 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
     } catch (e) {
         return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
-    
+
     try {
         // CRITICAL: Validate userId - use from context or fallback to payload
         var userId = ctx.userId;
@@ -17994,17 +17994,17 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
             userId = request.userId;
         }
         if (!userId || typeof userId !== 'string' || userId.length < 10) {
-            return JSON.stringify({ 
-                success: false, 
-                message: 'User authentication required. Please ensure you are logged in.', 
+            return JSON.stringify({
+                success: false,
+                message: 'User authentication required. Please ensure you are logged in.',
                 data: null,
                 errorCode: 'AUTH_REQUIRED'
             });
         }
-        
+
         var sessionId = request.sessionId;
         var creatorId = null;
-        
+
         if (!sessionId && request.shareCode) {
             var shareCode = request.shareCode.toUpperCase().trim();
             var codeResults = nk.storageRead([{
@@ -18012,21 +18012,21 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
                 key: 'code_' + shareCode,
                 userId: '00000000-0000-0000-0000-000000000000'
             }]);
-            
+
             if (codeResults.length === 0) {
                 return JSON.stringify({ success: false, message: 'Session not found', data: null });
             }
-            
+
             sessionId = codeResults[0].value.sessionId;
             creatorId = codeResults[0].value.creatorId;
         }
-        
+
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
             userId: userId
         }]);
-        
+
         if (sessionResults.length === 0 && creatorId) {
             sessionResults = nk.storageRead([{
                 collection: COLLECTION_COMPATIBILITY_SESSIONS,
@@ -18034,17 +18034,17 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
                 userId: creatorId
             }]);
         }
-        
+
         if (sessionResults.length === 0) {
             return JSON.stringify({ success: false, message: 'Session not found', data: null });
         }
-        
+
         var session = sessionResults[0].value;
-        
+
         if (session.creatorId !== userId && session.partnerId !== userId) {
             return JSON.stringify({ success: false, message: 'Not authorized to view this session', data: null });
         }
-        
+
         return JSON.stringify({
             success: true,
             message: 'Session retrieved',
@@ -18062,14 +18062,14 @@ function rpcCompatibilityGetSession(ctx, logger, nk, payload) {
  */
 function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
     logger.debug('[CompatibilityQuiz] User ' + ctx.userId + ' submitting answers');
-    
+
     var request;
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
         return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
-    
+
     try {
         // CRITICAL: Validate userId - use from context or fallback to payload
         var userId = ctx.userId;
@@ -18077,35 +18077,35 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
             userId = request.userId;
         }
         if (!userId || typeof userId !== 'string' || userId.length < 10) {
-            return JSON.stringify({ 
-                success: false, 
-                message: 'User authentication required. Please ensure you are logged in.', 
+            return JSON.stringify({
+                success: false,
+                message: 'User authentication required. Please ensure you are logged in.',
                 data: null,
                 errorCode: 'AUTH_REQUIRED'
             });
         }
-        
+
         var sessionId = request.sessionId;
         var answers = request.answers || [];
         var traitScores = request.traitScores || {};
-        
+
         if (!sessionId) {
             return JSON.stringify({ success: false, message: 'Session ID required', data: null });
         }
-        
+
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
             userId: userId
         }]);
-        
+
         var isCreator = sessionResults.length > 0;
         var creatorId = isCreator ? userId : null;
-        
+
         if (!isCreator) {
             var listResults = nk.storageList(null, COLLECTION_COMPATIBILITY_SESSIONS, 100, '');
             var objects = listResults.objects || [];
-            
+
             for (var i = 0; i < objects.length; i++) {
                 var obj = objects[i];
                 if (obj.value.sessionId === sessionId && obj.value.partnerId === userId) {
@@ -18113,7 +18113,7 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
                     break;
                 }
             }
-            
+
             if (creatorId) {
                 sessionResults = nk.storageRead([{
                     collection: COLLECTION_COMPATIBILITY_SESSIONS,
@@ -18122,20 +18122,20 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
                 }]);
             }
         }
-        
+
         if (sessionResults.length === 0) {
             return JSON.stringify({ success: false, message: 'Session not found', data: null });
         }
-        
+
         var session = sessionResults[0].value;
-        
+
         var isPartner = session.partnerId === userId;
         isCreator = session.creatorId === userId;
-        
+
         if (!isCreator && !isPartner) {
             return JSON.stringify({ success: false, message: 'Not authorized for this session', data: null });
         }
-        
+
         var now = Date.now();
         if (isCreator) {
             session.creatorAnswers = answers;
@@ -18154,14 +18154,14 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
             session.partnerPersonalityTitle = request.personalityTitle || null;
             session.partnerPersonalityEmoji = request.personalityEmoji || null;
         }
-        
+
         // Update status using numeric values
         if (session.creatorCompleted && session.partnerCompleted) {
             session.status = 2; // BothCompleted
         } else if (session.creatorCompleted || session.partnerCompleted) {
             session.status = 1; // PartnerJoined (or waiting for other)
         }
-        
+
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
@@ -18170,7 +18170,7 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
             permissionRead: 2,
             permissionWrite: 1
         }]);
-        
+
         if (isCreator && session.partnerId) {
             compatibilitySendNotification(nk, session.partnerId,
                 'Your partner finished!',
@@ -18184,9 +18184,9 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
                 { type: 'partner_completed', sessionId: sessionId }
             );
         }
-        
+
         logger.info('[CompatibilityQuiz] Answers submitted for session ' + sessionId);
-        
+
         return JSON.stringify({
             success: true,
             message: 'Answers submitted successfully',
@@ -18204,14 +18204,14 @@ function rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload) {
  */
 function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
     logger.debug('[CompatibilityQuiz] Calculating compatibility for user ' + ctx.userId);
-    
+
     var request;
     try {
         request = JSON.parse(payload || '{}');
     } catch (e) {
         return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
     }
-    
+
     try {
         // CRITICAL: Validate userId - use from context or fallback to payload
         var userId = ctx.userId;
@@ -18219,31 +18219,31 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
             userId = request.userId;
         }
         if (!userId || typeof userId !== 'string' || userId.length < 10) {
-            return JSON.stringify({ 
-                success: false, 
-                message: 'User authentication required. Please ensure you are logged in.', 
+            return JSON.stringify({
+                success: false,
+                message: 'User authentication required. Please ensure you are logged in.',
                 data: null,
                 errorCode: 'AUTH_REQUIRED'
             });
         }
-        
+
         var sessionId = request.sessionId;
         if (!sessionId) {
             return JSON.stringify({ success: false, message: 'Session ID required', data: null });
         }
-        
+
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
             userId: userId
         }]);
-        
+
         var creatorId = userId;
-        
+
         if (sessionResults.length === 0) {
             var listResults = nk.storageList(null, COLLECTION_COMPATIBILITY_SESSIONS, 100, '');
             var objects = listResults.objects || [];
-            
+
             for (var i = 0; i < objects.length; i++) {
                 var obj = objects[i];
                 if (obj.value.sessionId === sessionId) {
@@ -18251,24 +18251,24 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
                     break;
                 }
             }
-            
+
             sessionResults = nk.storageRead([{
                 collection: COLLECTION_COMPATIBILITY_SESSIONS,
                 key: sessionId,
                 userId: creatorId
             }]);
         }
-        
+
         if (sessionResults.length === 0) {
             return JSON.stringify({ success: false, message: 'Session not found', data: null });
         }
-        
+
         var session = sessionResults[0].value;
-        
+
         if (!session.creatorCompleted || !session.partnerCompleted) {
             return JSON.stringify({ success: false, message: 'Both players must complete the quiz first', data: null });
         }
-        
+
         // If already calculated, return cached result
         if (session.compatibilityResult) {
             session.status = 2; // BothCompleted
@@ -18278,17 +18278,17 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
                 data: compatibilitySessionToUnityFormat(session)
             });
         }
-        
+
         var creatorTraits = session.creatorTraitScores || {};
         var partnerTraits = session.partnerTraitScores || {};
         var creatorAnswers = session.creatorAnswers || [];
         var partnerAnswers = session.partnerAnswers || [];
-        
+
         var result = compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers, partnerAnswers);
-        
+
         session.compatibilityResult = result;
         session.status = 2; // BothCompleted
-        
+
         nk.storageWrite([{
             collection: COLLECTION_COMPATIBILITY_SESSIONS,
             key: sessionId,
@@ -18297,15 +18297,15 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
             permissionRead: 2,
             permissionWrite: 1
         }]);
-        
+
         var resultMessage = 'Your compatibility score: ' + result.score.toFixed(0) + '%!';
-        
+
         compatibilitySendNotification(nk, session.creatorId,
             'Compatibility Results!',
             resultMessage,
             { type: 'results_ready', sessionId: sessionId }
         );
-        
+
         if (session.partnerId) {
             compatibilitySendNotification(nk, session.partnerId,
                 'Compatibility Results!',
@@ -18313,9 +18313,9 @@ function rpcCompatibilityCalculate(ctx, logger, nk, payload) {
                 { type: 'results_ready', sessionId: sessionId }
             );
         }
-        
+
         logger.info('[CompatibilityQuiz] Compatibility calculated: ' + result.score + '%');
-        
+
         return JSON.stringify({
             success: true,
             message: 'Compatibility calculated',
@@ -18340,7 +18340,7 @@ function rpcCompatibilityListSessions(ctx, logger, nk, payload) {
     } catch (e) {
         // Use defaults
     }
-    
+
     try {
         // CRITICAL: Validate userId - use from context or fallback to payload
         var userId = ctx.userId;
@@ -18348,40 +18348,40 @@ function rpcCompatibilityListSessions(ctx, logger, nk, payload) {
             userId = request.userId;
         }
         if (!userId || typeof userId !== 'string' || userId.length < 10) {
-            return JSON.stringify({ 
-                success: false, 
-                message: 'User authentication required. Please ensure you are logged in.', 
+            return JSON.stringify({
+                success: false,
+                message: 'User authentication required. Please ensure you are logged in.',
                 data: [],
                 errorCode: 'AUTH_REQUIRED'
             });
         }
-        
+
         var limit = Math.min(request.limit || 20, 100);
         var includeExpired = request.includeExpired || false;
-        
+
         var creatorSessions = nk.storageList(userId, COLLECTION_COMPATIBILITY_SESSIONS, limit, '');
-        
+
         var sessions = [];
         var now = Date.now();
         var objects = creatorSessions.objects || [];
-        
+
         for (var i = 0; i < objects.length; i++) {
             var obj = objects[i];
             var session = obj.value;
-            
+
             if (obj.key.indexOf('code_') === 0) continue;
-            
+
             // Convert status to numeric
             var numericStatus = typeof session.status === 'number' ? session.status : 0;
             var isExpired = numericStatus === 3 || now > session.expiresAt;
-            
+
             if (!includeExpired && isExpired) {
                 continue;
             }
-            
+
             sessions.push(compatibilitySessionToUnityFormat(session));
         }
-        
+
         return JSON.stringify({
             success: true,
             message: 'Sessions retrieved',
@@ -18390,6 +18390,1755 @@ function rpcCompatibilityListSessions(ctx, logger, nk, payload) {
     } catch (err) {
         logger.error('[CompatibilityQuiz] List sessions error: ' + err.message);
         return JSON.stringify({ success: false, message: err.message, data: [] });
+    }
+}
+
+
+// ============================================================================
+// ASYNC CHALLENGE SYSTEM - Universal Asynchronous Multiplayer (QuizVerse)
+// ============================================================================
+// World-class async challenge system supporting all quiz modes
+// Features: Create, Join, Submit, Get, List, Cancel, Rematch, Stats, Rewards, Leaderboards
+// Status: 0=WaitingForOpponent, 1=OpponentJoined, 2=BothCompleted, 3=Expired, 4=Cancelled
+// ============================================================================
+
+var COLLECTION_ASYNC_CHALLENGES = 'async_challenges';
+var COLLECTION_ASYNC_STATS = 'async_challenge_stats';
+var COLLECTION_ASYNC_INDEX = 'async_challenge_index';
+var ASYNC_CHALLENGE_SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
+var ASYNC_CHALLENGE_EXPIRY_HOURS = 168; // 7 days (1 week max)
+var ASYNC_CHALLENGE_MAX_PER_USER = 10;
+var ASYNC_CHALLENGE_RATE_LIMIT_MINUTES = 1; // Min time between challenge creations
+var ASYNC_CHALLENGE_WIN_COINS = 50; // Coins for winning
+var ASYNC_CHALLENGE_PARTICIPATION_COINS = 10; // Coins for completing (loser)
+var ASYNC_CHALLENGE_WIN_XP = 100; // XP for winning
+var ASYNC_CHALLENGE_PARTICIPATION_XP = 25; // XP for completing (loser)
+
+// Status constants
+var ASYNC_STATUS_WAITING = 0;
+var ASYNC_STATUS_OPPONENT_JOINED = 1;
+var ASYNC_STATUS_BOTH_COMPLETED = 2;
+var ASYNC_STATUS_EXPIRED = 3;
+var ASYNC_STATUS_CANCELLED = 4;
+
+/**
+ * Get or create user async challenge statistics
+ * @param {object} nk - Nakama runtime context
+ * @param {string} userId - User ID
+ * @returns {object} User stats
+ */
+function asyncChallengeGetStats(nk, userId) {
+    try {
+        var statsResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_STATS,
+            key: 'stats_' + userId,
+            userId: userId
+        }]);
+
+        if (statsResults.length > 0) {
+            return statsResults[0].value;
+        }
+    } catch (err) {
+        // Return default stats
+    }
+
+    return {
+        userId: userId,
+        totalChallenges: 0,
+        totalWins: 0,
+        totalLosses: 0,
+        totalDraws: 0,
+        currentWinStreak: 0,
+        bestWinStreak: 0,
+        totalCoinsWon: 0,
+        totalXpEarned: 0,
+        lastChallengeAt: 0,
+        createdAt: Date.now()
+    };
+}
+
+/**
+ * Update user async challenge statistics
+ * @param {object} nk - Nakama runtime context
+ * @param {string} userId - User ID
+ * @param {object} stats - Updated stats object
+ */
+function asyncChallengeSaveStats(nk, userId, stats) {
+    try {
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_STATS,
+            key: 'stats_' + userId,
+            userId: userId,
+            value: stats,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+    } catch (err) {
+        // Silent fail - stats are non-critical
+    }
+}
+
+/**
+ * Add session to opponent index for fast lookups
+ * @param {object} nk - Nakama runtime context
+ * @param {string} opponentId - Opponent user ID
+ * @param {string} sessionId - Challenge session ID
+ * @param {string} creatorId - Creator user ID
+ */
+function asyncChallengeIndexOpponent(nk, opponentId, sessionId, creatorId) {
+    try {
+        // Get current index
+        var indexResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_INDEX,
+            key: 'opponent_' + opponentId,
+            userId: opponentId
+        }]);
+
+        var index = { sessions: [] };
+        if (indexResults.length > 0) {
+            index = indexResults[0].value;
+        }
+
+        // Add session if not exists
+        var exists = false;
+        for (var i = 0; i < index.sessions.length; i++) {
+            if (index.sessions[i].sessionId === sessionId) {
+                exists = true;
+                break;
+            }
+        }
+
+        if (!exists) {
+            index.sessions.push({
+                sessionId: sessionId,
+                creatorId: creatorId,
+                addedAt: Date.now()
+            });
+
+            // Keep only recent 50 entries
+            if (index.sessions.length > 50) {
+                index.sessions = index.sessions.slice(-50);
+            }
+
+            nk.storageWrite([{
+                collection: COLLECTION_ASYNC_INDEX,
+                key: 'opponent_' + opponentId,
+                userId: opponentId,
+                value: index,
+                permissionRead: 1,
+                permissionWrite: 1
+            }]);
+        }
+    } catch (err) {
+        // Non-critical indexing failure
+    }
+}
+
+/**
+ * Award rewards to a user (coins, XP)
+ * @param {object} nk - Nakama runtime context
+ * @param {object} logger - Logger instance
+ * @param {string} userId - User ID
+ * @param {number} coins - Coins to award
+ * @param {number} xp - XP to award
+ * @param {string} reason - Reward reason for logging
+ */
+function asyncChallengeAwardRewards(nk, logger, userId, coins, xp, reason) {
+    try {
+        // Award coins via wallet
+        if (coins > 0) {
+            var changeset = { coins: coins };
+            nk.walletUpdate(userId, changeset, { reason: reason }, true);
+            logger.debug('[AsyncChallenge] Awarded ' + coins + ' coins to ' + userId + ' for: ' + reason);
+        }
+
+        // Award XP - use account metadata or dedicated storage
+        if (xp > 0) {
+            try {
+                var account = nk.accountGetId(userId);
+                var metadata = account.user.metadata || {};
+                metadata.totalXp = (metadata.totalXp || 0) + xp;
+                nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
+                logger.debug('[AsyncChallenge] Awarded ' + xp + ' XP to ' + userId + ' for: ' + reason);
+            } catch (xpErr) {
+                logger.warn('[AsyncChallenge] Could not award XP: ' + xpErr.message);
+            }
+        }
+    } catch (err) {
+        logger.warn('[AsyncChallenge] Reward error: ' + err.message);
+    }
+}
+
+/**
+ * Process challenge completion - award rewards and update stats
+ * @param {object} nk - Nakama runtime context
+ * @param {object} logger - Logger instance
+ * @param {object} session - Completed session
+ */
+function asyncChallengeProcessCompletion(nk, logger, session) {
+    if (!session.creatorCompleted || !session.opponentCompleted) {
+        return; // Not both completed
+    }
+
+    var creatorScore = session.creatorScore || 0;
+    var opponentScore = session.opponentScore || 0;
+    var isDraw = creatorScore === opponentScore;
+    var creatorWins = creatorScore > opponentScore;
+
+    // Update creator stats
+    var creatorStats = asyncChallengeGetStats(nk, session.creatorId);
+    creatorStats.totalChallenges++;
+
+    // Update opponent stats
+    var opponentStats = asyncChallengeGetStats(nk, session.opponentId);
+    opponentStats.totalChallenges++;
+
+    if (isDraw) {
+        // Draw - both get participation rewards
+        creatorStats.totalDraws++;
+        creatorStats.currentWinStreak = 0;
+        opponentStats.totalDraws++;
+        opponentStats.currentWinStreak = 0;
+
+        var drawCoins = Math.floor(ASYNC_CHALLENGE_PARTICIPATION_COINS * 1.5);
+        asyncChallengeAwardRewards(nk, logger, session.creatorId, drawCoins, ASYNC_CHALLENGE_PARTICIPATION_XP, 'async_challenge_draw');
+        asyncChallengeAwardRewards(nk, logger, session.opponentId, drawCoins, ASYNC_CHALLENGE_PARTICIPATION_XP, 'async_challenge_draw');
+        creatorStats.totalCoinsWon += drawCoins;
+        creatorStats.totalXpEarned += ASYNC_CHALLENGE_PARTICIPATION_XP;
+        opponentStats.totalCoinsWon += drawCoins;
+        opponentStats.totalXpEarned += ASYNC_CHALLENGE_PARTICIPATION_XP;
+    } else if (creatorWins) {
+        // Creator wins
+        creatorStats.totalWins++;
+        creatorStats.currentWinStreak++;
+        if (creatorStats.currentWinStreak > creatorStats.bestWinStreak) {
+            creatorStats.bestWinStreak = creatorStats.currentWinStreak;
+        }
+        opponentStats.totalLosses++;
+        opponentStats.currentWinStreak = 0;
+
+        // Streak bonus
+        var streakBonus = Math.min(creatorStats.currentWinStreak - 1, 5) * 10;
+        var winCoins = ASYNC_CHALLENGE_WIN_COINS + streakBonus;
+
+        asyncChallengeAwardRewards(nk, logger, session.creatorId, winCoins, ASYNC_CHALLENGE_WIN_XP, 'async_challenge_win');
+        asyncChallengeAwardRewards(nk, logger, session.opponentId, ASYNC_CHALLENGE_PARTICIPATION_COINS, ASYNC_CHALLENGE_PARTICIPATION_XP, 'async_challenge_loss');
+
+        creatorStats.totalCoinsWon += winCoins;
+        creatorStats.totalXpEarned += ASYNC_CHALLENGE_WIN_XP;
+        opponentStats.totalCoinsWon += ASYNC_CHALLENGE_PARTICIPATION_COINS;
+        opponentStats.totalXpEarned += ASYNC_CHALLENGE_PARTICIPATION_XP;
+    } else {
+        // Opponent wins
+        opponentStats.totalWins++;
+        opponentStats.currentWinStreak++;
+        if (opponentStats.currentWinStreak > opponentStats.bestWinStreak) {
+            opponentStats.bestWinStreak = opponentStats.currentWinStreak;
+        }
+        creatorStats.totalLosses++;
+        creatorStats.currentWinStreak = 0;
+
+        // Streak bonus
+        var opStreakBonus = Math.min(opponentStats.currentWinStreak - 1, 5) * 10;
+        var opWinCoins = ASYNC_CHALLENGE_WIN_COINS + opStreakBonus;
+
+        asyncChallengeAwardRewards(nk, logger, session.opponentId, opWinCoins, ASYNC_CHALLENGE_WIN_XP, 'async_challenge_win');
+        asyncChallengeAwardRewards(nk, logger, session.creatorId, ASYNC_CHALLENGE_PARTICIPATION_COINS, ASYNC_CHALLENGE_PARTICIPATION_XP, 'async_challenge_loss');
+
+        opponentStats.totalCoinsWon += opWinCoins;
+        opponentStats.totalXpEarned += ASYNC_CHALLENGE_WIN_XP;
+        creatorStats.totalCoinsWon += ASYNC_CHALLENGE_PARTICIPATION_COINS;
+        creatorStats.totalXpEarned += ASYNC_CHALLENGE_PARTICIPATION_XP;
+    }
+
+    // Save updated stats
+    asyncChallengeSaveStats(nk, session.creatorId, creatorStats);
+    asyncChallengeSaveStats(nk, session.opponentId, opponentStats);
+
+    logger.info('[AsyncChallenge] Processed completion - Creator: ' + creatorScore + ', Opponent: ' + opponentScore + ', Winner: ' + (isDraw ? 'Draw' : (creatorWins ? 'Creator' : 'Opponent')));
+}
+
+/**
+ * Generate a unique 6-character share code from session ID
+ * @param {string} sessionId - UUID session identifier
+ * @returns {string} 6-character uppercase alphanumeric code
+ */
+function asyncChallengeGenerateShareCode(sessionId) {
+    // Convert UUID to base36 and take first 6 chars for better uniqueness
+    var cleanId = sessionId.replace(/-/g, '');
+    var hash = 0;
+    for (var i = 0; i < cleanId.length; i++) {
+        hash = ((hash << 5) - hash) + cleanId.charCodeAt(i);
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    var code = Math.abs(hash).toString(36).toUpperCase().substring(0, 6);
+    // Pad with random chars if needed
+    while (code.length < 6) {
+        code = code + '0';
+    }
+    return code;
+}
+
+/**
+ * Send a push notification to a user for async challenges
+ * @param {object} nk - Nakama runtime context
+ * @param {string} userId - Target user ID
+ * @param {string} subject - Notification subject
+ * @param {string} content - Notification message
+ * @param {object} data - Additional notification data
+ */
+function asyncChallengeSendNotification(nk, userId, subject, content, data) {
+    try {
+        var notifications = [{
+            userId: userId,
+            subject: subject,
+            content: JSON.stringify({
+                message: content,
+                ...data
+            }),
+            code: 101, // Async challenge notification code
+            persistent: true
+        }];
+        nk.notificationsSend(notifications);
+    } catch (e) {
+        // Silently fail if notification fails - non-critical
+    }
+}
+
+/**
+ * Get user display name with fallback
+ * @param {object} nk - Nakama runtime context
+ * @param {string} userId - User ID
+ * @param {string} fallback - Fallback display name
+ * @returns {string} Display name
+ */
+function asyncChallengeGetDisplayName(nk, userId, fallback) {
+    try {
+        var users = nk.usersGetId([userId]);
+        if (users && users.length > 0) {
+            return users[0].displayName || users[0].username || fallback;
+        }
+    } catch (err) {
+        // Return fallback on error
+    }
+    return fallback || 'Unknown Player';
+}
+
+/**
+ * Validate user ID from context or payload
+ * @param {object} ctx - Request context
+ * @param {object} request - Parsed request payload
+ * @returns {object} { valid: boolean, userId: string, error: string }
+ */
+function asyncChallengeValidateUser(ctx, request) {
+    var userId = ctx.userId;
+    if (!userId || typeof userId !== 'string' || userId.length < 10) {
+        userId = request.userId;
+    }
+    if (!userId || typeof userId !== 'string' || userId.length < 10) {
+        return {
+            valid: false,
+            userId: null,
+            error: 'User authentication required. Please ensure you are logged in.'
+        };
+    }
+    return { valid: true, userId: userId, error: null };
+}
+
+/**
+ * Convert internal session storage to Unity-compatible response format
+ * @param {object} session - Internal session storage object
+ * @returns {object} Unity-compatible session data
+ */
+function asyncChallengeSessionToUnityFormat(session) {
+    var now = Date.now();
+    var status = typeof session.status === 'number' ? session.status : 0;
+
+    // Auto-expire if past expiry time
+    if (status < ASYNC_STATUS_BOTH_COMPLETED && now > session.expiresAt) {
+        status = ASYNC_STATUS_EXPIRED;
+    }
+
+    // Build player A (creator)
+    var playerA = {
+        userId: session.creatorId || '',
+        displayName: session.creatorName || 'Player A',
+        isComplete: session.creatorCompleted || false,
+        score: session.creatorScore || 0,
+        correctAnswers: session.creatorCorrectAnswers || 0,
+        totalQuestions: session.creatorTotalQuestions || 0,
+        timeTaken: session.creatorTimeTaken || 0,
+        completedAt: session.creatorCompletedAt || 0,
+        accuracy: session.creatorTotalQuestions > 0
+            ? (session.creatorCorrectAnswers / session.creatorTotalQuestions) * 100
+            : 0
+    };
+
+    // Build player B (opponent) - null if not joined
+    var playerB = null;
+    if (session.opponentId) {
+        playerB = {
+            userId: session.opponentId || '',
+            displayName: session.opponentName || 'Player B',
+            isComplete: session.opponentCompleted || false,
+            score: session.opponentScore || 0,
+            correctAnswers: session.opponentCorrectAnswers || 0,
+            totalQuestions: session.opponentTotalQuestions || 0,
+            timeTaken: session.opponentTimeTaken || 0,
+            completedAt: session.opponentCompletedAt || 0,
+            accuracy: session.opponentTotalQuestions > 0
+                ? (session.opponentCorrectAnswers / session.opponentTotalQuestions) * 100
+                : 0
+        };
+    }
+
+    // Build final result if both completed
+    var finalResult = null;
+    if (session.creatorCompleted && session.opponentCompleted) {
+        var creatorScore = session.creatorScore || 0;
+        var opponentScore = session.opponentScore || 0;
+        var isDraw = creatorScore === opponentScore;
+        var creatorWins = creatorScore > opponentScore;
+
+        var message;
+        if (isDraw) {
+            message = "It's a draw! Both players showed impressive skills!";
+        } else if (creatorWins) {
+            message = session.creatorName + " wins by " + (creatorScore - opponentScore) + " points!";
+        } else {
+            message = session.opponentName + " wins by " + (opponentScore - creatorScore) + " points!";
+        }
+
+        finalResult = {
+            winnerId: isDraw ? null : (creatorWins ? session.creatorId : session.opponentId),
+            winnerName: isDraw ? null : (creatorWins ? session.creatorName : session.opponentName),
+            loserId: isDraw ? null : (creatorWins ? session.opponentId : session.creatorId),
+            loserName: isDraw ? null : (creatorWins ? session.opponentName : session.creatorName),
+            isDraw: isDraw,
+            scoreDifference: Math.abs(creatorScore - opponentScore),
+            creatorScore: creatorScore,
+            opponentScore: opponentScore,
+            creatorAccuracy: playerA.accuracy,
+            opponentAccuracy: playerB ? playerB.accuracy : 0,
+            creatorTimeTaken: session.creatorTimeTaken || 0,
+            opponentTimeTaken: session.opponentTimeTaken || 0,
+            message: message
+        };
+    }
+
+    return {
+        sessionId: session.sessionId || '',
+        shareCode: session.shareCode || '',
+        quizModeType: session.quizModeType || 0,
+        quizModeName: session.quizModeName || 'Quiz',
+        quizConfig: session.quizConfig || {},
+        gameId: session.gameId || '',
+        status: status,
+        createdAt: session.createdAt || 0,
+        expiresAt: session.expiresAt || 0,
+        challengedUserId: session.challengedUserId || null,
+        playerA: playerA,
+        playerB: playerB,
+        finalResult: finalResult
+    };
+}
+
+/**
+ * Count active challenges for a user (to enforce limits)
+ * @param {object} nk - Nakama runtime context
+ * @param {string} userId - User ID
+ * @returns {number} Count of active challenges
+ */
+function asyncChallengeCountActive(nk, userId) {
+    try {
+        var result = nk.storageList(userId, COLLECTION_ASYNC_CHALLENGES, 100, '');
+        var count = 0;
+        var now = Date.now();
+        var objects = result.objects || [];
+
+        for (var i = 0; i < objects.length; i++) {
+            var session = objects[i].value;
+            if (session.status < ASYNC_STATUS_BOTH_COMPLETED && now < session.expiresAt) {
+                count++;
+            }
+        }
+        return count;
+    } catch (err) {
+        return 0;
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_create - Create a new async challenge
+// ============================================================================
+/**
+ * Create a new async challenge session
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { quizModeType, quizModeName, quizConfig?, challengedUserId?, challengedDisplayName?, playerDisplayName?, userId? }
+ * @returns {string} JSON response with session data
+ */
+function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
+    logger.debug('[AsyncChallenge] Creating challenge for user: ' + ctx.userId);
+
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        // Check active challenge limit
+        var activeCount = asyncChallengeCountActive(nk, userId);
+        if (activeCount >= ASYNC_CHALLENGE_MAX_PER_USER) {
+            return JSON.stringify({
+                success: false,
+                message: 'Maximum active challenges reached (' + ASYNC_CHALLENGE_MAX_PER_USER + '). Please complete or cancel existing challenges.',
+                data: null,
+                errorCode: 'MAX_CHALLENGES'
+            });
+        }
+
+        // Extract challenge parameters
+        var quizModeType = request.quizModeType || request.QuizModeType || 0;
+        var quizModeName = request.quizModeName || request.QuizModeName || 'Quiz';
+        var quizConfig = request.quizConfig || request.QuizConfig || {};
+        var challengedUserId = request.challengedUserId || request.ChallengedUserId || null;
+        var challengedDisplayName = request.challengedDisplayName || request.ChallengedDisplayName || null;
+        var playerDisplayName = request.playerDisplayName || request.PlayerDisplayName || 'Unknown';
+
+        // Generate session ID and share code
+        var sessionId = nk.uuidv4();
+        var shareCode = asyncChallengeGenerateShareCode(sessionId);
+        var now = Date.now();
+        var expiresAt = now + (ASYNC_CHALLENGE_EXPIRY_HOURS * 60 * 60 * 1000);
+
+        // Fetch creator display name
+        var creatorName = asyncChallengeGetDisplayName(nk, userId, playerDisplayName);
+
+        // Build session storage object
+        var sessionStorage = {
+            sessionId: sessionId,
+            shareCode: shareCode,
+            quizModeType: quizModeType,
+            quizModeName: quizModeName,
+            quizConfig: quizConfig,
+            gameId: quizConfig.gameId || '',
+            creatorId: userId,
+            creatorName: creatorName,
+            opponentId: null,
+            opponentName: null,
+            challengedUserId: challengedUserId,
+            challengedDisplayName: challengedDisplayName,
+            status: ASYNC_STATUS_WAITING,
+            createdAt: now,
+            expiresAt: expiresAt,
+            // Creator results
+            creatorCompleted: false,
+            creatorScore: 0,
+            creatorCorrectAnswers: 0,
+            creatorTotalQuestions: 0,
+            creatorTimeTaken: 0,
+            creatorCompletedAt: 0,
+            // Opponent results
+            opponentCompleted: false,
+            opponentScore: 0,
+            opponentCorrectAnswers: 0,
+            opponentTotalQuestions: 0,
+            opponentTimeTaken: 0,
+            opponentCompletedAt: 0
+        };
+
+        // Store session with creator's user ID
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: userId,
+            value: sessionStorage,
+            permissionRead: 2, // Public read
+            permissionWrite: 1 // Owner write
+        }]);
+
+        // Store share code mapping for public lookup
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: 'code_' + shareCode,
+            userId: ASYNC_CHALLENGE_SYSTEM_USER,
+            value: { sessionId: sessionId, creatorId: userId },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+
+        // Send notification to challenged user if specified
+        if (challengedUserId && challengedUserId !== userId) {
+            asyncChallengeSendNotification(nk, challengedUserId,
+                'Challenge Received!',
+                creatorName + ' challenges you to a ' + quizModeName + ' battle!',
+                {
+                    type: 'challenge_received',
+                    sessionId: sessionId,
+                    shareCode: shareCode,
+                    challengerId: userId,
+                    challengerName: creatorName,
+                    quizModeName: quizModeName
+                }
+            );
+        }
+
+        logger.info('[AsyncChallenge] Session created: ' + sessionId + ' code: ' + shareCode + ' by user: ' + userId);
+
+        return JSON.stringify({
+            success: true,
+            message: 'Challenge created successfully',
+            data: asyncChallengeSessionToUnityFormat(sessionStorage)
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Create error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_create', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_join - Join an existing async challenge
+// ============================================================================
+/**
+ * Join an existing async challenge by share code
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { shareCode, playerDisplayName?, userId? }
+ * @returns {string} JSON response with session data
+ */
+function rpcAsyncChallengeJoin(ctx, logger, nk, payload) {
+    logger.debug('[AsyncChallenge] User ' + ctx.userId + ' attempting to join challenge');
+
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        // Validate share code
+        var shareCode = (request.shareCode || request.ShareCode || '').toUpperCase().trim();
+        if (!shareCode || shareCode.length < 6) {
+            return JSON.stringify({
+                success: false,
+                message: 'Invalid share code. Please enter a valid 6-character code.',
+                data: null
+            });
+        }
+
+        // Look up session by share code
+        var codeResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: 'code_' + shareCode,
+            userId: ASYNC_CHALLENGE_SYSTEM_USER
+        }]);
+
+        if (codeResults.length === 0) {
+            return JSON.stringify({
+                success: false,
+                message: 'Challenge not found. Please check the code and try again.',
+                data: null
+            });
+        }
+
+        var codeRecord = codeResults[0].value;
+        var sessionId = codeRecord.sessionId;
+        var creatorId = codeRecord.creatorId;
+
+        // Read the session
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: creatorId
+        }]);
+
+        if (sessionResults.length === 0) {
+            return JSON.stringify({
+                success: false,
+                message: 'Challenge session not found.',
+                data: null
+            });
+        }
+
+        var session = sessionResults[0].value;
+
+        // Validate session state
+        if (session.status === ASYNC_STATUS_EXPIRED || Date.now() > session.expiresAt) {
+            return JSON.stringify({
+                success: false,
+                message: 'This challenge has expired.',
+                data: null
+            });
+        }
+
+        if (session.status === ASYNC_STATUS_CANCELLED) {
+            return JSON.stringify({
+                success: false,
+                message: 'This challenge has been cancelled.',
+                data: null
+            });
+        }
+
+        if (session.creatorId === userId) {
+            return JSON.stringify({
+                success: false,
+                message: 'You cannot join your own challenge.',
+                data: null
+            });
+        }
+
+        if (session.opponentId !== null && session.opponentId !== userId) {
+            return JSON.stringify({
+                success: false,
+                message: 'This challenge already has an opponent.',
+                data: null
+            });
+        }
+
+        // Check if this is a targeted challenge
+        if (session.challengedUserId && session.challengedUserId !== userId) {
+            return JSON.stringify({
+                success: false,
+                message: 'This challenge is meant for a specific player.',
+                data: null
+            });
+        }
+
+        // Get opponent display name
+        var playerDisplayName = request.playerDisplayName || request.PlayerDisplayName || 'Unknown';
+        var opponentName = asyncChallengeGetDisplayName(nk, userId, playerDisplayName);
+
+        // Update session with opponent
+        session.opponentId = userId;
+        session.opponentName = opponentName;
+        session.status = ASYNC_STATUS_OPPONENT_JOINED;
+
+        // Save updated session
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: creatorId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+
+        // Notify creator that opponent joined
+        asyncChallengeSendNotification(nk, session.creatorId,
+            'Challenge Accepted!',
+            opponentName + ' has joined your ' + session.quizModeName + ' challenge!',
+            {
+                type: 'opponent_joined',
+                sessionId: sessionId,
+                opponentId: userId,
+                opponentName: opponentName
+            }
+        );
+
+        logger.info('[AsyncChallenge] User ' + userId + ' joined session: ' + sessionId);
+
+        return JSON.stringify({
+            success: true,
+            message: 'Successfully joined challenge',
+            data: asyncChallengeSessionToUnityFormat(session)
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Join error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_join', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_get - Get challenge session details
+// ============================================================================
+/**
+ * Get async challenge session details
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { sessionId?, shareCode?, userId? }
+ * @returns {string} JSON response with session data
+ */
+function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        var sessionId = request.sessionId || request.SessionId;
+        var creatorId = null;
+
+        // If no sessionId, try to find by share code
+        if (!sessionId && (request.shareCode || request.ShareCode)) {
+            var shareCode = (request.shareCode || request.ShareCode).toUpperCase().trim();
+            var codeResults = nk.storageRead([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: 'code_' + shareCode,
+                userId: ASYNC_CHALLENGE_SYSTEM_USER
+            }]);
+
+            if (codeResults.length === 0) {
+                return JSON.stringify({
+                    success: false,
+                    message: 'Challenge not found.',
+                    data: null
+                });
+            }
+
+            sessionId = codeResults[0].value.sessionId;
+            creatorId = codeResults[0].value.creatorId;
+        }
+
+        if (!sessionId) {
+            return JSON.stringify({
+                success: false,
+                message: 'Session ID or share code required.',
+                data: null
+            });
+        }
+
+        // Try reading with user ID first
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: userId
+        }]);
+
+        // If not found as owner, try with creator ID
+        if (sessionResults.length === 0 && creatorId) {
+            sessionResults = nk.storageRead([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: sessionId,
+                userId: creatorId
+            }]);
+        }
+
+        // If still not found, search storage
+        if (sessionResults.length === 0) {
+            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
+            var objects = listResults.objects || [];
+
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.value.sessionId === sessionId) {
+                    sessionResults = [obj];
+                    break;
+                }
+            }
+        }
+
+        if (sessionResults.length === 0) {
+            return JSON.stringify({
+                success: false,
+                message: 'Challenge not found.',
+                data: null
+            });
+        }
+
+        var session = sessionResults[0].value;
+
+        // Authorization check - user must be creator or opponent
+        if (session.creatorId !== userId && session.opponentId !== userId) {
+            return JSON.stringify({
+                success: false,
+                message: 'Not authorized to view this challenge.',
+                data: null
+            });
+        }
+
+        return JSON.stringify({
+            success: true,
+            message: 'Challenge retrieved',
+            data: asyncChallengeSessionToUnityFormat(session)
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Get error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_get', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_submit - Submit quiz results for a challenge
+// ============================================================================
+/**
+ * Submit quiz results for an async challenge
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { sessionId, score, correctAnswers, totalQuestions, timeTaken, accuracy?, userId? }
+ * @returns {string} JSON response with updated session data
+ */
+function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
+    logger.debug('[AsyncChallenge] User ' + ctx.userId + ' submitting results');
+
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        // Validate required fields
+        var sessionId = request.sessionId || request.SessionId;
+        if (!sessionId) {
+            return JSON.stringify({
+                success: false,
+                message: 'Session ID required.',
+                data: null
+            });
+        }
+
+        var score = typeof request.score === 'number' ? request.score : (request.Score || 0);
+        var correctAnswers = typeof request.correctAnswers === 'number' ? request.correctAnswers : (request.CorrectAnswers || 0);
+        var totalQuestions = typeof request.totalQuestions === 'number' ? request.totalQuestions : (request.TotalQuestions || 0);
+        var timeTaken = typeof request.timeTaken === 'number' ? request.timeTaken : (request.TimeTaken || 0);
+
+        // Find the session
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: userId
+        }]);
+
+        var creatorId = userId;
+        var isCreator = sessionResults.length > 0;
+
+        // If not found as owner, search for it
+        if (!isCreator) {
+            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
+            var objects = listResults.objects || [];
+
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.value.sessionId === sessionId) {
+                    creatorId = obj.value.creatorId;
+                    sessionResults = [obj];
+                    break;
+                }
+            }
+        }
+
+        if (sessionResults.length === 0) {
+            return JSON.stringify({
+                success: false,
+                message: 'Challenge not found.',
+                data: null
+            });
+        }
+
+        var session = sessionResults[0].value;
+
+        // Determine if user is creator or opponent
+        isCreator = session.creatorId === userId;
+        var isOpponent = session.opponentId === userId;
+
+        if (!isCreator && !isOpponent) {
+            return JSON.stringify({
+                success: false,
+                message: 'Not authorized for this challenge.',
+                data: null
+            });
+        }
+
+        // Check if already submitted
+        if (isCreator && session.creatorCompleted) {
+            return JSON.stringify({
+                success: false,
+                message: 'You have already submitted your results.',
+                data: null,
+                errorCode: 'ALREADY_SUBMITTED'
+            });
+        }
+
+        if (isOpponent && session.opponentCompleted) {
+            return JSON.stringify({
+                success: false,
+                message: 'You have already submitted your results.',
+                data: null,
+                errorCode: 'ALREADY_SUBMITTED'
+            });
+        }
+
+        // Check expiry
+        if (Date.now() > session.expiresAt) {
+            return JSON.stringify({
+                success: false,
+                message: 'This challenge has expired.',
+                data: null
+            });
+        }
+
+        // Update results based on role
+        var now = Date.now();
+        if (isCreator) {
+            session.creatorCompleted = true;
+            session.creatorScore = score;
+            session.creatorCorrectAnswers = correctAnswers;
+            session.creatorTotalQuestions = totalQuestions;
+            session.creatorTimeTaken = timeTaken;
+            session.creatorCompletedAt = now;
+        } else {
+            session.opponentCompleted = true;
+            session.opponentScore = score;
+            session.opponentCorrectAnswers = correctAnswers;
+            session.opponentTotalQuestions = totalQuestions;
+            session.opponentTimeTaken = timeTaken;
+            session.opponentCompletedAt = now;
+        }
+
+        // Update status if both completed
+        if (session.creatorCompleted && session.opponentCompleted) {
+            session.status = ASYNC_STATUS_BOTH_COMPLETED;
+
+            // Store rewardsProcessed flag to prevent duplicate rewards
+            if (!session.rewardsProcessed) {
+                session.rewardsProcessed = true;
+            }
+        }
+
+        // Save updated session
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: session.creatorId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+
+        // Process completion rewards if both completed (do this after save to ensure data is persisted)
+        if (session.status === ASYNC_STATUS_BOTH_COMPLETED && session.rewardsProcessed) {
+            // Only process once per session completion
+            asyncChallengeProcessCompletion(nk, logger, session);
+        }
+
+        // Send notifications
+        if (isCreator && session.opponentId) {
+            asyncChallengeSendNotification(nk, session.opponentId,
+                'Opponent Finished!',
+                session.creatorName + ' completed the quiz with ' + score + ' points!',
+                {
+                    type: 'opponent_completed',
+                    sessionId: sessionId,
+                    score: score
+                }
+            );
+        } else if (isOpponent) {
+            asyncChallengeSendNotification(nk, session.creatorId,
+                'Challenge Complete!',
+                session.opponentName + ' scored ' + score + ' points! Check your results!',
+                {
+                    type: 'results_ready',
+                    sessionId: sessionId,
+                    score: score
+                }
+            );
+        }
+
+        logger.info('[AsyncChallenge] Results submitted for session: ' + sessionId + ' by user: ' + userId + ' score: ' + score);
+
+        return JSON.stringify({
+            success: true,
+            message: 'Results submitted successfully',
+            data: asyncChallengeSessionToUnityFormat(session)
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Submit error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_submit', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_list - List user's async challenges
+// ============================================================================
+/**
+ * List user's async challenges
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { limit?, includeExpired?, status?, userId? }
+ * @returns {string} JSON response with array of sessions
+ */
+function rpcAsyncChallengeList(ctx, logger, nk, payload) {
+    var request = {};
+    try {
+        if (payload) {
+            request = JSON.parse(payload);
+        }
+    } catch (e) {
+        // Use defaults
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: [],
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        var limit = Math.min(request.limit || request.Limit || 20, 100);
+        var includeExpired = request.includeExpired || request.IncludeExpired || false;
+        var statusFilter = request.status !== undefined ? request.status : null;
+
+        var sessions = [];
+        var now = Date.now();
+
+        // Get sessions where user is creator
+        var creatorSessions = nk.storageList(userId, COLLECTION_ASYNC_CHALLENGES, limit, '');
+        var objects = creatorSessions.objects || [];
+
+        for (var i = 0; i < objects.length; i++) {
+            var obj = objects[i];
+            var session = obj.value;
+
+            // Skip code mappings
+            if (obj.key.indexOf('code_') === 0) continue;
+
+            // Apply status filter
+            var sessionStatus = typeof session.status === 'number' ? session.status : 0;
+            var isExpired = sessionStatus === ASYNC_STATUS_EXPIRED || now > session.expiresAt;
+
+            if (!includeExpired && isExpired && sessionStatus < ASYNC_STATUS_BOTH_COMPLETED) {
+                continue;
+            }
+
+            if (statusFilter !== null && sessionStatus !== statusFilter) {
+                continue;
+            }
+
+            sessions.push(asyncChallengeSessionToUnityFormat(session));
+        }
+
+        // Also get sessions where user is opponent (search all storage)
+        // This is a limitation - for production, consider a secondary index
+        try {
+            var allSessions = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 500, '');
+            var allObjects = allSessions.objects || [];
+
+            for (var j = 0; j < allObjects.length; j++) {
+                var allObj = allObjects[j];
+                var allSession = allObj.value;
+
+                // Skip code mappings and already added sessions
+                if (allObj.key.indexOf('code_') === 0) continue;
+                if (allSession.creatorId === userId) continue; // Already added
+
+                // Check if user is opponent
+                if (allSession.opponentId === userId) {
+                    var allStatus = typeof allSession.status === 'number' ? allSession.status : 0;
+                    var allExpired = allStatus === ASYNC_STATUS_EXPIRED || now > allSession.expiresAt;
+
+                    if (!includeExpired && allExpired && allStatus < ASYNC_STATUS_BOTH_COMPLETED) {
+                        continue;
+                    }
+
+                    if (statusFilter !== null && allStatus !== statusFilter) {
+                        continue;
+                    }
+
+                    sessions.push(asyncChallengeSessionToUnityFormat(allSession));
+                }
+            }
+        } catch (searchErr) {
+            logger.warn('[AsyncChallenge] Could not search opponent sessions: ' + searchErr.message);
+        }
+
+        // Sort by created date descending
+        sessions.sort(function(a, b) {
+            return b.createdAt - a.createdAt;
+        });
+
+        // Apply limit
+        if (sessions.length > limit) {
+            sessions = sessions.slice(0, limit);
+        }
+
+        return JSON.stringify({
+            success: true,
+            message: 'Challenges retrieved',
+            data: sessions,
+            total: sessions.length
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] List error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_list', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: [] });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_cancel - Cancel an async challenge
+// ============================================================================
+/**
+ * Cancel an async challenge session
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { sessionId, userId? }
+ * @returns {string} JSON response with updated session data
+ */
+function rpcAsyncChallengeCancel(ctx, logger, nk, payload) {
+    logger.debug('[AsyncChallenge] User ' + ctx.userId + ' cancelling challenge');
+
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        var sessionId = request.sessionId || request.SessionId;
+        if (!sessionId) {
+            return JSON.stringify({
+                success: false,
+                message: 'Session ID required.',
+                data: null
+            });
+        }
+
+        // Try to read as owner first
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: userId
+        }]);
+
+        var creatorId = userId;
+
+        // If not found as owner, search
+        if (sessionResults.length === 0) {
+            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
+            var objects = listResults.objects || [];
+
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.value.sessionId === sessionId) {
+                    creatorId = obj.value.creatorId;
+                    sessionResults = [obj];
+                    break;
+                }
+            }
+        }
+
+        if (sessionResults.length === 0) {
+            return JSON.stringify({
+                success: false,
+                message: 'Challenge not found.',
+                data: null
+            });
+        }
+
+        var session = sessionResults[0].value;
+
+        // Only creator can cancel
+        if (session.creatorId !== userId) {
+            return JSON.stringify({
+                success: false,
+                message: 'Only the challenge creator can cancel it.',
+                data: null
+            });
+        }
+
+        // Cannot cancel completed challenges
+        if (session.status === ASYNC_STATUS_BOTH_COMPLETED) {
+            return JSON.stringify({
+                success: false,
+                message: 'Cannot cancel a completed challenge.',
+                data: null
+            });
+        }
+
+        // Update status to cancelled
+        session.status = ASYNC_STATUS_CANCELLED;
+
+        // Save updated session
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: session.creatorId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+
+        // Notify opponent if any
+        if (session.opponentId) {
+            asyncChallengeSendNotification(nk, session.opponentId,
+                'Challenge Cancelled',
+                session.creatorName + ' has cancelled the ' + session.quizModeName + ' challenge.',
+                {
+                    type: 'challenge_cancelled',
+                    sessionId: sessionId
+                }
+            );
+        }
+
+        logger.info('[AsyncChallenge] Session cancelled: ' + sessionId + ' by user: ' + userId);
+
+        return JSON.stringify({
+            success: true,
+            message: 'Challenge cancelled successfully',
+            data: asyncChallengeSessionToUnityFormat(session)
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Cancel error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_cancel', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_stats - Get user's async challenge statistics
+// ============================================================================
+/**
+ * Get user's async challenge statistics
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { targetUserId?, userId? }
+ * @returns {string} JSON response with user stats
+ */
+function rpcAsyncChallengeStats(ctx, logger, nk, payload) {
+    var request = {};
+    try {
+        if (payload) {
+            request = JSON.parse(payload);
+        }
+    } catch (e) {
+        // Use defaults
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        // Allow fetching other user's stats (for comparison)
+        var targetUserId = request.targetUserId || request.TargetUserId || userId;
+
+        var stats = asyncChallengeGetStats(nk, targetUserId);
+
+        // Add computed fields
+        var totalGames = stats.totalWins + stats.totalLosses + stats.totalDraws;
+        stats.winRate = totalGames > 0 ? Math.round((stats.totalWins / totalGames) * 100) : 0;
+        stats.gamesPlayed = totalGames;
+
+        // Get display name
+        stats.displayName = asyncChallengeGetDisplayName(nk, targetUserId, 'Unknown Player');
+
+        return JSON.stringify({
+            success: true,
+            message: 'Stats retrieved',
+            data: stats
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Stats error: ' + err.message);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_rematch - Create a rematch from a completed challenge
+// ============================================================================
+/**
+ * Create a rematch from a completed challenge (swaps challenger/opponent roles)
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { sessionId, userId? }
+ * @returns {string} JSON response with new session data
+ */
+function rpcAsyncChallengeRematch(ctx, logger, nk, payload) {
+    logger.debug('[AsyncChallenge] User ' + ctx.userId + ' requesting rematch');
+
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: null,
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        var originalSessionId = request.sessionId || request.SessionId;
+        if (!originalSessionId) {
+            return JSON.stringify({
+                success: false,
+                message: 'Original session ID required.',
+                data: null
+            });
+        }
+
+        // Check active challenge limit
+        var activeCount = asyncChallengeCountActive(nk, userId);
+        if (activeCount >= ASYNC_CHALLENGE_MAX_PER_USER) {
+            return JSON.stringify({
+                success: false,
+                message: 'Maximum active challenges reached. Complete or cancel existing challenges first.',
+                data: null,
+                errorCode: 'MAX_CHALLENGES'
+            });
+        }
+
+        // Find the original session
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: originalSessionId,
+            userId: userId
+        }]);
+
+        // If not found as owner, search
+        if (sessionResults.length === 0) {
+            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
+            var objects = listResults.objects || [];
+
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.value.sessionId === originalSessionId) {
+                    sessionResults = [obj];
+                    break;
+                }
+            }
+        }
+
+        if (sessionResults.length === 0) {
+            return JSON.stringify({
+                success: false,
+                message: 'Original challenge not found.',
+                data: null
+            });
+        }
+
+        var originalSession = sessionResults[0].value;
+
+        // Verify user was part of original challenge
+        var wasCreator = originalSession.creatorId === userId;
+        var wasOpponent = originalSession.opponentId === userId;
+
+        if (!wasCreator && !wasOpponent) {
+            return JSON.stringify({
+                success: false,
+                message: 'Not authorized to create rematch for this challenge.',
+                data: null
+            });
+        }
+
+        // Must be completed to rematch
+        if (originalSession.status !== ASYNC_STATUS_BOTH_COMPLETED) {
+            return JSON.stringify({
+                success: false,
+                message: 'Can only rematch completed challenges.',
+                data: null
+            });
+        }
+
+        // Determine the opponent for rematch (the other player becomes challenged)
+        var challengedUserId = wasCreator ? originalSession.opponentId : originalSession.creatorId;
+        var challengedDisplayName = wasCreator ? originalSession.opponentName : originalSession.creatorName;
+
+        // Generate new session
+        var newSessionId = nk.uuidv4();
+        var shareCode = asyncChallengeGenerateShareCode(newSessionId);
+        var now = Date.now();
+        var expiresAt = now + (ASYNC_CHALLENGE_EXPIRY_HOURS * 60 * 60 * 1000);
+
+        var creatorName = asyncChallengeGetDisplayName(nk, userId, 'Unknown');
+
+        var newSessionStorage = {
+            sessionId: newSessionId,
+            shareCode: shareCode,
+            quizModeType: originalSession.quizModeType,
+            quizModeName: originalSession.quizModeName,
+            quizConfig: originalSession.quizConfig,
+            gameId: originalSession.gameId || '',
+            creatorId: userId,
+            creatorName: creatorName,
+            opponentId: null,
+            opponentName: null,
+            challengedUserId: challengedUserId,
+            challengedDisplayName: challengedDisplayName,
+            status: ASYNC_STATUS_WAITING,
+            createdAt: now,
+            expiresAt: expiresAt,
+            isRematch: true,
+            originalSessionId: originalSessionId,
+            // Creator results
+            creatorCompleted: false,
+            creatorScore: 0,
+            creatorCorrectAnswers: 0,
+            creatorTotalQuestions: 0,
+            creatorTimeTaken: 0,
+            creatorCompletedAt: 0,
+            // Opponent results
+            opponentCompleted: false,
+            opponentScore: 0,
+            opponentCorrectAnswers: 0,
+            opponentTotalQuestions: 0,
+            opponentTimeTaken: 0,
+            opponentCompletedAt: 0
+        };
+
+        // Store new session
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: newSessionId,
+            userId: userId,
+            value: newSessionStorage,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+
+        // Store share code mapping
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: 'code_' + shareCode,
+            userId: ASYNC_CHALLENGE_SYSTEM_USER,
+            value: { sessionId: newSessionId, creatorId: userId },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+
+        // Notify challenged player
+        asyncChallengeSendNotification(nk, challengedUserId,
+            'Rematch Challenge!',
+            creatorName + ' wants a rematch in ' + originalSession.quizModeName + '!',
+            {
+                type: 'rematch_requested',
+                sessionId: newSessionId,
+                shareCode: shareCode,
+                challengerId: userId,
+                challengerName: creatorName,
+                quizModeName: originalSession.quizModeName,
+                originalSessionId: originalSessionId
+            }
+        );
+
+        logger.info('[AsyncChallenge] Rematch created: ' + newSessionId + ' from: ' + originalSessionId + ' by user: ' + userId);
+
+        return JSON.stringify({
+            success: true,
+            message: 'Rematch challenge created',
+            data: asyncChallengeSessionToUnityFormat(newSessionStorage)
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Rematch error: ' + err.message);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_leaderboard - Get async challenge leaderboard
+// ============================================================================
+/**
+ * Get async challenge leaderboard (top players by wins)
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { limit?, sortBy?, userId? }
+ * @returns {string} JSON response with leaderboard data
+ */
+function rpcAsyncChallengeLeaderboard(ctx, logger, nk, payload) {
+    var request = {};
+    try {
+        if (payload) {
+            request = JSON.parse(payload);
+        }
+    } catch (e) {
+        // Use defaults
+    }
+
+    try {
+        // Validate user
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({
+                success: false,
+                message: userValidation.error,
+                data: [],
+                errorCode: 'AUTH_REQUIRED'
+            });
+        }
+        var userId = userValidation.userId;
+
+        var limit = Math.min(request.limit || request.Limit || 20, 100);
+        var sortBy = request.sortBy || request.SortBy || 'wins'; // wins, winRate, streak
+
+        // Get all stats from storage
+        var allStats = [];
+        try {
+            var statsResults = nk.storageList(null, COLLECTION_ASYNC_STATS, 500, '');
+            var objects = statsResults.objects || [];
+
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.key.indexOf('stats_') === 0) {
+                    var stats = obj.value;
+                    stats.displayName = asyncChallengeGetDisplayName(nk, stats.userId, 'Unknown');
+                    var totalGames = stats.totalWins + stats.totalLosses + stats.totalDraws;
+                    stats.winRate = totalGames > 0 ? Math.round((stats.totalWins / totalGames) * 100) : 0;
+                    stats.gamesPlayed = totalGames;
+
+                    // Only include players with at least 3 games
+                    if (totalGames >= 3) {
+                        allStats.push(stats);
+                    }
+                }
+            }
+        } catch (err) {
+            logger.warn('[AsyncChallenge] Could not fetch leaderboard: ' + err.message);
+        }
+
+        // Sort by criteria
+        if (sortBy === 'winRate') {
+            allStats.sort(function(a, b) {
+                return b.winRate - a.winRate;
+            });
+        } else if (sortBy === 'streak') {
+            allStats.sort(function(a, b) {
+                return b.bestWinStreak - a.bestWinStreak;
+            });
+        } else {
+            // Default: sort by wins
+            allStats.sort(function(a, b) {
+                return b.totalWins - a.totalWins;
+            });
+        }
+
+        // Apply limit and add rank
+        var leaderboard = [];
+        for (var j = 0; j < Math.min(allStats.length, limit); j++) {
+            var entry = allStats[j];
+            entry.rank = j + 1;
+            entry.isCurrentUser = entry.userId === userId;
+            leaderboard.push(entry);
+        }
+
+        // Find current user's rank if not in top
+        var currentUserRank = -1;
+        var currentUserStats = null;
+        for (var k = 0; k < allStats.length; k++) {
+            if (allStats[k].userId === userId) {
+                currentUserRank = k + 1;
+                currentUserStats = allStats[k];
+                currentUserStats.rank = currentUserRank;
+                break;
+            }
+        }
+
+        return JSON.stringify({
+            success: true,
+            message: 'Leaderboard retrieved',
+            data: {
+                entries: leaderboard,
+                currentUser: currentUserStats,
+                currentUserRank: currentUserRank,
+                totalPlayers: allStats.length,
+                sortBy: sortBy
+            }
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Leaderboard error: ' + err.message);
+        return JSON.stringify({ success: false, message: err.message, data: null });
     }
 }
 
@@ -18429,48 +20178,48 @@ function rpcBadgesGetAll(ctx, logger, nk, payload) {
         if (!data.game_id) {
             throw Error("game_id is required");
         }
-        
+
         var userId = ctx.userId;
         var gameId = data.game_id;
-        
+
         logger.info("[Badges] Getting all badges for game: " + gameId + ", user: " + userId);
-        
+
         // Get badge definitions
         var definitionsKey = "definitions_" + gameId;
         var definitions = [];
-        
+
         try {
             var defRecords = nk.storageRead([{
                 collection: BADGE_COLLECTION,
                 key: definitionsKey,
                 userId: BADGE_SYSTEM_USER_ID
             }]);
-            
+
             if (defRecords && defRecords.length > 0 && defRecords[0].value) {
                 definitions = defRecords[0].value.badges || [];
             }
         } catch (err) {
             logger.warn("[Badges] No definitions found for game: " + gameId);
         }
-        
+
         // Get player progress
         var progressKey = "progress_" + userId + "_" + gameId;
         var progress = {};
-        
+
         try {
             var progRecords = nk.storageRead([{
                 collection: BADGE_PROGRESS_COLLECTION,
                 key: progressKey,
                 userId: userId
             }]);
-            
+
             if (progRecords && progRecords.length > 0 && progRecords[0].value) {
                 progress = progRecords[0].value;
             }
         } catch (err) {
             logger.debug("[Badges] No progress found for user: " + userId);
         }
-        
+
         // Merge definitions with progress
         var badges = [];
         for (var i = 0; i < definitions.length; i++) {
@@ -18481,7 +20230,7 @@ function rpcBadgesGetAll(ctx, logger, nk, payload) {
                 unlock_date: null,
                 displayed: false
             };
-            
+
             // Hide secret badges if not unlocked
             if (def.hidden && !prog.unlocked) {
                 badges.push({
@@ -18519,18 +20268,18 @@ function rpcBadgesGetAll(ctx, logger, nk, payload) {
                 });
             }
         }
-        
+
         // Sort by order, then by unlocked status
         badges.sort(function(a, b) {
             if (a.unlocked !== b.unlocked) return b.unlocked ? 1 : -1;
             return a.order - b.order;
         });
-        
+
         // Calculate stats
         var totalPoints = 0;
         var unlockedPoints = 0;
         var unlockedCount = 0;
-        
+
         for (var j = 0; j < badges.length; j++) {
             totalPoints += badges[j].points || 0;
             if (badges[j].unlocked) {
@@ -18538,7 +20287,7 @@ function rpcBadgesGetAll(ctx, logger, nk, payload) {
                 unlockedCount++;
             }
         }
-        
+
         return JSON.stringify({
             success: true,
             badges: badges,
@@ -18547,12 +20296,12 @@ function rpcBadgesGetAll(ctx, logger, nk, payload) {
                 unlocked: unlockedCount,
                 total_points: totalPoints,
                 unlocked_points: unlockedPoints,
-                completion_percentage: badges.length > 0 
+                completion_percentage: badges.length > 0
                     ? Math.round((unlockedCount / badges.length) * 100)
                     : 0
             }
         });
-        
+
     } catch (err) {
         logger.error("[Badges] Get all error: " + err.message);
         return JSON.stringify({
@@ -18567,7 +20316,7 @@ function rpcBadgesGetAll(ctx, logger, nk, payload) {
  */
 function grantBadgeRewardsInternal(nk, logger, userId, gameId, rewards) {
     var granted = { coins: 0, xp: 0, items: [] };
-    
+
     try {
         if (rewards.coins && rewards.coins > 0) {
             try {
@@ -18580,7 +20329,7 @@ function grantBadgeRewardsInternal(nk, logger, userId, gameId, rewards) {
                 logger.warn("[Badges] Wallet update failed: " + walletErr.message);
             }
         }
-        
+
         if (rewards.xp && rewards.xp > 0) {
             try {
                 var account = nk.accountGetId(userId);
@@ -18592,13 +20341,13 @@ function grantBadgeRewardsInternal(nk, logger, userId, gameId, rewards) {
                 logger.warn("[Badges] XP grant failed: " + xpErr.message);
             }
         }
-        
+
         if (rewards.collectables && rewards.collectables.length > 0) {
             for (var i = 0; i < rewards.collectables.length; i++) {
                 granted.items.push(rewards.collectables[i]);
             }
         }
-        
+
         return granted;
     } catch (err) {
         logger.error("[Badges] Reward grant error: " + err.message);
@@ -18612,29 +20361,29 @@ function grantBadgeRewardsInternal(nk, logger, userId, gameId, rewards) {
 function rpcBadgesUpdateProgress(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
-        
+
         if (!data.game_id || !data.badge_id || data.progress === undefined) {
             throw Error("game_id, badge_id, and progress are required");
         }
-        
+
         var userId = ctx.userId;
         var gameId = data.game_id;
         var badgeId = data.badge_id;
         var newProgress = data.progress;
         var increment = data.increment || false;
-        
+
         logger.info("[Badges] Updating progress for " + badgeId + ": " + newProgress);
-        
+
         // Get badge definition
         var definitionsKey = "definitions_" + gameId;
         var badge = null;
-        
+
         var defRecords = nk.storageRead([{
             collection: BADGE_COLLECTION,
             key: definitionsKey,
             userId: BADGE_SYSTEM_USER_ID
         }]);
-        
+
         if (defRecords && defRecords.length > 0 && defRecords[0].value) {
             var definitions = defRecords[0].value.badges || [];
             for (var i = 0; i < definitions.length; i++) {
@@ -18644,29 +20393,29 @@ function rpcBadgesUpdateProgress(ctx, logger, nk, payload) {
                 }
             }
         }
-        
+
         if (!badge) {
             throw Error("Badge not found: " + badgeId);
         }
-        
+
         // Get or create progress record
         var progressKey = "progress_" + userId + "_" + gameId;
         var progressData = {};
-        
+
         try {
             var progRecords = nk.storageRead([{
                 collection: BADGE_PROGRESS_COLLECTION,
                 key: progressKey,
                 userId: userId
             }]);
-            
+
             if (progRecords && progRecords.length > 0 && progRecords[0].value) {
                 progressData = progRecords[0].value;
             }
         } catch (err) {
             logger.debug("[Badges] Creating new progress record");
         }
-        
+
         // Initialize badge progress if doesn't exist
         if (!progressData[badgeId]) {
             progressData[badgeId] = {
@@ -18676,9 +20425,9 @@ function rpcBadgesUpdateProgress(ctx, logger, nk, payload) {
                 displayed: false
             };
         }
-        
+
         var badgeProgress = progressData[badgeId];
-        
+
         // Don't update if already unlocked
         if (badgeProgress.unlocked) {
             return JSON.stringify({
@@ -18692,23 +20441,23 @@ function rpcBadgesUpdateProgress(ctx, logger, nk, payload) {
                 }
             });
         }
-        
+
         // Update progress
         if (increment) {
             badgeProgress.progress += newProgress;
         } else {
             badgeProgress.progress = Math.max(badgeProgress.progress, newProgress);
         }
-        
+
         // Check if unlocked
         var justUnlocked = false;
         if (badgeProgress.progress >= badge.target) {
             badgeProgress.unlocked = true;
             badgeProgress.unlock_date = new Date().toISOString();
             justUnlocked = true;
-            
+
             logger.info("[Badges] Badge unlocked: " + badgeId + " for user: " + userId);
-            
+
             try {
                 nk.notificationsSend([{
                     userId: userId,
@@ -18728,10 +20477,10 @@ function rpcBadgesUpdateProgress(ctx, logger, nk, payload) {
                 logger.warn("[Badges] Failed to send notification: " + notifErr.message);
             }
         }
-        
+
         // Save progress
         progressData[badgeId] = badgeProgress;
-        
+
         nk.storageWrite([{
             collection: BADGE_PROGRESS_COLLECTION,
             key: progressKey,
@@ -18740,13 +20489,13 @@ function rpcBadgesUpdateProgress(ctx, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-        
+
         // Grant rewards if unlocked
         var rewardsGranted = null;
         if (justUnlocked && badge.rewards) {
             rewardsGranted = grantBadgeRewardsInternal(nk, logger, userId, gameId, badge.rewards);
         }
-        
+
         return JSON.stringify({
             success: true,
             badge: {
@@ -18760,7 +20509,7 @@ function rpcBadgesUpdateProgress(ctx, logger, nk, payload) {
             },
             rewards_granted: rewardsGranted
         });
-        
+
     } catch (err) {
         logger.error("[Badges] Update progress error: " + err.message);
         return JSON.stringify({
@@ -18776,29 +20525,29 @@ function rpcBadgesUpdateProgress(ctx, logger, nk, payload) {
 function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
-        
+
         if (!data.game_id || !data.event_type) {
             throw Error("game_id and event_type are required");
         }
-        
+
         var userId = ctx.userId;
         var gameId = data.game_id;
         var eventType = data.event_type;
         var eventData = data.event_data || {};
-        
+
         logger.info("[Badges] Checking event: " + eventType + " for game: " + gameId);
-        
+
         // Get all badge definitions
         var definitionsKey = "definitions_" + gameId;
         var definitions = [];
-        
+
         try {
             var defRecords = nk.storageRead([{
                 collection: BADGE_COLLECTION,
                 key: definitionsKey,
                 userId: BADGE_SYSTEM_USER_ID
             }]);
-            
+
             if (defRecords && defRecords.length > 0 && defRecords[0].value) {
                 definitions = defRecords[0].value.badges || [];
             }
@@ -18810,37 +20559,37 @@ function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
                 message: "No badges configured"
             });
         }
-        
+
         // Get player progress
         var progressKey = "progress_" + userId + "_" + gameId;
         var progressData = {};
-        
+
         try {
             var progRecords = nk.storageRead([{
                 collection: BADGE_PROGRESS_COLLECTION,
                 key: progressKey,
                 userId: userId
             }]);
-            
+
             if (progRecords && progRecords.length > 0 && progRecords[0].value) {
                 progressData = progRecords[0].value;
             }
         } catch (err) {
             // New player, no progress yet
         }
-        
+
         var badgesUpdated = [];
         var badgesUnlocked = [];
-        
+
         // Check each badge that matches this event
         for (var i = 0; i < definitions.length; i++) {
             var badge = definitions[i];
-            
+
             // Skip if already unlocked
             if (progressData[badge.badge_id] && progressData[badge.badge_id].unlocked) {
                 continue;
             }
-            
+
             // Check if this badge matches the event
             if (badge.unlock_criteria && badge.unlock_criteria.event === eventType) {
                 // Initialize progress if needed
@@ -18852,23 +20601,23 @@ function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
                         displayed: false
                     };
                 }
-                
+
                 var prog = progressData[badge.badge_id];
                 var badgeIncrement = eventData.count || 1;
                 prog.progress += badgeIncrement;
-                
+
                 badgesUpdated.push({
                     badge_id: badge.badge_id,
                     title: badge.title,
                     progress: prog.progress,
                     target: badge.target
                 });
-                
+
                 // Check if unlocked
                 if (prog.progress >= badge.target) {
                     prog.unlocked = true;
                     prog.unlock_date = new Date().toISOString();
-                    
+
                     badgesUnlocked.push({
                         badge_id: badge.badge_id,
                         title: badge.title,
@@ -18876,12 +20625,12 @@ function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
                         rarity: badge.rarity,
                         rewards: badge.rewards
                     });
-                    
+
                     // Grant rewards
                     if (badge.rewards) {
                         grantBadgeRewardsInternal(nk, logger, userId, gameId, badge.rewards);
                     }
-                    
+
                     // Send notification
                     try {
                         nk.notificationsSend([{
@@ -18901,11 +20650,11 @@ function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
                         logger.warn("[Badges] Notification error: " + notifErr.message);
                     }
                 }
-                
+
                 progressData[badge.badge_id] = prog;
             }
         }
-        
+
         // Save updated progress
         if (badgesUpdated.length > 0) {
             nk.storageWrite([{
@@ -18917,13 +20666,13 @@ function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
                 permissionWrite: 0
             }]);
         }
-        
+
         return JSON.stringify({
             success: true,
             badges_updated: badgesUpdated,
             badges_unlocked: badgesUnlocked
         });
-        
+
     } catch (err) {
         logger.error("[Badges] Check event error: " + err.message);
         return JSON.stringify({
@@ -18939,41 +20688,41 @@ function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
 function rpcBadgesSetDisplayed(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
-        
+
         if (!data.game_id || !data.badge_id) {
             throw Error("game_id and badge_id are required");
         }
-        
+
         var userId = ctx.userId;
         var gameId = data.game_id;
         var badgeId = data.badge_id;
-        
+
         // Get progress
         var progressKey = "progress_" + userId + "_" + gameId;
         var progressData = {};
-        
+
         var progRecords = nk.storageRead([{
             collection: BADGE_PROGRESS_COLLECTION,
             key: progressKey,
             userId: userId
         }]);
-        
+
         if (progRecords && progRecords.length > 0 && progRecords[0].value) {
             progressData = progRecords[0].value;
         }
-        
+
         // Check if badge is unlocked
         if (!progressData[badgeId] || !progressData[badgeId].unlocked) {
             throw Error("Badge not unlocked");
         }
-        
+
         // Clear all displayed flags, set the new one
         for (var key in progressData) {
             if (progressData.hasOwnProperty(key)) {
                 progressData[key].displayed = (key === badgeId);
             }
         }
-        
+
         // Save
         nk.storageWrite([{
             collection: BADGE_PROGRESS_COLLECTION,
@@ -18983,20 +20732,20 @@ function rpcBadgesSetDisplayed(ctx, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-        
+
         // Also update account metadata for quick access
         var account = nk.accountGetId(userId);
         var metadata = account.user.metadata || {};
         metadata.displayed_badge = badgeId;
         metadata.displayed_badge_game = gameId;
-        
+
         nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
-        
+
         return JSON.stringify({
             success: true,
             displayed_badge: badgeId
         });
-        
+
     } catch (err) {
         logger.error("[Badges] Set displayed error: " + err.message);
         return JSON.stringify({
@@ -19012,44 +20761,44 @@ function rpcBadgesSetDisplayed(ctx, logger, nk, payload) {
 function rpcBadgesBulkCreate(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
-        
+
         if (!data.game_id || !data.badges || !Array.isArray(data.badges)) {
             throw Error("game_id and badges array are required");
         }
-        
+
         var gameId = data.game_id;
         var badgesToCreate = data.badges;
         var definitionsKey = "definitions_" + gameId;
-        
+
         // Get existing definitions
         var definitions = { badges: [] };
-        
+
         try {
             var records = nk.storageRead([{
                 collection: BADGE_COLLECTION,
                 key: definitionsKey,
                 userId: BADGE_SYSTEM_USER_ID
             }]);
-            
+
             if (records && records.length > 0 && records[0].value) {
                 definitions = records[0].value;
             }
         } catch (err) {
             logger.debug("[Badges] Creating new definitions collection");
         }
-        
+
         var created = [];
         var updated = [];
         var errors = [];
-        
+
         for (var i = 0; i < badgesToCreate.length; i++) {
             var badgeData = badgesToCreate[i];
-            
+
             try {
                 if (!badgeData.badge_id || !badgeData.title) {
                     throw Error("badge_id and title are required");
                 }
-                
+
                 // Check if exists
                 var existingIndex = -1;
                 for (var j = 0; j < definitions.badges.length; j++) {
@@ -19058,7 +20807,7 @@ function rpcBadgesBulkCreate(ctx, logger, nk, payload) {
                         break;
                     }
                 }
-                
+
                 var badge = {
                     badge_id: badgeData.badge_id,
                     game_id: gameId,
@@ -19077,7 +20826,7 @@ function rpcBadgesBulkCreate(ctx, logger, nk, payload) {
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 };
-                
+
                 if (existingIndex >= 0) {
                     badge.created_at = definitions.badges[existingIndex].created_at;
                     definitions.badges[existingIndex] = badge;
@@ -19086,7 +20835,7 @@ function rpcBadgesBulkCreate(ctx, logger, nk, payload) {
                     definitions.badges.push(badge);
                     created.push(badge.badge_id);
                 }
-                
+
             } catch (err) {
                 errors.push({
                     badge_id: badgeData.badge_id,
@@ -19094,7 +20843,7 @@ function rpcBadgesBulkCreate(ctx, logger, nk, payload) {
                 });
             }
         }
-        
+
         // Save definitions
         if (created.length > 0 || updated.length > 0) {
             nk.storageWrite([{
@@ -19106,9 +20855,9 @@ function rpcBadgesBulkCreate(ctx, logger, nk, payload) {
                 permissionWrite: 0
             }]);
         }
-        
+
         logger.info("[Badges] Bulk create completed - created: " + created.length + ", updated: " + updated.length);
-        
+
         return JSON.stringify({
             success: true,
             created: created,
@@ -19116,7 +20865,7 @@ function rpcBadgesBulkCreate(ctx, logger, nk, payload) {
             errors: errors,
             total_badges: definitions.badges.length
         });
-        
+
     } catch (err) {
         logger.error("[Badges] Bulk create error: " + err.message);
         return JSON.stringify({
@@ -19132,57 +20881,57 @@ function rpcBadgesBulkCreate(ctx, logger, nk, payload) {
 function rpcCollectablesGetAll(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
-        
+
         if (!data.game_id) {
             throw Error("game_id is required");
         }
-        
+
         var userId = ctx.userId;
         var gameId = data.game_id;
-        
+
         logger.info("[Collectables] Getting all for game: " + gameId + ", user: " + userId);
-        
+
         // Get collectable definitions
         var definitionsKey = "definitions_" + gameId;
         var definitions = [];
-        
+
         try {
             var defRecords = nk.storageRead([{
                 collection: COLLECTABLE_COLLECTION,
                 key: definitionsKey,
                 userId: BADGE_SYSTEM_USER_ID
             }]);
-            
+
             if (defRecords && defRecords.length > 0 && defRecords[0].value) {
                 definitions = defRecords[0].value.collectables || [];
             }
         } catch (err) {
             logger.warn("[Collectables] No definitions found for game: " + gameId);
         }
-        
+
         // Get player inventory
         var inventoryKey = "inventory_" + userId + "_" + gameId;
         var inventory = {};
-        
+
         try {
             var invRecords = nk.storageRead([{
                 collection: COLLECTABLE_INVENTORY_COLLECTION,
                 key: inventoryKey,
                 userId: userId
             }]);
-            
+
             if (invRecords && invRecords.length > 0 && invRecords[0].value) {
                 inventory = invRecords[0].value;
             }
         } catch (err) {
             logger.debug("[Collectables] No inventory found for user: " + userId);
         }
-        
+
         // Merge definitions with inventory
         var collectables = [];
         var ownedCount = 0;
         var totalCount = definitions.length;
-        
+
         for (var i = 0; i < definitions.length; i++) {
             var def = definitions[i];
             var inv = inventory[def.collectable_id] || {
@@ -19190,10 +20939,10 @@ function rpcCollectablesGetAll(ctx, logger, nk, payload) {
                 acquired_date: null,
                 equipped: false
             };
-            
+
             var owned = inv.quantity > 0;
             if (owned) ownedCount++;
-            
+
             collectables.push({
                 collectable_id: def.collectable_id,
                 title: def.title,
@@ -19211,7 +20960,7 @@ function rpcCollectablesGetAll(ctx, logger, nk, payload) {
                 equipped: inv.equipped
             });
         }
-        
+
         // Sort by owned status, then rarity, then name
         var rarityOrder = { legendary: 0, epic: 1, rare: 2, common: 3 };
         collectables.sort(function(a, b) {
@@ -19220,19 +20969,19 @@ function rpcCollectablesGetAll(ctx, logger, nk, payload) {
             if (rarityDiff !== 0) return rarityDiff;
             return a.title.localeCompare(b.title);
         });
-        
+
         return JSON.stringify({
             success: true,
             collectables: collectables,
             inventory_stats: {
                 total_collectables: totalCount,
                 owned: ownedCount,
-                completion_percentage: totalCount > 0 
+                completion_percentage: totalCount > 0
                     ? Math.round((ownedCount / totalCount) * 100)
                     : 0
             }
         });
-        
+
     } catch (err) {
         logger.error("[Collectables] Get all error: " + err.message);
         return JSON.stringify({
@@ -19248,29 +20997,29 @@ function rpcCollectablesGetAll(ctx, logger, nk, payload) {
 function rpcCollectablesGrant(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
-        
+
         if (!data.game_id || !data.collectable_id) {
             throw Error("game_id and collectable_id are required");
         }
-        
+
         var userId = data.user_id || ctx.userId;
         var gameId = data.game_id;
         var collectableId = data.collectable_id;
         var quantity = data.quantity || 1;
         var source = data.source || "system";
-        
+
         logger.info("[Collectables] Granting " + collectableId + " (x" + quantity + ") to user: " + userId);
-        
+
         // Verify collectable exists
         var definitionsKey = "definitions_" + gameId;
         var collectable = null;
-        
+
         var defRecords = nk.storageRead([{
             collection: COLLECTABLE_COLLECTION,
             key: definitionsKey,
             userId: BADGE_SYSTEM_USER_ID
         }]);
-        
+
         if (defRecords && defRecords.length > 0 && defRecords[0].value) {
             var definitions = defRecords[0].value.collectables || [];
             for (var i = 0; i < definitions.length; i++) {
@@ -19280,29 +21029,29 @@ function rpcCollectablesGrant(ctx, logger, nk, payload) {
                 }
             }
         }
-        
+
         if (!collectable) {
             throw Error("Collectable not found: " + collectableId);
         }
-        
+
         // Get or create inventory
         var inventoryKey = "inventory_" + userId + "_" + gameId;
         var inventory = {};
-        
+
         try {
             var invRecords = nk.storageRead([{
                 collection: COLLECTABLE_INVENTORY_COLLECTION,
                 key: inventoryKey,
                 userId: userId
             }]);
-            
+
             if (invRecords && invRecords.length > 0 && invRecords[0].value) {
                 inventory = invRecords[0].value;
             }
         } catch (err) {
             // New inventory
         }
-        
+
         // Initialize if needed
         if (!inventory[collectableId]) {
             inventory[collectableId] = {
@@ -19312,15 +21061,15 @@ function rpcCollectablesGrant(ctx, logger, nk, payload) {
                 acquisition_history: []
             };
         }
-        
+
         var item = inventory[collectableId];
         var isFirstAcquisition = item.quantity === 0;
-        
+
         // Check max quantity
         var maxQty = collectable.max_quantity || 999;
         var newQuantity = Math.min(item.quantity + quantity, maxQty);
         var actualGranted = newQuantity - item.quantity;
-        
+
         if (actualGranted <= 0) {
             return JSON.stringify({
                 success: true,
@@ -19330,7 +21079,7 @@ function rpcCollectablesGrant(ctx, logger, nk, payload) {
                 at_max: true
             });
         }
-        
+
         // Update inventory
         item.quantity = newQuantity;
         if (isFirstAcquisition) {
@@ -19344,9 +21093,9 @@ function rpcCollectablesGrant(ctx, logger, nk, payload) {
             quantity: actualGranted,
             source: source
         });
-        
+
         inventory[collectableId] = item;
-        
+
         // Save inventory
         nk.storageWrite([{
             collection: COLLECTABLE_INVENTORY_COLLECTION,
@@ -19356,7 +21105,7 @@ function rpcCollectablesGrant(ctx, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-        
+
         // Send notification for new collectables
         if (isFirstAcquisition) {
             try {
@@ -19377,7 +21126,7 @@ function rpcCollectablesGrant(ctx, logger, nk, payload) {
                 logger.warn("[Collectables] Notification error: " + notifErr.message);
             }
         }
-        
+
         return JSON.stringify({
             success: true,
             collectable_id: collectableId,
@@ -19386,7 +21135,7 @@ function rpcCollectablesGrant(ctx, logger, nk, payload) {
             current_quantity: newQuantity,
             is_new: isFirstAcquisition
         });
-        
+
     } catch (err) {
         logger.error("[Collectables] Grant error: " + err.message);
         return JSON.stringify({
@@ -19402,45 +21151,45 @@ function rpcCollectablesGrant(ctx, logger, nk, payload) {
 function rpcCollectablesEquip(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
-        
+
         if (!data.game_id || !data.collectable_id) {
             throw Error("game_id and collectable_id are required");
         }
-        
+
         var userId = ctx.userId;
         var gameId = data.game_id;
         var collectableId = data.collectable_id;
-        
+
         // Get inventory
         var inventoryKey = "inventory_" + userId + "_" + gameId;
         var inventory = {};
-        
+
         var invRecords = nk.storageRead([{
             collection: COLLECTABLE_INVENTORY_COLLECTION,
             key: inventoryKey,
             userId: userId
         }]);
-        
+
         if (invRecords && invRecords.length > 0 && invRecords[0].value) {
             inventory = invRecords[0].value;
         }
-        
+
         // Check if owned
         if (!inventory[collectableId] || inventory[collectableId].quantity <= 0) {
             throw Error("Collectable not owned");
         }
-        
+
         // Get collectable definition for category
         var definitionsKey = "definitions_" + gameId;
         var collectable = null;
         var definitions = [];
-        
+
         var defRecords = nk.storageRead([{
             collection: COLLECTABLE_COLLECTION,
             key: definitionsKey,
             userId: BADGE_SYSTEM_USER_ID
         }]);
-        
+
         if (defRecords && defRecords.length > 0 && defRecords[0].value) {
             definitions = defRecords[0].value.collectables || [];
             for (var i = 0; i < definitions.length; i++) {
@@ -19450,27 +21199,27 @@ function rpcCollectablesEquip(ctx, logger, nk, payload) {
                 }
             }
         }
-        
+
         if (!collectable) {
             throw Error("Collectable definition not found");
         }
-        
+
         // Unequip any other items in the same category
         for (var key in inventory) {
             if (inventory.hasOwnProperty(key) && inventory[key].equipped) {
                 for (var j = 0; j < definitions.length; j++) {
-                    if (definitions[j].collectable_id === key && 
+                    if (definitions[j].collectable_id === key &&
                         definitions[j].category === collectable.category) {
                         inventory[key].equipped = false;
                     }
                 }
             }
         }
-        
+
         // Equip the selected item
         inventory[collectableId].equipped = true;
         inventory[collectableId].equipped_date = new Date().toISOString();
-        
+
         // Save inventory
         nk.storageWrite([{
             collection: COLLECTABLE_INVENTORY_COLLECTION,
@@ -19480,11 +21229,11 @@ function rpcCollectablesEquip(ctx, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-        
+
         // Update account metadata for quick profile access
         var account = nk.accountGetId(userId);
         var metadata = account.user.metadata || {};
-        
+
         if (!metadata.equipped_collectables) {
             metadata.equipped_collectables = {};
         }
@@ -19493,15 +21242,15 @@ function rpcCollectablesEquip(ctx, logger, nk, payload) {
             icon_url: collectable.icon_url,
             game_id: gameId
         };
-        
+
         nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
-        
+
         return JSON.stringify({
             success: true,
             equipped: collectableId,
             category: collectable.category
         });
-        
+
     } catch (err) {
         logger.error("[Collectables] Equip error: " + err.message);
         return JSON.stringify({
@@ -19517,44 +21266,44 @@ function rpcCollectablesEquip(ctx, logger, nk, payload) {
 function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
-        
+
         if (!data.game_id || !data.collectables || !Array.isArray(data.collectables)) {
             throw Error("game_id and collectables array are required");
         }
-        
+
         var gameId = data.game_id;
         var collectablesToCreate = data.collectables;
         var definitionsKey = "definitions_" + gameId;
-        
+
         // Get existing definitions
         var definitions = { collectables: [] };
-        
+
         try {
             var records = nk.storageRead([{
                 collection: COLLECTABLE_COLLECTION,
                 key: definitionsKey,
                 userId: BADGE_SYSTEM_USER_ID
             }]);
-            
+
             if (records && records.length > 0 && records[0].value) {
                 definitions = records[0].value;
             }
         } catch (err) {
             logger.debug("[Collectables] Creating new definitions collection");
         }
-        
+
         var created = [];
         var updated = [];
         var errors = [];
-        
+
         for (var i = 0; i < collectablesToCreate.length; i++) {
             var colData = collectablesToCreate[i];
-            
+
             try {
                 if (!colData.collectable_id || !colData.title) {
                     throw Error("collectable_id and title are required");
                 }
-                
+
                 // Check if exists
                 var existingIndex = -1;
                 for (var j = 0; j < definitions.collectables.length; j++) {
@@ -19563,7 +21312,7 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
                         break;
                     }
                 }
-                
+
                 var collectable = {
                     collectable_id: colData.collectable_id,
                     game_id: gameId,
@@ -19579,7 +21328,7 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 };
-                
+
                 if (existingIndex >= 0) {
                     collectable.created_at = definitions.collectables[existingIndex].created_at;
                     definitions.collectables[existingIndex] = collectable;
@@ -19588,7 +21337,7 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
                     definitions.collectables.push(collectable);
                     created.push(collectable.collectable_id);
                 }
-                
+
             } catch (err) {
                 errors.push({
                     collectable_id: colData.collectable_id,
@@ -19596,7 +21345,7 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
                 });
             }
         }
-        
+
         // Save definitions
         if (created.length > 0 || updated.length > 0) {
             nk.storageWrite([{
@@ -19608,9 +21357,9 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
                 permissionWrite: 0
             }]);
         }
-        
+
         logger.info("[Collectables] Bulk create completed - created: " + created.length + ", updated: " + updated.length);
-        
+
         return JSON.stringify({
             success: true,
             created: created,
@@ -19618,7 +21367,7 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
             errors: errors,
             total_collectables: definitions.collectables.length
         });
-        
+
     } catch (err) {
         logger.error("[Collectables] Bulk create error: " + err.message);
         return JSON.stringify({
@@ -20412,6 +22161,36 @@ function InitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
+    // ASYNC CHALLENGE SYSTEM - Universal Asynchronous Multiplayer (QuizVerse)
+    // ============================================================================
+
+    // Register Async Challenge RPCs
+    try {
+        logger.info('[AsyncChallenge] Initializing Async Challenge Module...');
+        initializer.registerRpc('async_challenge_create', rpcAsyncChallengeCreate);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_create');
+        initializer.registerRpc('async_challenge_join', rpcAsyncChallengeJoin);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_join');
+        initializer.registerRpc('async_challenge_get', rpcAsyncChallengeGet);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_get');
+        initializer.registerRpc('async_challenge_submit', rpcAsyncChallengeSubmit);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_submit');
+        initializer.registerRpc('async_challenge_list', rpcAsyncChallengeList);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_list');
+        initializer.registerRpc('async_challenge_cancel', rpcAsyncChallengeCancel);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_cancel');
+        initializer.registerRpc('async_challenge_stats', rpcAsyncChallengeStats);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_stats');
+        initializer.registerRpc('async_challenge_rematch', rpcAsyncChallengeRematch);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_rematch');
+        initializer.registerRpc('async_challenge_leaderboard', rpcAsyncChallengeLeaderboard);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_leaderboard');
+        logger.info('[AsyncChallenge] Successfully registered 9 Async Challenge RPCs');
+    } catch (err) {
+        logger.error('[AsyncChallenge] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
     // BADGES & COLLECTABLES SYSTEM - Per-Game Achievements & Items
     // ============================================================================
 
@@ -20451,7 +22230,7 @@ function InitModule(ctx, logger, nk, initializer) {
 
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 184');
+    logger.info('Total System RPCs: 187');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
@@ -20467,6 +22246,7 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('  - Collections System: 4');
     logger.info('  - Winback System: 4');
     logger.info('  - Compatibility Quiz: 6');
+    logger.info('  - Async Challenge System: 9');
     logger.info('  - Badges System: 5');
     logger.info('  - Collectables System: 4');
     logger.info('  - Plus existing Copilot RPCs');
