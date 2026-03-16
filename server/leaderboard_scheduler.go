@@ -137,10 +137,14 @@ func (ls *LocalLeaderboardScheduler) Pause() {
 	ls.Lock()
 	if ls.endActiveTimer != nil {
 		ls.endActiveTimer.Stop()
+		ls.endActiveTimer = nil
 	}
 	if ls.expiryTimer != nil {
 		ls.expiryTimer.Stop()
+		ls.endActiveTimer = nil
 	}
+	ls.scheduledEndActive = -1
+	ls.scheduledExpiry = -1
 	ls.Unlock()
 }
 
@@ -160,10 +164,14 @@ func (ls *LocalLeaderboardScheduler) Stop() {
 	ls.ctxCancelFn()
 	if ls.endActiveTimer != nil {
 		ls.endActiveTimer.Stop()
+		ls.endActiveTimer = nil
 	}
 	if ls.expiryTimer != nil {
 		ls.expiryTimer.Stop()
+		ls.endActiveTimer = nil
 	}
+	ls.scheduledEndActive = -1
+	ls.scheduledExpiry = -1
 	ls.Unlock()
 }
 
