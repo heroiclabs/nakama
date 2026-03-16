@@ -22307,9 +22307,107 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[Collectables] Failed to initialize: ' + err.message);
     }
 
+    // ============================================================================
+    // v3.0 NEW RPCs — League System (4 RPCs)
+    // ============================================================================
+    try {
+        logger.info('[Leagues] Initializing League System Module...');
+        initializer.registerRpc('league_get_state', rpcLeagueGetState);
+        logger.info('[Leagues] Registered RPC: league_get_state');
+        initializer.registerRpc('league_submit_points', rpcLeagueSubmitPoints);
+        logger.info('[Leagues] Registered RPC: league_submit_points');
+        initializer.registerRpc('league_process_season', rpcLeagueProcessSeason);
+        logger.info('[Leagues] Registered RPC: league_process_season');
+        initializer.registerRpc('league_get_leaderboard', rpcLeagueGetLeaderboard);
+        logger.info('[Leagues] Registered RPC: league_get_leaderboard');
+        logger.info('[Leagues] Successfully registered 4 League RPCs');
+    } catch (err) {
+        logger.error('[Leagues] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Streak Repair & Wager (2 RPCs)
+    // ============================================================================
+    try {
+        logger.info('[StreakV2] Initializing Streak Repair & Wager Module...');
+        initializer.registerRpc('streak_repair', rpcStreakRepair);
+        logger.info('[StreakV2] Registered RPC: streak_repair');
+        initializer.registerRpc('streak_wager', rpcStreakWager);
+        logger.info('[StreakV2] Registered RPC: streak_wager');
+        logger.info('[StreakV2] Successfully registered 2 Streak V2 RPCs');
+    } catch (err) {
+        logger.error('[StreakV2] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Character System (3 RPCs)
+    // ============================================================================
+    try {
+        logger.info('[Characters] Initializing Character System Module...');
+        initializer.registerRpc('character_get_state', rpcCharacterGetState);
+        logger.info('[Characters] Registered RPC: character_get_state');
+        initializer.registerRpc('character_unlock', rpcCharacterUnlock);
+        logger.info('[Characters] Registered RPC: character_unlock');
+        initializer.registerRpc('character_set_active', rpcCharacterSetActive);
+        logger.info('[Characters] Registered RPC: character_set_active');
+        logger.info('[Characters] Successfully registered 3 Character RPCs');
+    } catch (err) {
+        logger.error('[Characters] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Notification Gate (1 RPC)
+    // ============================================================================
+    try {
+        logger.info('[NotifGate] Initializing Notification Gate Module...');
+        initializer.registerRpc('notification_gate_get_state', rpcNotifGateGetState);
+        logger.info('[NotifGate] Registered RPC: notification_gate_get_state');
+        logger.info('[NotifGate] Successfully registered 1 Notification Gate RPC');
+    } catch (err) {
+        logger.error('[NotifGate] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Smart Review / SM-2 (2 RPCs)
+    // ============================================================================
+    try {
+        logger.info('[SmartReview] Initializing Smart Review Module...');
+        initializer.registerRpc('smart_review_get_cards', rpcSmartReviewGetCards);
+        logger.info('[SmartReview] Registered RPC: smart_review_get_cards');
+        initializer.registerRpc('smart_review_rate_card', rpcSmartReviewRateCard);
+        logger.info('[SmartReview] Registered RPC: smart_review_rate_card');
+        logger.info('[SmartReview] Successfully registered 2 Smart Review RPCs');
+    } catch (err) {
+        logger.error('[SmartReview] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Asset Manifest (1 RPC)
+    // ============================================================================
+    try {
+        logger.info('[Manifest] Initializing Asset Manifest Module...');
+        initializer.registerRpc('manifest_get_version', rpcManifestGetVersion);
+        logger.info('[Manifest] Registered RPC: manifest_get_version');
+        logger.info('[Manifest] Successfully registered 1 Manifest RPC');
+    } catch (err) {
+        logger.error('[Manifest] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Player Full Profile (1 RPC)
+    // ============================================================================
+    try {
+        logger.info('[PlayerProfile] Initializing Player Full Profile Module...');
+        initializer.registerRpc('player_get_full_profile', rpcPlayerGetFullProfile);
+        logger.info('[PlayerProfile] Registered RPC: player_get_full_profile');
+        logger.info('[PlayerProfile] Successfully registered 1 Player Profile RPC');
+    } catch (err) {
+        logger.error('[PlayerProfile] Failed to initialize: ' + err.message);
+    }
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 187');
+    logger.info('Total System RPCs: 201');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
@@ -22329,8 +22427,16 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('  - Badges System: 5');
     logger.info('  - Collectables System: 4');
     logger.info('  - Plus existing Copilot RPCs');
+    logger.info('  --- v3.0 New RPCs ---');
+    logger.info('  - League System: 4');
+    logger.info('  - Streak Repair & Wager: 2');
+    logger.info('  - Character System: 3');
+    logger.info('  - Notification Gate: 1');
+    logger.info('  - Smart Review (SM-2): 2');
+    logger.info('  - Asset Manifest: 1');
+    logger.info('  - Player Full Profile: 1');
     logger.info('========================================');
-    logger.info('✓ All server gaps have been filled!');
+    logger.info('✓ All v3.0 RPCs registered successfully!');
     logger.info('========================================');
 }
 
