@@ -30,6 +30,16 @@ var PROMOTION_PERCENT = 20;
 var DEMOTION_PERCENT = 20;
 var STORAGE_COLLECTION = 'league_state';
 
+// ─── ANTI-SANDBAGGING CONSTANTS ─────────────────────────────────────────────
+var MAX_POINTS_PER_QUIZ = 500;          // Cap per single submission
+var MIN_ACCURACY_FLOOR = 0.20;          // Below 20% → points halved
+var SANDBAG_ACCURACY_THRESHOLD = 0.30;  // Below 30% = suspiciously low
+var SANDBAG_CONSECUTIVE_LIMIT = 3;      // 3+ consecutive low-accuracy → flagged
+var CONSISTENCY_BONUS_QUIZZES = 5;      // Play 5+ quizzes with good accuracy
+var CONSISTENCY_BONUS_ACCURACY = 0.70;  // Above 70% avg to get bonus
+var CONSISTENCY_BONUS_MULTIPLIER = 1.10; // +10% bonus for consistent players
+var INACTIVITY_DEMOTE = true;           // Demote players who played 0 quizzes
+
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
 function leagueStorageKey(userId, gameId) {
@@ -104,6 +114,9 @@ function initLeagueState(userId, gameId) {
         season: getCurrentWeekId(),
         seasonJoinedAt: now,
         qualifiesForPromotion: false,
+        sandbaggingFlags: 0,
+        consecutiveLowAccuracy: 0,
+        consistencyBonus: false,
         lastSubmissionId: '',
         lastSubmissionAt: null,
         createdAt: now,
@@ -230,9 +243,36 @@ function rpcLeagueSubmitPoints(ctx, logger, nk, payload) {
         });
     }
 
+    // ── ANTI-SANDBAGGING: Point cap per quiz ──
+    if (points > MAX_POINTS_PER_QUIZ) {
+        logger.warn('[Leagues] Points capped for ' + ctx.userId + ': ' + points + ' → ' + MAX_POINTS_PER_QUIZ);
+        points = MAX_POINTS_PER_QUIZ;
+    }
+
     // Apply tier multiplier
     var tierConfig = LEAGUE_CONFIG[state.tier] || LEAGUE_CONFIG.bronze;
     var adjustedPoints = Math.round(points * tierConfig.xpMultiplier);
+
+    // ── ANTI-SANDBAGGING: Accuracy floor ──
+    if (accuracy > 0 && accuracy < MIN_ACCURACY_FLOOR) {
+        adjustedPoints = Math.round(adjustedPoints * 0.5);
+        logger.warn('[Leagues] Low accuracy penalty for ' + ctx.userId + ': ' + Math.round(accuracy * 100) + '% → points halved');
+    }
+
+    // ── ANTI-SANDBAGGING: Consecutive low accuracy tracking ──
+    if (!state.consecutiveLowAccuracy) state.consecutiveLowAccuracy = 0;
+    if (!state.sandbaggingFlags) state.sandbaggingFlags = 0;
+
+    if (accuracy > 0 && accuracy < SANDBAG_ACCURACY_THRESHOLD) {
+        state.consecutiveLowAccuracy += 1;
+        if (state.consecutiveLowAccuracy >= SANDBAG_CONSECUTIVE_LIMIT) {
+            state.sandbaggingFlags += 1;
+            adjustedPoints = Math.round(adjustedPoints * 0.25); // 75% penalty
+            logger.warn('[Leagues] SANDBAGGING DETECTED for ' + ctx.userId + ': ' + state.consecutiveLowAccuracy + ' consecutive low games. Flag #' + state.sandbaggingFlags);
+        }
+    } else {
+        state.consecutiveLowAccuracy = 0; // Reset on normal accuracy
+    }
 
     var oldPoints = state.points;
     state.points += adjustedPoints;
@@ -246,6 +286,17 @@ function rpcLeagueSubmitPoints(ctx, logger, nk, payload) {
 
     // Check promotion qualification
     state.qualifiesForPromotion = state.quizzesThisWeek >= MIN_QUIZZES_FOR_PROMOTION;
+
+    // ── ANTI-SANDBAGGING: Consistency bonus ──
+    var avgAccuracy = state.accuracyCount > 0 ? (state.totalAccuracy / state.accuracyCount) / 100 : 0;
+    state.consistencyBonus = state.quizzesThisWeek >= CONSISTENCY_BONUS_QUIZZES &&
+                             avgAccuracy >= CONSISTENCY_BONUS_ACCURACY &&
+                             state.sandbaggingFlags === 0;
+
+    // Sandbaggers cannot qualify for promotion
+    if (state.sandbaggingFlags > 0) {
+        state.qualifiesForPromotion = false;
+    }
 
     writeLeagueState(nk, logger, ctx.userId, gameId, state);
 
@@ -265,6 +316,8 @@ function rpcLeagueSubmitPoints(ctx, logger, nk, payload) {
         qualifiesForPromotion: state.qualifiesForPromotion,
         nearPromotion: nearPromotion,
         nearDemotion: nearDemotion,
+        consistencyBonus: state.consistencyBonus || false,
+        sandbaggingFlags: state.sandbaggingFlags || 0,
         xpMultiplier: tierConfig.xpMultiplier,
         timestamp: new Date().toISOString()
     });
@@ -330,11 +383,30 @@ function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
             var userState = userObj.value;
             var userId = userObj.userId;
             var eligible = (userState.quizzesThisWeek || 0) >= MIN_QUIZZES_FOR_PROMOTION;
+            var isSandbagger = (userState.sandbaggingFlags || 0) > 0;
+            var isInactive = (userState.quizzesThisWeek || 0) === 0;
+            var hasConsistencyBonus = userState.consistencyBonus === true;
 
             var newTier = tier;
             var action = 'stayed';
 
-            if (!eligible) {
+            if (isSandbagger) {
+                // ── ANTI-SANDBAGGING: Flagged players cannot promote, auto-demote ──
+                if (tierIdx > 0) {
+                    newTier = LEAGUE_TIERS[tierIdx - 1];
+                    stats.demoted++;
+                    action = 'demoted';
+                    logger.warn('[Leagues] Sandbagger demoted: ' + userId + ' (flags=' + userState.sandbaggingFlags + ')');
+                } else {
+                    stats.disqualified++;
+                    action = 'disqualified';
+                }
+            } else if (INACTIVITY_DEMOTE && isInactive && tierIdx > 0) {
+                // ── ANTI-SANDBAGGING: Inactive players demote ──
+                newTier = LEAGUE_TIERS[tierIdx - 1];
+                stats.demoted++;
+                action = 'demoted';
+            } else if (!eligible) {
                 stats.disqualified++;
                 action = 'disqualified';
             } else if (u < promoteCount && tierIdx < LEAGUE_TIERS.length - 1) {
@@ -357,6 +429,9 @@ function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
             userState.totalAccuracy = 0;
             userState.accuracyCount = 0;
             userState.qualifiesForPromotion = false;
+            userState.sandbaggingFlags = 0;         // Fresh start each season
+            userState.consecutiveLowAccuracy = 0;   // Reset tracking
+            userState.consistencyBonus = false;      // Reset bonus
             userState.season = currentWeek;
             userState.lastSubmissionId = '';
             userState.updatedAt = new Date().toISOString();
@@ -367,9 +442,13 @@ function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
                 // Send notification for promotion/demotion
                 if (action === 'promoted' || action === 'demoted') {
                     try {
-                        nk.notificationSend(userId, action === 'promoted' ? 'League Promotion!' : 'League Update',
-                            { action: action, oldTier: tier, newTier: newTier, season: currentWeek },
-                            action === 'promoted' ? 100 : 101, null, true);
+                        nk.notificationsSend([{
+                            userId: userId,
+                            subject: action === 'promoted' ? 'League Promotion!' : 'League Update',
+                            content: { action: action, oldTier: tier, newTier: newTier, season: currentWeek },
+                            code: action === 'promoted' ? 100 : 101,
+                            persistent: true
+                        }]);
                     } catch (notifErr) {
                         logger.warn('[Leagues] Notification failed for ' + userId + ': ' + notifErr.message);
                     }

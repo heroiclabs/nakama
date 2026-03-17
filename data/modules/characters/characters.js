@@ -23,6 +23,16 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Quizzy/intro.mp4',
         xpRewardOnUnlock: 0
     },
+    autocurio: {
+        id: 'autocurio',
+        name: 'AUTOcurio',
+        description: 'A charming, hyper-curious bot who awakens in the human world with an insatiable desire to understand everything.',
+        rarity: 'common',
+        xpBonus: 0,
+        unlockCondition: 'default',
+        introVideoPath: 'Characters/AUTOcurio/intro.mp4',
+        xpRewardOnUnlock: 0
+    },
     atlas: {
         id: 'atlas',
         name: 'Atlas',
@@ -41,6 +51,56 @@ var CHARACTER_DEFS = {
         xpBonus: 5,
         unlockCondition: 'badge_science_tier3',
         introVideoPath: 'Characters/Nova/intro.mp4',
+        xpRewardOnUnlock: 100
+    },
+    dog: {
+        id: 'dog',
+        name: 'Dog',
+        description: 'A cute, loyal puppy character with floppy ears and a wagging tail.',
+        rarity: 'rare',
+        xpBonus: 5,
+        unlockCondition: 'install_donut_disturb',
+        introVideoPath: 'Characters/Dog/intro.mp4',
+        xpRewardOnUnlock: 100
+    },
+    sparky: {
+        id: 'sparky',
+        name: 'Sparky',
+        description: 'An energetic lightning-bolt character radiating electric energy.',
+        rarity: 'rare',
+        xpBonus: 5,
+        unlockCondition: 'badge_speed_demon_gold',
+        introVideoPath: 'Characters/Sparky/intro.mp4',
+        xpRewardOnUnlock: 100
+    },
+    echo: {
+        id: 'echo',
+        name: 'Echo',
+        description: 'A musical character with oversized headphones and sound wave aura.',
+        rarity: 'rare',
+        xpBonus: 5,
+        unlockCondition: 'audio_review_10',
+        introVideoPath: 'Characters/Echo/intro.mp4',
+        xpRewardOnUnlock: 100
+    },
+    professor: {
+        id: 'professor',
+        name: 'Professor',
+        description: 'A wise owl professor with round glasses and a book.',
+        rarity: 'rare',
+        xpBonus: 5,
+        unlockCondition: 'smart_review_10',
+        introVideoPath: 'Characters/Professor/intro.mp4',
+        xpRewardOnUnlock: 100
+    },
+    pixel: {
+        id: 'pixel',
+        name: 'Pixel',
+        description: 'A retro pixel-art character made of visible square pixels.',
+        rarity: 'rare',
+        xpBonus: 5,
+        unlockCondition: 'badge_social_butterfly_day14',
+        introVideoPath: 'Characters/Pixel/intro.mp4',
         xpRewardOnUnlock: 100
     },
     chronos: {
@@ -63,6 +123,36 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Phoenix/intro.mp4',
         xpRewardOnUnlock: 250
     },
+    bear: {
+        id: 'bear',
+        name: 'Bear',
+        description: 'A strong, friendly bear character representing dedication.',
+        rarity: 'epic',
+        xpBonus: 10,
+        unlockCondition: 'donut_disturb_level_25',
+        introVideoPath: 'Characters/Bear/intro.mp4',
+        xpRewardOnUnlock: 250
+    },
+    duck: {
+        id: 'duck',
+        name: 'Duck',
+        description: 'A cute rubber duck character with a quirky personality.',
+        rarity: 'epic',
+        xpBonus: 10,
+        unlockCondition: 'donut_disturb_level_10',
+        introVideoPath: 'Characters/Duck/intro.mp4',
+        xpRewardOnUnlock: 250
+    },
+    luna: {
+        id: 'luna',
+        name: 'Luna',
+        description: 'A mystical crescent moon character with a starry aura.',
+        rarity: 'epic',
+        xpBonus: 10,
+        unlockCondition: 'badge_night_owl',
+        introVideoPath: 'Characters/Luna/intro.mp4',
+        xpRewardOnUnlock: 250
+    },
     sage: {
         id: 'sage',
         name: 'Sage',
@@ -71,6 +161,16 @@ var CHARACTER_DEFS = {
         xpBonus: 15,
         unlockCondition: 'league_diamond',
         introVideoPath: 'Characters/Sage/intro.mp4',
+        xpRewardOnUnlock: 500
+    },
+    ix: {
+        id: 'ix',
+        name: 'IX',
+        description: 'IntelliVerse X ultimate character — futuristic AI entity.',
+        rarity: 'legendary',
+        xpBonus: 15,
+        unlockCondition: 'ecosystem_points_2500',
+        introVideoPath: 'Characters/IX/intro.mp4',
         xpRewardOnUnlock: 500
     }
 };

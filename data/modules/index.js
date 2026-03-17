@@ -22405,9 +22405,53 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[PlayerProfile] Failed to initialize: ' + err.message);
     }
 
+    // ============================================================================
+    // v3.0 NEW RPCs — Friend Streaks (3 RPCs)
+    // ============================================================================
+    try {
+        logger.info('[FriendStreaks] Initializing Friend Streak Module...');
+        initializer.registerRpc('friend_streak_get_state', rpcFriendStreakGetState);
+        logger.info('[FriendStreaks] Registered RPC: friend_streak_get_state');
+        initializer.registerRpc('friend_streak_record_contribution', rpcFriendStreakRecordContribution);
+        logger.info('[FriendStreaks] Registered RPC: friend_streak_record_contribution');
+        initializer.registerRpc('friend_streak_send_nudge', rpcFriendStreakSendNudge);
+        logger.info('[FriendStreaks] Registered RPC: friend_streak_send_nudge');
+        logger.info('[FriendStreaks] Successfully registered 3 Friend Streak RPCs');
+    } catch (err) {
+        logger.error('[FriendStreaks] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Friend Quests (2 RPCs)
+    // ============================================================================
+    try {
+        logger.info('[FriendQuests] Initializing Friend Quest Module...');
+        initializer.registerRpc('friend_quest_get_state', rpcFriendQuestGetState);
+        logger.info('[FriendQuests] Registered RPC: friend_quest_get_state');
+        initializer.registerRpc('friend_quest_complete', rpcFriendQuestComplete);
+        logger.info('[FriendQuests] Registered RPC: friend_quest_complete');
+        logger.info('[FriendQuests] Successfully registered 2 Friend Quest RPCs');
+    } catch (err) {
+        logger.error('[FriendQuests] Failed to initialize: ' + err.message);
+    }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Fortune Wheel (2 RPCs)
+    // ============================================================================
+    try {
+        logger.info('[FortuneWheel] Initializing Fortune Wheel Module...');
+        initializer.registerRpc('fortune_wheel_get_state', fortuneWheelGetState);
+        logger.info('[FortuneWheel] Registered RPC: fortune_wheel_get_state');
+        initializer.registerRpc('fortune_wheel_spin', fortuneWheelSpin);
+        logger.info('[FortuneWheel] Registered RPC: fortune_wheel_spin');
+        logger.info('[FortuneWheel] Successfully registered 2 Fortune Wheel RPCs');
+    } catch (err) {
+        logger.error('[FortuneWheel] Failed to initialize: ' + err.message);
+    }
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 201');
+    logger.info('Total System RPCs: 208');
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
@@ -22433,6 +22477,9 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('  - Character System: 3');
     logger.info('  - Notification Gate: 1');
     logger.info('  - Smart Review (SM-2): 2');
+    logger.info('  - Friend Streaks: 3');
+    logger.info('  - Friend Quests: 2');
+    logger.info('  - Fortune Wheel: 2');
     logger.info('  - Asset Manifest: 1');
     logger.info('  - Player Full Profile: 1');
     logger.info('========================================');
