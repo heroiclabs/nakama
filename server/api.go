@@ -563,54 +563,68 @@ func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
 }
 
 func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (string, string) {
-	var clientAddr string
+	var candidateAddresses []string
 	md, _ := metadata.FromIncomingContext(ctx)
 	if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
 		// Look for gRPC-Gateway / LB header.
-		clientAddr = strings.Split(ips[0], ",")[0]
+		candidateAddresses = strings.Split(ips[0], ",")
 	} else if peerInfo, ok := peer.FromContext(ctx); ok {
 		// If missing, try to look up gRPC peer info.
-		clientAddr = peerInfo.Addr.String()
+		candidateAddresses = []string{peerInfo.Addr.String()}
 	}
 
-	return extractClientAddress(logger, clientAddr, ctx, "context")
+	return extractClientAddress(logger, candidateAddresses, ctx, "context")
 }
 
 func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (string, string) {
-	var clientAddr string
+	var candidateAddresses []string
 	if ips := r.Header.Get("x-forwarded-for"); len(ips) > 0 {
-		clientAddr = strings.Split(ips, ",")[0]
+		// Look for a LB header.
+		candidateAddresses = strings.Split(ips, ",")
 	} else {
-		clientAddr = r.RemoteAddr
+		// If missing use the
+		candidateAddresses = []string{r.RemoteAddr}
 	}
 
-	return extractClientAddress(logger, clientAddr, r, "request")
+	return extractClientAddress(logger, candidateAddresses, r, "request")
 }
 
-func extractClientAddress(logger *zap.Logger, clientAddr string, source interface{}, sourceType string) (string, string) {
+func extractClientAddress(logger *zap.Logger, candidateAddresses []string, source interface{}, sourceType string) (string, string) {
 	var clientIP, clientPort string
 
-	if clientAddr != "" {
-		// It's possible the request metadata had no client address string.
-
-		clientAddr = strings.TrimSpace(clientAddr)
-		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
-			clientIP = host
-			clientPort = port
-		} else {
-			var addrErr *net.AddrError
-			if errors.As(err, &addrErr) {
-				switch addrErr.Err {
-				case "missing port in address":
-					fallthrough
-				case "too many colons in address":
-					clientIP = clientAddr
-				default:
-					// Unknown address error, ignore the address.
-				}
+	for i := len(candidateAddresses); i >= 0; i-- {
+		if i > 0 {
+			// Skip any loopback addresses to ensure we don't record any local proxies like grpc-gateway as the client.
+			// If this is the last address in the list, use it even if it's a loopback. This handles local testing cases.
+			candidateAddress := net.ParseIP(candidateAddresses[i])
+			if candidateAddress.IsLoopback() {
+				continue
 			}
 		}
-		// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.
+
+		if clientAddr := candidateAddresses[i]; clientAddr != "" {
+			// It's possible the request metadata had no client address string.
+			clientAddr = strings.TrimSpace(clientAddr)
+			if host, port, err := net.SplitHostPort(clientAddr); err == nil {
+				clientIP = host
+				clientPort = port
+				break
+			} else {
+				var addrErr *net.AddrError
+				if errors.As(err, &addrErr) {
+					switch addrErr.Err {
+					case "missing port in address":
+						fallthrough
+					case "too many colons in address":
+						clientIP = clientAddr
+						break
+					default:
+						// Unknown address error, ignore the address.
+					}
+				}
+			}
+			// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.
+		}
 	}
 
 	if clientIP == "" {
