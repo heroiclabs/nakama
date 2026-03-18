@@ -593,6 +593,8 @@ func extractClientAddress(logger *zap.Logger, candidateAddresses []string, sourc
 	var clientIP, clientPort string
 
 	for i := len(candidateAddresses) - 1; i >= 0; i-- {
+		proxyFound := clientIP != "" || clientPort != ""
+
 		candidateAddress := strings.TrimSpace(candidateAddresses[i])
 		if candidateAddress == "" {
 			// Skip empty candidate addresses, such as from trailing commas in headers.
@@ -608,7 +610,14 @@ func extractClientAddress(logger *zap.Logger, candidateAddresses []string, sourc
 			}
 
 			clientIP = candidateAddress
-			break
+			clientPort = ""
+			if proxyFound {
+				// If we've already seen a valid address, assume that's the proxy and check the next one.
+				break
+			} else {
+				// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
+				continue
+			}
 		}
 
 		// Check if candidate address may be a host:port combination.
@@ -649,7 +658,13 @@ func extractClientAddress(logger *zap.Logger, candidateAddresses []string, sourc
 
 		clientIP = candidateHost
 		clientPort = candidatePort
-		break
+		if proxyFound {
+			// If we've already seen a valid address, assume that's the proxy and check the next one.
+			break
+		} else {
+			// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
+			continue
+		}
 	}
 
 	if clientIP == "" {
