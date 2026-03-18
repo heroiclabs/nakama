@@ -594,6 +594,24 @@ func extractClientAddress(logger *zap.Logger, candidateAddresses []string, sourc
 
 	for i := len(candidateAddresses) - 1; i >= 0; i-- {
 		candidateAddress := strings.TrimSpace(candidateAddresses[i])
+		if candidateAddress == "" {
+			// Skip empty candidate addresses, such as from trailing commas in headers.
+			continue
+		}
+
+		// Check if candidate is an address with no port.
+		if parsedCandidate := net.ParseIP(candidateAddress); parsedCandidate != nil {
+			if i > 0 && parsedCandidate.IsLoopback() {
+				// Skip any loopback addresses to ensure we don't record any local proxies like grpc-gateway as the client.
+				// If this is the last possible address, use it even if it's a loopback. This handles local testing cases.
+				continue
+			}
+
+			clientIP = candidateAddress
+			break
+		}
+
+		// Check if candidate address may be a host:port combination.
 		candidateHost, candidatePort, err := net.SplitHostPort(candidateAddress)
 		if err != nil {
 			var usable bool
@@ -618,9 +636,14 @@ func extractClientAddress(logger *zap.Logger, candidateAddresses []string, sourc
 			}
 		}
 
-		if i > 0 && net.ParseIP(candidateHost).IsLoopback() {
+		parsedCandidate := net.ParseIP(candidateHost)
+		if parsedCandidate == nil {
+			// Host is not a valid address, and must be skipped.
+			continue
+		}
+		if i > 0 && parsedCandidate.IsLoopback() {
 			// Skip any loopback addresses to ensure we don't record any local proxies like grpc-gateway as the client.
-			// If this is the last address in the list, use it even if it's a loopback. This handles local testing cases.
+			// If this is the last possible address, use it even if it's a loopback. This handles local testing cases.
 			continue
 		}
 
