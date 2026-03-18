@@ -562,7 +562,7 @@ func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
 	}
 }
 
-func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (string, string) {
+func extractClientAddressFromContext(logger *zap.Logger, config Config, ctx context.Context) (string, string) {
 	var candidateAddresses []string
 	md, _ := metadata.FromIncomingContext(ctx)
 	if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
@@ -573,10 +573,10 @@ func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (s
 		candidateAddresses = []string{peerInfo.Addr.String()}
 	}
 
-	return extractClientAddress(logger, candidateAddresses, ctx, "context")
+	return extractClientAddress(logger, config, candidateAddresses, ctx, "context")
 }
 
-func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (string, string) {
+func extractClientAddressFromRequest(logger *zap.Logger, config Config, r *http.Request) (string, string) {
 	var candidateAddresses []string
 	if ips := r.Header.Get("x-forwarded-for"); len(ips) > 0 {
 		// Look for a LB header.
@@ -586,14 +586,17 @@ func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (strin
 		candidateAddresses = []string{r.RemoteAddr}
 	}
 
-	return extractClientAddress(logger, candidateAddresses, r, "request")
+	return extractClientAddress(logger, config, candidateAddresses, r, "request")
 }
 
-func extractClientAddress(logger *zap.Logger, candidateAddresses []string, source interface{}, sourceType string) (string, string) {
+func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses []string, source interface{}, sourceType string) (string, string) {
 	var clientIP, clientPort string
+	var proxyCount int
 
 	for i := len(candidateAddresses) - 1; i >= 0; i-- {
-		proxyFound := clientIP != "" || clientPort != ""
+		if clientIP != "" || clientPort != "" {
+			proxyCount++
+		}
 
 		candidateAddress := strings.TrimSpace(candidateAddresses[i])
 		if candidateAddress == "" {
@@ -611,8 +614,8 @@ func extractClientAddress(logger *zap.Logger, candidateAddresses []string, sourc
 
 			clientIP = candidateAddress
 			clientPort = ""
-			if proxyFound {
-				// If we've already seen a valid address, assume that's the proxy and check the next one.
+			if proxyCount >= config.GetSocket().ProxyCount {
+				// If we've already seen the expected number of valid proxy addresses, assume the next one is the client.
 				break
 			} else {
 				// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
@@ -658,8 +661,8 @@ func extractClientAddress(logger *zap.Logger, candidateAddresses []string, sourc
 
 		clientIP = candidateHost
 		clientPort = candidatePort
-		if proxyFound {
-			// If we've already seen a valid address, assume that's the proxy and check the next one.
+		if proxyCount >= config.GetSocket().ProxyCount {
+			// If we've already seen the expected number of valid proxy addresses, assume the next one is the client.
 			break
 		} else {
 			// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
@@ -677,8 +680,8 @@ func extractClientAddress(logger *zap.Logger, candidateAddresses []string, sourc
 	return clientIP, clientPort
 }
 
-func traceApiBefore(ctx context.Context, logger *zap.Logger, metrics Metrics, fullMethodName string, fn func(clientIP, clientPort string) error) error {
-	clientIP, clientPort := extractClientAddressFromContext(logger, ctx)
+func traceApiBefore(ctx context.Context, logger *zap.Logger, config Config, metrics Metrics, fullMethodName string, fn func(clientIP, clientPort string) error) error {
+	clientIP, clientPort := extractClientAddressFromContext(logger, config, ctx)
 	start := time.Now()
 
 	// Execute the before hook itself.
@@ -689,8 +692,8 @@ func traceApiBefore(ctx context.Context, logger *zap.Logger, metrics Metrics, fu
 	return err
 }
 
-func traceApiAfter(ctx context.Context, logger *zap.Logger, metrics Metrics, fullMethodName string, fn func(clientIP, clientPort string) error) {
-	clientIP, clientPort := extractClientAddressFromContext(logger, ctx)
+func traceApiAfter(ctx context.Context, logger *zap.Logger, config Config, metrics Metrics, fullMethodName string, fn func(clientIP, clientPort string) error) {
+	clientIP, clientPort := extractClientAddressFromContext(logger, config, ctx)
 	start := time.Now()
 
 	// Execute the after hook itself.

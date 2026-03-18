@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -44,7 +45,7 @@ func (s *ApiServer) SessionRefresh(ctx context.Context, in *api.SessionRefreshRe
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +86,7 @@ func (s *ApiServer) SessionRefresh(ctx context.Context, in *api.SessionRefreshRe
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return session, nil
@@ -112,17 +113,17 @@ func (s *ApiServer) SessionLogout(ctx context.Context, in *api.SessionLogoutRequ
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if err := SessionLogout(s.config, s.sessionCache, userID, in.Token, in.RefreshToken); err != nil {
-		if err == ErrSessionTokenInvalid {
+		if errors.Is(err, ErrSessionTokenInvalid) {
 			return nil, status.Error(codes.InvalidArgument, "Session token invalid.")
 		}
-		if err == ErrRefreshTokenInvalid {
+		if errors.Is(err, ErrRefreshTokenInvalid) {
 			return nil, status.Error(codes.InvalidArgument, "Refresh token invalid.")
 		}
 		logger.Error("Error processing session logout.", zap.Error(err))
@@ -136,7 +137,7 @@ func (s *ApiServer) SessionLogout(ctx context.Context, in *api.SessionLogoutRequ
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return &emptypb.Empty{}, nil

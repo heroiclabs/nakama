@@ -92,7 +92,7 @@ func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username,
 
 func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.AuthenticateRequest) (*console.ConsoleSession, error) {
 	logger, _ := LoggerWithTraceId(ctx, s.logger)
-	ip, _ := extractClientAddressFromContext(logger, ctx)
+	ip, _ := extractClientAddressFromContext(logger, s.config, ctx)
 	if !s.loginAttemptCache.Allow(in.Username, ip) {
 		return nil, status.Error(codes.ResourceExhausted, "Try again later.")
 	}

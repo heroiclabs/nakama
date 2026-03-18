@@ -91,7 +91,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			return
 		}
 
-		clientIP, clientPort := extractClientAddressFromRequest(logger, r)
+		clientIP, clientPort := extractClientAddressFromRequest(logger, config, r)
 		status, _ := strconv.ParseBool(r.URL.Query().Get("status"))
 		sessionID := uuid.Must(sessionIdGen.NewV1())
 
