@@ -582,7 +582,7 @@ func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (strin
 		// Look for a LB header.
 		candidateAddresses = strings.Split(ips, ",")
 	} else {
-		// If missing use the
+		// If missing, fall back to the remote address.
 		candidateAddresses = []string{r.RemoteAddr}
 	}
 
@@ -592,39 +592,41 @@ func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (strin
 func extractClientAddress(logger *zap.Logger, candidateAddresses []string, source interface{}, sourceType string) (string, string) {
 	var clientIP, clientPort string
 
-	for i := len(candidateAddresses); i >= 0; i-- {
-		if i > 0 {
-			// Skip any loopback addresses to ensure we don't record any local proxies like grpc-gateway as the client.
-			// If this is the last address in the list, use it even if it's a loopback. This handles local testing cases.
-			candidateAddress := net.ParseIP(candidateAddresses[i])
-			if candidateAddress.IsLoopback() {
+	for i := len(candidateAddresses) - 1; i >= 0; i-- {
+		candidateAddress := strings.TrimSpace(candidateAddresses[i])
+		candidateHost, candidatePort, err := net.SplitHostPort(candidateAddress)
+		if err != nil {
+			var usable bool
+			var addrErr *net.AddrError
+			if errors.As(err, &addrErr) {
+				// If it's a *net.AddrError the value may still be usable depending on the error itself.
+				switch addrErr.Err {
+				case "missing port in address":
+					fallthrough
+				case "too many colons in address":
+					candidateHost = candidateAddress
+					usable = true
+				default:
+					// Unknown address error, ignore the address.
+				}
+				if !usable {
+					continue
+				}
+			} else {
+				// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.
 				continue
 			}
 		}
 
-		if clientAddr := candidateAddresses[i]; clientAddr != "" {
-			// It's possible the request metadata had no client address string.
-			clientAddr = strings.TrimSpace(clientAddr)
-			if host, port, err := net.SplitHostPort(clientAddr); err == nil {
-				clientIP = host
-				clientPort = port
-				break
-			} else {
-				var addrErr *net.AddrError
-				if errors.As(err, &addrErr) {
-					switch addrErr.Err {
-					case "missing port in address":
-						fallthrough
-					case "too many colons in address":
-						clientIP = clientAddr
-						break
-					default:
-						// Unknown address error, ignore the address.
-					}
-				}
-			}
-			// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.
+		if i > 0 && net.ParseIP(candidateHost).IsLoopback() {
+			// Skip any loopback addresses to ensure we don't record any local proxies like grpc-gateway as the client.
+			// If this is the last address in the list, use it even if it's a loopback. This handles local testing cases.
+			continue
 		}
+
+		clientIP = candidateHost
+		clientPort = candidatePort
+		break
 	}
 
 	if clientIP == "" {
