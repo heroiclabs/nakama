@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -46,7 +47,7 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -75,11 +76,11 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 	}
 
 	messageList, err := ChannelMessagesList(ctx, logger, s.db, userID, streamConversionResult.Stream, in.ChannelId, limit, forward, in.Cursor)
-	if err == runtime.ErrChannelCursorInvalid {
+	if errors.Is(err, runtime.ErrChannelCursorInvalid) {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
-	} else if err == runtime.ErrChannelGroupNotFound {
+	} else if errors.Is(err, runtime.ErrChannelGroupNotFound) {
 		return nil, status.Error(codes.InvalidArgument, "Group not found.")
-	} else if err == runtime.ErrChannelIDInvalid {
+	} else if errors.Is(err, runtime.ErrChannelIDInvalid) {
 		return nil, status.Error(codes.InvalidArgument, "Channel not found.")
 	} else if err != nil {
 		return nil, status.Error(codes.Internal, "Error listing messages from channel.")
@@ -92,7 +93,7 @@ func (s *ApiServer) ListChannelMessages(ctx context.Context, in *api.ListChannel
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return messageList, nil
