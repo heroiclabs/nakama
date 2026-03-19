@@ -620,13 +620,39 @@ function rpcGetTimePeriodLeaderboard(ctx, logger, nk, payload) {
         try {
             var result = nk.leaderboardRecordsList(leaderboardId, ownerIds, limit, cursor, 0);
             
+            // Enrich records with avatar URLs
+            var records = result.records || [];
+            try {
+                var ownerIdSet = {};
+                for (var r = 0; r < records.length; r++) {
+                    if (records[r].ownerId) ownerIdSet[records[r].ownerId] = true;
+                }
+                var ownerIdList = Object.keys(ownerIdSet);
+                if (ownerIdList.length > 0) {
+                    var accounts = nk.accountsGetId(ownerIdList);
+                    var avatarMap = {};
+                    if (accounts) {
+                        for (var a = 0; a < accounts.length; a++) {
+                            if (accounts[a] && accounts[a].user) {
+                                avatarMap[accounts[a].user.id] = accounts[a].user.avatarUrl || "";
+                            }
+                        }
+                    }
+                    for (var r2 = 0; r2 < records.length; r2++) {
+                        records[r2].avatarUrl = avatarMap[records[r2].ownerId] || "";
+                    }
+                }
+            } catch (avatarErr) {
+                logger.warn("[Leaderboards] Avatar enrichment failed (non-fatal): " + avatarErr.message);
+            }
+
             return JSON.stringify({
                 success: true,
                 leaderboardId: leaderboardId,
                 period: period,
                 gameId: data.gameId,
                 scope: data.scope || "game",
-                records: result.records || [],
+                records: records,
                 ownerRecords: result.ownerRecords || [],
                 prevCursor: result.prevCursor || "",
                 nextCursor: result.nextCursor || "",

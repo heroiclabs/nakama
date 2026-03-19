@@ -1,14 +1,29 @@
 /**
- * fortune_wheel.js — Weekly Fortune Wheel Backend
+ * fortune_wheel.js — Fortune Wheel Backend (every 3 days)
  * RPCs: fortune_wheel_get_state, fortune_wheel_spin
  * 
+ * SERVER-AUTHORITATIVE: Server picks the random reward — client only animates.
  * Storage: fortune_wheel/state per user
- * Rewards: XP, Coins (wallet), AudiobookToken (storage), Shield (storage)
+ * Rewards: XP, Coins (wallet), AudiobookToken (storage), Shield (storage), Gems (wallet)
  */
 
-var COOLDOWN_DAYS = 7;
+var COOLDOWN_DAYS = 3;
 
-// fortune_wheel_get_state — Get current wheel state
+// Wheel segments with probability weights — SERVER is source of truth
+var SEGMENTS = [
+    { type: "XP",             amount: 100,  label: "100 XP",            weight: 20 },
+    { type: "Coins",          amount: 50,   label: "50 Coins",          weight: 25 },
+    { type: "XP",             amount: 250,  label: "250 XP",            weight: 15 },
+    { type: "AudiobookToken", amount: 1,    label: "Audiobook Token",   weight: 8  },
+    { type: "Coins",          amount: 150,  label: "150 Coins",         weight: 12 },
+    { type: "Shield",         amount: 24,   label: "24h Shield",        weight: 10 },
+    { type: "XP",             amount: 500,  label: "500 XP",            weight: 5  },
+    { type: "AudiobookToken", amount: 2,    label: "2 Audiobook Tokens",weight: 5  }
+];
+
+// ===== RPCs =====
+
+// fortune_wheel_get_state — Get current wheel state + segments for client rendering
 var fortuneWheelGetState = function(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
@@ -17,13 +32,18 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
         }
 
         var state = getWheelState(nk, userId);
+        var canSpin = canUserSpin(state);
 
         return JSON.stringify({
             success: true,
+            canSpin: canSpin,
             nextSpinTime: state.nextSpinTime || null,
             totalSpins: state.totalSpins || 0,
             lastReward: state.lastReward || null,
-            canSpin: canUserSpin(state)
+            cooldownDays: COOLDOWN_DAYS,
+            segments: SEGMENTS.map(function(s) {
+                return { type: s.type, amount: s.amount, label: s.label };
+            })
         });
     } catch (e) {
         logger.error("fortune_wheel_get_state error: " + e.message);
@@ -31,7 +51,7 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
     }
 };
 
-// fortune_wheel_spin — Record a spin result and grant rewards
+// fortune_wheel_spin — SERVER picks reward, grants it, returns result
 var fortuneWheelSpin = function(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
@@ -41,32 +61,22 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
 
         var state = getWheelState(nk, userId);
 
-        // Cooldown check
+        // Cooldown check — server-authoritative
         if (!canUserSpin(state)) {
             return JSON.stringify({
                 success: false,
                 error: "On cooldown",
-                nextSpinTime: state.nextSpinTime
+                nextSpinTime: state.nextSpinTime,
+                canSpin: false
             });
         }
 
-        var input = {};
-        try { input = JSON.parse(payload); } catch(e) { /* empty ok */ }
-
-        var rewardType = input.rewardType || "XP";
-        var rewardAmount = input.rewardAmount || 0;
-        var rewardLabel = input.rewardLabel || "";
-
-        // Server-side validation: cap reward amounts to prevent exploitation
-        var maxRewards = { "XP": 500, "Coins": 150, "AudiobookToken": 2, "Shield": 24 };
-        var maxAllowed = maxRewards[rewardType] || 0;
-        if (rewardAmount > maxAllowed || rewardAmount <= 0) {
-            logger.warn("fortune_wheel_spin: Invalid reward " + rewardType + "=" + rewardAmount + " from " + userId + ", capping to " + maxAllowed);
-            rewardAmount = Math.min(Math.max(rewardAmount, 1), maxAllowed);
-        }
+        // SERVER picks the reward (weighted random) — client has NO say
+        var segmentIndex = getWeightedRandomIndex();
+        var reward = SEGMENTS[segmentIndex];
 
         // Grant rewards server-side
-        grantReward(nk, userId, rewardType, rewardAmount, logger);
+        grantReward(nk, userId, reward.type, reward.amount, logger);
 
         // Update state
         var now = new Date();
@@ -75,22 +85,29 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         state.nextSpinTime = nextSpin.toISOString();
         state.totalSpins = (state.totalSpins || 0) + 1;
         state.lastReward = {
-            type: rewardType,
-            amount: rewardAmount,
-            label: rewardLabel,
+            type: reward.type,
+            amount: reward.amount,
+            label: reward.label,
+            segmentIndex: segmentIndex,
             timestamp: now.toISOString()
         };
         state.history = state.history || [];
         state.history.push(state.lastReward);
-        if (state.history.length > 52) state.history = state.history.slice(-52); // Keep 1 year
+        // Keep last 120 entries (~1 year at every-3-day spins)
+        if (state.history.length > 120) state.history = state.history.slice(-120);
 
         saveWheelState(nk, userId, state);
 
-        logger.info("fortune_wheel_spin: " + userId + " won " + rewardLabel);
+        logger.info("fortune_wheel_spin: " + userId + " won segment " + segmentIndex + " → " + reward.label);
 
         return JSON.stringify({
             success: true,
-            reward: state.lastReward,
+            segmentIndex: segmentIndex,
+            reward: {
+                type: reward.type,
+                amount: reward.amount,
+                label: reward.label
+            },
             nextSpinTime: state.nextSpinTime,
             totalSpins: state.totalSpins
         });
@@ -138,10 +155,29 @@ function canUserSpin(state) {
     return new Date() >= nextSpin;
 }
 
+/**
+ * Server-side weighted random selection.
+ * Mirrors client segment order so segmentIndex maps directly to UI slice.
+ */
+function getWeightedRandomIndex() {
+    var totalWeight = 0;
+    for (var i = 0; i < SEGMENTS.length; i++) {
+        totalWeight += SEGMENTS[i].weight;
+    }
+
+    var roll = Math.floor(Math.random() * totalWeight);
+    var cumulative = 0;
+
+    for (var i = 0; i < SEGMENTS.length; i++) {
+        cumulative += SEGMENTS[i].weight;
+        if (roll < cumulative) return i;
+    }
+    return SEGMENTS.length - 1; // Fallback
+}
+
 function grantReward(nk, userId, rewardType, amount, logger) {
     switch (rewardType) {
         case "XP":
-            // Grant XP via wallet
             var xpChangeset = {};
             xpChangeset["xp"] = +amount;
             try { nk.walletUpdate(userId, xpChangeset, {}, true); }
@@ -156,7 +192,6 @@ function grantReward(nk, userId, rewardType, amount, logger) {
             break;
 
         case "AudiobookToken":
-            // Store tokens in user storage
             try {
                 var tokenObj = nk.storageRead([{
                     collection: "audiobook",
@@ -177,7 +212,6 @@ function grantReward(nk, userId, rewardType, amount, logger) {
             break;
 
         case "Shield":
-            // Store shield grant for client-side pickup
             try {
                 nk.storageWrite([{
                     collection: "streak_shield",

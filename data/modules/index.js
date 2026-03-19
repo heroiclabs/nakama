@@ -10188,6 +10188,56 @@ function getAllLeaderboards(ctx, logger, nk, payload) {
             }
         }
 
+        // Enrich records with avatar URLs from user accounts
+        try {
+            // Collect all unique owner IDs from all leaderboards
+            var ownerIdSet = {};
+            for (var lbKey in leaderboards) {
+                var lb = leaderboards[lbKey];
+                if (lb.records) {
+                    for (var r = 0; r < lb.records.length; r++) {
+                        if (lb.records[r].ownerId) {
+                            ownerIdSet[lb.records[r].ownerId] = true;
+                        }
+                    }
+                }
+                if (lb.user_record && lb.user_record.ownerId) {
+                    ownerIdSet[lb.user_record.ownerId] = true;
+                }
+            }
+            
+            var ownerIdList = Object.keys(ownerIdSet);
+            if (ownerIdList.length > 0) {
+                var userAccounts = nk.accountsGetId(ownerIdList);
+                // Build lookup map: userId -> avatarUrl
+                var avatarMap = {};
+                if (userAccounts) {
+                    for (var a = 0; a < userAccounts.length; a++) {
+                        if (userAccounts[a] && userAccounts[a].user) {
+                            avatarMap[userAccounts[a].user.id] = userAccounts[a].user.avatarUrl || "";
+                        }
+                    }
+                }
+                
+                // Inject avatarUrl into all records
+                for (var lbKey2 in leaderboards) {
+                    var lb2 = leaderboards[lbKey2];
+                    if (lb2.records) {
+                        for (var r2 = 0; r2 < lb2.records.length; r2++) {
+                            lb2.records[r2].avatarUrl = avatarMap[lb2.records[r2].ownerId] || "";
+                        }
+                    }
+                    if (lb2.user_record && lb2.user_record.ownerId) {
+                        lb2.user_record.avatarUrl = avatarMap[lb2.user_record.ownerId] || "";
+                    }
+                }
+                
+                logger.info("[NAKAMA] Enriched " + ownerIdList.length + " leaderboard users with avatar URLs");
+            }
+        } catch (avatarErr) {
+            logger.warn("[NAKAMA] Failed to enrich leaderboard avatars (non-fatal): " + avatarErr.message);
+        }
+
         return JSON.stringify({
             success: true,
             device_id: deviceId,

@@ -184,6 +184,7 @@ function rpcFriendsList(ctx, logger, nk, payload) {
                 userId: friend.user.id,
                 username: friend.user.username,
                 displayName: friend.user.displayName,
+                avatarUrl: friend.user.avatarUrl || "",
                 online: friend.user.online,
                 state: friend.state
             });

@@ -21,6 +21,53 @@ var KEY_PREFERENCES = "prefs";
 var KEY_SESSION = "session";
 var KEY_RETENTION = "retention";
 
+// ============================================================================
+// DEFAULT AVATAR SYSTEM
+// ============================================================================
+var DEFAULT_AVATARS = [
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Female1.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Female2.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Female3.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Group-1.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Male1.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Male2.png"
+];
+
+/**
+ * Deterministically pick a default avatar from the pool.
+ * Same userId always gets the same avatar (hash-based, not random).
+ */
+function getDefaultAvatarUrl(userId) {
+    var hash = 0;
+    for (var i = 0; i < userId.length; i++) {
+        hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+        hash |= 0; // Convert to 32-bit integer
+    }
+    return DEFAULT_AVATARS[Math.abs(hash) % DEFAULT_AVATARS.length];
+}
+
+/**
+ * Ensure a user has an avatar URL. If not, assign a deterministic default.
+ * Non-fatal — wrapped in try-catch to never block authentication.
+ */
+function ensureUserHasAvatar(nk, logger, userId) {
+    try {
+        var accounts = nk.accountsGetId([userId]);
+        if (accounts && accounts.length > 0) {
+            var account = accounts[0];
+            if (!account.user.avatarUrl || account.user.avatarUrl === "") {
+                var defaultAvatar = getDefaultAvatarUrl(userId);
+                nk.accountUpdateId(userId, null, null, null, null, null, defaultAvatar, null);
+                logger.info("[Onboarding] Assigned default avatar to user " + userId + ": " + defaultAvatar);
+                return true;
+            }
+        }
+    } catch (avatarErr) {
+        logger.warn("[Onboarding] Failed to assign default avatar for " + userId + ": " + avatarErr.message);
+    }
+    return false;
+}
+
 /**
  * Initialize onboarding module
  */
@@ -67,9 +114,13 @@ function afterAuthHook(ctx, logger, nk, data, request) {
             // New user - initialize onboarding state
             logger.info(`[Onboarding] New user detected: ${userId}`);
             initializeNewUser(nk, logger, userId);
+            // Assign default avatar for new user
+            ensureUserHasAvatar(nk, logger, userId);
         } else {
             // Returning user - track session
             trackUserSession(nk, logger, userId);
+            // Backfill avatar for returning users who don't have one
+            ensureUserHasAvatar(nk, logger, userId);
         }
     } catch (e) {
         logger.error(`[Onboarding] Auth hook error: ${e.message}`);
