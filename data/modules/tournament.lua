@@ -96,3 +96,4 @@ local function addattempt_tournament(_context, payload)
   nk.tournament_add_attempt(args.tournament_id, args.owner_id, args.count)
 end
 nk.register_rpc(addattempt_tournament, "clientrpc.addattempt_tournament")
+

@@ -18,6 +18,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Correct field usage in voided Google In-App Purchase subscription notifications.
 - Fix an issue where the Storage Index would keep entries which should have been filtered.
+- Fix an issue that could prevent leaderboard/tournament end/reset hooks from firing.
 - Avoid logging unnecessary context cancellation errors on storage operations.
 
 ## [3.37.0] - 2026-02-12
