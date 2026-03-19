@@ -976,10 +976,10 @@ func (c *Client) requestRaw(ctx context.Context, provider, path string, headers 
 	case 200:
 		return body, nil
 	case 401:
-		return nil, &UnauthorizedError{Err: fmt.Errorf("%v url: %q, status code: %q, body: %q", provider, path, resp.StatusCode, body)}
+		return nil, &UnauthorizedError{Err: fmt.Errorf("%v url: %q, status code: %d, body: %q", provider, path, resp.StatusCode, body)}
 	default:
 		c.logger.Warn("error response code from social request", zap.String("provider", provider), zap.Int("code", resp.StatusCode), zap.String("body", string(body)))
-		return nil, fmt.Errorf("%v url: %q, status code: %q, body: %q", provider, path, resp.StatusCode, body)
+		return nil, fmt.Errorf("%v url: %q, status code: %d, body: %q", provider, path, resp.StatusCode, body)
 	}
 }
 
