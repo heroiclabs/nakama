@@ -201,7 +201,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		uid = userID.String()
 	}
 
-	clientIP, clientPort := extractClientAddressFromRequest(logger, r)
+	clientIP, clientPort := extractClientAddressFromRequest(logger, s.config, r)
 
 	// Extract http headers
 	headers := make(map[string][]string)
@@ -313,7 +313,7 @@ func (s *ApiServer) RpcFunc(ctx context.Context, in *api.Rpc) (*api.Rpc, error) 
 		expiry = e.(int64)
 	}
 
-	clientIP, clientPort := extractClientAddressFromContext(s.logger, ctx)
+	clientIP, clientPort := extractClientAddressFromContext(s.logger, s.config, ctx)
 
 	var traceID string
 	if traceId := ctx.Value(ctxTraceId{}); traceId != nil {

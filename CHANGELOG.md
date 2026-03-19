@@ -5,10 +5,21 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Added
+- Add runtime Satori client feature to delete identities.
+- Add device identifiers as lookup options for runtime account get operations.
+- Add Go runtime function to import an account export snapshot.
+- Add TypeScript/JavaScript runtime function to import an account export snapshot.
+- Add Lua runtime function to import an account export snapshot.
+
+### Changed
+- Better logic for determining client IP addresses from incoming requests.
+
 ### Fixed
 - Correct field usage in voided Google In-App Purchase subscription notifications.
 - Fix an issue where the Storage Index would keep entries which should have been filtered.
 - Fix an issue that could prevent leaderboard/tournament end/reset hooks from firing.
+- Avoid logging unnecessary context cancellation errors on storage operations.
 
 ## [3.37.0] - 2026-02-12
 ### Added

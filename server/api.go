@@ -562,55 +562,112 @@ func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
 	}
 }
 
-func extractClientAddressFromContext(logger *zap.Logger, ctx context.Context) (string, string) {
-	var clientAddr string
+func extractClientAddressFromContext(logger *zap.Logger, config Config, ctx context.Context) (string, string) {
+	var candidateAddresses []string
 	md, _ := metadata.FromIncomingContext(ctx)
 	if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
 		// Look for gRPC-Gateway / LB header.
-		clientAddr = strings.Split(ips[0], ",")[0]
+		candidateAddresses = strings.Split(ips[0], ",")
 	} else if peerInfo, ok := peer.FromContext(ctx); ok {
 		// If missing, try to look up gRPC peer info.
-		clientAddr = peerInfo.Addr.String()
+		candidateAddresses = []string{peerInfo.Addr.String()}
 	}
 
-	return extractClientAddress(logger, clientAddr, ctx, "context")
+	return extractClientAddress(logger, config, candidateAddresses, ctx, "context")
 }
 
-func extractClientAddressFromRequest(logger *zap.Logger, r *http.Request) (string, string) {
-	var clientAddr string
+func extractClientAddressFromRequest(logger *zap.Logger, config Config, r *http.Request) (string, string) {
+	var candidateAddresses []string
 	if ips := r.Header.Get("x-forwarded-for"); len(ips) > 0 {
-		clientAddr = strings.Split(ips, ",")[0]
+		// Look for a LB header.
+		candidateAddresses = strings.Split(ips, ",")
 	} else {
-		clientAddr = r.RemoteAddr
+		// If missing, fall back to the remote address.
+		candidateAddresses = []string{r.RemoteAddr}
 	}
 
-	return extractClientAddress(logger, clientAddr, r, "request")
+	return extractClientAddress(logger, config, candidateAddresses, r, "request")
 }
 
-func extractClientAddress(logger *zap.Logger, clientAddr string, source interface{}, sourceType string) (string, string) {
+func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses []string, source interface{}, sourceType string) (string, string) {
 	var clientIP, clientPort string
+	var proxyCount int
 
-	if clientAddr != "" {
-		// It's possible the request metadata had no client address string.
+	for i := len(candidateAddresses) - 1; i >= 0; i-- {
+		if clientIP != "" || clientPort != "" {
+			proxyCount++
+		}
 
-		clientAddr = strings.TrimSpace(clientAddr)
-		if host, port, err := net.SplitHostPort(clientAddr); err == nil {
-			clientIP = host
-			clientPort = port
-		} else {
+		candidateAddress := strings.TrimSpace(candidateAddresses[i])
+		if candidateAddress == "" {
+			// Skip empty candidate addresses, such as from trailing commas in headers.
+			continue
+		}
+
+		// Check if candidate is an address with no port.
+		if parsedCandidate := net.ParseIP(candidateAddress); parsedCandidate != nil {
+			if i > 0 && parsedCandidate.IsLoopback() {
+				// Skip any loopback addresses to ensure we don't record any local proxies like grpc-gateway as the client.
+				// If this is the last possible address, use it even if it's a loopback. This handles local testing cases.
+				continue
+			}
+
+			clientIP = candidateAddress
+			clientPort = ""
+			if proxyCount >= config.GetSocket().ProxyCount {
+				// If we've already seen the expected number of valid proxy addresses, assume the next one is the client.
+				break
+			} else {
+				// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
+				continue
+			}
+		}
+
+		// Check if candidate address may be a host:port combination.
+		candidateHost, candidatePort, err := net.SplitHostPort(candidateAddress)
+		if err != nil {
+			var usable bool
 			var addrErr *net.AddrError
 			if errors.As(err, &addrErr) {
+				// If it's a *net.AddrError the value may still be usable depending on the error itself.
 				switch addrErr.Err {
 				case "missing port in address":
 					fallthrough
 				case "too many colons in address":
-					clientIP = clientAddr
+					candidateHost = candidateAddress
+					usable = true
 				default:
 					// Unknown address error, ignore the address.
 				}
+				if !usable {
+					continue
+				}
+			} else {
+				// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.
+				continue
 			}
 		}
-		// At this point err may still be a non-nil value that's not a *net.AddrError, ignore the address.
+
+		parsedCandidate := net.ParseIP(candidateHost)
+		if parsedCandidate == nil {
+			// Host is not a valid address, and must be skipped.
+			continue
+		}
+		if i > 0 && parsedCandidate.IsLoopback() {
+			// Skip any loopback addresses to ensure we don't record any local proxies like grpc-gateway as the client.
+			// If this is the last possible address, use it even if it's a loopback. This handles local testing cases.
+			continue
+		}
+
+		clientIP = candidateHost
+		clientPort = candidatePort
+		if proxyCount >= config.GetSocket().ProxyCount {
+			// If we've already seen the expected number of valid proxy addresses, assume the next one is the client.
+			break
+		} else {
+			// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
+			continue
+		}
 	}
 
 	if clientIP == "" {
@@ -623,8 +680,8 @@ func extractClientAddress(logger *zap.Logger, clientAddr string, source interfac
 	return clientIP, clientPort
 }
 
-func traceApiBefore(ctx context.Context, logger *zap.Logger, metrics Metrics, fullMethodName string, fn func(clientIP, clientPort string) error) error {
-	clientIP, clientPort := extractClientAddressFromContext(logger, ctx)
+func traceApiBefore(ctx context.Context, logger *zap.Logger, config Config, metrics Metrics, fullMethodName string, fn func(clientIP, clientPort string) error) error {
+	clientIP, clientPort := extractClientAddressFromContext(logger, config, ctx)
 	start := time.Now()
 
 	// Execute the before hook itself.
@@ -635,8 +692,8 @@ func traceApiBefore(ctx context.Context, logger *zap.Logger, metrics Metrics, fu
 	return err
 }
 
-func traceApiAfter(ctx context.Context, logger *zap.Logger, metrics Metrics, fullMethodName string, fn func(clientIP, clientPort string) error) {
-	clientIP, clientPort := extractClientAddressFromContext(logger, ctx)
+func traceApiAfter(ctx context.Context, logger *zap.Logger, config Config, metrics Metrics, fullMethodName string, fn func(clientIP, clientPort string) error) {
+	clientIP, clientPort := extractClientAddressFromContext(logger, config, ctx)
 	start := time.Now()
 
 	// Execute the after hook itself.

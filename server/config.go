@@ -835,6 +835,7 @@ type SocketConfig struct {
 	SSLCertificate       string            `yaml:"ssl_certificate" json:"ssl_certificate" usage:"Path to certificate file if you want the server to use SSL directly. Must also supply ssl_private_key. NOT recommended for production use."`
 	SSLPrivateKey        string            `yaml:"ssl_private_key" json:"ssl_private_key" usage:"Path to private key file if you want the server to use SSL directly. Must also supply ssl_certificate. NOT recommended for production use."`
 	ResponseHeaders      []string          `yaml:"response_headers" json:"response_headers" usage:"Additional headers to send to clients with every response. Values here are only used if the response would not otherwise contain a value for the specified headers."`
+	ProxyCount           int               `yaml:"proxy_count" json:"proxy_count" usage:"Number of proxies (such as load balancers) configured in front of the server. Default 1."`
 	Headers              map[string]string `yaml:"-" json:"-"` // Created by parsing ResponseHeaders above, not set from input args directly.
 	CertPEMBlock         []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLCertificate, not set from input args directly.
 	KeyPEMBlock          []byte            `yaml:"-" json:"-"` // Created by fully reading the file contents of SSLPrivateKey, not set from input args directly.
@@ -914,6 +915,7 @@ func NewSocketConfig() *SocketConfig {
 		OutgoingQueueSize:    64,
 		SSLCertificate:       "",
 		SSLPrivateKey:        "",
+		ProxyCount:           1,
 	}
 }
 

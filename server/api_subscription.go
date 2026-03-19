@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -46,7 +47,7 @@ func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.Valid
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +78,7 @@ func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.Valid
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return validation, nil
@@ -104,7 +105,7 @@ func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.Vali
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +136,7 @@ func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.Vali
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return validation, nil
@@ -162,7 +163,7 @@ func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscript
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -188,7 +189,7 @@ func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscript
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return subscriptions, nil
@@ -215,7 +216,7 @@ func (s *ApiServer) GetSubscription(ctx context.Context, in *api.GetSubscription
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +224,7 @@ func (s *ApiServer) GetSubscription(ctx context.Context, in *api.GetSubscription
 
 	sub, err := GetSubscriptionByProductId(ctx, logger, s.db, userID.String(), in.ProductId)
 	if err != nil {
-		if err == ErrSubscriptionNotFound {
+		if errors.Is(err, ErrSubscriptionNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, err
@@ -236,7 +237,7 @@ func (s *ApiServer) GetSubscription(ctx context.Context, in *api.GetSubscription
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return sub, nil

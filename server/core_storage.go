@@ -565,7 +565,9 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 			funcObjects.Objects = append(funcObjects.Objects, o)
 		}
 		if err := rows.Err(); err != nil {
-			logger.Error("Could not read storage objects.", zap.Error(err))
+			if !errors.Is(err, context.Canceled) {
+				logger.Error("Could not read storage objects.", zap.Error(err))
+			}
 			return err
 		}
 		objects = funcObjects

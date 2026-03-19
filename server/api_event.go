@@ -44,7 +44,7 @@ func (s *ApiServer) Event(ctx context.Context, in *api.Event) (*emptypb.Empty, e
 		}
 
 		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +55,7 @@ func (s *ApiServer) Event(ctx context.Context, in *api.Event) (*emptypb.Empty, e
 
 	// Add event to processing queue if there are any event handlers registered.
 	if fn := s.runtime.Event(); fn != nil {
-		clientIP, clientPort := extractClientAddressFromContext(logger, ctx)
+		clientIP, clientPort := extractClientAddressFromContext(logger, s.config, ctx)
 		evtCtx := NewRuntimeGoContext(ctx, s.config.GetName(), s.version, s.config.GetRuntime().Environment, RuntimeExecutionModeEvent, nil, nil, "", ctx.Value(ctxExpiryKey{}).(int64), ctx.Value(ctxUserIDKey{}).(uuid.UUID).String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), "", clientIP, clientPort, "")
 		fn(evtCtx, in)
 	}
@@ -67,7 +67,7 @@ func (s *ApiServer) Event(ctx context.Context, in *api.Event) (*emptypb.Empty, e
 		}
 
 		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
 	}
 
 	return &emptypb.Empty{}, nil

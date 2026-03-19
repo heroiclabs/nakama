@@ -47,6 +47,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v3/social"
@@ -202,6 +203,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"account_update_id":                  n.accountUpdateId,
 		"account_delete_id":                  n.accountDeleteId,
 		"account_export_id":                  n.accountExportId,
+		"account_import_id":                  n.accountImportId,
 		"users_get_id":                       n.usersGetId,
 		"users_get_username":                 n.usersGetUsername,
 		"users_get_friend_status":            n.usersGetFriendStatus,
@@ -2562,45 +2564,61 @@ func (n *RuntimeLuaNakamaModule) accountGetId(l *lua.LState) int {
 
 // @group accounts
 // @summary Fetch information for multiple accounts by user IDs.
-// @param userIDs(type=table) Table of user IDs to fetch information for. Must be valid UUID.
+// @param userIDs(type=table, optional=true) Table of user IDs to fetch information for. Must be valid UUID when supplied.
+// @param deviceIDs(type=table, optional=true) Table of device IDs to fetch information for.
 // @return account(Table) Table of accounts.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) accountsGetId(l *lua.LState) int {
 	// Input table validation.
 	userIDs := l.OptTable(1, nil)
-	if userIDs == nil {
-		l.ArgError(1, "invalid user id list")
-		return 0
-	}
-	if userIDs.Len() == 0 {
-		l.Push(l.CreateTable(0, 0))
-		return 1
-	}
-
-	uids := make([]string, 0, userIDs.Len())
-	var conversionError bool
-	userIDs.ForEach(func(k lua.LValue, v lua.LValue) {
+	var uids []string
+	if userIDs != nil && userIDs.Len() > 0 {
+		uids = make([]string, 0, userIDs.Len())
+		var conversionError bool
+		userIDs.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(1, "user id must be a string")
+				conversionError = true
+				return
+			}
+			vs := v.String()
+			if _, err := uuid.FromString(vs); err != nil {
+				l.ArgError(1, "user id must be a valid identifier string")
+				conversionError = true
+				return
+			}
+			uids = append(uids, vs)
+		})
 		if conversionError {
-			return
+			return 0
 		}
-		if v.Type() != lua.LTString {
-			l.ArgError(1, "user id must be a string")
-			conversionError = true
-			return
-		}
-		vs := v.String()
-		if _, err := uuid.FromString(vs); err != nil {
-			l.ArgError(1, "user id must be a valid identifier string")
-			conversionError = true
-			return
-		}
-		uids = append(uids, vs)
-	})
-	if conversionError {
-		return 0
 	}
 
-	accounts, err := GetAccounts(l.Context(), n.logger, n.db, n.statusRegistry, uids)
+	deviceIDs := l.OptTable(2, nil)
+	var dids []string
+	if deviceIDs != nil && deviceIDs.Len() > 0 {
+		dids = make([]string, 0, deviceIDs.Len())
+		var conversionError bool
+		deviceIDs.ForEach(func(k lua.LValue, v lua.LValue) {
+			if conversionError {
+				return
+			}
+			if v.Type() != lua.LTString {
+				l.ArgError(2, "device id must be a string")
+				conversionError = true
+				return
+			}
+			dids = append(dids, v.String())
+		})
+		if conversionError {
+			return 0
+		}
+	}
+
+	accounts, err := GetAccounts(l.Context(), n.logger, n.db, n.statusRegistry, uids, dids)
 	if err != nil {
 		l.RaiseError("failed to get accounts: %s", err.Error())
 		return 0
@@ -9923,6 +9941,128 @@ func (n *RuntimeLuaNakamaModule) accountExportId(l *lua.LState) int {
 	}
 
 	l.Push(lua.LString(exportString))
+	return 1
+}
+
+// @group accounts
+// @summary Import user account data, optionally overwriting a given user ID.
+// @param data(type=string) An account export string to import.
+// @param userID(type=string, optional=true) Optional user ID to import into. Must be valid UUID.
+// @return account(table) All account information including wallet, device IDs and more.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) accountImportId(l *lua.LState) int {
+	data := l.CheckString(1)
+	if data == "" {
+		l.ArgError(1, "expects data to be present")
+		return 0
+	}
+	d := &console.AccountExport{}
+	if err := json.Unmarshal([]byte(data), d); err != nil {
+		l.ArgError(1, "expects data to be a valid account export format")
+		return 0
+	}
+
+	userID := l.OptString(2, "")
+	uid := uuid.Nil
+	if userID != "" {
+		var err error
+		uid, err = uuid.FromString(userID)
+		if err != nil {
+			l.ArgError(2, "expects user ID to be a valid identifier")
+			return 0
+		}
+	}
+
+	account, err := ImportAccount(l.Context(), n.logger, n.db, n.statusRegistry, uid, d)
+	if err != nil {
+		l.RaiseError("error importing account: %v", err.Error())
+		return 0
+	}
+
+	if account == nil {
+		l.RaiseError("account import returned no data")
+		return 0
+	}
+
+	accountTable := l.CreateTable(0, 25)
+	accountTable.RawSetString("user_id", lua.LString(account.Account.User.Id))
+	accountTable.RawSetString("username", lua.LString(account.Account.User.Username))
+	accountTable.RawSetString("display_name", lua.LString(account.Account.User.DisplayName))
+	accountTable.RawSetString("avatar_url", lua.LString(account.Account.User.AvatarUrl))
+	accountTable.RawSetString("lang_tag", lua.LString(account.Account.User.LangTag))
+	accountTable.RawSetString("location", lua.LString(account.Account.User.Location))
+	accountTable.RawSetString("timezone", lua.LString(account.Account.User.Timezone))
+	if account.Account.User.AppleId != "" {
+		accountTable.RawSetString("apple_id", lua.LString(account.Account.User.AppleId))
+	}
+	if account.Account.User.FacebookId != "" {
+		accountTable.RawSetString("facebook_id", lua.LString(account.Account.User.FacebookId))
+	}
+	if account.Account.User.FacebookInstantGameId != "" {
+		accountTable.RawSetString("facebook_instant_game_id", lua.LString(account.Account.User.FacebookInstantGameId))
+	}
+	if account.Account.User.GoogleId != "" {
+		accountTable.RawSetString("google_id", lua.LString(account.Account.User.GoogleId))
+	}
+	if account.Account.User.GamecenterId != "" {
+		accountTable.RawSetString("gamecenter_id", lua.LString(account.Account.User.GamecenterId))
+	}
+	if account.Account.User.SteamId != "" {
+		accountTable.RawSetString("steam_id", lua.LString(account.Account.User.SteamId))
+	}
+	accountTable.RawSetString("online", lua.LBool(account.Account.User.Online))
+	accountTable.RawSetString("edge_count", lua.LNumber(account.Account.User.EdgeCount))
+	accountTable.RawSetString("create_time", lua.LNumber(account.Account.User.CreateTime.Seconds))
+	accountTable.RawSetString("update_time", lua.LNumber(account.Account.User.UpdateTime.Seconds))
+
+	metadataMap := make(map[string]interface{})
+	err = json.Unmarshal([]byte(account.Account.User.Metadata), &metadataMap)
+	if err != nil {
+		l.RaiseError("failed to convert metadata to json: %s", err.Error())
+		return 0
+	}
+	metadataTable := RuntimeLuaConvertMap(l, metadataMap)
+	accountTable.RawSetString("metadata", metadataTable)
+
+	userTable, err := userToLuaTable(l, account.Account.User)
+	if err != nil {
+		l.RaiseError("failed to convert user data to lua table: %s", err.Error())
+		return 0
+	}
+	accountTable.RawSetString("user", userTable)
+
+	walletMap := make(map[string]int64)
+	err = json.Unmarshal([]byte(account.Account.Wallet), &walletMap)
+	if err != nil {
+		l.RaiseError("failed to convert wallet to json: %s", err.Error())
+		return 0
+	}
+	walletTable := RuntimeLuaConvertMapInt64(l, walletMap)
+	accountTable.RawSetString("wallet", walletTable)
+
+	if account.Account.Email != "" {
+		accountTable.RawSetString("email", lua.LString(account.Account.Email))
+	}
+	if len(account.Account.Devices) != 0 {
+		devicesTable := l.CreateTable(len(account.Account.Devices), 0)
+		for i, device := range account.Account.Devices {
+			deviceTable := l.CreateTable(0, 1)
+			deviceTable.RawSetString("id", lua.LString(device.Id))
+			devicesTable.RawSetInt(i+1, deviceTable)
+		}
+		accountTable.RawSetString("devices", devicesTable)
+	}
+	if account.Account.CustomId != "" {
+		accountTable.RawSetString("custom_id", lua.LString(account.Account.CustomId))
+	}
+	if account.Account.VerifyTime != nil {
+		accountTable.RawSetString("verify_time", lua.LNumber(account.Account.VerifyTime.Seconds))
+	}
+	if account.Account.DisableTime != nil {
+		accountTable.RawSetString("disable_time", lua.LNumber(account.Account.DisableTime.Seconds))
+	}
+
+	l.Push(accountTable)
 	return 1
 }
 
