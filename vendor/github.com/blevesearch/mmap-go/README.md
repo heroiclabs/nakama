@@ -1,12 +1,14 @@
 mmap-go
 =======
+[![Tests](https://github.com/blevesearch/mmap-go/actions/workflows/tests.yml/badge.svg?branch=master&event=push)](https://github.com/blevesearch/mmap-go/actions/workflows/tests.yml?query=event%3Apush+branch%3Amaster)
+[![Go Reference](https://pkg.go.dev/badge/github.com/blevesearch/mmap-go.svg)](https://pkg.go.dev/github.com/blevesearch/mmap-go)
 
 mmap-go is a portable mmap package for the [Go programming language](http://golang.org).
-It has been tested on Linux (386, amd64), OS X, and Windows (386). It should also
-work on other Unix-like platforms, but hasn't been tested with them. I'm interested
-to hear about the results.
 
-I haven't been able to add more features without adding significant complexity,
-so mmap-go doesn't support mprotect, mincore, and maybe a few other things.
-If you're running on a Unix-like platform and need some of these features,
-I suggest Gustavo Niemeyer's [gommap](http://labix.org/gommap).
+Operating System Support
+========================
+This package is tested using GitHub Actions on Linux, macOS, and Windows. It should also work on other Unix-like platforms, but hasn't been tested with them. I'm interested to hear about the results.
+
+This package compiles for Plan 9 and WebAssembly, but its functions always return errors.
+
+Related functions such as `mprotect` and `mincore` aren't included. I haven't found a way to implement them on Windows without introducing significant complexity. If you're running on a Unix-like platform and really need these features, it should still be possible to implement them on top of this package via `syscall`.

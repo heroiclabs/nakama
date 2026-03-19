@@ -1531,7 +1531,7 @@ func (b *BitSet) ShiftRight(bits uint) {
 		return
 	}
 
-	if bits >= top {
+	if bits > top {
 		b.set = make([]uint64, wordsNeeded(b.length))
 		return
 	}
@@ -1555,7 +1555,7 @@ func (b *BitSet) ShiftRight(bits uint) {
 		}
 	}
 
-	for i := int(idx-pages) + 1; i <= int(idx); i++ {
+	for i := int(idx-pages) + 1; i < len(b.set); i++ {
 		b.set[i] = 0
 	}
 }

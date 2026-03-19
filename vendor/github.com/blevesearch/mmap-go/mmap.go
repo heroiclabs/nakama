@@ -8,10 +8,10 @@
 // Package mmap allows mapping files into memory. It tries to provide a simple, reasonably portable interface,
 // but doesn't go out of its way to abstract away every little platform detail.
 // This specifically means:
-//	* forked processes may or may not inherit mappings
-//	* a file's timestamp may or may not be updated by writes through mappings
-//	* specifying a size larger than the file's actual size can increase the file's size
-//	* If the mapped file is being modified by another process while your program's running, don't expect consistent results between platforms
+//   - forked processes may or may not inherit mappings
+//   - a file's timestamp may or may not be updated by writes through mappings
+//   - specifying a size larger than the file's actual size can increase the file's size
+//   - If the mapped file is being modified by another process while your program's running, don't expect consistent results between platforms
 package mmap
 
 import (

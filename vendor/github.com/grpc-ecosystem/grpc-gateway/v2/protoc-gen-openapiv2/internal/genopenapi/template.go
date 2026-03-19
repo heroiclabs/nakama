@@ -519,6 +519,89 @@ func findNestedMessagesAndEnumerations(message *descriptor.Message, reg *descrip
 	}
 }
 
+// collectReferencedNamesForCache scans services and messages to collect all
+// FQMNs/FQENs that will be referenced, WITHOUT using the naming cache.
+// This allows us to build the cache with the correct filtered names BEFORE
+// any code tries to use it.
+func collectReferencedNamesForCache(services []*descriptor.Service, messages []*descriptor.Message, reg *descriptor.Registry) map[string]bool {
+	refs := make(map[string]bool)
+
+	// Scan services FIRST so collectNestedTypeFQNs fully traverses
+	// message graphs without being short-circuited by pre-populated entries.
+	for _, svc := range services {
+		if !isVisible(getServiceVisibilityOption(svc), reg) {
+			continue
+		}
+		for _, meth := range svc.Methods {
+			if !isVisible(getMethodVisibilityOption(meth), reg) {
+				continue
+			}
+			if len(meth.Bindings) == 0 {
+				continue
+			}
+
+			// Add method FQN (needed for body:"*" with path params)
+			refs[meth.FQMN()] = true
+
+			// Add request/response types
+			refs[meth.RequestType.FQMN()] = true
+			refs[meth.ResponseType.FQMN()] = true
+
+			// Recursively add nested types
+			collectNestedTypeFQNs(meth.RequestType, reg, refs)
+			collectNestedTypeFQNs(meth.ResponseType, reg, refs)
+		}
+	}
+
+	// Add messages from the current file AFTER service scanning.
+	// This must come after the service loop's collectNestedTypeFQNs calls,
+	// otherwise pre-populated message entries cause the traversal to
+	// short-circuit and miss nested types like enums inside referenced messages.
+	// We also traverse each message's nested types here because
+	// renderMessagesAsDefinition renders ALL messages from the file, not just
+	// those reachable from service methods. Without this, cross-package types
+	// referenced by non-service messages would be missing from the naming cache.
+	for _, msg := range messages {
+		refs[msg.FQMN()] = true
+		collectNestedTypeFQNs(msg, reg, refs)
+	}
+
+	// Add google.rpc.Status if default errors enabled
+	if !reg.GetDisableDefaultErrors() {
+		refs[".google.rpc.Status"] = true
+		// Also add nested types of Status
+		if statusMsg, err := reg.LookupMsg("google.rpc", "Status"); err == nil {
+			collectNestedTypeFQNs(statusMsg, reg, refs)
+		}
+	}
+
+	return refs
+}
+
+// collectNestedTypeFQNs recursively collects FQMNs/FQENs for all nested types
+// of a message. Does NOT use the naming cache.
+func collectNestedTypeFQNs(message *descriptor.Message, reg *descriptor.Registry, refs map[string]bool) {
+	for _, field := range message.Fields {
+		if !isVisible(getFieldVisibilityOption(field), reg) {
+			continue
+		}
+		fieldType := field.GetTypeName()
+		if fieldType == "" {
+			continue // primitive type
+		}
+		if refs[fieldType] {
+			continue // already visited
+		}
+		refs[fieldType] = true
+
+		// If it's a message, recurse
+		if msg, err := reg.LookupMsg("", fieldType); err == nil {
+			collectNestedTypeFQNs(msg, reg, refs)
+		}
+		// Enums don't have nested types, no recursion needed
+	}
+}
+
 func skipRenderingRef(refName string) bool {
 	_, ok := wktSchemas[refName]
 	return ok
@@ -709,8 +792,13 @@ func renderFieldAsDefinition(f *descriptor.Field, reg *descriptor.Registry, refs
 	if len(comments) > 0 {
 		// Use title and description from field instead of nested message if present.
 		paragraphs := strings.Split(comments, paragraphDeliminator)
-		schema.Title = strings.TrimSpace(paragraphs[0])
-		schema.Description = strings.TrimSpace(strings.Join(paragraphs[1:], paragraphDeliminator))
+		firstParagraph := strings.TrimSpace(paragraphs[0])
+		if !strings.Contains(firstParagraph, "\n") {
+			schema.Title = firstParagraph
+			schema.Description = strings.TrimSpace(strings.Join(paragraphs[1:], paragraphDeliminator))
+		} else {
+			schema.Description = strings.TrimSpace(comments)
+		}
 	}
 
 	// to handle case where path param is present inside the field of descriptorpb.FieldDescriptorProto_TYPE_MESSAGE type
@@ -2088,9 +2176,48 @@ func applyTemplate(p param) (*openapiSwaggerObject, error) {
 		},
 	}
 
+	// IMPORTANT: Initialize the naming cache BEFORE any code that uses fullyQualifiedNameToOpenAPIName.
+	// This ensures consistent naming between renderServices (which generates $refs) and
+	// renderMessagesAsDefinition (which generates definitions).
+	//
+	// Pre-scan to collect referenced names WITHOUT using the naming cache.
+	// This allows us to build the cache with the correct filtered names upfront.
+	referencedNames := collectReferencedNamesForCache(p.Services, p.Messages, p.reg)
+
+	// Get all names from the registry
+	allFQMNs := p.reg.GetAllFQMNs()
+	allFQENs := p.reg.GetAllFQENs()
+	allFQMethNs := p.reg.GetAllFQMethNs()
+	allNames := append(append(allFQMNs, allFQENs...), allFQMethNs...)
+
+	// Filter: EXCLUDE names that are from a DIFFERENT package AND are NOT referenced
+	// This way we keep all names from the current package, and all referenced names from other packages
+	currentPackage := p.File.GetPackage()
+	filteredNames := make([]string, 0, len(allNames))
+	for _, name := range allNames {
+		trimmedName := strings.TrimPrefix(name, ".")
+		if trimmedName == "" {
+			continue
+		}
+		// Include if: (1) from current package, OR (2) actually referenced, OR (3) from google.*/grpc.* packages
+		isCurrentPackage := strings.HasPrefix(trimmedName, currentPackage+".")
+		isGoogle := strings.HasPrefix(trimmedName, "google.")
+		isGRPC := strings.HasPrefix(trimmedName, "grpc.")
+		if isCurrentPackage || referencedNames[name] || isGoogle || isGRPC {
+			filteredNames = append(filteredNames, name)
+		}
+	}
+
+	// Initialize the naming cache BEFORE renderServices so all lookups use consistent naming
+	registriesSeenMutex.Lock()
+	resolvedNames := resolveFullyQualifiedNameToOpenAPINames(filteredNames, p.reg.GetOpenAPINamingStrategy())
+	registriesSeen[p.reg] = resolvedNames
+	registriesSeenMutex.Unlock()
+
 	// Loops through all the services and their exposed GET/POST/PUT/DELETE definitions
 	// and create entries for all of them.
 	// Also adds custom user specified references to second map.
+	// NOTE: This now uses the naming cache initialized above.
 	requestResponseRefs, customRefs := refMap{}, refMap{}
 	if err := renderServices(p.Services, &s.Paths, p.reg, requestResponseRefs, customRefs, p.Messages, s.Definitions); err != nil {
 		panic(err)
@@ -2113,7 +2240,9 @@ func applyTemplate(p param) (*openapiSwaggerObject, error) {
 
 	// Find all the service's messages and enumerations that are defined (recursively)
 	// and write request, response and other custom (but referenced) types out as definition objects.
+	// NOTE: This uses the same naming cache that was used by renderServices above.
 	findServicesMessagesAndEnumerations(p.Services, p.reg, messages, streamingMessages, enums, requestResponseRefs)
+
 	if err := renderMessagesAsDefinition(messages, s.Definitions, p.reg, customRefs, nil); err != nil {
 		return nil, err
 	}
@@ -3322,7 +3451,7 @@ func updateswaggerObjectFromJSONSchema(s *openapiSchemaObject, j *openapi_option
 func updateSwaggerObjectFromFieldBehavior(s *openapiSchemaObject, j []annotations.FieldBehavior, reg *descriptor.Registry, field *descriptor.Field) {
 	required := false
 	if reg.GetUseProto3FieldSemantics() {
-		required = !field.GetProto3Optional()
+		required = !field.GetProto3Optional() && field.OneofIndex == nil
 	}
 	for _, fb := range j {
 		switch fb {
