@@ -19,13 +19,13 @@ import (
 	"sort"
 )
 
-/// Levenshtein Distance computed by a Levenshtein Automaton.
-///
-/// Levenshtein automata can only compute the exact Levenshtein distance
-/// up to a given `max_distance`.
-///
-/// Over this distance, the automaton will invariably
-/// return `Distance::AtLeast(max_distance + 1)`.
+// Levenshtein Distance computed by a Levenshtein Automaton.
+//
+// Levenshtein automata can only compute the exact Levenshtein distance
+// up to a given `max_distance`.
+//
+// Over this distance, the automaton will invariably
+// return `Distance::AtLeast(max_distance + 1)`.
 type Distance interface {
 	distance() uint8
 }

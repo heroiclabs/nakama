@@ -15,7 +15,7 @@
 package levenshtein
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -311,13 +311,13 @@ func fromNfa(nfa *LevenshteinNFA) (*ParametricDFA, error) {
 }
 
 type hash struct {
-	index map[[16]byte]int
+	index map[[32]byte]int
 	items []MultiState
 }
 
 func newHash() *hash {
 	return &hash{
-		index: make(map[[16]byte]int, 100),
+		index: make(map[[32]byte]int, 100),
 		items: make([]MultiState, 0, 100),
 	}
 }
@@ -326,9 +326,9 @@ func (h *hash) getOrAllocate(m MultiState) int {
 	size := len(h.items)
 	var exists bool
 	var pos int
-	md5 := getHash(&m)
-	if pos, exists = h.index[md5]; !exists {
-		h.index[md5] = size
+	sha := getHash(&m)
+	if pos, exists = h.index[sha]; !exists {
+		h.index[sha] = size
 		pos = size
 		h.items = append(h.items, m)
 	}
@@ -339,11 +339,11 @@ func (h *hash) getFromID(id int) *MultiState {
 	return &h.items[id]
 }
 
-func getHash(ms *MultiState) [16]byte {
+func getHash(ms *MultiState) [32]byte {
 	msBytes := []byte{}
 	for _, state := range ms.states {
 		jsonBytes, _ := json.Marshal(&state)
 		msBytes = append(msBytes, jsonBytes...)
 	}
-	return md5.Sum(msBytes)
+	return sha256.Sum256(msBytes)
 }

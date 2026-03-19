@@ -109,11 +109,7 @@ func (m *Message) FQMN() string {
 // It prefixes the type name with the package alias if
 // its belonging package is not "currentPackage".
 func (m *Message) GoType(currentPackage string) string {
-	var components []string
-	components = append(components, m.Outers...)
-	components = append(components, m.GetName())
-
-	name := strings.Join(components, "_")
+	name := goTypeName(m.Outers, m.GetName())
 	if !m.ForcePrefixedName && m.File.GoPkg.Path == currentPackage {
 		return name
 	}
@@ -148,15 +144,21 @@ func (e *Enum) FQEN() string {
 // It prefixes the type name with the package alias if
 // its belonging package is not "currentPackage".
 func (e *Enum) GoType(currentPackage string) string {
-	var components []string
-	components = append(components, e.Outers...)
-	components = append(components, e.GetName())
-
-	name := strings.Join(components, "_")
+	name := goTypeName(e.Outers, e.GetName())
 	if !e.ForcePrefixedName && e.File.GoPkg.Path == currentPackage {
 		return name
 	}
 	return fmt.Sprintf("%s.%s", e.File.Pkg(), name)
+}
+
+func goTypeName(outers []string, name string) string {
+	components := make([]string, 0, len(outers)+1)
+	for _, outer := range outers {
+		components = append(components, casing.Camel(outer))
+	}
+
+	components = append(components, casing.Camel(name))
+	return strings.Join(components, "_")
 }
 
 // Service wraps descriptorpb.ServiceDescriptorProto for richer features.
@@ -442,6 +444,35 @@ func (p FieldPath) AssignableExprPrep(msgExpr string, currentPackage string) str
 	}
 
 	return strings.Join(preparations, "\n")
+}
+
+// OpaqueSetterExpr returns the Go expression to invoke the generated setter for
+// the final component in the path while respecting nested getters required by
+// the opaque API.
+func (p FieldPath) OpaqueSetterExpr(msgExpr string) string {
+	if len(p) == 0 {
+		return msgExpr
+	}
+
+	return fmt.Sprintf("%s.Set%s", p.opaqueOwnerExpr(msgExpr), casing.Camel(p[len(p)-1].Name))
+}
+
+// opaqueOwnerExpr builds the Go expression for the message that owns the final
+// component in the path by chaining the generated getters.
+func (p FieldPath) opaqueOwnerExpr(msgExpr string) string {
+	if len(p) <= 1 {
+		return msgExpr
+	}
+
+	var sb strings.Builder
+	sb.WriteString(msgExpr)
+	for i := range len(p) - 1 {
+		sb.WriteString(".Get")
+		sb.WriteString(casing.Camel(p[i].Name))
+		sb.WriteString("()")
+	}
+
+	return sb.String()
 }
 
 // FieldPathComponent is a path component in FieldPath
