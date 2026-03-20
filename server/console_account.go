@@ -467,9 +467,10 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		if len(in.Filter) >= 3 {
 			query += `
 				UNION
-				SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
+				(SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
 					FROM users
 					WHERE display_name ILIKE CONCAT('%', replace(replace(replace($1, '\', '\\'), '%', '\%'), '_', '\_'), '%')
+          LIMIT 100)
 			`
 		}
 		if userIDFilter != nil {

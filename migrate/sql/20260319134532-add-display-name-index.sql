@@ -17,7 +17,7 @@
 -- +migrate Up
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS users_display_name_idx ON users USING GIN (display_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS users_display_name_idx ON users USING GIN (display_name gin_trgm_ops);
 
 -- +migrate Down
 DROP INDEX IF EXISTS users_display_name_idx;
