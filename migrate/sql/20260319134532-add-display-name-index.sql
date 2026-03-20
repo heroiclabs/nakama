@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
--- +migrate Up notransaction
+-- +migrate Up
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+COMMIT;
+-- Concurrent index creation cannot be done inside a transaction.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS users_display_name_idx ON users USING GIN (display_name gin_trgm_ops);
+BEGIN;
 
 -- +migrate Down
 DROP INDEX IF EXISTS users_display_name_idx;
