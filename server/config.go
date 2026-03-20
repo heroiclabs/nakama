@@ -726,6 +726,7 @@ type MetricsConfig struct {
 	PrometheusPort   int    `yaml:"prometheus_port" json:"prometheus_port" usage:"Port to expose Prometheus. If '0' Prometheus exports are disabled."`
 	Prefix           string `yaml:"prefix" json:"prefix" usage:"Prefix for metric names. Default is 'nakama', empty string '' disables the prefix."`
 	CustomPrefix     string `yaml:"custom_prefix" json:"custom_prefix" usage:"Prefix for custom runtime metric names. Default is 'custom', empty string '' disables the prefix."`
+	CustomScopeLimit int    `yaml:"custom_scope_limit" json:"custom_scope_limit" usage:"Maximum number of custom metric scopes. Default is 10,000."`
 }
 
 func (cfg *MetricsConfig) Clone() *MetricsConfig {
@@ -744,6 +745,7 @@ func NewMetricsConfig() *MetricsConfig {
 		PrometheusPort:   0,
 		Prefix:           "nakama",
 		CustomPrefix:     "custom",
+		CustomScopeLimit: 10_000,
 	}
 }
 

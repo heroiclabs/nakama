@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Changed
 - Better logic for determining client IP addresses from incoming requests.
+- Limit the number of custom metric scopes to prevent adding user identifiers as tags.
 
 ### Fixed
 - Correct field usage in voided Google In-App Purchase subscription notifications.
