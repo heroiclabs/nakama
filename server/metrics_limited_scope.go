@@ -25,17 +25,17 @@ var _ tally.Scope = (*metricsLimitedScope)(nil)
 type metricsLimitedScope struct {
 	scope tally.Scope
 
-	keysLimit int32
-	keysCount *atomic.Int32
+	keysLimit int64
+	keysCount *atomic.Int64
 	keys      *MapOf[string, bool]
 }
 
-func newMetricsLimitedScope(scope tally.Scope, limit int32) *metricsLimitedScope {
+func newMetricsLimitedScope(scope tally.Scope, limit int64) *metricsLimitedScope {
 	return &metricsLimitedScope{
 		scope: scope,
 
 		keysLimit: limit,
-		keysCount: &atomic.Int32{},
+		keysCount: &atomic.Int64{},
 		keys:      &MapOf[string, bool]{},
 	}
 }

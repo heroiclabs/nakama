@@ -163,7 +163,7 @@ func NewLocalMetrics(logger, startupLogger *zap.Logger, db *sql.DB, config Confi
 	}, time.Duration(config.GetMetrics().ReportingFreqSec)*time.Second)
 	m.prometheusCustomScope = m.PrometheusScope.SubScope(config.GetMetrics().CustomPrefix)
 	if config.GetMetrics().CustomScopeLimit > 0 {
-		m.prometheusCustomScope = newMetricsLimitedScope(m.prometheusCustomScope, int32(config.GetMetrics().CustomScopeLimit))
+		m.prometheusCustomScope = newMetricsLimitedScope(m.prometheusCustomScope, int64(config.GetMetrics().CustomScopeLimit))
 	}
 
 	// Check if exposing Prometheus metrics directly is enabled.
