@@ -73,7 +73,7 @@ type Metrics interface {
 	CustomTimer(name string, tags map[string]string, value time.Duration)
 }
 
-var _ Metrics = &LocalMetrics{}
+var _ Metrics = (*LocalMetrics)(nil)
 
 type LocalMetrics struct {
 	logger *zap.Logger
@@ -162,6 +162,9 @@ func NewLocalMetrics(logger, startupLogger *zap.Logger, db *sql.DB, config Confi
 		SanitizeOptions: &prometheus.DefaultSanitizerOpts,
 	}, time.Duration(config.GetMetrics().ReportingFreqSec)*time.Second)
 	m.prometheusCustomScope = m.PrometheusScope.SubScope(config.GetMetrics().CustomPrefix)
+	if config.GetMetrics().CustomScopeLimit > 0 {
+		m.prometheusCustomScope = newMetricsLimitedScope(m.prometheusCustomScope, int64(config.GetMetrics().CustomScopeLimit))
+	}
 
 	// Check if exposing Prometheus metrics directly is enabled.
 	if config.GetMetrics().PrometheusPort > 0 {
