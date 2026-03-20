@@ -5,6 +5,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.38.0] - 2026-03-20
 ### Added
 - Add runtime Satori client feature to delete identities.
 - Add device identifiers as lookup options for runtime account get operations.
