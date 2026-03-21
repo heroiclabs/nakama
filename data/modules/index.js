@@ -549,7 +549,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     // Step 10: Sync to Nakama Account FIRST (display_name, timezone, location)
     // This ensures Account tab is updated even if storage write fails later
     // -------------------------------------------------------------------------
-    syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId);
+    syncMetadataToNakamaAccount(nk, logger, userId, merged, sanitized, requestId);
 
     // -------------------------------------------------------------------------
     // Step 11: Write to Storage with optimistic concurrency + retry
@@ -1591,7 +1591,7 @@ function updateSessionAnalytics(merged, now, isNewUser) {
  * Does NOT update username - use rpc_change_username for that.
  * Idempotent: only passes non-null values; accountUpdateId leaves unchanged fields as-is.
  */
-function syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId) {
+function syncMetadataToNakamaAccount(nk, logger, userId, merged, sanitized, requestId) {
     try {
         // Build display name from various sources
         var displayName = null;
@@ -1643,11 +1643,15 @@ function syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId) {
             langTag = merged.locale.split("-")[0].toLowerCase();
         }
 
-        // Avatar URL validation
+        // Avatar URL validation — ONLY update when client explicitly sent avatar_url
+        // in the current request. This prevents overwriting user-picked avatars with
+        // auto-assigned defaults from the merge process on every login sync.
         var avatarURL = null;
-        var rawAvatar = merged.avatar_url || merged.avatarUrl || null;
-        if (rawAvatar && /^https?:\/\//i.test(rawAvatar)) {
-            avatarURL = rawAvatar;
+        if (sanitized) {
+            var rawAvatar = sanitized.avatar_url || sanitized.avatarUrl || null;
+            if (rawAvatar && /^https?:\/\//i.test(rawAvatar)) {
+                avatarURL = rawAvatar;
+            }
         }
 
         // Build account metadata (visible in Nakama Console Account tab)
@@ -1939,7 +1943,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
     // Step 10: Sync to Nakama Account FIRST (display_name, timezone, location)
     // This ensures Account tab is updated even if storage write fails later
     // -------------------------------------------------------------------------
-    syncMetadataToNakamaAccount(nk, logger, userId, merged, requestId);
+    syncMetadataToNakamaAccount(nk, logger, userId, merged, sanitized, requestId);
 
     // -------------------------------------------------------------------------
     // Step 11: Write to Storage with optimistic concurrency + retry
@@ -14942,45 +14946,105 @@ function rpcRetentionUseStreakShield(ctx, logger, nk, payload) {
 
 /**
  * RPC: retention_schedule_notification - Schedule return notification
+ * Accepts both Unity SDK payload (template_id, fire_at, channel, priority)
+ * and legacy payload (scheduledTime, message, category) for backward compatibility.
+ * Also writes to notification_inbox collection so it appears in the user's inbox.
  */
 function rpcRetentionScheduleNotification(ctx, logger, nk, payload) {
     var userId = ctx.userId;
     var input = JSON.parse(payload);
 
     try {
+        // Resolve fields: support both Unity SDK and legacy payload formats
+        var templateId = input.template_id || input.notificationType || 'daily_reminder';
+        var gameId = input.game_id || 'quizverse';
+        var fireAt = input.fire_at || input.scheduledTime || Date.now();
+        var channel = input.channel || 'both';
+        var priority = input.priority || 5;
+        var title = input.title || input.message || templateId;
+        var body = input.body || input.message || '';
+        var category = input.category || 'retention';
+        var eventType = input.event_type || templateId;
+
+        // Normalize fireAt to timestamp (accept both epoch ms and ISO string)
+        if (typeof fireAt === 'string') {
+            fireAt = new Date(fireAt).getTime();
+        }
+
+        var notifId = 'sched_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+        var now = Date.now();
+        var isImmediate = (fireAt <= now);
+
         // Store notification schedule
         var notification = {
             userId: userId,
-            scheduledTime: input.scheduledTime,
-            message: input.message,
-            category: input.category,
-            notificationType: input.notificationType || "daily_reminder",
-            createdAt: Date.now()
+            notification_id: notifId,
+            template_id: templateId,
+            game_id: gameId,
+            fire_at: fireAt,
+            channel: channel,
+            priority: priority,
+            title: title,
+            body: body,
+            category: category,
+            event_type: eventType,
+            notificationType: templateId,
+            scheduledTime: fireAt,
+            message: body,
+            createdAt: now
         };
 
         nk.storageWrite([{
-            collection: "scheduled_notifications",
-            key: "notification_" + Date.now(),
+            collection: 'scheduled_notifications',
+            key: notifId,
             userId: userId,
             value: notification,
             permissionRead: 1,
             permissionWrite: 0
         }]);
 
-        // Also schedule via Nakama notifications if supported
-        try {
-            var scheduledTime = new Date(input.scheduledTime);
-            var delaySeconds = Math.max(0, (scheduledTime.getTime() - Date.now()) / 1000);
-
-            // Note: Server-side push would require integration with FCM/APNS
-            logger.info("[Retention] Scheduled notification for user " + userId + " in " + delaySeconds + " seconds");
-        } catch (scheduleErr) {
-            logger.warn("[Retention] Could not schedule push: " + scheduleErr.message);
+        // Also write to notification_inbox so it appears in the user's inbox
+        // (for immediate notifications or when fire_at has passed)
+        if (isImmediate || (fireAt - now) < 60000) {
+            // Immediate or fires within 1 minute — add to inbox now
+            try {
+                nk.storageWrite([{
+                    collection: 'notification_inbox',
+                    key: notifId,
+                    userId: userId,
+                    value: {
+                        notification_id: notifId,
+                        title: title,
+                        body: body,
+                        event_type: eventType,
+                        data: { template_id: templateId, game_id: gameId, category: category },
+                        template_id: templateId,
+                        priority: priority,
+                        channel: channel,
+                        is_read: false,
+                        sent_at: now,
+                        created_at: now
+                    },
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+                logger.info('[Retention] Notification added to inbox for user ' + userId + ': ' + templateId);
+            } catch (inboxErr) {
+                logger.warn('[Retention] Could not write to inbox: ' + inboxErr.message);
+            }
         }
 
-        return JSON.stringify({ success: true });
+        var delaySeconds = Math.max(0, (fireAt - now) / 1000);
+        logger.info('[Retention] Scheduled notification for user ' + userId + ' in ' + Math.round(delaySeconds) + 's (template: ' + templateId + ')');
+
+        return JSON.stringify({
+            success: true,
+            notification_id: notifId,
+            immediate: isImmediate,
+            fire_at: fireAt
+        });
     } catch (e) {
-        logger.error("[Retention] Schedule notification error: " + e.message);
+        logger.error('[Retention] Schedule notification error: ' + e.message);
         return JSON.stringify({ success: false, error: e.message });
     }
 }
@@ -22406,15 +22470,19 @@ function InitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Notification Gate (1 RPC)
+    // v3.0 NEW RPCs — Notification Gate + Inbox (3 RPCs)
     // ============================================================================
     try {
-        logger.info('[NotifGate] Initializing Notification Gate Module...');
+        logger.info('[Notifications] Initializing Notification System...');
         initializer.registerRpc('notification_gate_get_state', rpcNotifGateGetState);
-        logger.info('[NotifGate] Registered RPC: notification_gate_get_state');
-        logger.info('[NotifGate] Successfully registered 1 Notification Gate RPC');
+        logger.info('[Notifications] Registered RPC: notification_gate_get_state');
+        initializer.registerRpc('list_notification_inbox', rpcListNotificationInbox);
+        logger.info('[Notifications] Registered RPC: list_notification_inbox');
+        initializer.registerRpc('mark_notifications_read', rpcMarkNotificationsRead);
+        logger.info('[Notifications] Registered RPC: mark_notifications_read');
+        logger.info('[Notifications] Successfully registered 3 Notification RPCs');
     } catch (err) {
-        logger.error('[NotifGate] Failed to initialize: ' + err.message);
+        logger.error('[Notifications] Failed to initialize: ' + err.message);
     }
 
     // ============================================================================
@@ -22525,7 +22593,7 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('  - League System: 4');
     logger.info('  - Streak Repair & Wager: 2');
     logger.info('  - Character System: 3');
-    logger.info('  - Notification Gate: 1');
+    logger.info('  - Notification System: 3');
     logger.info('  - Smart Review (SM-2): 2');
     logger.info('  - Friend Streaks: 3');
     logger.info('  - Friend Quests: 2');
