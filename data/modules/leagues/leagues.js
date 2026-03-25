@@ -326,6 +326,16 @@ function rpcLeagueSubmitPoints(ctx, logger, nk, payload) {
 // ─── RPC: league_process_season ─────────────────────────────────────────────
 
 function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
+    // AUTH GUARD: Only server/cron (no userId) or admin calls allowed
+    if (ctx.userId) {
+        var data_guard = validatePayload(payload);
+        var adminKey = (data_guard && data_guard.adminKey) || '';
+        if (adminKey !== 'quizverse_season_cron_2026') {
+            logger.warn('[Leagues] Unauthorized league_process_season call from user: ' + ctx.userId);
+            return errorResponse('Unauthorized: server-only RPC');
+        }
+    }
+
     var data = validatePayload(payload);
     if (data === null) return errorResponse('Invalid JSON payload');
 
