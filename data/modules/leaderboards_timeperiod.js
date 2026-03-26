@@ -182,6 +182,40 @@ function createGlobalLeaderboards(nk, logger) {
         }
     }
 
+    // ── Create the unified "quizverse_global" all-time leaderboard ──
+    // Unity HomeScreen.cs queries this directly via ListLeaderboardRecordsAroundOwnerAsync.
+    var unifiedId = "quizverse_global";
+    try {
+        var existingUnified = null;
+        try {
+            existingUnified = nk.leaderboardsGetId([unifiedId]);
+            if (existingUnified && existingUnified.length > 0) {
+                logger.info("[Leaderboards] Unified global leaderboard already exists: " + unifiedId);
+                skipped.push({ leaderboardId: unifiedId, period: "alltime", scope: "unified_global" });
+            }
+        } catch (e) { /* doesn't exist yet */ }
+
+        if (!existingUnified || existingUnified.length === 0) {
+            nk.leaderboardCreate(
+                unifiedId,
+                LEADERBOARD_CONFIG.authoritative,
+                LEADERBOARD_CONFIG.sort,
+                LEADERBOARD_CONFIG.operator,
+                "",  // no reset — all-time
+                {
+                    scope: "unified_global",
+                    timePeriod: "alltime",
+                    description: "QuizVerse unified global leaderboard (all-time)"
+                }
+            );
+            logger.info("[Leaderboards] Created unified global leaderboard: " + unifiedId);
+            created.push({ leaderboardId: unifiedId, period: "alltime", scope: "unified_global", resetSchedule: "" });
+        }
+    } catch (err) {
+        logger.error("[Leaderboards] Failed to create unified global leaderboard: " + err.message);
+        errors.push({ leaderboardId: unifiedId, period: "alltime", scope: "unified_global", error: err.message });
+    }
+
     return {
         created: created,
         skipped: skipped,
