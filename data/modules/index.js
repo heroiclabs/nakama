@@ -1,4 +1,4 @@
-﻿// Nakama Runtime Module - Consolidated
+// Nakama Runtime Module - Consolidated
 // Compatible with Nakama V8 JavaScript runtime (No ES Modules)
 // All import/export statements have been removed
 
@@ -13017,43 +13017,107 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
  */
 function quizverseFindFriends(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
-
-        if (!data.query) {
-            throw Error("Query string is required");
-        }
+        var data = payload ? JSON.parse(payload) : {};
 
         var query = data.query;
-        var limit = data.limit || 20;
+        if (!query || typeof query !== 'string' || query.trim().length < 2) {
+            throw Error("Query string is required (min 2 characters)");
+        }
+        query = query.trim();
 
-        if (limit < 1 || limit > 100) {
-            throw Error("Limit must be between 1 and 100");
+        var limit = parseInt(data.limit) || 20;
+        if (limit < 1) limit = 1;
+        if (limit > 100) limit = 100;
+
+        var userId = context.userId || '';
+        var results = [];
+
+        // Try exact username match first
+        try {
+            var users = nk.usersGetUsername([query]);
+            if (users && users.length > 0) {
+                for (var i = 0; i < users.length && results.length < limit; i++) {
+                    if (users[i].id !== userId) {
+                        results.push({
+                            userId: users[i].id,
+                            username: users[i].username,
+                            displayName: users[i].displayName || users[i].username,
+                            avatarUrl: users[i].avatarUrl || '',
+                            relationship: 'none'
+                        });
+                    }
+                }
+            }
+        } catch (usernameErr) {
+            logger.warn('quizverse_find_friends username search: ' + usernameErr.message);
         }
 
-        // Search for users using Nakama's user search
-        var users = nk.usersGetUsername([query]);
+        // Try wildcard SQL search for partial matches if few results
+        if (results.length < limit) {
+            try {
+                var sqlQuery = "SELECT id, username, display_name, avatar_url FROM users WHERE username LIKE $1 OR display_name LIKE $1 LIMIT $2";
+                var sqlResults = nk.sqlQuery(sqlQuery, ['%' + query + '%', limit]);
+                if (sqlResults && sqlResults.length > 0) {
+                    var existingIds = {};
+                    for (var e = 0; e < results.length; e++) existingIds[results[e].userId] = true;
 
-        var results = [];
-        if (users && users.length > 0) {
-            for (var i = 0; i < users.length && i < limit; i++) {
-                results.push({
-                    userId: users[i].id,
-                    username: users[i].username,
-                    displayName: users[i].displayName || users[i].username
-                });
+                    for (var s = 0; s < sqlResults.length && results.length < limit; s++) {
+                        var row = sqlResults[s];
+                        if (!existingIds[row.id] && row.id !== userId) {
+                            results.push({
+                                userId: row.id,
+                                username: row.username || '',
+                                displayName: row.display_name || row.username || '',
+                                avatarUrl: row.avatar_url || '',
+                                relationship: 'none'
+                            });
+                            existingIds[row.id] = true;
+                        }
+                    }
+                }
+            } catch (sqlErr) {
+                logger.warn('quizverse_find_friends SQL search: ' + sqlErr.message);
             }
         }
+
+        // Enrich with friend relationship status
+        if (userId && results.length > 0) {
+            try {
+                var friends = nk.friendsList(userId, 100, null, '');
+                if (friends && friends.friends) {
+                    var friendMap = {};
+                    for (var f = 0; f < friends.friends.length; f++) {
+                        var fr = friends.friends[f];
+                        var state = fr.state != null ? fr.state.value || fr.state : -1;
+                        if (state === 0) friendMap[fr.user.id] = 'friend';
+                        else if (state === 1) friendMap[fr.user.id] = 'invite_sent';
+                        else if (state === 2) friendMap[fr.user.id] = 'invite_received';
+                        else if (state === 3) friendMap[fr.user.id] = 'blocked';
+                    }
+                    for (var r = 0; r < results.length; r++) {
+                        if (friendMap[results[r].userId]) {
+                            results[r].relationship = friendMap[results[r].userId];
+                        }
+                    }
+                }
+            } catch (friendsErr) {
+                logger.warn('quizverse_find_friends friends enrichment: ' + friendsErr.message);
+            }
+        }
+
+        logger.info('quizverse_find_friends: query="' + query + '" found ' + results.length + ' results');
 
         return JSON.stringify({
             success: true,
             data: {
                 results: results,
-                query: query
+                query: query,
+                count: results.length
             }
         });
 
     } catch (err) {
-        logger.error("quizverse_find_friends error: " + err.message);
+        logger.error('quizverse_find_friends error: ' + err.message);
         return JSON.stringify({
             success: false,
             error: err.message
@@ -23805,6 +23869,233 @@ function InitModule(ctx, logger, nk, initializer) {
 
         logger.info('[Profile] Registered 1 Player Stats RPC');
     } catch (err) { logger.error('[Profile] Failed: ' + err.message); }
+
+    // ============================================================================
+    // v3.0 RPCs - Character System (3 RPCs)
+    // Source: characters/characters.js — inlined for registration
+    // ============================================================================
+    try {
+        // --- Character Constants & Helpers (self-contained) ---
+        var CHAR_DEFS = {
+            quizzy: { id:'quizzy', name:'Quizzy', description:'Your first quiz companion!', rarity:'common', xpBonus:0, unlockCondition:'default', introVideoPath:'Characters/Quizzy/intro.mp4', xpRewardOnUnlock:0 },
+            autocurio: { id:'autocurio', name:'AUTOcurio', description:'A charming, hyper-curious bot.', rarity:'common', xpBonus:0, unlockCondition:'default', introVideoPath:'Characters/AUTOcurio/intro.mp4', xpRewardOnUnlock:0 },
+            atlas: { id:'atlas', name:'Atlas', description:'The world explorer.', rarity:'rare', xpBonus:5, unlockCondition:'badge_explorer_tier3', introVideoPath:'Characters/Atlas/intro.mp4', xpRewardOnUnlock:100 },
+            nova: { id:'nova', name:'Nova', description:'A science genius from the stars.', rarity:'rare', xpBonus:5, unlockCondition:'badge_science_tier3', introVideoPath:'Characters/Nova/intro.mp4', xpRewardOnUnlock:100 },
+            dog: { id:'dog', name:'Dog', description:'A cute, loyal puppy.', rarity:'rare', xpBonus:5, unlockCondition:'install_donut_disturb', introVideoPath:'Characters/Dog/intro.mp4', xpRewardOnUnlock:100 },
+            sparky: { id:'sparky', name:'Sparky', description:'An energetic lightning-bolt character.', rarity:'rare', xpBonus:5, unlockCondition:'badge_speed_demon_gold', introVideoPath:'Characters/Sparky/intro.mp4', xpRewardOnUnlock:100 },
+            echo: { id:'echo', name:'Echo', description:'A musical character with headphones.', rarity:'rare', xpBonus:5, unlockCondition:'audio_review_10', introVideoPath:'Characters/Echo/intro.mp4', xpRewardOnUnlock:100 },
+            professor: { id:'professor', name:'Professor', description:'A wise owl professor.', rarity:'rare', xpBonus:5, unlockCondition:'smart_review_10', introVideoPath:'Characters/Professor/intro.mp4', xpRewardOnUnlock:100 },
+            pixel: { id:'pixel', name:'Pixel', description:'A retro pixel-art character.', rarity:'rare', xpBonus:5, unlockCondition:'badge_social_butterfly_day14', introVideoPath:'Characters/Pixel/intro.mp4', xpRewardOnUnlock:100 },
+            chronos: { id:'chronos', name:'Chronos', description:'The timekeeper.', rarity:'epic', xpBonus:10, unlockCondition:'streak_30', introVideoPath:'Characters/Chronos/intro.mp4', xpRewardOnUnlock:250 },
+            phoenix: { id:'phoenix', name:'Phoenix', description:'Reborn from ashes.', rarity:'epic', xpBonus:10, unlockCondition:'league_gold', introVideoPath:'Characters/Phoenix/intro.mp4', xpRewardOnUnlock:250 },
+            bear: { id:'bear', name:'Bear', description:'A strong, friendly bear.', rarity:'epic', xpBonus:10, unlockCondition:'donut_disturb_level_25', introVideoPath:'Characters/Bear/intro.mp4', xpRewardOnUnlock:250 },
+            duck: { id:'duck', name:'Duck', description:'A cute rubber duck.', rarity:'epic', xpBonus:10, unlockCondition:'donut_disturb_level_10', introVideoPath:'Characters/Duck/intro.mp4', xpRewardOnUnlock:250 },
+            luna: { id:'luna', name:'Luna', description:'A mystical crescent moon.', rarity:'epic', xpBonus:10, unlockCondition:'badge_night_owl', introVideoPath:'Characters/Luna/intro.mp4', xpRewardOnUnlock:250 },
+            sage: { id:'sage', name:'Sage', description:'The ultimate quiz master.', rarity:'legendary', xpBonus:15, unlockCondition:'league_diamond', introVideoPath:'Characters/Sage/intro.mp4', xpRewardOnUnlock:500 },
+            ix: { id:'ix', name:'IX', description:'IntelliVerse X ultimate character.', rarity:'legendary', xpBonus:15, unlockCondition:'ecosystem_points_2500', introVideoPath:'Characters/IX/intro.mp4', xpRewardOnUnlock:500 }
+        };
+        var CHAR_COL = 'player_data';
+        function _charKey(uid, gid) { return 'characters_' + uid + '_' + gid; }
+        function _charRead(nk, uid, gid) { try { var r = nk.storageRead([{collection:CHAR_COL,key:_charKey(uid,gid),userId:uid}]); return (r&&r.length>0&&r[0].value)?r[0].value:null; } catch(e) { return null; } }
+        function _charWrite(nk, uid, gid, d) { nk.storageWrite([{collection:CHAR_COL,key:_charKey(uid,gid),userId:uid,value:d,permissionRead:1,permissionWrite:0}]); }
+        function _charInit(uid) { var n=new Date().toISOString(); return {activeCharacter:'quizzy',unlockedCharacters:{quizzy:{unlockedAt:n}},totalXpFromUnlocks:0,createdAt:n,updatedAt:n}; }
+
+        initializer.registerRpc('character_get_state', function(ctx, logger, nk, payload) {
+            if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
+            try {
+                var d = payload ? JSON.parse(payload) : {};
+                var gid = d.gameId || 'quizverse';
+                var cd = _charRead(nk, ctx.userId, gid);
+                if (!cd) { cd = _charInit(ctx.userId); _charWrite(nk, ctx.userId, gid, cd); }
+                var chars = [];
+                for (var cid in CHAR_DEFS) {
+                    var def = CHAR_DEFS[cid];
+                    var unlocked = cd.unlockedCharacters && cd.unlockedCharacters[cid];
+                    chars.push({id:def.id,name:def.name,description:def.description,rarity:def.rarity,xpBonus:def.xpBonus,unlocked:!!unlocked,unlockedAt:unlocked?cd.unlockedCharacters[cid].unlockedAt:null,unlockCondition:unlocked?null:def.unlockCondition,introVideoPath:def.introVideoPath});
+                }
+                return JSON.stringify({success:true,userId:ctx.userId,gameId:gid,activeCharacter:cd.activeCharacter,characters:chars,totalUnlocked:Object.keys(cd.unlockedCharacters||{}).length,totalCharacters:Object.keys(CHAR_DEFS).length,totalXpFromUnlocks:cd.totalXpFromUnlocks||0,timestamp:new Date().toISOString()});
+            } catch(e) { logger.error('[Characters] character_get_state: ' + e.message); return JSON.stringify({success:false,error:e.message}); }
+        });
+
+        initializer.registerRpc('character_unlock', function(ctx, logger, nk, payload) {
+            if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
+            try {
+                var d = JSON.parse(payload || '{}');
+                var gid = d.gameId || 'quizverse';
+                var charId = d.characterId;
+                if (!charId) return JSON.stringify({success:false,error:'Missing characterId'});
+                var def = CHAR_DEFS[charId];
+                if (!def) return JSON.stringify({success:false,error:'Character not found: '+charId});
+                var cd = _charRead(nk, ctx.userId, gid) || _charInit(ctx.userId);
+                if (cd.unlockedCharacters && cd.unlockedCharacters[charId]) return JSON.stringify({success:false,error:'already_unlocked',characterId:charId});
+                var now = new Date().toISOString();
+                var xp = def.xpRewardOnUnlock || 0;
+                if (!cd.unlockedCharacters) cd.unlockedCharacters = {};
+                cd.unlockedCharacters[charId] = {unlockedAt:now};
+                cd.totalXpFromUnlocks = (cd.totalXpFromUnlocks||0) + xp;
+                cd.updatedAt = now;
+                if (xp > 0) { try { var acct=nk.accountGetId(ctx.userId); if(acct){var m={}; try{m=JSON.parse(acct.user.metadata||'{}')}catch(e){m={}} m.totalXp=(m.totalXp||0)+xp; m.lastXpSource='character_unlock_'+charId; m.lastXpAt=now; nk.accountUpdateId(ctx.userId,null,null,null,null,null,null,null,JSON.stringify(m));} } catch(xe){logger.warn('[Characters] XP update failed: '+xe.message);} }
+                _charWrite(nk, ctx.userId, gid, cd);
+                logger.info('[Characters] '+charId+' unlocked for '+ctx.userId+' (+'+xp+' XP)');
+                return JSON.stringify({success:true,characterId:charId,name:def.name,rarity:def.rarity,xpBonus:def.xpBonus,xpAwarded:xp,introVideoPath:def.introVideoPath,totalUnlocked:Object.keys(cd.unlockedCharacters).length,totalCharacters:Object.keys(CHAR_DEFS).length,timestamp:now});
+            } catch(e) { logger.error('[Characters] character_unlock: '+e.message); return JSON.stringify({success:false,error:e.message}); }
+        });
+
+        initializer.registerRpc('character_set_active', function(ctx, logger, nk, payload) {
+            if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
+            try {
+                var d = JSON.parse(payload || '{}');
+                var gid = d.gameId || 'quizverse';
+                var charId = d.characterId;
+                if (!charId) return JSON.stringify({success:false,error:'Missing characterId'});
+                var def = CHAR_DEFS[charId];
+                if (!def) return JSON.stringify({success:false,error:'Character not found: '+charId});
+                var cd = _charRead(nk, ctx.userId, gid) || _charInit(ctx.userId);
+                if (!cd.unlockedCharacters || !cd.unlockedCharacters[charId]) return JSON.stringify({success:false,error:'Character not unlocked: '+charId});
+                if (cd.activeCharacter === charId) return JSON.stringify({success:true,activeCharacter:charId,alreadyActive:true});
+                var prev = cd.activeCharacter;
+                cd.activeCharacter = charId;
+                cd.updatedAt = new Date().toISOString();
+                _charWrite(nk, ctx.userId, gid, cd);
+                try { var acct=nk.accountGetId(ctx.userId); if(acct){var m={}; try{m=JSON.parse(acct.user.metadata||'{}')}catch(e){m={}} m.activeCharacter=charId; m.activeCharacterXpBonus=def.xpBonus; nk.accountUpdateId(ctx.userId,null,null,null,null,null,null,null,JSON.stringify(m));} } catch(me){logger.warn('[Characters] Metadata update: '+me.message);}
+                logger.info('[Characters] '+ctx.userId+' switched: '+prev+' → '+charId);
+                return JSON.stringify({success:true,activeCharacter:charId,previousCharacter:prev,xpBonus:def.xpBonus,timestamp:new Date().toISOString()});
+            } catch(e) { logger.error('[Characters] character_set_active: '+e.message); return JSON.stringify({success:false,error:e.message}); }
+        });
+
+        logger.info('[Characters] Registered 3 Character System RPCs');
+    } catch (err) { logger.error('[Characters] Failed to register: ' + err.message); }
+
+    // ============================================================================
+    // v3.0 RPCs - League System (4 RPCs)
+    // Source: leagues/leagues.js — inlined for registration
+    // ============================================================================
+    try {
+        // --- League Constants & Helpers (self-contained) ---
+        var LG_TIERS = ['bronze','silver','gold','platinum','diamond','elite'];
+        var LG_CFG = {
+            bronze:{promotionThreshold:500,demotionThreshold:0,xpMultiplier:1.0},
+            silver:{promotionThreshold:1000,demotionThreshold:300,xpMultiplier:1.1},
+            gold:{promotionThreshold:1500,demotionThreshold:600,xpMultiplier:1.2},
+            platinum:{promotionThreshold:2500,demotionThreshold:1000,xpMultiplier:1.3},
+            diamond:{promotionThreshold:4000,demotionThreshold:1800,xpMultiplier:1.5},
+            elite:{promotionThreshold:99999,demotionThreshold:3000,xpMultiplier:2.0}
+        };
+        var LG_MIN_QUIZZES = 3;
+        var LG_COL = 'league_state';
+        var LG_MAX_PTS_QUIZ = 500;
+        function _lgKey(uid,gid) { return uid+'_'+gid; }
+        function _lgWeekId() { var n=new Date(); var j=new Date(n.getFullYear(),0,1); var d=Math.floor((n.getTime()-j.getTime())/86400000); var w=Math.ceil((d+j.getDay()+1)/7); return n.getFullYear()+'-W'+(w<10?'0'+w:w); }
+        function _lgNextMon() { var n=new Date(); var dy=n.getUTCDay(); var df=(dy===0?1:8-dy); return new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate()+df,0,1,0)).toISOString(); }
+        function _lgTierIdx(t) { var i=LG_TIERS.indexOf(t); return i>=0?i:0; }
+        function _lgRead(nk,uid,gid) { try { var r=nk.storageRead([{collection:LG_COL,key:_lgKey(uid,gid),userId:uid}]); return (r&&r.length>0&&r[0].value)?r[0].value:null; } catch(e) { return null; } }
+        function _lgWrite(nk,uid,gid,s) { nk.storageWrite([{collection:LG_COL,key:_lgKey(uid,gid),userId:uid,value:s,permissionRead:1,permissionWrite:0}]); }
+        function _lgInit(uid,gid) { var n=new Date().toISOString(); return {userId:uid,gameId:gid,tier:'bronze',points:0,quizzesThisWeek:0,perfectRounds:0,totalAccuracy:0,accuracyCount:0,season:_lgWeekId(),seasonJoinedAt:n,qualifiesForPromotion:false,sandbaggingFlags:0,consecutiveLowAccuracy:0,consistencyBonus:false,lastSubmissionId:'',lastSubmissionAt:null,createdAt:n,updatedAt:n}; }
+        function _lgRotate(s) { s.points=0;s.quizzesThisWeek=0;s.perfectRounds=0;s.totalAccuracy=0;s.accuracyCount=0;s.qualifiesForPromotion=false;s.season=_lgWeekId();s.lastSubmissionId='';s.updatedAt=new Date().toISOString(); return s; }
+
+        initializer.registerRpc('league_get_state', function(ctx, logger, nk, payload) {
+            if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
+            try {
+                var d = payload ? JSON.parse(payload) : {};
+                var gid = d.gameId || 'quizverse';
+                var st = _lgRead(nk,ctx.userId,gid);
+                var isNew = false;
+                if (!st) { st=_lgInit(ctx.userId,gid); _lgWrite(nk,ctx.userId,gid,st); isNew=true; }
+                if (st.season !== _lgWeekId()) { st=_lgRotate(st); _lgWrite(nk,ctx.userId,gid,st); }
+                var tc = LG_CFG[st.tier] || LG_CFG.bronze;
+                var ti = _lgTierIdx(st.tier);
+                return JSON.stringify({success:true,isNew:isNew,userId:ctx.userId,gameId:gid,tier:st.tier,tierIndex:ti,points:st.points,quizzesThisWeek:st.quizzesThisWeek,perfectRounds:st.perfectRounds,averageAccuracy:st.accuracyCount>0?Math.round(st.totalAccuracy/st.accuracyCount):0,season:st.season,seasonEndsAt:_lgNextMon(),minQuizzesRequired:LG_MIN_QUIZZES,qualifiesForPromotion:st.qualifiesForPromotion,promotionThreshold:tc.promotionThreshold,demotionThreshold:tc.demotionThreshold,xpMultiplier:tc.xpMultiplier,canPromote:ti<LG_TIERS.length-1,canDemote:ti>0,timestamp:new Date().toISOString()});
+            } catch(e) { logger.error('[Leagues] league_get_state: '+e.message); return JSON.stringify({success:false,error:e.message}); }
+        });
+
+        initializer.registerRpc('league_submit_points', function(ctx, logger, nk, payload) {
+            if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
+            try {
+                var d = JSON.parse(payload || '{}');
+                var gid = d.gameId || 'quizverse';
+                var pts = parseInt(d.points);
+                var accuracy = parseFloat(d.accuracy) || 0;
+                var isPerfect = d.isPerfect === true;
+                var subId = d.submissionId || '';
+                if (isNaN(pts) || pts < 0) return JSON.stringify({success:false,error:'Invalid points'});
+                if (pts > 10000) return JSON.stringify({success:false,error:'Points exceed maximum'});
+                var st = _lgRead(nk,ctx.userId,gid) || _lgInit(ctx.userId,gid);
+                if (st.season !== _lgWeekId()) st = _lgRotate(st);
+                if (subId && subId === st.lastSubmissionId) return JSON.stringify({success:true,duplicate:true,points:st.points,tier:st.tier});
+                if (pts > LG_MAX_PTS_QUIZ) pts = LG_MAX_PTS_QUIZ;
+                var tc = LG_CFG[st.tier] || LG_CFG.bronze;
+                var adj = Math.round(pts * tc.xpMultiplier);
+                if (accuracy > 0 && accuracy < 0.20) adj = Math.round(adj * 0.5);
+                if (!st.consecutiveLowAccuracy) st.consecutiveLowAccuracy = 0;
+                if (!st.sandbaggingFlags) st.sandbaggingFlags = 0;
+                if (accuracy > 0 && accuracy < 0.30) { st.consecutiveLowAccuracy += 1; if (st.consecutiveLowAccuracy >= 3) { st.sandbaggingFlags += 1; adj = Math.round(adj * 0.25); } } else { st.consecutiveLowAccuracy = 0; }
+                st.points += adj; st.quizzesThisWeek += 1;
+                if (isPerfect) st.perfectRounds += 1;
+                st.totalAccuracy += Math.round(accuracy * 100); st.accuracyCount += 1;
+                st.lastSubmissionId = subId; st.lastSubmissionAt = new Date().toISOString(); st.updatedAt = st.lastSubmissionAt;
+                st.qualifiesForPromotion = st.quizzesThisWeek >= LG_MIN_QUIZZES;
+                if (st.sandbaggingFlags > 0) st.qualifiesForPromotion = false;
+                _lgWrite(nk,ctx.userId,gid,st);
+                var ti = _lgTierIdx(st.tier);
+                logger.info('[Leagues] '+ctx.userId+' +'+adj+'pts (total:'+st.points+') in '+st.tier);
+                return JSON.stringify({success:true,pointsAwarded:adj,pointsRaw:pts,totalPoints:st.points,tier:st.tier,quizzesThisWeek:st.quizzesThisWeek,qualifiesForPromotion:st.qualifiesForPromotion,nearPromotion:st.points>=(tc.promotionThreshold*0.8),nearDemotion:st.points<=(tc.demotionThreshold*1.2)&&ti>0,xpMultiplier:tc.xpMultiplier,timestamp:st.updatedAt});
+            } catch(e) { logger.error('[Leagues] league_submit_points: '+e.message); return JSON.stringify({success:false,error:e.message}); }
+        });
+
+        initializer.registerRpc('league_get_leaderboard', function(ctx, logger, nk, payload) {
+            if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
+            try {
+                var d = payload ? JSON.parse(payload) : {};
+                var gid = d.gameId || 'quizverse';
+                var limit = Math.min(parseInt(d.limit)||50, 100);
+                var us = _lgRead(nk,ctx.userId,gid);
+                if (!us) { us=_lgInit(ctx.userId,gid); _lgWrite(nk,ctx.userId,gid,us); }
+                var tier = us.tier;
+                var tierUsers = [];
+                var cursor = '';
+                do { try { var res=nk.storageList(null,LG_COL,100,cursor); if(res&&res.objects){for(var i=0;i<res.objects.length;i++){var o=res.objects[i];if(o.value&&o.value.tier===tier&&o.value.gameId===gid){tierUsers.push({userId:o.userId,points:o.value.points||0,perfectRounds:o.value.perfectRounds||0,quizzesThisWeek:o.value.quizzesThisWeek||0,averageAccuracy:o.value.accuracyCount>0?Math.round(o.value.totalAccuracy/o.value.accuracyCount):0});}}} cursor=(res&&res.cursor)?res.cursor:''; } catch(e){cursor='';} } while(cursor&&cursor!=='');
+                tierUsers.sort(function(a,b){if(b.points!==a.points)return b.points-a.points;if(b.perfectRounds!==a.perfectRounds)return b.perfectRounds-a.perfectRounds;return b.averageAccuracy-a.averageAccuracy;});
+                var uids=[]; var slice=tierUsers.slice(0,limit); for(var r=0;r<slice.length;r++)uids.push(slice[r].userId);
+                var unames={},avatars={};
+                if(uids.length>0){try{var accts=nk.usersGetId(uids);if(accts){for(var a=0;a<accts.length;a++){unames[accts[a].userId]=accts[a].username||'Player';avatars[accts[a].userId]=accts[a].avatarUrl||'';}}}catch(e){}}
+                var records=[],userRecord=null;
+                for(var idx=0;idx<tierUsers.length;idx++){var u=tierUsers[idx];var rank=idx+1;if(u.userId===ctx.userId){userRecord={rank:rank,points:u.points,perfectRounds:u.perfectRounds,quizzesThisWeek:u.quizzesThisWeek,averageAccuracy:u.averageAccuracy,percentile:tierUsers.length>1?Math.round(((tierUsers.length-rank)/(tierUsers.length-1))*100):100};}if(idx<limit){records.push({rank:rank,userId:u.userId,username:unames[u.userId]||'Player',avatarUrl:avatars[u.userId]||'',points:u.points,perfectRounds:u.perfectRounds,quizzesThisWeek:u.quizzesThisWeek,averageAccuracy:u.averageAccuracy});}}
+                if(!userRecord)userRecord={rank:tierUsers.length+1,points:0,perfectRounds:0,quizzesThisWeek:0,averageAccuracy:0,percentile:0};
+                return JSON.stringify({success:true,tier:tier,season:_lgWeekId(),seasonEndsAt:_lgNextMon(),totalPlayers:tierUsers.length,records:records,userRecord:userRecord,timestamp:new Date().toISOString()});
+            } catch(e) { logger.error('[Leagues] league_get_leaderboard: '+e.message); return JSON.stringify({success:false,error:e.message}); }
+        });
+
+        initializer.registerRpc('league_process_season', function(ctx, logger, nk, payload) {
+            if (ctx.userId) { var gd=payload?JSON.parse(payload):{}; if((gd.adminKey||'')!=='quizverse_season_cron_2026') return JSON.stringify({success:false,error:'Unauthorized'}); }
+            try {
+                var d = payload ? JSON.parse(payload) : {};
+                var gid = d.gameId || 'quizverse';
+                var cw = _lgWeekId();
+                var stats = {promoted:0,demoted:0,stayed:0,disqualified:0,errors:0};
+                for (var t=0;t<LG_TIERS.length;t++) {
+                    var tier=LG_TIERS[t]; var ti=t; var tUsers=[]; var cur='';
+                    do{try{var res=nk.storageList(null,LG_COL,100,cur);if(res&&res.objects){for(var i=0;i<res.objects.length;i++){var o=res.objects[i];if(o.value&&o.value.tier===tier&&o.value.gameId===gid)tUsers.push(o);}}cur=(res&&res.cursor)?res.cursor:'';}catch(e){stats.errors++;cur='';}}while(cur&&cur!=='');
+                    if(tUsers.length===0)continue;
+                    tUsers.sort(function(a,b){if(b.value.points!==a.value.points)return b.value.points-a.value.points;return(b.value.perfectRounds||0)-(a.value.perfectRounds||0);});
+                    var pc=Math.max(1,Math.floor(tUsers.length*20/100)); var dc=Math.max(1,Math.floor(tUsers.length*20/100));
+                    for(var u=0;u<tUsers.length;u++){var us=tUsers[u].value; var uid=tUsers[u].userId; var nt=tier; var act='stayed';
+                        if((us.sandbaggingFlags||0)>0&&ti>0){nt=LG_TIERS[ti-1];stats.demoted++;act='demoted';}
+                        else if((us.quizzesThisWeek||0)===0&&ti>0){nt=LG_TIERS[ti-1];stats.demoted++;act='demoted';}
+                        else if((us.quizzesThisWeek||0)<LG_MIN_QUIZZES){stats.disqualified++;act='disqualified';}
+                        else if(u<pc&&ti<LG_TIERS.length-1){nt=LG_TIERS[ti+1];stats.promoted++;act='promoted';}
+                        else if(u>=tUsers.length-dc&&ti>0){nt=LG_TIERS[ti-1];stats.demoted++;act='demoted';}
+                        else{stats.stayed++;}
+                        us.tier=nt;us.points=0;us.quizzesThisWeek=0;us.perfectRounds=0;us.totalAccuracy=0;us.accuracyCount=0;us.qualifiesForPromotion=false;us.sandbaggingFlags=0;us.consecutiveLowAccuracy=0;us.season=cw;us.lastSubmissionId='';us.updatedAt=new Date().toISOString();
+                        try{_lgWrite(nk,uid,gid,us);if(act==='promoted'||act==='demoted'){try{nk.notificationsSend([{userId:uid,subject:act==='promoted'?'League Promotion!':'League Update',content:{action:act,oldTier:tier,newTier:nt,season:cw},code:act==='promoted'?100:101,persistent:true}]);}catch(ne){}}}catch(we){stats.errors++;}
+                    }
+                }
+                logger.info('[Leagues] Season processed: '+JSON.stringify(stats));
+                return JSON.stringify({success:true,season:cw,stats:stats,timestamp:new Date().toISOString()});
+            } catch(e) { logger.error('[Leagues] league_process_season: '+e.message); return JSON.stringify({success:false,error:e.message}); }
+        });
+
+        logger.info('[Leagues] Registered 4 League System RPCs');
+    } catch (err) { logger.error('[Leagues] Failed to register: ' + err.message); }
 
 
     logger.info('========================================');
