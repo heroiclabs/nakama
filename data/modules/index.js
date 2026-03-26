@@ -23227,92 +23227,244 @@ function InitModule(ctx, logger, nk, initializer) {
     function generateShareCode() {
         var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         var code = '';
-        for (var i = 0; i < 6; i++) { code += chars.charAt(Math.floor(Math.random() * chars.length)); }
+        for (var i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
         return code;
     }
 
     try {
+        // 1. Create compatibility session
         initializer.registerRpc('compatibility_create_session', function(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var userId = ctx.userId;
                 var sessionId = nk.uuidv4();
                 var code = generateShareCode();
+
                 var session = {
-                    sessionId: sessionId, shareCode: code, gameId: data.gameId || 'quiz-verse',
-                    quizId: data.quizId || '', quizTitle: data.quizTitle || 'Compatibility Quiz',
-                    createdByUserId: userId, createdByDisplayName: data.playerDisplayName || '',
-                    status: 'waiting_for_partner', playerAAnswers: [], playerBAnswers: [],
-                    createdAt: Math.floor(Date.now() / 1000), expiresAt: Math.floor(Date.now() / 1000) + (48 * 3600)
+                    sessionId: sessionId,
+                    shareCode: code,
+                    gameId: data.gameId || 'quiz-verse',
+                    quizId: data.quizId || '',
+                    quizTitle: data.quizTitle || 'Compatibility Quiz',
+                    createdByUserId: userId,
+                    createdByDisplayName: data.playerDisplayName || '',
+                    status: 'waiting_for_partner',
+                    playerAAnswers: [],
+                    playerBAnswers: [],
+                    createdAt: Math.floor(Date.now() / 1000),
+                    expiresAt: Math.floor(Date.now() / 1000) + (48 * 3600)
                 };
-                nk.storageWrite([{ collection: 'compatibility_sessions', key: sessionId, userId: userId, value: JSON.stringify(session), permissionRead: 2, permissionWrite: 0 }]);
-                nk.storageWrite([{ collection: 'compatibility_codes', key: code, userId: userId, value: JSON.stringify({ sessionId: sessionId, createdBy: userId }), permissionRead: 2, permissionWrite: 0 }]);
+
+                nk.storageWrite([{
+                    collection: 'compatibility_sessions',
+                    key: sessionId,
+                    userId: userId,
+                    value: JSON.stringify(session),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
+                nk.storageWrite([{
+                    collection: 'compatibility_codes',
+                    key: code,
+                    userId: userId,
+                    value: JSON.stringify({ sessionId: sessionId, createdBy: userId }),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
+                logger.info('[Compatibility] Session created: ' + sessionId + ' code=' + code);
                 return JSON.stringify({ success: true, data: session });
-            } catch(e) { logger.error('[Compatibility] create_session: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Compatibility] create_session: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
+        // 2. Join compatibility session
         initializer.registerRpc('compatibility_join_session', function(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
-                var userId = ctx.userId; var sessionId = data.sessionId || ''; var shareCode = data.shareCode || '';
+                var userId = ctx.userId;
+                var sessionId = data.sessionId || '';
+                var shareCode = data.shareCode || '';
+
                 if (!sessionId && shareCode) {
-                    var cr = nk.storageRead([{ collection: 'compatibility_codes', key: shareCode.toUpperCase() }]);
-                    if (cr && cr.length > 0) { sessionId = JSON.parse(cr[0].value).sessionId; }
+                    var cr = nk.storageRead([{
+                        collection: 'compatibility_codes',
+                        key: shareCode.toUpperCase()
+                    }]);
+                    if (cr && cr.length > 0) {
+                        sessionId = JSON.parse(cr[0].value).sessionId;
+                    }
                 }
-                if (!sessionId) { return JSON.stringify({ success: false, error: 'Session not found' }); }
-                var records = nk.storageRead([{ collection: 'compatibility_sessions', key: sessionId }]);
-                if (!records || records.length === 0) { return JSON.stringify({ success: false, error: 'Session not found' }); }
+
+                if (!sessionId) {
+                    return JSON.stringify({ success: false, error: 'Session not found for code: ' + shareCode });
+                }
+
+                var records = nk.storageRead([{
+                    collection: 'compatibility_sessions',
+                    key: sessionId
+                }]);
+                if (!records || records.length === 0) {
+                    return JSON.stringify({ success: false, error: 'Session not found' });
+                }
+
                 var session = JSON.parse(records[0].value);
-                session.partnerUserId = userId; session.partnerDisplayName = data.playerDisplayName || ''; session.status = 'both_joined';
-                nk.storageWrite([{ collection: 'compatibility_sessions', key: sessionId, userId: records[0].userId, value: JSON.stringify(session), permissionRead: 2, permissionWrite: 0 }]);
+                session.partnerUserId = userId;
+                session.partnerDisplayName = data.playerDisplayName || '';
+                session.status = 'both_joined';
+
+                nk.storageWrite([{
+                    collection: 'compatibility_sessions',
+                    key: sessionId,
+                    userId: records[0].userId,
+                    value: JSON.stringify(session),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
+                logger.info('[Compatibility] Player joined session: ' + sessionId);
                 return JSON.stringify({ success: true, data: session });
-            } catch(e) { logger.error('[Compatibility] join_session: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Compatibility] join_session: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
+        // 3. Submit answers
         initializer.registerRpc('compatibility_submit_answers', function(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
-                var userId = ctx.userId; var sessionId = data.sessionId || '';
-                var records = nk.storageRead([{ collection: 'compatibility_sessions', key: sessionId }]);
-                if (!records || records.length === 0) { return JSON.stringify({ success: false, error: 'Session not found' }); }
-                var session = JSON.parse(records[0].value);
-                if (userId === session.createdByUserId) {
-                    session.playerAAnswers = data.answers || []; session.playerAResult = { resultId: data.resultId, title: data.personalityTitle, emoji: data.personalityEmoji };
-                } else {
-                    session.playerBAnswers = data.answers || []; session.playerBResult = { resultId: data.resultId, title: data.personalityTitle, emoji: data.personalityEmoji };
+                var userId = ctx.userId;
+                var sessionId = data.sessionId || '';
+
+                var records = nk.storageRead([{
+                    collection: 'compatibility_sessions',
+                    key: sessionId
+                }]);
+                if (!records || records.length === 0) {
+                    return JSON.stringify({ success: false, error: 'Session not found' });
                 }
-                if (session.playerAAnswers.length > 0 && session.playerBAnswers.length > 0) { session.status = 'both_completed'; }
-                nk.storageWrite([{ collection: 'compatibility_sessions', key: sessionId, userId: records[0].userId, value: JSON.stringify(session), permissionRead: 2, permissionWrite: 0 }]);
+
+                var session = JSON.parse(records[0].value);
+
+                if (userId === session.createdByUserId) {
+                    session.playerAAnswers = data.answers || [];
+                    session.playerAResult = {
+                        resultId: data.resultId,
+                        title: data.personalityTitle,
+                        emoji: data.personalityEmoji
+                    };
+                } else {
+                    session.playerBAnswers = data.answers || [];
+                    session.playerBResult = {
+                        resultId: data.resultId,
+                        title: data.personalityTitle,
+                        emoji: data.personalityEmoji
+                    };
+                }
+
+                if (session.playerAAnswers && session.playerAAnswers.length > 0 &&
+                    session.playerBAnswers && session.playerBAnswers.length > 0) {
+                    session.status = 'both_completed';
+                }
+
+                nk.storageWrite([{
+                    collection: 'compatibility_sessions',
+                    key: sessionId,
+                    userId: records[0].userId,
+                    value: JSON.stringify(session),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
                 return JSON.stringify({ success: true, data: session });
-            } catch(e) { logger.error('[Compatibility] submit_answers: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Compatibility] submit_answers: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
+        // 4. Get session status
         initializer.registerRpc('compatibility_get_session', function(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
-                var records = nk.storageRead([{ collection: 'compatibility_sessions', key: data.sessionId || '' }]);
-                if (!records || records.length === 0) { return JSON.stringify({ success: false, error: 'Session not found' }); }
+                var sessionId = data.sessionId || '';
+
+                var records = nk.storageRead([{
+                    collection: 'compatibility_sessions',
+                    key: sessionId
+                }]);
+                if (!records || records.length === 0) {
+                    return JSON.stringify({ success: false, error: 'Session not found' });
+                }
+
                 return JSON.stringify({ success: true, data: JSON.parse(records[0].value) });
-            } catch(e) { logger.error('[Compatibility] get_session: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Compatibility] get_session: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
+        // 5. Calculate compatibility score
         initializer.registerRpc('compatibility_calculate', function(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
-                var records = nk.storageRead([{ collection: 'compatibility_sessions', key: data.sessionId || '' }]);
-                if (!records || records.length === 0) { return JSON.stringify({ success: false, error: 'Session not found' }); }
-                var session = JSON.parse(records[0].value);
-                if (!session.playerAAnswers || !session.playerBAnswers || session.playerAAnswers.length === 0 || session.playerBAnswers.length === 0) {
-                    return JSON.stringify({ success: false, error: 'Both players must complete first' });
+                var sessionId = data.sessionId || '';
+
+                var records = nk.storageRead([{
+                    collection: 'compatibility_sessions',
+                    key: sessionId
+                }]);
+                if (!records || records.length === 0) {
+                    return JSON.stringify({ success: false, error: 'Session not found' });
                 }
-                var totalQ = Math.min(session.playerAAnswers.length, session.playerBAnswers.length); var matching = 0;
-                for (var i = 0; i < totalQ; i++) { if (session.playerAAnswers[i].selectedOptionId === session.playerBAnswers[i].selectedOptionId) { matching++; } }
+
+                var session = JSON.parse(records[0].value);
+                if (!session.playerAAnswers || !session.playerBAnswers ||
+                    session.playerAAnswers.length === 0 || session.playerBAnswers.length === 0) {
+                    return JSON.stringify({ success: false, error: 'Both players must complete the quiz first' });
+                }
+
+                var totalQ = Math.min(session.playerAAnswers.length, session.playerBAnswers.length);
+                var matching = 0;
+                for (var i = 0; i < totalQ; i++) {
+                    if (session.playerAAnswers[i].selectedOptionId === session.playerBAnswers[i].selectedOptionId) {
+                        matching++;
+                    }
+                }
                 var score = totalQ > 0 ? Math.round((matching / totalQ) * 100) : 0;
-                var result = { sessionId: data.sessionId, overallScore: score, matchingAnswers: matching, totalQuestions: totalQ, playerAResult: session.playerAResult || {}, playerBResult: session.playerBResult || {}, calculatedAt: Math.floor(Date.now() / 1000) };
-                session.compatibilityScore = score; session.compatibilityResult = result;
-                nk.storageWrite([{ collection: 'compatibility_sessions', key: data.sessionId, userId: records[0].userId, value: JSON.stringify(session), permissionRead: 2, permissionWrite: 0 }]);
+
+                var result = {
+                    sessionId: sessionId,
+                    overallScore: score,
+                    matchingAnswers: matching,
+                    totalQuestions: totalQ,
+                    playerAResult: session.playerAResult || {},
+                    playerBResult: session.playerBResult || {},
+                    calculatedAt: Math.floor(Date.now() / 1000)
+                };
+
+                session.compatibilityScore = score;
+                session.compatibilityResult = result;
+                nk.storageWrite([{
+                    collection: 'compatibility_sessions',
+                    key: sessionId,
+                    userId: records[0].userId,
+                    value: JSON.stringify(session),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
                 return JSON.stringify({ success: true, data: result });
-            } catch(e) { logger.error('[Compatibility] calculate: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Compatibility] calculate: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         logger.info('[Compatibility] Registered 5 Compatibility Quiz RPCs');
@@ -23324,47 +23476,118 @@ function InitModule(ctx, logger, nk, initializer) {
     try {
         initializer.registerRpc('get_clan_challenges', function(ctx, logger, nk, payload) {
             try {
-                var data = payload ? JSON.parse(payload) : {}; var clanId = data.clanId || '';
-                if (!clanId) { return JSON.stringify({ success: false, error: 'clanId required' }); }
-                var records = nk.storageRead([{ collection: 'clan_challenges', key: clanId }]);
-                var challenges = (records && records.length > 0) ? JSON.parse(records[0].value) : { challenges: [], lastUpdated: 0 };
+                var data = payload ? JSON.parse(payload) : {};
+                var clanId = data.clanId || '';
+
+                if (!clanId) {
+                    return JSON.stringify({ success: false, error: 'clanId required' });
+                }
+
+                var records = nk.storageRead([{
+                    collection: 'clan_challenges',
+                    key: clanId
+                }]);
+                var challenges = (records && records.length > 0)
+                    ? JSON.parse(records[0].value)
+                    : { challenges: [], lastUpdated: 0 };
+
                 return JSON.stringify({ success: true, data: challenges });
-            } catch(e) { logger.error('[Clan] get_clan_challenges: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Clan] get_clan_challenges: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         initializer.registerRpc('contribute_clan_challenge', function(ctx, logger, nk, payload) {
             try {
-                var data = payload ? JSON.parse(payload) : {}; var clanId = data.clanId || ''; var challengeId = data.challengeId || ''; var contribution = data.contribution || 0;
-                if (!clanId || !challengeId) { return JSON.stringify({ success: false, error: 'clanId and challengeId required' }); }
-                var records = nk.storageRead([{ collection: 'clan_challenges', key: clanId }]);
-                var store = (records && records.length > 0) ? JSON.parse(records[0].value) : { challenges: [], lastUpdated: 0 };
+                var data = payload ? JSON.parse(payload) : {};
+                var userId = ctx.userId;
+                var clanId = data.clanId || '';
+                var challengeId = data.challengeId || '';
+                var contribution = data.contribution || 0;
+
+                if (!clanId || !challengeId) {
+                    return JSON.stringify({ success: false, error: 'clanId and challengeId required' });
+                }
+
+                var records = nk.storageRead([{
+                    collection: 'clan_challenges',
+                    key: clanId
+                }]);
+                var store = (records && records.length > 0)
+                    ? JSON.parse(records[0].value)
+                    : { challenges: [], lastUpdated: 0 };
+
                 var found = false;
                 for (var i = 0; i < store.challenges.length; i++) {
                     if (store.challenges[i].id === challengeId) {
                         store.challenges[i].currentProgress = (store.challenges[i].currentProgress || 0) + contribution;
                         store.challenges[i].contributors = store.challenges[i].contributors || [];
-                        store.challenges[i].contributors.push({ userId: ctx.userId, amount: contribution, at: Math.floor(Date.now() / 1000) });
-                        found = true; break;
+                        store.challenges[i].contributors.push({
+                            userId: userId,
+                            amount: contribution,
+                            at: Math.floor(Date.now() / 1000)
+                        });
+                        found = true;
+                        break;
                     }
                 }
-                if (!found) { return JSON.stringify({ success: false, error: 'Challenge not found' }); }
+
+                if (!found) {
+                    return JSON.stringify({ success: false, error: 'Challenge not found: ' + challengeId });
+                }
+
                 store.lastUpdated = Math.floor(Date.now() / 1000);
-                nk.storageWrite([{ collection: 'clan_challenges', key: clanId, userId: ctx.userId, value: JSON.stringify(store), permissionRead: 2, permissionWrite: 0 }]);
+                nk.storageWrite([{
+                    collection: 'clan_challenges',
+                    key: clanId,
+                    userId: userId,
+                    value: JSON.stringify(store),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
                 return JSON.stringify({ success: true, data: store });
-            } catch(e) { logger.error('[Clan] contribute_clan_challenge: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Clan] contribute_clan_challenge: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         initializer.registerRpc('get_clan_leaderboard', function(ctx, logger, nk, payload) {
             try {
-                var data = payload ? JSON.parse(payload) : {}; var clanId = data.clanId || ''; var period = data.period || 'weekly';
-                if (!clanId) { return JSON.stringify({ success: false, error: 'clanId required' }); }
-                var leaderboardId = 'clan_' + clanId + '_' + period; var result = { entries: [], clanId: clanId, period: period };
+                var data = payload ? JSON.parse(payload) : {};
+                var clanId = data.clanId || '';
+                var period = data.period || 'weekly';
+
+                if (!clanId) {
+                    return JSON.stringify({ success: false, error: 'clanId required' });
+                }
+
+                var leaderboardId = 'clan_' + clanId + '_' + period;
+                var result = { entries: [], clanId: clanId, period: period };
+
                 try {
                     var recs = nk.leaderboardRecordsList(leaderboardId, null, 50, null, 0);
-                    if (recs && recs.records) { result.entries = recs.records.map(function(r) { return { userId: r.ownerId, username: r.username, score: r.score, rank: r.rank }; }); }
-                } catch(le) { logger.warn('[Clan] Leaderboard not found: ' + leaderboardId); }
+                    if (recs && recs.records) {
+                        result.entries = recs.records.map(function(r) {
+                            return {
+                                userId: r.ownerId,
+                                username: r.username,
+                                score: r.score,
+                                rank: r.rank
+                            };
+                        });
+                    }
+                } catch(le) {
+                    logger.warn('[Clan] Leaderboard not found: ' + leaderboardId);
+                }
+
                 return JSON.stringify({ success: true, data: result });
-            } catch(e) { logger.error('[Clan] get_clan_leaderboard: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Clan] get_clan_leaderboard: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         logger.info('[Clan] Registered 3 Clan RPCs');
@@ -23376,55 +23599,160 @@ function InitModule(ctx, logger, nk, initializer) {
     try {
         initializer.registerRpc('matchmaking_find_match', function(ctx, logger, nk, payload) {
             try {
-                var data = payload ? JSON.parse(payload) : {}; var gameMode = data.gameMode || 'standard';
+                var data = payload ? JSON.parse(payload) : {};
+                var userId = ctx.userId;
+                var gameMode = data.gameMode || 'standard';
+                var difficulty = data.difficulty || 'medium';
+                var minPlayers = data.minPlayers || 2;
+                var maxPlayers = data.maxPlayers || 4;
+
                 var query = '+properties.gameMode:' + gameMode;
-                var ticket = nk.matchmakerAdd(ctx.userId, data.minPlayers || 2, data.maxPlayers || 4, query, { gameMode: gameMode, difficulty: data.difficulty || 'medium' }, {});
-                return JSON.stringify({ success: true, data: { ticketId: ticket.ticket, status: 'searching', gameMode: gameMode } });
-            } catch(e) { logger.error('[Matchmaking] find_match: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+                var props = { gameMode: gameMode, difficulty: difficulty };
+
+                var ticket = nk.matchmakerAdd(userId, minPlayers, maxPlayers, query, props, {});
+
+                return JSON.stringify({
+                    success: true,
+                    data: { ticketId: ticket.ticket, status: 'searching', gameMode: gameMode }
+                });
+            } catch(e) {
+                logger.error('[Matchmaking] find_match: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         initializer.registerRpc('matchmaking_cancel', function(ctx, logger, nk, payload) {
             try {
-                var data = payload ? JSON.parse(payload) : {}; var ticketId = data.ticketId || '';
-                if (!ticketId) { return JSON.stringify({ success: false, error: 'ticketId required' }); }
+                var data = payload ? JSON.parse(payload) : {};
+                var ticketId = data.ticketId || '';
+
+                if (!ticketId) {
+                    return JSON.stringify({ success: false, error: 'ticketId required' });
+                }
+
                 nk.matchmakerRemove(ticketId);
-                return JSON.stringify({ success: true, data: { ticketId: ticketId, status: 'cancelled' } });
-            } catch(e) { logger.error('[Matchmaking] cancel: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+                return JSON.stringify({
+                    success: true,
+                    data: { ticketId: ticketId, status: 'cancelled' }
+                });
+            } catch(e) {
+                logger.error('[Matchmaking] cancel: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         initializer.registerRpc('matchmaking_get_status', function(ctx, logger, nk, payload) {
             try {
-                var records = nk.storageRead([{ collection: 'matchmaking_state', key: 'status', userId: ctx.userId }]);
-                var status = (records && records.length > 0) ? JSON.parse(records[0].value) : { status: 'idle', ticketId: null };
+                var userId = ctx.userId;
+
+                var records = nk.storageRead([{
+                    collection: 'matchmaking_state',
+                    key: 'status',
+                    userId: userId
+                }]);
+                var status = (records && records.length > 0)
+                    ? JSON.parse(records[0].value)
+                    : { status: 'idle', ticketId: null };
+
                 return JSON.stringify({ success: true, data: status });
-            } catch(e) { logger.error('[Matchmaking] get_status: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Matchmaking] get_status: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         initializer.registerRpc('matchmaking_create_party', function(ctx, logger, nk, payload) {
             try {
-                var data = payload ? JSON.parse(payload) : {}; var partyCode = generateShareCode();
-                var party = { partyId: nk.uuidv4(), partyCode: partyCode, leaderId: ctx.userId, members: [ctx.userId], maxMembers: data.maxMembers || 4, status: 'waiting', createdAt: Math.floor(Date.now() / 1000) };
-                nk.storageWrite([{ collection: 'parties', key: party.partyId, userId: ctx.userId, value: JSON.stringify(party), permissionRead: 2, permissionWrite: 0 }]);
-                nk.storageWrite([{ collection: 'party_codes', key: partyCode, userId: ctx.userId, value: JSON.stringify({ partyId: party.partyId }), permissionRead: 2, permissionWrite: 0 }]);
+                var data = payload ? JSON.parse(payload) : {};
+                var userId = ctx.userId;
+                var maxMembers = data.maxMembers || 4;
+                var partyCode = generateShareCode();
+
+                var party = {
+                    partyId: nk.uuidv4(),
+                    partyCode: partyCode,
+                    leaderId: userId,
+                    members: [userId],
+                    maxMembers: maxMembers,
+                    status: 'waiting',
+                    createdAt: Math.floor(Date.now() / 1000)
+                };
+
+                nk.storageWrite([{
+                    collection: 'parties',
+                    key: party.partyId,
+                    userId: userId,
+                    value: JSON.stringify(party),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
+                nk.storageWrite([{
+                    collection: 'party_codes',
+                    key: partyCode,
+                    userId: userId,
+                    value: JSON.stringify({ partyId: party.partyId }),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
                 return JSON.stringify({ success: true, data: party });
-            } catch(e) { logger.error('[Matchmaking] create_party: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Matchmaking] create_party: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         initializer.registerRpc('matchmaking_join_party', function(ctx, logger, nk, payload) {
             try {
-                var data = payload ? JSON.parse(payload) : {}; var partyCode = (data.partyCode || '').toUpperCase();
-                if (!partyCode) { return JSON.stringify({ success: false, error: 'partyCode required' }); }
-                var cr = nk.storageRead([{ collection: 'party_codes', key: partyCode }]);
-                if (!cr || cr.length === 0) { return JSON.stringify({ success: false, error: 'Party not found' }); }
+                var data = payload ? JSON.parse(payload) : {};
+                var userId = ctx.userId;
+                var partyCode = (data.partyCode || '').toUpperCase();
+
+                if (!partyCode) {
+                    return JSON.stringify({ success: false, error: 'partyCode required' });
+                }
+
+                var cr = nk.storageRead([{
+                    collection: 'party_codes',
+                    key: partyCode
+                }]);
+                if (!cr || cr.length === 0) {
+                    return JSON.stringify({ success: false, error: 'Party not found for code: ' + partyCode });
+                }
+
                 var partyId = JSON.parse(cr[0].value).partyId;
-                var records = nk.storageRead([{ collection: 'parties', key: partyId }]);
-                if (!records || records.length === 0) { return JSON.stringify({ success: false, error: 'Party not found' }); }
+
+                var records = nk.storageRead([{
+                    collection: 'parties',
+                    key: partyId
+                }]);
+                if (!records || records.length === 0) {
+                    return JSON.stringify({ success: false, error: 'Party not found' });
+                }
+
                 var party = JSON.parse(records[0].value);
-                if (party.members.length >= party.maxMembers) { return JSON.stringify({ success: false, error: 'Party is full' }); }
-                if (party.members.indexOf(ctx.userId) === -1) { party.members.push(ctx.userId); }
-                nk.storageWrite([{ collection: 'parties', key: partyId, userId: records[0].userId, value: JSON.stringify(party), permissionRead: 2, permissionWrite: 0 }]);
+                if (party.members.length >= party.maxMembers) {
+                    return JSON.stringify({ success: false, error: 'Party is full' });
+                }
+                if (party.members.indexOf(userId) === -1) {
+                    party.members.push(userId);
+                }
+
+                nk.storageWrite([{
+                    collection: 'parties',
+                    key: partyId,
+                    userId: records[0].userId,
+                    value: JSON.stringify(party),
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+
                 return JSON.stringify({ success: true, data: party });
-            } catch(e) { logger.error('[Matchmaking] join_party: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Matchmaking] join_party: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         logger.info('[Matchmaking] Registered 5 Matchmaking RPCs');
@@ -23436,19 +23764,48 @@ function InitModule(ctx, logger, nk, initializer) {
     try {
         initializer.registerRpc('get_player_stats', function(ctx, logger, nk, payload) {
             try {
-                var data = payload ? JSON.parse(payload) : {}; var targetUserId = data.userId || ctx.userId;
-                var records = nk.storageRead([{ collection: 'player_stats', key: 'stats', userId: targetUserId }]);
-                var stats = (records && records.length > 0) ? JSON.parse(records[0].value) : {
-                    userId: targetUserId, totalGamesPlayed: 0, totalCorrectAnswers: 0, totalQuestions: 0,
-                    winRate: 0, currentStreak: 0, bestStreak: 0, averageScore: 0, favoriteCategory: '', lastPlayedAt: 0
-                };
-                try { var accts = nk.accountsGetId([targetUserId]); if (accts && accts.length > 0) { stats.displayName = accts[0].user.displayName || accts[0].user.username || ''; stats.avatarUrl = accts[0].user.avatarUrl || ''; } } catch(ae) {}
+                var data = payload ? JSON.parse(payload) : {};
+                var targetUserId = data.userId || ctx.userId;
+
+                var records = nk.storageRead([{
+                    collection: 'player_stats',
+                    key: 'stats',
+                    userId: targetUserId
+                }]);
+
+                var stats = (records && records.length > 0)
+                    ? JSON.parse(records[0].value)
+                    : {
+                        userId: targetUserId,
+                        totalGamesPlayed: 0,
+                        totalCorrectAnswers: 0,
+                        totalQuestions: 0,
+                        winRate: 0,
+                        currentStreak: 0,
+                        bestStreak: 0,
+                        averageScore: 0,
+                        favoriteCategory: '',
+                        lastPlayedAt: 0
+                    };
+
+                try {
+                    var accts = nk.accountsGetId([targetUserId]);
+                    if (accts && accts.length > 0) {
+                        stats.displayName = accts[0].user.displayName || accts[0].user.username || '';
+                        stats.avatarUrl = accts[0].user.avatarUrl || '';
+                    }
+                } catch(ae) { /* ignore account fetch errors */ }
+
                 return JSON.stringify({ success: true, data: stats });
-            } catch(e) { logger.error('[Profile] get_player_stats: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+            } catch(e) {
+                logger.error('[Profile] get_player_stats: ' + e.message);
+                return JSON.stringify({ success: false, error: e.message });
+            }
         });
 
         logger.info('[Profile] Registered 1 Player Stats RPC');
     } catch (err) { logger.error('[Profile] Failed: ' + err.message); }
+
 
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
@@ -23492,4 +23849,3 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('All v3.1 RPCs registered successfully!');
     logger.info('========================================');
 }
-
