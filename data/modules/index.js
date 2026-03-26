@@ -1,4 +1,4 @@
-// Nakama Runtime Module - Consolidated
+﻿// Nakama Runtime Module - Consolidated
 // Compatible with Nakama V8 JavaScript runtime (No ES Modules)
 // All import/export statements have been removed
 
@@ -527,7 +527,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
             merged.unique_countries_visited = merged.unique_countries_visited || 1;
             merged.unique_cities_visited = merged.unique_cities_visited || (merged.city ? 1 : 0);
 
-            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " +
+            logger.info("[PlayerMetadata:" + requestId + "] âœ“ Location auto-resolved: " +
                 (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " +
                 (merged.country_code || "N/A"));
         } else {
@@ -1643,7 +1643,7 @@ function syncMetadataToNakamaAccount(nk, logger, userId, merged, sanitized, requ
             langTag = merged.locale.split("-")[0].toLowerCase();
         }
 
-        // Avatar URL validation — ONLY update when client explicitly sent avatar_url
+        // Avatar URL validation â€” ONLY update when client explicitly sent avatar_url
         // in the current request. This prevents overwriting user-picked avatars with
         // auto-assigned defaults from the merge process on every login sync.
         var avatarURL = null;
@@ -1696,7 +1696,7 @@ function syncMetadataToNakamaAccount(nk, logger, userId, merged, sanitized, requ
             hasMetadata ? accountMetadata : null                            // account metadata object
         );
 
-        logger.info("[PlayerMetadata:" + requestId + "] ✓ Synced to Nakama account successfully");
+        logger.info("[PlayerMetadata:" + requestId + "] âœ“ Synced to Nakama account successfully");
     } catch (err) {
         logger.warn("[PlayerMetadata:" + requestId + "] Account sync failed (metadata saved): " + (err.message || String(err)));
     }
@@ -1915,7 +1915,7 @@ function rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload) {
             merged.unique_countries_visited = merged.unique_countries_visited || 1;
             merged.unique_cities_visited = merged.unique_cities_visited || (merged.city ? 1 : 0);
 
-            logger.info("[PlayerMetadata:" + requestId + "] ✓ Location auto-resolved: " +
+            logger.info("[PlayerMetadata:" + requestId + "] âœ“ Location auto-resolved: " +
                 (merged.city || "N/A") + ", " + (merged.region || "N/A") + ", " +
                 (merged.country_code || "N/A"));
         } else {
@@ -2419,9 +2419,9 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
         if (! isNaN(lat) && lat >= -90 && lat <= 90) {
             merged.latitude = lat;
             merged.has_location_data = true;
-            logger.info("[PlayerMetadata:" + requestId + "] ✓ Stored latitude: " + lat);
+            logger.info("[PlayerMetadata:" + requestId + "] âœ“ Stored latitude: " + lat);
         } else {
-            logger. warn("[PlayerMetadata:" + requestId + "] ✗ Invalid latitude value: " + meta. latitude);
+            logger. warn("[PlayerMetadata:" + requestId + "] âœ— Invalid latitude value: " + meta. latitude);
         }
     }
 
@@ -2431,9 +2431,9 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
         if (!isNaN(lon) && lon >= -180 && lon <= 180) {
             merged.longitude = lon;
             merged. has_location_data = true;
-            logger.info("[PlayerMetadata:" + requestId + "] ✓ Stored longitude: " + lon);
+            logger.info("[PlayerMetadata:" + requestId + "] âœ“ Stored longitude: " + lon);
         } else {
-            logger. warn("[PlayerMetadata:" + requestId + "] ✗ Invalid longitude value: " + meta.longitude);
+            logger. warn("[PlayerMetadata:" + requestId + "] âœ— Invalid longitude value: " + meta.longitude);
         }
     }
 
@@ -2475,7 +2475,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     if (merged.latitude !== undefined && merged.longitude !== undefined && merged.country_code) {
         merged.has_resolved_location = true;
         merged.location_updated_at = now;
-        logger.info("[PlayerMetadata:" + requestId + "] ✓ Location fully resolved: " +
+        logger.info("[PlayerMetadata:" + requestId + "] âœ“ Location fully resolved: " +
             (merged.city || "Unknown") + ", " + (merged.region || "Unknown") + ", " +
             (merged.country || merged.country_code) + " (" + merged.country_code + ") via " +
             (merged.location_source || "unknown"));
@@ -2719,22 +2719,22 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
 
     try {
         nk.storageWrite([write]);
-        logger.info("[PlayerMetadata:" + requestId + "] ✓ Metadata saved successfully for user " + userId);
+        logger.info("[PlayerMetadata:" + requestId + "] âœ“ Metadata saved successfully for user " + userId);
 
         // Log final status
         if (merged.has_resolved_location) {
-            logger. info("[PlayerMetadata:" + requestId + "] ✓ Location: " +
+            logger. info("[PlayerMetadata:" + requestId + "] âœ“ Location: " +
                 (merged.city || "") + ", " + (merged.region || "") + ", " +
                 (merged. country || merged.country_code) +
                 " | Coords: " + merged.latitude + ", " + merged.longitude +
                 " | Source: " + (merged.location_source || "unknown"));
         }
-        logger.info("[PlayerMetadata:" + requestId + "] ✓ is_guest: " + merged.is_guest +
+        logger.info("[PlayerMetadata:" + requestId + "] âœ“ is_guest: " + merged.is_guest +
             " | Games: " + (merged.total_games || 0) +
             " | Sessions: " + (merged.total_sessions || 1));
 
     } catch (err) {
-        logger. error("[PlayerMetadata:" + requestId + "] ✗ Error writing metadata for user " + userId + ": " + err.message);
+        logger. error("[PlayerMetadata:" + requestId + "] âœ— Error writing metadata for user " + userId + ": " + err.message);
         return JSON.stringify({
             success: false,
             error: "Failed to save metadata",
@@ -3113,7 +3113,7 @@ function getAllWallets(nk, logger, limit) {
 // COPILOT/COGNITO_WALLET_MAPPER.JS
 // ============================================================================
 
-// cognito_wallet_mapper.js - Core RPC functions for Cognito ↔ Wallet mapping
+// cognito_wallet_mapper.js - Core RPC functions for Cognito â†” Wallet mapping
 
 
 /**
@@ -9159,11 +9159,11 @@ function ensureLeaderboardExists(nk, logger, leaderboardId, resetSchedule, metad
             resetSchedule || "",
             metadataObj
         );
-        logger.info("[NAKAMA] ✓ Created leaderboard: " + leaderboardId);
+        logger.info("[NAKAMA] âœ“ Created leaderboard: " + leaderboardId);
         return true;
     } catch (err) {
         // Log actual error for debugging
-        logger.error("[NAKAMA] ✗ Failed to create leaderboard " + leaderboardId + ": " + err.message);
+        logger.error("[NAKAMA] âœ— Failed to create leaderboard " + leaderboardId + ": " + err.message);
         // Still return true if it's a "leaderboard already exists" error
         if (err.message && err.message.indexOf("already exists") !== -1) {
             logger.info("[NAKAMA] Leaderboard already exists (from error): " + leaderboardId);
@@ -9198,12 +9198,12 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         try {
             nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
             leaderboardsUpdated.push(gameLeaderboardId);
-            logger.info("[NAKAMA] ✓ Score written to " + gameLeaderboardId + " (Rank updated)");
+            logger.info("[NAKAMA] âœ“ Score written to " + gameLeaderboardId + " (Rank updated)");
         } catch (err) {
-            logger.error("[NAKAMA] ✗ Failed to write to " + gameLeaderboardId + ": " + err.message);
+            logger.error("[NAKAMA] âœ— Failed to write to " + gameLeaderboardId + ": " + err.message);
         }
     } else {
-        logger.error("[NAKAMA] ✗ Skipping score write - leaderboard creation failed: " + gameLeaderboardId);
+        logger.error("[NAKAMA] âœ— Skipping score write - leaderboard creation failed: " + gameLeaderboardId);
     }
 
     // 2. Write to time-period game leaderboards
@@ -9222,12 +9222,12 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
             try {
                 nk.leaderboardRecordWrite(periodLeaderboardId, userId, username, score, 0, metadata);
                 leaderboardsUpdated.push(periodLeaderboardId);
-                logger.info("[NAKAMA] ✓ Score written to " + periodLeaderboardId);
+                logger.info("[NAKAMA] âœ“ Score written to " + periodLeaderboardId);
             } catch (err) {
-                logger.error("[NAKAMA] ✗ Failed to write to " + periodLeaderboardId + ": " + err.message);
+                logger.error("[NAKAMA] âœ— Failed to write to " + periodLeaderboardId + ": " + err.message);
             }
         } else {
-            logger.error("[NAKAMA] ✗ Skipping score write - leaderboard creation failed: " + periodLeaderboardId);
+            logger.error("[NAKAMA] âœ— Skipping score write - leaderboard creation failed: " + periodLeaderboardId);
         }
     }
 
@@ -9238,12 +9238,12 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         try {
             nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
             leaderboardsUpdated.push(globalLeaderboardId);
-            logger.info("[NAKAMA] ✓ Score written to " + globalLeaderboardId);
+            logger.info("[NAKAMA] âœ“ Score written to " + globalLeaderboardId);
         } catch (err) {
-            logger.error("[NAKAMA] ✗ Failed to write to " + globalLeaderboardId + ": " + err.message);
+            logger.error("[NAKAMA] âœ— Failed to write to " + globalLeaderboardId + ": " + err.message);
         }
     } else {
-        logger.error("[NAKAMA] ✗ Skipping score write - leaderboard creation failed: " + globalLeaderboardId);
+        logger.error("[NAKAMA] âœ— Skipping score write - leaderboard creation failed: " + globalLeaderboardId);
     }
 
     // 4. Write to time-period global leaderboards
@@ -9260,9 +9260,9 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
             try {
                 nk.leaderboardRecordWrite(globalPeriodId, userId, username, score, 0, metadata);
                 leaderboardsUpdated.push(globalPeriodId);
-                logger.info("[NAKAMA] ✓ Score written to " + globalPeriodId);
+                logger.info("[NAKAMA] âœ“ Score written to " + globalPeriodId);
             } catch (err) {
-                logger.error("[NAKAMA] ✗ Failed to write to " + globalPeriodId + ": " + err.message);
+                logger.error("[NAKAMA] âœ— Failed to write to " + globalPeriodId + ": " + err.message);
             }
         }
     }
@@ -9274,9 +9274,9 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         try {
             nk.leaderboardRecordWrite(friendsGameId, userId, username, score, 0, metadata);
             leaderboardsUpdated.push(friendsGameId);
-            logger.info("[NAKAMA] ✓ Score written to " + friendsGameId);
+            logger.info("[NAKAMA] âœ“ Score written to " + friendsGameId);
         } catch (err) {
-            logger.error("[NAKAMA] ✗ Failed to write to " + friendsGameId + ": " + err.message);
+            logger.error("[NAKAMA] âœ— Failed to write to " + friendsGameId + ": " + err.message);
         }
     }
 
@@ -9286,9 +9286,9 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         try {
             nk.leaderboardRecordWrite(friendsGlobalId, userId, username, score, 0, metadata);
             leaderboardsUpdated.push(friendsGlobalId);
-            logger.info("[NAKAMA] ✓ Score written to " + friendsGlobalId);
+            logger.info("[NAKAMA] âœ“ Score written to " + friendsGlobalId);
         } catch (err) {
-            logger.error("[NAKAMA] ✗ Failed to write to " + friendsGlobalId + ": " + err.message);
+            logger.error("[NAKAMA] âœ— Failed to write to " + friendsGlobalId + ": " + err.message);
         }
     }
 
@@ -10298,7 +10298,7 @@ function rpcQuizVerseSubmitScore(context, logger, nk, payload) {
         } catch (err) { /* Leaderboard exists */ }
 
         nk.leaderboardRecordWrite(leaderboardId, userId, username, score, subscore, metadata);
-        logger.info("[QuizVerse-MP] ✓ Score written successfully");
+        logger.info("[QuizVerse-MP] âœ“ Score written successfully");
 
         return JSON.stringify({ success: true, data: { score: score, leaderboardId: leaderboardId, userId: userId, username: username } });
     } catch (err) {
@@ -10340,7 +10340,7 @@ function rpcQuizVerseGetLeaderboard(context, logger, nk, payload) {
             }
         }
 
-        logger.info("[QuizVerse-MP] ✓ Fetched " + transformedRecords.length + " records");
+        logger.info("[QuizVerse-MP] âœ“ Fetched " + transformedRecords.length + " records");
 
         return JSON.stringify({
             success: true,
@@ -10398,7 +10398,7 @@ function rpcQuizVerseSubmitMultiplayerMatch(context, logger, nk, payload) {
             permissionWrite: 0
         }]);
 
-        logger.info("[QuizVerse-MP] ✓ Match data stored: " + key);
+        logger.info("[QuizVerse-MP] âœ“ Match data stored: " + key);
 
         return JSON.stringify({ success: true, data: { matchKey: key, roomCode: roomCode, participantsCount: participants.length } });
     } catch (err) {
@@ -10475,68 +10475,68 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
     // Register leaderboard_sync RPCs
     try {
         initializer.registerRpc('submit_score_sync', rpcSubmitScoreSync);
-        logger.info('✓ Registered RPC: submit_score_sync');
+        logger.info('âœ“ Registered RPC: submit_score_sync');
     } catch (err) {
-        logger.error('✗ Failed to register submit_score_sync: ' + err.message);
+        logger.error('âœ— Failed to register submit_score_sync: ' + err.message);
     }
 
     // Register leaderboard_aggregate RPCs
     try {
         initializer.registerRpc('submit_score_with_aggregate', rpcSubmitScoreWithAggregate);
-        logger.info('✓ Registered RPC: submit_score_with_aggregate');
+        logger.info('âœ“ Registered RPC: submit_score_with_aggregate');
     } catch (err) {
-        logger.error('✗ Failed to register submit_score_with_aggregate: ' + err.message);
+        logger.error('âœ— Failed to register submit_score_with_aggregate: ' + err.message);
     }
 
     // Register leaderboard_friends RPCs
     try {
         initializer.registerRpc('create_all_leaderboards_with_friends', rpcCreateAllLeaderboardsWithFriends);
-        logger.info('✓ Registered RPC: create_all_leaderboards_with_friends');
+        logger.info('âœ“ Registered RPC: create_all_leaderboards_with_friends');
     } catch (err) {
-        logger.error('✗ Failed to register create_all_leaderboards_with_friends: ' + err.message);
+        logger.error('âœ— Failed to register create_all_leaderboards_with_friends: ' + err.message);
     }
 
     try {
         initializer.registerRpc('submit_score_with_friends_sync', rpcSubmitScoreWithFriendsSync);
-        logger.info('✓ Registered RPC: submit_score_with_friends_sync');
+        logger.info('âœ“ Registered RPC: submit_score_with_friends_sync');
     } catch (err) {
-        logger.error('✗ Failed to register submit_score_with_friends_sync: ' + err.message);
+        logger.error('âœ— Failed to register submit_score_with_friends_sync: ' + err.message);
     }
 
     try {
         initializer.registerRpc('get_friend_leaderboard', rpcGetFriendLeaderboard);
-        logger.info('✓ Registered RPC: get_friend_leaderboard');
+        logger.info('âœ“ Registered RPC: get_friend_leaderboard');
     } catch (err) {
-        logger.error('✗ Failed to register get_friend_leaderboard: ' + err.message);
+        logger.error('âœ— Failed to register get_friend_leaderboard: ' + err.message);
     }
 
     // Register social_features RPCs
     try {
         initializer.registerRpc('send_friend_invite', rpcSendFriendInvite);
-        logger.info('✓ Registered RPC: send_friend_invite');
+        logger.info('âœ“ Registered RPC: send_friend_invite');
     } catch (err) {
-        logger.error('✗ Failed to register send_friend_invite: ' + err.message);
+        logger.error('âœ— Failed to register send_friend_invite: ' + err.message);
     }
 
     try {
         initializer.registerRpc('accept_friend_invite', rpcAcceptFriendInvite);
-        logger.info('✓ Registered RPC: accept_friend_invite');
+        logger.info('âœ“ Registered RPC: accept_friend_invite');
     } catch (err) {
-        logger.error('✗ Failed to register accept_friend_invite: ' + err.message);
+        logger.error('âœ— Failed to register accept_friend_invite: ' + err.message);
     }
 
     try {
         initializer.registerRpc('decline_friend_invite', rpcDeclineFriendInvite);
-        logger.info('✓ Registered RPC: decline_friend_invite');
+        logger.info('âœ“ Registered RPC: decline_friend_invite');
     } catch (err) {
-        logger.error('✗ Failed to register decline_friend_invite: ' + err.message);
+        logger.error('âœ— Failed to register decline_friend_invite: ' + err.message);
     }
 
     try {
         initializer.registerRpc('get_notifications', rpcGetNotifications);
-        logger.info('✓ Registered RPC: get_notifications');
+        logger.info('âœ“ Registered RPC: get_notifications');
     } catch (err) {
-        logger.error('✗ Failed to register get_notifications: ' + err.message);
+        logger.error('âœ— Failed to register get_notifications: ' + err.message);
     }
 
     logger.info('========================================');
@@ -14597,7 +14597,7 @@ function rpcOnboardingClaimWelcomeBonus(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             coinsAwarded: WELCOME_BONUS,
-            message: "Welcome! Here's 50 free coins! 🎉"
+            message: "Welcome! Here's 50 free coins! ðŸŽ‰"
         });
     } catch (e) {
         logger.error("[Onboarding] Claim welcome bonus error: " + e.message);
@@ -14661,7 +14661,7 @@ function rpcOnboardingFirstQuizComplete(ctx, logger, nk, payload) {
             success: true,
             coinsAwarded: FIRST_QUIZ_BONUS,
             streakShieldHours: 48,
-            message: "Amazing! First Quiz Bonus: +200 Coins! 🎉\n🛡️ Streak Shield activated for 48 hours!"
+            message: "Amazing! First Quiz Bonus: +200 Coins! ðŸŽ‰\nðŸ›¡ï¸ Streak Shield activated for 48 hours!"
         });
     } catch (e) {
         logger.error("[Onboarding] First quiz complete error: " + e.message);
@@ -14694,7 +14694,7 @@ function rpcOnboardingGetTomorrowPreview(ctx, logger, nk, payload) {
             xpMultiplier: 2,
             bonusCoins: 100,
             specialReward: "Mystery Box",
-            message: "Tomorrow: " + tomorrowCategory + " Quiz with 2x XP! 🔥",
+            message: "Tomorrow: " + tomorrowCategory + " Quiz with 2x XP! ðŸ”¥",
             notificationText: "Your " + tomorrowCategory + " quiz is ready! Don't miss the 2x XP bonus!"
         };
 
@@ -15006,7 +15006,7 @@ function rpcRetentionScheduleNotification(ctx, logger, nk, payload) {
         // Also write to notification_inbox so it appears in the user's inbox
         // (for immediate notifications or when fire_at has passed)
         if (isImmediate || (fireAt - now) < 60000) {
-            // Immediate or fires within 1 minute — add to inbox now
+            // Immediate or fires within 1 minute â€” add to inbox now
             try {
                 nk.storageWrite([{
                     collection: 'notification_inbox',
@@ -15284,7 +15284,7 @@ function rpcRetentionClaimWelcomeBonus(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             coinsAwarded: WELCOME_BONUS,
-            message: "Welcome! Here's 50 free coins! 🎉",
+            message: "Welcome! Here's 50 free coins! ðŸŽ‰",
             alreadyClaimed: false
         });
     } catch (e) {
@@ -15922,42 +15922,42 @@ var UNLOCK_CONFIG = {
     day2: {
         features: ["lucky_wheel", "daily_streak", "power_ups"],
         rewards: { coins: 100, energy: 3 },
-        message: "🎡 Lucky Wheel unlocked! Spin for rewards!",
+        message: "ðŸŽ¡ Lucky Wheel unlocked! Spin for rewards!",
         requirement: { type: "login", day: 2 }
     },
     // Day 3: Social features
     day3: {
         features: ["multiplayer", "friends_list", "chat"],
         rewards: { coins: 150, gems: 10 },
-        message: "⚔️ Multiplayer unlocked! Battle friends!",
+        message: "âš”ï¸ Multiplayer unlocked! Battle friends!",
         requirement: { type: "quizzes_won", count: 3 }
     },
     // Day 4: Content creation
     day4: {
         features: ["link_and_play", "custom_quizzes", "share_quiz"],
         rewards: { coins: 200, gems: 15 },
-        message: "📚 Link & Play unlocked! Create your own quizzes!",
+        message: "ðŸ“š Link & Play unlocked! Create your own quizzes!",
         requirement: { type: "login", day: 4 }
     },
     // Day 5: Advanced modes
     day5: {
         features: ["survival_mode", "timed_challenge", "hard_mode"],
         rewards: { coins: 250, gems: 20, mystery_box: 1 },
-        message: "💀 Survival Mode unlocked! How long can you last?",
+        message: "ðŸ’€ Survival Mode unlocked! How long can you last?",
         requirement: { type: "quizzes_completed", count: 10 }
     },
     // Day 6: Competitive features
     day6: {
         features: ["weekly_tournament", "global_leaderboard", "rankings"],
         rewards: { coins: 300, gems: 25 },
-        message: "🏆 Weekly Tournament unlocked! Compete globally!",
+        message: "ðŸ† Weekly Tournament unlocked! Compete globally!",
         requirement: { type: "login", day: 6 }
     },
     // Day 7: Premium trial
     day7: {
         features: ["premium_trial", "all_categories", "ad_free_trial"],
         rewards: { coins: 500, gems: 50, premium_days: 3 },
-        message: "👑 VIP Trial unlocked! 3 days of Premium FREE!",
+        message: "ðŸ‘‘ VIP Trial unlocked! 3 days of Premium FREE!",
         requirement: { type: "login", day: 7 }
     }
 };
@@ -17895,15 +17895,15 @@ function compatibilityComputeScore(creatorTraits, partnerTraits, creatorAnswers,
     // Generate relationship advice based on score
     var relationshipAdvice;
     if (finalScore >= 85) {
-        relationshipAdvice = "Your connection is truly special! Keep nurturing this beautiful bond. 💕";
+        relationshipAdvice = "Your connection is truly special! Keep nurturing this beautiful bond. ðŸ’•";
     } else if (finalScore >= 70) {
-        relationshipAdvice = "You have great potential together. Communication is your superpower! 💖";
+        relationshipAdvice = "You have great potential together. Communication is your superpower! ðŸ’–";
     } else if (finalScore >= 55) {
-        relationshipAdvice = "Embrace your differences - they make your relationship unique! 💗";
+        relationshipAdvice = "Embrace your differences - they make your relationship unique! ðŸ’—";
     } else if (finalScore >= 40) {
-        relationshipAdvice = "Every relationship is a journey of discovery. Keep exploring together! 💛";
+        relationshipAdvice = "Every relationship is a journey of discovery. Keep exploring together! ðŸ’›";
     } else {
-        relationshipAdvice = "Your different perspectives can lead to amazing growth. Stay curious! 🌟";
+        relationshipAdvice = "Your different perspectives can lead to amazing growth. Stay curious! ðŸŒŸ";
     }
 
     return {
@@ -21571,7 +21571,7 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
 }
 
 // ============================================================================
-// FORTUNE WHEEL MODULE — Inlined from fortune_wheel/fortune_wheel.js
+// FORTUNE WHEEL MODULE â€” Inlined from fortune_wheel/fortune_wheel.js
 // Server-authoritative: server picks reward, client only animates
 // ============================================================================
 
@@ -21613,7 +21613,7 @@ function fwSaveWheelState(nk, userId, state) {
             permissionWrite: 0
         }]);
     } catch(e) {
-        // Log but don't throw — state save failure shouldn't crash the spin
+        // Log but don't throw â€” state save failure shouldn't crash the spin
     }
 }
 
@@ -21751,7 +21751,7 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         state.history.push(state.lastReward);
         if (state.history.length > 120) state.history = state.history.slice(-120);
         fwSaveWheelState(nk, userId, state);
-        logger.info("[FortuneWheel] " + userId + " won segment " + segmentIndex + " → " + reward.label);
+        logger.info("[FortuneWheel] " + userId + " won segment " + segmentIndex + " â†’ " + reward.label);
         return JSON.stringify({
             success: true,
             segmentIndex: segmentIndex,
@@ -21769,7 +21769,7 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
     }
 };
 
-function LegacyInitModule(ctx, logger, nk, initializer) {
+function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Legacy JavaScript Runtime Initialization');
     logger.info('========================================');
@@ -22051,16 +22051,16 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
 
 
         initializer.registerRpc('rpc_update_player_metadata', rpcUpdatePlayerMetadataUnified);
-        logger.info('[PlayerRPCs] ✓ Registered: rpc_update_player_metadata (unified)');
+        logger.info('[PlayerRPCs] âœ“ Registered: rpc_update_player_metadata (unified)');
 
         initializer.registerRpc('rpc_change_username', rpcChangeUsername);
-        logger.info('[PlayerRPCs] ✓ Registered: rpc_change_username');
+        logger.info('[PlayerRPCs] âœ“ Registered: rpc_change_username');
 
         initializer.registerRpc('get_player_metadata', rpcGetPlayerMetadata);
-        logger.info('[PlayerRPCs] ✓ Registered: get_player_metadata');
+        logger.info('[PlayerRPCs] âœ“ Registered: get_player_metadata');
 
         initializer.registerRpc('admin_delete_player_metadata', rpcAdminDeletePlayerMetadata);
-        logger.info('[PlayerRPCs] ✓ Registered: admin_delete_player_metadata');
+        logger.info('[PlayerRPCs] âœ“ Registered: admin_delete_player_metadata');
 
 
 
@@ -22199,13 +22199,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
                 try {
                     initializer.registerRpc(mgRpc.id, mgRpc.handler);
                     globalThis.__registeredRPCs.add(mgRpc.id);
-                    logger.info('[MultiGameRPCs] ✓ Registered RPC: ' + mgRpc.id);
+                    logger.info('[MultiGameRPCs] âœ“ Registered RPC: ' + mgRpc.id);
                     mgRegistered++;
                 } catch (err) {
-                    logger.error('[MultiGameRPCs] ✗ Failed to register ' + mgRpc.id + ': ' + err.message);
+                    logger.error('[MultiGameRPCs] âœ— Failed to register ' + mgRpc.id + ': ' + err.message);
                 }
             } else {
-                logger.info('[MultiGameRPCs] ⊘ Skipped (already registered): ' + mgRpc.id);
+                logger.info('[MultiGameRPCs] âŠ˜ Skipped (already registered): ' + mgRpc.id);
                 mgSkipped++;
             }
         }
@@ -22621,7 +22621,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — League System (4 RPCs)
+    // v3.0 NEW RPCs â€” League System (4 RPCs)
     // ============================================================================
     try {
         logger.info('[Leagues] Initializing League System Module...');
@@ -22639,7 +22639,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Streak Repair & Wager (2 RPCs)
+    // v3.0 NEW RPCs â€” Streak Repair & Wager (2 RPCs)
     // ============================================================================
     try {
         logger.info('[StreakV2] Initializing Streak Repair & Wager Module...');
@@ -22653,7 +22653,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Character System (3 RPCs)
+    // v3.0 NEW RPCs â€” Character System (3 RPCs)
     // ============================================================================
     try {
         logger.info('[Characters] Initializing Character System Module...');
@@ -22669,7 +22669,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Notification Gate + Inbox (3 RPCs)
+    // v3.0 NEW RPCs â€” Notification Gate + Inbox (3 RPCs)
     // ============================================================================
     try {
         logger.info('[Notifications] Initializing Notification System...');
@@ -22685,7 +22685,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Smart Review / SM-2 (2 RPCs)
+    // v3.0 NEW RPCs â€” Smart Review / SM-2 (2 RPCs)
     // ============================================================================
     try {
         logger.info('[SmartReview] Initializing Smart Review Module...');
@@ -22699,7 +22699,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Asset Manifest (1 RPC)
+    // v3.0 NEW RPCs â€” Asset Manifest (1 RPC)
     // ============================================================================
     try {
         logger.info('[Manifest] Initializing Asset Manifest Module...');
@@ -22711,7 +22711,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Player Full Profile (1 RPC)
+    // v3.0 NEW RPCs â€” Player Full Profile (1 RPC)
     // ============================================================================
     try {
         logger.info('[PlayerProfile] Initializing Player Full Profile Module...');
@@ -22723,7 +22723,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Friend Streaks (3 RPCs)
+    // v3.0 NEW RPCs â€” Friend Streaks (3 RPCs)
     // ============================================================================
     try {
         logger.info('[FriendStreaks] Initializing Friend Streak Module...');
@@ -22739,7 +22739,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Friend Quests (2 RPCs)
+    // v3.0 NEW RPCs â€” Friend Quests (2 RPCs)
     // ============================================================================
     try {
         logger.info('[FriendQuests] Initializing Friend Quest Module...');
@@ -22753,7 +22753,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Fortune Wheel (2 RPCs)
+    // v3.0 NEW RPCs â€” Fortune Wheel (2 RPCs)
     // ============================================================================
     try {
         logger.info('[FortuneWheel] Initializing Fortune Wheel Module...');
@@ -22767,7 +22767,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Streak Shield (2 RPCs)
+    // v3.0 NEW RPCs â€” Streak Shield (2 RPCs)
     // ============================================================================
     try {
         logger.info('[StreakShield] Initializing Streak Shield RPCs...');
@@ -22795,7 +22795,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     } catch (err) { logger.error('[StreakShield] Failed to initialize: ' + err.message); }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Weekly Recap (1 RPC)
+    // v3.0 NEW RPCs â€” Weekly Recap (1 RPC)
     // ============================================================================
     try {
         initializer.registerRpc('weekly_recap_get', function(ctx, logger, nk, payload) {
@@ -22809,7 +22809,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     } catch (err) { logger.error('[WeeklyRecap] Failed: ' + err.message); }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Friend Streak Milestone (1 RPC)
+    // v3.0 NEW RPCs â€” Friend Streak Milestone (1 RPC)
     // ============================================================================
     try {
         initializer.registerRpc('friend_streak_milestone_reward', function(ctx, logger, nk, payload) {
@@ -22827,7 +22827,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     } catch (err) { logger.error('[FriendStreakMilestone] Failed: ' + err.message); }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Collections claim set reward (1 RPC)
+    // v3.0 NEW RPCs â€” Collections claim set reward (1 RPC)
     // ============================================================================
     try {
         initializer.registerRpc('collections_claim_set_reward', function(ctx, logger, nk, payload) {
@@ -22847,7 +22847,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     } catch (err) { logger.error('[Collections] Failed: ' + err.message); }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Onboarding aliases (2 RPCs)
+    // v3.0 NEW RPCs â€” Onboarding aliases (2 RPCs)
     // ============================================================================
     try {
         initializer.registerRpc('onboarding_complete', function(ctx, logger, nk, payload) {
@@ -22874,7 +22874,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     } catch (err) { logger.error('[Onboarding] Failed: ' + err.message); }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Cross-Game Presence / Messaging (3 RPCs)
+    // v3.0 NEW RPCs â€” Cross-Game Presence / Messaging (3 RPCs)
     // ============================================================================
     try {
         initializer.registerRpc('ivx_set_player_presence', function(ctx, logger, nk, payload) {
@@ -22913,7 +22913,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     } catch (err) { logger.error('[CrossGame] Failed: ' + err.message); }
 
     // ============================================================================
-    // v3.0 NEW RPCs — Gift System (1 RPC)
+    // v3.0 NEW RPCs â€” Gift System (1 RPC)
     // ============================================================================
     try {
         initializer.registerRpc('gift_send', function(ctx, logger, nk, payload) {
@@ -22973,7 +22973,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     logger.info('  - Asset Manifest: 1');
     logger.info('  - Player Full Profile: 1');
     logger.info('========================================');
-    logger.info('✓ All v3.0 RPCs registered successfully!');
+    logger.info('âœ“ All v3.0 RPCs registered successfully!');
     logger.info('========================================');
 }
 
