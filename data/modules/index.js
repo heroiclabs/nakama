@@ -21570,7 +21570,206 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
     }
 }
 
-function InitModule(ctx, logger, nk, initializer) {
+// ============================================================================
+// FORTUNE WHEEL MODULE — Inlined from fortune_wheel/fortune_wheel.js
+// Server-authoritative: server picks reward, client only animates
+// ============================================================================
+
+var FW_COOLDOWN_DAYS = 3;
+
+var FW_SEGMENTS = [
+    { type: "XP",             amount: 100,  label: "100 XP",            weight: 20 },
+    { type: "Coins",          amount: 50,   label: "50 Coins",          weight: 25 },
+    { type: "XP",             amount: 250,  label: "250 XP",            weight: 15 },
+    { type: "AudiobookToken", amount: 1,    label: "Audiobook Token",   weight: 8  },
+    { type: "Coins",          amount: 150,  label: "150 Coins",         weight: 12 },
+    { type: "Shield",         amount: 24,   label: "24h Shield",        weight: 10 },
+    { type: "XP",             amount: 500,  label: "500 XP",            weight: 5  },
+    { type: "AudiobookToken", amount: 2,    label: "2 Audiobook Tokens",weight: 5  }
+];
+
+function fwGetWheelState(nk, userId) {
+    try {
+        var objects = nk.storageRead([{
+            collection: "fortune_wheel",
+            key: "state",
+            userId: userId
+        }]);
+        if (objects && objects.length > 0) {
+            return objects[0].value || {};
+        }
+    } catch(e) { /* first time user */ }
+    return {};
+}
+
+function fwSaveWheelState(nk, userId, state) {
+    try {
+        nk.storageWrite([{
+            collection: "fortune_wheel",
+            key: "state",
+            userId: userId,
+            value: state,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch(e) {
+        // Log but don't throw — state save failure shouldn't crash the spin
+    }
+}
+
+function fwCanUserSpin(state) {
+    if (!state.nextSpinTime) return true;
+    var nextSpin = new Date(state.nextSpinTime);
+    return new Date() >= nextSpin;
+}
+
+function fwGetWeightedRandomIndex() {
+    var totalWeight = 0;
+    for (var i = 0; i < FW_SEGMENTS.length; i++) {
+        totalWeight += FW_SEGMENTS[i].weight;
+    }
+    var roll = Math.floor(Math.random() * totalWeight);
+    var cumulative = 0;
+    for (var j = 0; j < FW_SEGMENTS.length; j++) {
+        cumulative += FW_SEGMENTS[j].weight;
+        if (roll < cumulative) return j;
+    }
+    return FW_SEGMENTS.length - 1;
+}
+
+function fwGrantReward(nk, userId, rewardType, amount, logger) {
+    switch (rewardType) {
+        case "XP":
+            var xpChangeset = {};
+            xpChangeset["xp"] = +amount;
+            try { nk.walletUpdate(userId, xpChangeset, {}, true); }
+            catch(e) { logger.warn("[FortuneWheel] XP grant failed: " + e.message); }
+            break;
+        case "Coins":
+            var coinChangeset = {};
+            coinChangeset["coins"] = +amount;
+            try { nk.walletUpdate(userId, coinChangeset, {}, true); }
+            catch(e) { logger.warn("[FortuneWheel] Coin grant failed: " + e.message); }
+            break;
+        case "AudiobookToken":
+            try {
+                var tokenObj = nk.storageRead([{
+                    collection: "audiobook",
+                    key: "tokens",
+                    userId: userId
+                }]);
+                var tokens = (tokenObj && tokenObj.length > 0) ? (tokenObj[0].value.count || 0) : 0;
+                tokens += amount;
+                nk.storageWrite([{
+                    collection: "audiobook",
+                    key: "tokens",
+                    userId: userId,
+                    value: { count: tokens, lastGranted: new Date().toISOString() },
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+            } catch(e) { logger.warn("[FortuneWheel] Audiobook token grant failed: " + e.message); }
+            break;
+        case "Shield":
+            try {
+                nk.storageWrite([{
+                    collection: "streak_shield",
+                    key: "pending_grant",
+                    userId: userId,
+                    value: { hours: amount, source: "fortune_wheel", timestamp: new Date().toISOString() },
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+            } catch(e) { logger.warn("[FortuneWheel] Shield grant failed: " + e.message); }
+            break;
+        case "Gems":
+            var gemsChangeset = {};
+            gemsChangeset["gems"] = +amount;
+            try { nk.walletUpdate(userId, gemsChangeset, {}, true); }
+            catch(e) { logger.warn("[FortuneWheel] Gems grant failed: " + e.message); }
+            break;
+        default:
+            logger.warn("[FortuneWheel] Unknown reward type: " + rewardType);
+    }
+}
+
+var fortuneWheelGetState = function(ctx, logger, nk, payload) {
+    try {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Not authenticated" });
+        }
+        var state = fwGetWheelState(nk, userId);
+        var canSpin = fwCanUserSpin(state);
+        return JSON.stringify({
+            success: true,
+            canSpin: canSpin,
+            nextSpinTime: state.nextSpinTime || null,
+            totalSpins: state.totalSpins || 0,
+            lastReward: state.lastReward || null,
+            cooldownDays: FW_COOLDOWN_DAYS,
+            segments: FW_SEGMENTS.map(function(s) {
+                return { type: s.type, amount: s.amount, label: s.label };
+            })
+        });
+    } catch (e) {
+        logger.error("[FortuneWheel] fortune_wheel_get_state error: " + e.message);
+        return JSON.stringify({ success: false, error: e.message });
+    }
+};
+
+var fortuneWheelSpin = function(ctx, logger, nk, payload) {
+    try {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Not authenticated" });
+        }
+        var state = fwGetWheelState(nk, userId);
+        if (!fwCanUserSpin(state)) {
+            return JSON.stringify({
+                success: false,
+                error: "On cooldown",
+                nextSpinTime: state.nextSpinTime,
+                canSpin: false
+            });
+        }
+        var segmentIndex = fwGetWeightedRandomIndex();
+        var reward = FW_SEGMENTS[segmentIndex];
+        fwGrantReward(nk, userId, reward.type, reward.amount, logger);
+        var now = new Date();
+        var nextSpin = new Date(now.getTime() + FW_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+        state.nextSpinTime = nextSpin.toISOString();
+        state.totalSpins = (state.totalSpins || 0) + 1;
+        state.lastReward = {
+            type: reward.type,
+            amount: reward.amount,
+            label: reward.label,
+            segmentIndex: segmentIndex,
+            timestamp: now.toISOString()
+        };
+        state.history = state.history || [];
+        state.history.push(state.lastReward);
+        if (state.history.length > 120) state.history = state.history.slice(-120);
+        fwSaveWheelState(nk, userId, state);
+        logger.info("[FortuneWheel] " + userId + " won segment " + segmentIndex + " → " + reward.label);
+        return JSON.stringify({
+            success: true,
+            segmentIndex: segmentIndex,
+            reward: {
+                type: reward.type,
+                amount: reward.amount,
+                label: reward.label
+            },
+            nextSpinTime: state.nextSpinTime,
+            totalSpins: state.totalSpins
+        });
+    } catch (e) {
+        logger.error("[FortuneWheel] fortune_wheel_spin error: " + e.message);
+        return JSON.stringify({ success: false, error: e.message });
+    }
+};
+
+function LegacyInitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Legacy JavaScript Runtime Initialization');
     logger.info('========================================');
@@ -22567,9 +22766,182 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[FortuneWheel] Failed to initialize: ' + err.message);
     }
 
+    // ============================================================================
+    // v3.0 NEW RPCs — Streak Shield (2 RPCs)
+    // ============================================================================
+    try {
+        logger.info('[StreakShield] Initializing Streak Shield RPCs...');
+        initializer.registerRpc('streak_shield_freeze', function(ctx, logger, nk, payload) {
+            try {
+                var userId = ctx.userId;
+                var storage = nk.storageRead([{ collection: 'streak_shield', key: 'state', userId: userId }]);
+                var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { active: false, freezesUsed: 0 };
+                state.active = true; state.frozenAt = Math.floor(Date.now() / 1000); state.freezesUsed = (state.freezesUsed || 0) + 1;
+                nk.storageWrite([{ collection: 'streak_shield', key: 'state', userId: userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
+                return JSON.stringify({ success: true, state: state });
+            } catch(e) { logger.error('[StreakShield] freeze error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+        });
+        initializer.registerRpc('streak_shield_repair', function(ctx, logger, nk, payload) {
+            try {
+                var userId = ctx.userId;
+                var storage = nk.storageRead([{ collection: 'streak_shield', key: 'state', userId: userId }]);
+                var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { active: false, repairsUsed: 0 };
+                state.active = false; state.repairedAt = Math.floor(Date.now() / 1000); state.repairsUsed = (state.repairsUsed || 0) + 1;
+                nk.storageWrite([{ collection: 'streak_shield', key: 'state', userId: userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
+                return JSON.stringify({ success: true, state: state });
+            } catch(e) { logger.error('[StreakShield] repair error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+        });
+        logger.info('[StreakShield] Registered 2 Streak Shield RPCs');
+    } catch (err) { logger.error('[StreakShield] Failed to initialize: ' + err.message); }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Weekly Recap (1 RPC)
+    // ============================================================================
+    try {
+        initializer.registerRpc('weekly_recap_get', function(ctx, logger, nk, payload) {
+            try {
+                var storage = nk.storageRead([{ collection: 'weekly_recap', key: 'latest', userId: ctx.userId }]);
+                var recap = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { weekStart: null, quizzesPlayed: 0, correctAnswers: 0, totalAnswers: 0, xpEarned: 0, coinsEarned: 0, streakDays: 0, topCategory: null };
+                return JSON.stringify({ success: true, recap: recap });
+            } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+        });
+        logger.info('[WeeklyRecap] Registered weekly_recap_get');
+    } catch (err) { logger.error('[WeeklyRecap] Failed: ' + err.message); }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Friend Streak Milestone (1 RPC)
+    // ============================================================================
+    try {
+        initializer.registerRpc('friend_streak_milestone_reward', function(ctx, logger, nk, payload) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                var friendId = data.friendId || ''; var milestone = data.milestone || 0;
+                if (!friendId) { return JSON.stringify({ success: false, error: 'friendId required' }); }
+                var reward = { coins: milestone * 50, xp: milestone * 100 };
+                var wc = {}; wc['coins'] = reward.coins;
+                nk.walletUpdate(ctx.userId, wc, { source: 'friend_streak_milestone', milestone: milestone }, true);
+                return JSON.stringify({ success: true, reward: reward });
+            } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+        });
+        logger.info('[FriendStreakMilestone] Registered friend_streak_milestone_reward');
+    } catch (err) { logger.error('[FriendStreakMilestone] Failed: ' + err.message); }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Collections claim set reward (1 RPC)
+    // ============================================================================
+    try {
+        initializer.registerRpc('collections_claim_set_reward', function(ctx, logger, nk, payload) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                var setId = data.setId || '';
+                if (!setId) { return JSON.stringify({ success: false, error: 'setId required' }); }
+                var claimKey = 'set_claimed_' + setId;
+                var check = nk.storageRead([{ collection: 'collections', key: claimKey, userId: ctx.userId }]);
+                if (check && check.length > 0) { return JSON.stringify({ success: false, error: 'already claimed' }); }
+                nk.walletUpdate(ctx.userId, { coins: 500 }, { source: 'collections_set_reward', setId: setId }, true);
+                nk.storageWrite([{ collection: 'collections', key: claimKey, userId: ctx.userId, value: JSON.stringify({ claimedAt: Math.floor(Date.now() / 1000) }), permissionRead: 1, permissionWrite: 0 }]);
+                return JSON.stringify({ success: true, reward: { coins: 500, xp: 200 } });
+            } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+        });
+        logger.info('[Collections] Registered collections_claim_set_reward');
+    } catch (err) { logger.error('[Collections] Failed: ' + err.message); }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Onboarding aliases (2 RPCs)
+    // ============================================================================
+    try {
+        initializer.registerRpc('onboarding_complete', function(ctx, logger, nk, payload) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                var storage = nk.storageRead([{ collection: 'onboarding', key: 'state', userId: ctx.userId }]);
+                var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : {};
+                state.completed = true; state.completedAt = Math.floor(Date.now() / 1000);
+                if (data.interests) { state.interests = data.interests; }
+                nk.storageWrite([{ collection: 'onboarding', key: 'state', userId: ctx.userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
+                return JSON.stringify({ success: true, state: state });
+            } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+        });
+        initializer.registerRpc('user_set_interests', function(ctx, logger, nk, payload) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                var interests = data.interests || [];
+                var state = { interests: interests, updatedAt: Math.floor(Date.now() / 1000) };
+                nk.storageWrite([{ collection: 'onboarding', key: 'interests', userId: ctx.userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
+                return JSON.stringify({ success: true, interests: interests });
+            } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+        });
+        logger.info('[Onboarding] Registered onboarding_complete, user_set_interests');
+    } catch (err) { logger.error('[Onboarding] Failed: ' + err.message); }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Cross-Game Presence / Messaging (3 RPCs)
+    // ============================================================================
+    try {
+        initializer.registerRpc('ivx_set_player_presence', function(ctx, logger, nk, payload) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                var presence = { userId: ctx.userId, gameId: data.gameId || 'quizverse', status: data.status || 'online', metadata: data.metadata || {}, updatedAt: Math.floor(Date.now() / 1000) };
+                nk.storageWrite([{ collection: 'player_presence', key: 'current', userId: ctx.userId, value: JSON.stringify(presence), permissionRead: 2, permissionWrite: 0 }]);
+                return JSON.stringify({ success: true, presence: presence });
+            } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+        });
+        initializer.registerRpc('ivx_get_cross_game_messages', function(ctx, logger, nk, payload) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                var limit = data.limit || 20;
+                var storage = nk.storageRead([{ collection: 'cross_game_messages', key: 'inbox', userId: ctx.userId }]);
+                var inbox = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { messages: [] };
+                var messages = (inbox.messages || []).slice(-limit);
+                return JSON.stringify({ success: true, messages: messages, total: messages.length });
+            } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+        });
+        initializer.registerRpc('ivx_mark_message_read', function(ctx, logger, nk, payload) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                var messageId = data.messageId || '';
+                if (!messageId) { return JSON.stringify({ success: false, error: 'messageId required' }); }
+                var storage = nk.storageRead([{ collection: 'cross_game_messages', key: 'inbox', userId: ctx.userId }]);
+                var inbox = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { messages: [] };
+                var msgs = inbox.messages || [];
+                for (var i = 0; i < msgs.length; i++) { if (msgs[i].id === messageId) { msgs[i].read = true; } }
+                inbox.messages = msgs;
+                nk.storageWrite([{ collection: 'cross_game_messages', key: 'inbox', userId: ctx.userId, value: JSON.stringify(inbox), permissionRead: 1, permissionWrite: 0 }]);
+                return JSON.stringify({ success: true });
+            } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+        });
+        logger.info('[CrossGame] Registered 3 IVX Cross-Game RPCs');
+    } catch (err) { logger.error('[CrossGame] Failed: ' + err.message); }
+
+    // ============================================================================
+    // v3.0 NEW RPCs — Gift System (1 RPC)
+    // ============================================================================
+    try {
+        initializer.registerRpc('gift_send', function(ctx, logger, nk, payload) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                var recipientId = data.recipientId || ''; var giftType = data.giftType || 'coins'; var amount = data.amount || 0;
+                if (!recipientId) { return JSON.stringify({ success: false, error: 'recipientId required' }); }
+                if (amount <= 0) { return JSON.stringify({ success: false, error: 'amount must be positive' }); }
+                var deduct = {}; deduct[giftType] = -amount;
+                var credit = {}; credit[giftType] = amount;
+                nk.walletUpdate(ctx.userId, deduct, { source: 'gift_sent', recipientId: recipientId }, true);
+                nk.walletUpdate(recipientId, credit, { source: 'gift_received', senderId: ctx.userId }, true);
+                var gift = { id: ctx.userId + '_' + Date.now(), type: 'gift', senderId: ctx.userId, giftType: giftType, amount: amount, sentAt: Math.floor(Date.now() / 1000), read: false };
+                var s = nk.storageRead([{ collection: 'cross_game_messages', key: 'inbox', userId: recipientId }]);
+                var inbox = (s && s.length > 0) ? JSON.parse(s[0].value) : { messages: [] };
+                inbox.messages = inbox.messages || []; inbox.messages.push(gift);
+                nk.storageWrite([{ collection: 'cross_game_messages', key: 'inbox', userId: recipientId, value: JSON.stringify(inbox), permissionRead: 1, permissionWrite: 0 }]);
+                return JSON.stringify({ success: true, gift: gift });
+            } catch(e) { logger.error('[Gifts] gift_send error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+        });
+        logger.info('[Gifts] Registered gift_send');
+    } catch (err) { logger.error('[Gifts] Failed: ' + err.message); }
+
+
     logger.info('========================================');
     logger.info('JavaScript Runtime Initialization Complete');
-    logger.info('Total System RPCs: 208');
+    logger.info('Total System RPCs: 219');
+
     logger.info('  - Core Multi-Game RPCs: 71');
     logger.info('  - Achievement System: 4');
     logger.info('  - Matchmaking System: 5');
