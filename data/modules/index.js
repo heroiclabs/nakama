@@ -1,4 +1,4 @@
-﻿// Nakama Runtime Module - Consolidated
+// Nakama Runtime Module - Consolidated
 // Compatible with Nakama V8 JavaScript runtime (No ES Modules)
 // All import/export statements have been removed
 
@@ -22655,6 +22655,129 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     // v3.0 NEW RPCs â€” Character System (3 RPCs)
     // ============================================================================
+
+    // ── Character System Inline Handlers ──────────────────────────────
+    // NOTE: characters/characters.js defines these but Nakama JS runtime
+    // loads each .js file in its own scope — subdirectory modules don't
+    // merge into index.js context. Inlined here so registration succeeds.
+
+    var CHAR_DEFS_INLINE = {
+        quizzy: { id:'quizzy', name:'Quizzy', rarity:'common', xpBonus:0, unlockCondition:'default', introVideoPath:'Characters/Quizzy/intro.mp4', xpRewardOnUnlock:0 },
+        autocurio: { id:'autocurio', name:'AUTOcurio', rarity:'common', xpBonus:0, unlockCondition:'default', introVideoPath:'Characters/AUTOcurio/intro.mp4', xpRewardOnUnlock:0 },
+        atlas: { id:'atlas', name:'Atlas', rarity:'rare', xpBonus:5, unlockCondition:'badge_explorer_tier3', introVideoPath:'Characters/Atlas/intro.mp4', xpRewardOnUnlock:100 },
+        nova: { id:'nova', name:'Nova', rarity:'rare', xpBonus:5, unlockCondition:'badge_science_tier3', introVideoPath:'Characters/Nova/intro.mp4', xpRewardOnUnlock:100 },
+        dog: { id:'dog', name:'Dog', rarity:'rare', xpBonus:5, unlockCondition:'install_donut_disturb', introVideoPath:'Characters/Dog/intro.mp4', xpRewardOnUnlock:100 },
+        sparky: { id:'sparky', name:'Sparky', rarity:'rare', xpBonus:5, unlockCondition:'badge_speed_demon_gold', introVideoPath:'Characters/Sparky/intro.mp4', xpRewardOnUnlock:100 },
+        echo: { id:'echo', name:'Echo', rarity:'rare', xpBonus:5, unlockCondition:'audio_review_10', introVideoPath:'Characters/Echo/intro.mp4', xpRewardOnUnlock:100 },
+        professor: { id:'professor', name:'Professor', rarity:'rare', xpBonus:5, unlockCondition:'smart_review_10', introVideoPath:'Characters/Professor/intro.mp4', xpRewardOnUnlock:100 },
+        pixel: { id:'pixel', name:'Pixel', rarity:'rare', xpBonus:5, unlockCondition:'badge_social_butterfly_day14', introVideoPath:'Characters/Pixel/intro.mp4', xpRewardOnUnlock:100 },
+        chronos: { id:'chronos', name:'Chronos', rarity:'epic', xpBonus:10, unlockCondition:'streak_30', introVideoPath:'Characters/Chronos/intro.mp4', xpRewardOnUnlock:250 },
+        phoenix: { id:'phoenix', name:'Phoenix', rarity:'epic', xpBonus:10, unlockCondition:'league_gold', introVideoPath:'Characters/Phoenix/intro.mp4', xpRewardOnUnlock:250 },
+        bear: { id:'bear', name:'Bear', rarity:'epic', xpBonus:10, unlockCondition:'donut_disturb_level_25', introVideoPath:'Characters/Bear/intro.mp4', xpRewardOnUnlock:250 },
+        duck: { id:'duck', name:'Duck', rarity:'epic', xpBonus:10, unlockCondition:'donut_disturb_level_10', introVideoPath:'Characters/Duck/intro.mp4', xpRewardOnUnlock:250 },
+        luna: { id:'luna', name:'Luna', rarity:'epic', xpBonus:10, unlockCondition:'badge_night_owl', introVideoPath:'Characters/Luna/intro.mp4', xpRewardOnUnlock:250 },
+        sage: { id:'sage', name:'Sage', rarity:'legendary', xpBonus:15, unlockCondition:'league_diamond', introVideoPath:'Characters/Sage/intro.mp4', xpRewardOnUnlock:500 },
+        ix: { id:'ix', name:'IX', rarity:'legendary', xpBonus:15, unlockCondition:'ecosystem_points_2500', introVideoPath:'Characters/IX/intro.mp4', xpRewardOnUnlock:500 }
+    };
+
+    var CHAR_STORE_COL = 'player_data';
+    function _charKey(uid, gid) { return 'characters_' + uid + '_' + gid; }
+    function _charRead(nk, lg, uid, gid) {
+        try {
+            var r = nk.storageRead([{ collection: CHAR_STORE_COL, key: _charKey(uid,gid), userId: uid }]);
+            if (r && r.length > 0 && r[0].value) return r[0].value;
+        } catch(e) { lg.warn('[Characters] read fail: ' + e.message); }
+        return null;
+    }
+    function _charWrite(nk, lg, uid, gid, data) {
+        try {
+            nk.storageWrite([{ collection: CHAR_STORE_COL, key: _charKey(uid,gid), userId: uid, value: data, permissionRead:1, permissionWrite:0 }]);
+            return true;
+        } catch(e) { lg.error('[Characters] write fail: ' + e.message); return false; }
+    }
+    function _charInit(uid) {
+        var now = new Date().toISOString();
+        return { activeCharacter:'quizzy', unlockedCharacters:{ quizzy:{ unlockedAt:now } }, totalXpFromUnlocks:0, createdAt:now, updatedAt:now };
+    }
+    function _charErr(msg) { return JSON.stringify({ success:false, error:msg }); }
+    function _charParse(p) { if (!p || p==='') return {}; try { return JSON.parse(p); } catch(e) { return null; } }
+
+    var rpcCharacterGetState = function(ctx, logger, nk, payload) {
+        if (!ctx.userId) return _charErr('User not authenticated');
+        var data = _charParse(payload); if (data===null) return _charErr('Invalid JSON payload');
+        var gameId = data.gameId || 'quizverse';
+        var cd = _charRead(nk, logger, ctx.userId, gameId);
+        if (!cd) { cd = _charInit(ctx.userId); _charWrite(nk, logger, ctx.userId, gameId, cd); }
+        var chars = [];
+        for (var cid in CHAR_DEFS_INLINE) {
+            var def = CHAR_DEFS_INLINE[cid]; var isU = cd.unlockedCharacters && cd.unlockedCharacters[cid];
+            chars.push({ id:def.id, name:def.name, rarity:def.rarity, xpBonus:def.xpBonus, unlocked:!!isU,
+                unlockedAt: isU ? cd.unlockedCharacters[cid].unlockedAt : null,
+                unlockCondition: isU ? null : def.unlockCondition, introVideoPath:def.introVideoPath });
+        }
+        return JSON.stringify({ success:true, userId:ctx.userId, gameId:gameId, activeCharacter:cd.activeCharacter,
+            characters:chars, totalUnlocked:Object.keys(cd.unlockedCharacters||{}).length,
+            totalCharacters:Object.keys(CHAR_DEFS_INLINE).length, totalXpFromUnlocks:cd.totalXpFromUnlocks||0,
+            timestamp:new Date().toISOString() });
+    };
+
+    var rpcCharacterUnlock = function(ctx, logger, nk, payload) {
+        if (!ctx.userId) return _charErr('User not authenticated');
+        var data = _charParse(payload); if (data===null) return _charErr('Invalid JSON');
+        var gameId = data.gameId||'quizverse'; var characterId = data.characterId;
+        if (!characterId) return _charErr('Missing: characterId');
+        var def = CHAR_DEFS_INLINE[characterId]; if (!def) return _charErr('Not found: '+characterId);
+        var cd = _charRead(nk, logger, ctx.userId, gameId);
+        if (!cd) cd = _charInit(ctx.userId);
+        if (cd.unlockedCharacters && cd.unlockedCharacters[characterId])
+            return JSON.stringify({ success:false, error:'already_unlocked', characterId:characterId });
+        var now = new Date().toISOString(); var xp = def.xpRewardOnUnlock||0;
+        if (!cd.unlockedCharacters) cd.unlockedCharacters = {};
+        cd.unlockedCharacters[characterId] = { unlockedAt:now };
+        cd.totalXpFromUnlocks = (cd.totalXpFromUnlocks||0) + xp; cd.updatedAt = now;
+        if (xp > 0) { try {
+            var acct = nk.accountGetId(ctx.userId); if (acct) {
+                var meta = {}; try { meta = JSON.parse(acct.user.metadata||'{}'); } catch(e) { meta={}; }
+                meta.totalXp = (meta.totalXp||0)+xp; meta.lastXpSource = 'character_unlock_'+characterId; meta.lastXpAt = now;
+                nk.accountUpdateId(ctx.userId, null,null,null,null,null,null,null, JSON.stringify(meta));
+            }
+        } catch(xe) { logger.warn('[Characters] XP update fail: '+xe.message); } }
+        if (!_charWrite(nk, logger, ctx.userId, gameId, cd)) return _charErr('Save failed');
+        logger.info('[Characters] '+characterId+' unlocked for '+ctx.userId+' (+'+xp+' XP)');
+        return JSON.stringify({ success:true, characterId:characterId, name:def.name, rarity:def.rarity, xpBonus:def.xpBonus,
+            xpAwarded:xp, introVideoPath:def.introVideoPath,
+            totalUnlocked:Object.keys(cd.unlockedCharacters).length,
+            totalCharacters:Object.keys(CHAR_DEFS_INLINE).length, timestamp:now });
+    };
+
+    var rpcCharacterSetActive = function(ctx, logger, nk, payload) {
+        if (!ctx.userId) return _charErr('User not authenticated');
+        var data = _charParse(payload); if (data===null) return _charErr('Invalid JSON');
+        var gameId = data.gameId||'quizverse'; var characterId = data.characterId;
+        if (!characterId) return _charErr('Missing: characterId');
+        var def = CHAR_DEFS_INLINE[characterId]; if (!def) return _charErr('Not found: '+characterId);
+        var cd = _charRead(nk, logger, ctx.userId, gameId);
+        if (!cd) cd = _charInit(ctx.userId);
+        if (!cd.unlockedCharacters || !cd.unlockedCharacters[characterId])
+            return _charErr('Not unlocked: '+characterId);
+        if (cd.activeCharacter === characterId)
+            return JSON.stringify({ success:true, activeCharacter:characterId, alreadyActive:true });
+        var prev = cd.activeCharacter; cd.activeCharacter = characterId; cd.updatedAt = new Date().toISOString();
+        if (!_charWrite(nk, logger, ctx.userId, gameId, cd)) return _charErr('Save failed');
+        try {
+            var acct = nk.accountGetId(ctx.userId); if (acct) {
+                var meta = {}; try { meta = JSON.parse(acct.user.metadata||'{}'); } catch(e) { meta={}; }
+                meta.activeCharacter = characterId; meta.activeCharacterXpBonus = def.xpBonus;
+                nk.accountUpdateId(ctx.userId, null,null,null,null,null,null,null, JSON.stringify(meta));
+            }
+        } catch(me) { logger.warn('[Characters] meta update fail: '+me.message); }
+        logger.info('[Characters] '+ctx.userId+' switched: '+prev+' → '+characterId);
+        return JSON.stringify({ success:true, activeCharacter:characterId, previousCharacter:prev,
+            xpBonus:def.xpBonus, timestamp:new Date().toISOString() });
+    };
+
+    // ── End Character Inline Handlers ─────────────────────────────────
+
     try {
         logger.info('[Characters] Initializing Character System Module...');
         initializer.registerRpc('character_get_state', rpcCharacterGetState);
