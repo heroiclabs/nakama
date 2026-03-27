@@ -10474,7 +10474,7 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
 
     // Register leaderboard_sync RPCs
     try {
-        initializer.registerRpc('submit_score_sync', rpcSubmitScoreSync);
+        initializer.registerRpc('submit_score_sync', submitScoreSync);
         logger.info('âœ“ Registered RPC: submit_score_sync');
     } catch (err) {
         logger.error('âœ— Failed to register submit_score_sync: ' + err.message);
@@ -10482,7 +10482,7 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
 
     // Register leaderboard_aggregate RPCs
     try {
-        initializer.registerRpc('submit_score_with_aggregate', rpcSubmitScoreWithAggregate);
+        initializer.registerRpc('submit_score_with_aggregate', submitScoreWithAggregate);
         logger.info('âœ“ Registered RPC: submit_score_with_aggregate');
     } catch (err) {
         logger.error('âœ— Failed to register submit_score_with_aggregate: ' + err.message);
@@ -10490,21 +10490,21 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
 
     // Register leaderboard_friends RPCs
     try {
-        initializer.registerRpc('create_all_leaderboards_with_friends', rpcCreateAllLeaderboardsWithFriends);
+        initializer.registerRpc('create_all_leaderboards_with_friends', createAllLeaderboardsWithFriends);
         logger.info('âœ“ Registered RPC: create_all_leaderboards_with_friends');
     } catch (err) {
         logger.error('âœ— Failed to register create_all_leaderboards_with_friends: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('submit_score_with_friends_sync', rpcSubmitScoreWithFriendsSync);
+        initializer.registerRpc('submit_score_with_friends_sync', submitScoreWithFriendsSync);
         logger.info('âœ“ Registered RPC: submit_score_with_friends_sync');
     } catch (err) {
         logger.error('âœ— Failed to register submit_score_with_friends_sync: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('get_friend_leaderboard', rpcGetFriendLeaderboard);
+        initializer.registerRpc('get_friend_leaderboard', getFriendLeaderboard);
         logger.info('âœ“ Registered RPC: get_friend_leaderboard');
     } catch (err) {
         logger.error('âœ— Failed to register get_friend_leaderboard: ' + err.message);
@@ -10512,28 +10512,28 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
 
     // Register social_features RPCs
     try {
-        initializer.registerRpc('send_friend_invite', rpcSendFriendInvite);
+        initializer.registerRpc('send_friend_invite', sendFriendInvite);
         logger.info('âœ“ Registered RPC: send_friend_invite');
     } catch (err) {
         logger.error('âœ— Failed to register send_friend_invite: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('accept_friend_invite', rpcAcceptFriendInvite);
+        initializer.registerRpc('accept_friend_invite', acceptFriendInvite);
         logger.info('âœ“ Registered RPC: accept_friend_invite');
     } catch (err) {
         logger.error('âœ— Failed to register accept_friend_invite: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('decline_friend_invite', rpcDeclineFriendInvite);
+        initializer.registerRpc('decline_friend_invite', declineFriendInvite);
         logger.info('âœ“ Registered RPC: decline_friend_invite');
     } catch (err) {
         logger.error('âœ— Failed to register decline_friend_invite: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('get_notifications', rpcGetNotifications);
+        initializer.registerRpc('get_notifications', getNotifications);
         logger.info('âœ“ Registered RPC: get_notifications');
     } catch (err) {
         logger.error('âœ— Failed to register get_notifications: ' + err.message);
