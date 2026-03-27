@@ -23046,7 +23046,6 @@ function InitModule(ctx, logger, nk, initializer) {
         // Register daily cron job for game registry sync
         // Runs daily at 2 AM UTC: "0 2 * * *"
         var cronExpr = "0 2 * * *";
-        initializer.registerMatchmakerOverride(emptyMatchmakerOverride);
         logger.info('[GameRegistry] Note: To enable daily sync, configure cron in server config');
         logger.info('[GameRegistry] Cron expression for daily 2 AM UTC: ' + cronExpr);
         logger.info('[GameRegistry] Call sync_game_registry RPC manually or on deployment');
