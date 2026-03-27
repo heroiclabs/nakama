@@ -10474,7 +10474,7 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
 
     // Register leaderboard_sync RPCs
     try {
-        initializer.registerRpc('submit_score_sync', rpcSubmitScoreSync);
+        initializer.registerRpc('submit_score_sync', function(ctx, logger, nk, payload) { return rpcSubmitScoreSync(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: submit_score_sync');
     } catch (err) {
         logger.error('âœ— Failed to register submit_score_sync: ' + err.message);
@@ -10482,7 +10482,7 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
 
     // Register leaderboard_aggregate RPCs
     try {
-        initializer.registerRpc('submit_score_with_aggregate', rpcSubmitScoreWithAggregate);
+        initializer.registerRpc('submit_score_with_aggregate', function(ctx, logger, nk, payload) { return rpcSubmitScoreWithAggregate(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: submit_score_with_aggregate');
     } catch (err) {
         logger.error('âœ— Failed to register submit_score_with_aggregate: ' + err.message);
@@ -10490,21 +10490,21 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
 
     // Register leaderboard_friends RPCs
     try {
-        initializer.registerRpc('create_all_leaderboards_with_friends', rpcCreateAllLeaderboardsWithFriends);
+        initializer.registerRpc('create_all_leaderboards_with_friends', function(ctx, logger, nk, payload) { return rpcCreateAllLeaderboardsWithFriends(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: create_all_leaderboards_with_friends');
     } catch (err) {
         logger.error('âœ— Failed to register create_all_leaderboards_with_friends: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('submit_score_with_friends_sync', rpcSubmitScoreWithFriendsSync);
+        initializer.registerRpc('submit_score_with_friends_sync', function(ctx, logger, nk, payload) { return rpcSubmitScoreWithFriendsSync(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: submit_score_with_friends_sync');
     } catch (err) {
         logger.error('âœ— Failed to register submit_score_with_friends_sync: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('get_friend_leaderboard', rpcGetFriendLeaderboard);
+        initializer.registerRpc('get_friend_leaderboard', function(ctx, logger, nk, payload) { return rpcGetFriendLeaderboard(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: get_friend_leaderboard');
     } catch (err) {
         logger.error('âœ— Failed to register get_friend_leaderboard: ' + err.message);
@@ -10512,28 +10512,28 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
 
     // Register social_features RPCs
     try {
-        initializer.registerRpc('send_friend_invite', rpcSendFriendInvite);
+        initializer.registerRpc('send_friend_invite', function(ctx, logger, nk, payload) { return rpcSendFriendInvite(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: send_friend_invite');
     } catch (err) {
         logger.error('âœ— Failed to register send_friend_invite: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('accept_friend_invite', rpcAcceptFriendInvite);
+        initializer.registerRpc('accept_friend_invite', function(ctx, logger, nk, payload) { return rpcAcceptFriendInvite(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: accept_friend_invite');
     } catch (err) {
         logger.error('âœ— Failed to register accept_friend_invite: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('decline_friend_invite', rpcDeclineFriendInvite);
+        initializer.registerRpc('decline_friend_invite', function(ctx, logger, nk, payload) { return rpcDeclineFriendInvite(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: decline_friend_invite');
     } catch (err) {
         logger.error('âœ— Failed to register decline_friend_invite: ' + err.message);
     }
 
     try {
-        initializer.registerRpc('get_notifications', rpcGetNotifications);
+        initializer.registerRpc('get_notifications', function(ctx, logger, nk, payload) { return rpcGetNotifications(ctx, logger, nk, payload); });
         logger.info('âœ“ Registered RPC: get_notifications');
     } catch (err) {
         logger.error('âœ— Failed to register get_notifications: ' + err.message);
@@ -21833,6 +21833,100 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
     }
 };
 
+
+// ============================================================================
+// STUB IMPLEMENTATIONS - Placeholder handlers for planned RPCs
+// ============================================================================
+function rpcLeagueGetState(ctx, logger, nk, payload) {
+    logger.warn('[Stub] league_get_state called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'league_get_state not yet implemented' });
+}
+
+function rpcLeagueSubmitPoints(ctx, logger, nk, payload) {
+    logger.warn('[Stub] league_submit_points called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'league_submit_points not yet implemented' });
+}
+
+function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
+    logger.warn('[Stub] league_process_season called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'league_process_season not yet implemented' });
+}
+
+function rpcLeagueGetLeaderboard(ctx, logger, nk, payload) {
+    logger.warn('[Stub] league_get_leaderboard called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'league_get_leaderboard not yet implemented' });
+}
+
+function rpcStreakRepair(ctx, logger, nk, payload) {
+    logger.warn('[Stub] streak_repair called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'streak_repair not yet implemented' });
+}
+
+function rpcStreakWager(ctx, logger, nk, payload) {
+    logger.warn('[Stub] streak_wager called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'streak_wager not yet implemented' });
+}
+
+function rpcNotifGateGetState(ctx, logger, nk, payload) {
+    logger.warn('[Stub] notification_gate_get_state called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'notification_gate_get_state not yet implemented' });
+}
+
+function rpcListNotificationInbox(ctx, logger, nk, payload) {
+    logger.warn('[Stub] list_notification_inbox called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'list_notification_inbox not yet implemented' });
+}
+
+function rpcMarkNotificationsRead(ctx, logger, nk, payload) {
+    logger.warn('[Stub] mark_notifications_read called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'mark_notifications_read not yet implemented' });
+}
+
+function rpcSmartReviewGetCards(ctx, logger, nk, payload) {
+    logger.warn('[Stub] smart_review_get_cards called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'smart_review_get_cards not yet implemented' });
+}
+
+function rpcSmartReviewRateCard(ctx, logger, nk, payload) {
+    logger.warn('[Stub] smart_review_rate_card called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'smart_review_rate_card not yet implemented' });
+}
+
+function rpcManifestGetVersion(ctx, logger, nk, payload) {
+    logger.warn('[Stub] manifest_get_version called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'manifest_get_version not yet implemented' });
+}
+
+function rpcPlayerGetFullProfile(ctx, logger, nk, payload) {
+    logger.warn('[Stub] player_get_full_profile called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'player_get_full_profile not yet implemented' });
+}
+
+function rpcFriendStreakGetState(ctx, logger, nk, payload) {
+    logger.warn('[Stub] friend_streak_get_state called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'friend_streak_get_state not yet implemented' });
+}
+
+function rpcFriendStreakRecordContribution(ctx, logger, nk, payload) {
+    logger.warn('[Stub] friend_streak_record_contribution called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'friend_streak_record_contribution not yet implemented' });
+}
+
+function rpcFriendStreakSendNudge(ctx, logger, nk, payload) {
+    logger.warn('[Stub] friend_streak_send_nudge called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'friend_streak_send_nudge not yet implemented' });
+}
+
+function rpcFriendQuestGetState(ctx, logger, nk, payload) {
+    logger.warn('[Stub] friend_quest_get_state called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'friend_quest_get_state not yet implemented' });
+}
+
+function rpcFriendQuestComplete(ctx, logger, nk, payload) {
+    logger.warn('[Stub] friend_quest_complete called - not yet implemented');
+    return JSON.stringify({ success: false, error: 'friend_quest_complete not yet implemented' });
+}
+
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
     logger.info('Legacy JavaScript Runtime Initialization');
@@ -21843,15 +21937,15 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[Copilot] Initializing Wallet Mapping Module...');
 
         // Register RPC: get_user_wallet
-        initializer.registerRpc('get_user_wallet', getUserWallet);
+        initializer.registerRpc('get_user_wallet', function(ctx, logger, nk, payload) { return getUserWallet(ctx, logger, nk, payload); });
         logger.info('[Copilot] Registered RPC: get_user_wallet');
 
         // Register RPC: link_wallet_to_game
-        initializer.registerRpc('link_wallet_to_game', linkWalletToGame);
+        initializer.registerRpc('link_wallet_to_game', function(ctx, logger, nk, payload) { return linkWalletToGame(ctx, logger, nk, payload); });
         logger.info('[Copilot] Registered RPC: link_wallet_to_game');
 
         // Register RPC: get_wallet_registry
-        initializer.registerRpc('get_wallet_registry', getWalletRegistry);
+        initializer.registerRpc('get_wallet_registry', function(ctx, logger, nk, payload) { return getWalletRegistry(ctx, logger, nk, payload); });
         logger.info('[Copilot] Registered RPC: get_wallet_registry');
 
         logger.info('[Copilot] Successfully registered 3 wallet RPC functions');
@@ -21860,17 +21954,17 @@ function InitModule(ctx, logger, nk, initializer) {
     }
 
     // Register Leaderboard RPCs
-    initializer.registerRpc('create_all_leaderboards_persistent', createAllLeaderboardsPersistent);
+    initializer.registerRpc('create_all_leaderboards_persistent', function(ctx, logger, nk, payload) { return createAllLeaderboardsPersistent(ctx, logger, nk, payload); });
     logger.info('[Leaderboards] Registered RPC: create_all_leaderboards_persistent');
 
     // Register Time-Period Leaderboard RPCs
     try {
         logger.info('[Leaderboards] Initializing Time-Period Leaderboard Module...');
-        initializer.registerRpc('create_time_period_leaderboards', rpcCreateTimePeriodLeaderboards);
+        initializer.registerRpc('create_time_period_leaderboards', function(ctx, logger, nk, payload) { return rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload); });
         logger.info('[Leaderboards] Registered RPC: create_time_period_leaderboards');
-        initializer.registerRpc('submit_score_to_time_periods', rpcSubmitScoreToTimePeriods);
+        initializer.registerRpc('submit_score_to_time_periods', function(ctx, logger, nk, payload) { return rpcSubmitScoreToTimePeriods(ctx, logger, nk, payload); });
         logger.info('[Leaderboards] Registered RPC: submit_score_to_time_periods');
-        initializer.registerRpc('get_time_period_leaderboard', rpcGetTimePeriodLeaderboard);
+        initializer.registerRpc('get_time_period_leaderboard', function(ctx, logger, nk, payload) { return rpcGetTimePeriodLeaderboard(ctx, logger, nk, payload); });
         logger.info('[Leaderboards] Registered RPC: get_time_period_leaderboard');
         logger.info('[Leaderboards] Successfully registered 3 Time-Period Leaderboard RPCs');
     } catch (err) {
@@ -21880,11 +21974,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Game Registry RPCs
     try {
         logger.info('[GameRegistry] Initializing Game Registry Module...');
-        initializer.registerRpc('get_game_registry', rpcGetGameRegistry);
+        initializer.registerRpc('get_game_registry', function(ctx, logger, nk, payload) { return rpcGetGameRegistry(ctx, logger, nk, payload); });
         logger.info('[GameRegistry] Registered RPC: get_game_registry');
-        initializer.registerRpc('get_game_by_id', rpcGetGameById);
+        initializer.registerRpc('get_game_by_id', function(ctx, logger, nk, payload) { return rpcGetGameById(ctx, logger, nk, payload); });
         logger.info('[GameRegistry] Registered RPC: get_game_by_id');
-        initializer.registerRpc('sync_game_registry', rpcSyncGameRegistry);
+        initializer.registerRpc('sync_game_registry', function(ctx, logger, nk, payload) { return rpcSyncGameRegistry(ctx, logger, nk, payload); });
         logger.info('[GameRegistry] Registered RPC: sync_game_registry');
         logger.info('[GameRegistry] Successfully registered 3 Game Registry RPCs');
     } catch (err) {
@@ -21930,9 +22024,9 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Daily Rewards RPCs
     try {
         logger.info('[DailyRewards] Initializing Daily Rewards Module...');
-        initializer.registerRpc('daily_rewards_get_status', rpcDailyRewardsGetStatus);
+        initializer.registerRpc('daily_rewards_get_status', function(ctx, logger, nk, payload) { return rpcDailyRewardsGetStatus(ctx, logger, nk, payload); });
         logger.info('[DailyRewards] Registered RPC: daily_rewards_get_status');
-        initializer.registerRpc('daily_rewards_claim', rpcDailyRewardsClaim);
+        initializer.registerRpc('daily_rewards_claim', function(ctx, logger, nk, payload) { return rpcDailyRewardsClaim(ctx, logger, nk, payload); });
         logger.info('[DailyRewards] Registered RPC: daily_rewards_claim');
         logger.info('[DailyRewards] Successfully registered 2 Daily Rewards RPCs');
     } catch (err) {
@@ -21942,13 +22036,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Quiz Results RPCs
     try {
         logger.info('[QuizResults] Initializing Quiz Results Module...');
-        initializer.registerRpc('quiz_submit_result', rpcQuizSubmitResult);
+        initializer.registerRpc('quiz_submit_result', function(ctx, logger, nk, payload) { return rpcQuizSubmitResult(ctx, logger, nk, payload); });
         logger.info('[QuizResults] Registered RPC: quiz_submit_result');
-        initializer.registerRpc('quiz_get_history', rpcQuizGetHistory);
+        initializer.registerRpc('quiz_get_history', function(ctx, logger, nk, payload) { return rpcQuizGetHistory(ctx, logger, nk, payload); });
         logger.info('[QuizResults] Registered RPC: quiz_get_history');
-        initializer.registerRpc('quiz_get_stats', rpcQuizGetStats);
+        initializer.registerRpc('quiz_get_stats', function(ctx, logger, nk, payload) { return rpcQuizGetStats(ctx, logger, nk, payload); });
         logger.info('[QuizResults] Registered RPC: quiz_get_stats');
-        initializer.registerRpc('quiz_check_daily_completion', rpcQuizCheckDailyCompletion);
+        initializer.registerRpc('quiz_check_daily_completion', function(ctx, logger, nk, payload) { return rpcQuizCheckDailyCompletion(ctx, logger, nk, payload); });
         logger.info('[QuizResults] Registered RPC: quiz_check_daily_completion');
         logger.info('[QuizResults] Successfully registered 4 Quiz Results RPCs');
     } catch (err) {
@@ -21958,11 +22052,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Game Entry Cost RPCs
     try {
         logger.info('[GameEntry] Initializing Game Entry Cost Module...');
-        initializer.registerRpc('game_entry_validate', rpcGameEntryValidate);
+        initializer.registerRpc('game_entry_validate', function(ctx, logger, nk, payload) { return rpcGameEntryValidate(ctx, logger, nk, payload); });
         logger.info('[GameEntry] Registered RPC: game_entry_validate');
-        initializer.registerRpc('game_entry_complete', rpcGameEntryComplete);
+        initializer.registerRpc('game_entry_complete', function(ctx, logger, nk, payload) { return rpcGameEntryComplete(ctx, logger, nk, payload); });
         logger.info('[GameEntry] Registered RPC: game_entry_complete');
-        initializer.registerRpc('game_entry_get_status', rpcGameEntryGetStatus);
+        initializer.registerRpc('game_entry_get_status', function(ctx, logger, nk, payload) { return rpcGameEntryGetStatus(ctx, logger, nk, payload); });
         logger.info('[GameEntry] Registered RPC: game_entry_get_status');
         logger.info('[GameEntry] Successfully registered 3 Game Entry Cost RPCs');
     } catch (err) {
@@ -21972,11 +22066,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Daily Missions RPCs
     try {
         logger.info('[DailyMissions] Initializing Daily Missions Module...');
-        initializer.registerRpc('get_daily_missions', rpcGetDailyMissions);
+        initializer.registerRpc('get_daily_missions', function(ctx, logger, nk, payload) { return rpcGetDailyMissions(ctx, logger, nk, payload); });
         logger.info('[DailyMissions] Registered RPC: get_daily_missions');
-        initializer.registerRpc('submit_mission_progress', rpcSubmitMissionProgress);
+        initializer.registerRpc('submit_mission_progress', function(ctx, logger, nk, payload) { return rpcSubmitMissionProgress(ctx, logger, nk, payload); });
         logger.info('[DailyMissions] Registered RPC: submit_mission_progress');
-        initializer.registerRpc('claim_mission_reward', rpcClaimMissionReward);
+        initializer.registerRpc('claim_mission_reward', function(ctx, logger, nk, payload) { return rpcClaimMissionReward(ctx, logger, nk, payload); });
         logger.info('[DailyMissions] Registered RPC: claim_mission_reward');
         logger.info('[DailyMissions] Successfully registered 3 Daily Missions RPCs');
     } catch (err) {
@@ -21987,17 +22081,17 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Enhanced Wallet RPCs
     try {
         logger.info('[Wallet] Initializing Enhanced Wallet Module...');
-        initializer.registerRpc('wallet_get_all', rpcWalletGetAll);
+        initializer.registerRpc('wallet_get_all', function(ctx, logger, nk, payload) { return rpcWalletGetAll(ctx, logger, nk, payload); });
         logger.info('[Wallet] Registered RPC: wallet_get_all');
-        initializer.registerRpc('wallet_update_global', rpcWalletUpdateGlobal);
+        initializer.registerRpc('wallet_update_global', function(ctx, logger, nk, payload) { return rpcWalletUpdateGlobal(ctx, logger, nk, payload); });
         logger.info('[Wallet] Registered RPC: wallet_update_global');
-        initializer.registerRpc('wallet_update_game_wallet', rpcWalletUpdateGameWallet);
+        initializer.registerRpc('wallet_update_game_wallet', function(ctx, logger, nk, payload) { return rpcWalletUpdateGameWallet(ctx, logger, nk, payload); });
         logger.info('[Wallet] Registered RPC: wallet_update_game_wallet');
-        initializer.registerRpc('wallet_transfer_between_game_wallets', rpcWalletTransferBetweenGameWallets);
+        initializer.registerRpc('wallet_transfer_between_game_wallets', function(ctx, logger, nk, payload) { return rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload); });
         logger.info('[Wallet] Registered RPC: wallet_transfer_between_game_wallets');
 
         // NEW:
-        initializer.registerRpc('wallet_get_balances', rpcWalletGetBalances);
+        initializer.registerRpc('wallet_get_balances', function(ctx, logger, nk, payload) { return rpcWalletGetBalances(ctx, logger, nk, payload); });
         logger.info('[Wallet] Registered RPC: wallet_get_balances');
 
         logger.info('[Wallet] Successfully registered 5 Enhanced Wallet RPCs');
@@ -22008,7 +22102,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Analytics RPCs
     try {
         logger.info('[Analytics] Initializing Analytics Module...');
-        initializer.registerRpc('analytics_log_event', rpcAnalyticsLogEvent);
+        initializer.registerRpc('analytics_log_event', function(ctx, logger, nk, payload) { return rpcAnalyticsLogEvent(ctx, logger, nk, payload); });
         logger.info('[Analytics] Registered RPC: analytics_log_event');
         logger.info('[Analytics] Successfully registered 1 Analytics RPC');
     } catch (err) {
@@ -22018,17 +22112,17 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Enhanced Friends RPCs
     try {
         logger.info('[Friends] Initializing Enhanced Friends Module...');
-        initializer.registerRpc('friends_block', rpcFriendsBlock);
+        initializer.registerRpc('friends_block', function(ctx, logger, nk, payload) { return rpcFriendsBlock(ctx, logger, nk, payload); });
         logger.info('[Friends] Registered RPC: friends_block');
-        initializer.registerRpc('friends_unblock', rpcFriendsUnblock);
+        initializer.registerRpc('friends_unblock', function(ctx, logger, nk, payload) { return rpcFriendsUnblock(ctx, logger, nk, payload); });
         logger.info('[Friends] Registered RPC: friends_unblock');
-        initializer.registerRpc('friends_remove', rpcFriendsRemove);
+        initializer.registerRpc('friends_remove', function(ctx, logger, nk, payload) { return rpcFriendsRemove(ctx, logger, nk, payload); });
         logger.info('[Friends] Registered RPC: friends_remove');
-        initializer.registerRpc('friends_list', rpcFriendsList);
+        initializer.registerRpc('friends_list', function(ctx, logger, nk, payload) { return rpcFriendsList(ctx, logger, nk, payload); });
         logger.info('[Friends] Registered RPC: friends_list');
-        initializer.registerRpc('friends_challenge_user', rpcFriendsChallengeUser);
+        initializer.registerRpc('friends_challenge_user', function(ctx, logger, nk, payload) { return rpcFriendsChallengeUser(ctx, logger, nk, payload); });
         logger.info('[Friends] Registered RPC: friends_challenge_user');
-        initializer.registerRpc('friends_spectate', rpcFriendsSpectate);
+        initializer.registerRpc('friends_spectate', function(ctx, logger, nk, payload) { return rpcFriendsSpectate(ctx, logger, nk, payload); });
         logger.info('[Friends] Registered RPC: friends_spectate');
         logger.info('[Friends] Successfully registered 6 Enhanced Friends RPCs');
     } catch (err) {
@@ -22038,15 +22132,15 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Groups/Clans/Guilds RPCs
     try {
         logger.info('[Groups] Initializing Groups/Clans/Guilds Module...');
-        initializer.registerRpc('create_game_group', rpcCreateGameGroup);
+        initializer.registerRpc('create_game_group', function(ctx, logger, nk, payload) { return rpcCreateGameGroup(ctx, logger, nk, payload); });
         logger.info('[Groups] Registered RPC: create_game_group');
-        initializer.registerRpc('update_group_xp', rpcUpdateGroupXP);
+        initializer.registerRpc('update_group_xp', function(ctx, logger, nk, payload) { return rpcUpdateGroupXP(ctx, logger, nk, payload); });
         logger.info('[Groups] Registered RPC: update_group_xp');
-        initializer.registerRpc('get_group_wallet', rpcGetGroupWallet);
+        initializer.registerRpc('get_group_wallet', function(ctx, logger, nk, payload) { return rpcGetGroupWallet(ctx, logger, nk, payload); });
         logger.info('[Groups] Registered RPC: get_group_wallet');
-        initializer.registerRpc('update_group_wallet', rpcUpdateGroupWallet);
+        initializer.registerRpc('update_group_wallet', function(ctx, logger, nk, payload) { return rpcUpdateGroupWallet(ctx, logger, nk, payload); });
         logger.info('[Groups] Registered RPC: update_group_wallet');
-        initializer.registerRpc('get_user_groups', rpcGetUserGroups);
+        initializer.registerRpc('get_user_groups', function(ctx, logger, nk, payload) { return rpcGetUserGroups(ctx, logger, nk, payload); });
         logger.info('[Groups] Registered RPC: get_user_groups');
         logger.info('[Groups] Successfully registered 5 Groups/Clans RPCs');
     } catch (err) {
@@ -22056,11 +22150,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Push Notifications RPCs
     try {
         logger.info('[PushNotifications] Initializing Push Notification Module...');
-        initializer.registerRpc('push_register_token', rpcPushRegisterToken);
+        initializer.registerRpc('push_register_token', function(ctx, logger, nk, payload) { return rpcPushRegisterToken(ctx, logger, nk, payload); });
         logger.info('[PushNotifications] Registered RPC: push_register_token');
-        initializer.registerRpc('push_send_event', rpcPushSendEvent);
+        initializer.registerRpc('push_send_event', function(ctx, logger, nk, payload) { return rpcPushSendEvent(ctx, logger, nk, payload); });
         logger.info('[PushNotifications] Registered RPC: push_send_event');
-        initializer.registerRpc('push_get_endpoints', rpcPushGetEndpoints);
+        initializer.registerRpc('push_get_endpoints', function(ctx, logger, nk, payload) { return rpcPushGetEndpoints(ctx, logger, nk, payload); });
         logger.info('[PushNotifications] Registered RPC: push_get_endpoints');
         logger.info('[PushNotifications] Successfully registered 3 Push Notification RPCs');
     } catch (err) {
@@ -22069,52 +22163,52 @@ function InitModule(ctx, logger, nk, initializer) {
 
     // Copilot Leaderboard & Social RPCs (inlined for AST parser compatibility)
     try {
-        initializer.registerRpc('submit_score_sync', rpcSubmitScoreSync);
+        initializer.registerRpc('submit_score_sync', function(ctx, logger, nk, payload) { return rpcSubmitScoreSync(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: submit_score_sync');
     } catch (err) { logger.error('✗ Failed to register submit_score_sync: ' + err.message); }
     try {
-        initializer.registerRpc('submit_score_with_aggregate', rpcSubmitScoreWithAggregate);
+        initializer.registerRpc('submit_score_with_aggregate', function(ctx, logger, nk, payload) { return rpcSubmitScoreWithAggregate(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: submit_score_with_aggregate');
     } catch (err) { logger.error('✗ Failed to register submit_score_with_aggregate: ' + err.message); }
     try {
-        initializer.registerRpc('create_all_leaderboards_with_friends', rpcCreateAllLeaderboardsWithFriends);
+        initializer.registerRpc('create_all_leaderboards_with_friends', function(ctx, logger, nk, payload) { return rpcCreateAllLeaderboardsWithFriends(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: create_all_leaderboards_with_friends');
     } catch (err) { logger.error('✗ Failed to register create_all_leaderboards_with_friends: ' + err.message); }
     try {
-        initializer.registerRpc('submit_score_with_friends_sync', rpcSubmitScoreWithFriendsSync);
+        initializer.registerRpc('submit_score_with_friends_sync', function(ctx, logger, nk, payload) { return rpcSubmitScoreWithFriendsSync(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: submit_score_with_friends_sync');
     } catch (err) { logger.error('✗ Failed to register submit_score_with_friends_sync: ' + err.message); }
     try {
-        initializer.registerRpc('get_friend_leaderboard', rpcGetFriendLeaderboard);
+        initializer.registerRpc('get_friend_leaderboard', function(ctx, logger, nk, payload) { return rpcGetFriendLeaderboard(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: get_friend_leaderboard');
     } catch (err) { logger.error('✗ Failed to register get_friend_leaderboard: ' + err.message); }
     try {
-        initializer.registerRpc('send_friend_invite', rpcSendFriendInvite);
+        initializer.registerRpc('send_friend_invite', function(ctx, logger, nk, payload) { return rpcSendFriendInvite(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: send_friend_invite');
     } catch (err) { logger.error('✗ Failed to register send_friend_invite: ' + err.message); }
     try {
-        initializer.registerRpc('accept_friend_invite', rpcAcceptFriendInvite);
+        initializer.registerRpc('accept_friend_invite', function(ctx, logger, nk, payload) { return rpcAcceptFriendInvite(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: accept_friend_invite');
     } catch (err) { logger.error('✗ Failed to register accept_friend_invite: ' + err.message); }
     try {
-        initializer.registerRpc('decline_friend_invite', rpcDeclineFriendInvite);
+        initializer.registerRpc('decline_friend_invite', function(ctx, logger, nk, payload) { return rpcDeclineFriendInvite(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: decline_friend_invite');
     } catch (err) { logger.error('✗ Failed to register decline_friend_invite: ' + err.message); }
     try {
-        initializer.registerRpc('get_notifications', rpcGetNotifications);
+        initializer.registerRpc('get_notifications', function(ctx, logger, nk, payload) { return rpcGetNotifications(ctx, logger, nk, payload); });
         logger.info('✓ Registered RPC: get_notifications');
     } catch (err) { logger.error('✗ Failed to register get_notifications: ' + err.message); }
 
     // Register New Multi-Game Identity, Wallet, and Leaderboard RPCs
     try {
         logger.info('[MultiGame] Initializing Multi-Game Identity, Wallet, and Leaderboard Module...');
-        initializer.registerRpc('create_or_sync_user', createOrSyncUser);
+        initializer.registerRpc('create_or_sync_user', function(ctx, logger, nk, payload) { return createOrSyncUser(ctx, logger, nk, payload); });
         logger.info('[MultiGame] Registered RPC: create_or_sync_user');
-        initializer.registerRpc('create_or_get_wallet', createOrGetWallet);
+        initializer.registerRpc('create_or_get_wallet', function(ctx, logger, nk, payload) { return createOrGetWallet(ctx, logger, nk, payload); });
         logger.info('[MultiGame] Registered RPC: create_or_get_wallet');
-        initializer.registerRpc('submit_score_and_sync', submitScoreAndSync);
+        initializer.registerRpc('submit_score_and_sync', function(ctx, logger, nk, payload) { return submitScoreAndSync(ctx, logger, nk, payload); });
         logger.info('[MultiGame] Registered RPC: submit_score_and_sync');
-        initializer.registerRpc('get_all_leaderboards', getAllLeaderboards);
+        initializer.registerRpc('get_all_leaderboards', function(ctx, logger, nk, payload) { return getAllLeaderboards(ctx, logger, nk, payload); });
         logger.info('[MultiGame] Registered RPC: get_all_leaderboards');
         logger.info('[MultiGame] Successfully registered 4 Multi-Game RPCs');
     } catch (err) {
@@ -22124,46 +22218,46 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Standard Player RPCs (simplified naming conventions)
     try {
         logger.info('[PlayerRPCs] Initializing Standard Player RPCs...');
-        initializer.registerRpc('create_player_wallet', rpcCreatePlayerWallet);
+        initializer.registerRpc('create_player_wallet', function(ctx, logger, nk, payload) { return rpcCreatePlayerWallet(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: create_player_wallet');
-        initializer.registerRpc('update_wallet_balance', rpcUpdateWalletBalance);
+        initializer.registerRpc('update_wallet_balance', function(ctx, logger, nk, payload) { return rpcUpdateWalletBalance(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: update_wallet_balance');
-        initializer.registerRpc('get_wallet_balance', rpcGetWalletBalance);
+        initializer.registerRpc('get_wallet_balance', function(ctx, logger, nk, payload) { return rpcGetWalletBalance(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: get_wallet_balance');
-        initializer.registerRpc('submit_leaderboard_score', rpcSubmitLeaderboardScore);
+        initializer.registerRpc('submit_leaderboard_score', function(ctx, logger, nk, payload) { return rpcSubmitLeaderboardScore(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: submit_leaderboard_score');
-        initializer.registerRpc('get_leaderboard', rpcGetLeaderboard);
+        initializer.registerRpc('get_leaderboard', function(ctx, logger, nk, payload) { return rpcGetLeaderboard(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: get_leaderboard');
-        initializer.registerRpc('check_geo_and_update_profile', rpcCheckGeoAndUpdateProfile);
+        initializer.registerRpc('check_geo_and_update_profile', function(ctx, logger, nk, payload) { return rpcCheckGeoAndUpdateProfile(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: check_geo_and_update_profile');
 
         // Player Metadata & Portfolio RPCs
 
-        initializer.registerRpc('get_player_portfolio', rpcGetPlayerPortfolio);
+        initializer.registerRpc('get_player_portfolio', function(ctx, logger, nk, payload) { return rpcGetPlayerPortfolio(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: get_player_portfolio');
-        //  initializer.registerRpc('rpc_update_player_metadata', rpcUpdatePlayerMetadata);
+        //  initializer.registerRpc('rpc_update_player_metadata', function(ctx, logger, nk, payload) { return rpcUpdatePlayerMetadata(ctx, logger, nk, payload); });
         // logger.info('[PlayerRPCs] Registered RPC: rpc_update_player_metadata');
 
 
-        initializer.registerRpc('rpc_update_player_metadata', rpcUpdatePlayerMetadataUnified);
+        initializer.registerRpc('rpc_update_player_metadata', function(ctx, logger, nk, payload) { return rpcUpdatePlayerMetadataUnified(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] âœ“ Registered: rpc_update_player_metadata (unified)');
 
-        initializer.registerRpc('rpc_change_username', rpcChangeUsername);
+        initializer.registerRpc('rpc_change_username', function(ctx, logger, nk, payload) { return rpcChangeUsername(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] âœ“ Registered: rpc_change_username');
 
-        initializer.registerRpc('get_player_metadata', rpcGetPlayerMetadata);
+        initializer.registerRpc('get_player_metadata', function(ctx, logger, nk, payload) { return rpcGetPlayerMetadata(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] âœ“ Registered: get_player_metadata');
 
-        initializer.registerRpc('admin_delete_player_metadata', rpcAdminDeletePlayerMetadata);
+        initializer.registerRpc('admin_delete_player_metadata', function(ctx, logger, nk, payload) { return rpcAdminDeletePlayerMetadata(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] âœ“ Registered: admin_delete_player_metadata');
 
 
 
 
         // Adaptive Reward System RPCs
-        initializer.registerRpc('calculate_score_reward', rpcCalculateScoreReward);
+        initializer.registerRpc('calculate_score_reward', function(ctx, logger, nk, payload) { return rpcCalculateScoreReward(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: calculate_score_reward');
-        initializer.registerRpc('update_game_reward_config', rpcUpdateGameRewardConfig);
+        initializer.registerRpc('update_game_reward_config', function(ctx, logger, nk, payload) { return rpcUpdateGameRewardConfig(ctx, logger, nk, payload); });
         logger.info('[PlayerRPCs] Registered RPC: update_game_reward_config (admin)');
 
         logger.info('[PlayerRPCs] Successfully registered 10 Standard Player RPCs');
@@ -22174,19 +22268,19 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Chat RPCs (Group Chat, Direct Chat, Chat Rooms)
     try {
         logger.info('[Chat] Initializing Chat Module...');
-        initializer.registerRpc('send_group_chat_message', rpcSendGroupChatMessage);
+        initializer.registerRpc('send_group_chat_message', function(ctx, logger, nk, payload) { return rpcSendGroupChatMessage(ctx, logger, nk, payload); });
         logger.info('[Chat] Registered RPC: send_group_chat_message');
-        initializer.registerRpc('send_direct_message', rpcSendDirectMessage);
+        initializer.registerRpc('send_direct_message', function(ctx, logger, nk, payload) { return rpcSendDirectMessage(ctx, logger, nk, payload); });
         logger.info('[Chat] Registered RPC: send_direct_message');
-        initializer.registerRpc('send_chat_room_message', rpcSendChatRoomMessage);
+        initializer.registerRpc('send_chat_room_message', function(ctx, logger, nk, payload) { return rpcSendChatRoomMessage(ctx, logger, nk, payload); });
         logger.info('[Chat] Registered RPC: send_chat_room_message');
-        initializer.registerRpc('get_group_chat_history', rpcGetGroupChatHistory);
+        initializer.registerRpc('get_group_chat_history', function(ctx, logger, nk, payload) { return rpcGetGroupChatHistory(ctx, logger, nk, payload); });
         logger.info('[Chat] Registered RPC: get_group_chat_history');
-        initializer.registerRpc('get_direct_message_history', rpcGetDirectMessageHistory);
+        initializer.registerRpc('get_direct_message_history', function(ctx, logger, nk, payload) { return rpcGetDirectMessageHistory(ctx, logger, nk, payload); });
         logger.info('[Chat] Registered RPC: get_direct_message_history');
-        initializer.registerRpc('get_chat_room_history', rpcGetChatRoomHistory);
+        initializer.registerRpc('get_chat_room_history', function(ctx, logger, nk, payload) { return rpcGetChatRoomHistory(ctx, logger, nk, payload); });
         logger.info('[Chat] Registered RPC: get_chat_room_history');
-        initializer.registerRpc('mark_direct_messages_read', rpcMarkDirectMessagesRead);
+        initializer.registerRpc('mark_direct_messages_read', function(ctx, logger, nk, payload) { return rpcMarkDirectMessagesRead(ctx, logger, nk, payload); });
         logger.info('[Chat] Registered RPC: mark_direct_messages_read');
         logger.info('[Chat] Successfully registered 7 Chat RPCs');
     } catch (err) {
@@ -22198,84 +22292,84 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info('[MultiGameRPCs] Initializing Multi-Game RPC Module...');
 
         // QuizVerse RPCs - Core (14)
-        initializer.registerRpc('quizverse_update_user_profile', quizverseUpdateUserProfile);
-        initializer.registerRpc('quizverse_grant_currency', quizverseGrantCurrency);
-        initializer.registerRpc('quizverse_spend_currency', quizverseSpendCurrency);
-        initializer.registerRpc('quizverse_validate_purchase', quizverseValidatePurchase);
-        initializer.registerRpc('quizverse_list_inventory', quizverseListInventory);
-        initializer.registerRpc('quizverse_grant_item', quizverseGrantItem);
-        initializer.registerRpc('quizverse_consume_item', quizverseConsumeItem);
-        initializer.registerRpc('quizverse_submit_score', quizverseSubmitScore);
-        initializer.registerRpc('quizverse_get_leaderboard', quizverseGetLeaderboard);
-        initializer.registerRpc('quizverse_join_or_create_match', quizverseJoinOrCreateMatch);
-        initializer.registerRpc('quizverse_claim_daily_reward', quizverseClaimDailyReward);
-        initializer.registerRpc('quizverse_find_friends', quizverseFindFriends);
-        initializer.registerRpc('quizverse_save_player_data', quizverseSavePlayerData);
-        initializer.registerRpc('quizverse_load_player_data', quizverseLoadPlayerData);
+        initializer.registerRpc('quizverse_update_user_profile', function(ctx, logger, nk, payload) { return quizverseUpdateUserProfile(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_grant_currency', function(ctx, logger, nk, payload) { return quizverseGrantCurrency(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_spend_currency', function(ctx, logger, nk, payload) { return quizverseSpendCurrency(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_validate_purchase', function(ctx, logger, nk, payload) { return quizverseValidatePurchase(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_list_inventory', function(ctx, logger, nk, payload) { return quizverseListInventory(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_grant_item', function(ctx, logger, nk, payload) { return quizverseGrantItem(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_consume_item', function(ctx, logger, nk, payload) { return quizverseConsumeItem(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_submit_score', function(ctx, logger, nk, payload) { return quizverseSubmitScore(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_get_leaderboard', function(ctx, logger, nk, payload) { return quizverseGetLeaderboard(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_join_or_create_match', function(ctx, logger, nk, payload) { return quizverseJoinOrCreateMatch(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_claim_daily_reward', function(ctx, logger, nk, payload) { return quizverseClaimDailyReward(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_find_friends', function(ctx, logger, nk, payload) { return quizverseFindFriends(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_save_player_data', function(ctx, logger, nk, payload) { return quizverseSavePlayerData(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_load_player_data', function(ctx, logger, nk, payload) { return quizverseLoadPlayerData(ctx, logger, nk, payload); });
 
         // QuizVerse RPCs - Catalog & Search (4)
-        initializer.registerRpc('quizverse_get_item_catalog', quizverseGetItemCatalog);
-        initializer.registerRpc('quizverse_search_items', quizverseSearchItems);
-        initializer.registerRpc('quizverse_get_quiz_categories', quizverseGetQuizCategories);
-        initializer.registerRpc('quizverse_refresh_server_cache', quizverseRefreshServerCache);
+        initializer.registerRpc('quizverse_get_item_catalog', function(ctx, logger, nk, payload) { return quizverseGetItemCatalog(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_search_items', function(ctx, logger, nk, payload) { return quizverseSearchItems(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_get_quiz_categories', function(ctx, logger, nk, payload) { return quizverseGetQuizCategories(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_refresh_server_cache', function(ctx, logger, nk, payload) { return quizverseRefreshServerCache(ctx, logger, nk, payload); });
 
         // QuizVerse RPCs - Guilds (4)
-        initializer.registerRpc('quizverse_guild_create', quizverseGuildCreate);
-        initializer.registerRpc('quizverse_guild_join', quizverseGuildJoin);
-        initializer.registerRpc('quizverse_guild_leave', quizverseGuildLeave);
-        initializer.registerRpc('quizverse_guild_list', quizverseGuildList);
+        initializer.registerRpc('quizverse_guild_create', function(ctx, logger, nk, payload) { return quizverseGuildCreate(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_guild_join', function(ctx, logger, nk, payload) { return quizverseGuildJoin(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_guild_leave', function(ctx, logger, nk, payload) { return quizverseGuildLeave(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_guild_list', function(ctx, logger, nk, payload) { return quizverseGuildList(ctx, logger, nk, payload); });
 
         // QuizVerse RPCs - Chat (1)
-        initializer.registerRpc('quizverse_send_channel_message', quizverseSendChannelMessage);
+        initializer.registerRpc('quizverse_send_channel_message', function(ctx, logger, nk, payload) { return quizverseSendChannelMessage(ctx, logger, nk, payload); });
 
         // QuizVerse RPCs - Analytics (3)
-        initializer.registerRpc('quizverse_log_event', quizverseLogEvent);
-        initializer.registerRpc('quizverse_track_session_start', quizverseTrackSessionStart);
-        initializer.registerRpc('quizverse_track_session_end', quizverseTrackSessionEnd);
+        initializer.registerRpc('quizverse_log_event', function(ctx, logger, nk, payload) { return quizverseLogEvent(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_track_session_start', function(ctx, logger, nk, payload) { return quizverseTrackSessionStart(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_track_session_end', function(ctx, logger, nk, payload) { return quizverseTrackSessionEnd(ctx, logger, nk, payload); });
 
         // QuizVerse RPCs - Admin (2)
-        initializer.registerRpc('quizverse_get_server_config', quizverseGetServerConfig);
-        initializer.registerRpc('quizverse_admin_grant_item', quizverseAdminGrantItem);
+        initializer.registerRpc('quizverse_get_server_config', function(ctx, logger, nk, payload) { return quizverseGetServerConfig(ctx, logger, nk, payload); });
+        initializer.registerRpc('quizverse_admin_grant_item', function(ctx, logger, nk, payload) { return quizverseAdminGrantItem(ctx, logger, nk, payload); });
 
         // LastToLive RPCs - Core (14)
-        initializer.registerRpc('lasttolive_update_user_profile', lasttoliveUpdateUserProfile);
-        initializer.registerRpc('lasttolive_grant_currency', lasttoliveGrantCurrency);
-        initializer.registerRpc('lasttolive_spend_currency', lasttoliveSpendCurrency);
-        initializer.registerRpc('lasttolive_validate_purchase', lasttoliveValidatePurchase);
-        initializer.registerRpc('lasttolive_list_inventory', lasttoliveListInventory);
-        initializer.registerRpc('lasttolive_grant_item', lasttoliveGrantItem);
-        initializer.registerRpc('lasttolive_consume_item', lasttoliveConsumeItem);
-        initializer.registerRpc('lasttolive_submit_score', lasttoliveSubmitScore);
-        initializer.registerRpc('lasttolive_get_leaderboard', lasttoliveGetLeaderboard);
-        initializer.registerRpc('lasttolive_join_or_create_match', lasttoliveJoinOrCreateMatch);
-        initializer.registerRpc('lasttolive_claim_daily_reward', lasttoliveClaimDailyReward);
-        initializer.registerRpc('lasttolive_find_friends', lasttolliveFindFriends);
-        initializer.registerRpc('lasttolive_save_player_data', lasttolliveSavePlayerData);
-        initializer.registerRpc('lasttolive_load_player_data', lasttoliveLoadPlayerData);
+        initializer.registerRpc('lasttolive_update_user_profile', function(ctx, logger, nk, payload) { return lasttoliveUpdateUserProfile(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_grant_currency', function(ctx, logger, nk, payload) { return lasttoliveGrantCurrency(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_spend_currency', function(ctx, logger, nk, payload) { return lasttoliveSpendCurrency(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_validate_purchase', function(ctx, logger, nk, payload) { return lasttoliveValidatePurchase(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_list_inventory', function(ctx, logger, nk, payload) { return lasttoliveListInventory(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_grant_item', function(ctx, logger, nk, payload) { return lasttoliveGrantItem(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_consume_item', function(ctx, logger, nk, payload) { return lasttoliveConsumeItem(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_submit_score', function(ctx, logger, nk, payload) { return lasttoliveSubmitScore(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_get_leaderboard', function(ctx, logger, nk, payload) { return lasttoliveGetLeaderboard(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_join_or_create_match', function(ctx, logger, nk, payload) { return lasttoliveJoinOrCreateMatch(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_claim_daily_reward', function(ctx, logger, nk, payload) { return lasttoliveClaimDailyReward(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_find_friends', function(ctx, logger, nk, payload) { return lasttolliveFindFriends(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_save_player_data', function(ctx, logger, nk, payload) { return lasttolliveSavePlayerData(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_load_player_data', function(ctx, logger, nk, payload) { return lasttoliveLoadPlayerData(ctx, logger, nk, payload); });
 
         // LastToLive RPCs - Catalog & Search (4)
-        initializer.registerRpc('lasttolive_get_item_catalog', lasttoliveGetItemCatalog);
-        initializer.registerRpc('lasttolive_search_items', lasttoliveSearchItems);
-        initializer.registerRpc('lasttolive_get_weapon_stats', lasttoliveGetWeaponStats);
-        initializer.registerRpc('lasttolive_refresh_server_cache', lasttoliveRefreshServerCache);
+        initializer.registerRpc('lasttolive_get_item_catalog', function(ctx, logger, nk, payload) { return lasttoliveGetItemCatalog(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_search_items', function(ctx, logger, nk, payload) { return lasttoliveSearchItems(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_get_weapon_stats', function(ctx, logger, nk, payload) { return lasttoliveGetWeaponStats(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_refresh_server_cache', function(ctx, logger, nk, payload) { return lasttoliveRefreshServerCache(ctx, logger, nk, payload); });
 
         // LastToLive RPCs - Guilds (4)
-        initializer.registerRpc('lasttolive_guild_create', lasttoliveGuildCreate);
-        initializer.registerRpc('lasttolive_guild_join', lasttoliveGuildJoin);
-        initializer.registerRpc('lasttolive_guild_leave', lasttoliveGuildLeave);
-        initializer.registerRpc('lasttolive_guild_list', lasttoliveGuildList);
+        initializer.registerRpc('lasttolive_guild_create', function(ctx, logger, nk, payload) { return lasttoliveGuildCreate(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_guild_join', function(ctx, logger, nk, payload) { return lasttoliveGuildJoin(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_guild_leave', function(ctx, logger, nk, payload) { return lasttoliveGuildLeave(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_guild_list', function(ctx, logger, nk, payload) { return lasttoliveGuildList(ctx, logger, nk, payload); });
 
         // LastToLive RPCs - Chat (1)
-        initializer.registerRpc('lasttolive_send_channel_message', lasttolliveSendChannelMessage);
+        initializer.registerRpc('lasttolive_send_channel_message', function(ctx, logger, nk, payload) { return lasttolliveSendChannelMessage(ctx, logger, nk, payload); });
 
         // LastToLive RPCs - Analytics (3)
-        initializer.registerRpc('lasttolive_log_event', lasttoliveLogEvent);
-        initializer.registerRpc('lasttolive_track_session_start', lasttoliveTrackSessionStart);
-        initializer.registerRpc('lasttolive_track_session_end', lasttoliveTrackSessionEnd);
+        initializer.registerRpc('lasttolive_log_event', function(ctx, logger, nk, payload) { return lasttoliveLogEvent(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_track_session_start', function(ctx, logger, nk, payload) { return lasttoliveTrackSessionStart(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_track_session_end', function(ctx, logger, nk, payload) { return lasttoliveTrackSessionEnd(ctx, logger, nk, payload); });
 
         // LastToLive RPCs - Admin (2)
-        initializer.registerRpc('lasttolive_get_server_config', lasttoliveGetServerConfig);
-        initializer.registerRpc('lasttolive_admin_grant_item', lasttoliveAdminGrantItem);
+        initializer.registerRpc('lasttolive_get_server_config', function(ctx, logger, nk, payload) { return lasttoliveGetServerConfig(ctx, logger, nk, payload); });
+        initializer.registerRpc('lasttolive_admin_grant_item', function(ctx, logger, nk, payload) { return lasttoliveAdminGrantItem(ctx, logger, nk, payload); });
 
         logger.info('[MultiGameRPCs] Successfully registered all Multi-Game RPCs');
     } catch (err) {
@@ -22378,11 +22472,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register QuizVerse Multiplayer-Specific RPCs
     try {
         logger.info('[QuizVerse-MP] Initializing QuizVerse Multiplayer Module...');
-        initializer.registerRpc('quizverse_submit_score', rpcQuizVerseSubmitScore);
+        initializer.registerRpc('quizverse_submit_score', function(ctx, logger, nk, payload) { return rpcQuizVerseSubmitScore(ctx, logger, nk, payload); });
         logger.info('[QuizVerse-MP] Registered RPC: quizverse_submit_score');
-        initializer.registerRpc('quizverse_get_leaderboard', rpcQuizVerseGetLeaderboard);
+        initializer.registerRpc('quizverse_get_leaderboard', function(ctx, logger, nk, payload) { return rpcQuizVerseGetLeaderboard(ctx, logger, nk, payload); });
         logger.info('[QuizVerse-MP] Registered RPC: quizverse_get_leaderboard');
-        initializer.registerRpc('quizverse_submit_multiplayer_match', rpcQuizVerseSubmitMultiplayerMatch);
+        initializer.registerRpc('quizverse_submit_multiplayer_match', function(ctx, logger, nk, payload) { return rpcQuizVerseSubmitMultiplayerMatch(ctx, logger, nk, payload); });
         logger.info('[QuizVerse-MP] Registered RPC: quizverse_submit_multiplayer_match');
         logger.info('[QuizVerse-MP] Successfully registered 3 QuizVerse Multiplayer RPCs');
     } catch (err) {
@@ -22392,7 +22486,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Guest User Metadata Cleanup RPC
     try {
         logger.info('[GuestCleanup] Initializing Guest User Metadata Cleanup Module...');
-        initializer.registerRpc('cleanup_guest_user_metadata', rpcCleanupGuestUserMetadata);
+        initializer.registerRpc('cleanup_guest_user_metadata', function(ctx, logger, nk, payload) { return rpcCleanupGuestUserMetadata(ctx, logger, nk, payload); });
         logger.info('[GuestCleanup] Registered RPC: cleanup_guest_user_metadata');
         logger.info('[GuestCleanup] Note: To enable daily cleanup, configure cron in server config');
         logger.info('[GuestCleanup] Cron expression for daily 3 AM UTC: "0 3 * * *"');
@@ -22405,27 +22499,27 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Onboarding System RPCs
     try {
         logger.info('[Onboarding] Initializing Onboarding Module...');
-        initializer.registerRpc('onboarding_get_state', rpcOnboardingGetState);
+        initializer.registerRpc('onboarding_get_state', function(ctx, logger, nk, payload) { return rpcOnboardingGetState(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_get_state');
-        initializer.registerRpc('onboarding_update_state', rpcOnboardingUpdateState);
+        initializer.registerRpc('onboarding_update_state', function(ctx, logger, nk, payload) { return rpcOnboardingUpdateState(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_update_state');
-        initializer.registerRpc('onboarding_complete_step', rpcOnboardingCompleteStep);
+        initializer.registerRpc('onboarding_complete_step', function(ctx, logger, nk, payload) { return rpcOnboardingCompleteStep(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_complete_step');
-        initializer.registerRpc('onboarding_set_interests', rpcOnboardingSetInterests);
+        initializer.registerRpc('onboarding_set_interests', function(ctx, logger, nk, payload) { return rpcOnboardingSetInterests(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_set_interests');
-        initializer.registerRpc('onboarding_get_interests', rpcOnboardingGetInterests);
+        initializer.registerRpc('onboarding_get_interests', function(ctx, logger, nk, payload) { return rpcOnboardingGetInterests(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_get_interests');
-        initializer.registerRpc('onboarding_claim_welcome_bonus', rpcOnboardingClaimWelcomeBonus);
+        initializer.registerRpc('onboarding_claim_welcome_bonus', function(ctx, logger, nk, payload) { return rpcOnboardingClaimWelcomeBonus(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_claim_welcome_bonus');
-        initializer.registerRpc('onboarding_first_quiz_complete', rpcOnboardingFirstQuizComplete);
+        initializer.registerRpc('onboarding_first_quiz_complete', function(ctx, logger, nk, payload) { return rpcOnboardingFirstQuizComplete(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_first_quiz_complete');
-        initializer.registerRpc('onboarding_get_tomorrow_preview', rpcOnboardingGetTomorrowPreview);
+        initializer.registerRpc('onboarding_get_tomorrow_preview', function(ctx, logger, nk, payload) { return rpcOnboardingGetTomorrowPreview(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_get_tomorrow_preview');
-        initializer.registerRpc('onboarding_track_session', rpcOnboardingTrackSession);
+        initializer.registerRpc('onboarding_track_session', function(ctx, logger, nk, payload) { return rpcOnboardingTrackSession(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_track_session');
-        initializer.registerRpc('onboarding_get_retention_data', rpcOnboardingGetRetentionData);
+        initializer.registerRpc('onboarding_get_retention_data', function(ctx, logger, nk, payload) { return rpcOnboardingGetRetentionData(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_get_retention_data');
-        initializer.registerRpc('onboarding_create_link_quiz', rpcOnboardingCreateLinkQuiz);
+        initializer.registerRpc('onboarding_create_link_quiz', function(ctx, logger, nk, payload) { return rpcOnboardingCreateLinkQuiz(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered RPC: onboarding_create_link_quiz');
         logger.info('[Onboarding] Successfully registered 11 Onboarding RPCs');
     } catch (err) {
@@ -22435,19 +22529,19 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Retention System RPCs (75% D1 Retention)
     try {
         logger.info('[Retention] Initializing Retention Module...');
-        initializer.registerRpc('retention_grant_streak_shield', rpcRetentionGrantStreakShield);
+        initializer.registerRpc('retention_grant_streak_shield', function(ctx, logger, nk, payload) { return rpcRetentionGrantStreakShield(ctx, logger, nk, payload); });
         logger.info('[Retention] Registered RPC: retention_grant_streak_shield');
-        initializer.registerRpc('retention_get_streak_shield', rpcRetentionGetStreakShield);
+        initializer.registerRpc('retention_get_streak_shield', function(ctx, logger, nk, payload) { return rpcRetentionGetStreakShield(ctx, logger, nk, payload); });
         logger.info('[Retention] Registered RPC: retention_get_streak_shield');
-        initializer.registerRpc('retention_use_streak_shield', rpcRetentionUseStreakShield);
+        initializer.registerRpc('retention_use_streak_shield', function(ctx, logger, nk, payload) { return rpcRetentionUseStreakShield(ctx, logger, nk, payload); });
         logger.info('[Retention] Registered RPC: retention_use_streak_shield');
-        initializer.registerRpc('retention_schedule_notification', rpcRetentionScheduleNotification);
+        initializer.registerRpc('retention_schedule_notification', function(ctx, logger, nk, payload) { return rpcRetentionScheduleNotification(ctx, logger, nk, payload); });
         logger.info('[Retention] Registered RPC: retention_schedule_notification');
-        initializer.registerRpc('retention_get_recommendations', rpcRetentionGetRecommendations);
+        initializer.registerRpc('retention_get_recommendations', function(ctx, logger, nk, payload) { return rpcRetentionGetRecommendations(ctx, logger, nk, payload); });
         logger.info('[Retention] Registered RPC: retention_get_recommendations');
-        initializer.registerRpc('retention_track_first_session', rpcRetentionTrackFirstSession);
+        initializer.registerRpc('retention_track_first_session', function(ctx, logger, nk, payload) { return rpcRetentionTrackFirstSession(ctx, logger, nk, payload); });
         logger.info('[Retention] Registered RPC: retention_track_first_session');
-        initializer.registerRpc('retention_claim_welcome_bonus', rpcRetentionClaimWelcomeBonus);
+        initializer.registerRpc('retention_claim_welcome_bonus', function(ctx, logger, nk, payload) { return rpcRetentionClaimWelcomeBonus(ctx, logger, nk, payload); });
         logger.info('[Retention] Registered RPC: retention_claim_welcome_bonus');
         logger.info('[Retention] Successfully registered 7 Retention RPCs');
     } catch (err) {
@@ -22461,13 +22555,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Weekly Goals System RPCs (D7 Retention)
     try {
         logger.info('[WeeklyGoals] Initializing Weekly Goals Module...');
-        initializer.registerRpc('weekly_goals_get_status', rpcWeeklyGoalsGetStatus);
+        initializer.registerRpc('weekly_goals_get_status', function(ctx, logger, nk, payload) { return rpcWeeklyGoalsGetStatus(ctx, logger, nk, payload); });
         logger.info('[WeeklyGoals] Registered RPC: weekly_goals_get_status');
-        initializer.registerRpc('weekly_goals_update_progress', rpcWeeklyGoalsUpdateProgress);
+        initializer.registerRpc('weekly_goals_update_progress', function(ctx, logger, nk, payload) { return rpcWeeklyGoalsUpdateProgress(ctx, logger, nk, payload); });
         logger.info('[WeeklyGoals] Registered RPC: weekly_goals_update_progress');
-        initializer.registerRpc('weekly_goals_claim_reward', rpcWeeklyGoalsClaimReward);
+        initializer.registerRpc('weekly_goals_claim_reward', function(ctx, logger, nk, payload) { return rpcWeeklyGoalsClaimReward(ctx, logger, nk, payload); });
         logger.info('[WeeklyGoals] Registered RPC: weekly_goals_claim_reward');
-        initializer.registerRpc('weekly_goals_claim_bonus', rpcWeeklyGoalsClaimBonus);
+        initializer.registerRpc('weekly_goals_claim_bonus', function(ctx, logger, nk, payload) { return rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload); });
         logger.info('[WeeklyGoals] Registered RPC: weekly_goals_claim_bonus');
         logger.info('[WeeklyGoals] Successfully registered 4 Weekly Goals RPCs');
     } catch (err) {
@@ -22477,15 +22571,15 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Season Pass System RPCs (D7/D30 Retention)
     try {
         logger.info('[SeasonPass] Initializing Season Pass Module...');
-        initializer.registerRpc('season_pass_get_status', rpcSeasonPassGetStatus);
+        initializer.registerRpc('season_pass_get_status', function(ctx, logger, nk, payload) { return rpcSeasonPassGetStatus(ctx, logger, nk, payload); });
         logger.info('[SeasonPass] Registered RPC: season_pass_get_status');
-        initializer.registerRpc('season_pass_add_xp', rpcSeasonPassAddXP);
+        initializer.registerRpc('season_pass_add_xp', function(ctx, logger, nk, payload) { return rpcSeasonPassAddXP(ctx, logger, nk, payload); });
         logger.info('[SeasonPass] Registered RPC: season_pass_add_xp');
-        initializer.registerRpc('season_pass_complete_quest', rpcSeasonPassCompleteQuest);
+        initializer.registerRpc('season_pass_complete_quest', function(ctx, logger, nk, payload) { return rpcSeasonPassCompleteQuest(ctx, logger, nk, payload); });
         logger.info('[SeasonPass] Registered RPC: season_pass_complete_quest');
-        initializer.registerRpc('season_pass_claim_reward', rpcSeasonPassClaimReward);
+        initializer.registerRpc('season_pass_claim_reward', function(ctx, logger, nk, payload) { return rpcSeasonPassClaimReward(ctx, logger, nk, payload); });
         logger.info('[SeasonPass] Registered RPC: season_pass_claim_reward');
-        initializer.registerRpc('season_pass_purchase_premium', rpcSeasonPassPurchasePremium);
+        initializer.registerRpc('season_pass_purchase_premium', function(ctx, logger, nk, payload) { return rpcSeasonPassPurchasePremium(ctx, logger, nk, payload); });
         logger.info('[SeasonPass] Registered RPC: season_pass_purchase_premium');
         logger.info('[SeasonPass] Successfully registered 5 Season Pass RPCs');
     } catch (err) {
@@ -22495,13 +22589,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Monthly Milestones System RPCs (D30 Retention)
     try {
         logger.info('[MonthlyMilestones] Initializing Monthly Milestones Module...');
-        initializer.registerRpc('monthly_milestones_get_status', rpcMonthlyMilestonesGetStatus);
+        initializer.registerRpc('monthly_milestones_get_status', function(ctx, logger, nk, payload) { return rpcMonthlyMilestonesGetStatus(ctx, logger, nk, payload); });
         logger.info('[MonthlyMilestones] Registered RPC: monthly_milestones_get_status');
-        initializer.registerRpc('monthly_milestones_update_progress', rpcMonthlyMilestonesUpdateProgress);
+        initializer.registerRpc('monthly_milestones_update_progress', function(ctx, logger, nk, payload) { return rpcMonthlyMilestonesUpdateProgress(ctx, logger, nk, payload); });
         logger.info('[MonthlyMilestones] Registered RPC: monthly_milestones_update_progress');
-        initializer.registerRpc('monthly_milestones_claim_reward', rpcMonthlyMilestonesClaimReward);
+        initializer.registerRpc('monthly_milestones_claim_reward', function(ctx, logger, nk, payload) { return rpcMonthlyMilestonesClaimReward(ctx, logger, nk, payload); });
         logger.info('[MonthlyMilestones] Registered RPC: monthly_milestones_claim_reward');
-        initializer.registerRpc('monthly_milestones_claim_legendary', rpcMonthlyMilestonesClaimLegendary);
+        initializer.registerRpc('monthly_milestones_claim_legendary', function(ctx, logger, nk, payload) { return rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload); });
         logger.info('[MonthlyMilestones] Registered RPC: monthly_milestones_claim_legendary');
         logger.info('[MonthlyMilestones] Successfully registered 4 Monthly Milestones RPCs');
     } catch (err) {
@@ -22511,13 +22605,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Collections & Prestige System RPCs (D30 Retention)
     try {
         logger.info('[Collections] Initializing Collections & Prestige Module...');
-        initializer.registerRpc('collections_get_status', rpcCollectionsGetStatus);
+        initializer.registerRpc('collections_get_status', function(ctx, logger, nk, payload) { return rpcCollectionsGetStatus(ctx, logger, nk, payload); });
         logger.info('[Collections] Registered RPC: collections_get_status');
-        initializer.registerRpc('collections_unlock_item', rpcCollectionsUnlockItem);
+        initializer.registerRpc('collections_unlock_item', function(ctx, logger, nk, payload) { return rpcCollectionsUnlockItem(ctx, logger, nk, payload); });
         logger.info('[Collections] Registered RPC: collections_unlock_item');
-        initializer.registerRpc('collections_equip_item', rpcCollectionsEquipItem);
+        initializer.registerRpc('collections_equip_item', function(ctx, logger, nk, payload) { return rpcCollectionsEquipItem(ctx, logger, nk, payload); });
         logger.info('[Collections] Registered RPC: collections_equip_item');
-        initializer.registerRpc('collections_add_mastery_xp', rpcCollectionsAddMasteryXP);
+        initializer.registerRpc('collections_add_mastery_xp', function(ctx, logger, nk, payload) { return rpcCollectionsAddMasteryXP(ctx, logger, nk, payload); });
         logger.info('[Collections] Registered RPC: collections_add_mastery_xp');
         logger.info('[Collections] Successfully registered 4 Collections RPCs');
     } catch (err) {
@@ -22527,13 +22621,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Win-back System RPCs (D30 Retention - Re-engagement)
     try {
         logger.info('[Winback] Initializing Win-back Module...');
-        initializer.registerRpc('winback_check_status', rpcWinbackCheckStatus);
+        initializer.registerRpc('winback_check_status', function(ctx, logger, nk, payload) { return rpcWinbackCheckStatus(ctx, logger, nk, payload); });
         logger.info('[Winback] Registered RPC: winback_check_status');
-        initializer.registerRpc('winback_claim_rewards', rpcWinbackClaimRewards);
+        initializer.registerRpc('winback_claim_rewards', function(ctx, logger, nk, payload) { return rpcWinbackClaimRewards(ctx, logger, nk, payload); });
         logger.info('[Winback] Registered RPC: winback_claim_rewards');
-        initializer.registerRpc('winback_record_session', rpcWinbackRecordSession);
+        initializer.registerRpc('winback_record_session', function(ctx, logger, nk, payload) { return rpcWinbackRecordSession(ctx, logger, nk, payload); });
         logger.info('[Winback] Registered RPC: winback_record_session');
-        initializer.registerRpc('winback_schedule_reengagement', rpcWinbackScheduleReengagement);
+        initializer.registerRpc('winback_schedule_reengagement', function(ctx, logger, nk, payload) { return rpcWinbackScheduleReengagement(ctx, logger, nk, payload); });
         logger.info('[Winback] Registered RPC: winback_schedule_reengagement');
         logger.info('[Winback] Successfully registered 4 Win-back RPCs');
     } catch (err) {
@@ -22547,13 +22641,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Progressive Unlocks System RPCs (D7 Retention)
     try {
         logger.info('[ProgressiveUnlocks] Initializing Progressive Unlocks Module...');
-        initializer.registerRpc('progressive_get_state', rpcGetUnlockState);
+        initializer.registerRpc('progressive_get_state', function(ctx, logger, nk, payload) { return rpcGetUnlockState(ctx, logger, nk, payload); });
         logger.info('[ProgressiveUnlocks] Registered RPC: progressive_get_state');
-        initializer.registerRpc('progressive_claim_unlock', rpcClaimUnlock);
+        initializer.registerRpc('progressive_claim_unlock', function(ctx, logger, nk, payload) { return rpcClaimUnlock(ctx, logger, nk, payload); });
         logger.info('[ProgressiveUnlocks] Registered RPC: progressive_claim_unlock');
-        initializer.registerRpc('progressive_check_feature', rpcCheckFeatureUnlocked);
+        initializer.registerRpc('progressive_check_feature', function(ctx, logger, nk, payload) { return rpcCheckFeatureUnlocked(ctx, logger, nk, payload); });
         logger.info('[ProgressiveUnlocks] Registered RPC: progressive_check_feature');
-        initializer.registerRpc('progressive_update_progress', rpcUpdateProgressProgressive);
+        initializer.registerRpc('progressive_update_progress', function(ctx, logger, nk, payload) { return rpcUpdateProgressProgressive(ctx, logger, nk, payload); });
         logger.info('[ProgressiveUnlocks] Registered RPC: progressive_update_progress');
         logger.info('[ProgressiveUnlocks] Successfully registered 4 Progressive Unlock RPCs');
     } catch (err) {
@@ -22563,11 +22657,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Progression & Mastery System RPCs (D30 Retention)
     try {
         logger.info('[ProgressionMastery] Initializing Progression & Mastery Module...');
-        initializer.registerRpc('progression_add_mastery_xp', rpcProgressionAddMasteryXp);
+        initializer.registerRpc('progression_add_mastery_xp', function(ctx, logger, nk, payload) { return rpcProgressionAddMasteryXp(ctx, logger, nk, payload); });
         logger.info('[ProgressionMastery] Registered RPC: progression_add_mastery_xp');
-        initializer.registerRpc('progression_get_state', rpcProgressionGetState);
+        initializer.registerRpc('progression_get_state', function(ctx, logger, nk, payload) { return rpcProgressionGetState(ctx, logger, nk, payload); });
         logger.info('[ProgressionMastery] Registered RPC: progression_get_state');
-        initializer.registerRpc('progression_claim_prestige', rpcProgressionClaimPrestige);
+        initializer.registerRpc('progression_claim_prestige', function(ctx, logger, nk, payload) { return rpcProgressionClaimPrestige(ctx, logger, nk, payload); });
         logger.info('[ProgressionMastery] Registered RPC: progression_claim_prestige');
         logger.info('[ProgressionMastery] Successfully registered 3 Progression RPCs');
     } catch (err) {
@@ -22581,13 +22675,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Rewarded Ads System RPCs
     try {
         logger.info('[RewardedAds] Initializing Rewarded Ads System Module...');
-        initializer.registerRpc('rewarded_ad_request_token', rpcRewardedAdRequestToken);
+        initializer.registerRpc('rewarded_ad_request_token', function(ctx, logger, nk, payload) { return rpcRewardedAdRequestToken(ctx, logger, nk, payload); });
         logger.info('[RewardedAds] Registered RPC: rewarded_ad_request_token');
-        initializer.registerRpc('rewarded_ad_claim', rpcRewardedAdClaim);
+        initializer.registerRpc('rewarded_ad_claim', function(ctx, logger, nk, payload) { return rpcRewardedAdClaim(ctx, logger, nk, payload); });
         logger.info('[RewardedAds] Registered RPC: rewarded_ad_claim');
-        initializer.registerRpc('rewarded_ad_validate_score_multiplier', rpcValidateScoreMultiplier);
+        initializer.registerRpc('rewarded_ad_validate_score_multiplier', function(ctx, logger, nk, payload) { return rpcValidateScoreMultiplier(ctx, logger, nk, payload); });
         logger.info('[RewardedAds] Registered RPC: rewarded_ad_validate_score_multiplier');
-        initializer.registerRpc('rewarded_ad_get_status', rpcGetRewardedAdStatus);
+        initializer.registerRpc('rewarded_ad_get_status', function(ctx, logger, nk, payload) { return rpcGetRewardedAdStatus(ctx, logger, nk, payload); });
         logger.info('[RewardedAds] Registered RPC: rewarded_ad_get_status');
         logger.info('[RewardedAds] Successfully registered 4 Rewarded Ads RPCs');
     } catch (err) {
@@ -22601,17 +22695,17 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Compatibility Quiz RPCs
     try {
         logger.info('[CompatibilityQuiz] Initializing Compatibility Quiz Module...');
-        initializer.registerRpc('compatibility_create_session', rpcCompatibilityCreateSession);
+        initializer.registerRpc('compatibility_create_session', function(ctx, logger, nk, payload) { return rpcCompatibilityCreateSession(ctx, logger, nk, payload); });
         logger.info('[CompatibilityQuiz] Registered RPC: compatibility_create_session');
-        initializer.registerRpc('compatibility_join_session', rpcCompatibilityJoinSession);
+        initializer.registerRpc('compatibility_join_session', function(ctx, logger, nk, payload) { return rpcCompatibilityJoinSession(ctx, logger, nk, payload); });
         logger.info('[CompatibilityQuiz] Registered RPC: compatibility_join_session');
-        initializer.registerRpc('compatibility_get_session', rpcCompatibilityGetSession);
+        initializer.registerRpc('compatibility_get_session', function(ctx, logger, nk, payload) { return rpcCompatibilityGetSession(ctx, logger, nk, payload); });
         logger.info('[CompatibilityQuiz] Registered RPC: compatibility_get_session');
-        initializer.registerRpc('compatibility_submit_answers', rpcCompatibilitySubmitAnswers);
+        initializer.registerRpc('compatibility_submit_answers', function(ctx, logger, nk, payload) { return rpcCompatibilitySubmitAnswers(ctx, logger, nk, payload); });
         logger.info('[CompatibilityQuiz] Registered RPC: compatibility_submit_answers');
-        initializer.registerRpc('compatibility_calculate', rpcCompatibilityCalculate);
+        initializer.registerRpc('compatibility_calculate', function(ctx, logger, nk, payload) { return rpcCompatibilityCalculate(ctx, logger, nk, payload); });
         logger.info('[CompatibilityQuiz] Registered RPC: compatibility_calculate');
-        initializer.registerRpc('compatibility_list_sessions', rpcCompatibilityListSessions);
+        initializer.registerRpc('compatibility_list_sessions', function(ctx, logger, nk, payload) { return rpcCompatibilityListSessions(ctx, logger, nk, payload); });
         logger.info('[CompatibilityQuiz] Registered RPC: compatibility_list_sessions');
         logger.info('[CompatibilityQuiz] Successfully registered 6 Compatibility Quiz RPCs');
     } catch (err) {
@@ -22625,23 +22719,23 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Async Challenge RPCs
     try {
         logger.info('[AsyncChallenge] Initializing Async Challenge Module...');
-        initializer.registerRpc('async_challenge_create', rpcAsyncChallengeCreate);
+        initializer.registerRpc('async_challenge_create', function(ctx, logger, nk, payload) { return rpcAsyncChallengeCreate(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_create');
-        initializer.registerRpc('async_challenge_join', rpcAsyncChallengeJoin);
+        initializer.registerRpc('async_challenge_join', function(ctx, logger, nk, payload) { return rpcAsyncChallengeJoin(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_join');
-        initializer.registerRpc('async_challenge_get', rpcAsyncChallengeGet);
+        initializer.registerRpc('async_challenge_get', function(ctx, logger, nk, payload) { return rpcAsyncChallengeGet(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_get');
-        initializer.registerRpc('async_challenge_submit', rpcAsyncChallengeSubmit);
+        initializer.registerRpc('async_challenge_submit', function(ctx, logger, nk, payload) { return rpcAsyncChallengeSubmit(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_submit');
-        initializer.registerRpc('async_challenge_list', rpcAsyncChallengeList);
+        initializer.registerRpc('async_challenge_list', function(ctx, logger, nk, payload) { return rpcAsyncChallengeList(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_list');
-        initializer.registerRpc('async_challenge_cancel', rpcAsyncChallengeCancel);
+        initializer.registerRpc('async_challenge_cancel', function(ctx, logger, nk, payload) { return rpcAsyncChallengeCancel(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_cancel');
-        initializer.registerRpc('async_challenge_stats', rpcAsyncChallengeStats);
+        initializer.registerRpc('async_challenge_stats', function(ctx, logger, nk, payload) { return rpcAsyncChallengeStats(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_stats');
-        initializer.registerRpc('async_challenge_rematch', rpcAsyncChallengeRematch);
+        initializer.registerRpc('async_challenge_rematch', function(ctx, logger, nk, payload) { return rpcAsyncChallengeRematch(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_rematch');
-        initializer.registerRpc('async_challenge_leaderboard', rpcAsyncChallengeLeaderboard);
+        initializer.registerRpc('async_challenge_leaderboard', function(ctx, logger, nk, payload) { return rpcAsyncChallengeLeaderboard(ctx, logger, nk, payload); });
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_leaderboard');
         logger.info('[AsyncChallenge] Successfully registered 9 Async Challenge RPCs');
     } catch (err) {
@@ -22655,15 +22749,15 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Badges System RPCs
     try {
         logger.info('[Badges] Initializing Badges & Collectables Module...');
-        initializer.registerRpc('badges_get_all', rpcBadgesGetAll);
+        initializer.registerRpc('badges_get_all', function(ctx, logger, nk, payload) { return rpcBadgesGetAll(ctx, logger, nk, payload); });
         logger.info('[Badges] Registered RPC: badges_get_all');
-        initializer.registerRpc('badges_update_progress', rpcBadgesUpdateProgress);
+        initializer.registerRpc('badges_update_progress', function(ctx, logger, nk, payload) { return rpcBadgesUpdateProgress(ctx, logger, nk, payload); });
         logger.info('[Badges] Registered RPC: badges_update_progress');
-        initializer.registerRpc('badges_check_event', rpcBadgesCheckEvent);
+        initializer.registerRpc('badges_check_event', function(ctx, logger, nk, payload) { return rpcBadgesCheckEvent(ctx, logger, nk, payload); });
         logger.info('[Badges] Registered RPC: badges_check_event');
-        initializer.registerRpc('badges_set_displayed', rpcBadgesSetDisplayed);
+        initializer.registerRpc('badges_set_displayed', function(ctx, logger, nk, payload) { return rpcBadgesSetDisplayed(ctx, logger, nk, payload); });
         logger.info('[Badges] Registered RPC: badges_set_displayed');
-        initializer.registerRpc('badges_bulk_create', rpcBadgesBulkCreate);
+        initializer.registerRpc('badges_bulk_create', function(ctx, logger, nk, payload) { return rpcBadgesBulkCreate(ctx, logger, nk, payload); });
         logger.info('[Badges] Registered RPC: badges_bulk_create (admin)');
         logger.info('[Badges] Successfully registered 5 Badge RPCs');
     } catch (err) {
@@ -22673,13 +22767,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // Register Collectables System RPCs
     try {
         logger.info('[Collectables] Initializing Collectables Module...');
-        initializer.registerRpc('collectables_get_all', rpcCollectablesGetAll);
+        initializer.registerRpc('collectables_get_all', function(ctx, logger, nk, payload) { return rpcCollectablesGetAll(ctx, logger, nk, payload); });
         logger.info('[Collectables] Registered RPC: collectables_get_all');
-        initializer.registerRpc('collectables_grant', rpcCollectablesGrant);
+        initializer.registerRpc('collectables_grant', function(ctx, logger, nk, payload) { return rpcCollectablesGrant(ctx, logger, nk, payload); });
         logger.info('[Collectables] Registered RPC: collectables_grant');
-        initializer.registerRpc('collectables_equip', rpcCollectablesEquip);
+        initializer.registerRpc('collectables_equip', function(ctx, logger, nk, payload) { return rpcCollectablesEquip(ctx, logger, nk, payload); });
         logger.info('[Collectables] Registered RPC: collectables_equip');
-        initializer.registerRpc('collectables_bulk_create', rpcCollectablesBulkCreate);
+        initializer.registerRpc('collectables_bulk_create', function(ctx, logger, nk, payload) { return rpcCollectablesBulkCreate(ctx, logger, nk, payload); });
         logger.info('[Collectables] Registered RPC: collectables_bulk_create (admin)');
         logger.info('[Collectables] Successfully registered 4 Collectable RPCs');
     } catch (err) {
@@ -22691,13 +22785,13 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[Leagues] Initializing League System Module...');
-        initializer.registerRpc('league_get_state', rpcLeagueGetState);
+        initializer.registerRpc('league_get_state', function(ctx, logger, nk, payload) { return rpcLeagueGetState(ctx, logger, nk, payload); });
         logger.info('[Leagues] Registered RPC: league_get_state');
-        initializer.registerRpc('league_submit_points', rpcLeagueSubmitPoints);
+        initializer.registerRpc('league_submit_points', function(ctx, logger, nk, payload) { return rpcLeagueSubmitPoints(ctx, logger, nk, payload); });
         logger.info('[Leagues] Registered RPC: league_submit_points');
-        initializer.registerRpc('league_process_season', rpcLeagueProcessSeason);
+        initializer.registerRpc('league_process_season', function(ctx, logger, nk, payload) { return rpcLeagueProcessSeason(ctx, logger, nk, payload); });
         logger.info('[Leagues] Registered RPC: league_process_season');
-        initializer.registerRpc('league_get_leaderboard', rpcLeagueGetLeaderboard);
+        initializer.registerRpc('league_get_leaderboard', function(ctx, logger, nk, payload) { return rpcLeagueGetLeaderboard(ctx, logger, nk, payload); });
         logger.info('[Leagues] Registered RPC: league_get_leaderboard');
         logger.info('[Leagues] Successfully registered 4 League RPCs');
     } catch (err) {
@@ -22709,9 +22803,9 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[StreakV2] Initializing Streak Repair & Wager Module...');
-        initializer.registerRpc('streak_repair', rpcStreakRepair);
+        initializer.registerRpc('streak_repair', function(ctx, logger, nk, payload) { return rpcStreakRepair(ctx, logger, nk, payload); });
         logger.info('[StreakV2] Registered RPC: streak_repair');
-        initializer.registerRpc('streak_wager', rpcStreakWager);
+        initializer.registerRpc('streak_wager', function(ctx, logger, nk, payload) { return rpcStreakWager(ctx, logger, nk, payload); });
         logger.info('[StreakV2] Registered RPC: streak_wager');
         logger.info('[StreakV2] Successfully registered 2 Streak V2 RPCs');
     } catch (err) {
@@ -22846,11 +22940,11 @@ function InitModule(ctx, logger, nk, initializer) {
 
     try {
         logger.info('[Characters] Initializing Character System Module...');
-        initializer.registerRpc('character_get_state', rpcCharacterGetState);
+        initializer.registerRpc('character_get_state', function(ctx, logger, nk, payload) { return rpcCharacterGetState(ctx, logger, nk, payload); });
         logger.info('[Characters] Registered RPC: character_get_state');
-        initializer.registerRpc('character_unlock', rpcCharacterUnlock);
+        initializer.registerRpc('character_unlock', function(ctx, logger, nk, payload) { return rpcCharacterUnlock(ctx, logger, nk, payload); });
         logger.info('[Characters] Registered RPC: character_unlock');
-        initializer.registerRpc('character_set_active', rpcCharacterSetActive);
+        initializer.registerRpc('character_set_active', function(ctx, logger, nk, payload) { return rpcCharacterSetActive(ctx, logger, nk, payload); });
         logger.info('[Characters] Registered RPC: character_set_active');
         logger.info('[Characters] Successfully registered 3 Character RPCs');
     } catch (err) {
@@ -22862,11 +22956,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[Notifications] Initializing Notification System...');
-        initializer.registerRpc('notification_gate_get_state', rpcNotifGateGetState);
+        initializer.registerRpc('notification_gate_get_state', function(ctx, logger, nk, payload) { return rpcNotifGateGetState(ctx, logger, nk, payload); });
         logger.info('[Notifications] Registered RPC: notification_gate_get_state');
-        initializer.registerRpc('list_notification_inbox', rpcListNotificationInbox);
+        initializer.registerRpc('list_notification_inbox', function(ctx, logger, nk, payload) { return rpcListNotificationInbox(ctx, logger, nk, payload); });
         logger.info('[Notifications] Registered RPC: list_notification_inbox');
-        initializer.registerRpc('mark_notifications_read', rpcMarkNotificationsRead);
+        initializer.registerRpc('mark_notifications_read', function(ctx, logger, nk, payload) { return rpcMarkNotificationsRead(ctx, logger, nk, payload); });
         logger.info('[Notifications] Registered RPC: mark_notifications_read');
         logger.info('[Notifications] Successfully registered 3 Notification RPCs');
     } catch (err) {
@@ -22878,9 +22972,9 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[SmartReview] Initializing Smart Review Module...');
-        initializer.registerRpc('smart_review_get_cards', rpcSmartReviewGetCards);
+        initializer.registerRpc('smart_review_get_cards', function(ctx, logger, nk, payload) { return rpcSmartReviewGetCards(ctx, logger, nk, payload); });
         logger.info('[SmartReview] Registered RPC: smart_review_get_cards');
-        initializer.registerRpc('smart_review_rate_card', rpcSmartReviewRateCard);
+        initializer.registerRpc('smart_review_rate_card', function(ctx, logger, nk, payload) { return rpcSmartReviewRateCard(ctx, logger, nk, payload); });
         logger.info('[SmartReview] Registered RPC: smart_review_rate_card');
         logger.info('[SmartReview] Successfully registered 2 Smart Review RPCs');
     } catch (err) {
@@ -22892,7 +22986,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[Manifest] Initializing Asset Manifest Module...');
-        initializer.registerRpc('manifest_get_version', rpcManifestGetVersion);
+        initializer.registerRpc('manifest_get_version', function(ctx, logger, nk, payload) { return rpcManifestGetVersion(ctx, logger, nk, payload); });
         logger.info('[Manifest] Registered RPC: manifest_get_version');
         logger.info('[Manifest] Successfully registered 1 Manifest RPC');
     } catch (err) {
@@ -22904,7 +22998,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[PlayerProfile] Initializing Player Full Profile Module...');
-        initializer.registerRpc('player_get_full_profile', rpcPlayerGetFullProfile);
+        initializer.registerRpc('player_get_full_profile', function(ctx, logger, nk, payload) { return rpcPlayerGetFullProfile(ctx, logger, nk, payload); });
         logger.info('[PlayerProfile] Registered RPC: player_get_full_profile');
         logger.info('[PlayerProfile] Successfully registered 1 Player Profile RPC');
     } catch (err) {
@@ -22916,11 +23010,11 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[FriendStreaks] Initializing Friend Streak Module...');
-        initializer.registerRpc('friend_streak_get_state', rpcFriendStreakGetState);
+        initializer.registerRpc('friend_streak_get_state', function(ctx, logger, nk, payload) { return rpcFriendStreakGetState(ctx, logger, nk, payload); });
         logger.info('[FriendStreaks] Registered RPC: friend_streak_get_state');
-        initializer.registerRpc('friend_streak_record_contribution', rpcFriendStreakRecordContribution);
+        initializer.registerRpc('friend_streak_record_contribution', function(ctx, logger, nk, payload) { return rpcFriendStreakRecordContribution(ctx, logger, nk, payload); });
         logger.info('[FriendStreaks] Registered RPC: friend_streak_record_contribution');
-        initializer.registerRpc('friend_streak_send_nudge', rpcFriendStreakSendNudge);
+        initializer.registerRpc('friend_streak_send_nudge', function(ctx, logger, nk, payload) { return rpcFriendStreakSendNudge(ctx, logger, nk, payload); });
         logger.info('[FriendStreaks] Registered RPC: friend_streak_send_nudge');
         logger.info('[FriendStreaks] Successfully registered 3 Friend Streak RPCs');
     } catch (err) {
@@ -22932,9 +23026,9 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[FriendQuests] Initializing Friend Quest Module...');
-        initializer.registerRpc('friend_quest_get_state', rpcFriendQuestGetState);
+        initializer.registerRpc('friend_quest_get_state', function(ctx, logger, nk, payload) { return rpcFriendQuestGetState(ctx, logger, nk, payload); });
         logger.info('[FriendQuests] Registered RPC: friend_quest_get_state');
-        initializer.registerRpc('friend_quest_complete', rpcFriendQuestComplete);
+        initializer.registerRpc('friend_quest_complete', function(ctx, logger, nk, payload) { return rpcFriendQuestComplete(ctx, logger, nk, payload); });
         logger.info('[FriendQuests] Registered RPC: friend_quest_complete');
         logger.info('[FriendQuests] Successfully registered 2 Friend Quest RPCs');
     } catch (err) {
@@ -22946,9 +23040,9 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[FortuneWheel] Initializing Fortune Wheel Module...');
-        initializer.registerRpc('fortune_wheel_get_state', fortuneWheelGetState);
+        initializer.registerRpc('fortune_wheel_get_state', function(ctx, logger, nk, payload) { return fortuneWheelGetState(ctx, logger, nk, payload); });
         logger.info('[FortuneWheel] Registered RPC: fortune_wheel_get_state');
-        initializer.registerRpc('fortune_wheel_spin', fortuneWheelSpin);
+        initializer.registerRpc('fortune_wheel_spin', function(ctx, logger, nk, payload) { return fortuneWheelSpin(ctx, logger, nk, payload); });
         logger.info('[FortuneWheel] Registered RPC: fortune_wheel_spin');
         logger.info('[FortuneWheel] Successfully registered 2 Fortune Wheel RPCs');
     } catch (err) {
@@ -22971,7 +23065,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[StreakShield] freeze error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('streak_shield_freeze', __rpc_streak_shield_freeze);
+        initializer.registerRpc('streak_shield_freeze', function(ctx, logger, nk, payload) { return __rpc_streak_shield_freeze(ctx, logger, nk, payload); });
         function __rpc_streak_shield_repair(ctx, logger, nk, payload) {
             try {
                 var userId = ctx.userId;
@@ -22983,7 +23077,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[StreakShield] repair error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('streak_shield_repair', __rpc_streak_shield_repair);
+        initializer.registerRpc('streak_shield_repair', function(ctx, logger, nk, payload) { return __rpc_streak_shield_repair(ctx, logger, nk, payload); });
         logger.info('[StreakShield] Registered 2 Streak Shield RPCs');
     } catch (err) { logger.error('[StreakShield] Failed to initialize: ' + err.message); }
 
@@ -22999,7 +23093,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('weekly_recap_get', __rpc_weekly_recap_get);
+        initializer.registerRpc('weekly_recap_get', function(ctx, logger, nk, payload) { return __rpc_weekly_recap_get(ctx, logger, nk, payload); });
         logger.info('[WeeklyRecap] Registered weekly_recap_get');
     } catch (err) { logger.error('[WeeklyRecap] Failed: ' + err.message); }
 
@@ -23019,7 +23113,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('friend_streak_milestone_reward', __rpc_friend_streak_milestone_reward);
+        initializer.registerRpc('friend_streak_milestone_reward', function(ctx, logger, nk, payload) { return __rpc_friend_streak_milestone_reward(ctx, logger, nk, payload); });
         logger.info('[FriendStreakMilestone] Registered friend_streak_milestone_reward');
     } catch (err) { logger.error('[FriendStreakMilestone] Failed: ' + err.message); }
 
@@ -23041,7 +23135,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('collections_claim_set_reward', __rpc_collections_claim_set_reward);
+        initializer.registerRpc('collections_claim_set_reward', function(ctx, logger, nk, payload) { return __rpc_collections_claim_set_reward(ctx, logger, nk, payload); });
         logger.info('[Collections] Registered collections_claim_set_reward');
     } catch (err) { logger.error('[Collections] Failed: ' + err.message); }
 
@@ -23061,7 +23155,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('onboarding_complete', __rpc_onboarding_complete);
+        initializer.registerRpc('onboarding_complete', function(ctx, logger, nk, payload) { return __rpc_onboarding_complete(ctx, logger, nk, payload); });
         function __rpc_user_set_interests(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
@@ -23072,7 +23166,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('user_set_interests', __rpc_user_set_interests);
+        initializer.registerRpc('user_set_interests', function(ctx, logger, nk, payload) { return __rpc_user_set_interests(ctx, logger, nk, payload); });
         logger.info('[Onboarding] Registered onboarding_complete, user_set_interests');
     } catch (err) { logger.error('[Onboarding] Failed: ' + err.message); }
 
@@ -23108,7 +23202,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Compatibility] create error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('compatibility_create_session', __rpc_compatibility_create_session);
+        initializer.registerRpc('compatibility_create_session', function(ctx, logger, nk, payload) { return __rpc_compatibility_create_session(ctx, logger, nk, payload); });
 
         // ---------- compatibility_join_session ----------
         function __rpc_compatibility_join_session(ctx, logger, nk, payload) {
@@ -23142,7 +23236,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Compatibility] join error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('compatibility_join_session', __rpc_compatibility_join_session);
+        initializer.registerRpc('compatibility_join_session', function(ctx, logger, nk, payload) { return __rpc_compatibility_join_session(ctx, logger, nk, payload); });
 
         // ---------- compatibility_submit_answers ----------
         function __rpc_compatibility_submit_answers(ctx, logger, nk, payload) {
@@ -23174,7 +23268,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Compatibility] submit error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('compatibility_submit_answers', __rpc_compatibility_submit_answers);
+        initializer.registerRpc('compatibility_submit_answers', function(ctx, logger, nk, payload) { return __rpc_compatibility_submit_answers(ctx, logger, nk, payload); });
 
         // ---------- compatibility_get_session ----------
         function __rpc_compatibility_get_session(ctx, logger, nk, payload) {
@@ -23195,7 +23289,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Compatibility] get error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('compatibility_get_session', __rpc_compatibility_get_session);
+        initializer.registerRpc('compatibility_get_session', function(ctx, logger, nk, payload) { return __rpc_compatibility_get_session(ctx, logger, nk, payload); });
 
         // ---------- compatibility_calculate ----------
         function __rpc_compatibility_calculate(ctx, logger, nk, payload) {
@@ -23242,7 +23336,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Compatibility] calculate error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('compatibility_calculate', __rpc_compatibility_calculate);
+        initializer.registerRpc('compatibility_calculate', function(ctx, logger, nk, payload) { return __rpc_compatibility_calculate(ctx, logger, nk, payload); });
 
         logger.info('[Compatibility] Successfully registered 5 Compatibility Quiz RPCs');
     } catch (err) { logger.error('[Compatibility] Failed to initialize: ' + err.message); }
@@ -23260,7 +23354,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('ivx_set_player_presence', __rpc_ivx_set_player_presence);
+        initializer.registerRpc('ivx_set_player_presence', function(ctx, logger, nk, payload) { return __rpc_ivx_set_player_presence(ctx, logger, nk, payload); });
         function __rpc_ivx_get_cross_game_messages(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
@@ -23272,7 +23366,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('ivx_get_cross_game_messages', __rpc_ivx_get_cross_game_messages);
+        initializer.registerRpc('ivx_get_cross_game_messages', function(ctx, logger, nk, payload) { return __rpc_ivx_get_cross_game_messages(ctx, logger, nk, payload); });
         function __rpc_ivx_mark_message_read(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
@@ -23288,7 +23382,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('ivx_mark_message_read', __rpc_ivx_mark_message_read);
+        initializer.registerRpc('ivx_mark_message_read', function(ctx, logger, nk, payload) { return __rpc_ivx_mark_message_read(ctx, logger, nk, payload); });
         logger.info('[CrossGame] Registered 3 IVX Cross-Game RPCs');
     } catch (err) { logger.error('[CrossGame] Failed: ' + err.message); }
 
@@ -23315,7 +23409,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Gifts] gift_send error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
         }
 
-        initializer.registerRpc('gift_send', __rpc_gift_send);
+        initializer.registerRpc('gift_send', function(ctx, logger, nk, payload) { return __rpc_gift_send(ctx, logger, nk, payload); });
         logger.info('[Gifts] Registered gift_send');
     } catch (err) { logger.error('[Gifts] Failed: ' + err.message); }
 
@@ -23381,7 +23475,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('compatibility_create_session', __rpc_compatibility_create_session_v2);
+        initializer.registerRpc('compatibility_create_session', function(ctx, logger, nk, payload) { return __rpc_compatibility_create_session_v2(ctx, logger, nk, payload); });
 
         // 2. Join compatibility session
         function __rpc_compatibility_join_session_v2(ctx, logger, nk, payload) {
@@ -23435,7 +23529,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('compatibility_join_session', __rpc_compatibility_join_session_v2);
+        initializer.registerRpc('compatibility_join_session', function(ctx, logger, nk, payload) { return __rpc_compatibility_join_session_v2(ctx, logger, nk, payload); });
 
         // 3. Submit answers
         function __rpc_compatibility_submit_answers_v2(ctx, logger, nk, payload) {
@@ -23491,7 +23585,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('compatibility_submit_answers', __rpc_compatibility_submit_answers_v2);
+        initializer.registerRpc('compatibility_submit_answers', function(ctx, logger, nk, payload) { return __rpc_compatibility_submit_answers_v2(ctx, logger, nk, payload); });
 
         // 4. Get session status
         function __rpc_compatibility_get_session_v2(ctx, logger, nk, payload) {
@@ -23514,7 +23608,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('compatibility_get_session', __rpc_compatibility_get_session_v2);
+        initializer.registerRpc('compatibility_get_session', function(ctx, logger, nk, payload) { return __rpc_compatibility_get_session_v2(ctx, logger, nk, payload); });
 
         // 5. Calculate compatibility score
         function __rpc_compatibility_calculate_v2(ctx, logger, nk, payload) {
@@ -23573,7 +23667,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('compatibility_calculate', __rpc_compatibility_calculate_v2);
+        initializer.registerRpc('compatibility_calculate', function(ctx, logger, nk, payload) { return __rpc_compatibility_calculate_v2(ctx, logger, nk, payload); });
 
         logger.info('[Compatibility] Registered 5 Compatibility Quiz RPCs');
     } catch (err) { logger.error('[Compatibility] Failed: ' + err.message); }
@@ -23606,7 +23700,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('get_clan_challenges', __rpc_get_clan_challenges);
+        initializer.registerRpc('get_clan_challenges', function(ctx, logger, nk, payload) { return __rpc_get_clan_challenges(ctx, logger, nk, payload); });
 
         function __rpc_contribute_clan_challenge(ctx, logger, nk, payload) {
             try {
@@ -23664,7 +23758,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('contribute_clan_challenge', __rpc_contribute_clan_challenge);
+        initializer.registerRpc('contribute_clan_challenge', function(ctx, logger, nk, payload) { return __rpc_contribute_clan_challenge(ctx, logger, nk, payload); });
 
         function __rpc_get_clan_leaderboard(ctx, logger, nk, payload) {
             try {
@@ -23702,7 +23796,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('get_clan_leaderboard', __rpc_get_clan_leaderboard);
+        initializer.registerRpc('get_clan_leaderboard', function(ctx, logger, nk, payload) { return __rpc_get_clan_leaderboard(ctx, logger, nk, payload); });
 
         logger.info('[Clan] Registered 3 Clan RPCs');
     } catch (err) { logger.error('[Clan] Failed: ' + err.message); }
@@ -23735,7 +23829,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('matchmaking_find_match', __rpc_matchmaking_find_match);
+        initializer.registerRpc('matchmaking_find_match', function(ctx, logger, nk, payload) { return __rpc_matchmaking_find_match(ctx, logger, nk, payload); });
 
         function __rpc_matchmaking_cancel(ctx, logger, nk, payload) {
             try {
@@ -23757,7 +23851,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('matchmaking_cancel', __rpc_matchmaking_cancel);
+        initializer.registerRpc('matchmaking_cancel', function(ctx, logger, nk, payload) { return __rpc_matchmaking_cancel(ctx, logger, nk, payload); });
 
         function __rpc_matchmaking_get_status(ctx, logger, nk, payload) {
             try {
@@ -23779,7 +23873,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('matchmaking_get_status', __rpc_matchmaking_get_status);
+        initializer.registerRpc('matchmaking_get_status', function(ctx, logger, nk, payload) { return __rpc_matchmaking_get_status(ctx, logger, nk, payload); });
 
         function __rpc_matchmaking_create_party(ctx, logger, nk, payload) {
             try {
@@ -23823,7 +23917,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('matchmaking_create_party', __rpc_matchmaking_create_party);
+        initializer.registerRpc('matchmaking_create_party', function(ctx, logger, nk, payload) { return __rpc_matchmaking_create_party(ctx, logger, nk, payload); });
 
         function __rpc_matchmaking_join_party(ctx, logger, nk, payload) {
             try {
@@ -23877,7 +23971,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('matchmaking_join_party', __rpc_matchmaking_join_party);
+        initializer.registerRpc('matchmaking_join_party', function(ctx, logger, nk, payload) { return __rpc_matchmaking_join_party(ctx, logger, nk, payload); });
 
         logger.info('[Matchmaking] Registered 5 Matchmaking RPCs');
     } catch (err) { logger.error('[Matchmaking] Failed: ' + err.message); }
@@ -23927,7 +24021,7 @@ function InitModule(ctx, logger, nk, initializer) {
             }
         }
 
-        initializer.registerRpc('get_player_stats', __rpc_get_player_stats);
+        initializer.registerRpc('get_player_stats', function(ctx, logger, nk, payload) { return __rpc_get_player_stats(ctx, logger, nk, payload); });
 
         logger.info('[Profile] Registered 1 Player Stats RPC');
     } catch (err) { logger.error('[Profile] Failed: ' + err.message); }
@@ -23979,7 +24073,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Characters] character_get_state: ' + e.message); return JSON.stringify({success:false,error:e.message}); }
         }
 
-        initializer.registerRpc('character_get_state', __rpc_character_get_state);
+        initializer.registerRpc('character_get_state', function(ctx, logger, nk, payload) { return __rpc_character_get_state(ctx, logger, nk, payload); });
 
         function __rpc_character_unlock(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
@@ -24005,7 +24099,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Characters] character_unlock: '+e.message); return JSON.stringify({success:false,error:e.message}); }
         }
 
-        initializer.registerRpc('character_unlock', __rpc_character_unlock);
+        initializer.registerRpc('character_unlock', function(ctx, logger, nk, payload) { return __rpc_character_unlock(ctx, logger, nk, payload); });
 
         function __rpc_character_set_active(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
@@ -24029,7 +24123,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Characters] character_set_active: '+e.message); return JSON.stringify({success:false,error:e.message}); }
         }
 
-        initializer.registerRpc('character_set_active', __rpc_character_set_active);
+        initializer.registerRpc('character_set_active', function(ctx, logger, nk, payload) { return __rpc_character_set_active(ctx, logger, nk, payload); });
 
         logger.info('[Characters] Registered 3 Character System RPCs');
     } catch (err) { logger.error('[Characters] Failed to register: ' + err.message); }
@@ -24076,7 +24170,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Leagues] league_get_state: '+e.message); return JSON.stringify({success:false,error:e.message}); }
         }
 
-        initializer.registerRpc('league_get_state', __rpc_league_get_state);
+        initializer.registerRpc('league_get_state', function(ctx, logger, nk, payload) { return __rpc_league_get_state(ctx, logger, nk, payload); });
 
         function __rpc_league_submit_points(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
@@ -24112,7 +24206,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Leagues] league_submit_points: '+e.message); return JSON.stringify({success:false,error:e.message}); }
         }
 
-        initializer.registerRpc('league_submit_points', __rpc_league_submit_points);
+        initializer.registerRpc('league_submit_points', function(ctx, logger, nk, payload) { return __rpc_league_submit_points(ctx, logger, nk, payload); });
 
         function __rpc_league_get_leaderboard(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
@@ -24137,7 +24231,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Leagues] league_get_leaderboard: '+e.message); return JSON.stringify({success:false,error:e.message}); }
         }
 
-        initializer.registerRpc('league_get_leaderboard', __rpc_league_get_leaderboard);
+        initializer.registerRpc('league_get_leaderboard', function(ctx, logger, nk, payload) { return __rpc_league_get_leaderboard(ctx, logger, nk, payload); });
 
         function __rpc_league_process_season(ctx, logger, nk, payload) {
             if (ctx.userId) { var gd=payload?JSON.parse(payload):{}; if((gd.adminKey||'')!=='quizverse_season_cron_2026') return JSON.stringify({success:false,error:'Unauthorized'}); }
@@ -24168,7 +24262,7 @@ function InitModule(ctx, logger, nk, initializer) {
             } catch(e) { logger.error('[Leagues] league_process_season: '+e.message); return JSON.stringify({success:false,error:e.message}); }
         }
 
-        initializer.registerRpc('league_process_season', __rpc_league_process_season);
+        initializer.registerRpc('league_process_season', function(ctx, logger, nk, payload) { return __rpc_league_process_season(ctx, logger, nk, payload); });
 
         logger.info('[Leagues] Registered 4 League System RPCs');
     } catch (err) { logger.error('[Leagues] Failed to register: ' + err.message); }
