@@ -23034,12 +23034,6 @@ function InitModule(ctx, logger, nk, initializer) {
     // Schedule daily game registry sync (runs at 2 AM UTC daily)
     try {
         logger.info('[GameRegistry] Scheduling daily sync job...');
-                function emptyMatchInit() {}
-        function emptyMatchJoinAttempt() { return { state: {}, accept: false }; }
-        function emptyMatchJoin() {}
-        function emptyMatchLeave() {}
-        function emptyMatchLoop() {}
-        function emptyMatchTerminate() {}
         initializer.registerMatch('', {
             matchInit: emptyMatchInit,
             matchJoinAttempt: emptyMatchJoinAttempt,
@@ -23051,7 +23045,6 @@ function InitModule(ctx, logger, nk, initializer) {
         // Register daily cron job for game registry sync
         // Runs daily at 2 AM UTC: "0 2 * * *"
         var cronExpr = "0 2 * * *";
-        function emptyMatchmakerOverride() {}
         initializer.registerMatchmakerOverride(emptyMatchmakerOverride);
         logger.info('[GameRegistry] Note: To enable daily sync, configure cron in server config');
         logger.info('[GameRegistry] Cron expression for daily 2 AM UTC: ' + cronExpr);
@@ -24395,3 +24388,12 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info('All v3.1 RPCs registered successfully!');
     logger.info('========================================');
 }
+
+// Global empty handlers for match registration
+function emptyMatchInit() {}
+function emptyMatchJoinAttempt() { return { state: {}, accept: false }; }
+function emptyMatchJoin() {}
+function emptyMatchLeave() {}
+function emptyMatchLoop() {}
+function emptyMatchTerminate() {}
+function emptyMatchmakerOverride() {}
