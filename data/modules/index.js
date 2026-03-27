@@ -23469,71 +23469,34 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[MultiGameRPCs] Failed to initialize: ' + err.message);
     }
 
-    // Register Achievement System RPCs (implementations loaded from achievements/achievements.js)
-    var achievementRpcs = [
-        { id: 'achievements_get_all', handler: rpcAchievementsGetAll },
-        { id: 'achievements_update_progress', handler: rpcAchievementsUpdateProgress },
-        { id: 'achievements_create_definition', handler: rpcAchievementsCreateDefinition },
-        { id: 'achievements_bulk_create', handler: rpcAchievementsBulkCreate }
-    ];
-    var achieveCount = 0;
-            initializer.registerRpc('achievements_get_all', rpcAchievementsGetAll);
-        initializer.registerRpc('achievements_update_progress', rpcAchievementsUpdateProgress);
-        initializer.registerRpc('achievements_create_definition', rpcAchievementsCreateDefinition);
-        initializer.registerRpc('achievements_bulk_create', rpcAchievementsBulkCreate);
-    if (achieveCount > 0) logger.info('[Achievements] Registered ' + achieveCount + ' Achievement RPCs');
+    // Register Achievement System RPCs
+    try { initializer.registerRpc('achievements_get_all', rpcAchievementsGetAll); } catch (err) { logger.warn('[Achievements] achievements_get_all not available: ' + err.message); }
+    try { initializer.registerRpc('achievements_update_progress', rpcAchievementsUpdateProgress); } catch (err) { logger.warn('[Achievements] achievements_update_progress not available: ' + err.message); }
+    try { initializer.registerRpc('achievements_create_definition', rpcAchievementsCreateDefinition); } catch (err) { logger.warn('[Achievements] achievements_create_definition not available: ' + err.message); }
+    try { initializer.registerRpc('achievements_bulk_create', rpcAchievementsBulkCreate); } catch (err) { logger.warn('[Achievements] achievements_bulk_create not available: ' + err.message); }
 
-    // Register Matchmaking System RPCs (implementations loaded from matchmaking/matchmaking.js)
-    var matchmakingRpcs = [
-        { id: 'matchmaking_find_match', handler: rpcMatchmakingFindMatch },
-        { id: 'matchmaking_cancel', handler: rpcMatchmakingCancel },
-        { id: 'matchmaking_get_status', handler: rpcMatchmakingGetStatus },
-        { id: 'matchmaking_create_party', handler: rpcMatchmakingCreateParty },
-        { id: 'matchmaking_join_party', handler: rpcMatchmakingJoinParty }
-    ];
-    var matchCount = 0;
-            initializer.registerRpc('matchmaking_find_match', rpcMatchmakingFindMatch);
-        initializer.registerRpc('matchmaking_cancel', rpcMatchmakingCancel);
-        initializer.registerRpc('matchmaking_get_status', rpcMatchmakingGetStatus);
-        initializer.registerRpc('matchmaking_create_party', rpcMatchmakingCreateParty);
-        initializer.registerRpc('matchmaking_join_party', rpcMatchmakingJoinParty);
-    if (matchCount > 0) logger.info('[Matchmaking] Registered ' + matchCount + ' Matchmaking RPCs');
+    // Register Matchmaking System RPCs
+    try { initializer.registerRpc('matchmaking_find_match', rpcMatchmakingFindMatch); } catch (err) { logger.warn('[Matchmaking] matchmaking_find_match not available: ' + err.message); }
+    try { initializer.registerRpc('matchmaking_cancel', rpcMatchmakingCancel); } catch (err) { logger.warn('[Matchmaking] matchmaking_cancel not available: ' + err.message); }
+    try { initializer.registerRpc('matchmaking_get_status', rpcMatchmakingGetStatus); } catch (err) { logger.warn('[Matchmaking] matchmaking_get_status not available: ' + err.message); }
+    try { initializer.registerRpc('matchmaking_create_party', rpcMatchmakingCreateParty); } catch (err) { logger.warn('[Matchmaking] matchmaking_create_party not available: ' + err.message); }
+    try { initializer.registerRpc('matchmaking_join_party', rpcMatchmakingJoinParty); } catch (err) { logger.warn('[Matchmaking] matchmaking_join_party not available: ' + err.message); }
 
-    // Register Tournament System RPCs (implementations loaded from tournaments/tournaments.js)
-    var tournamentRpcs = [
-        { id: 'tournament_create', handler: rpcTournamentCreate },
-        { id: 'tournament_join', handler: rpcTournamentJoin },
-        { id: 'tournament_list_active', handler: rpcTournamentListActive },
-        { id: 'tournament_submit_score', handler: rpcTournamentSubmitScore },
-        { id: 'tournament_get_leaderboard', handler: rpcTournamentGetLeaderboard },
-        { id: 'tournament_claim_rewards', handler: rpcTournamentClaimRewards }
-    ];
-    var tournamentCount = 0;
-            initializer.registerRpc('tournament_create', rpcTournamentCreate);
-        initializer.registerRpc('tournament_join', rpcTournamentJoin);
-        initializer.registerRpc('tournament_list_active', rpcTournamentListActive);
-        initializer.registerRpc('tournament_submit_score', rpcTournamentSubmitScore);
-        initializer.registerRpc('tournament_get_leaderboard', rpcTournamentGetLeaderboard);
-        initializer.registerRpc('tournament_claim_rewards', rpcTournamentClaimRewards);
-    if (tournamentCount > 0) logger.info('[Tournament] Registered ' + tournamentCount + ' Tournament RPCs');
+    // Register Tournament System RPCs
+    try { initializer.registerRpc('tournament_create', rpcTournamentCreate); } catch (err) { logger.warn('[Tournament] tournament_create not available: ' + err.message); }
+    try { initializer.registerRpc('tournament_join', rpcTournamentJoin); } catch (err) { logger.warn('[Tournament] tournament_join not available: ' + err.message); }
+    try { initializer.registerRpc('tournament_list_active', rpcTournamentListActive); } catch (err) { logger.warn('[Tournament] tournament_list_active not available: ' + err.message); }
+    try { initializer.registerRpc('tournament_submit_score', rpcTournamentSubmitScore); } catch (err) { logger.warn('[Tournament] tournament_submit_score not available: ' + err.message); }
+    try { initializer.registerRpc('tournament_get_leaderboard', rpcTournamentGetLeaderboard); } catch (err) { logger.warn('[Tournament] tournament_get_leaderboard not available: ' + err.message); }
+    try { initializer.registerRpc('tournament_claim_rewards', rpcTournamentClaimRewards); } catch (err) { logger.warn('[Tournament] tournament_claim_rewards not available: ' + err.message); }
 
-    // Register Infrastructure RPCs (implementations loaded from infrastructure/*.js)
-    var infraRpcs = [
-        { id: 'batch_execute', handler: rpcBatchExecute },
-        { id: 'batch_wallet_operations', handler: rpcBatchWalletOperations },
-        { id: 'batch_achievement_progress', handler: rpcBatchAchievementProgress },
-        { id: 'rate_limit_status', handler: rpcRateLimitStatus },
-        { id: 'cache_stats', handler: rpcCacheStats },
-        { id: 'cache_clear', handler: rpcCacheClear }
-    ];
-    var infraCount = 0;
-            initializer.registerRpc('batch_execute', rpcBatchExecute);
-        initializer.registerRpc('batch_wallet_operations', rpcBatchWalletOperations);
-        initializer.registerRpc('batch_achievement_progress', rpcBatchAchievementProgress);
-        initializer.registerRpc('rate_limit_status', rpcRateLimitStatus);
-        initializer.registerRpc('cache_stats', rpcCacheStats);
-        initializer.registerRpc('cache_clear', rpcCacheClear);
-    if (infraCount > 0) logger.info('[Infrastructure] Registered ' + infraCount + ' Infrastructure RPCs');
+    // Register Infrastructure RPCs
+    try { initializer.registerRpc('batch_execute', rpcBatchExecute); } catch (err) { logger.warn('[Infrastructure] batch_execute not available: ' + err.message); }
+    try { initializer.registerRpc('batch_wallet_operations', rpcBatchWalletOperations); } catch (err) { logger.warn('[Infrastructure] batch_wallet_operations not available: ' + err.message); }
+    try { initializer.registerRpc('batch_achievement_progress', rpcBatchAchievementProgress); } catch (err) { logger.warn('[Infrastructure] batch_achievement_progress not available: ' + err.message); }
+    try { initializer.registerRpc('rate_limit_status', rpcRateLimitStatus); } catch (err) { logger.warn('[Infrastructure] rate_limit_status not available: ' + err.message); }
+    try { initializer.registerRpc('cache_stats', rpcCacheStats); } catch (err) { logger.warn('[Infrastructure] cache_stats not available: ' + err.message); }
+    try { initializer.registerRpc('cache_clear', rpcCacheClear); } catch (err) { logger.warn('[Infrastructure] cache_clear not available: ' + err.message); }
 
     // Register QuizVerse Multiplayer-Specific RPCs
     try {
