@@ -22067,12 +22067,43 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[PushNotifications] Failed to initialize: ' + err.message);
     }
 
-    // Load copilot modules
+    // Copilot Leaderboard & Social RPCs (inlined for AST parser compatibility)
     try {
-        initializeCopilotModules(ctx, logger, nk, initializer);
-    } catch (err) {
-        logger.error('Failed to load copilot modules: ' + err.message);
-    }
+        initializer.registerRpc('submit_score_sync', rpcSubmitScoreSync);
+        logger.info('✓ Registered RPC: submit_score_sync');
+    } catch (err) { logger.error('✗ Failed to register submit_score_sync: ' + err.message); }
+    try {
+        initializer.registerRpc('submit_score_with_aggregate', rpcSubmitScoreWithAggregate);
+        logger.info('✓ Registered RPC: submit_score_with_aggregate');
+    } catch (err) { logger.error('✗ Failed to register submit_score_with_aggregate: ' + err.message); }
+    try {
+        initializer.registerRpc('create_all_leaderboards_with_friends', rpcCreateAllLeaderboardsWithFriends);
+        logger.info('✓ Registered RPC: create_all_leaderboards_with_friends');
+    } catch (err) { logger.error('✗ Failed to register create_all_leaderboards_with_friends: ' + err.message); }
+    try {
+        initializer.registerRpc('submit_score_with_friends_sync', rpcSubmitScoreWithFriendsSync);
+        logger.info('✓ Registered RPC: submit_score_with_friends_sync');
+    } catch (err) { logger.error('✗ Failed to register submit_score_with_friends_sync: ' + err.message); }
+    try {
+        initializer.registerRpc('get_friend_leaderboard', rpcGetFriendLeaderboard);
+        logger.info('✓ Registered RPC: get_friend_leaderboard');
+    } catch (err) { logger.error('✗ Failed to register get_friend_leaderboard: ' + err.message); }
+    try {
+        initializer.registerRpc('send_friend_invite', rpcSendFriendInvite);
+        logger.info('✓ Registered RPC: send_friend_invite');
+    } catch (err) { logger.error('✗ Failed to register send_friend_invite: ' + err.message); }
+    try {
+        initializer.registerRpc('accept_friend_invite', rpcAcceptFriendInvite);
+        logger.info('✓ Registered RPC: accept_friend_invite');
+    } catch (err) { logger.error('✗ Failed to register accept_friend_invite: ' + err.message); }
+    try {
+        initializer.registerRpc('decline_friend_invite', rpcDeclineFriendInvite);
+        logger.info('✓ Registered RPC: decline_friend_invite');
+    } catch (err) { logger.error('✗ Failed to register decline_friend_invite: ' + err.message); }
+    try {
+        initializer.registerRpc('get_notifications', rpcGetNotifications);
+        logger.info('✓ Registered RPC: get_notifications');
+    } catch (err) { logger.error('✗ Failed to register get_notifications: ' + err.message); }
 
     // Register New Multi-Game Identity, Wallet, and Leaderboard RPCs
     try {
@@ -22162,120 +22193,91 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error('[Chat] Failed to initialize: ' + err.message);
     }
 
-    // Register Multi-Game RPCs (QuizVerse and LastToLive)
+    // Register Multi-Game RPCs (QuizVerse and LastToLive) - static registrations for AST parser compatibility
     try {
         logger.info('[MultiGameRPCs] Initializing Multi-Game RPC Module...');
 
-        // Initialize global RPC registry for safe auto-registration
-        if (!globalThis.__registeredRPCs) {
-            globalThis.__registeredRPCs = new Set();
-        }
+        // QuizVerse RPCs - Core (14)
+        initializer.registerRpc('quizverse_update_user_profile', quizverseUpdateUserProfile);
+        initializer.registerRpc('quizverse_grant_currency', quizverseGrantCurrency);
+        initializer.registerRpc('quizverse_spend_currency', quizverseSpendCurrency);
+        initializer.registerRpc('quizverse_validate_purchase', quizverseValidatePurchase);
+        initializer.registerRpc('quizverse_list_inventory', quizverseListInventory);
+        initializer.registerRpc('quizverse_grant_item', quizverseGrantItem);
+        initializer.registerRpc('quizverse_consume_item', quizverseConsumeItem);
+        initializer.registerRpc('quizverse_submit_score', quizverseSubmitScore);
+        initializer.registerRpc('quizverse_get_leaderboard', quizverseGetLeaderboard);
+        initializer.registerRpc('quizverse_join_or_create_match', quizverseJoinOrCreateMatch);
+        initializer.registerRpc('quizverse_claim_daily_reward', quizverseClaimDailyReward);
+        initializer.registerRpc('quizverse_find_friends', quizverseFindFriends);
+        initializer.registerRpc('quizverse_save_player_data', quizverseSavePlayerData);
+        initializer.registerRpc('quizverse_load_player_data', quizverseLoadPlayerData);
 
-        var mgRpcs = [
-            // QuizVerse RPCs - Core
-            { id: 'quizverse_update_user_profile', handler: quizverseUpdateUserProfile },
-            { id: 'quizverse_grant_currency', handler: quizverseGrantCurrency },
-            { id: 'quizverse_spend_currency', handler: quizverseSpendCurrency },
-            { id: 'quizverse_validate_purchase', handler: quizverseValidatePurchase },
-            { id: 'quizverse_list_inventory', handler: quizverseListInventory },
-            { id: 'quizverse_grant_item', handler: quizverseGrantItem },
-            { id: 'quizverse_consume_item', handler: quizverseConsumeItem },
-            { id: 'quizverse_submit_score', handler: quizverseSubmitScore },
-            { id: 'quizverse_get_leaderboard', handler: quizverseGetLeaderboard },
-            { id: 'quizverse_join_or_create_match', handler: quizverseJoinOrCreateMatch },
-            { id: 'quizverse_claim_daily_reward', handler: quizverseClaimDailyReward },
-            { id: 'quizverse_find_friends', handler: quizverseFindFriends },
-            { id: 'quizverse_save_player_data', handler: quizverseSavePlayerData },
-            { id: 'quizverse_load_player_data', handler: quizverseLoadPlayerData },
+        // QuizVerse RPCs - Catalog & Search (4)
+        initializer.registerRpc('quizverse_get_item_catalog', quizverseGetItemCatalog);
+        initializer.registerRpc('quizverse_search_items', quizverseSearchItems);
+        initializer.registerRpc('quizverse_get_quiz_categories', quizverseGetQuizCategories);
+        initializer.registerRpc('quizverse_refresh_server_cache', quizverseRefreshServerCache);
 
-            // QuizVerse RPCs - Catalog & Search
-            { id: 'quizverse_get_item_catalog', handler: quizverseGetItemCatalog },
-            { id: 'quizverse_search_items', handler: quizverseSearchItems },
-            { id: 'quizverse_get_quiz_categories', handler: quizverseGetQuizCategories },
-            { id: 'quizverse_refresh_server_cache', handler: quizverseRefreshServerCache },
+        // QuizVerse RPCs - Guilds (4)
+        initializer.registerRpc('quizverse_guild_create', quizverseGuildCreate);
+        initializer.registerRpc('quizverse_guild_join', quizverseGuildJoin);
+        initializer.registerRpc('quizverse_guild_leave', quizverseGuildLeave);
+        initializer.registerRpc('quizverse_guild_list', quizverseGuildList);
 
-            // QuizVerse RPCs - Guilds
-            { id: 'quizverse_guild_create', handler: quizverseGuildCreate },
-            { id: 'quizverse_guild_join', handler: quizverseGuildJoin },
-            { id: 'quizverse_guild_leave', handler: quizverseGuildLeave },
-            { id: 'quizverse_guild_list', handler: quizverseGuildList },
+        // QuizVerse RPCs - Chat (1)
+        initializer.registerRpc('quizverse_send_channel_message', quizverseSendChannelMessage);
 
-            // QuizVerse RPCs - Chat
-            { id: 'quizverse_send_channel_message', handler: quizverseSendChannelMessage },
+        // QuizVerse RPCs - Analytics (3)
+        initializer.registerRpc('quizverse_log_event', quizverseLogEvent);
+        initializer.registerRpc('quizverse_track_session_start', quizverseTrackSessionStart);
+        initializer.registerRpc('quizverse_track_session_end', quizverseTrackSessionEnd);
 
-            // QuizVerse RPCs - Analytics
-            { id: 'quizverse_log_event', handler: quizverseLogEvent },
-            { id: 'quizverse_track_session_start', handler: quizverseTrackSessionStart },
-            { id: 'quizverse_track_session_end', handler: quizverseTrackSessionEnd },
+        // QuizVerse RPCs - Admin (2)
+        initializer.registerRpc('quizverse_get_server_config', quizverseGetServerConfig);
+        initializer.registerRpc('quizverse_admin_grant_item', quizverseAdminGrantItem);
 
-            // QuizVerse RPCs - Admin
-            { id: 'quizverse_get_server_config', handler: quizverseGetServerConfig },
-            { id: 'quizverse_admin_grant_item', handler: quizverseAdminGrantItem },
+        // LastToLive RPCs - Core (14)
+        initializer.registerRpc('lasttolive_update_user_profile', lasttoliveUpdateUserProfile);
+        initializer.registerRpc('lasttolive_grant_currency', lasttoliveGrantCurrency);
+        initializer.registerRpc('lasttolive_spend_currency', lasttoliveSpendCurrency);
+        initializer.registerRpc('lasttolive_validate_purchase', lasttoliveValidatePurchase);
+        initializer.registerRpc('lasttolive_list_inventory', lasttoliveListInventory);
+        initializer.registerRpc('lasttolive_grant_item', lasttoliveGrantItem);
+        initializer.registerRpc('lasttolive_consume_item', lasttoliveConsumeItem);
+        initializer.registerRpc('lasttolive_submit_score', lasttoliveSubmitScore);
+        initializer.registerRpc('lasttolive_get_leaderboard', lasttoliveGetLeaderboard);
+        initializer.registerRpc('lasttolive_join_or_create_match', lasttoliveJoinOrCreateMatch);
+        initializer.registerRpc('lasttolive_claim_daily_reward', lasttoliveClaimDailyReward);
+        initializer.registerRpc('lasttolive_find_friends', lasttolliveFindFriends);
+        initializer.registerRpc('lasttolive_save_player_data', lasttolliveSavePlayerData);
+        initializer.registerRpc('lasttolive_load_player_data', lasttoliveLoadPlayerData);
 
-            // LastToLive RPCs - Core
-            { id: 'lasttolive_update_user_profile', handler: lasttoliveUpdateUserProfile },
-            { id: 'lasttolive_grant_currency', handler: lasttoliveGrantCurrency },
-            { id: 'lasttolive_spend_currency', handler: lasttoliveSpendCurrency },
-            { id: 'lasttolive_validate_purchase', handler: lasttoliveValidatePurchase },
-            { id: 'lasttolive_list_inventory', handler: lasttoliveListInventory },
-            { id: 'lasttolive_grant_item', handler: lasttoliveGrantItem },
-            { id: 'lasttolive_consume_item', handler: lasttoliveConsumeItem },
-            { id: 'lasttolive_submit_score', handler: lasttoliveSubmitScore },
-            { id: 'lasttolive_get_leaderboard', handler: lasttoliveGetLeaderboard },
-            { id: 'lasttolive_join_or_create_match', handler: lasttoliveJoinOrCreateMatch },
-            { id: 'lasttolive_claim_daily_reward', handler: lasttoliveClaimDailyReward },
-            { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
-            { id: 'lasttolive_save_player_data', handler: lasttolliveSavePlayerData },
-            { id: 'lasttolive_load_player_data', handler: lasttoliveLoadPlayerData },
+        // LastToLive RPCs - Catalog & Search (4)
+        initializer.registerRpc('lasttolive_get_item_catalog', lasttoliveGetItemCatalog);
+        initializer.registerRpc('lasttolive_search_items', lasttoliveSearchItems);
+        initializer.registerRpc('lasttolive_get_weapon_stats', lasttoliveGetWeaponStats);
+        initializer.registerRpc('lasttolive_refresh_server_cache', lasttoliveRefreshServerCache);
 
-            // LastToLive RPCs - Catalog & Search
-            { id: 'lasttolive_get_item_catalog', handler: lasttoliveGetItemCatalog },
-            { id: 'lasttolive_search_items', handler: lasttoliveSearchItems },
-            { id: 'lasttolive_get_weapon_stats', handler: lasttoliveGetWeaponStats },
-            { id: 'lasttolive_refresh_server_cache', handler: lasttoliveRefreshServerCache },
+        // LastToLive RPCs - Guilds (4)
+        initializer.registerRpc('lasttolive_guild_create', lasttoliveGuildCreate);
+        initializer.registerRpc('lasttolive_guild_join', lasttoliveGuildJoin);
+        initializer.registerRpc('lasttolive_guild_leave', lasttoliveGuildLeave);
+        initializer.registerRpc('lasttolive_guild_list', lasttoliveGuildList);
 
-            // LastToLive RPCs - Guilds
-            { id: 'lasttolive_guild_create', handler: lasttoliveGuildCreate },
-            { id: 'lasttolive_guild_join', handler: lasttoliveGuildJoin },
-            { id: 'lasttolive_guild_leave', handler: lasttoliveGuildLeave },
-            { id: 'lasttolive_guild_list', handler: lasttoliveGuildList },
+        // LastToLive RPCs - Chat (1)
+        initializer.registerRpc('lasttolive_send_channel_message', lasttolliveSendChannelMessage);
 
-            // LastToLive RPCs - Chat
-            { id: 'lasttolive_send_channel_message', handler: lasttolliveSendChannelMessage },
+        // LastToLive RPCs - Analytics (3)
+        initializer.registerRpc('lasttolive_log_event', lasttoliveLogEvent);
+        initializer.registerRpc('lasttolive_track_session_start', lasttoliveTrackSessionStart);
+        initializer.registerRpc('lasttolive_track_session_end', lasttoliveTrackSessionEnd);
 
-            // LastToLive RPCs - Analytics
-            { id: 'lasttolive_log_event', handler: lasttoliveLogEvent },
-            { id: 'lasttolive_track_session_start', handler: lasttoliveTrackSessionStart },
-            { id: 'lasttolive_track_session_end', handler: lasttoliveTrackSessionEnd },
+        // LastToLive RPCs - Admin (2)
+        initializer.registerRpc('lasttolive_get_server_config', lasttoliveGetServerConfig);
+        initializer.registerRpc('lasttolive_admin_grant_item', lasttoliveAdminGrantItem);
 
-            // LastToLive RPCs - Admin
-            { id: 'lasttolive_get_server_config', handler: lasttoliveGetServerConfig },
-            { id: 'lasttolive_admin_grant_item', handler: lasttoliveAdminGrantItem }
-        ];
-
-        var mgRegistered = 0;
-        var mgSkipped = 0;
-
-        for (var i = 0; i < mgRpcs.length; i++) {
-            var mgRpc = mgRpcs[i];
-
-            if (!globalThis.__registeredRPCs.has(mgRpc.id)) {
-                try {
-                    initializer.registerRpc(mgRpc.id, mgRpc.handler);
-                    globalThis.__registeredRPCs.add(mgRpc.id);
-                    logger.info('[MultiGameRPCs] âœ“ Registered RPC: ' + mgRpc.id);
-                    mgRegistered++;
-                } catch (err) {
-                    logger.error('[MultiGameRPCs] âœ— Failed to register ' + mgRpc.id + ': ' + err.message);
-                }
-            } else {
-                logger.info('[MultiGameRPCs] âŠ˜ Skipped (already registered): ' + mgRpc.id);
-                mgSkipped++;
-            }
-        }
-
-        logger.info('[MultiGameRPCs] Registration complete: ' + mgRegistered + ' registered, ' + mgSkipped + ' skipped');
-        logger.info('[MultiGameRPCs] Successfully registered ' + mgRpcs.length + ' Multi-Game RPCs');
+        logger.info('[MultiGameRPCs] Successfully registered all Multi-Game RPCs');
     } catch (err) {
         logger.error('[MultiGameRPCs] Failed to initialize: ' + err.message);
     }
@@ -22958,7 +22960,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[StreakShield] Initializing Streak Shield RPCs...');
-        initializer.registerRpc('streak_shield_freeze', function(ctx, logger, nk, payload) {
+        function __rpc_streak_shield_freeze(ctx, logger, nk, payload) {
             try {
                 var userId = ctx.userId;
                 var storage = nk.storageRead([{ collection: 'streak_shield', key: 'state', userId: userId }]);
@@ -22967,8 +22969,10 @@ function InitModule(ctx, logger, nk, initializer) {
                 nk.storageWrite([{ collection: 'streak_shield', key: 'state', userId: userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
                 return JSON.stringify({ success: true, state: state });
             } catch(e) { logger.error('[StreakShield] freeze error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
-        });
-        initializer.registerRpc('streak_shield_repair', function(ctx, logger, nk, payload) {
+        }
+
+        initializer.registerRpc('streak_shield_freeze', __rpc_streak_shield_freeze);
+        function __rpc_streak_shield_repair(ctx, logger, nk, payload) {
             try {
                 var userId = ctx.userId;
                 var storage = nk.storageRead([{ collection: 'streak_shield', key: 'state', userId: userId }]);
@@ -22977,7 +22981,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 nk.storageWrite([{ collection: 'streak_shield', key: 'state', userId: userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
                 return JSON.stringify({ success: true, state: state });
             } catch(e) { logger.error('[StreakShield] repair error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('streak_shield_repair', __rpc_streak_shield_repair);
         logger.info('[StreakShield] Registered 2 Streak Shield RPCs');
     } catch (err) { logger.error('[StreakShield] Failed to initialize: ' + err.message); }
 
@@ -22985,13 +22991,15 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.0 NEW RPCs â€” Weekly Recap (1 RPC)
     // ============================================================================
     try {
-        initializer.registerRpc('weekly_recap_get', function(ctx, logger, nk, payload) {
+        function __rpc_weekly_recap_get(ctx, logger, nk, payload) {
             try {
                 var storage = nk.storageRead([{ collection: 'weekly_recap', key: 'latest', userId: ctx.userId }]);
                 var recap = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { weekStart: null, quizzesPlayed: 0, correctAnswers: 0, totalAnswers: 0, xpEarned: 0, coinsEarned: 0, streakDays: 0, topCategory: null };
                 return JSON.stringify({ success: true, recap: recap });
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('weekly_recap_get', __rpc_weekly_recap_get);
         logger.info('[WeeklyRecap] Registered weekly_recap_get');
     } catch (err) { logger.error('[WeeklyRecap] Failed: ' + err.message); }
 
@@ -22999,7 +23007,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.0 NEW RPCs â€” Friend Streak Milestone (1 RPC)
     // ============================================================================
     try {
-        initializer.registerRpc('friend_streak_milestone_reward', function(ctx, logger, nk, payload) {
+        function __rpc_friend_streak_milestone_reward(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var friendId = data.friendId || ''; var milestone = data.milestone || 0;
@@ -23009,7 +23017,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 nk.walletUpdate(ctx.userId, wc, { source: 'friend_streak_milestone', milestone: milestone }, true);
                 return JSON.stringify({ success: true, reward: reward });
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('friend_streak_milestone_reward', __rpc_friend_streak_milestone_reward);
         logger.info('[FriendStreakMilestone] Registered friend_streak_milestone_reward');
     } catch (err) { logger.error('[FriendStreakMilestone] Failed: ' + err.message); }
 
@@ -23017,7 +23027,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.0 NEW RPCs â€” Collections claim set reward (1 RPC)
     // ============================================================================
     try {
-        initializer.registerRpc('collections_claim_set_reward', function(ctx, logger, nk, payload) {
+        function __rpc_collections_claim_set_reward(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var setId = data.setId || '';
@@ -23029,7 +23039,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 nk.storageWrite([{ collection: 'collections', key: claimKey, userId: ctx.userId, value: JSON.stringify({ claimedAt: Math.floor(Date.now() / 1000) }), permissionRead: 1, permissionWrite: 0 }]);
                 return JSON.stringify({ success: true, reward: { coins: 500, xp: 200 } });
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('collections_claim_set_reward', __rpc_collections_claim_set_reward);
         logger.info('[Collections] Registered collections_claim_set_reward');
     } catch (err) { logger.error('[Collections] Failed: ' + err.message); }
 
@@ -23037,7 +23049,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.0 NEW RPCs â€” Onboarding aliases (2 RPCs)
     // ============================================================================
     try {
-        initializer.registerRpc('onboarding_complete', function(ctx, logger, nk, payload) {
+        function __rpc_onboarding_complete(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var storage = nk.storageRead([{ collection: 'onboarding', key: 'state', userId: ctx.userId }]);
@@ -23047,8 +23059,10 @@ function InitModule(ctx, logger, nk, initializer) {
                 nk.storageWrite([{ collection: 'onboarding', key: 'state', userId: ctx.userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
                 return JSON.stringify({ success: true, state: state });
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
-        });
-        initializer.registerRpc('user_set_interests', function(ctx, logger, nk, payload) {
+        }
+
+        initializer.registerRpc('onboarding_complete', __rpc_onboarding_complete);
+        function __rpc_user_set_interests(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var interests = data.interests || [];
@@ -23056,7 +23070,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 nk.storageWrite([{ collection: 'onboarding', key: 'interests', userId: ctx.userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
                 return JSON.stringify({ success: true, interests: interests });
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('user_set_interests', __rpc_user_set_interests);
         logger.info('[Onboarding] Registered onboarding_complete, user_set_interests');
     } catch (err) { logger.error('[Onboarding] Failed: ' + err.message); }
 
@@ -23065,7 +23081,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         // ---------- compatibility_create_session ----------
-        initializer.registerRpc('compatibility_create_session', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_create_session(ctx, logger, nk, payload) {
             try {
                 if (!ctx.userId) return JSON.stringify({ success: false, error: 'Not authenticated' });
                 var data = payload ? JSON.parse(payload) : {};
@@ -23090,10 +23106,12 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.info('[Compatibility] Session created: ' + sessionId + ' code: ' + shareCode);
                 return JSON.stringify({ success: true, data: session });
             } catch(e) { logger.error('[Compatibility] create error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('compatibility_create_session', __rpc_compatibility_create_session);
 
         // ---------- compatibility_join_session ----------
-        initializer.registerRpc('compatibility_join_session', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_join_session(ctx, logger, nk, payload) {
             try {
                 if (!ctx.userId) return JSON.stringify({ success: false, error: 'Not authenticated' });
                 var data = payload ? JSON.parse(payload) : {};
@@ -23122,10 +23140,12 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.info('[Compatibility] ' + ctx.userId + ' joined session ' + sessionId);
                 return JSON.stringify({ success: true, data: session });
             } catch(e) { logger.error('[Compatibility] join error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('compatibility_join_session', __rpc_compatibility_join_session);
 
         // ---------- compatibility_submit_answers ----------
-        initializer.registerRpc('compatibility_submit_answers', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_submit_answers(ctx, logger, nk, payload) {
             try {
                 if (!ctx.userId) return JSON.stringify({ success: false, error: 'Not authenticated' });
                 var data = payload ? JSON.parse(payload) : {};
@@ -23152,10 +23172,12 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.info('[Compatibility] Answers submitted by ' + ctx.userId + ' bothComplete=' + bothComplete);
                 return JSON.stringify({ success: true, data: session });
             } catch(e) { logger.error('[Compatibility] submit error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('compatibility_submit_answers', __rpc_compatibility_submit_answers);
 
         // ---------- compatibility_get_session ----------
-        initializer.registerRpc('compatibility_get_session', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_get_session(ctx, logger, nk, payload) {
             try {
                 if (!ctx.userId) return JSON.stringify({ success: false, error: 'Not authenticated' });
                 var data = payload ? JSON.parse(payload) : {};
@@ -23171,10 +23193,12 @@ function InitModule(ctx, logger, nk, initializer) {
                 if (!session) return JSON.stringify({ success: false, error: 'Session not found' });
                 return JSON.stringify({ success: true, data: session });
             } catch(e) { logger.error('[Compatibility] get error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('compatibility_get_session', __rpc_compatibility_get_session);
 
         // ---------- compatibility_calculate ----------
-        initializer.registerRpc('compatibility_calculate', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_calculate(ctx, logger, nk, payload) {
             try {
                 if (!ctx.userId) return JSON.stringify({ success: false, error: 'Not authenticated' });
                 var data = payload ? JSON.parse(payload) : {};
@@ -23216,7 +23240,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.info('[Compatibility] Score: ' + score + '% for session ' + sessionId);
                 return JSON.stringify({ success: true, data: result });
             } catch(e) { logger.error('[Compatibility] calculate error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('compatibility_calculate', __rpc_compatibility_calculate);
 
         logger.info('[Compatibility] Successfully registered 5 Compatibility Quiz RPCs');
     } catch (err) { logger.error('[Compatibility] Failed to initialize: ' + err.message); }
@@ -23225,15 +23251,17 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.0 NEW RPCs â€” Cross-Game Presence / Messaging (3 RPCs)
     // ============================================================================
     try {
-        initializer.registerRpc('ivx_set_player_presence', function(ctx, logger, nk, payload) {
+        function __rpc_ivx_set_player_presence(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var presence = { userId: ctx.userId, gameId: data.gameId || 'quizverse', status: data.status || 'online', metadata: data.metadata || {}, updatedAt: Math.floor(Date.now() / 1000) };
                 nk.storageWrite([{ collection: 'player_presence', key: 'current', userId: ctx.userId, value: JSON.stringify(presence), permissionRead: 2, permissionWrite: 0 }]);
                 return JSON.stringify({ success: true, presence: presence });
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
-        });
-        initializer.registerRpc('ivx_get_cross_game_messages', function(ctx, logger, nk, payload) {
+        }
+
+        initializer.registerRpc('ivx_set_player_presence', __rpc_ivx_set_player_presence);
+        function __rpc_ivx_get_cross_game_messages(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var limit = data.limit || 20;
@@ -23242,8 +23270,10 @@ function InitModule(ctx, logger, nk, initializer) {
                 var messages = (inbox.messages || []).slice(-limit);
                 return JSON.stringify({ success: true, messages: messages, total: messages.length });
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
-        });
-        initializer.registerRpc('ivx_mark_message_read', function(ctx, logger, nk, payload) {
+        }
+
+        initializer.registerRpc('ivx_get_cross_game_messages', __rpc_ivx_get_cross_game_messages);
+        function __rpc_ivx_mark_message_read(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var messageId = data.messageId || '';
@@ -23256,7 +23286,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 nk.storageWrite([{ collection: 'cross_game_messages', key: 'inbox', userId: ctx.userId, value: JSON.stringify(inbox), permissionRead: 1, permissionWrite: 0 }]);
                 return JSON.stringify({ success: true });
             } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('ivx_mark_message_read', __rpc_ivx_mark_message_read);
         logger.info('[CrossGame] Registered 3 IVX Cross-Game RPCs');
     } catch (err) { logger.error('[CrossGame] Failed: ' + err.message); }
 
@@ -23264,7 +23296,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.0 NEW RPCs â€” Gift System (1 RPC)
     // ============================================================================
     try {
-        initializer.registerRpc('gift_send', function(ctx, logger, nk, payload) {
+        function __rpc_gift_send(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var recipientId = data.recipientId || ''; var giftType = data.giftType || 'coins'; var amount = data.amount || 0;
@@ -23281,7 +23313,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 nk.storageWrite([{ collection: 'cross_game_messages', key: 'inbox', userId: recipientId, value: JSON.stringify(inbox), permissionRead: 1, permissionWrite: 0 }]);
                 return JSON.stringify({ success: true, gift: gift });
             } catch(e) { logger.error('[Gifts] gift_send error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
-        });
+        }
+
+        initializer.registerRpc('gift_send', __rpc_gift_send);
         logger.info('[Gifts] Registered gift_send');
     } catch (err) { logger.error('[Gifts] Failed: ' + err.message); }
 
@@ -23299,7 +23333,7 @@ function InitModule(ctx, logger, nk, initializer) {
 
     try {
         // 1. Create compatibility session
-        initializer.registerRpc('compatibility_create_session', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_create_session_v2(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var userId = ctx.userId;
@@ -23345,10 +23379,12 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Compatibility] create_session: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
+
+        initializer.registerRpc('compatibility_create_session', __rpc_compatibility_create_session_v2);
 
         // 2. Join compatibility session
-        initializer.registerRpc('compatibility_join_session', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_join_session_v2(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var userId = ctx.userId;
@@ -23397,10 +23433,12 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Compatibility] join_session: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
+
+        initializer.registerRpc('compatibility_join_session', __rpc_compatibility_join_session_v2);
 
         // 3. Submit answers
-        initializer.registerRpc('compatibility_submit_answers', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_submit_answers_v2(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var userId = ctx.userId;
@@ -23451,10 +23489,12 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Compatibility] submit_answers: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
+
+        initializer.registerRpc('compatibility_submit_answers', __rpc_compatibility_submit_answers_v2);
 
         // 4. Get session status
-        initializer.registerRpc('compatibility_get_session', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_get_session_v2(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var sessionId = data.sessionId || '';
@@ -23472,10 +23512,12 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Compatibility] get_session: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
+
+        initializer.registerRpc('compatibility_get_session', __rpc_compatibility_get_session_v2);
 
         // 5. Calculate compatibility score
-        initializer.registerRpc('compatibility_calculate', function(ctx, logger, nk, payload) {
+        function __rpc_compatibility_calculate_v2(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var sessionId = data.sessionId || '';
@@ -23529,7 +23571,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Compatibility] calculate: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
+
+        initializer.registerRpc('compatibility_calculate', __rpc_compatibility_calculate_v2);
 
         logger.info('[Compatibility] Registered 5 Compatibility Quiz RPCs');
     } catch (err) { logger.error('[Compatibility] Failed: ' + err.message); }
@@ -23538,7 +23582,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.1 NEW RPCs - Clan System (3 RPCs)
     // ============================================================================
     try {
-        initializer.registerRpc('get_clan_challenges', function(ctx, logger, nk, payload) {
+        function __rpc_get_clan_challenges(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var clanId = data.clanId || '';
@@ -23560,9 +23604,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Clan] get_clan_challenges: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
 
-        initializer.registerRpc('contribute_clan_challenge', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('get_clan_challenges', __rpc_get_clan_challenges);
+
+        function __rpc_contribute_clan_challenge(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var userId = ctx.userId;
@@ -23616,9 +23662,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Clan] contribute_clan_challenge: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
 
-        initializer.registerRpc('get_clan_leaderboard', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('contribute_clan_challenge', __rpc_contribute_clan_challenge);
+
+        function __rpc_get_clan_leaderboard(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var clanId = data.clanId || '';
@@ -23652,7 +23700,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Clan] get_clan_leaderboard: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
+
+        initializer.registerRpc('get_clan_leaderboard', __rpc_get_clan_leaderboard);
 
         logger.info('[Clan] Registered 3 Clan RPCs');
     } catch (err) { logger.error('[Clan] Failed: ' + err.message); }
@@ -23661,7 +23711,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.1 NEW RPCs - Matchmaking System (5 RPCs)
     // ============================================================================
     try {
-        initializer.registerRpc('matchmaking_find_match', function(ctx, logger, nk, payload) {
+        function __rpc_matchmaking_find_match(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var userId = ctx.userId;
@@ -23683,9 +23733,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Matchmaking] find_match: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
 
-        initializer.registerRpc('matchmaking_cancel', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('matchmaking_find_match', __rpc_matchmaking_find_match);
+
+        function __rpc_matchmaking_cancel(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var ticketId = data.ticketId || '';
@@ -23703,9 +23755,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Matchmaking] cancel: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
 
-        initializer.registerRpc('matchmaking_get_status', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('matchmaking_cancel', __rpc_matchmaking_cancel);
+
+        function __rpc_matchmaking_get_status(ctx, logger, nk, payload) {
             try {
                 var userId = ctx.userId;
 
@@ -23723,9 +23777,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Matchmaking] get_status: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
 
-        initializer.registerRpc('matchmaking_create_party', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('matchmaking_get_status', __rpc_matchmaking_get_status);
+
+        function __rpc_matchmaking_create_party(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var userId = ctx.userId;
@@ -23765,9 +23821,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Matchmaking] create_party: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
 
-        initializer.registerRpc('matchmaking_join_party', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('matchmaking_create_party', __rpc_matchmaking_create_party);
+
+        function __rpc_matchmaking_join_party(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var userId = ctx.userId;
@@ -23817,7 +23875,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Matchmaking] join_party: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
+
+        initializer.registerRpc('matchmaking_join_party', __rpc_matchmaking_join_party);
 
         logger.info('[Matchmaking] Registered 5 Matchmaking RPCs');
     } catch (err) { logger.error('[Matchmaking] Failed: ' + err.message); }
@@ -23826,7 +23886,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // v3.1 NEW RPCs - Player Stats (1 RPC)
     // ============================================================================
     try {
-        initializer.registerRpc('get_player_stats', function(ctx, logger, nk, payload) {
+        function __rpc_get_player_stats(ctx, logger, nk, payload) {
             try {
                 var data = payload ? JSON.parse(payload) : {};
                 var targetUserId = data.userId || ctx.userId;
@@ -23865,7 +23925,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.error('[Profile] get_player_stats: ' + e.message);
                 return JSON.stringify({ success: false, error: e.message });
             }
-        });
+        }
+
+        initializer.registerRpc('get_player_stats', __rpc_get_player_stats);
 
         logger.info('[Profile] Registered 1 Player Stats RPC');
     } catch (err) { logger.error('[Profile] Failed: ' + err.message); }
@@ -23900,7 +23962,7 @@ function InitModule(ctx, logger, nk, initializer) {
         function _charWrite(nk, uid, gid, d) { nk.storageWrite([{collection:CHAR_COL,key:_charKey(uid,gid),userId:uid,value:d,permissionRead:1,permissionWrite:0}]); }
         function _charInit(uid) { var n=new Date().toISOString(); return {activeCharacter:'quizzy',unlockedCharacters:{quizzy:{unlockedAt:n}},totalXpFromUnlocks:0,createdAt:n,updatedAt:n}; }
 
-        initializer.registerRpc('character_get_state', function(ctx, logger, nk, payload) {
+        function __rpc_character_get_state(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
             try {
                 var d = payload ? JSON.parse(payload) : {};
@@ -23915,9 +23977,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 }
                 return JSON.stringify({success:true,userId:ctx.userId,gameId:gid,activeCharacter:cd.activeCharacter,characters:chars,totalUnlocked:Object.keys(cd.unlockedCharacters||{}).length,totalCharacters:Object.keys(CHAR_DEFS).length,totalXpFromUnlocks:cd.totalXpFromUnlocks||0,timestamp:new Date().toISOString()});
             } catch(e) { logger.error('[Characters] character_get_state: ' + e.message); return JSON.stringify({success:false,error:e.message}); }
-        });
+        }
 
-        initializer.registerRpc('character_unlock', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('character_get_state', __rpc_character_get_state);
+
+        function __rpc_character_unlock(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
             try {
                 var d = JSON.parse(payload || '{}');
@@ -23939,9 +24003,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.info('[Characters] '+charId+' unlocked for '+ctx.userId+' (+'+xp+' XP)');
                 return JSON.stringify({success:true,characterId:charId,name:def.name,rarity:def.rarity,xpBonus:def.xpBonus,xpAwarded:xp,introVideoPath:def.introVideoPath,totalUnlocked:Object.keys(cd.unlockedCharacters).length,totalCharacters:Object.keys(CHAR_DEFS).length,timestamp:now});
             } catch(e) { logger.error('[Characters] character_unlock: '+e.message); return JSON.stringify({success:false,error:e.message}); }
-        });
+        }
 
-        initializer.registerRpc('character_set_active', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('character_unlock', __rpc_character_unlock);
+
+        function __rpc_character_set_active(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
             try {
                 var d = JSON.parse(payload || '{}');
@@ -23961,7 +24027,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.info('[Characters] '+ctx.userId+' switched: '+prev+' → '+charId);
                 return JSON.stringify({success:true,activeCharacter:charId,previousCharacter:prev,xpBonus:def.xpBonus,timestamp:new Date().toISOString()});
             } catch(e) { logger.error('[Characters] character_set_active: '+e.message); return JSON.stringify({success:false,error:e.message}); }
-        });
+        }
+
+        initializer.registerRpc('character_set_active', __rpc_character_set_active);
 
         logger.info('[Characters] Registered 3 Character System RPCs');
     } catch (err) { logger.error('[Characters] Failed to register: ' + err.message); }
@@ -23993,7 +24061,7 @@ function InitModule(ctx, logger, nk, initializer) {
         function _lgInit(uid,gid) { var n=new Date().toISOString(); return {userId:uid,gameId:gid,tier:'bronze',points:0,quizzesThisWeek:0,perfectRounds:0,totalAccuracy:0,accuracyCount:0,season:_lgWeekId(),seasonJoinedAt:n,qualifiesForPromotion:false,sandbaggingFlags:0,consecutiveLowAccuracy:0,consistencyBonus:false,lastSubmissionId:'',lastSubmissionAt:null,createdAt:n,updatedAt:n}; }
         function _lgRotate(s) { s.points=0;s.quizzesThisWeek=0;s.perfectRounds=0;s.totalAccuracy=0;s.accuracyCount=0;s.qualifiesForPromotion=false;s.season=_lgWeekId();s.lastSubmissionId='';s.updatedAt=new Date().toISOString(); return s; }
 
-        initializer.registerRpc('league_get_state', function(ctx, logger, nk, payload) {
+        function __rpc_league_get_state(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
             try {
                 var d = payload ? JSON.parse(payload) : {};
@@ -24006,9 +24074,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 var ti = _lgTierIdx(st.tier);
                 return JSON.stringify({success:true,isNew:isNew,userId:ctx.userId,gameId:gid,tier:st.tier,tierIndex:ti,points:st.points,quizzesThisWeek:st.quizzesThisWeek,perfectRounds:st.perfectRounds,averageAccuracy:st.accuracyCount>0?Math.round(st.totalAccuracy/st.accuracyCount):0,season:st.season,seasonEndsAt:_lgNextMon(),minQuizzesRequired:LG_MIN_QUIZZES,qualifiesForPromotion:st.qualifiesForPromotion,promotionThreshold:tc.promotionThreshold,demotionThreshold:tc.demotionThreshold,xpMultiplier:tc.xpMultiplier,canPromote:ti<LG_TIERS.length-1,canDemote:ti>0,timestamp:new Date().toISOString()});
             } catch(e) { logger.error('[Leagues] league_get_state: '+e.message); return JSON.stringify({success:false,error:e.message}); }
-        });
+        }
 
-        initializer.registerRpc('league_submit_points', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('league_get_state', __rpc_league_get_state);
+
+        function __rpc_league_submit_points(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
             try {
                 var d = JSON.parse(payload || '{}');
@@ -24040,9 +24110,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.info('[Leagues] '+ctx.userId+' +'+adj+'pts (total:'+st.points+') in '+st.tier);
                 return JSON.stringify({success:true,pointsAwarded:adj,pointsRaw:pts,totalPoints:st.points,tier:st.tier,quizzesThisWeek:st.quizzesThisWeek,qualifiesForPromotion:st.qualifiesForPromotion,nearPromotion:st.points>=(tc.promotionThreshold*0.8),nearDemotion:st.points<=(tc.demotionThreshold*1.2)&&ti>0,xpMultiplier:tc.xpMultiplier,timestamp:st.updatedAt});
             } catch(e) { logger.error('[Leagues] league_submit_points: '+e.message); return JSON.stringify({success:false,error:e.message}); }
-        });
+        }
 
-        initializer.registerRpc('league_get_leaderboard', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('league_submit_points', __rpc_league_submit_points);
+
+        function __rpc_league_get_leaderboard(ctx, logger, nk, payload) {
             if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
             try {
                 var d = payload ? JSON.parse(payload) : {};
@@ -24063,9 +24135,11 @@ function InitModule(ctx, logger, nk, initializer) {
                 if(!userRecord)userRecord={rank:tierUsers.length+1,points:0,perfectRounds:0,quizzesThisWeek:0,averageAccuracy:0,percentile:0};
                 return JSON.stringify({success:true,tier:tier,season:_lgWeekId(),seasonEndsAt:_lgNextMon(),totalPlayers:tierUsers.length,records:records,userRecord:userRecord,timestamp:new Date().toISOString()});
             } catch(e) { logger.error('[Leagues] league_get_leaderboard: '+e.message); return JSON.stringify({success:false,error:e.message}); }
-        });
+        }
 
-        initializer.registerRpc('league_process_season', function(ctx, logger, nk, payload) {
+        initializer.registerRpc('league_get_leaderboard', __rpc_league_get_leaderboard);
+
+        function __rpc_league_process_season(ctx, logger, nk, payload) {
             if (ctx.userId) { var gd=payload?JSON.parse(payload):{}; if((gd.adminKey||'')!=='quizverse_season_cron_2026') return JSON.stringify({success:false,error:'Unauthorized'}); }
             try {
                 var d = payload ? JSON.parse(payload) : {};
@@ -24092,7 +24166,9 @@ function InitModule(ctx, logger, nk, initializer) {
                 logger.info('[Leagues] Season processed: '+JSON.stringify(stats));
                 return JSON.stringify({success:true,season:cw,stats:stats,timestamp:new Date().toISOString()});
             } catch(e) { logger.error('[Leagues] league_process_season: '+e.message); return JSON.stringify({success:false,error:e.message}); }
-        });
+        }
+
+        initializer.registerRpc('league_process_season', __rpc_league_process_season);
 
         logger.info('[Leagues] Registered 4 League System RPCs');
     } catch (err) { logger.error('[Leagues] Failed to register: ' + err.message); }
