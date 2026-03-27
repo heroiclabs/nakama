@@ -23040,7 +23040,8 @@ function InitModule(ctx, logger, nk, initializer) {
             matchJoin: emptyMatchJoin,
             matchLeave: emptyMatchLeave,
             matchLoop: emptyMatchLoop,
-            matchTerminate: emptyMatchTerminate
+            matchTerminate: emptyMatchTerminate,
+            matchSignal: emptyMatchSignal
         });
         // Register daily cron job for game registry sync
         // Runs daily at 2 AM UTC: "0 2 * * *"
@@ -24390,10 +24391,11 @@ function InitModule(ctx, logger, nk, initializer) {
 }
 
 // Global empty handlers for match registration
-function emptyMatchInit() {}
-function emptyMatchJoinAttempt() { return { state: {}, accept: false }; }
-function emptyMatchJoin() {}
-function emptyMatchLeave() {}
-function emptyMatchLoop() {}
-function emptyMatchTerminate() {}
+function emptyMatchInit(ctx, logger, nk, params) { return { state: {}, tickRate: 1, label: '' }; }
+function emptyMatchJoinAttempt(ctx, logger, nk, dispatcher, tick, state, presence, metadata) { return { state: state, accept: false }; }
+function emptyMatchJoin(ctx, logger, nk, dispatcher, tick, state, presences) { return { state: state }; }
+function emptyMatchLeave(ctx, logger, nk, dispatcher, tick, state, presences) { return { state: state }; }
+function emptyMatchLoop(ctx, logger, nk, dispatcher, tick, state, messages) { return { state: state }; }
+function emptyMatchTerminate(ctx, logger, nk, dispatcher, tick, state, graceSeconds) { return { state: state }; }
+function emptyMatchSignal(ctx, logger, nk, dispatcher, tick, state, data) { return { state: state, data: '' }; }
 function emptyMatchmakerOverride() {}
