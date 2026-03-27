@@ -23216,7 +23216,17 @@ function InitModule(ctx, logger, nk, initializer) {
 
     // Load copilot modules
     try {
-        initializeCopilotModules(ctx, logger, nk, initializer);
+        // Replaced initializeCopilotModules call with inline registrations to satisfy Nakama AST statically
+        try { initializer.registerRpc('submit_score_sync', submitScoreSync); } catch (err) { }
+        try { initializer.registerRpc('submit_score_with_aggregate', submitScoreWithAggregate); } catch (err) { }
+        try { initializer.registerRpc('create_all_leaderboards_with_friends', createAllLeaderboardsWithFriends); } catch (err) { }
+        try { initializer.registerRpc('submit_score_with_friends_sync', submitScoreWithFriendsSync); } catch (err) { }
+        try { initializer.registerRpc('get_friend_leaderboard', getFriendLeaderboard); } catch (err) { }
+        try { initializer.registerRpc('send_friend_invite', sendFriendInvite); } catch (err) { }
+        try { initializer.registerRpc('accept_friend_invite', acceptFriendInvite); } catch (err) { }
+        try { initializer.registerRpc('decline_friend_invite', declineFriendInvite); } catch (err) { }
+        try { initializer.registerRpc('get_notifications', getNotifications); } catch (err) { }
+
     } catch (err) {
         logger.error('Failed to load copilot modules: ' + err.message);
     }
