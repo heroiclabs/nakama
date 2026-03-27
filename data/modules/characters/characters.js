@@ -221,7 +221,8 @@ function initCharacterData(userId) {
     return {
         activeCharacter: 'quizzy',
         unlockedCharacters: {
-            quizzy: { unlockedAt: now }
+            quizzy: { unlockedAt: now },
+            autocurio: { unlockedAt: now }
         },
         totalXpFromUnlocks: 0,
         createdAt: now,
@@ -255,6 +256,21 @@ function rpcCharacterGetState(ctx, logger, nk, payload) {
 
     if (!charData) {
         charData = initCharacterData(ctx.userId);
+        writeCharacterData(nk, logger, ctx.userId, gameId, charData);
+    }
+
+    // Auto-migrate: grant default characters to existing players
+    var dirty = false;
+    for (var defId in CHARACTER_DEFS) {
+        if (CHARACTER_DEFS[defId].unlockCondition === 'default') {
+            if (!charData.unlockedCharacters[defId]) {
+                charData.unlockedCharacters[defId] = { unlockedAt: new Date().toISOString() };
+                dirty = true;
+            }
+        }
+    }
+    if (dirty) {
+        charData.updatedAt = new Date().toISOString();
         writeCharacterData(nk, logger, ctx.userId, gameId, charData);
     }
 

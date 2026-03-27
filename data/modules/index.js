@@ -22409,7 +22409,7 @@ var CHAR_COL_NAMED = 'player_data';
 function _charKeyNamed(uid, gid) { return 'characters_' + uid + '_' + gid; }
 function _charReadNamed(nk, uid, gid) { try { var r = nk.storageRead([{collection:CHAR_COL_NAMED,key:_charKeyNamed(uid,gid),userId:uid}]); return (r&&r.length>0&&r[0].value)?r[0].value:null; } catch(e) { return null; } }
 function _charWriteNamed(nk, uid, gid, d) { nk.storageWrite([{collection:CHAR_COL_NAMED,key:_charKeyNamed(uid,gid),userId:uid,value:d,permissionRead:1,permissionWrite:0}]); }
-function _charInitNamed(uid) { var n=new Date().toISOString(); return {activeCharacter:'quizzy',unlockedCharacters:{quizzy:{unlockedAt:n}},totalXpFromUnlocks:0,createdAt:n,updatedAt:n}; }
+function _charInitNamed(uid) { var n=new Date().toISOString(); return {activeCharacter:'quizzy',unlockedCharacters:{quizzy:{unlockedAt:n},autocurio:{unlockedAt:n}},totalXpFromUnlocks:0,createdAt:n,updatedAt:n}; }
 
 function rpcCharacterGetState(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
@@ -22418,6 +22418,7 @@ function rpcCharacterGetState(ctx, logger, nk, payload) {
         var gid = d.gameId || 'quizverse';
         var cd = _charReadNamed(nk, ctx.userId, gid);
         if (!cd) { cd = _charInitNamed(ctx.userId); _charWriteNamed(nk, ctx.userId, gid, cd); }
+        var _dirty=false; for(var _did in CHAR_DEFS_NAMED){if(CHAR_DEFS_NAMED[_did].unlockCondition==='default'&&!cd.unlockedCharacters[_did]){cd.unlockedCharacters[_did]={unlockedAt:new Date().toISOString()};_dirty=true;}} if(_dirty){cd.updatedAt=new Date().toISOString();_charWriteNamed(nk,ctx.userId,gid,cd);}
         var chars = [];
         for (var cid in CHAR_DEFS_NAMED) {
             var def = CHAR_DEFS_NAMED[cid];
@@ -23886,7 +23887,7 @@ function InitModule(ctx, logger, nk, initializer) {
     }
     function _charInit(uid) {
         var now = new Date().toISOString();
-        return { activeCharacter:'quizzy', unlockedCharacters:{ quizzy:{ unlockedAt:now } }, totalXpFromUnlocks:0, createdAt:now, updatedAt:now };
+        return { activeCharacter:'quizzy', unlockedCharacters:{ quizzy:{ unlockedAt:now }, autocurio:{ unlockedAt:now } }, totalXpFromUnlocks:0, createdAt:now, updatedAt:now };
     }
     function _charErr(msg) { return JSON.stringify({ success:false, error:msg }); }
     function _charParse(p) { if (!p || p==='') return {}; try { return JSON.parse(p); } catch(e) { return null; } }
@@ -23897,6 +23898,7 @@ function InitModule(ctx, logger, nk, initializer) {
         var gameId = data.gameId || 'quizverse';
         var cd = _charRead(nk, logger, ctx.userId, gameId);
         if (!cd) { cd = _charInit(ctx.userId); _charWrite(nk, logger, ctx.userId, gameId, cd); }
+        var _d2=false; for(var _did2 in CHAR_DEFS_INLINE){if(CHAR_DEFS_INLINE[_did2].unlockCondition==='default'&&!(cd.unlockedCharacters&&cd.unlockedCharacters[_did2])){if(!cd.unlockedCharacters)cd.unlockedCharacters={};cd.unlockedCharacters[_did2]={unlockedAt:new Date().toISOString()};_d2=true;}} if(_d2){cd.updatedAt=new Date().toISOString();_charWrite(nk,logger,ctx.userId,gameId,cd);}
         var chars = [];
         for (var cid in CHAR_DEFS_INLINE) {
             var def = CHAR_DEFS_INLINE[cid]; var isU = cd.unlockedCharacters && cd.unlockedCharacters[cid];
@@ -24259,7 +24261,7 @@ function InitModule(ctx, logger, nk, initializer) {
         function _charKey(uid, gid) { return 'characters_' + uid + '_' + gid; }
         function _charRead(nk, uid, gid) { try { var r = nk.storageRead([{collection:CHAR_COL,key:_charKey(uid,gid),userId:uid}]); return (r&&r.length>0&&r[0].value)?r[0].value:null; } catch(e) { return null; } }
         function _charWrite(nk, uid, gid, d) { nk.storageWrite([{collection:CHAR_COL,key:_charKey(uid,gid),userId:uid,value:d,permissionRead:1,permissionWrite:0}]); }
-        function _charInit(uid) { var n=new Date().toISOString(); return {activeCharacter:'quizzy',unlockedCharacters:{quizzy:{unlockedAt:n}},totalXpFromUnlocks:0,createdAt:n,updatedAt:n}; }
+        function _charInit(uid) { var n=new Date().toISOString(); return {activeCharacter:'quizzy',unlockedCharacters:{quizzy:{unlockedAt:n},autocurio:{unlockedAt:n}},totalXpFromUnlocks:0,createdAt:n,updatedAt:n}; }
 
         initializer.registerRpc('character_get_state', rpcCharacterGetState);
 
