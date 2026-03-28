@@ -119,7 +119,8 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
-	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger, rootPath, paths)
+	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger,
+		append([]string{rootPath}, config.GetRuntime().LuaPaths...), paths)
 	if err != nil {
 		// Errors already logged in the function call above.
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
@@ -1291,7 +1292,8 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 
 func CheckRuntimeProviderLua(logger *zap.Logger, config Config, version string, paths []string) error {
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
-	moduleCache, _, stdLibs, err := openLuaModules(logger, config.GetRuntime().Path, paths)
+	moduleCache, _, stdLibs, err := openLuaModules(logger,
+		append([]string{config.GetRuntime().Path}, config.GetRuntime().LuaPaths...), paths)
 	if err != nil {
 		// Errors already logged in the function call above.
 		return err
@@ -1307,7 +1309,7 @@ func CheckRuntimeProviderLua(logger *zap.Logger, config Config, version string, 
 	return nil
 }
 
-func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*RuntimeLuaModuleCache, []string, map[string]lua.LGFunction, error) {
+func openLuaModules(logger *zap.Logger, rootPaths []string, paths []string) (*RuntimeLuaModuleCache, []string, map[string]lua.LGFunction, error) {
 	moduleCache := &RuntimeLuaModuleCache{
 		Names:   make([]string, 0),
 		Modules: make(map[string]*RuntimeLuaModule, 0),
@@ -1315,8 +1317,12 @@ func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*Runti
 	modulePaths := make([]string, 0)
 
 	// Override before Package library is invoked.
-	lua.LuaLDir = rootPath
-	lua.LuaPathDefault = lua.LuaLDir + string(os.PathSeparator) + "?.lua;" + lua.LuaLDir + string(os.PathSeparator) + "?" + string(os.PathSeparator) + "init.lua"
+	lua.LuaLDir = rootPaths[0]
+	lua.LuaPathDefault = lua.LuaLDir + lua.LuaDirSep + "?.lua;"
+	lua.LuaPathDefault += lua.LuaLDir + lua.LuaDirSep + "?" + lua.LuaDirSep + "init.lua;"
+	for i := 1; i < len(rootPaths); i++ {
+		lua.LuaPathDefault += filepath.Join(lua.LuaLDir, rootPaths[i]) + ";"
+	}
 	if err := os.Setenv(lua.LuaPath, lua.LuaPathDefault); err != nil {
 		logger.Error("Could not set Lua module path", zap.Error(err))
 		return nil, nil, nil, err
@@ -1335,7 +1341,7 @@ func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*Runti
 			return nil, nil, nil, err
 		}
 
-		relPath, _ := filepath.Rel(rootPath, path)
+		relPath, _ := filepath.Rel(rootPaths[0], path)
 		name := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 		// Make paths Lua friendly.
 		name = strings.ReplaceAll(name, string(os.PathSeparator), ".")
