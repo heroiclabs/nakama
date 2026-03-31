@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -31,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/felixge/httpsnoop"
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
@@ -271,7 +273,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	// Enable compression on responses sent by the gateway.
 	// Enable decompression on requests received by the gateway.
 	handlerWithDecompressRequest := decompressHandler(logger, grpcGatewayMux)
-	handlerWithCompressResponse := handlers.CompressHandler(handlerWithDecompressRequest)
+	handlerWithCompressResponse := compressHandler(handlerWithDecompressRequest)
 	maxMessageSizeBytes := config.GetSocket().MaxRequestSizeBytes
 	handlerWithMaxBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check max body size before decompressing incoming request body.
@@ -541,6 +543,120 @@ func parseToken(hmacSecretByte []byte, tokenString string) (userID uuid.UUID, us
 		return
 	}
 	return userID, claims.Username, claims.Vars, claims.ExpiresAt, claims.TokenId, claims.IssuedAt, true
+}
+
+func compressHandler(h http.Handler) http.Handler {
+	const (
+		gzipEncoding  = "gzip"
+		flateEncoding = "deflate"
+	)
+
+	gzipPool := &sync.Pool{
+		New: func() any {
+			w, _ := gzip.NewWriterLevel(io.Discard, gzip.DefaultCompression)
+			return w
+		},
+	}
+	flatePool := &sync.Pool{
+		New: func() any {
+			w, _ := flate.NewWriter(io.Discard, gzip.DefaultCompression)
+			return w
+		},
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Accept-Encoding")
+
+		var encoding string
+		for _, enc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+			enc = strings.TrimSpace(enc)
+			if enc == gzipEncoding || enc == flateEncoding {
+				encoding = enc
+				break
+			}
+		}
+		if encoding == "" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		if r.Header.Get("Upgrade") != "" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		var encWriter io.WriteCloser
+		if encoding == gzipEncoding {
+			gz := gzipPool.Get().(*gzip.Writer)
+			gz.Reset(w)
+			defer gzipPool.Put(gz)
+			encWriter = gz
+		} else {
+			fl := flatePool.Get().(*flate.Writer)
+			fl.Reset(w)
+			defer flatePool.Put(fl)
+			encWriter = fl
+		}
+		defer encWriter.Close()
+
+		w.Header().Set("Content-Encoding", encoding)
+		r.Header.Del("Accept-Encoding")
+
+		cw := &compressResponseWriter{w: w, enc: encWriter}
+		w = httpsnoop.Wrap(w, httpsnoop.Hooks{
+			Write: func(httpsnoop.WriteFunc) httpsnoop.WriteFunc {
+				return cw.Write
+			},
+			WriteHeader: func(httpsnoop.WriteHeaderFunc) httpsnoop.WriteHeaderFunc {
+				return cw.WriteHeader
+			},
+			Flush: func(httpsnoop.FlushFunc) httpsnoop.FlushFunc {
+				return cw.Flush
+			},
+			ReadFrom: func(httpsnoop.ReadFromFunc) httpsnoop.ReadFromFunc {
+				return cw.ReadFrom
+			},
+		})
+		h.ServeHTTP(w, r)
+	})
+}
+
+type compressResponseWriter struct {
+	w   http.ResponseWriter
+	enc io.WriteCloser
+}
+
+func (c *compressResponseWriter) Header() http.Header { return c.w.Header() }
+
+func (c *compressResponseWriter) WriteHeader(code int) {
+	c.w.Header().Del("Content-Length")
+	c.w.WriteHeader(code)
+}
+
+func (c *compressResponseWriter) Write(b []byte) (int, error) {
+	h := c.w.Header()
+	if h.Get("Content-Type") == "" {
+		h.Set("Content-Type", http.DetectContentType(b))
+	}
+	h.Del("Content-Length")
+	return c.enc.Write(b)
+}
+
+func (c *compressResponseWriter) ReadFrom(r io.Reader) (int64, error) {
+	return io.Copy(c.enc, r)
+}
+
+type compressFlusher interface {
+	Flush() error
+}
+
+func (c *compressResponseWriter) Flush() {
+	if f, ok := c.enc.(compressFlusher); ok {
+		_ = f.Flush()
+	}
+	if f, ok := c.w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func decompressHandler(logger *zap.Logger, h http.Handler) http.HandlerFunc {
