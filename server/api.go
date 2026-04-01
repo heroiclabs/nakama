@@ -32,7 +32,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/felixge/httpsnoop"
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
@@ -575,17 +574,12 @@ func compressHandler(h http.Handler) http.Handler {
 				break
 			}
 		}
-		if encoding == "" {
+		if encoding == "" || r.Header.Get("Upgrade") != "" {
 			h.ServeHTTP(w, r)
 			return
 		}
 
-		if r.Header.Get("Upgrade") != "" {
-			h.ServeHTTP(w, r)
-			return
-		}
-
-		var encWriter io.WriteCloser
+		var encWriter compressEncoder
 		if encoding == gzipEncoding {
 			gz := gzipPool.Get().(*gzip.Writer)
 			gz.Reset(w)
@@ -602,28 +596,18 @@ func compressHandler(h http.Handler) http.Handler {
 		w.Header().Set("Content-Encoding", encoding)
 		r.Header.Del("Accept-Encoding")
 
-		cw := &compressResponseWriter{w: w, enc: encWriter}
-		w = httpsnoop.Wrap(w, httpsnoop.Hooks{
-			Write: func(httpsnoop.WriteFunc) httpsnoop.WriteFunc {
-				return cw.Write
-			},
-			WriteHeader: func(httpsnoop.WriteHeaderFunc) httpsnoop.WriteHeaderFunc {
-				return cw.WriteHeader
-			},
-			Flush: func(httpsnoop.FlushFunc) httpsnoop.FlushFunc {
-				return cw.Flush
-			},
-			ReadFrom: func(httpsnoop.ReadFromFunc) httpsnoop.ReadFromFunc {
-				return cw.ReadFrom
-			},
-		})
-		h.ServeHTTP(w, r)
+		h.ServeHTTP(&compressResponseWriter{w: w, enc: encWriter}, r)
 	})
+}
+
+type compressEncoder interface {
+	io.WriteCloser
+	Flush() error
 }
 
 type compressResponseWriter struct {
 	w   http.ResponseWriter
-	enc io.WriteCloser
+	enc compressEncoder
 }
 
 func (c *compressResponseWriter) Header() http.Header { return c.w.Header() }
@@ -646,14 +630,8 @@ func (c *compressResponseWriter) ReadFrom(r io.Reader) (int64, error) {
 	return io.Copy(c.enc, r)
 }
 
-type compressFlusher interface {
-	Flush() error
-}
-
 func (c *compressResponseWriter) Flush() {
-	if f, ok := c.enc.(compressFlusher); ok {
-		_ = f.Flush()
-	}
+	_ = c.enc.Flush()
 	if f, ok := c.w.(http.Flusher); ok {
 		f.Flush()
 	}
