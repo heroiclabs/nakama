@@ -558,7 +558,7 @@ func compressHandler(h http.Handler) http.Handler {
 	}
 	flatePool := &sync.Pool{
 		New: func() any {
-			w, _ := flate.NewWriter(io.Discard, gzip.DefaultCompression)
+			w, _ := flate.NewWriter(io.Discard, flate.DefaultCompression)
 			return w
 		},
 	}
@@ -583,15 +583,22 @@ func compressHandler(h http.Handler) http.Handler {
 		if encoding == gzipEncoding {
 			gz := gzipPool.Get().(*gzip.Writer)
 			gz.Reset(w)
-			defer gzipPool.Put(gz)
+			defer func() {
+				gz.Close()
+				gz.Reset(io.Discard)
+				gzipPool.Put(gz)
+			}()
 			encWriter = gz
 		} else {
 			fl := flatePool.Get().(*flate.Writer)
 			fl.Reset(w)
-			defer flatePool.Put(fl)
+			defer func() {
+				fl.Close()
+				fl.Reset(io.Discard)
+				flatePool.Put(fl)
+			}()
 			encWriter = fl
 		}
-		defer encWriter.Close()
 
 		w.Header().Set("Content-Encoding", encoding)
 		r.Header.Del("Accept-Encoding")
@@ -601,7 +608,7 @@ func compressHandler(h http.Handler) http.Handler {
 }
 
 type compressEncoder interface {
-	io.WriteCloser
+	io.Writer
 	Flush() error
 }
 
