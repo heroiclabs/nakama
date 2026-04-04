@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-04T19:58:46.224Z
+// Generated: 2026-04-04T21:29:29.025Z
 // RPC Count: 438
 // ============================================================
 
@@ -53334,12 +53334,7 @@ var FantasyLeague;
     }
     function ensureLeagueLeaderboard(nk, leaderboardId) {
         try {
-            nk.leaderboardCreate(leaderboardId, true, // authoritative
-            "incr", // operator: increment (we add match points)
-            "desc", // sort order
-            "", // reset schedule (no auto-reset)
-            {} // metadata
-            );
+            nk.leaderboardCreate(leaderboardId, true, "descending" /* nkruntime.SortOrder.DESCENDING */, "increment" /* nkruntime.Operator.INCREMENTAL */, "", {});
         }
         catch (e) {
             // Leaderboard may already exist — that's fine

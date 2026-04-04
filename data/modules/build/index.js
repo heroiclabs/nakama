@@ -236,12 +236,7 @@ var FantasyLeague;
     }
     function ensureLeagueLeaderboard(nk, leaderboardId) {
         try {
-            nk.leaderboardCreate(leaderboardId, true, // authoritative
-            "incr", // operator: increment (we add match points)
-            "desc", // sort order
-            "", // reset schedule (no auto-reset)
-            {} // metadata
-            );
+            nk.leaderboardCreate(leaderboardId, true, "descending" /* nkruntime.SortOrder.DESCENDING */, "increment" /* nkruntime.Operator.INCREMENTAL */, "", {});
         }
         catch (e) {
             // Leaderboard may already exist — that's fine

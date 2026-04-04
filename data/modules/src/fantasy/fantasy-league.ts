@@ -69,11 +69,11 @@ namespace FantasyLeague {
     try {
       nk.leaderboardCreate(
         leaderboardId,
-        true,  // authoritative
-        "incr", // operator: increment (we add match points)
-        "desc", // sort order
-        "",     // reset schedule (no auto-reset)
-        {}      // metadata
+        true,
+        nkruntime.SortOrder.DESCENDING,
+        nkruntime.Operator.INCREMENTAL,
+        "",
+        {}
       );
     } catch (e: any) {
       // Leaderboard may already exist — that's fine
