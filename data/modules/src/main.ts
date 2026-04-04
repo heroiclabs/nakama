@@ -177,6 +177,25 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[Satori] Failed to register Satori systems: " + (err.message || String(err)));
   }
 
+  // ---- Fantasy Cricket RPCs ----
+  try {
+    logger.info("[Fantasy] Registering Team RPCs...");
+    FantasyTeam.register(initializer);
+
+    logger.info("[Fantasy] Registering Transfer RPCs...");
+    FantasyTransfer.register(initializer);
+
+    logger.info("[Fantasy] Registering Scoring Engine RPCs...");
+    FantasyScoring.register(initializer);
+
+    logger.info("[Fantasy] Registering League RPCs...");
+    FantasyLeague.register(initializer);
+
+    logger.info("[Fantasy] All Fantasy Cricket RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[Fantasy] Failed to register Fantasy Cricket RPCs: " + (err.message || String(err)));
+  }
+
   // ---- Admin Console RPCs ----
   try {
     logger.info("[Admin] Registering Admin Console RPCs...");

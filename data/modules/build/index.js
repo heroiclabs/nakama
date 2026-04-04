@@ -125,6 +125,21 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[Satori] Failed to register Satori systems: " + (err.message || String(err)));
     }
+    // ---- Fantasy Cricket RPCs ----
+    try {
+        logger.info("[Fantasy] Registering Team RPCs...");
+        FantasyTeam.register(initializer);
+        logger.info("[Fantasy] Registering Transfer RPCs...");
+        FantasyTransfer.register(initializer);
+        logger.info("[Fantasy] Registering Scoring Engine RPCs...");
+        FantasyScoring.register(initializer);
+        logger.info("[Fantasy] Registering League RPCs...");
+        FantasyLeague.register(initializer);
+        logger.info("[Fantasy] All Fantasy Cricket RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[Fantasy] Failed to register Fantasy Cricket RPCs: " + (err.message || String(err)));
+    }
     // ---- Admin Console RPCs ----
     try {
         logger.info("[Admin] Registering Admin Console RPCs...");
@@ -183,6 +198,1235 @@ function InitModule(ctx, logger, nk, initializer) {
     logger.info("IntelliVerse-X Runtime initialized!");
     logger.info("========================================");
 }
+// ============================================================================
+// FANTASY CRICKET — Private Leagues
+// ============================================================================
+// RPCs:
+//   fantasy_league_create      — Create a private league (Nakama Group)
+//   fantasy_league_join         — Join via invite code
+//   fantasy_league_leave        — Leave a league
+//   fantasy_league_leaderboard  — Get league-specific leaderboard
+//   fantasy_league_my_leagues   — List user's leagues
+//   fantasy_league_info         — Get league details
+// ============================================================================
+var FantasyLeague;
+(function (FantasyLeague) {
+    var DEFAULT_MAX_MEMBERS = 20;
+    var INVITE_CODE_LENGTH = 8;
+    // ---- Helpers ----
+    function generateInviteCode() {
+        var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        var code = "";
+        for (var i = 0; i < INVITE_CODE_LENGTH; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return code;
+    }
+    function saveLeagueMeta(nk, meta) {
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.LEAGUE_META + "_" + meta.groupId, Constants.SYSTEM_USER_ID, meta, 2, 0);
+        // Also index by invite code for lookups
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, "league_invite_" + meta.inviteCode, Constants.SYSTEM_USER_ID, { groupId: meta.groupId, inviteCode: meta.inviteCode }, 2, 0);
+    }
+    function getLeagueMetaByGroup(nk, groupId) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.LEAGUE_META + "_" + groupId, Constants.SYSTEM_USER_ID);
+    }
+    function lookupGroupByInviteCode(nk, code) {
+        var data = Storage.readJson(nk, FantasyTypes.COLLECTION, "league_invite_" + code.toUpperCase(), Constants.SYSTEM_USER_ID);
+        return data ? data.groupId : null;
+    }
+    function ensureLeagueLeaderboard(nk, leaderboardId) {
+        try {
+            nk.leaderboardCreate(leaderboardId, true, // authoritative
+            "incr", // operator: increment (we add match points)
+            "desc", // sort order
+            "", // reset schedule (no auto-reset)
+            {} // metadata
+            );
+        }
+        catch (e) {
+            // Leaderboard may already exist — that's fine
+        }
+    }
+    // ---- RPCs ----
+    function rpcCreateLeague(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["leagueName", "seasonId"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        var maxMembers = input.maxMembers || DEFAULT_MAX_MEMBERS;
+        if (maxMembers < 2 || maxMembers > 100) {
+            return RpcHelpers.errorResponse("maxMembers must be between 2 and 100");
+        }
+        var inviteCode = generateInviteCode();
+        // Create Nakama Group
+        var group;
+        try {
+            group = nk.groupCreate(userId, input.leagueName, userId, // creator as initial member
+            "", // lang tag
+            "Fantasy league for " + input.seasonId, "", // avatar
+            false, // open = false (invite-only)
+            { seasonId: input.seasonId, inviteCode: inviteCode }, maxMembers);
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to create group: " + (e.message || String(e)));
+        }
+        var leaderboardId = FantasyTypes.LEADERBOARD_LEAGUE_PREFIX + group.id;
+        ensureLeagueLeaderboard(nk, leaderboardId);
+        var meta = {
+            groupId: group.id,
+            leagueName: input.leagueName,
+            creatorId: userId,
+            seasonId: input.seasonId,
+            leaderboardId: leaderboardId,
+            maxMembers: maxMembers,
+            inviteCode: inviteCode,
+            createdAt: new Date().toISOString(),
+        };
+        saveLeagueMeta(nk, meta);
+        logger.info("[FantasyLeague] User %s created league '%s' (group: %s, code: %s)", userId, input.leagueName, group.id, inviteCode);
+        EventBus.emit(nk, logger, ctx, "fantasy_league_created", {
+            userId: userId,
+            groupId: group.id,
+            seasonId: input.seasonId,
+            leagueName: input.leagueName,
+        });
+        return RpcHelpers.successResponse({
+            groupId: group.id,
+            leagueName: input.leagueName,
+            inviteCode: inviteCode,
+            leaderboardId: leaderboardId,
+            maxMembers: maxMembers,
+        });
+    }
+    function rpcJoinLeague(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.inviteCode) {
+            return RpcHelpers.errorResponse("inviteCode is required");
+        }
+        var groupId = lookupGroupByInviteCode(nk, input.inviteCode);
+        if (!groupId) {
+            return RpcHelpers.errorResponse("Invalid invite code: " + input.inviteCode);
+        }
+        var meta = getLeagueMetaByGroup(nk, groupId);
+        if (!meta) {
+            return RpcHelpers.errorResponse("League metadata not found");
+        }
+        // Check current member count
+        var members;
+        try {
+            members = nk.groupUsersList(groupId, 100, undefined, "");
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to check league members: " + (e.message || String(e)));
+        }
+        if (members.groupUsers && members.groupUsers.length >= meta.maxMembers) {
+            return RpcHelpers.errorResponse("League is full (" + meta.maxMembers + " members max)");
+        }
+        // Check if already a member
+        if (members.groupUsers) {
+            for (var i = 0; i < members.groupUsers.length; i++) {
+                if (members.groupUsers[i].user && members.groupUsers[i].user.userId === userId) {
+                    return RpcHelpers.errorResponse("Already a member of this league");
+                }
+            }
+        }
+        // Join the group
+        try {
+            nk.groupUsersAdd(groupId, [userId]);
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to join league: " + (e.message || String(e)));
+        }
+        logger.info("[FantasyLeague] User %s joined league %s (code: %s)", userId, groupId, input.inviteCode);
+        return RpcHelpers.successResponse({
+            groupId: groupId,
+            leagueName: meta.leagueName,
+            seasonId: meta.seasonId,
+            leaderboardId: meta.leaderboardId,
+        });
+    }
+    function rpcLeaveLeague(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.groupId) {
+            return RpcHelpers.errorResponse("groupId is required");
+        }
+        var meta = getLeagueMetaByGroup(nk, input.groupId);
+        if (!meta) {
+            return RpcHelpers.errorResponse("League not found");
+        }
+        if (meta.creatorId === userId) {
+            return RpcHelpers.errorResponse("League creator cannot leave — transfer ownership or delete the league");
+        }
+        try {
+            nk.groupUsersKick(input.groupId, [userId]);
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to leave league: " + (e.message || String(e)));
+        }
+        logger.info("[FantasyLeague] User %s left league %s", userId, input.groupId);
+        return RpcHelpers.successResponse({ left: true, groupId: input.groupId });
+    }
+    function rpcLeagueLeaderboard(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.groupId) {
+            return RpcHelpers.errorResponse("groupId is required");
+        }
+        var meta = getLeagueMetaByGroup(nk, input.groupId);
+        if (!meta) {
+            return RpcHelpers.errorResponse("League not found");
+        }
+        // Get member user IDs
+        var memberIds = [];
+        try {
+            var members = nk.groupUsersList(input.groupId, 100, undefined, "");
+            if (members.groupUsers) {
+                for (var i = 0; i < members.groupUsers.length; i++) {
+                    if (members.groupUsers[i].user && members.groupUsers[i].user.userId) {
+                        memberIds.push(members.groupUsers[i].user.userId);
+                    }
+                }
+            }
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to list members: " + (e.message || String(e)));
+        }
+        if (memberIds.length === 0) {
+            return RpcHelpers.successResponse({
+                groupId: input.groupId,
+                leagueName: meta.leagueName,
+                records: [],
+            });
+        }
+        // Read league leaderboard records for these members
+        var limit = input.limit || 50;
+        var records = [];
+        try {
+            var lbRecords = nk.leaderboardRecordsList(meta.leaderboardId, memberIds, limit, "", 0);
+            if (lbRecords && lbRecords.records) {
+                for (var i = 0; i < lbRecords.records.length; i++) {
+                    var rec = lbRecords.records[i];
+                    records.push({
+                        userId: rec.ownerId,
+                        score: Number(rec.score) || 0,
+                        rank: rec.rank ? Number(rec.rank) : i + 1,
+                    });
+                }
+            }
+        }
+        catch (e) {
+            logger.warn("[FantasyLeague] LB read failed for league %s: %s", input.groupId, e.message || String(e));
+        }
+        return RpcHelpers.successResponse({
+            groupId: input.groupId,
+            leagueName: meta.leagueName,
+            seasonId: meta.seasonId,
+            memberCount: memberIds.length,
+            records: records,
+        });
+    }
+    function rpcMyLeagues(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var leagues = [];
+        try {
+            var userGroups = nk.userGroupsList(userId, 100, undefined, "");
+            if (userGroups.userGroups) {
+                for (var i = 0; i < userGroups.userGroups.length; i++) {
+                    var ug = userGroups.userGroups[i];
+                    if (!ug.group || !ug.group.id)
+                        continue;
+                    var meta = getLeagueMetaByGroup(nk, ug.group.id);
+                    if (!meta)
+                        continue;
+                    leagues.push({
+                        groupId: meta.groupId,
+                        leagueName: meta.leagueName,
+                        seasonId: meta.seasonId,
+                        inviteCode: meta.inviteCode,
+                        memberCount: ug.group.edgeCount || 0,
+                        isCreator: meta.creatorId === userId,
+                    });
+                }
+            }
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to list groups: " + (e.message || String(e)));
+        }
+        return RpcHelpers.successResponse({ leagues: leagues });
+    }
+    function rpcLeagueInfo(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.groupId) {
+            return RpcHelpers.errorResponse("groupId is required");
+        }
+        var meta = getLeagueMetaByGroup(nk, input.groupId);
+        if (!meta) {
+            return RpcHelpers.errorResponse("League not found");
+        }
+        var memberCount = 0;
+        try {
+            var members = nk.groupUsersList(input.groupId, 1, undefined, "");
+            if (members.groupUsers) {
+                memberCount = members.groupUsers.length;
+            }
+        }
+        catch (e) {
+            // ignore
+        }
+        return RpcHelpers.successResponse({
+            groupId: meta.groupId,
+            leagueName: meta.leagueName,
+            creatorId: meta.creatorId,
+            seasonId: meta.seasonId,
+            leaderboardId: meta.leaderboardId,
+            maxMembers: meta.maxMembers,
+            inviteCode: meta.inviteCode,
+            memberCount: memberCount,
+            createdAt: meta.createdAt,
+        });
+    }
+    // ---- Registration ----
+    function register(initializer) {
+        initializer.registerRpc("fantasy_league_create", rpcCreateLeague);
+        initializer.registerRpc("fantasy_league_join", rpcJoinLeague);
+        initializer.registerRpc("fantasy_league_leave", rpcLeaveLeague);
+        initializer.registerRpc("fantasy_league_leaderboard", rpcLeagueLeaderboard);
+        initializer.registerRpc("fantasy_league_my_leagues", rpcMyLeagues);
+        initializer.registerRpc("fantasy_league_info", rpcLeagueInfo);
+    }
+    FantasyLeague.register = register;
+})(FantasyLeague || (FantasyLeague = {}));
+// ============================================================================
+// FANTASY CRICKET — Scoring Engine
+// ============================================================================
+// RPCs:
+//   fantasy_scoring_process    — Process BallEvent[] batch → update player stats
+//   fantasy_scoring_finalize   — End-of-innings/match: apply SR/ER bonuses,
+//                                 compute per-user totals, write leaderboards
+//   fantasy_scoring_get_points — Get a user's points for a specific match
+//   fantasy_scoring_live       — Get live (partial) player stats for a fixture
+// ============================================================================
+var FantasyScoring;
+(function (FantasyScoring) {
+    // ---- Helpers ----
+    function getScoringConfig(nk, seasonId) {
+        var cfg = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SCORING_CONFIG + "_" + seasonId, Constants.SYSTEM_USER_ID);
+        return cfg || FantasyTypes.defaultScoringConfig(seasonId);
+    }
+    function getPlayerStats(nk, fixtureId) {
+        var data = Storage.readJson(nk, FantasyTypes.COLLECTION, "live_stats_" + fixtureId, Constants.SYSTEM_USER_ID);
+        return data ? data.stats : {};
+    }
+    function savePlayerStats(nk, fixtureId, stats) {
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, "live_stats_" + fixtureId, Constants.SYSTEM_USER_ID, { fixtureId: fixtureId, stats: stats, updatedAt: new Date().toISOString() }, 2, 0);
+    }
+    function initPlayerStats(playerId) {
+        return {
+            playerId: playerId,
+            runsScored: 0,
+            ballsFaced: 0,
+            fours: 0,
+            sixes: 0,
+            wicketsTaken: 0,
+            oversBowled: 0,
+            ballsBowled: 0,
+            runsConceded: 0,
+            maidens: 0,
+            catches: 0,
+            stumpings: 0,
+            runOuts: 0,
+            runOutAssists: 0,
+            isDismissed: false,
+            dismissalType: null,
+            isDuck: false,
+            fantasyPoints: 0,
+        };
+    }
+    function ensurePlayer(stats, playerId) {
+        if (!stats[playerId]) {
+            stats[playerId] = initPlayerStats(playerId);
+        }
+        return stats[playerId];
+    }
+    function processSingleBall(event, stats, cfg) {
+        var batsman = ensurePlayer(stats, event.batsmanId);
+        var bowler = ensurePlayer(stats, event.bowlerId);
+        var batsmanRuns = event.batsmanRuns !== undefined ? event.batsmanRuns : event.runs;
+        // Batting
+        batsman.ballsFaced++;
+        batsman.runsScored += batsmanRuns;
+        batsman.fantasyPoints += batsmanRuns * cfg.batting.perRun;
+        if (event.isBoundary) {
+            batsman.fours++;
+            batsman.fantasyPoints += cfg.batting.boundaryBonus;
+        }
+        if (event.isSix) {
+            batsman.sixes++;
+            batsman.fantasyPoints += cfg.batting.sixBonus;
+        }
+        // Milestone bonuses (incremental — only award when crossing the threshold)
+        if (batsman.runsScored >= 100 && (batsman.runsScored - batsmanRuns) < 100) {
+            batsman.fantasyPoints += cfg.batting.centuryBonus;
+        }
+        else if (batsman.runsScored >= 50 && (batsman.runsScored - batsmanRuns) < 50) {
+            batsman.fantasyPoints += cfg.batting.halfCenturyBonus;
+        }
+        // Bowling — count legal deliveries
+        if (!event.extras || event.extras.type !== "wide") {
+            bowler.ballsBowled++;
+            bowler.runsConceded += event.runs;
+            if (bowler.ballsBowled > 0 && bowler.ballsBowled % 6 === 0) {
+                bowler.oversBowled++;
+            }
+        }
+        // Wicket
+        if (event.isWicket && event.wicket) {
+            var dismissal = event.wicket;
+            if (dismissal.dismissalType !== "run out" && dismissal.dismissalType !== "retired hurt" && dismissal.dismissalType !== "retired") {
+                bowler.wicketsTaken++;
+                bowler.fantasyPoints += cfg.bowling.perWicket;
+                if (dismissal.dismissalType === "bowled") {
+                    bowler.fantasyPoints += cfg.bowling.bonusBowled;
+                }
+                if (dismissal.dismissalType === "lbw") {
+                    bowler.fantasyPoints += cfg.bowling.bonusLbw;
+                }
+                if (bowler.wicketsTaken === 3)
+                    bowler.fantasyPoints += cfg.bowling.threeWicketBonus;
+                if (bowler.wicketsTaken === 4)
+                    bowler.fantasyPoints += cfg.bowling.fourWicketBonus;
+                if (bowler.wicketsTaken === 5)
+                    bowler.fantasyPoints += cfg.bowling.fiveWicketBonus;
+            }
+            // Fielding
+            if (dismissal.dismissalType === "caught" && dismissal.fielderId) {
+                var fielder = ensurePlayer(stats, dismissal.fielderId);
+                fielder.catches++;
+                fielder.fantasyPoints += cfg.fielding.perCatch;
+            }
+            if (dismissal.dismissalType === "stumped" && dismissal.fielderId) {
+                var stumper = ensurePlayer(stats, dismissal.fielderId);
+                stumper.stumpings++;
+                stumper.fantasyPoints += cfg.fielding.perStumping;
+            }
+            if (dismissal.dismissalType === "run out") {
+                if (dismissal.fielderId) {
+                    var runOutFielder = ensurePlayer(stats, dismissal.fielderId);
+                    runOutFielder.runOuts++;
+                    runOutFielder.fantasyPoints += cfg.fielding.perRunOut;
+                }
+                if (dismissal.assistFielderId) {
+                    var assister = ensurePlayer(stats, dismissal.assistFielderId);
+                    assister.runOutAssists++;
+                    assister.fantasyPoints += cfg.fielding.perRunOutAssist;
+                }
+            }
+            // Mark batsman as dismissed
+            var dismissed = ensurePlayer(stats, dismissal.dismissedPlayerId);
+            dismissed.isDismissed = true;
+            dismissed.dismissalType = dismissal.dismissalType;
+        }
+    }
+    function applyEndOfMatchBonuses(stats, cfg) {
+        var playerIds = Object.keys(stats);
+        for (var i = 0; i < playerIds.length; i++) {
+            var p = stats[playerIds[i]];
+            // Duck penalty (dismissed for 0 runs having faced at least 1 ball)
+            if (p.isDismissed && p.runsScored === 0 && p.ballsFaced > 0) {
+                p.isDuck = true;
+                p.fantasyPoints += cfg.batting.duckPenalty;
+            }
+            // Strike-rate bonuses (only if faced enough balls)
+            if (p.ballsFaced >= cfg.bonuses.minimumBallsForSR) {
+                var sr = (p.runsScored / p.ballsFaced) * 100;
+                if (sr > 170)
+                    p.fantasyPoints += cfg.bonuses.strikeRateAbove170;
+                else if (sr > 150)
+                    p.fantasyPoints += cfg.bonuses.strikeRateAbove150;
+                else if (sr > 130)
+                    p.fantasyPoints += cfg.bonuses.strikeRateAbove130;
+                else if (sr < 50)
+                    p.fantasyPoints += cfg.bonuses.strikeRateBelow50;
+                else if (sr < 60)
+                    p.fantasyPoints += cfg.bonuses.strikeRateBelow60;
+            }
+            // Economy-rate bonuses (only if bowled enough overs)
+            if (p.oversBowled >= cfg.bonuses.minimumOversForER) {
+                var er = p.runsConceded / p.oversBowled;
+                if (er < 5)
+                    p.fantasyPoints += cfg.bonuses.economyBelow5;
+                else if (er < 6)
+                    p.fantasyPoints += cfg.bonuses.economyBelow6;
+                else if (er < 7)
+                    p.fantasyPoints += cfg.bonuses.economyBelow7;
+                else if (er > 12)
+                    p.fantasyPoints += cfg.bonuses.economyAbove12;
+                else if (er > 11)
+                    p.fantasyPoints += cfg.bonuses.economyAbove11;
+                else if (er > 10)
+                    p.fantasyPoints += cfg.bonuses.economyAbove10;
+            }
+            // Maiden tracking: check if any completed over had 0 runs
+            // (Maidens are detected during ball processing; if bowled a full over with 0 runs)
+            if (p.maidens > 0) {
+                p.fantasyPoints += p.maidens * cfg.bowling.maidenOverBonus;
+            }
+        }
+    }
+    function computeUserMatchPoints(nk, userId, seasonId, fixtureId, matchday, stats, cfg) {
+        var team = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, userId);
+        if (!team)
+            return null;
+        var playerPoints = {};
+        var totalPoints = 0;
+        var captainPts = 0;
+        var vcPts = 0;
+        for (var i = 0; i < team.players.length; i++) {
+            var sp = team.players[i];
+            var rawPts = 0;
+            if (stats[sp.playerId]) {
+                rawPts = stats[sp.playerId].fantasyPoints;
+            }
+            var multiplier = 1;
+            if (sp.isCaptain)
+                multiplier = cfg.captainMultiplier;
+            else if (sp.isViceCaptain)
+                multiplier = cfg.viceCaptainMultiplier;
+            var finalPts = Math.round(rawPts * multiplier * 10) / 10;
+            playerPoints[sp.playerId] = finalPts;
+            totalPoints += finalPts;
+            if (sp.isCaptain)
+                captainPts = finalPts;
+            if (sp.isViceCaptain)
+                vcPts = finalPts;
+        }
+        // Subtract any penalty points from extra transfers
+        var seasonState = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + seasonId, userId);
+        if (seasonState && seasonState.penaltyPointsAccrued > 0) {
+            totalPoints -= seasonState.penaltyPointsAccrued;
+        }
+        var result = {
+            userId: userId,
+            fixtureId: fixtureId,
+            matchday: matchday,
+            playerPoints: playerPoints,
+            captainPoints: captainPts,
+            viceCaptainPoints: vcPts,
+            totalPoints: Math.round(totalPoints * 10) / 10,
+            calculatedAt: new Date().toISOString(),
+        };
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_POINTS + "_" + fixtureId, userId, result, 2, 0);
+        return result;
+    }
+    function getOverTracker(nk, fixtureId) {
+        var data = Storage.readJson(nk, FantasyTypes.COLLECTION, "over_tracker_" + fixtureId, Constants.SYSTEM_USER_ID);
+        return data ? data.tracker : {};
+    }
+    function saveOverTracker(nk, fixtureId, tracker) {
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, "over_tracker_" + fixtureId, Constants.SYSTEM_USER_ID, { tracker: tracker }, 2, 0);
+    }
+    function trackMaidenProgress(event, stats, tracker) {
+        if (event.extras && event.extras.type === "wide")
+            return;
+        if (!tracker[event.bowlerId]) {
+            tracker[event.bowlerId] = { currentOverBalls: 0, currentOverRuns: 0 };
+        }
+        var t = tracker[event.bowlerId];
+        t.currentOverBalls++;
+        t.currentOverRuns += event.runs;
+        if (t.currentOverBalls >= 6) {
+            if (t.currentOverRuns === 0) {
+                var bowler = ensurePlayer(stats, event.bowlerId);
+                bowler.maidens++;
+            }
+            t.currentOverBalls = 0;
+            t.currentOverRuns = 0;
+        }
+    }
+    // ---- RPCs ----
+    function rpcProcessBallEvents(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["fixtureId", "matchday", "events"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        if (!input.events || input.events.length === 0) {
+            return RpcHelpers.errorResponse("No events to process");
+        }
+        var seasonId = input.fixtureId.split("_")[0] || "ipl2026";
+        var cfg = getScoringConfig(nk, seasonId);
+        var stats = getPlayerStats(nk, input.fixtureId);
+        var tracker = getOverTracker(nk, input.fixtureId);
+        for (var i = 0; i < input.events.length; i++) {
+            processSingleBall(input.events[i], stats, cfg);
+            trackMaidenProgress(input.events[i], stats, tracker);
+        }
+        savePlayerStats(nk, input.fixtureId, stats);
+        saveOverTracker(nk, input.fixtureId, tracker);
+        logger.info("[FantasyScoring] Processed %d ball events for fixture %s", input.events.length, input.fixtureId);
+        return RpcHelpers.successResponse({
+            fixtureId: input.fixtureId,
+            eventsProcessed: input.events.length,
+            playersTracked: Object.keys(stats).length,
+        });
+    }
+    function rpcFinalize(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["fixtureId", "matchday", "seasonId"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        var cfg = getScoringConfig(nk, input.seasonId);
+        var stats = getPlayerStats(nk, input.fixtureId);
+        if (Object.keys(stats).length === 0) {
+            return RpcHelpers.errorResponse("No player stats found for fixture " + input.fixtureId);
+        }
+        applyEndOfMatchBonuses(stats, cfg);
+        savePlayerStats(nk, input.fixtureId, stats);
+        // Enumerate users with fantasy teams for this season
+        var cursor = undefined;
+        var usersProcessed = 0;
+        var allMatchPoints = [];
+        do {
+            var list = nk.storageList(Constants.SYSTEM_USER_ID, FantasyTypes.COLLECTION, 100, cursor);
+            if (list && list.objects) {
+                for (var i = 0; i < list.objects.length; i++) {
+                    var obj = list.objects[i];
+                    if (obj.key.indexOf(FantasyTypes.Keys.TEAM + "_" + input.seasonId) === 0 && obj.userId) {
+                        var mp = computeUserMatchPoints(nk, obj.userId, input.seasonId, input.fixtureId, input.matchday, stats, cfg);
+                        if (mp) {
+                            allMatchPoints.push(mp);
+                            usersProcessed++;
+                            // Write to season leaderboard
+                            try {
+                                nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId, obj.userId, "", // username filled by Nakama
+                                Math.round(mp.totalPoints), 0, // subscore
+                                { matchday: input.matchday, fixtureId: input.fixtureId });
+                            }
+                            catch (e) {
+                                logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", obj.userId, e.message || String(e));
+                            }
+                            // Write to per-match leaderboard
+                            try {
+                                nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId, obj.userId, "", Math.round(mp.totalPoints), 0, {});
+                            }
+                            catch (e) {
+                                logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", obj.userId, e.message || String(e));
+                            }
+                        }
+                    }
+                }
+                cursor = list.cursor;
+            }
+            else {
+                break;
+            }
+        } while (cursor);
+        logger.info("[FantasyScoring] Finalized fixture %s — %d users scored", input.fixtureId, usersProcessed);
+        EventBus.emit(nk, logger, ctx, "fantasy_match_finalized", {
+            fixtureId: input.fixtureId,
+            seasonId: input.seasonId,
+            matchday: input.matchday,
+            usersProcessed: usersProcessed,
+        });
+        return RpcHelpers.successResponse({
+            fixtureId: input.fixtureId,
+            usersProcessed: usersProcessed,
+            playerStatsCount: Object.keys(stats).length,
+        });
+    }
+    function rpcGetPoints(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.fixtureId) {
+            return RpcHelpers.errorResponse("fixtureId is required");
+        }
+        var mp = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_POINTS + "_" + input.fixtureId, userId);
+        if (!mp) {
+            return RpcHelpers.errorResponse("No points found for fixture " + input.fixtureId);
+        }
+        return RpcHelpers.successResponse(mp);
+    }
+    function rpcLiveStats(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.fixtureId) {
+            return RpcHelpers.errorResponse("fixtureId is required");
+        }
+        var stats = getPlayerStats(nk, input.fixtureId);
+        if (Object.keys(stats).length === 0) {
+            return RpcHelpers.successResponse({ fixtureId: input.fixtureId, players: {}, message: "No stats yet" });
+        }
+        return RpcHelpers.successResponse({
+            fixtureId: input.fixtureId,
+            players: stats,
+        });
+    }
+    // ---- Registration ----
+    function register(initializer) {
+        initializer.registerRpc("fantasy_scoring_process", rpcProcessBallEvents);
+        initializer.registerRpc("fantasy_scoring_finalize", rpcFinalize);
+        initializer.registerRpc("fantasy_scoring_get_points", rpcGetPoints);
+        initializer.registerRpc("fantasy_scoring_live", rpcLiveStats);
+    }
+    FantasyScoring.register = register;
+})(FantasyScoring || (FantasyScoring = {}));
+// ============================================================================
+// FANTASY CRICKET — Team Creation & Validation
+// ============================================================================
+// RPCs:
+//   fantasy_team_create  — Create/replace a 15-player squad
+//   fantasy_team_get     — Retrieve the current user's squad
+//   fantasy_team_update_captain — Change captain / vice-captain
+// ============================================================================
+var FantasyTeam;
+(function (FantasyTeam) {
+    var SQUAD_SIZE = 15;
+    var CREDIT_BUDGET = 100;
+    var MAX_PER_REAL_TEAM = 7;
+    var MIN_BATSMEN = 3;
+    var MIN_BOWLERS = 3;
+    var MIN_ALL_ROUNDERS = 1;
+    var MIN_WICKET_KEEPERS = 1;
+    // ---- Helpers ----
+    function getPlayerCatalog(nk, seasonId) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.PLAYER_CATALOG + "_" + seasonId, Constants.SYSTEM_USER_ID);
+    }
+    function saveTeam(nk, team) {
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + team.seasonId, team.userId, team, 2, // owner-read
+        1 // owner-write
+        );
+    }
+    function getTeam(nk, userId, seasonId) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, userId);
+    }
+    function validateSquad(players, catalog) {
+        var errors = [];
+        if (players.length !== SQUAD_SIZE) {
+            errors.push("Squad must contain exactly " + SQUAD_SIZE + " players, got " + players.length);
+        }
+        var uniqueIds = {};
+        for (var i = 0; i < players.length; i++) {
+            if (uniqueIds[players[i].playerId]) {
+                errors.push("Duplicate player: " + players[i].playerId);
+            }
+            uniqueIds[players[i].playerId] = true;
+        }
+        var captainCount = 0;
+        var vcCount = 0;
+        for (var i = 0; i < players.length; i++) {
+            if (players[i].isCaptain)
+                captainCount++;
+            if (players[i].isViceCaptain)
+                vcCount++;
+        }
+        if (captainCount !== 1)
+            errors.push("Exactly 1 captain required, got " + captainCount);
+        if (vcCount !== 1)
+            errors.push("Exactly 1 vice-captain required, got " + vcCount);
+        for (var i = 0; i < players.length; i++) {
+            if (players[i].isCaptain && players[i].isViceCaptain) {
+                errors.push("Captain and vice-captain must be different players");
+                break;
+            }
+        }
+        var totalCredits = 0;
+        var teamCounts = {};
+        var roleCounts = { "batsman": 0, "bowler": 0, "all-rounder": 0, "wicket-keeper": 0 };
+        for (var i = 0; i < players.length; i++) {
+            var entry = catalog.players[players[i].playerId];
+            if (!entry) {
+                errors.push("Unknown player ID: " + players[i].playerId);
+                continue;
+            }
+            totalCredits += entry.creditValue;
+            if (!teamCounts[entry.teamId])
+                teamCounts[entry.teamId] = 0;
+            teamCounts[entry.teamId]++;
+            if (roleCounts[entry.role] !== undefined) {
+                roleCounts[entry.role]++;
+            }
+        }
+        if (totalCredits > CREDIT_BUDGET) {
+            errors.push("Total credits " + totalCredits.toFixed(1) + " exceeds budget of " + CREDIT_BUDGET);
+        }
+        var teamIds = Object.keys(teamCounts);
+        for (var i = 0; i < teamIds.length; i++) {
+            if (teamCounts[teamIds[i]] > MAX_PER_REAL_TEAM) {
+                errors.push("Max " + MAX_PER_REAL_TEAM + " players from one team, team " + teamIds[i] + " has " + teamCounts[teamIds[i]]);
+            }
+        }
+        if (roleCounts["batsman"] < MIN_BATSMEN)
+            errors.push("Need at least " + MIN_BATSMEN + " batsmen, got " + roleCounts["batsman"]);
+        if (roleCounts["bowler"] < MIN_BOWLERS)
+            errors.push("Need at least " + MIN_BOWLERS + " bowlers, got " + roleCounts["bowler"]);
+        if (roleCounts["all-rounder"] < MIN_ALL_ROUNDERS)
+            errors.push("Need at least " + MIN_ALL_ROUNDERS + " all-rounder, got " + roleCounts["all-rounder"]);
+        if (roleCounts["wicket-keeper"] < MIN_WICKET_KEEPERS)
+            errors.push("Need at least " + MIN_WICKET_KEEPERS + " wicket-keeper, got " + roleCounts["wicket-keeper"]);
+        return { valid: errors.length === 0, errors: errors };
+    }
+    // ---- RPCs ----
+    function rpcCreateTeam(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["seasonId", "leagueId", "teamName", "players"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        if (!input.players || !input.players.length) {
+            return RpcHelpers.errorResponse("Players array is required");
+        }
+        var catalog = getPlayerCatalog(nk, input.seasonId);
+        if (!catalog) {
+            return RpcHelpers.errorResponse("Player catalog not found for season " + input.seasonId);
+        }
+        var validation = validateSquad(input.players, catalog);
+        if (!validation.valid) {
+            return RpcHelpers.errorResponse("Squad validation failed: " + validation.errors.join("; "));
+        }
+        var squadPlayers = [];
+        var totalCredits = 0;
+        var captainId = "";
+        var vcId = "";
+        for (var i = 0; i < input.players.length; i++) {
+            var p = input.players[i];
+            var catEntry = catalog.players[p.playerId];
+            totalCredits += catEntry.creditValue;
+            if (p.isCaptain)
+                captainId = p.playerId;
+            if (p.isViceCaptain)
+                vcId = p.playerId;
+            squadPlayers.push({
+                playerId: p.playerId,
+                creditValue: catEntry.creditValue,
+                teamId: catEntry.teamId,
+                role: catEntry.role,
+                isCaptain: p.isCaptain,
+                isViceCaptain: p.isViceCaptain,
+            });
+        }
+        var now = new Date().toISOString();
+        var team = {
+            userId: userId,
+            seasonId: input.seasonId,
+            leagueId: input.leagueId,
+            teamName: input.teamName,
+            players: squadPlayers,
+            totalCredits: totalCredits,
+            captainId: captainId,
+            viceCaptainId: vcId,
+            createdAt: now,
+            updatedAt: now,
+        };
+        saveTeam(nk, team);
+        var existing = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + input.seasonId, userId);
+        if (!existing) {
+            var state = {
+                userId: userId,
+                seasonId: input.seasonId,
+                freeTransfersRemaining: 1,
+                maxFreeTransfers: 1,
+                totalTransfersMade: 0,
+                penaltyPointsAccrued: 0,
+                boostersUsed: [],
+                transferHistory: [],
+                updatedAt: now,
+            };
+            Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + input.seasonId, userId, state, 2, 1);
+        }
+        logger.info("[FantasyTeam] User %s created squad '%s' (credits: %s)", userId, input.teamName, totalCredits.toFixed(1));
+        EventBus.emit(nk, logger, ctx, "fantasy_team_created", {
+            userId: userId, seasonId: input.seasonId, teamName: input.teamName, totalCredits: totalCredits,
+        });
+        return RpcHelpers.successResponse(team);
+    }
+    function rpcGetTeam(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.seasonId) {
+            return RpcHelpers.errorResponse("seasonId is required");
+        }
+        var team = getTeam(nk, userId, input.seasonId);
+        if (!team) {
+            return RpcHelpers.errorResponse("No team found for this season");
+        }
+        return RpcHelpers.successResponse(team);
+    }
+    function rpcUpdateCaptain(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["seasonId", "captainId", "viceCaptainId"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        if (input.captainId === input.viceCaptainId) {
+            return RpcHelpers.errorResponse("Captain and vice-captain must be different");
+        }
+        var team = getTeam(nk, userId, input.seasonId);
+        if (!team) {
+            return RpcHelpers.errorResponse("No team found");
+        }
+        var captainFound = false;
+        var vcFound = false;
+        for (var i = 0; i < team.players.length; i++) {
+            if (team.players[i].playerId === input.captainId)
+                captainFound = true;
+            if (team.players[i].playerId === input.viceCaptainId)
+                vcFound = true;
+        }
+        if (!captainFound)
+            return RpcHelpers.errorResponse("Captain not in squad: " + input.captainId);
+        if (!vcFound)
+            return RpcHelpers.errorResponse("Vice-captain not in squad: " + input.viceCaptainId);
+        for (var i = 0; i < team.players.length; i++) {
+            team.players[i].isCaptain = team.players[i].playerId === input.captainId;
+            team.players[i].isViceCaptain = team.players[i].playerId === input.viceCaptainId;
+        }
+        team.captainId = input.captainId;
+        team.viceCaptainId = input.viceCaptainId;
+        team.updatedAt = new Date().toISOString();
+        saveTeam(nk, team);
+        return RpcHelpers.successResponse(team);
+    }
+    // ---- Registration ----
+    function register(initializer) {
+        initializer.registerRpc("fantasy_team_create", rpcCreateTeam);
+        initializer.registerRpc("fantasy_team_get", rpcGetTeam);
+        initializer.registerRpc("fantasy_team_update_captain", rpcUpdateCaptain);
+    }
+    FantasyTeam.register = register;
+})(FantasyTeam || (FantasyTeam = {}));
+// ============================================================================
+// FANTASY CRICKET — Transfers
+// ============================================================================
+// RPCs:
+//   fantasy_transfer        — Execute a set of transfers (in/out pairs)
+//   fantasy_transfer_window  — Get current transfer window status
+//   fantasy_transfer_history — Get user's transfer history for a season
+// ============================================================================
+var FantasyTransfer;
+(function (FantasyTransfer) {
+    var PENALTY_PER_EXTRA_TRANSFER = -4;
+    // ---- Helpers ----
+    function getTransferWindow(nk, seasonId, matchday) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TRANSFER_WINDOW + "_" + seasonId + "_" + matchday, Constants.SYSTEM_USER_ID);
+    }
+    function getSeasonState(nk, userId, seasonId) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + seasonId, userId);
+    }
+    function saveSeasonState(nk, state) {
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + state.seasonId, state.userId, state, 2, 1);
+    }
+    function getCatalog(nk, seasonId) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.PLAYER_CATALOG + "_" + seasonId, Constants.SYSTEM_USER_ID);
+    }
+    function getTeam(nk, userId, seasonId) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, userId);
+    }
+    function saveTeam(nk, team) {
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + team.seasonId, team.userId, team, 2, 1);
+    }
+    // ---- RPCs ----
+    function rpcTransfer(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["seasonId", "matchday", "transfersIn", "transfersOut"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        if (input.transfersIn.length !== input.transfersOut.length) {
+            return RpcHelpers.errorResponse("transfersIn and transfersOut must be equal length");
+        }
+        if (input.transfersIn.length === 0) {
+            return RpcHelpers.errorResponse("At least one transfer pair required");
+        }
+        var window = getTransferWindow(nk, input.seasonId, input.matchday);
+        if (!window || !window.isOpen) {
+            return RpcHelpers.errorResponse("Transfer window is closed for matchday " + input.matchday);
+        }
+        var now = new Date();
+        if (window.closesAt && new Date(window.closesAt) < now) {
+            return RpcHelpers.errorResponse("Transfer window has expired");
+        }
+        if (window.opensAt && new Date(window.opensAt) > now) {
+            return RpcHelpers.errorResponse("Transfer window has not opened yet");
+        }
+        var catalog = getCatalog(nk, input.seasonId);
+        if (!catalog)
+            return RpcHelpers.errorResponse("Player catalog not found");
+        var team = getTeam(nk, userId, input.seasonId);
+        if (!team)
+            return RpcHelpers.errorResponse("No squad found — create a team first");
+        var seasonState = getSeasonState(nk, userId, input.seasonId);
+        if (!seasonState)
+            return RpcHelpers.errorResponse("Season state not found");
+        var currentPlayerIds = {};
+        for (var i = 0; i < team.players.length; i++) {
+            currentPlayerIds[team.players[i].playerId] = true;
+        }
+        for (var i = 0; i < input.transfersOut.length; i++) {
+            if (!currentPlayerIds[input.transfersOut[i]]) {
+                return RpcHelpers.errorResponse("Player " + input.transfersOut[i] + " not in your squad");
+            }
+        }
+        for (var i = 0; i < input.transfersIn.length; i++) {
+            if (currentPlayerIds[input.transfersIn[i]]) {
+                return RpcHelpers.errorResponse("Player " + input.transfersIn[i] + " already in your squad");
+            }
+            if (!catalog.players[input.transfersIn[i]]) {
+                return RpcHelpers.errorResponse("Unknown player: " + input.transfersIn[i]);
+            }
+        }
+        var numTransfers = input.transfersIn.length;
+        var freeAvailable = seasonState.freeTransfersRemaining;
+        var extraTransfers = Math.max(0, numTransfers - freeAvailable);
+        var isBoosted = false;
+        if (input.boosterId) {
+            try {
+                var inventoryItems = nk.storageRead([{
+                        collection: "hiro_inventory",
+                        key: input.boosterId,
+                        userId: userId,
+                    }]);
+                if (inventoryItems && inventoryItems.length > 0) {
+                    isBoosted = true;
+                    extraTransfers = 0;
+                    nk.storageDelete([{
+                            collection: "hiro_inventory",
+                            key: input.boosterId,
+                            userId: userId,
+                        }]);
+                    seasonState.boostersUsed.push(input.boosterId);
+                    logger.info("[FantasyTransfer] Booster %s consumed for user %s", input.boosterId, userId);
+                }
+                else {
+                    return RpcHelpers.errorResponse("Booster not found in inventory: " + input.boosterId);
+                }
+            }
+            catch (err) {
+                return RpcHelpers.errorResponse("Failed to consume booster: " + (err.message || String(err)));
+            }
+        }
+        var penaltyPoints = extraTransfers * PENALTY_PER_EXTRA_TRANSFER;
+        var newPlayers = [];
+        for (var i = 0; i < team.players.length; i++) {
+            var isBeingRemoved = false;
+            for (var j = 0; j < input.transfersOut.length; j++) {
+                if (team.players[i].playerId === input.transfersOut[j]) {
+                    isBeingRemoved = true;
+                    break;
+                }
+            }
+            if (!isBeingRemoved) {
+                newPlayers.push(team.players[i]);
+            }
+        }
+        for (var i = 0; i < input.transfersIn.length; i++) {
+            var catEntry = catalog.players[input.transfersIn[i]];
+            newPlayers.push({
+                playerId: input.transfersIn[i],
+                creditValue: catEntry.creditValue,
+                teamId: catEntry.teamId,
+                role: catEntry.role,
+                isCaptain: false,
+                isViceCaptain: false,
+            });
+        }
+        var totalCredits = 0;
+        var teamCounts = {};
+        var roleCounts = { "batsman": 0, "bowler": 0, "all-rounder": 0, "wicket-keeper": 0 };
+        for (var i = 0; i < newPlayers.length; i++) {
+            totalCredits += newPlayers[i].creditValue;
+            if (!teamCounts[newPlayers[i].teamId])
+                teamCounts[newPlayers[i].teamId] = 0;
+            teamCounts[newPlayers[i].teamId]++;
+            if (roleCounts[newPlayers[i].role] !== undefined) {
+                roleCounts[newPlayers[i].role]++;
+            }
+        }
+        if (totalCredits > 100) {
+            return RpcHelpers.errorResponse("Post-transfer credits " + totalCredits.toFixed(1) + " exceeds budget of 100");
+        }
+        var teamIds = Object.keys(teamCounts);
+        for (var i = 0; i < teamIds.length; i++) {
+            if (teamCounts[teamIds[i]] > 7) {
+                return RpcHelpers.errorResponse("Post-transfer: max 7 per team, team " + teamIds[i] + " has " + teamCounts[teamIds[i]]);
+            }
+        }
+        if (roleCounts["batsman"] < 3)
+            return RpcHelpers.errorResponse("Post-transfer: need at least 3 batsmen");
+        if (roleCounts["bowler"] < 3)
+            return RpcHelpers.errorResponse("Post-transfer: need at least 3 bowlers");
+        if (roleCounts["all-rounder"] < 1)
+            return RpcHelpers.errorResponse("Post-transfer: need at least 1 all-rounder");
+        if (roleCounts["wicket-keeper"] < 1)
+            return RpcHelpers.errorResponse("Post-transfer: need at least 1 wicket-keeper");
+        var captainStillPresent = false;
+        var vcStillPresent = false;
+        for (var i = 0; i < newPlayers.length; i++) {
+            if (newPlayers[i].playerId === team.captainId)
+                captainStillPresent = true;
+            if (newPlayers[i].playerId === team.viceCaptainId)
+                vcStillPresent = true;
+        }
+        if (!captainStillPresent) {
+            return RpcHelpers.errorResponse("Captain was transferred out — set a new captain first or keep them in the squad");
+        }
+        if (!vcStillPresent) {
+            return RpcHelpers.errorResponse("Vice-captain was transferred out — set a new VC first or keep them in the squad");
+        }
+        team.players = newPlayers;
+        team.totalCredits = totalCredits;
+        team.updatedAt = new Date().toISOString();
+        saveTeam(nk, team);
+        var nowIso = new Date().toISOString();
+        for (var i = 0; i < input.transfersIn.length; i++) {
+            var inEntry = catalog.players[input.transfersIn[i]];
+            var outEntry = catalog.players[input.transfersOut[i]];
+            seasonState.transferHistory.push({
+                matchday: input.matchday,
+                transferredIn: input.transfersIn[i],
+                transferredOut: input.transfersOut[i],
+                creditDelta: inEntry.creditValue - outEntry.creditValue,
+                boosterUsed: isBoosted ? input.boosterId : null,
+                timestamp: nowIso,
+            });
+        }
+        seasonState.totalTransfersMade += numTransfers;
+        seasonState.freeTransfersRemaining = Math.max(0, freeAvailable - numTransfers);
+        seasonState.penaltyPointsAccrued += Math.abs(penaltyPoints);
+        seasonState.updatedAt = nowIso;
+        saveSeasonState(nk, seasonState);
+        logger.info("[FantasyTransfer] User %s: %d transfers (free: %d, extra: %d, penalty: %d)", userId, numTransfers, Math.min(numTransfers, freeAvailable), extraTransfers, penaltyPoints);
+        EventBus.emit(nk, logger, ctx, "fantasy_transfer_executed", {
+            userId: userId,
+            seasonId: input.seasonId,
+            matchday: input.matchday,
+            transferCount: numTransfers,
+            penaltyPoints: penaltyPoints,
+            boosterUsed: isBoosted,
+        });
+        return RpcHelpers.successResponse({
+            team: team,
+            transfersMade: numTransfers,
+            freeTransfersUsed: Math.min(numTransfers, freeAvailable),
+            extraTransfers: extraTransfers,
+            penaltyPoints: penaltyPoints,
+            boosterConsumed: isBoosted ? input.boosterId : null,
+            freeTransfersRemaining: seasonState.freeTransfersRemaining,
+        });
+    }
+    function rpcTransferWindow(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["seasonId", "matchday"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        var window = getTransferWindow(nk, input.seasonId, input.matchday);
+        if (!window) {
+            return RpcHelpers.errorResponse("No transfer window found for matchday " + input.matchday);
+        }
+        return RpcHelpers.successResponse(window);
+    }
+    function rpcTransferHistory(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.seasonId) {
+            return RpcHelpers.errorResponse("seasonId is required");
+        }
+        var state = getSeasonState(nk, userId, input.seasonId);
+        if (!state) {
+            return RpcHelpers.errorResponse("Season state not found");
+        }
+        return RpcHelpers.successResponse({
+            totalTransfers: state.totalTransfersMade,
+            freeTransfersRemaining: state.freeTransfersRemaining,
+            penaltyPointsAccrued: state.penaltyPointsAccrued,
+            boostersUsed: state.boostersUsed,
+            history: state.transferHistory,
+        });
+    }
+    // ---- Registration ----
+    function register(initializer) {
+        initializer.registerRpc("fantasy_transfer", rpcTransfer);
+        initializer.registerRpc("fantasy_transfer_window", rpcTransferWindow);
+        initializer.registerRpc("fantasy_transfer_history", rpcTransferHistory);
+    }
+    FantasyTransfer.register = register;
+})(FantasyTransfer || (FantasyTransfer = {}));
+// ============================================================================
+// FANTASY CRICKET — Shared Types
+// ============================================================================
+var FantasyTypes;
+(function (FantasyTypes) {
+    // ---- Storage Collection & Key Constants ----
+    FantasyTypes.COLLECTION = "fantasy_cricket";
+    FantasyTypes.Keys = {
+        TEAM: "team", // per-user squad
+        SEASON_STATE: "season_state", // per-user season metadata (transfers, boosters)
+        SCORING_CONFIG: "scoring_config", // system-level scoring rules
+        PLAYER_CATALOG: "player_catalog", // system-level credit values
+        TRANSFER_WINDOW: "transfer_window", // system-level window state
+        MATCH_POINTS: "match_points", // per-user per-match points
+        LEAGUE_META: "league_meta", // per-group metadata
+    };
+    FantasyTypes.LEADERBOARD_SEASON = "fantasy_season";
+    FantasyTypes.LEADERBOARD_MATCH_PREFIX = "fantasy_match_";
+    FantasyTypes.LEADERBOARD_LEAGUE_PREFIX = "fantasy_league_";
+    // ---- Default Scoring Config ----
+    function defaultScoringConfig(seasonId) {
+        return {
+            seasonId: seasonId,
+            batting: {
+                perRun: 1,
+                boundaryBonus: 1,
+                sixBonus: 2,
+                halfCenturyBonus: 8,
+                centuryBonus: 16,
+                duckPenalty: -2,
+            },
+            bowling: {
+                perWicket: 25,
+                bonusBowled: 8,
+                bonusLbw: 8,
+                threeWicketBonus: 4,
+                fourWicketBonus: 8,
+                fiveWicketBonus: 16,
+                maidenOverBonus: 12,
+            },
+            fielding: {
+                perCatch: 8,
+                perStumping: 12,
+                perRunOut: 6,
+                perRunOutAssist: 4,
+            },
+            bonuses: {
+                strikeRateAbove170: 6,
+                strikeRateAbove150: 4,
+                strikeRateAbove130: 2,
+                strikeRateBelow60: -4,
+                strikeRateBelow50: -6,
+                economyBelow5: 6,
+                economyBelow6: 4,
+                economyBelow7: 2,
+                economyAbove10: -2,
+                economyAbove11: -4,
+                economyAbove12: -6,
+                minimumBallsForSR: 10,
+                minimumOversForER: 2,
+            },
+            penalties: {
+                perExtraPenaltyTransfer: -4,
+            },
+            captainMultiplier: 2,
+            viceCaptainMultiplier: 1.5,
+        };
+    }
+    FantasyTypes.defaultScoringConfig = defaultScoringConfig;
+})(FantasyTypes || (FantasyTypes = {}));
 var HiroAchievements;
 (function (HiroAchievements) {
     var DEFAULT_CONFIG = { achievements: {} };
@@ -7926,6 +9170,11 @@ var Constants;
     Constants.SATORI_ASSIGNMENTS_COLLECTION = "satori_assignments";
     Constants.SATORI_MESSAGES_COLLECTION = "satori_messages";
     Constants.SATORI_METRICS_COLLECTION = "satori_metrics";
+    // Fantasy Cricket storage collections
+    Constants.FANTASY_COLLECTION = "fantasy_cricket";
+    Constants.FANTASY_SEASON_LEADERBOARD = "fantasy_season";
+    Constants.FANTASY_MATCH_LB_PREFIX = "fantasy_match_";
+    Constants.FANTASY_LEAGUE_LB_PREFIX = "fantasy_league_";
     // Legacy storage collections (preserved for backward compatibility)
     Constants.WALLETS_COLLECTION = "wallets";
     Constants.LEADERBOARDS_REGISTRY_COLLECTION = "leaderboards_registry";
