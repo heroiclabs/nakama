@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-04T21:29:29.025Z
-// RPC Count: 438
+// Generated: 2026-04-06T15:56:38.586Z
+// RPC Count: 452
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -63,6 +63,16 @@ var __rpc_quizverse_track_session_start;
 var __rpc_quizverse_track_session_end;
 var __rpc_quizverse_get_server_config;
 var __rpc_quizverse_admin_grant_item;
+var __rpc_cricket_auction_create_room;
+var __rpc_cricket_auction_get_room;
+var __rpc_cricket_auction_place_bid;
+var __rpc_cricket_auction_next_player;
+var __rpc_cricket_auction_get_events;
+var __rpc_cricket_director_start_session;
+var __rpc_cricket_director_save_session;
+var __rpc_cricket_director_end_session;
+var __rpc_cricket_director_get_session;
+var __rpc_cricket_director_list_history;
 var __rpc_fantasy_league_create;
 var __rpc_fantasy_league_join;
 var __rpc_fantasy_league_leave;
@@ -447,8 +457,12 @@ var __rpc_get_clan_leaderboard;
 var __rpc_get_player_stats;
 var __rpc_submit_score;
 var __rpc_onboarding_grant_streak_shield;
+var __rpc_qe_player_full_profile;
+var __rpc_qe_stale_sessions;
+var __rpc_qe_cohort_export;
+var __rpc_qe_user_event_summary;
 
-// --- Discovered Modules (65 files) ---
+// --- Discovered Modules (66 files) ---
 
 // --- Module: achievements/achievements.js ---
 /**
@@ -20388,6 +20402,230 @@ function rpcPushGetEndpoints(ctx, logger, nk, payload) {
         count: endpoints.length,
         timestamp: utils.getCurrentTimestamp()
     });
+}
+
+
+// --- Module: quests_analytics_bridge.js ---
+/**
+ * quests_analytics_bridge.js
+ *
+ * Nakama RPCs that expose analytics and player-profile data for the
+ * quests-economy NestJS API.  This replaces the direct SQL queries that
+ * the NestJS side was running against Nakama's storage / users tables
+ * through the wrong DataSource.
+ *
+ * RPCs registered:
+ *   qe_player_full_profile  – single-user profile aggregate
+ *   qe_stale_sessions       – batch: sessions inactive > N days
+ *   qe_cohort_export        – batch: active sessions + events
+ *   qe_user_event_summary   – single-user event ring-buffer
+ */
+
+// ─── helpers ─────────────────────────────────────────────────────
+
+function _qeParseMaybeJson(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch (e) { return v; }
+}
+
+// ─── RPC: qe_player_full_profile ─────────────────────────────────
+
+function rpcQePlayerFullProfile(ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var userId = input.user_id || '';
+  if (!userId) {
+    throw Error('user_id is required');
+  }
+
+  var profile = {};
+  var gameStats = {};
+  var analytics = {};
+  var questAnalytics = null;
+
+  try {
+    var records = nk.storageRead([
+      { collection: 'user_metadata', key: 'profile',    userId: userId },
+      { collection: 'user_metadata', key: 'game_stats', userId: userId },
+      { collection: 'user_metadata', key: 'analytics',  userId: userId },
+      { collection: 'quest_analytics', key: 'summary',  userId: userId }
+    ]);
+
+    for (var i = 0; i < records.length; i++) {
+      var rec = records[i];
+      if (rec.collection === 'user_metadata') {
+        if (rec.key === 'profile')    profile    = rec.value || {};
+        if (rec.key === 'game_stats') gameStats  = rec.value || {};
+        if (rec.key === 'analytics')  analytics  = rec.value || {};
+      }
+      if (rec.collection === 'quest_analytics' && rec.key === 'summary') {
+        questAnalytics = rec.value || null;
+      }
+    }
+  } catch (e) {
+    logger.warn('[QeAnalytics] storageRead failed for ' + userId + ': ' + e);
+  }
+
+  var userRow = null;
+  try {
+    var userRows = nk.sqlQuery(
+      'SELECT id, username, display_name, lang_tag, location, timezone, ' +
+      'metadata, wallet, create_time, update_time, edge_count ' +
+      'FROM users WHERE id = $1 LIMIT 1',
+      [userId]
+    );
+    if (userRows && userRows.length > 0) {
+      userRow = userRows[0];
+      if (userRow.metadata && typeof userRow.metadata === 'string') {
+        try { userRow.metadata = JSON.parse(userRow.metadata); } catch (e2) { /* keep raw */ }
+      }
+    }
+  } catch (e) {
+    logger.warn('[QeAnalytics] users query failed: ' + e);
+  }
+
+  var leaderboardCount = 0;
+  try {
+    var lbRows = nk.sqlQuery(
+      'SELECT COUNT(*)::int AS cnt FROM leaderboard_record WHERE owner_id = $1',
+      [userId]
+    );
+    if (lbRows && lbRows.length > 0) {
+      leaderboardCount = Number(lbRows[0].cnt) || 0;
+    }
+  } catch (e) {
+    logger.warn('[QeAnalytics] leaderboard count query failed: ' + e);
+  }
+
+  return JSON.stringify({
+    profile:           profile,
+    game_stats:        gameStats,
+    analytics:         analytics,
+    quest_analytics:   questAnalytics,
+    user:              userRow,
+    leaderboard_count: leaderboardCount
+  });
+}
+
+// ─── RPC: qe_stale_sessions ─────────────────────────────────────
+
+function rpcQeStaleSessions(ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var inactiveDays = Number(input.inactive_days) || 3;
+  var limit = Math.min(Number(input.limit) || 5000, 10000);
+
+  try {
+    var rows = nk.sqlQuery(
+      "SELECT user_id, value FROM storage " +
+      "WHERE collection = 'user_sessions' AND key = 'current' " +
+      "AND update_time < (CURRENT_TIMESTAMP - ($1::int * interval '1 day')) " +
+      "ORDER BY update_time ASC LIMIT $2::int",
+      [inactiveDays, limit]
+    );
+
+    var results = [];
+    for (var i = 0; i < rows.length; i++) {
+      results.push({
+        user_id: rows[i].user_id,
+        session: _qeParseMaybeJson(rows[i].value)
+      });
+    }
+
+    return JSON.stringify({ sessions: results, count: results.length });
+  } catch (e) {
+    logger.error('[QeAnalytics] qe_stale_sessions failed: ' + e);
+    return JSON.stringify({ sessions: [], count: 0, error: String(e) });
+  }
+}
+
+// ─── RPC: qe_cohort_export ──────────────────────────────────────
+
+function rpcQeCohortExport(ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var activeSinceDays = Number(input.active_since_days) || 30;
+  var limit = Math.min(Number(input.limit) || 500, 2000);
+
+  try {
+    var rows = nk.sqlQuery(
+      "SELECT user_id, value FROM storage " +
+      "WHERE collection = 'user_sessions' AND key = 'current' " +
+      "AND update_time >= (CURRENT_TIMESTAMP - ($1::int * interval '1 day')) " +
+      "ORDER BY update_time DESC LIMIT $2::int",
+      [activeSinceDays, limit]
+    );
+
+    // Batch-read analytics_events for every returned user in one call
+    var readRequests = [];
+    for (var i = 0; i < rows.length; i++) {
+      readRequests.push({
+        collection: 'analytics_events',
+        key:        'events',
+        userId:     rows[i].user_id
+      });
+    }
+
+    var evMap = {};
+    if (readRequests.length > 0) {
+      try {
+        var evRecords = nk.storageRead(readRequests);
+        for (var j = 0; j < evRecords.length; j++) {
+          evMap[evRecords[j].userId] = evRecords[j].value;
+        }
+      } catch (e) {
+        logger.warn('[QeAnalytics] batch event read failed: ' + e);
+      }
+    }
+
+    var cohort = [];
+    for (var k = 0; k < rows.length; k++) {
+      var uid = rows[k].user_id;
+      cohort.push({
+        user_id: uid,
+        session: _qeParseMaybeJson(rows[k].value),
+        events:  evMap[uid] || null
+      });
+    }
+
+    return JSON.stringify({ cohort: cohort, count: cohort.length });
+  } catch (e) {
+    logger.error('[QeAnalytics] qe_cohort_export failed: ' + e);
+    return JSON.stringify({ cohort: [], count: 0, error: String(e) });
+  }
+}
+
+// ─── RPC: qe_user_event_summary ─────────────────────────────────
+
+function rpcQeUserEventSummary(ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var userId = input.user_id || '';
+  if (!userId) {
+    throw Error('user_id is required');
+  }
+
+  try {
+    var records = nk.storageRead([
+      { collection: 'analytics_events', key: 'events', userId: userId }
+    ]);
+
+    if (records && records.length > 0 && records[0].value) {
+      return JSON.stringify({ events: records[0].value, found: true });
+    }
+  } catch (e) {
+    logger.warn('[QeAnalytics] qe_user_event_summary failed for ' + userId + ': ' + e);
+  }
+
+  return JSON.stringify({ events: null, found: false });
+}
+
+// ─── Registration (postbuild picks up initializer.registerRpc) ──
+
+function _QeAnalyticsBridgeInit(ctx, logger, nk, initializer) {
+  logger.info('[QeAnalyticsBridge] Registering RPCs');
+  __rpc_qe_player_full_profile = __rpc_qe_player_full_profile || (rpcQePlayerFullProfile);
+  __rpc_qe_stale_sessions = __rpc_qe_stale_sessions || (rpcQeStaleSessions);
+  __rpc_qe_cohort_export = __rpc_qe_cohort_export || (rpcQeCohortExport);
+  __rpc_qe_user_event_summary = __rpc_qe_user_event_summary || (rpcQeUserEventSummary);
+  logger.info('[QeAnalyticsBridge] 4 RPCs registered');
 }
 
 
@@ -53478,6 +53716,17 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[Fantasy] Failed to register Fantasy Cricket RPCs: " + (err.message || String(err)));
     }
+    // ---- Cricket Game Modules ----
+    try {
+        logger.info("[Cricket] Registering Auction RPCs...");
+        CricketAuction.register(initializer);
+        logger.info("[Cricket] Registering Director RPCs...");
+        CricketDirector.register(initializer);
+        logger.info("[Cricket] All Cricket RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[Cricket] Failed to register Cricket RPCs: " + (err.message || String(err)));
+    }
     // ---- Admin Console RPCs ----
     try {
         logger.info("[Admin] Registering Admin Console RPCs...");
@@ -53504,7 +53753,7 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     // All handler functions live in the same VM global scope.
     try {
         if (typeof LegacyInitModule === "function") {
-            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,lasttolive_get_weapon_stats,link_wallet_to_game,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
+            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,cricket_auction_create_room,cricket_auction_get_events,cricket_auction_get_room,cricket_auction_next_player,cricket_auction_place_bid,cricket_director_end_session,cricket_director_get_session,cricket_director_list_history,cricket_director_save_session,cricket_director_start_session,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,lasttolive_get_weapon_stats,link_wallet_to_game,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
             var _alreadyRegistered = {};
             for (var _ri = 0; _ri < _tsRpcList.length; _ri++) {
                 _alreadyRegistered[_tsRpcList[_ri]] = true;
@@ -53536,6 +53785,542 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     logger.info("IntelliVerse-X Runtime initialized!");
     logger.info("========================================");
 }
+/**
+ * Cricket Auction — Nakama server module
+ *
+ * Provides real-time, server-authoritative IPL-style auction rooms.
+ * Each room is identified by {leagueId}_{seasonId} and persists in
+ * the CRICKET_AUCTION_COLLECTION storage collection.
+ *
+ * RPCs:
+ *   cricket_auction_create_room   — create / reset an auction room
+ *   cricket_auction_get_room      — read current room state
+ *   cricket_auction_place_bid     — place a server-validated bid
+ *   cricket_auction_next_player   — advance to the next nominated player
+ *   cricket_auction_get_events    — paginated event log for replay / UI
+ */
+// ─────────────────────────────── Constants ────────────────────────────────────
+var TOTAL_BUDGET = 12000;
+var MAX_PLAYERS = 25;
+var MAX_OVERSEAS = 8;
+// ─────────────────────────────── Helpers ──────────────────────────────────────
+function roomKey(leagueId, seasonId) {
+    return leagueId.toLowerCase() + "_" + seasonId;
+}
+function readRoom(nk, key) {
+    return Storage.readSystemJson(nk, Constants.CRICKET_AUCTION_COLLECTION, key);
+}
+function writeRoom(nk, key, state) {
+    state.updatedAt = new Date().toISOString();
+    Storage.writeSystemJson(nk, Constants.CRICKET_AUCTION_COLLECTION, key, state);
+}
+function appendEvent(nk, event) {
+    Storage.writeSystemJson(nk, Constants.CRICKET_AUCTION_EVENTS_COLLECTION, event.eventId, event);
+}
+function generateId() {
+    var ts = Date.now().toString(36);
+    var rand = Math.random().toString(36).substring(2, 8);
+    return ts + "_" + rand;
+}
+// ─────────────────────────────── RPC: Create Room ────────────────────────────
+function rpcCreateRoom(ctx, logger, nk, payload) {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId", "teams"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var key = roomKey(data.leagueId, data.seasonId);
+    var existing = readRoom(nk, key);
+    if (existing && existing.status === "active") {
+        return RpcHelpers.errorResponse("Auction room already active. Pause or complete it first.");
+    }
+    var budgets = {};
+    var teams = data.teams;
+    for (var i = 0; i < teams.length; i++) {
+        budgets[teams[i]] = { remaining: TOTAL_BUDGET, playersAcquired: 0, overseasUsed: 0 };
+    }
+    var now = new Date().toISOString();
+    var state = {
+        leagueId: data.leagueId,
+        seasonId: data.seasonId,
+        status: "active",
+        currentPlayer: null,
+        currentBid: null,
+        bidHistory: [],
+        soldPlayers: [],
+        unsoldPlayers: [],
+        teamBudgets: budgets,
+        round: 1,
+        createdAt: now,
+        updatedAt: now,
+    };
+    writeRoom(nk, key, state);
+    appendEvent(nk, {
+        eventId: generateId(),
+        roomKey: key,
+        type: "room_created",
+        data: { teams: teams, round: 1 },
+        userId: ctx.userId || "",
+        timestamp: now,
+    });
+    logger.info("[CricketAuction] Room created: " + key + " with " + teams.length + " teams");
+    return RpcHelpers.successResponse({ roomKey: key, status: "active", teams: teams.length });
+}
+// ─────────────────────────────── RPC: Get Room ───────────────────────────────
+function rpcGetRoom(ctx, logger, nk, payload) {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var state = readRoom(nk, roomKey(data.leagueId, data.seasonId));
+    if (!state) {
+        return RpcHelpers.errorResponse("Auction room not found");
+    }
+    return RpcHelpers.successResponse(state);
+}
+// ─────────────────────────────── RPC: Place Bid ──────────────────────────────
+function rpcPlaceBid(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId", "teamId", "amount"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var key = roomKey(data.leagueId, data.seasonId);
+    var state = readRoom(nk, key);
+    if (!state)
+        return RpcHelpers.errorResponse("Auction room not found");
+    if (state.status !== "active")
+        return RpcHelpers.errorResponse("Auction is not active (status: " + state.status + ")");
+    if (!state.currentPlayer)
+        return RpcHelpers.errorResponse("No player currently nominated");
+    var budget = state.teamBudgets[data.teamId];
+    if (!budget)
+        return RpcHelpers.errorResponse("Team not in this auction: " + data.teamId);
+    var amount = data.amount;
+    var minBid = state.currentBid ? state.currentBid.amount + 5 : state.currentPlayer.basePrice;
+    if (amount < minBid)
+        return RpcHelpers.errorResponse("Bid must be at least " + minBid);
+    if (amount > budget.remaining)
+        return RpcHelpers.errorResponse("Exceeds remaining budget (" + budget.remaining + ")");
+    if (budget.playersAcquired >= MAX_PLAYERS)
+        return RpcHelpers.errorResponse("Squad full (25 players)");
+    var now = new Date().toISOString();
+    var bid = { teamId: data.teamId, amount: amount, bidderId: userId, timestamp: now };
+    state.currentBid = bid;
+    state.bidHistory.push(bid);
+    writeRoom(nk, key, state);
+    appendEvent(nk, {
+        eventId: generateId(),
+        roomKey: key,
+        type: "bid_placed",
+        data: { teamId: data.teamId, playerId: state.currentPlayer.playerId, amount: amount },
+        userId: userId,
+        timestamp: now,
+    });
+    logger.info("[CricketAuction] Bid: " + data.teamId + " → " + amount + " for " + state.currentPlayer.playerName);
+    return RpcHelpers.successResponse({
+        accepted: true,
+        currentBid: bid,
+        budgetRemaining: budget.remaining - amount,
+    });
+}
+// ─────────────────────────────── RPC: Next Player ────────────────────────────
+function rpcNextPlayer(ctx, logger, nk, payload) {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var key = roomKey(data.leagueId, data.seasonId);
+    var state = readRoom(nk, key);
+    if (!state)
+        return RpcHelpers.errorResponse("Auction room not found");
+    if (state.status !== "active")
+        return RpcHelpers.errorResponse("Auction is not active");
+    var now = new Date().toISOString();
+    // Resolve current player if there was one
+    if (state.currentPlayer) {
+        if (state.currentBid) {
+            var winTeam = state.currentBid.teamId;
+            var winAmount = state.currentBid.amount;
+            state.soldPlayers.push({
+                playerId: state.currentPlayer.playerId,
+                playerName: state.currentPlayer.playerName,
+                soldToTeamId: winTeam,
+                soldPrice: winAmount,
+            });
+            state.teamBudgets[winTeam].remaining -= winAmount;
+            state.teamBudgets[winTeam].playersAcquired++;
+            appendEvent(nk, {
+                eventId: generateId(),
+                roomKey: key,
+                type: "player_sold",
+                data: { playerId: state.currentPlayer.playerId, teamId: winTeam, price: winAmount },
+                userId: ctx.userId || "",
+                timestamp: now,
+            });
+            logger.info("[CricketAuction] SOLD: " + state.currentPlayer.playerName + " → " + winTeam + " @ " + winAmount);
+        }
+        else {
+            state.unsoldPlayers.push(state.currentPlayer.playerId);
+            appendEvent(nk, {
+                eventId: generateId(),
+                roomKey: key,
+                type: "player_unsold",
+                data: { playerId: state.currentPlayer.playerId },
+                userId: ctx.userId || "",
+                timestamp: now,
+            });
+            logger.info("[CricketAuction] UNSOLD: " + state.currentPlayer.playerName);
+        }
+    }
+    // Nominate next player (from payload or null to complete)
+    if (data.nextPlayer) {
+        var np = {
+            playerId: data.nextPlayer.playerId,
+            playerName: data.nextPlayer.playerName || data.nextPlayer.playerId,
+            basePrice: data.nextPlayer.basePrice || 20,
+            category: data.nextPlayer.category || "General",
+            role: data.nextPlayer.role || "Unknown",
+            nationality: data.nextPlayer.nationality || "",
+        };
+        state.currentPlayer = np;
+        state.currentBid = null;
+        state.bidHistory = [];
+        appendEvent(nk, {
+            eventId: generateId(),
+            roomKey: key,
+            type: "next_player",
+            data: { playerId: np.playerId, basePrice: np.basePrice },
+            userId: ctx.userId || "",
+            timestamp: now,
+        });
+    }
+    else {
+        state.currentPlayer = null;
+        state.currentBid = null;
+        state.status = "completed";
+        appendEvent(nk, {
+            eventId: generateId(),
+            roomKey: key,
+            type: "room_completed",
+            data: { soldCount: state.soldPlayers.length, unsoldCount: state.unsoldPlayers.length },
+            userId: ctx.userId || "",
+            timestamp: now,
+        });
+        logger.info("[CricketAuction] Auction completed: " + key);
+    }
+    writeRoom(nk, key, state);
+    return RpcHelpers.successResponse(state);
+}
+// ─────────────────────────────── RPC: Get Events ─────────────────────────────
+function rpcGetEvents(ctx, logger, nk, payload) {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var key = roomKey(data.leagueId, data.seasonId);
+    var limit = data.limit || 50;
+    var cursor = data.cursor || "";
+    var result = Storage.listUserRecords(nk, Constants.CRICKET_AUCTION_EVENTS_COLLECTION, Constants.SYSTEM_USER_ID, limit, cursor);
+    var events = [];
+    for (var i = 0; i < result.records.length; i++) {
+        var rec = result.records[i].value;
+        if (rec.roomKey === key) {
+            events.push(rec);
+        }
+    }
+    return RpcHelpers.successResponse({
+        events: events,
+        cursor: result.cursor || null,
+        total: events.length,
+    });
+}
+// ─────────────────────────────── Registration ────────────────────────────────
+var CricketAuction;
+(function (CricketAuction) {
+    function register(initializer) {
+        __rpc_cricket_auction_create_room = rpcCreateRoom;
+        __rpc_cricket_auction_get_room = rpcGetRoom;
+        __rpc_cricket_auction_place_bid = rpcPlaceBid;
+        __rpc_cricket_auction_next_player = rpcNextPlayer;
+        __rpc_cricket_auction_get_events = rpcGetEvents;
+    }
+    CricketAuction.register = register;
+    register();
+})(CricketAuction || (CricketAuction = {}));
+/**
+ * Cricket Director — Nakama server module
+ *
+ * Enforces single-active session per player for the AI Director game mode.
+ * Supports save / resume / end flows so players can leave and return
+ * to the exact same game state.
+ *
+ * Storage: CRICKET_DIRECTOR_COLLECTION  (one key per userId)
+ *
+ * RPCs:
+ *   cricket_director_start_session   — start or resume a session
+ *   cricket_director_save_session    — checkpoint current state
+ *   cricket_director_end_session     — explicitly finish a session
+ *   cricket_director_get_session     — read current session (if any)
+ *   cricket_director_list_history    — past completed sessions
+ */
+// ─────────────────────────────── Constants ────────────────────────────────────
+var HISTORY_COLLECTION = "cricket_director_history";
+var SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 min inactivity → auto-pause
+// ─────────────────────────────── Helpers ──────────────────────────────────────
+function generateSessionId() {
+    var ts = Date.now().toString(36);
+    var rand = Math.random().toString(36).substring(2, 8);
+    return "dir_" + ts + "_" + rand;
+}
+function readSession(nk, userId) {
+    return Storage.readJson(nk, Constants.CRICKET_DIRECTOR_COLLECTION, "active_session", userId);
+}
+function writeSession(nk, userId, session) {
+    session.updatedAt = new Date().toISOString();
+    session.lastActiveAt = session.updatedAt;
+    Storage.writeJson(nk, Constants.CRICKET_DIRECTOR_COLLECTION, "active_session", userId, session, 2, // owner-read + public-read
+    1);
+}
+function deleteSession(nk, userId) {
+    Storage.deleteRecord(nk, Constants.CRICKET_DIRECTOR_COLLECTION, "active_session", userId);
+}
+function archiveSession(nk, userId, session) {
+    var entry = {
+        sessionId: session.sessionId,
+        gameMode: session.gameMode,
+        fixtureId: session.fixtureId,
+        finalScore: session.matchContext.score + "/" + session.matchContext.wickets,
+        totalPlayTimeSec: session.totalPlayTimeSec,
+        completedAt: session.completedAt || new Date().toISOString(),
+    };
+    Storage.writeJson(nk, HISTORY_COLLECTION, session.sessionId, userId, entry, 2, 1);
+}
+function isTimedOut(session) {
+    var lastActive = new Date(session.lastActiveAt).getTime();
+    return Date.now() - lastActive > SESSION_TIMEOUT_MS;
+}
+// ─────────────────────────────── RPC: Start Session ──────────────────────────
+function rpcStartSession(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var existing = readSession(nk, userId);
+    if (existing) {
+        if (existing.status === "active" && !isTimedOut(existing)) {
+            return RpcHelpers.successResponse({
+                resumed: true,
+                message: "Existing active session resumed",
+                session: existing,
+            });
+        }
+        if (existing.status === "active" && isTimedOut(existing)) {
+            existing.status = "paused";
+            writeSession(nk, userId, existing);
+            logger.info("[CricketDirector] Auto-paused timed-out session: " + existing.sessionId);
+        }
+        if (existing.status === "paused") {
+            existing.status = "active";
+            writeSession(nk, userId, existing);
+            logger.info("[CricketDirector] Resumed paused session: " + existing.sessionId);
+            return RpcHelpers.successResponse({
+                resumed: true,
+                message: "Paused session resumed",
+                session: existing,
+            });
+        }
+        // abandoned or completed — archive and allow new
+        archiveSession(nk, userId, existing);
+        deleteSession(nk, userId);
+    }
+    // Create new session
+    var validation = RpcHelpers.validatePayload(data, ["gameMode", "fixtureId"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("New session requires: " + validation.missing.join(", "));
+    }
+    var now = new Date().toISOString();
+    var session = {
+        sessionId: generateSessionId(),
+        userId: userId,
+        status: "active",
+        gameMode: data.gameMode,
+        fixtureId: data.fixtureId,
+        matchContext: {
+            battingTeamId: data.battingTeamId || "",
+            bowlingTeamId: data.bowlingTeamId || "",
+            innings: 1,
+            overs: 0,
+            balls: 0,
+            score: 0,
+            wickets: 0,
+        },
+        directorState: {
+            commentaryQueue: [],
+            soundManifestVersion: data.soundManifestVersion || "v1",
+            difficultyLevel: data.difficultyLevel || 3,
+            aiPersonality: data.aiPersonality || "neutral",
+            lastDecisionTimestamp: now,
+        },
+        checkpoints: [],
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+        totalPlayTimeSec: 0,
+        lastActiveAt: now,
+    };
+    writeSession(nk, userId, session);
+    EventBus.emit(nk, logger, ctx, EventBus.Events.SESSION_START, {
+        gameId: "cricket_director",
+        sessionId: session.sessionId,
+        gameMode: session.gameMode,
+        fixtureId: session.fixtureId,
+    });
+    logger.info("[CricketDirector] New session: " + session.sessionId + " for user " + userId);
+    return RpcHelpers.successResponse({ resumed: false, message: "New session created", session: session });
+}
+// ─────────────────────────────── RPC: Save Session ───────────────────────────
+function rpcSaveSession(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var session = readSession(nk, userId);
+    if (!session)
+        return RpcHelpers.errorResponse("No active session found");
+    if (session.status !== "active")
+        return RpcHelpers.errorResponse("Session is not active (status: " + session.status + ")");
+    // Merge matchContext updates
+    if (data.matchContext) {
+        var mc = session.matchContext;
+        var incoming = data.matchContext;
+        if (incoming.innings !== undefined)
+            mc.innings = incoming.innings;
+        if (incoming.overs !== undefined)
+            mc.overs = incoming.overs;
+        if (incoming.balls !== undefined)
+            mc.balls = incoming.balls;
+        if (incoming.score !== undefined)
+            mc.score = incoming.score;
+        if (incoming.wickets !== undefined)
+            mc.wickets = incoming.wickets;
+        if (incoming.battingTeamId)
+            mc.battingTeamId = incoming.battingTeamId;
+        if (incoming.bowlingTeamId)
+            mc.bowlingTeamId = incoming.bowlingTeamId;
+    }
+    // Merge directorState updates
+    if (data.directorState) {
+        var ds = session.directorState;
+        var incDs = data.directorState;
+        if (incDs.commentaryQueue)
+            ds.commentaryQueue = incDs.commentaryQueue;
+        if (incDs.difficultyLevel !== undefined)
+            ds.difficultyLevel = incDs.difficultyLevel;
+        if (incDs.aiPersonality)
+            ds.aiPersonality = incDs.aiPersonality;
+        ds.lastDecisionTimestamp = new Date().toISOString();
+    }
+    // Add checkpoint if label provided
+    if (data.checkpointLabel) {
+        session.checkpoints.push({
+            timestamp: new Date().toISOString(),
+            label: data.checkpointLabel,
+            stateSnapshot: { matchContext: session.matchContext },
+        });
+        if (session.checkpoints.length > 20) {
+            session.checkpoints = session.checkpoints.slice(-20);
+        }
+    }
+    if (data.playTimeDelta) {
+        session.totalPlayTimeSec += data.playTimeDelta;
+    }
+    writeSession(nk, userId, session);
+    logger.info("[CricketDirector] Session saved: " + session.sessionId);
+    return RpcHelpers.successResponse({ saved: true, sessionId: session.sessionId, checkpoints: session.checkpoints.length });
+}
+// ─────────────────────────────── RPC: End Session ────────────────────────────
+function rpcEndSession(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var session = readSession(nk, userId);
+    if (!session)
+        return RpcHelpers.errorResponse("No active session found");
+    var reason = data.reason || "player_ended";
+    if (data.matchContext) {
+        var mc = session.matchContext;
+        var fin = data.matchContext;
+        if (fin.score !== undefined)
+            mc.score = fin.score;
+        if (fin.wickets !== undefined)
+            mc.wickets = fin.wickets;
+        if (fin.overs !== undefined)
+            mc.overs = fin.overs;
+    }
+    session.status = reason === "abandoned" ? "abandoned" : "completed";
+    session.completedAt = new Date().toISOString();
+    if (data.playTimeDelta)
+        session.totalPlayTimeSec += data.playTimeDelta;
+    archiveSession(nk, userId, session);
+    deleteSession(nk, userId);
+    EventBus.emit(nk, logger, ctx, EventBus.Events.SESSION_END, {
+        gameId: "cricket_director",
+        sessionId: session.sessionId,
+        reason: reason,
+        totalPlayTimeSec: session.totalPlayTimeSec,
+        finalScore: session.matchContext.score + "/" + session.matchContext.wickets,
+    });
+    logger.info("[CricketDirector] Session ended: " + session.sessionId + " (" + reason + ")");
+    return RpcHelpers.successResponse({
+        ended: true,
+        sessionId: session.sessionId,
+        finalScore: session.matchContext.score + "/" + session.matchContext.wickets,
+        totalPlayTimeSec: session.totalPlayTimeSec,
+    });
+}
+// ─────────────────────────────── RPC: Get Session ────────────────────────────
+function rpcGetSession(ctx, logger, nk, _payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var session = readSession(nk, userId);
+    if (!session) {
+        return RpcHelpers.successResponse({ hasActiveSession: false, session: null });
+    }
+    if (session.status === "active" && isTimedOut(session)) {
+        session.status = "paused";
+        writeSession(nk, userId, session);
+    }
+    return RpcHelpers.successResponse({ hasActiveSession: true, session: session });
+}
+// ─────────────────────────────── RPC: List History ────────────────────────────
+function rpcListHistory(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var limit = data.limit || 20;
+    var cursor = data.cursor || "";
+    var result = Storage.listUserRecords(nk, HISTORY_COLLECTION, userId, limit, cursor);
+    var sessions = [];
+    for (var i = 0; i < result.records.length; i++) {
+        sessions.push(result.records[i].value);
+    }
+    return RpcHelpers.successResponse({
+        sessions: sessions,
+        cursor: result.cursor || null,
+        total: sessions.length,
+    });
+}
+// ─────────────────────────────── Registration ────────────────────────────────
+var CricketDirector;
+(function (CricketDirector) {
+    function register(initializer) {
+        __rpc_cricket_director_start_session = rpcStartSession;
+        __rpc_cricket_director_save_session = rpcSaveSession;
+        __rpc_cricket_director_end_session = rpcEndSession;
+        __rpc_cricket_director_get_session = rpcGetSession;
+        __rpc_cricket_director_list_history = rpcListHistory;
+    }
+    CricketDirector.register = register;
+    register();
+})(CricketDirector || (CricketDirector = {}));
 // ============================================================================
 // FANTASY CRICKET — Private Leagues
 // ============================================================================
@@ -62581,6 +63366,11 @@ var Constants;
     Constants.SATORI_ASSIGNMENTS_COLLECTION = "satori_assignments";
     Constants.SATORI_MESSAGES_COLLECTION = "satori_messages";
     Constants.SATORI_METRICS_COLLECTION = "satori_metrics";
+    // Cricket Auction storage collections
+    Constants.CRICKET_AUCTION_COLLECTION = "cricket_auctions";
+    Constants.CRICKET_AUCTION_EVENTS_COLLECTION = "cricket_auction_events";
+    // Cricket Director storage collections
+    Constants.CRICKET_DIRECTOR_COLLECTION = "cricket_director_sessions";
     // Fantasy Cricket storage collections
     Constants.FANTASY_COLLECTION = "fantasy_cricket";
     Constants.FANTASY_SEASON_LEADERBOARD = "fantasy_season";
@@ -63394,6 +64184,10 @@ try { __rpc_onboarding_get_tomorrow_preview = __rpc_onboarding_get_tomorrow_prev
 try { __rpc_onboarding_track_session = __rpc_onboarding_track_session || (rpcTrackSession); } catch(e) {}
 try { __rpc_onboarding_get_retention_data = __rpc_onboarding_get_retention_data || (rpcGetRetentionData); } catch(e) {}
 try { __rpc_onboarding_grant_streak_shield = __rpc_onboarding_grant_streak_shield || (rpcGrantStreakShield); } catch(e) {}
+try { __rpc_qe_player_full_profile = __rpc_qe_player_full_profile || (rpcQePlayerFullProfile); } catch(e) {}
+try { __rpc_qe_stale_sessions = __rpc_qe_stale_sessions || (rpcQeStaleSessions); } catch(e) {}
+try { __rpc_qe_cohort_export = __rpc_qe_cohort_export || (rpcQeCohortExport); } catch(e) {}
+try { __rpc_qe_user_event_summary = __rpc_qe_user_event_summary || (rpcQeUserEventSummary); } catch(e) {}
 try { __rpc_global_wallet_balance = __rpc_global_wallet_balance || (rpcGlobalWalletBalance); } catch(e) {}
 try { __rpc_global_wallet_earn = __rpc_global_wallet_earn || (rpcGlobalWalletEarn); } catch(e) {}
 try { __rpc_global_wallet_spend = __rpc_global_wallet_spend || (rpcGlobalWalletSpend); } catch(e) {}
@@ -63467,6 +64261,16 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quizverse_track_session_end", __rpc_quizverse_track_session_end); } catch(e) {}
   try { initializer.registerRpc("quizverse_get_server_config", __rpc_quizverse_get_server_config); } catch(e) {}
   try { initializer.registerRpc("quizverse_admin_grant_item", __rpc_quizverse_admin_grant_item); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_create_room", __rpc_cricket_auction_create_room); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_get_room", __rpc_cricket_auction_get_room); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_place_bid", __rpc_cricket_auction_place_bid); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_next_player", __rpc_cricket_auction_next_player); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_get_events", __rpc_cricket_auction_get_events); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_start_session", __rpc_cricket_director_start_session); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_save_session", __rpc_cricket_director_save_session); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_end_session", __rpc_cricket_director_end_session); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_get_session", __rpc_cricket_director_get_session); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_list_history", __rpc_cricket_director_list_history); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_create", __rpc_fantasy_league_create); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_join", __rpc_fantasy_league_join); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_leave", __rpc_fantasy_league_leave); } catch(e) {}
@@ -63851,5 +64655,9 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("get_player_stats", __rpc_get_player_stats); } catch(e) {}
   try { initializer.registerRpc("submit_score", __rpc_submit_score); } catch(e) {}
   try { initializer.registerRpc("onboarding_grant_streak_shield", __rpc_onboarding_grant_streak_shield); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 438 + " RPCs via AST-compatible wrapper");
+  try { initializer.registerRpc("qe_player_full_profile", __rpc_qe_player_full_profile); } catch(e) {}
+  try { initializer.registerRpc("qe_stale_sessions", __rpc_qe_stale_sessions); } catch(e) {}
+  try { initializer.registerRpc("qe_cohort_export", __rpc_qe_cohort_export); } catch(e) {}
+  try { initializer.registerRpc("qe_user_event_summary", __rpc_qe_user_event_summary); } catch(e) {}
+  logger.info("[Postbuild] Registered " + 452 + " RPCs via AST-compatible wrapper");
 }

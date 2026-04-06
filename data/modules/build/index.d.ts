@@ -1,5 +1,153 @@
 declare function LegacyInitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
+/**
+ * Cricket Auction — Nakama server module
+ *
+ * Provides real-time, server-authoritative IPL-style auction rooms.
+ * Each room is identified by {leagueId}_{seasonId} and persists in
+ * the CRICKET_AUCTION_COLLECTION storage collection.
+ *
+ * RPCs:
+ *   cricket_auction_create_room   — create / reset an auction room
+ *   cricket_auction_get_room      — read current room state
+ *   cricket_auction_place_bid     — place a server-validated bid
+ *   cricket_auction_next_player   — advance to the next nominated player
+ *   cricket_auction_get_events    — paginated event log for replay / UI
+ */
+interface AuctionBid {
+    teamId: string;
+    amount: number;
+    bidderId: string;
+    timestamp: string;
+}
+interface NominatedPlayer {
+    playerId: string;
+    playerName: string;
+    basePrice: number;
+    category: string;
+    role: string;
+    nationality: string;
+}
+interface AuctionRoomState {
+    leagueId: string;
+    seasonId: string;
+    status: "waiting" | "active" | "paused" | "completed";
+    currentPlayer: NominatedPlayer | null;
+    currentBid: AuctionBid | null;
+    bidHistory: AuctionBid[];
+    soldPlayers: Array<{
+        playerId: string;
+        playerName: string;
+        soldToTeamId: string;
+        soldPrice: number;
+    }>;
+    unsoldPlayers: string[];
+    teamBudgets: Record<string, {
+        remaining: number;
+        playersAcquired: number;
+        overseasUsed: number;
+    }>;
+    round: number;
+    createdAt: string;
+    updatedAt: string;
+}
+interface AuctionEventRecord {
+    eventId: string;
+    roomKey: string;
+    type: "room_created" | "bid_placed" | "player_sold" | "player_unsold" | "next_player" | "room_completed";
+    data: any;
+    userId: string;
+    timestamp: string;
+}
+declare const TOTAL_BUDGET = 12000;
+declare const MAX_PLAYERS = 25;
+declare const MAX_OVERSEAS = 8;
+declare function roomKey(leagueId: string, seasonId: string): string;
+declare function readRoom(nk: nkruntime.Nakama, key: string): AuctionRoomState | null;
+declare function writeRoom(nk: nkruntime.Nakama, key: string, state: AuctionRoomState): void;
+declare function appendEvent(nk: nkruntime.Nakama, event: AuctionEventRecord): void;
+declare function generateId(): string;
+declare function rpcCreateRoom(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare function rpcGetRoom(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare function rpcPlaceBid(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare function rpcNextPlayer(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare function rpcGetEvents(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare namespace CricketAuction {
+    function register(initializer: nkruntime.Initializer): void;
+}
+/**
+ * Cricket Director — Nakama server module
+ *
+ * Enforces single-active session per player for the AI Director game mode.
+ * Supports save / resume / end flows so players can leave and return
+ * to the exact same game state.
+ *
+ * Storage: CRICKET_DIRECTOR_COLLECTION  (one key per userId)
+ *
+ * RPCs:
+ *   cricket_director_start_session   — start or resume a session
+ *   cricket_director_save_session    — checkpoint current state
+ *   cricket_director_end_session     — explicitly finish a session
+ *   cricket_director_get_session     — read current session (if any)
+ *   cricket_director_list_history    — past completed sessions
+ */
+interface DirectorSessionState {
+    sessionId: string;
+    userId: string;
+    status: "active" | "paused" | "completed" | "abandoned";
+    gameMode: string;
+    fixtureId: string;
+    matchContext: {
+        battingTeamId: string;
+        bowlingTeamId: string;
+        innings: number;
+        overs: number;
+        balls: number;
+        score: number;
+        wickets: number;
+    };
+    directorState: {
+        commentaryQueue: string[];
+        soundManifestVersion: string;
+        difficultyLevel: number;
+        aiPersonality: string;
+        lastDecisionTimestamp: string;
+    };
+    checkpoints: Array<{
+        timestamp: string;
+        label: string;
+        stateSnapshot: any;
+    }>;
+    createdAt: string;
+    updatedAt: string;
+    completedAt: string | null;
+    totalPlayTimeSec: number;
+    lastActiveAt: string;
+}
+interface DirectorHistoryEntry {
+    sessionId: string;
+    gameMode: string;
+    fixtureId: string;
+    finalScore: string;
+    totalPlayTimeSec: number;
+    completedAt: string;
+}
+declare var HISTORY_COLLECTION: string;
+declare var SESSION_TIMEOUT_MS: number;
+declare function generateSessionId(): string;
+declare function readSession(nk: nkruntime.Nakama, userId: string): DirectorSessionState | null;
+declare function writeSession(nk: nkruntime.Nakama, userId: string, session: DirectorSessionState): void;
+declare function deleteSession(nk: nkruntime.Nakama, userId: string): void;
+declare function archiveSession(nk: nkruntime.Nakama, userId: string, session: DirectorSessionState): void;
+declare function isTimedOut(session: DirectorSessionState): boolean;
+declare function rpcStartSession(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare function rpcSaveSession(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare function rpcEndSession(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare function rpcGetSession(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string;
+declare function rpcListHistory(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+declare namespace CricketDirector {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace FantasyLeague {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -530,6 +678,9 @@ declare namespace Constants {
     const SATORI_ASSIGNMENTS_COLLECTION = "satori_assignments";
     const SATORI_MESSAGES_COLLECTION = "satori_messages";
     const SATORI_METRICS_COLLECTION = "satori_metrics";
+    const CRICKET_AUCTION_COLLECTION = "cricket_auctions";
+    const CRICKET_AUCTION_EVENTS_COLLECTION = "cricket_auction_events";
+    const CRICKET_DIRECTOR_COLLECTION = "cricket_director_sessions";
     const FANTASY_COLLECTION = "fantasy_cricket";
     const FANTASY_SEASON_LEADERBOARD = "fantasy_season";
     const FANTASY_MATCH_LB_PREFIX = "fantasy_match_";
