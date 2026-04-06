@@ -14403,6 +14403,30 @@ function rpcOnboardingGetState(ctx, logger, nk, payload) {
         }]);
 
         if (result.length === 0) {
+            // FIX: Check if completion exists in legacy 'onboarding' collection
+            // before creating new state (users who completed via old onboarding_complete RPC)
+            try {
+                var legacyResult = nk.storageRead([{ collection: 'onboarding', key: 'state', userId: userId }]);
+                if (legacyResult.length > 0) {
+                    var legacyState = legacyResult[0].value;
+                    if (typeof legacyState === 'string') { try { legacyState = JSON.parse(legacyState); } catch(pe) {} }
+                    if (legacyState && legacyState.completed === true) {
+                        // Migrate: create proper state in correct collection
+                        var migratedState = {
+                            userId: userId, currentStep: 5, totalSteps: 5,
+                            completedSteps: [1,2,3,4,5], onboardingComplete: true,
+                            welcomeBonusClaimed: true, firstQuizCompleted: true,
+                            lastUpdated: Date.now(), migratedFromLegacy: true
+                        };
+                        nk.storageWrite([{ collection: COLLECTION_ONBOARDING, key: KEY_ONBOARDING, userId: userId, value: migratedState, permissionRead: 1, permissionWrite: 0 }]);
+                        logger.info("[Onboarding] Migrated legacy completed state for user: " + userId);
+                        return JSON.stringify({ success: true, isNewUser: false, state: migratedState });
+                    }
+                }
+            } catch (legacyErr) {
+                logger.warn("[Onboarding] Legacy check failed (non-fatal): " + legacyErr.message);
+            }
+
             initializeNewOnboardingUser(nk, logger, userId);
             return JSON.stringify({
                 success: true,
@@ -21897,13 +21921,24 @@ function rpcCollectionsClaimSetReward(ctx, logger, nk, payload) {
 function rpcOnboardingComplete(ctx, logger, nk, payload) {
     try {
         var data = payload ? JSON.parse(payload) : {};
-        var storage = nk.storageRead([{ collection: 'onboarding', key: 'state', userId: ctx.userId }]);
-        var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : {};
-        state.completed = true; state.completedAt = Math.floor(Date.now() / 1000);
+        // FIX: Read from correct collection (onboarding_state) not legacy (onboarding)
+        var storage = nk.storageRead([{ collection: COLLECTION_ONBOARDING, key: KEY_ONBOARDING, userId: ctx.userId }]);
+        var state = (storage && storage.length > 0) ? storage[0].value : {};
+        // FIX: Use correct field name (onboardingComplete) not legacy (completed)
+        state.onboardingComplete = true;
+        state.completedAt = Math.floor(Date.now() / 1000);
         if (data.interests) { state.interests = data.interests; }
-        nk.storageWrite([{ collection: 'onboarding', key: 'state', userId: ctx.userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
+        if (state.completedSteps && state.totalSteps) {
+            // Backfill all steps as completed
+            for (var i = 1; i <= state.totalSteps; i++) {
+                if (state.completedSteps.indexOf(i) === -1) state.completedSteps.push(i);
+            }
+        }
+        state.lastUpdated = Date.now();
+        nk.storageWrite([{ collection: COLLECTION_ONBOARDING, key: KEY_ONBOARDING, userId: ctx.userId, value: state, permissionRead: 1, permissionWrite: 0 }]);
+        logger.info('[Onboarding] User ' + ctx.userId + ' completed onboarding via onboarding_complete RPC');
         return JSON.stringify({ success: true, state: state });
-    } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
+    } catch(e) { logger.error('[Onboarding] onboarding_complete error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
 }
 
 function rpcUserSetInterests(ctx, logger, nk, payload) {
@@ -22973,6 +23008,207 @@ var lasttoliveAdminGrantItem = function(ctx, logger, nk, payload) {
     logger.warn('lasttoliveAdminGrantItem called but not implemented');
     return JSON.stringify({ error: 'lasttoliveAdminGrantItem not implemented', success: false });
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Fortune Wheel Inline Handlers (from fortune_wheel/fortune_wheel.js)
+// NOTE: Nakama JS runtime loads each .js file in its own scope — subdirectory
+// modules don't merge into index.js context. Inlined here so registration
+// at InitModule succeeds. Same pattern as Character System inline above.
+// ══════════════════════════════════════════════════════════════════════════════
+
+var FW_COOLDOWN_DAYS = 3;
+
+// Wheel segments with probability weights — SERVER is source of truth
+var FW_SEGMENTS = [
+    { type: "XP",             amount: 100,  label: "100 XP",            weight: 20 },
+    { type: "Coins",          amount: 50,   label: "50 Coins",          weight: 25 },
+    { type: "XP",             amount: 250,  label: "250 XP",            weight: 15 },
+    { type: "AudiobookToken", amount: 1,    label: "Audiobook Token",   weight: 8  },
+    { type: "Coins",          amount: 150,  label: "150 Coins",         weight: 12 },
+    { type: "Shield",         amount: 24,   label: "24h Shield",        weight: 10 },
+    { type: "XP",             amount: 500,  label: "500 XP",            weight: 5  },
+    { type: "AudiobookToken", amount: 2,    label: "2 Audiobook Tokens",weight: 5  }
+];
+
+function fwGetWheelState(nk, userId) {
+    try {
+        var objects = nk.storageRead([{
+            collection: "fortune_wheel",
+            key: "state",
+            userId: userId
+        }]);
+        if (objects && objects.length > 0) {
+            return objects[0].value || {};
+        }
+    } catch(e) { /* first time user */ }
+    return {};
+}
+
+function fwSaveWheelState(nk, userId, state) {
+    try {
+        nk.storageWrite([{
+            collection: "fortune_wheel",
+            key: "state",
+            userId: userId,
+            value: state,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch(e) {
+        // Log but don't throw — state save failure shouldn't crash the spin
+    }
+}
+
+function fwCanUserSpin(state) {
+    if (!state.nextSpinTime) return true;
+    var nextSpin = new Date(state.nextSpinTime);
+    return new Date() >= nextSpin;
+}
+
+function fwGetWeightedRandomIndex() {
+    var totalWeight = 0;
+    for (var i = 0; i < FW_SEGMENTS.length; i++) {
+        totalWeight += FW_SEGMENTS[i].weight;
+    }
+    var roll = Math.floor(Math.random() * totalWeight);
+    var cumulative = 0;
+    for (var i = 0; i < FW_SEGMENTS.length; i++) {
+        cumulative += FW_SEGMENTS[i].weight;
+        if (roll < cumulative) return i;
+    }
+    return FW_SEGMENTS.length - 1;
+}
+
+function fwGrantReward(nk, userId, rewardType, amount, logger) {
+    switch (rewardType) {
+        case "XP":
+            var xpChangeset = {};
+            xpChangeset["xp"] = +amount;
+            try { nk.walletUpdate(userId, xpChangeset, {}, true); }
+            catch(e) { logger.warn("FW XP grant failed: " + e.message); }
+            break;
+        case "Coins":
+            var coinChangeset = {};
+            coinChangeset["coins"] = +amount;
+            try { nk.walletUpdate(userId, coinChangeset, {}, true); }
+            catch(e) { logger.warn("FW Coin grant failed: " + e.message); }
+            break;
+        case "AudiobookToken":
+            try {
+                var tokenObj = nk.storageRead([{
+                    collection: "audiobook",
+                    key: "tokens",
+                    userId: userId
+                }]);
+                var tokens = (tokenObj && tokenObj.length > 0) ? (tokenObj[0].value.count || 0) : 0;
+                tokens += amount;
+                nk.storageWrite([{
+                    collection: "audiobook",
+                    key: "tokens",
+                    userId: userId,
+                    value: { count: tokens, lastGranted: new Date().toISOString() },
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+            } catch(e) { logger.warn("FW Audiobook token grant failed: " + e.message); }
+            break;
+        case "Shield":
+            try {
+                nk.storageWrite([{
+                    collection: "streak_shield",
+                    key: "pending_grant",
+                    userId: userId,
+                    value: { hours: amount, source: "fortune_wheel", timestamp: new Date().toISOString() },
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+            } catch(e) { logger.warn("FW Shield grant failed: " + e.message); }
+            break;
+        default:
+            logger.warn("FW Unknown reward type: " + rewardType);
+    }
+}
+
+// fortune_wheel_get_state — Get current wheel state + segments for client rendering
+var fortuneWheelGetState = function(ctx, logger, nk, payload) {
+    try {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Not authenticated" });
+        }
+        var state = fwGetWheelState(nk, userId);
+        var canSpin = fwCanUserSpin(state);
+        return JSON.stringify({
+            success: true,
+            canSpin: canSpin,
+            nextSpinTime: state.nextSpinTime || null,
+            totalSpins: state.totalSpins || 0,
+            lastReward: state.lastReward || null,
+            cooldownDays: FW_COOLDOWN_DAYS,
+            segments: FW_SEGMENTS.map(function(s) {
+                return { type: s.type, amount: s.amount, label: s.label };
+            })
+        });
+    } catch (e) {
+        logger.error("fortune_wheel_get_state error: " + e.message);
+        return JSON.stringify({ success: false, error: e.message });
+    }
+};
+
+// fortune_wheel_spin — SERVER picks reward, grants it, returns result
+var fortuneWheelSpin = function(ctx, logger, nk, payload) {
+    try {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Not authenticated" });
+        }
+        var state = fwGetWheelState(nk, userId);
+        if (!fwCanUserSpin(state)) {
+            return JSON.stringify({
+                success: false,
+                error: "On cooldown",
+                nextSpinTime: state.nextSpinTime,
+                canSpin: false
+            });
+        }
+        var segmentIndex = fwGetWeightedRandomIndex();
+        var reward = FW_SEGMENTS[segmentIndex];
+        fwGrantReward(nk, userId, reward.type, reward.amount, logger);
+        var now = new Date();
+        var nextSpin = new Date(now.getTime() + FW_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+        state.nextSpinTime = nextSpin.toISOString();
+        state.totalSpins = (state.totalSpins || 0) + 1;
+        state.lastReward = {
+            type: reward.type,
+            amount: reward.amount,
+            label: reward.label,
+            segmentIndex: segmentIndex,
+            timestamp: now.toISOString()
+        };
+        state.history = state.history || [];
+        state.history.push(state.lastReward);
+        if (state.history.length > 120) state.history = state.history.slice(-120);
+        fwSaveWheelState(nk, userId, state);
+        logger.info("fortune_wheel_spin: " + userId + " won segment " + segmentIndex + " -> " + reward.label);
+        return JSON.stringify({
+            success: true,
+            segmentIndex: segmentIndex,
+            reward: {
+                type: reward.type,
+                amount: reward.amount,
+                label: reward.label
+            },
+            nextSpinTime: state.nextSpinTime,
+            totalSpins: state.totalSpins
+        });
+    } catch (e) {
+        logger.error("fortune_wheel_spin error: " + e.message);
+        return JSON.stringify({ success: false, error: e.message });
+    }
+};
+// ══════════════════════════════════════════════════════════════════════════════
+// End Fortune Wheel Inline Handlers
+// ══════════════════════════════════════════════════════════════════════════════
 
 function InitModule(ctx, logger, nk, initializer) {
     logger.info('========================================');
