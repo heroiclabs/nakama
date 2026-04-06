@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "IntelliVerse-X Nakama server runtime with custom Hiro + Satori systems",
   "scripts": {
-    "build": "npx tsc && cp *.lua build/ 2>/dev/null; echo 'Build complete'",
+    "build": "npx tsc && cp *.lua build/ 2>/dev/null; node postbuild.js && echo 'Build complete'",
     "build:watch": "npx tsc --watch"
   },
   "devDependencies": {

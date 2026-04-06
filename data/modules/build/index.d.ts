@@ -1,5 +1,248 @@
 declare function LegacyInitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
+declare namespace FantasyLeague {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace FantasyScoring {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace FantasyTeam {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace FantasyTransfer {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace FantasyTypes {
+    var COLLECTION: string;
+    var Keys: {
+        TEAM: string;
+        SEASON_STATE: string;
+        SCORING_CONFIG: string;
+        PLAYER_CATALOG: string;
+        TRANSFER_WINDOW: string;
+        MATCH_POINTS: string;
+        LEAGUE_META: string;
+    };
+    var LEADERBOARD_SEASON: string;
+    var LEADERBOARD_MATCH_PREFIX: string;
+    var LEADERBOARD_LEAGUE_PREFIX: string;
+    interface PlayerCredit {
+        playerId: string;
+        name: string;
+        teamId: string;
+        role: "batsman" | "bowler" | "all-rounder" | "wicket-keeper";
+        creditValue: number;
+        isOverseas: boolean;
+    }
+    interface PlayerCatalog {
+        seasonId: string;
+        leagueId: string;
+        updatedAt: string;
+        players: {
+            [playerId: string]: PlayerCredit;
+        };
+    }
+    interface FantasySquadPlayer {
+        playerId: string;
+        creditValue: number;
+        teamId: string;
+        role: "batsman" | "bowler" | "all-rounder" | "wicket-keeper";
+        isCaptain: boolean;
+        isViceCaptain: boolean;
+    }
+    interface FantasyTeam {
+        userId: string;
+        seasonId: string;
+        leagueId: string;
+        teamName: string;
+        players: FantasySquadPlayer[];
+        totalCredits: number;
+        captainId: string;
+        viceCaptainId: string;
+        createdAt: string;
+        updatedAt: string;
+    }
+    interface TransferRecord {
+        matchday: number;
+        transferredIn: string;
+        transferredOut: string;
+        creditDelta: number;
+        boosterUsed: string | null;
+        timestamp: string;
+    }
+    interface SeasonState {
+        userId: string;
+        seasonId: string;
+        freeTransfersRemaining: number;
+        maxFreeTransfers: number;
+        totalTransfersMade: number;
+        penaltyPointsAccrued: number;
+        boostersUsed: string[];
+        transferHistory: TransferRecord[];
+        updatedAt: string;
+    }
+    interface TransferWindow {
+        seasonId: string;
+        matchday: number;
+        opensAt: string;
+        closesAt: string;
+        isOpen: boolean;
+    }
+    interface ScoringConfig {
+        seasonId: string;
+        batting: BattingScoringRules;
+        bowling: BowlingScoringRules;
+        fielding: FieldingScoringRules;
+        bonuses: BonusScoringRules;
+        penalties: PenaltyScoringRules;
+        captainMultiplier: number;
+        viceCaptainMultiplier: number;
+    }
+    interface BattingScoringRules {
+        perRun: number;
+        boundaryBonus: number;
+        sixBonus: number;
+        halfCenturyBonus: number;
+        centuryBonus: number;
+        duckPenalty: number;
+    }
+    interface BowlingScoringRules {
+        perWicket: number;
+        bonusBowled: number;
+        bonusLbw: number;
+        threeWicketBonus: number;
+        fourWicketBonus: number;
+        fiveWicketBonus: number;
+        maidenOverBonus: number;
+    }
+    interface FieldingScoringRules {
+        perCatch: number;
+        perStumping: number;
+        perRunOut: number;
+        perRunOutAssist: number;
+    }
+    interface BonusScoringRules {
+        strikeRateAbove170: number;
+        strikeRateAbove150: number;
+        strikeRateAbove130: number;
+        strikeRateBelow60: number;
+        strikeRateBelow50: number;
+        economyBelow5: number;
+        economyBelow6: number;
+        economyBelow7: number;
+        economyAbove10: number;
+        economyAbove11: number;
+        economyAbove12: number;
+        minimumBallsForSR: number;
+        minimumOversForER: number;
+    }
+    interface PenaltyScoringRules {
+        perExtraPenaltyTransfer: number;
+    }
+    interface BallEvent {
+        eventId: string;
+        fixtureId: string;
+        inningsNumber: number;
+        overNumber: number;
+        ballNumber: number;
+        batsmanId: string;
+        nonStrikerId?: string;
+        bowlerId: string;
+        outcome: string;
+        runs: number;
+        batsmanRuns?: number;
+        extras: {
+            type?: string;
+            runs: number;
+        };
+        isBoundary?: boolean;
+        isSix?: boolean;
+        isWicket: boolean;
+        wicket?: {
+            dismissedPlayerId: string;
+            dismissalType: string;
+            fielderId?: string;
+            assistFielderId?: string;
+        };
+    }
+    interface PlayerMatchStats {
+        playerId: string;
+        runsScored: number;
+        ballsFaced: number;
+        fours: number;
+        sixes: number;
+        wicketsTaken: number;
+        oversBowled: number;
+        ballsBowled: number;
+        runsConceded: number;
+        maidens: number;
+        catches: number;
+        stumpings: number;
+        runOuts: number;
+        runOutAssists: number;
+        isDismissed: boolean;
+        dismissalType: string | null;
+        isDuck: boolean;
+        fantasyPoints: number;
+    }
+    interface MatchPoints {
+        userId: string;
+        fixtureId: string;
+        matchday: number;
+        playerPoints: {
+            [playerId: string]: number;
+        };
+        captainPoints: number;
+        viceCaptainPoints: number;
+        totalPoints: number;
+        calculatedAt: string;
+    }
+    interface LeagueMeta {
+        groupId: string;
+        leagueName: string;
+        creatorId: string;
+        seasonId: string;
+        leaderboardId: string;
+        maxMembers: number;
+        inviteCode: string;
+        createdAt: string;
+    }
+    interface CreateTeamPayload {
+        seasonId: string;
+        leagueId: string;
+        teamName: string;
+        players: {
+            playerId: string;
+            isCaptain: boolean;
+            isViceCaptain: boolean;
+        }[];
+    }
+    interface TransferPayload {
+        seasonId: string;
+        matchday: number;
+        transfersIn: string[];
+        transfersOut: string[];
+        boosterId?: string;
+    }
+    interface ProcessBallEventsPayload {
+        fixtureId: string;
+        matchday: number;
+        events: BallEvent[];
+    }
+    interface CreateLeaguePayload {
+        leagueName: string;
+        seasonId: string;
+        maxMembers?: number;
+    }
+    interface JoinLeaguePayload {
+        inviteCode: string;
+    }
+    interface LeagueLeaderboardPayload {
+        groupId: string;
+        limit?: number;
+    }
+    function defaultScoringConfig(seasonId: string): ScoringConfig;
+}
 declare namespace HiroAchievements {
     function getConfig(nk: nkruntime.Nakama): Hiro.AchievementsConfig;
     function addProgress(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, achievementId: string, amount: number, gameId?: string): Hiro.UserAchievementProgress | null;
@@ -287,6 +530,10 @@ declare namespace Constants {
     const SATORI_ASSIGNMENTS_COLLECTION = "satori_assignments";
     const SATORI_MESSAGES_COLLECTION = "satori_messages";
     const SATORI_METRICS_COLLECTION = "satori_metrics";
+    const FANTASY_COLLECTION = "fantasy_cricket";
+    const FANTASY_SEASON_LEADERBOARD = "fantasy_season";
+    const FANTASY_MATCH_LB_PREFIX = "fantasy_match_";
+    const FANTASY_LEAGUE_LB_PREFIX = "fantasy_league_";
     const WALLETS_COLLECTION = "wallets";
     const LEADERBOARDS_REGISTRY_COLLECTION = "leaderboards_registry";
     const DAILY_REWARDS_COLLECTION = "daily_rewards";
