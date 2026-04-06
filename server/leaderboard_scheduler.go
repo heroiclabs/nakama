@@ -64,6 +64,13 @@ type LocalLeaderboardScheduler struct {
 	queue   chan *LeaderboardSchedulerCallback
 	active  *atomic.Uint32
 
+	// testTruncateEndActiveDuration removes sub-second precision from the end-active
+	// timer duration so it fires at the start of the target second — up to ~999ms before
+	// the expiry timer, which keeps full precision and fires later in the same second.
+	// This widens the race window for tests that verify concurrent Update() calls cannot
+	// cause the expiry timer to be cancelled before it fires.
+	testTruncateEndActiveDuration bool
+
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
 }
@@ -254,6 +261,9 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	endActiveDuration := time.Duration(-1)
 	if earliestEndActive > -1 {
 		endActiveDuration = time.Unix(earliestEndActive, 0).UTC().Sub(now)
+		if ls.testTruncateEndActiveDuration {
+			endActiveDuration = endActiveDuration.Truncate(time.Second)
+		}
 	}
 
 	expiryDuration := time.Duration(-1)
@@ -270,7 +280,9 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	if endActiveDuration > -1 {
 		if earliestEndActive != ls.scheduledEndActive {
 			if ls.endActiveTimer != nil {
-				ls.endActiveTimer.Stop()
+				if ls.scheduledEndActive > nowUnix {
+					ls.endActiveTimer.Stop()
+				}
 				ls.endActiveTimer = nil
 			}
 			ls.scheduledEndActive = earliestEndActive
@@ -289,7 +301,16 @@ func (ls *LocalLeaderboardScheduler) Update() {
 	if expiryDuration > -1 {
 		if earliestExpiry != ls.scheduledExpiry {
 			if ls.expiryTimer != nil {
-				ls.expiryTimer.Stop()
+				// Only stop the timer if its target second is still in the future.
+				// If scheduledExpiry has already passed (e.g. because this Update() was
+				// triggered by queueEndActiveElapse firing late, after T), the timer may
+				// still be in flight awaiting goroutine dispatch.  Calling Stop() here
+				// would permanently cancel those expiry callbacks.  Instead, let the
+				// timer fire on its own; queueExpiryElapse's lastExpiry guard prevents
+				// double-processing if both this and the newly-created timer fire.
+				if ls.scheduledExpiry > nowUnix {
+					ls.expiryTimer.Stop()
+				}
 				ls.expiryTimer = nil
 			}
 			ls.scheduledExpiry = earliestExpiry
