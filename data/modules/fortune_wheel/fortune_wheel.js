@@ -47,7 +47,7 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
         });
     } catch (e) {
         logger.error("fortune_wheel_get_state error: " + e.message);
-        return JSON.stringify({ success: false, error: e.message });
+        return JSON.stringify({ success: false, error: "An internal error occurred" });
     }
 };
 
@@ -75,10 +75,7 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         var segmentIndex = getWeightedRandomIndex();
         var reward = SEGMENTS[segmentIndex];
 
-        // Grant rewards server-side
-        grantReward(nk, userId, reward.type, reward.amount, logger);
-
-        // Update state
+        // Update state BEFORE granting reward (atomic claim via version check)
         var now = new Date();
         var nextSpin = new Date(now.getTime() + COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
 
@@ -93,10 +90,18 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         };
         state.history = state.history || [];
         state.history.push(state.lastReward);
-        // Keep last 120 entries (~1 year at every-3-day spins)
         if (state.history.length > 120) state.history = state.history.slice(-120);
 
-        saveWheelState(nk, userId, state);
+        // Save with optimistic concurrency — fails if another spin raced us
+        try {
+            saveWheelState(nk, userId, state);
+        } catch (saveErr) {
+            logger.warn("fortune_wheel_spin: concurrent spin detected for " + userId + " — " + saveErr.message);
+            return JSON.stringify({ success: false, error: "Spin already in progress. Please try again." });
+        }
+
+        // State claimed successfully — now grant reward (safe: double-grant impossible)
+        grantReward(nk, userId, reward.type, reward.amount, logger);
 
         logger.info("fortune_wheel_spin: " + userId + " won segment " + segmentIndex + " → " + reward.label);
 
@@ -113,7 +118,7 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         });
     } catch (e) {
         logger.error("fortune_wheel_spin error: " + e.message);
-        return JSON.stringify({ success: false, error: e.message });
+        return JSON.stringify({ success: false, error: "An internal error occurred" });
     }
 };
 
@@ -127,26 +132,26 @@ function getWheelState(nk, userId) {
             userId: userId
         }]);
         if (objects && objects.length > 0) {
-            return objects[0].value || {};
+            var result = objects[0].value || {};
+            result._version = objects[0].version || "";
+            return result;
         }
     } catch(e) { /* first time user */ }
     return {};
 }
 
 function saveWheelState(nk, userId, state) {
-    try {
-        nk.storageWrite([{
-            collection: "fortune_wheel",
-            key: "state",
-            userId: userId,
-            value: state,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-    } catch(e) {
-        // Log but don't throw — state save failure shouldn't crash the spin
-        // The reward is already granted; next spin will recalculate cooldown
-    }
+    var version = state._version || "*";
+    delete state._version;
+    nk.storageWrite([{
+        collection: "fortune_wheel",
+        key: "state",
+        userId: userId,
+        value: state,
+        version: version,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
 }
 
 function canUserSpin(state) {
