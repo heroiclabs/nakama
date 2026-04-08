@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-08T09:28:53.540Z
+// Generated: 2026-04-08T09:38:45.532Z
 // RPC Count: 457
 // ============================================================
 
@@ -21243,8 +21243,17 @@ function rpcMigrateFromPostgres(ctx, logger, nk, payload) {
         }
 
         try {
-            // Check if Nakama wallet already has a balance
-            var account = nk.accountGetId(userId);
+            // Resolve Cognito ID → Nakama ID (creates account if needed)
+            var nakamaId = userId;
+            try {
+                var authResult = nk.authenticateCustom(userId, '', true);
+                nakamaId = authResult.userId || userId;
+                logger.info('[QuestsBridge] Resolved cognito=' + userId + ' → nakama=' + nakamaId);
+            } catch (authErr) {
+                logger.warn('[QuestsBridge] authenticateCustom failed for ' + userId + ': ' + authErr.message + ' — trying direct');
+            }
+
+            var account = nk.accountGetId(nakamaId);
             var wallet = {};
             if (account.wallet) {
                 wallet = typeof account.wallet === 'string'
@@ -21253,19 +21262,19 @@ function rpcMigrateFromPostgres(ctx, logger, nk, payload) {
             }
 
             if ((wallet.xut || 0) > 0) {
-                logger.info('[QuestsBridge] Skip user=' + userId + ' — already has ' + wallet.xut + ' XUT in Nakama');
+                logger.info('[QuestsBridge] Skip user=' + nakamaId + ' — already has ' + wallet.xut + ' XUT in Nakama');
                 skipped++;
                 continue;
             }
 
-            nk.walletUpdate(userId, { xut: xut }, {
+            nk.walletUpdate(nakamaId, { xut: xut }, {
                 type: 'migration',
                 source: 'postgres_migration',
-                description: 'One-time migration from Postgres points_ledger',
+                description: 'One-time migration from Postgres points_ledger (cognito=' + userId + ')',
             }, true);
 
             migrated++;
-            logger.info('[QuestsBridge] Migrated user=' + userId + ' xut=' + xut);
+            logger.info('[QuestsBridge] Migrated cognito=' + userId + ' nakama=' + nakamaId + ' xut=' + xut);
         } catch (err) {
             errors++;
             logger.error('[QuestsBridge] Failed to migrate user=' + userId + ': ' + err.message);
