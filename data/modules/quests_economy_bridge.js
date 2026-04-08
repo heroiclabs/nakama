@@ -73,6 +73,7 @@ function _QuestsBridgeInit(ctx, logger, nk, initializer) {
 }
 
 function signRequest(nk, body) {
+    if (!WEBHOOK_SECRET) return '';
     return nk.hmacSha256Hash(WEBHOOK_SECRET, body);
 }
 
@@ -306,49 +307,48 @@ function rpcQuestsWalletHistory(ctx, logger, nk, payload) {
 
 /**
  * RPC: quests_wallet_migrate_from_postgres
- * Fetches all user balances from the quests-economy API (Postgres)
- * and seeds them into Nakama's native wallet via nk.walletUpdate.
+ * Seeds user balances into Nakama's native wallet via nk.walletUpdate.
  *
- * Payload: { dryRun?: boolean }
+ * Payload: { dryRun?: boolean, balances: [{ user_id: string, balance: number }] }
+ *
+ * If balances are provided in the payload, uses them directly.
+ * Otherwise attempts to fetch from the quests-economy API.
  * Should be called once by an admin after deploying native wallet RPCs.
  */
 function rpcMigrateFromPostgres(ctx, logger, nk, payload) {
     _ensureBridgeEnv(ctx);
     var parsed = JSON.parse(payload || '{}');
     var dryRun = parsed.dryRun === true;
+    var balances = parsed.balances || [];
 
-    logger.info('[QuestsBridge] Starting Postgres → Nakama wallet migration (dryRun=' + dryRun + ', api=' + QUESTS_API_URL + ')');
+    if (balances.length === 0) {
+        var apiUrl = QUESTS_API_URL || 'http://quests-api.quests-economy.svc.cluster.local:3001';
+        logger.info('[QuestsBridge] No balances in payload, fetching from API: ' + apiUrl);
 
-    var bodyStr = JSON.stringify({});
-    var signature = signRequest(nk, bodyStr);
-    var url = QUESTS_API_URL + '/game-bridge/s2s/wallet/all-balances';
-    var headers = {
-        'Content-Type': 'application/json',
-        'X-Source': 'nakama-rpc',
-        'X-Webhook-Signature': signature,
-    };
+        var bodyStr = JSON.stringify({});
+        var sig = WEBHOOK_SECRET ? nk.hmacSha256Hash(WEBHOOK_SECRET, bodyStr) : '';
+        var url = apiUrl + '/api/game-bridge/s2s/wallet/all-balances';
+        var headers = {};
+        headers['Content-Type'] = 'application/json';
+        headers['X-Source'] = 'nakama-rpc';
+        if (sig) headers['X-Webhook-Signature'] = sig;
 
-    var response;
-    try {
-        response = nk.httpRequest(url, 'post', headers, bodyStr);
-    } catch (err) {
-        logger.error('[QuestsBridge] Migration HTTP call failed: ' + err.message);
-        return JSON.stringify({ success: false, error: 'HTTP failed: ' + err.message });
+        try {
+            var response = nk.httpRequest(url, 'POST', headers, bodyStr);
+            if (response.code >= 200 && response.code < 300) {
+                var data = JSON.parse(response.body);
+                balances = data.balances || data.data || [];
+            } else {
+                logger.error('[QuestsBridge] API returned ' + response.code);
+                return JSON.stringify({ success: false, error: 'API returned ' + response.code });
+            }
+        } catch (err) {
+            logger.error('[QuestsBridge] HTTP call failed: ' + err.message);
+            return JSON.stringify({ success: false, error: 'HTTP failed: ' + err.message + '. Pass balances directly in the payload instead.' });
+        }
     }
 
-    if (response.code < 200 || response.code >= 300) {
-        logger.error('[QuestsBridge] Migration API returned ' + response.code);
-        return JSON.stringify({ success: false, error: 'API returned ' + response.code, body: response.body });
-    }
-
-    var data;
-    try {
-        data = JSON.parse(response.body);
-    } catch (err) {
-        return JSON.stringify({ success: false, error: 'Failed to parse API response' });
-    }
-
-    var balances = data.balances || data.data || [];
+    logger.info('[QuestsBridge] Starting migration (dryRun=' + dryRun + ', users=' + balances.length + ')');
     var migrated = 0;
     var skipped = 0;
     var errors = 0;
