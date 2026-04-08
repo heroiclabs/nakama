@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-08T08:29:49.372Z
+// Generated: 2026-04-08T09:16:09.144Z
 // RPC Count: 457
 // ============================================================
 
@@ -20891,8 +20891,20 @@ function _QeAnalyticsBridgeInit(ctx, logger, nk, initializer) {
 var QUESTS_API_URL = '';
 var WEBHOOK_SECRET = '';
 var DEFAULT_GAME_ID = 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+var _bridgeEnvInitialized = false;
 
 var GAME_CONVERSION_RATIOS = {};
+
+function _ensureBridgeEnv(ctx) {
+    if (_bridgeEnvInitialized) return;
+    if (ctx && ctx.env) {
+        QUESTS_API_URL = QUESTS_API_URL
+            || (ctx.env['QUESTS_ECONOMY_API_URL'] || 'http://quests-api.quests-economy.svc.cluster.local:3001').replace(/\/$/, '');
+        WEBHOOK_SECRET = WEBHOOK_SECRET || ctx.env['NAKAMA_WEBHOOK_SECRET'] || '';
+        DEFAULT_GAME_ID = ctx.env['DEFAULT_GAME_ID'] || DEFAULT_GAME_ID;
+        _bridgeEnvInitialized = true;
+    }
+}
 
 function _QuestsBridgeInit(ctx, logger, nk, initializer) {
     QUESTS_API_URL = (ctx.env['QUESTS_ECONOMY_API_URL'] || 'http://localhost:3001').replace(/\/$/, '');
@@ -21174,12 +21186,12 @@ function rpcQuestsWalletHistory(ctx, logger, nk, payload) {
  * Should be called once by an admin after deploying native wallet RPCs.
  */
 function rpcMigrateFromPostgres(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var parsed = JSON.parse(payload || '{}');
     var dryRun = parsed.dryRun === true;
 
-    logger.info('[QuestsBridge] Starting Postgres → Nakama wallet migration (dryRun=' + dryRun + ')');
+    logger.info('[QuestsBridge] Starting Postgres → Nakama wallet migration (dryRun=' + dryRun + ', api=' + QUESTS_API_URL + ')');
 
-    // Call the quests-economy API to get all user balances
     var bodyStr = JSON.stringify({});
     var signature = signRequest(nk, bodyStr);
     var url = QUESTS_API_URL + '/game-bridge/s2s/wallet/all-balances';
@@ -21394,6 +21406,7 @@ function getConversionRatio(gameId) {
 // ═══════════════════════════════════════════════════════════════════
 
 function rpcGameToGlobalPreview(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var userId = ctx.userId;
     if (!userId) {
         return JSON.stringify({ error: 'User not authenticated' });
@@ -21448,6 +21461,7 @@ function rpcGameToGlobalPreview(ctx, logger, nk, payload) {
 }
 
 function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var userId = ctx.userId;
     if (!userId) {
         return JSON.stringify({ error: 'User not authenticated' });
@@ -21644,6 +21658,7 @@ function questsApiPost(nk, logger, userId, path, body) {
 }
 
 function rpcIntelliDrawsList(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var result = questsApiGet(nk, logger, '/consumer/intellidraws');
     if (result.error) {
         return JSON.stringify({ success: false, error: result.error });
@@ -21652,6 +21667,7 @@ function rpcIntelliDrawsList(ctx, logger, nk, payload) {
 }
 
 function rpcIntelliDrawsWinners(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var result = questsApiGet(nk, logger, '/consumer/intellidraws/winners');
     if (result.error) {
         return JSON.stringify({ success: false, error: result.error });
@@ -21660,6 +21676,7 @@ function rpcIntelliDrawsWinners(ctx, logger, nk, payload) {
 }
 
 function rpcIntelliDrawsEnter(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var userId = ctx.userId;
     if (!userId) {
         return JSON.stringify({ error: 'User not authenticated' });
@@ -21684,6 +21701,7 @@ function rpcIntelliDrawsEnter(ctx, logger, nk, payload) {
 }
 
 function rpcIntelliDrawsPast(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var result = questsApiGet(nk, logger, '/consumer/intellidraws/past');
     if (result.error) {
         return JSON.stringify({ success: false, error: result.error });
