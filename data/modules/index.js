@@ -60984,7 +60984,7 @@ var LegacyMultiGame;
         __rpc_quizverse_get_leaderboard = gameRpcHandler("quizverse", getLeaderboard);
         __rpc_quizverse_join_or_create_match = gameRpcHandler("quizverse", joinOrCreateMatch);
         __rpc_quizverse_claim_daily_reward = gameRpcHandler("quizverse", claimDailyReward);
-        __rpc_quizverse_find_friends = gameRpcHandler("quizverse", findFriends);
+        __rpc_quizverse_find_friends = __rpc_quizverse_find_friends || gameRpcHandler("quizverse", findFriends);
         __rpc_quizverse_save_player_data = gameRpcHandler("quizverse", savePlayerData);
         __rpc_quizverse_load_player_data = gameRpcHandler("quizverse", loadPlayerData);
         __rpc_quizverse_get_item_catalog = gameRpcHandler("quizverse", getItemCatalog);
