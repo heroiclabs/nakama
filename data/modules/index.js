@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-09T02:13:58.016Z
-// RPC Count: 459
+// Generated: 2026-04-09T02:49:32.535Z
+// RPC Count: 462
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -87,6 +87,9 @@ var __rpc_fantasy_scoring_live;
 var __rpc_fantasy_team_create;
 var __rpc_fantasy_team_get;
 var __rpc_fantasy_team_update_captain;
+var __rpc_fantasy_match_xi_select;
+var __rpc_fantasy_match_xi_get;
+var __rpc_fantasy_match_deadline_set;
 var __rpc_fantasy_transfer;
 var __rpc_fantasy_transfer_window;
 var __rpc_fantasy_transfer_history;
@@ -55057,27 +55060,49 @@ var FantasyScoring;
         var team = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, userId);
         if (!team)
             return null;
+        // Use the match XI if the user selected one; otherwise fall back to full squad
+        var matchXI = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + fixtureId, userId);
+        var activeCaptainId = team.captainId;
+        var activeVcId = team.viceCaptainId;
+        var activePlayerIds = {};
+        if (matchXI && matchXI.selectedPlayerIds && matchXI.selectedPlayerIds.length > 0) {
+            // Score only the selected 11
+            for (var j = 0; j < matchXI.selectedPlayerIds.length; j++) {
+                activePlayerIds[matchXI.selectedPlayerIds[j]] = true;
+            }
+            activeCaptainId = matchXI.captainId;
+            activeVcId = matchXI.viceCaptainId;
+        }
+        else {
+            // Fallback: score all 15 in the squad
+            for (var j = 0; j < team.players.length; j++) {
+                activePlayerIds[team.players[j].playerId] = true;
+            }
+        }
         var playerPoints = {};
         var totalPoints = 0;
         var captainPts = 0;
         var vcPts = 0;
         for (var i = 0; i < team.players.length; i++) {
             var sp = team.players[i];
+            // Skip players not in the active XI
+            if (!activePlayerIds[sp.playerId])
+                continue;
             var rawPts = 0;
             if (stats[sp.playerId]) {
                 rawPts = stats[sp.playerId].fantasyPoints;
             }
             var multiplier = 1;
-            if (sp.isCaptain)
+            if (sp.playerId === activeCaptainId)
                 multiplier = cfg.captainMultiplier;
-            else if (sp.isViceCaptain)
+            else if (sp.playerId === activeVcId)
                 multiplier = cfg.viceCaptainMultiplier;
             var finalPts = Math.round(rawPts * multiplier * 10) / 10;
             playerPoints[sp.playerId] = finalPts;
             totalPoints += finalPts;
-            if (sp.isCaptain)
+            if (sp.playerId === activeCaptainId)
                 captainPts = finalPts;
-            if (sp.isViceCaptain)
+            if (sp.playerId === activeVcId)
                 vcPts = finalPts;
         }
         // Subtract any penalty points from extra transfers
@@ -55261,13 +55286,6 @@ var FantasyScoring;
 // ============================================================================
 var FantasyTeam;
 (function (FantasyTeam) {
-    var SQUAD_SIZE = 15;
-    var CREDIT_BUDGET = 100;
-    var MAX_PER_REAL_TEAM = 7;
-    var MIN_BATSMEN = 3;
-    var MIN_BOWLERS = 3;
-    var MIN_ALL_ROUNDERS = 1;
-    var MIN_WICKET_KEEPERS = 1;
     // ---- Helpers ----
     function getPlayerCatalog(nk, seasonId) {
         return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.PLAYER_CATALOG + "_" + seasonId, Constants.SYSTEM_USER_ID);
@@ -55280,10 +55298,13 @@ var FantasyTeam;
     function getTeam(nk, userId, seasonId) {
         return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, userId);
     }
+    function getMatchDeadline(nk, fixtureId) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_DEADLINE + "_" + fixtureId, Constants.SYSTEM_USER_ID);
+    }
     function validateSquad(players, catalog) {
         var errors = [];
-        if (players.length !== SQUAD_SIZE) {
-            errors.push("Squad must contain exactly " + SQUAD_SIZE + " players, got " + players.length);
+        if (players.length !== FantasyTypes.SQUAD_SIZE) {
+            errors.push("Squad must contain exactly " + FantasyTypes.SQUAD_SIZE + " players, got " + players.length);
         }
         var uniqueIds = {};
         for (var i = 0; i < players.length; i++) {
@@ -55311,6 +55332,7 @@ var FantasyTeam;
             }
         }
         var totalCredits = 0;
+        var overseasCount = 0;
         var teamCounts = {};
         var roleCounts = { "batsman": 0, "bowler": 0, "all-rounder": 0, "wicket-keeper": 0 };
         for (var i = 0; i < players.length; i++) {
@@ -55320,6 +55342,8 @@ var FantasyTeam;
                 continue;
             }
             totalCredits += entry.creditValue;
+            if (entry.isOverseas)
+                overseasCount++;
             if (!teamCounts[entry.teamId])
                 teamCounts[entry.teamId] = 0;
             teamCounts[entry.teamId]++;
@@ -55327,23 +55351,94 @@ var FantasyTeam;
                 roleCounts[entry.role]++;
             }
         }
-        if (totalCredits > CREDIT_BUDGET) {
-            errors.push("Total credits " + totalCredits.toFixed(1) + " exceeds budget of " + CREDIT_BUDGET);
+        if (totalCredits > FantasyTypes.CREDIT_BUDGET) {
+            errors.push("Total credits " + totalCredits.toFixed(1) + " exceeds budget of " + FantasyTypes.CREDIT_BUDGET);
+        }
+        if (overseasCount > FantasyTypes.MAX_OVERSEAS_IN_SQUAD) {
+            errors.push("Max " + FantasyTypes.MAX_OVERSEAS_IN_SQUAD + " overseas players in squad, got " + overseasCount);
         }
         var teamIds = Object.keys(teamCounts);
         for (var i = 0; i < teamIds.length; i++) {
-            if (teamCounts[teamIds[i]] > MAX_PER_REAL_TEAM) {
-                errors.push("Max " + MAX_PER_REAL_TEAM + " players from one team, team " + teamIds[i] + " has " + teamCounts[teamIds[i]]);
+            if (teamCounts[teamIds[i]] > FantasyTypes.MAX_PER_REAL_TEAM) {
+                errors.push("Max " + FantasyTypes.MAX_PER_REAL_TEAM + " players from one team, team " + teamIds[i] + " has " + teamCounts[teamIds[i]]);
             }
         }
-        if (roleCounts["batsman"] < MIN_BATSMEN)
-            errors.push("Need at least " + MIN_BATSMEN + " batsmen, got " + roleCounts["batsman"]);
-        if (roleCounts["bowler"] < MIN_BOWLERS)
-            errors.push("Need at least " + MIN_BOWLERS + " bowlers, got " + roleCounts["bowler"]);
-        if (roleCounts["all-rounder"] < MIN_ALL_ROUNDERS)
-            errors.push("Need at least " + MIN_ALL_ROUNDERS + " all-rounder, got " + roleCounts["all-rounder"]);
-        if (roleCounts["wicket-keeper"] < MIN_WICKET_KEEPERS)
-            errors.push("Need at least " + MIN_WICKET_KEEPERS + " wicket-keeper, got " + roleCounts["wicket-keeper"]);
+        var roles = Object.keys(FantasyTypes.SQUAD_MIN_ROLES);
+        for (var i = 0; i < roles.length; i++) {
+            var r = roles[i];
+            if ((roleCounts[r] || 0) < FantasyTypes.SQUAD_MIN_ROLES[r]) {
+                errors.push("Need at least " + FantasyTypes.SQUAD_MIN_ROLES[r] + " " + r + "(s), got " + (roleCounts[r] || 0));
+            }
+        }
+        return { valid: errors.length === 0, errors: errors };
+    }
+    // ---- Match XI Validation ----
+    function validateMatchXI(playerIds, captainId, viceCaptainId, squad, catalog) {
+        var errors = [];
+        if (playerIds.length !== FantasyTypes.XI_SIZE) {
+            errors.push("Playing XI must contain exactly " + FantasyTypes.XI_SIZE + " players, got " + playerIds.length);
+        }
+        // Check for duplicates
+        var uniqueIds = {};
+        for (var i = 0; i < playerIds.length; i++) {
+            if (uniqueIds[playerIds[i]]) {
+                errors.push("Duplicate player in XI: " + playerIds[i]);
+            }
+            uniqueIds[playerIds[i]] = true;
+        }
+        // All XI players must be in the 15-player squad
+        var squadLookup = {};
+        for (var i = 0; i < squad.players.length; i++) {
+            squadLookup[squad.players[i].playerId] = squad.players[i];
+        }
+        for (var i = 0; i < playerIds.length; i++) {
+            if (!squadLookup[playerIds[i]]) {
+                errors.push("Player " + playerIds[i] + " is not in your squad");
+            }
+        }
+        // Captain and vice-captain must be in XI
+        if (!uniqueIds[captainId]) {
+            errors.push("Captain " + captainId + " must be in the playing XI");
+        }
+        if (!uniqueIds[viceCaptainId]) {
+            errors.push("Vice-captain " + viceCaptainId + " must be in the playing XI");
+        }
+        if (captainId === viceCaptainId) {
+            errors.push("Captain and vice-captain must be different players");
+        }
+        // Role composition and overseas limit for the XI
+        var overseasCount = 0;
+        var teamCounts = {};
+        var roleCounts = { "batsman": 0, "bowler": 0, "all-rounder": 0, "wicket-keeper": 0 };
+        for (var i = 0; i < playerIds.length; i++) {
+            var entry = catalog.players[playerIds[i]];
+            if (!entry)
+                continue;
+            if (entry.isOverseas)
+                overseasCount++;
+            if (!teamCounts[entry.teamId])
+                teamCounts[entry.teamId] = 0;
+            teamCounts[entry.teamId]++;
+            if (roleCounts[entry.role] !== undefined) {
+                roleCounts[entry.role]++;
+            }
+        }
+        if (overseasCount > FantasyTypes.MAX_OVERSEAS_IN_XI) {
+            errors.push("Max " + FantasyTypes.MAX_OVERSEAS_IN_XI + " overseas players in XI, got " + overseasCount);
+        }
+        var teamIds = Object.keys(teamCounts);
+        for (var i = 0; i < teamIds.length; i++) {
+            if (teamCounts[teamIds[i]] > FantasyTypes.MAX_PER_REAL_TEAM) {
+                errors.push("Max " + FantasyTypes.MAX_PER_REAL_TEAM + " players from one team in XI, team " + teamIds[i] + " has " + teamCounts[teamIds[i]]);
+            }
+        }
+        var roles = Object.keys(FantasyTypes.XI_MIN_ROLES);
+        for (var i = 0; i < roles.length; i++) {
+            var r = roles[i];
+            if ((roleCounts[r] || 0) < FantasyTypes.XI_MIN_ROLES[r]) {
+                errors.push("XI needs at least " + FantasyTypes.XI_MIN_ROLES[r] + " " + r + "(s), got " + (roleCounts[r] || 0));
+            }
+        }
         return { valid: errors.length === 0, errors: errors };
     }
     // ---- RPCs ----
@@ -55471,11 +55566,96 @@ var FantasyTeam;
         saveTeam(nk, team);
         return RpcHelpers.successResponse(team);
     }
+    // ---- Match XI RPCs ----
+    function rpcSelectMatchXI(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
+        var check = RpcHelpers.validatePayload(input, ["fixtureId", "seasonId", "playerIds", "captainId", "viceCaptainId"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        if (!input.playerIds || !input.playerIds.length) {
+            return RpcHelpers.errorResponse("playerIds array is required");
+        }
+        // Deadline enforcement
+        var deadline = getMatchDeadline(nk, input.fixtureId);
+        if (deadline) {
+            var nowSec = Math.floor(Date.now() / 1000);
+            if (nowSec >= deadline.deadlineAt) {
+                return RpcHelpers.errorResponse("Selection deadline has passed for this match. " +
+                    "Deadline was " + new Date(deadline.deadlineAt * 1000).toISOString());
+            }
+        }
+        // Get squad
+        var squad = getTeam(nk, userId, input.seasonId);
+        if (!squad) {
+            return RpcHelpers.errorResponse("No squad found for season " + input.seasonId + ". Create a team first.");
+        }
+        // Get catalog for role/overseas validation
+        var catalog = getPlayerCatalog(nk, input.seasonId);
+        if (!catalog) {
+            return RpcHelpers.errorResponse("Player catalog not found for season " + input.seasonId);
+        }
+        // Validate the XI
+        var validation = validateMatchXI(input.playerIds, input.captainId, input.viceCaptainId, squad, catalog);
+        if (!validation.valid) {
+            return RpcHelpers.errorResponse("XI validation failed: " + validation.errors.join("; "));
+        }
+        var now = new Date().toISOString();
+        var matchXI = {
+            userId: userId,
+            fixtureId: input.fixtureId,
+            seasonId: input.seasonId,
+            selectedPlayerIds: input.playerIds,
+            captainId: input.captainId,
+            viceCaptainId: input.viceCaptainId,
+            lockedAt: now,
+        };
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + input.fixtureId, userId, matchXI, 2, 1);
+        logger.info("[FantasyTeam] User %s selected XI for fixture %s (captain=%s, vc=%s)", userId, input.fixtureId, input.captainId, input.viceCaptainId);
+        return RpcHelpers.successResponse(matchXI);
+    }
+    function rpcGetMatchXI(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
+        if (!input.fixtureId) {
+            return RpcHelpers.errorResponse("fixtureId is required");
+        }
+        var xi = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + input.fixtureId, userId);
+        if (!xi) {
+            return RpcHelpers.errorResponse("No playing XI selected for fixture " + input.fixtureId);
+        }
+        return RpcHelpers.successResponse(xi);
+    }
+    /**
+     * Admin RPC to set the selection deadline for a fixture.
+     * Called by Intelliverse-X-AI when a match is scheduled.
+     */
+    function rpcSetMatchDeadline(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["fixtureId", "seasonId", "deadlineAt", "matchStartAt"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        var dl = {
+            fixtureId: input.fixtureId,
+            seasonId: input.seasonId,
+            deadlineAt: input.deadlineAt,
+            matchStartAt: input.matchStartAt,
+        };
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_DEADLINE + "_" + input.fixtureId, Constants.SYSTEM_USER_ID, dl, 2, 0);
+        logger.info("[FantasyTeam] Deadline set for fixture %s: %s", input.fixtureId, new Date(input.deadlineAt * 1000).toISOString());
+        return RpcHelpers.successResponse(dl);
+    }
     // ---- Registration ----
     function register(initializer) {
         __rpc_fantasy_team_create = rpcCreateTeam;
         __rpc_fantasy_team_get = rpcGetTeam;
         __rpc_fantasy_team_update_captain = rpcUpdateCaptain;
+        __rpc_fantasy_match_xi_select = rpcSelectMatchXI;
+        __rpc_fantasy_match_xi_get = rpcGetMatchXI;
+        __rpc_fantasy_match_deadline_set = rpcSetMatchDeadline;
     }
     FantasyTeam.register = register;
     register();
@@ -55748,16 +55928,37 @@ var FantasyTypes;
     FantasyTypes.COLLECTION = "fantasy_cricket";
     FantasyTypes.Keys = {
         TEAM: "team", // per-user squad
+        MATCH_XI: "match_xi", // per-user per-fixture playing XI (11 from 15)
         SEASON_STATE: "season_state", // per-user season metadata (transfers, boosters)
         SCORING_CONFIG: "scoring_config", // system-level scoring rules
         PLAYER_CATALOG: "player_catalog", // system-level credit values
         TRANSFER_WINDOW: "transfer_window", // system-level window state
         MATCH_POINTS: "match_points", // per-user per-match points
         LEAGUE_META: "league_meta", // per-group metadata
+        MATCH_DEADLINE: "match_deadline", // system-level per-fixture deadline
     };
     FantasyTypes.LEADERBOARD_SEASON = "fantasy_season";
     FantasyTypes.LEADERBOARD_MATCH_PREFIX = "fantasy_match_";
     FantasyTypes.LEADERBOARD_LEAGUE_PREFIX = "fantasy_league_";
+    // ---- Squad Composition Constants ----
+    FantasyTypes.SQUAD_SIZE = 15;
+    FantasyTypes.XI_SIZE = 11;
+    FantasyTypes.CREDIT_BUDGET = 100;
+    FantasyTypes.MAX_PER_REAL_TEAM = 7;
+    FantasyTypes.MAX_OVERSEAS_IN_XI = 4;
+    FantasyTypes.MAX_OVERSEAS_IN_SQUAD = 8;
+    FantasyTypes.SQUAD_MIN_ROLES = {
+        "batsman": 3,
+        "bowler": 3,
+        "all-rounder": 1,
+        "wicket-keeper": 1,
+    };
+    FantasyTypes.XI_MIN_ROLES = {
+        "batsman": 3,
+        "bowler": 2,
+        "all-rounder": 1,
+        "wicket-keeper": 1,
+    };
     // ---- Default Scoring Config ----
     function defaultScoringConfig(seasonId) {
         return {
@@ -64620,6 +64821,9 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("fantasy_team_create", __rpc_fantasy_team_create); } catch(e) {}
   try { initializer.registerRpc("fantasy_team_get", __rpc_fantasy_team_get); } catch(e) {}
   try { initializer.registerRpc("fantasy_team_update_captain", __rpc_fantasy_team_update_captain); } catch(e) {}
+  try { initializer.registerRpc("fantasy_match_xi_select", __rpc_fantasy_match_xi_select); } catch(e) {}
+  try { initializer.registerRpc("fantasy_match_xi_get", __rpc_fantasy_match_xi_get); } catch(e) {}
+  try { initializer.registerRpc("fantasy_match_deadline_set", __rpc_fantasy_match_deadline_set); } catch(e) {}
   try { initializer.registerRpc("fantasy_transfer", __rpc_fantasy_transfer); } catch(e) {}
   try { initializer.registerRpc("fantasy_transfer_window", __rpc_fantasy_transfer_window); } catch(e) {}
   try { initializer.registerRpc("fantasy_transfer_history", __rpc_fantasy_transfer_history); } catch(e) {}
@@ -65001,5 +65205,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 459 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 462 + " RPCs via AST-compatible wrapper");
 }

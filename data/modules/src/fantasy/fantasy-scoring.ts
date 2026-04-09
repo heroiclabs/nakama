@@ -223,6 +223,29 @@ namespace FantasyScoring {
     );
     if (!team) return null;
 
+    // Use the match XI if the user selected one; otherwise fall back to full squad
+    var matchXI = Storage.readJson<FantasyTypes.MatchXI>(
+      nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + fixtureId, userId
+    );
+
+    var activeCaptainId = team.captainId;
+    var activeVcId = team.viceCaptainId;
+    var activePlayerIds: { [id: string]: boolean } = {};
+
+    if (matchXI && matchXI.selectedPlayerIds && matchXI.selectedPlayerIds.length > 0) {
+      // Score only the selected 11
+      for (var j = 0; j < matchXI.selectedPlayerIds.length; j++) {
+        activePlayerIds[matchXI.selectedPlayerIds[j]] = true;
+      }
+      activeCaptainId = matchXI.captainId;
+      activeVcId = matchXI.viceCaptainId;
+    } else {
+      // Fallback: score all 15 in the squad
+      for (var j = 0; j < team.players.length; j++) {
+        activePlayerIds[team.players[j].playerId] = true;
+      }
+    }
+
     var playerPoints: { [playerId: string]: number } = {};
     var totalPoints = 0;
     var captainPts = 0;
@@ -230,21 +253,25 @@ namespace FantasyScoring {
 
     for (var i = 0; i < team.players.length; i++) {
       var sp = team.players[i];
+
+      // Skip players not in the active XI
+      if (!activePlayerIds[sp.playerId]) continue;
+
       var rawPts = 0;
       if (stats[sp.playerId]) {
         rawPts = stats[sp.playerId].fantasyPoints;
       }
 
       var multiplier = 1;
-      if (sp.isCaptain) multiplier = cfg.captainMultiplier;
-      else if (sp.isViceCaptain) multiplier = cfg.viceCaptainMultiplier;
+      if (sp.playerId === activeCaptainId) multiplier = cfg.captainMultiplier;
+      else if (sp.playerId === activeVcId) multiplier = cfg.viceCaptainMultiplier;
 
       var finalPts = Math.round(rawPts * multiplier * 10) / 10;
       playerPoints[sp.playerId] = finalPts;
       totalPoints += finalPts;
 
-      if (sp.isCaptain) captainPts = finalPts;
-      if (sp.isViceCaptain) vcPts = finalPts;
+      if (sp.playerId === activeCaptainId) captainPts = finalPts;
+      if (sp.playerId === activeVcId) vcPts = finalPts;
     }
 
     // Subtract any penalty points from extra transfers
