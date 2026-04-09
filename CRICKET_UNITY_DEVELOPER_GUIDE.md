@@ -106,7 +106,20 @@ Each player in `players[]`:
 | `isCaptain` | boolean | Yes |
 | `isViceCaptain` | boolean | Yes |
 
-**Validation:** Exactly 1 captain, 1 vice-captain, all distinct, squad size = 15, credit limit enforced.
+**Squad Validation Rules (15 players):**
+
+| Rule | Constraint |
+|------|-----------|
+| Squad size | Exactly 15 |
+| Captain | Exactly 1 |
+| Vice-captain | Exactly 1 (different from captain) |
+| Credit budget | Total ≤ 100 |
+| Max per real team | ≤ 7 from one IPL franchise |
+| Max overseas | ≤ 8 in squad |
+| Min batsmen | ≥ 3 |
+| Min bowlers | ≥ 3 |
+| Min all-rounders | ≥ 1 |
+| Min wicket-keepers | ≥ 1 |
 
 ```csharp
 var payload = new {
@@ -116,7 +129,7 @@ var payload = new {
     players = new[] {
         new { playerId = "virat-kohli", isCaptain = true, isViceCaptain = false },
         new { playerId = "jasprit-bumrah", isCaptain = false, isViceCaptain = true },
-        // ... 13 more players
+        // ... 13 more players (15 total)
     }
 };
 var result = await client.RpcAsync(session, "fantasy_team_create", JsonConvert.SerializeObject(payload));
@@ -146,6 +159,69 @@ var result = await client.RpcAsync(session, "fantasy_team_create", JsonConvert.S
 | `viceCaptainId` | string | Yes |
 
 **Auth:** resolveUserId
+
+---
+
+### `fantasy_match_xi_select`
+
+Select 11 players from your 15-player squad for a specific match. **Must be done before match deadline.**
+
+| Field | Type | Required |
+|-------|------|----------|
+| `fixtureId` | string | Yes |
+| `seasonId` | string | Yes |
+| `playerIds` | string[] | Yes (exactly 11) |
+| `captainId` | string | Yes |
+| `viceCaptainId` | string | Yes |
+
+**Playing XI Validation Rules (11 players):**
+
+| Rule | Constraint |
+|------|-----------|
+| XI size | Exactly 11 |
+| Source | All must be in your 15-player squad |
+| Max overseas | ≤ 4 in XI (IPL rule) |
+| Max per real team | ≤ 7 from one franchise |
+| Min batsmen | ≥ 3 |
+| Min bowlers | ≥ 2 |
+| Min all-rounders | ≥ 1 |
+| Min wicket-keepers | ≥ 1 |
+| Captain | Must be in the XI |
+| Vice-captain | Must be in the XI (different from captain) |
+| Deadline | Selection rejected after match deadline |
+
+```csharp
+var payload = new {
+    fixtureId = "ipl-2026-match-15",
+    seasonId = "ipl-2026",
+    playerIds = new[] {
+        "virat-kohli", "jasprit-bumrah", "rohit-sharma",
+        "rashid-khan", "pat-cummins", "hardik-pandya",
+        "rishabh-pant", "suryakumar-yadav", "yuzvendra-chahal",
+        "shubman-gill", "mohammed-siraj"
+    },
+    captainId = "virat-kohli",
+    viceCaptainId = "jasprit-bumrah"
+};
+var result = await client.RpcAsync(session, "fantasy_match_xi_select", JsonConvert.SerializeObject(payload));
+```
+
+**Response:** `{ "success": true, "data": <MatchXI> }`
+
+**Scoring Impact:** When a playing XI is selected, only those 11 players earn fantasy points for that match. Bench players (the 4 not selected) score 0. If no XI is selected, all 15 are scored (backward compatible).
+
+---
+
+### `fantasy_match_xi_get`
+
+Retrieve the playing XI selected for a specific match.
+
+| Field | Type | Required |
+|-------|------|----------|
+| `fixtureId` | string | Yes |
+
+**Auth:** resolveUserId  
+**Response:** `{ "success": true, "data": <MatchXI> }` or error if none selected.
 
 ---
 
