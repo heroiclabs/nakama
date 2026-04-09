@@ -3639,6 +3639,11 @@ var LegacyFriends;
             var usernames = data.usernames ? (Array.isArray(data.usernames) ? data.usernames : [data.usernames]) : [];
             if (data.userId)
                 ids.push(data.userId);
+            if (data.targetUserId)
+                ids.push(data.targetUserId);
+            if (data.friendUserId)
+                ids.push(data.friendUserId);
+                ids.push(data.userId);
             if (data.username)
                 usernames.push(data.username);
             if (ids.length === 0 && usernames.length === 0) {
@@ -3659,6 +3664,11 @@ var LegacyFriends;
             var ids = data.ids ? (Array.isArray(data.ids) ? data.ids : [data.ids]) : [];
             var usernames = data.usernames ? (Array.isArray(data.usernames) ? data.usernames : [data.usernames]) : [];
             if (data.userId)
+                ids.push(data.userId);
+            if (data.targetUserId)
+                ids.push(data.targetUserId);
+            if (data.friendUserId)
+                ids.push(data.friendUserId);
                 ids.push(data.userId);
             if (data.username)
                 usernames.push(data.username);
@@ -3681,13 +3691,17 @@ var LegacyFriends;
             var usernames = data.usernames ? (Array.isArray(data.usernames) ? data.usernames : [data.usernames]) : [];
             if (data.userId)
                 ids.push(data.userId);
+            if (data.friendUserId)
+                ids.push(data.friendUserId);
+            if (data.targetUserId)
+                ids.push(data.targetUserId);
             if (data.username)
                 usernames.push(data.username);
             if (ids.length === 0 && usernames.length === 0) {
                 return RpcHelpers.errorResponse("ids or usernames required");
             }
-            var result = nk.friendsDelete(userId, username, ids, usernames);
-            return RpcHelpers.successResponse({ friends: result.friends || [] });
+            nk.friendsDelete(userId, username, ids, usernames);
+            return RpcHelpers.successResponse({ success: true, removedFriendId: ids[0] || "" });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to remove friend");
@@ -3715,7 +3729,7 @@ var LegacyFriends;
             var userId = RpcHelpers.requireUserId(ctx);
             var username = ctx.username || "";
             var data = RpcHelpers.parseRpcPayload(payload);
-            var targetUserId = data.userId || data.targetUserId;
+            var targetUserId = data.userId || data.targetUserId || data.friendUserId;
             if (!targetUserId)
                 return RpcHelpers.errorResponse("userId required");
             nk.notificationsSend([{
@@ -3735,7 +3749,7 @@ var LegacyFriends;
         try {
             var userId = RpcHelpers.requireUserId(ctx);
             var data = RpcHelpers.parseRpcPayload(payload);
-            var targetUserId = data.userId || data.targetUserId;
+            var targetUserId = data.userId || data.targetUserId || data.friendUserId;
             if (!targetUserId)
                 return RpcHelpers.errorResponse("userId required");
             nk.notificationsSend([{
@@ -3751,6 +3765,107 @@ var LegacyFriends;
             return RpcHelpers.errorResponse(e.message || "Failed to send spectate request");
         }
     }
+    function rpcSendFriendInvite(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var username = ctx.username || "";
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var targetUserId = data.targetUserId || data.userId;
+            if (!targetUserId) {
+                return RpcHelpers.errorResponse("targetUserId required");
+            }
+            if (targetUserId === userId) {
+                return RpcHelpers.errorResponse("Cannot send friend invite to yourself");
+            }
+            // nk.friendsAdd creates invite (state 1=INVITE_SENT for sender, 2=INVITE_RECEIVED for target)
+            // If the target already sent us an invite, this auto-accepts to state 0=FRIEND
+            nk.friendsAdd(userId, username, [targetUserId], []);
+            // Send notification to the target
+            var message = data.message || "You have a new friend request";
+            nk.notificationsSend([{
+                userId: targetUserId,
+                subject: "friend_request",
+                content: { senderId: userId, senderUsername: username, message: message },
+                code: 100,
+                persistent: true
+            }]);
+            return RpcHelpers.successResponse({
+                inviteId: userId + "_" + targetUserId,
+                targetUserId: targetUserId,
+                status: "sent"
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "Failed to send friend invite");
+        }
+    }
+    function rpcAcceptFriendInvite(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var username = ctx.username || "";
+            var data = RpcHelpers.parseRpcPayload(payload);
+            // inviteId format: "senderUserId_receiverUserId" or direct userId
+            var inviteId = data.inviteId || "";
+            var fromUserId = data.fromUserId || data.userId;
+            if (!fromUserId && inviteId) {
+                // Extract sender from inviteId format
+                var parts = inviteId.split("_");
+                if (parts.length >= 1) fromUserId = parts[0];
+            }
+            if (!fromUserId) {
+                return RpcHelpers.errorResponse("inviteId or fromUserId required");
+            }
+            // Adding the sender as friend from receiver side auto-accepts the invite
+            nk.friendsAdd(userId, username, [fromUserId], []);
+            // Notify the original sender that their invite was accepted
+            nk.notificationsSend([{
+                userId: fromUserId,
+                subject: "friend_accept",
+                content: { acceptedBy: userId, acceptedByUsername: username },
+                code: 101,
+                persistent: true
+            }]);
+            // Get the friend's username for the response
+            var friendUsername = "";
+            try {
+                var users = nk.usersGetId([fromUserId]);
+                if (users && users.length > 0) friendUsername = users[0].username || "";
+            } catch (_) { }
+            return RpcHelpers.successResponse({
+                inviteId: inviteId,
+                friendUserId: fromUserId,
+                friendUsername: friendUsername
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "Failed to accept friend invite");
+        }
+    }
+    function rpcDeclineFriendInvite(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var username = ctx.username || "";
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var inviteId = data.inviteId || "";
+            var fromUserId = data.fromUserId || data.userId;
+            if (!fromUserId && inviteId) {
+                var parts = inviteId.split("_");
+                if (parts.length >= 1) fromUserId = parts[0];
+            }
+            if (!fromUserId) {
+                return RpcHelpers.errorResponse("inviteId or fromUserId required");
+            }
+            // Delete the friend edge to decline the invite
+            nk.friendsDelete(userId, username, [fromUserId], []);
+            return RpcHelpers.successResponse({
+                inviteId: inviteId,
+                fromUserId: fromUserId
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "Failed to decline friend invite");
+        }
+    }
     function register(initializer) {
         initializer.registerRpc("friends_block", rpcFriendsBlock);
         initializer.registerRpc("friends_unblock", rpcFriendsUnblock);
@@ -3758,6 +3873,9 @@ var LegacyFriends;
         initializer.registerRpc("friends_list", rpcFriendsList);
         initializer.registerRpc("friends_challenge_user", rpcFriendsChallengeUser);
         initializer.registerRpc("friends_spectate", rpcFriendsSpectate);
+        initializer.registerRpc("send_friend_invite", rpcSendFriendInvite);
+        initializer.registerRpc("accept_friend_invite", rpcAcceptFriendInvite);
+        initializer.registerRpc("decline_friend_invite", rpcDeclineFriendInvite);
     }
     LegacyFriends.register = register;
 })(LegacyFriends || (LegacyFriends = {}));
@@ -4890,11 +5008,75 @@ var LegacyMultiGame;
         return { streak: state.streak, reward: rewardAmount };
     }
     function findFriends(ctx, logger, nk, data, userId, gId) {
-        var friends = nk.friendsList(userId, 100, 0, "");
-        var result = (friends.friends || []).map(function (f) {
-            return { userId: f.user.userId, username: f.user.username, displayName: f.user.displayName };
-        });
-        return { friends: result };
+        var query = (data.query || "").trim();
+        var limit = data.limit || 20;
+        if (limit < 1) limit = 1;
+        if (limit > 100) limit = 100;
+        if (!query || query.length < 1) {
+            return { results: [], query: query, count: 0, searcherId: userId };
+        }
+        // Build a friendship lookup map for the searching user
+        var friendshipMap = {};
+        try {
+            var allFriends = nk.friendsList(userId, 1000, null, "");
+            var friendArr = allFriends.friends || [];
+            for (var i = 0; i < friendArr.length; i++) {
+                var f = friendArr[i];
+                var fid = f.user.userId;
+                var state = f.state;
+                // state: 0=friend, 1=invite_sent, 2=invite_received, 3=blocked
+                if (state === 0) friendshipMap[fid] = "friend";
+                else if (state === 1) friendshipMap[fid] = "pending_sent";
+                else if (state === 2) friendshipMap[fid] = "pending_received";
+                else if (state === 3) friendshipMap[fid] = "blocked";
+            }
+        } catch (_) { /* no friends yet */ }
+        // Search users by username prefix using Nakama API
+        var results = [];
+        try {
+            var users = nk.usersGetUsername([query]);
+            if (users && users.length > 0) {
+                for (var j = 0; j < users.length && results.length < limit; j++) {
+                    var u = users[j];
+                    if (u.userId === userId) continue; // exclude self
+                    results.push({
+                        userId: u.userId,
+                        username: u.username,
+                        displayName: u.displayName || u.username,
+                        avatarUrl: u.avatarUrl || "",
+                        online: u.online || false,
+                        createTime: u.createTime || "",
+                        relationshipStatus: friendshipMap[u.userId] || "none"
+                    });
+                }
+            }
+        } catch (_) { /* exact match failed */ }
+        // Also try partial match via SQL if exact match didn't yield enough
+        if (results.length < limit) {
+            try {
+                var sqlQuery = "SELECT id, username, display_name, avatar_url, create_time FROM users WHERE username ILIKE $1 AND id != $2 LIMIT $3";
+                var sqlRows = nk.sqlQuery(sqlQuery, ["%" + query + "%", userId, limit]);
+                if (sqlRows && sqlRows.length > 0) {
+                    var existingIds = {};
+                    for (var e = 0; e < results.length; e++) existingIds[results[e].userId] = true;
+                    for (var k = 0; k < sqlRows.length && results.length < limit; k++) {
+                        var row = sqlRows[k];
+                        var rid = row.id;
+                        if (existingIds[rid]) continue;
+                        results.push({
+                            userId: rid,
+                            username: row.username,
+                            displayName: row.display_name || row.username,
+                            avatarUrl: row.avatar_url || "",
+                            online: false,
+                            createTime: row.create_time || "",
+                            relationshipStatus: friendshipMap[rid] || "none"
+                        });
+                    }
+                }
+            } catch (_) { /* SQL search failed, return what we have */ }
+        }
+        return { results: results, query: query, count: results.length, searcherId: userId };
     }
     function savePlayerData(ctx, logger, nk, data, userId, gId) {
         if (!data.data)
