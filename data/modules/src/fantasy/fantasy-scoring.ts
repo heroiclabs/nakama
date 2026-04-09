@@ -409,7 +409,8 @@ namespace FantasyScoring {
     applyEndOfMatchBonuses(stats, cfg);
     savePlayerStats(nk, input.fixtureId, stats);
 
-    // Enumerate users with fantasy teams for this season
+    // Enumerate users with fantasy teams via the system-owned team index
+    var idxPrefix = "team_idx_" + input.seasonId + "_";
     var cursor: string | undefined = undefined;
     var usersProcessed = 0;
     var allMatchPoints: FantasyTypes.MatchPoints[] = [];
@@ -425,41 +426,45 @@ namespace FantasyScoring {
       if (list && list.objects) {
         for (var i = 0; i < list.objects.length; i++) {
           var obj = list.objects[i];
-          if (obj.key.indexOf(FantasyTypes.Keys.TEAM + "_" + input.seasonId) === 0 && obj.userId) {
-            var mp = computeUserMatchPoints(
-              nk, obj.userId, input.seasonId, input.fixtureId, input.matchday, stats, cfg
-            );
-            if (mp) {
-              allMatchPoints.push(mp);
-              usersProcessed++;
+          if (obj.key.indexOf(idxPrefix) !== 0) continue;
 
-              // Write to season leaderboard
-              try {
-                nk.leaderboardRecordWrite(
-                  FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId,
-                  obj.userId,
-                  "", // username filled by Nakama
-                  Math.round(mp.totalPoints),
-                  0, // subscore
-                  { matchday: input.matchday, fixtureId: input.fixtureId }
-                );
-              } catch (e: any) {
-                logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", obj.userId, e.message || String(e));
-              }
+          var idxEntry = obj.value as { userId: string; seasonId: string };
+          if (!idxEntry || !idxEntry.userId) continue;
 
-              // Write to per-match leaderboard
-              try {
-                nk.leaderboardRecordWrite(
-                  FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId,
-                  obj.userId,
-                  "",
-                  Math.round(mp.totalPoints),
-                  0,
-                  {}
-                );
-              } catch (e: any) {
-                logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", obj.userId, e.message || String(e));
-              }
+          var teamUserId = idxEntry.userId;
+          var mp = computeUserMatchPoints(
+            nk, teamUserId, input.seasonId, input.fixtureId, input.matchday, stats, cfg
+          );
+          if (mp) {
+            allMatchPoints.push(mp);
+            usersProcessed++;
+
+            // Write to season leaderboard
+            try {
+              nk.leaderboardRecordWrite(
+                FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId,
+                teamUserId,
+                "",
+                Math.round(mp.totalPoints),
+                0,
+                { matchday: input.matchday, fixtureId: input.fixtureId }
+              );
+            } catch (e: any) {
+              logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", teamUserId, e.message || String(e));
+            }
+
+            // Write to per-match leaderboard
+            try {
+              nk.leaderboardRecordWrite(
+                FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId,
+                teamUserId,
+                "",
+                Math.round(mp.totalPoints),
+                0,
+                {}
+              );
+            } catch (e: any) {
+              logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", teamUserId, e.message || String(e));
             }
           }
         }

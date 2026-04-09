@@ -5,6 +5,7 @@ namespace RewardEngine {
       currencies: {},
       items: {},
       energies: {},
+      gifts: [],
       modifiers: []
     };
 
@@ -78,6 +79,11 @@ namespace RewardEngine {
         target.energies[eid] += grant.energies[eid];
       }
     }
+    if (grant.gifts) {
+      for (var g = 0; g < grant.gifts.length; g++) {
+        target.gifts.push(grant.gifts[g]);
+      }
+    }
     if (grant.energyModifiers) {
       for (var m = 0; m < grant.energyModifiers.length; m++) {
         target.modifiers.push(grant.energyModifiers[m]);
@@ -115,9 +121,82 @@ namespace RewardEngine {
       }
     }
 
+    // Record gift claims for fulfillment (physical items, vouchers, etc.)
+    if (resolved.gifts && resolved.gifts.length > 0) {
+      var existing = Storage.readJson<{ claims: GiftClaim[] }>(nk, "gift_claims", "pending_" + userId, userId);
+      var claims = (existing && existing.claims) || [];
+      var now = Math.floor(Date.now() / 1000);
+      for (var gi = 0; gi < resolved.gifts.length; gi++) {
+        var gift = resolved.gifts[gi];
+        claims.push({
+          claimId: nk.uuidv4(),
+          giftId: gift.id,
+          name: gift.name,
+          description: gift.description,
+          imageUrl: gift.imageUrl || "",
+          type: gift.type,
+          value: gift.value || "",
+          quantity: gift.quantity || 1,
+          fulfillmentUrl: gift.fulfillmentUrl || "",
+          terms: gift.terms || "",
+          status: "pending",
+          claimedAt: now,
+          fulfilledAt: 0
+        });
+      }
+      Storage.writeJson(nk, "gift_claims", "pending_" + userId, userId, { claims: claims });
+      logger.info("[RewardEngine] Recorded %d gift claim(s) for user %s", resolved.gifts.length, userId);
+    }
+
     EventBus.emit(nk, logger, ctx, EventBus.Events.REWARD_GRANTED, {
       userId: userId, gameId: gameId, reward: resolved
     });
+  }
+
+  export interface GiftClaim {
+    claimId: string;
+    giftId: string;
+    name: string;
+    description: string;
+    imageUrl: string;
+    type: string;
+    value: string;
+    quantity: number;
+    fulfillmentUrl: string;
+    terms: string;
+    status: "pending" | "fulfilled" | "shipped" | "delivered";
+    claimedAt: number;
+    fulfilledAt: number;
+  }
+
+  export function getGiftClaims(nk: nkruntime.Nakama, userId: string): GiftClaim[] {
+    var data = Storage.readJson<{ claims: GiftClaim[] }>(nk, "gift_claims", "pending_" + userId, userId);
+    return (data && data.claims) || [];
+  }
+
+  export function updateGiftClaimStatus(
+    nk: nkruntime.Nakama, userId: string, claimId: string,
+    status: "fulfilled" | "shipped" | "delivered"
+  ): boolean {
+    var data = Storage.readJson<{ claims: GiftClaim[] }>(nk, "gift_claims", "pending_" + userId, userId);
+    if (!data || !data.claims) return false;
+
+    var found = false;
+    for (var i = 0; i < data.claims.length; i++) {
+      if (data.claims[i].claimId === claimId) {
+        data.claims[i].status = status;
+        if (status === "fulfilled" || status === "delivered") {
+          data.claims[i].fulfilledAt = Math.floor(Date.now() / 1000);
+        }
+        found = true;
+        break;
+      }
+    }
+
+    if (found) {
+      Storage.writeJson(nk, "gift_claims", "pending_" + userId, userId, data);
+    }
+    return found;
   }
 
   export function grantToMailbox(

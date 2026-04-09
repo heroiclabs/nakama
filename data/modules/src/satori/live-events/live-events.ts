@@ -79,6 +79,8 @@ namespace SatoriLiveEvents {
         joined: userState ? !!userState.joinedAt : false,
         claimed: userState ? !!userState.claimedAt : false,
         hasReward: !!def.reward,
+        hasGifts: !!(def.reward && def.reward.guaranteed && (def.reward.guaranteed as any).gifts && (def.reward.guaranteed as any).gifts.length > 0),
+        prizeTiers: def.prizeTiers || [],
         sticky: !!def.sticky,
         requiresJoin: !!def.requiresJoin,
         flagOverrides: def.flagOverrides

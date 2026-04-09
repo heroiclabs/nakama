@@ -18,10 +18,23 @@ namespace Hiro {
     expiresAt?: number;
   }
 
+  export interface GiftPrize {
+    id: string;
+    name: string;
+    description: string;
+    imageUrl?: string;
+    type: "physical" | "voucher" | "experience" | "digital" | "merch";
+    value?: string;
+    quantity?: number;
+    fulfillmentUrl?: string;
+    terms?: string;
+  }
+
   export interface RewardGrant {
     currencies?: CurrencyAmount;
     items?: ItemAmount;
     energies?: { [energyId: string]: number };
+    gifts?: GiftPrize[];
     energyModifiers?: RewardModifier[];
     rewardModifiers?: RewardModifier[];
   }
@@ -41,6 +54,7 @@ namespace Hiro {
     currencies: CurrencyAmount;
     items: { [itemId: string]: number };
     energies: { [energyId: string]: number };
+    gifts: GiftPrize[];
     modifiers: RewardModifier[];
   }
 

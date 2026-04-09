@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-09T02:49:32.535Z
-// RPC Count: 462
+// Generated: 2026-04-09T03:41:05.714Z
+// RPC Count: 464
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -123,6 +123,8 @@ var __rpc_admin_live_event_schedule;
 var __rpc_admin_experiment_setup;
 var __rpc_admin_events_timeline;
 var __rpc_admin_storage_list;
+var __rpc_gift_claims_list;
+var __rpc_admin_gift_claim_update;
 var __rpc_admin_health_check;
 var __rpc_hiro_iap_validate;
 var __rpc_hiro_iap_history;
@@ -55188,7 +55190,8 @@ var FantasyScoring;
         }
         applyEndOfMatchBonuses(stats, cfg);
         savePlayerStats(nk, input.fixtureId, stats);
-        // Enumerate users with fantasy teams for this season
+        // Enumerate users with fantasy teams via the system-owned team index
+        var idxPrefix = "team_idx_" + input.seasonId + "_";
         var cursor = undefined;
         var usersProcessed = 0;
         var allMatchPoints = [];
@@ -55197,27 +55200,29 @@ var FantasyScoring;
             if (list && list.objects) {
                 for (var i = 0; i < list.objects.length; i++) {
                     var obj = list.objects[i];
-                    if (obj.key.indexOf(FantasyTypes.Keys.TEAM + "_" + input.seasonId) === 0 && obj.userId) {
-                        var mp = computeUserMatchPoints(nk, obj.userId, input.seasonId, input.fixtureId, input.matchday, stats, cfg);
-                        if (mp) {
-                            allMatchPoints.push(mp);
-                            usersProcessed++;
-                            // Write to season leaderboard
-                            try {
-                                nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId, obj.userId, "", // username filled by Nakama
-                                Math.round(mp.totalPoints), 0, // subscore
-                                { matchday: input.matchday, fixtureId: input.fixtureId });
-                            }
-                            catch (e) {
-                                logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", obj.userId, e.message || String(e));
-                            }
-                            // Write to per-match leaderboard
-                            try {
-                                nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId, obj.userId, "", Math.round(mp.totalPoints), 0, {});
-                            }
-                            catch (e) {
-                                logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", obj.userId, e.message || String(e));
-                            }
+                    if (obj.key.indexOf(idxPrefix) !== 0)
+                        continue;
+                    var idxEntry = obj.value;
+                    if (!idxEntry || !idxEntry.userId)
+                        continue;
+                    var teamUserId = idxEntry.userId;
+                    var mp = computeUserMatchPoints(nk, teamUserId, input.seasonId, input.fixtureId, input.matchday, stats, cfg);
+                    if (mp) {
+                        allMatchPoints.push(mp);
+                        usersProcessed++;
+                        // Write to season leaderboard
+                        try {
+                            nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId, teamUserId, "", Math.round(mp.totalPoints), 0, { matchday: input.matchday, fixtureId: input.fixtureId });
+                        }
+                        catch (e) {
+                            logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", teamUserId, e.message || String(e));
+                        }
+                        // Write to per-match leaderboard
+                        try {
+                            nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId, teamUserId, "", Math.round(mp.totalPoints), 0, {});
+                        }
+                        catch (e) {
+                            logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", teamUserId, e.message || String(e));
                         }
                     }
                 }
@@ -56799,11 +56804,30 @@ var AdminConsole;
         __rpc_admin_events_timeline = rpcEventsTimeline;
         // Storage browser
         __rpc_admin_storage_list = rpcStorageList;
+        // Gift claims
+        __rpc_gift_claims_list = rpcGiftClaimsList;
+        __rpc_admin_gift_claim_update = rpcGiftClaimUpdate;
         // Health
         __rpc_admin_health_check = rpcHealthCheck;
     }
     AdminConsole.register = register;
     register();
+    function rpcGiftClaimsList(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var claims = RewardEngine.getGiftClaims(nk, userId);
+        return RpcHelpers.successResponse({ claims: claims });
+    }
+    function rpcGiftClaimUpdate(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.userId || !data.claimId || !data.status) {
+            return RpcHelpers.errorResponse("userId, claimId, and status required");
+        }
+        var updated = RewardEngine.updateGiftClaimStatus(nk, data.userId, data.claimId, data.status);
+        if (!updated)
+            return RpcHelpers.errorResponse("Claim not found");
+        return RpcHelpers.successResponse({ updated: true });
+    }
 })(AdminConsole || (AdminConsole = {}));
 var HiroBase;
 (function (HiroBase) {
@@ -63017,6 +63041,8 @@ var SatoriLiveEvents;
                 joined: userState ? !!userState.joinedAt : false,
                 claimed: userState ? !!userState.claimedAt : false,
                 hasReward: !!def.reward,
+                hasGifts: !!(def.reward && def.reward.guaranteed && def.reward.guaranteed.gifts && def.reward.guaranteed.gifts.length > 0),
+                prizeTiers: def.prizeTiers || [],
                 sticky: !!def.sticky,
                 requiresJoin: !!def.requiresJoin,
                 flagOverrides: def.flagOverrides
@@ -64011,6 +64037,7 @@ var RewardEngine;
             currencies: {},
             items: {},
             energies: {},
+            gifts: [],
             modifiers: []
         };
         if (reward.guaranteed) {
@@ -64082,6 +64109,11 @@ var RewardEngine;
                 target.energies[eid] += grant.energies[eid];
             }
         }
+        if (grant.gifts) {
+            for (var g = 0; g < grant.gifts.length; g++) {
+                target.gifts.push(grant.gifts[g]);
+            }
+        }
         if (grant.energyModifiers) {
             for (var m = 0; m < grant.energyModifiers.length; m++) {
                 target.modifiers.push(grant.energyModifiers[m]);
@@ -64112,11 +64144,63 @@ var RewardEngine;
                 HiroEnergy.addEnergy(nk, logger, ctx, userId, eid, resolved.energies[eid], gameId);
             }
         }
+        // Record gift claims for fulfillment (physical items, vouchers, etc.)
+        if (resolved.gifts && resolved.gifts.length > 0) {
+            var existing = Storage.readJson(nk, "gift_claims", "pending_" + userId, userId);
+            var claims = (existing && existing.claims) || [];
+            var now = Math.floor(Date.now() / 1000);
+            for (var gi = 0; gi < resolved.gifts.length; gi++) {
+                var gift = resolved.gifts[gi];
+                claims.push({
+                    claimId: nk.uuidv4(),
+                    giftId: gift.id,
+                    name: gift.name,
+                    description: gift.description,
+                    imageUrl: gift.imageUrl || "",
+                    type: gift.type,
+                    value: gift.value || "",
+                    quantity: gift.quantity || 1,
+                    fulfillmentUrl: gift.fulfillmentUrl || "",
+                    terms: gift.terms || "",
+                    status: "pending",
+                    claimedAt: now,
+                    fulfilledAt: 0
+                });
+            }
+            Storage.writeJson(nk, "gift_claims", "pending_" + userId, userId, { claims: claims });
+            logger.info("[RewardEngine] Recorded %d gift claim(s) for user %s", resolved.gifts.length, userId);
+        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.REWARD_GRANTED, {
             userId: userId, gameId: gameId, reward: resolved
         });
     }
     RewardEngine.grantReward = grantReward;
+    function getGiftClaims(nk, userId) {
+        var data = Storage.readJson(nk, "gift_claims", "pending_" + userId, userId);
+        return (data && data.claims) || [];
+    }
+    RewardEngine.getGiftClaims = getGiftClaims;
+    function updateGiftClaimStatus(nk, userId, claimId, status) {
+        var data = Storage.readJson(nk, "gift_claims", "pending_" + userId, userId);
+        if (!data || !data.claims)
+            return false;
+        var found = false;
+        for (var i = 0; i < data.claims.length; i++) {
+            if (data.claims[i].claimId === claimId) {
+                data.claims[i].status = status;
+                if (status === "fulfilled" || status === "delivered") {
+                    data.claims[i].fulfilledAt = Math.floor(Date.now() / 1000);
+                }
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            Storage.writeJson(nk, "gift_claims", "pending_" + userId, userId, data);
+        }
+        return found;
+    }
+    RewardEngine.updateGiftClaimStatus = updateGiftClaimStatus;
     function grantToMailbox(nk, userId, subject, reward, expiresAt) {
         var msg = {
             id: nk.uuidv4(),
@@ -64857,6 +64941,8 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("admin_experiment_setup", __rpc_admin_experiment_setup); } catch(e) {}
   try { initializer.registerRpc("admin_events_timeline", __rpc_admin_events_timeline); } catch(e) {}
   try { initializer.registerRpc("admin_storage_list", __rpc_admin_storage_list); } catch(e) {}
+  try { initializer.registerRpc("gift_claims_list", __rpc_gift_claims_list); } catch(e) {}
+  try { initializer.registerRpc("admin_gift_claim_update", __rpc_admin_gift_claim_update); } catch(e) {}
   try { initializer.registerRpc("admin_health_check", __rpc_admin_health_check); } catch(e) {}
   try { initializer.registerRpc("hiro_iap_validate", __rpc_hiro_iap_validate); } catch(e) {}
   try { initializer.registerRpc("hiro_iap_history", __rpc_hiro_iap_history); } catch(e) {}
@@ -65205,5 +65291,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 462 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 464 + " RPCs via AST-compatible wrapper");
 }

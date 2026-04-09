@@ -164,12 +164,14 @@ declare namespace FantasyTypes {
     var COLLECTION: string;
     var Keys: {
         TEAM: string;
+        MATCH_XI: string;
         SEASON_STATE: string;
         SCORING_CONFIG: string;
         PLAYER_CATALOG: string;
         TRANSFER_WINDOW: string;
         MATCH_POINTS: string;
         LEAGUE_META: string;
+        MATCH_DEADLINE: string;
     };
     var LEADERBOARD_SEASON: string;
     var LEADERBOARD_MATCH_PREFIX: string;
@@ -210,6 +212,40 @@ declare namespace FantasyTypes {
         createdAt: string;
         updatedAt: string;
     }
+    interface MatchXI {
+        userId: string;
+        fixtureId: string;
+        seasonId: string;
+        selectedPlayerIds: string[];
+        captainId: string;
+        viceCaptainId: string;
+        lockedAt: string;
+    }
+    interface MatchDeadline {
+        fixtureId: string;
+        seasonId: string;
+        deadlineAt: number;
+        matchStartAt: number;
+    }
+    interface SelectMatchXIPayload {
+        fixtureId: string;
+        seasonId: string;
+        playerIds: string[];
+        captainId: string;
+        viceCaptainId: string;
+    }
+    var SQUAD_SIZE: number;
+    var XI_SIZE: number;
+    var CREDIT_BUDGET: number;
+    var MAX_PER_REAL_TEAM: number;
+    var MAX_OVERSEAS_IN_XI: number;
+    var MAX_OVERSEAS_IN_SQUAD: number;
+    var SQUAD_MIN_ROLES: {
+        [role: string]: number;
+    };
+    var XI_MIN_ROLES: {
+        [role: string]: number;
+    };
     interface TransferRecord {
         matchday: number;
         transferredIn: string;
@@ -747,6 +783,23 @@ declare namespace HttpClient {
 declare namespace RewardEngine {
     function resolveReward(nk: nkruntime.Nakama, reward: Hiro.Reward): Hiro.ResolvedReward;
     function grantReward(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, resolved: Hiro.ResolvedReward): void;
+    interface GiftClaim {
+        claimId: string;
+        giftId: string;
+        name: string;
+        description: string;
+        imageUrl: string;
+        type: string;
+        value: string;
+        quantity: number;
+        fulfillmentUrl: string;
+        terms: string;
+        status: "pending" | "fulfilled" | "shipped" | "delivered";
+        claimedAt: number;
+        fulfilledAt: number;
+    }
+    function getGiftClaims(nk: nkruntime.Nakama, userId: string): GiftClaim[];
+    function updateGiftClaimStatus(nk: nkruntime.Nakama, userId: string, claimId: string, status: "fulfilled" | "shipped" | "delivered"): boolean;
     function grantToMailbox(nk: nkruntime.Nakama, userId: string, subject: string, reward: Hiro.Reward, expiresAt?: number): void;
 }
 declare namespace RpcHelpers {
@@ -818,12 +871,24 @@ declare namespace Hiro {
         durationSec: number;
         expiresAt?: number;
     }
+    interface GiftPrize {
+        id: string;
+        name: string;
+        description: string;
+        imageUrl?: string;
+        type: "physical" | "voucher" | "experience" | "digital" | "merch";
+        value?: string;
+        quantity?: number;
+        fulfillmentUrl?: string;
+        terms?: string;
+    }
     interface RewardGrant {
         currencies?: CurrencyAmount;
         items?: ItemAmount;
         energies?: {
             [energyId: string]: number;
         };
+        gifts?: GiftPrize[];
         energyModifiers?: RewardModifier[];
         rewardModifiers?: RewardModifier[];
     }
@@ -844,6 +909,7 @@ declare namespace Hiro {
         energies: {
             [energyId: string]: number;
         };
+        gifts: GiftPrize[];
         modifiers: RewardModifier[];
     }
     interface EconomyConfig {
@@ -1303,6 +1369,11 @@ declare namespace Satori {
         };
     }
     type LiveEventStatus = "upcoming" | "active" | "ended";
+    interface LiveEventPrizeTier {
+        rank: string;
+        description: string;
+        reward: Hiro.Reward;
+    }
     interface LiveEventDefinition {
         id: string;
         name: string;
@@ -1311,10 +1382,17 @@ declare namespace Satori {
         startAt: number;
         endAt: number;
         recurrenceCron?: string;
+        recurrenceIntervalSec?: number;
         reward?: Hiro.Reward;
+        prizeTiers?: LiveEventPrizeTier[];
         config?: {
             [key: string]: string;
         };
+        sticky?: boolean;
+        requiresJoin?: boolean;
+        category?: string;
+        flagOverrides?: any;
+        onJoinMessageId?: string;
         createdAt: number;
         updatedAt: number;
     }

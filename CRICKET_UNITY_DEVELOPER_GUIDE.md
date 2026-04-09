@@ -15,12 +15,13 @@
 5. [Fantasy Scoring RPCs](#5-fantasy-scoring-rpcs)
 6. [Fantasy Transfers](#6-fantasy-transfers)
 7. [Live Events (Satori)](#7-live-events-satori)
-8. [Reward Buckets (Hiro)](#8-reward-buckets-hiro)
-9. [Cricket Director](#9-cricket-director)
-10. [Cricket Auction](#10-cricket-auction)
-11. [Push Notifications](#11-push-notifications)
-12. [S3 Data Endpoints](#12-s3-data-endpoints)
-13. [Client Integration Flow](#13-client-integration-flow)
+8. [Prize Configuration & Gift Giveaways](#8-prize-configuration--gift-giveaways)
+9. [Reward Buckets (Hiro)](#9-reward-buckets-hiro)
+10. [Cricket Director](#10-cricket-director)
+11. [Cricket Auction](#11-cricket-auction)
+12. [Push Notifications](#12-push-notifications)
+13. [S3 Data Endpoints](#13-s3-data-endpoints)
+14. [Client Integration Flow](#14-client-integration-flow)
 
 ---
 
@@ -409,21 +410,68 @@ List all active/upcoming live events for the current user.
       "config": {
         "fixtureId": "fixture-123",
         "type": "ipl_match",
-        "prizePool": "10,000 Coins + IPL Match Badge",
-        "topPrize": "5,000 Coins",
+        "prizePool": "10,000 Coins + Signed Jersey + Caps + IPL Match Badges",
+        "topPrize": "5,000 Coins + Signed IPL Jersey",
         "participationReward": "100 Coins",
         "fantasyRequired": "true"
       },
       "joined": false,
       "claimed": false,
       "hasReward": true,
+      "hasGifts": true,
+      "prizeTiers": [
+        {
+          "rank": "1",
+          "description": "Winner",
+          "reward": {
+            "guaranteed": {
+              "currencies": { "coins": 5000 },
+              "gifts": [
+                {
+                  "id": "ipl-jersey-fixture-123",
+                  "name": "Signed IPL Team Jersey",
+                  "description": "Official signed jersey from the winning team",
+                  "type": "merch",
+                  "value": "INR 4,999",
+                  "imageUrl": "https://..."
+                }
+              ]
+            }
+          }
+        },
+        {
+          "rank": "2-3",
+          "description": "Runners-up",
+          "reward": {
+            "guaranteed": {
+              "currencies": { "coins": 2500 },
+              "gifts": [{ "id": "ipl-cap-fixture-123", "name": "IPL Team Cap", "type": "merch", "value": "INR 999" }]
+            }
+          }
+        },
+        {
+          "rank": "4-10",
+          "description": "Top 10",
+          "reward": {
+            "guaranteed": {
+              "currencies": { "coins": 1000 },
+              "items": { "ipl-match-badge": { "min": 1 } }
+            }
+          }
+        }
+      ],
       "requiresJoin": true
     }
   ]
 }
 ```
 
-**Unity Usage:** Read `config.prizePool`, `config.topPrize` to display prize info in UI. Check `config.fantasyRequired` to prompt fantasy team creation before joining.
+**Unity Usage:**
+- Read `config.prizePool`, `config.topPrize` to display prize summary in UI.
+- Check `hasGifts` to show a gift icon or "Real Prizes" badge.
+- Iterate `prizeTiers[]` to render a tiered prize breakdown (rank, description, reward).
+- For each gift in a tier's `reward.guaranteed.gifts[]`, display `name`, `imageUrl`, `value`, and `type`.
+- Check `config.fantasyRequired` to prompt fantasy team creation before joining.
 
 ---
 
@@ -448,11 +496,216 @@ List all active/upcoming live events for the current user.
 
 **Auth:** requireUserId  
 **Prerequisite:** Must have joined (if `requiresJoin`), not already claimed  
-**Response:** `{ reward: { currencies: { coins: 100 }, items: {}, energies: {} } }` or `{ reward: null }`
+**Response:**
+```json
+{
+  "reward": {
+    "currencies": { "coins": 500 },
+    "items": {},
+    "energies": {},
+    "gifts": [
+      {
+        "id": "ipl-jersey-test",
+        "name": "Signed Virat Kohli Jersey",
+        "description": "Official signed IPL 2026 jersey",
+        "type": "merch",
+        "value": "INR 4,999",
+        "quantity": 1,
+        "terms": "Ships within 15 business days."
+      }
+    ],
+    "modifiers": []
+  }
+}
+```
+
+When `gifts[]` is non-empty, the claim automatically records pending gift fulfillment entries. The Unity client can then query `gift_claims_list` to show the user their pending gifts and track shipment status.
 
 ---
 
-## 8. Reward Buckets (Hiro)
+## 8. Prize Configuration & Gift Giveaways
+
+Live events support three categories of prizes — all configurable per event:
+
+### Reward Types
+
+| Type | Field | Description |
+|------|-------|-------------|
+| **Coins** | `currencies` | In-game currency granted instantly to the user's wallet |
+| **Items** | `items` | Digital inventory items (badges, skins, boosters) |
+| **Gifts** | `gifts` | Physical merchandise, vouchers, or experience prizes |
+
+### Gift Types
+
+| `type` | Use Case | Examples |
+|--------|----------|---------|
+| `merch` | Physical merchandise | Signed jerseys, caps, cricket bats |
+| `voucher` | E-gift cards or discount codes | Amazon/Flipkart gift cards |
+| `experience` | Real-world experiences | VIP match tickets, meet-and-greets |
+| `digital` | Premium digital content | Exclusive game skins, avatar items |
+| `physical` | Generic physical prizes | Trophies, memorabilia |
+
+### Gift Object Schema
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique gift identifier |
+| `name` | string | Yes | Display name shown to user |
+| `description` | string | Yes | Full description |
+| `type` | string | Yes | One of: `merch`, `voucher`, `experience`, `digital`, `physical` |
+| `imageUrl` | string | No | Prize image URL for UI display |
+| `value` | string | No | Human-readable value (e.g. "INR 4,999") |
+| `quantity` | number | No | Number of this gift awarded (default: 1) |
+| `fulfillmentUrl` | string | No | Link for voucher redemption |
+| `terms` | string | No | Terms and conditions text |
+
+### Setting Up Prizes for a Live Event
+
+Prizes are configured when creating/scheduling a live event via `admin_live_event_schedule`:
+
+```json
+{
+  "id": "ipl-live-match-42",
+  "name": "IPL Match 42 - CSK vs MI",
+  "description": "Fantasy contest for CSK vs MI",
+  "startAt": 1712620800,
+  "endAt": 1712635200,
+  "reward": {
+    "guaranteed": {
+      "currencies": { "coins": 100 },
+      "gifts": []
+    }
+  },
+  "prizeTiers": [
+    {
+      "rank": "1",
+      "description": "Winner",
+      "reward": {
+        "guaranteed": {
+          "currencies": { "coins": 5000 },
+          "gifts": [
+            {
+              "id": "signed-jersey-match-42",
+              "name": "Signed MS Dhoni Jersey",
+              "description": "Official CSK jersey signed by MS Dhoni",
+              "type": "merch",
+              "imageUrl": "https://intelli-verse-x-media.s3.amazonaws.com/prizes/dhoni-jersey.png",
+              "value": "INR 9,999",
+              "quantity": 1,
+              "terms": "Ships within 15 business days. India addresses only."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "rank": "2-5",
+      "description": "Top 5",
+      "reward": {
+        "guaranteed": {
+          "currencies": { "coins": 2000 },
+          "gifts": [
+            {
+              "id": "amazon-voucher-match-42",
+              "name": "Amazon Gift Card INR 1,000",
+              "description": "Amazon.in e-gift voucher",
+              "type": "voucher",
+              "value": "INR 1,000",
+              "fulfillmentUrl": "https://www.amazon.in/gp/gift-card"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "rank": "6-20",
+      "description": "Top 20",
+      "reward": {
+        "guaranteed": {
+          "currencies": { "coins": 500 },
+          "items": { "ipl-match-badge": { "min": 1 } }
+        }
+      }
+    }
+  ],
+  "config": {
+    "fixtureId": "match-42",
+    "type": "ipl_match",
+    "prizePool": "5,000 Coins + Signed Dhoni Jersey + Amazon Vouchers",
+    "topPrize": "5,000 Coins + Signed MS Dhoni Jersey",
+    "participationReward": "100 Coins",
+    "fantasyRequired": "true"
+  },
+  "requiresJoin": true,
+  "category": "cricket"
+}
+```
+
+**Key points:**
+- `reward` (top-level) is the **participation reward** — every joined user gets this on claim
+- `prizeTiers[]` define **ranked prizes** — the Unity client displays these; the server uses them for tiered distribution
+- `config` contains **display strings** shown in the match lobby UI
+
+### Gift Claims RPCs (Unity Client)
+
+#### `gift_claims_list`
+
+Retrieve the authenticated user's pending and fulfilled gift claims.
+
+**Auth:** requireUserId  
+**Payload:** `{}`
+
+**Response:**
+```json
+{
+  "claims": [
+    {
+      "claimId": "c763c37c-7fa2-466c-aba4-f4c485d20b5c",
+      "giftId": "signed-jersey-match-42",
+      "name": "Signed MS Dhoni Jersey",
+      "description": "Official CSK jersey signed by MS Dhoni",
+      "imageUrl": "https://...",
+      "type": "merch",
+      "value": "INR 9,999",
+      "quantity": 1,
+      "fulfillmentUrl": "",
+      "terms": "Ships within 15 business days.",
+      "status": "shipped",
+      "claimedAt": 1712635300,
+      "fulfilledAt": 0
+    }
+  ]
+}
+```
+
+**Gift Claim Statuses:**
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Prize won, awaiting admin fulfillment |
+| `fulfilled` | Digital prize delivered (voucher sent, code generated) |
+| `shipped` | Physical prize dispatched |
+| `delivered` | Physical prize confirmed delivered |
+
+**Unity Usage:**
+1. After calling `satori_live_events_claim`, check the response `reward.gifts[]` for any gifts
+2. Poll `gift_claims_list` to show a "My Prizes" screen with fulfillment status
+3. For voucher-type gifts, display `fulfillmentUrl` as a redemption link
+4. For merch-type gifts, show shipping status via the `status` field
+
+#### `admin_gift_claim_update` (Admin-only)
+
+Update the fulfillment status of a gift claim.
+
+| Field | Type | Required |
+|-------|------|----------|
+| `userId` | string | Yes |
+| `claimId` | string | Yes |
+| `status` | string | Yes (`fulfilled`, `shipped`, or `delivered`) |
+
+---
+
+## 9. Reward Buckets (Hiro)
 
 ### `hiro_reward_bucket_get`
 
@@ -490,7 +743,7 @@ List all active/upcoming live events for the current user.
 
 ---
 
-## 9. Cricket Director
+## 10. Cricket Director
 
 VR cricket gameplay session management.
 
@@ -556,7 +809,7 @@ VR cricket gameplay session management.
 
 ---
 
-## 10. Cricket Auction
+## 11. Cricket Auction
 
 IPL auction room management (typically driven by server/admin).
 
@@ -622,7 +875,7 @@ IPL auction room management (typically driven by server/admin).
 
 ---
 
-## 11. Push Notifications
+## 12. Push Notifications
 
 ### `push_send_event` (Server-only)
 
@@ -639,7 +892,7 @@ Unity receives these via `client.ReceivedNotification += (notification) => { ...
 
 ---
 
-## 12. S3 Data Endpoints
+## 13. S3 Data Endpoints
 
 Static and live cricket data is published to S3 by Intelliverse-X-AI:
 
@@ -658,7 +911,7 @@ Static and live cricket data is published to S3 by Intelliverse-X-AI:
 
 ---
 
-## 13. Client Integration Flow
+## 14. Client Integration Flow
 
 ### Pre-Match Setup
 
@@ -686,8 +939,10 @@ Static and live cricket data is published to S3 by Intelliverse-X-AI:
 ```
 1. Call fantasy_scoring_get_points for final player breakdown
 2. Call satori_live_events_claim to collect match reward
-3. Call fantasy_league_leaderboard to see league standings
-4. Call hiro_reward_bucket_get to check tier progress
+   → Check response.reward.gifts[] for any physical/voucher prizes
+3. Call gift_claims_list to show "My Prizes" with fulfillment status
+4. Call fantasy_league_leaderboard to see league standings
+5. Call hiro_reward_bucket_get to check tier progress
 ```
 
 ### VR Gameplay
