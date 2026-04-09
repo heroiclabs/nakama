@@ -67,10 +67,17 @@ The automated flow when an IPL match is played:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+**Auto-Join:** Players who have already created/locked a fantasy team for the
+season are **automatically joined** to the live event when it is created.
+No manual `satori_live_events_join` call is needed for them. The server calls
+`fantasy_auto_join_live_event` which scans the team index and bulk-joins all
+team holders.
+
 **Unity Client Responsibilities:**
 
 1. Poll `satori_live_events_list` to discover active match events
-2. Call `satori_live_events_join` when player opens a live match
+2. Check `joined` field — fantasy team holders are pre-joined automatically.
+   Players without a fantasy team can still call `satori_live_events_join` manually.
 3. Poll `fantasy_scoring_live` for real-time fantasy point updates
 4. Read S3 `current/index.json` for ball-by-ball commentary
 5. Call `satori_live_events_claim` after match ends to collect reward
@@ -590,7 +597,8 @@ Static and live cricket data is published to S3 by Intelliverse-X-AI:
 
 ```
 1. Poll satori_live_events_list → find event with config.type = "ipl_match"
-2. Call satori_live_events_join with the event ID
+2. Check "joined" field — if true, player was auto-joined (has a fantasy team).
+   If false and player wants to participate, call satori_live_events_join.
 3. Read config.prizePool, config.topPrize to display prize info
 4. Poll S3 ball_events_{fixtureId}.json for commentary
 5. Poll fantasy_scoring_live for real-time fantasy points
