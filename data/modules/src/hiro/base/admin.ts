@@ -547,7 +547,28 @@ namespace AdminConsole {
     // Storage browser
     initializer.registerRpc("admin_storage_list", rpcStorageList);
 
+    // Gift claims
+    initializer.registerRpc("gift_claims_list", rpcGiftClaimsList);
+    initializer.registerRpc("admin_gift_claim_update", rpcGiftClaimUpdate);
+
     // Health
     initializer.registerRpc("admin_health_check", rpcHealthCheck);
+  }
+
+  function rpcGiftClaimsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var claims = RewardEngine.getGiftClaims(nk, userId);
+    return RpcHelpers.successResponse({ claims: claims });
+  }
+
+  function rpcGiftClaimUpdate(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.userId || !data.claimId || !data.status) {
+      return RpcHelpers.errorResponse("userId, claimId, and status required");
+    }
+    var updated = RewardEngine.updateGiftClaimStatus(nk, data.userId, data.claimId, data.status);
+    if (!updated) return RpcHelpers.errorResponse("Claim not found");
+    return RpcHelpers.successResponse({ updated: true });
   }
 }

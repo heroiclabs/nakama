@@ -223,6 +223,29 @@ namespace FantasyScoring {
     );
     if (!team) return null;
 
+    // Use the match XI if the user selected one; otherwise fall back to full squad
+    var matchXI = Storage.readJson<FantasyTypes.MatchXI>(
+      nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + fixtureId, userId
+    );
+
+    var activeCaptainId = team.captainId;
+    var activeVcId = team.viceCaptainId;
+    var activePlayerIds: { [id: string]: boolean } = {};
+
+    if (matchXI && matchXI.selectedPlayerIds && matchXI.selectedPlayerIds.length > 0) {
+      // Score only the selected 11
+      for (var j = 0; j < matchXI.selectedPlayerIds.length; j++) {
+        activePlayerIds[matchXI.selectedPlayerIds[j]] = true;
+      }
+      activeCaptainId = matchXI.captainId;
+      activeVcId = matchXI.viceCaptainId;
+    } else {
+      // Fallback: score all 15 in the squad
+      for (var j = 0; j < team.players.length; j++) {
+        activePlayerIds[team.players[j].playerId] = true;
+      }
+    }
+
     var playerPoints: { [playerId: string]: number } = {};
     var totalPoints = 0;
     var captainPts = 0;
@@ -230,21 +253,25 @@ namespace FantasyScoring {
 
     for (var i = 0; i < team.players.length; i++) {
       var sp = team.players[i];
+
+      // Skip players not in the active XI
+      if (!activePlayerIds[sp.playerId]) continue;
+
       var rawPts = 0;
       if (stats[sp.playerId]) {
         rawPts = stats[sp.playerId].fantasyPoints;
       }
 
       var multiplier = 1;
-      if (sp.isCaptain) multiplier = cfg.captainMultiplier;
-      else if (sp.isViceCaptain) multiplier = cfg.viceCaptainMultiplier;
+      if (sp.playerId === activeCaptainId) multiplier = cfg.captainMultiplier;
+      else if (sp.playerId === activeVcId) multiplier = cfg.viceCaptainMultiplier;
 
       var finalPts = Math.round(rawPts * multiplier * 10) / 10;
       playerPoints[sp.playerId] = finalPts;
       totalPoints += finalPts;
 
-      if (sp.isCaptain) captainPts = finalPts;
-      if (sp.isViceCaptain) vcPts = finalPts;
+      if (sp.playerId === activeCaptainId) captainPts = finalPts;
+      if (sp.playerId === activeVcId) vcPts = finalPts;
     }
 
     // Subtract any penalty points from extra transfers
@@ -382,7 +409,8 @@ namespace FantasyScoring {
     applyEndOfMatchBonuses(stats, cfg);
     savePlayerStats(nk, input.fixtureId, stats);
 
-    // Enumerate users with fantasy teams for this season
+    // Enumerate users with fantasy teams via the system-owned team index
+    var idxPrefix = "team_idx_" + input.seasonId + "_";
     var cursor: string | undefined = undefined;
     var usersProcessed = 0;
     var allMatchPoints: FantasyTypes.MatchPoints[] = [];
@@ -398,41 +426,45 @@ namespace FantasyScoring {
       if (list && list.objects) {
         for (var i = 0; i < list.objects.length; i++) {
           var obj = list.objects[i];
-          if (obj.key.indexOf(FantasyTypes.Keys.TEAM + "_" + input.seasonId) === 0 && obj.userId) {
-            var mp = computeUserMatchPoints(
-              nk, obj.userId, input.seasonId, input.fixtureId, input.matchday, stats, cfg
-            );
-            if (mp) {
-              allMatchPoints.push(mp);
-              usersProcessed++;
+          if (obj.key.indexOf(idxPrefix) !== 0) continue;
 
-              // Write to season leaderboard
-              try {
-                nk.leaderboardRecordWrite(
-                  FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId,
-                  obj.userId,
-                  "", // username filled by Nakama
-                  Math.round(mp.totalPoints),
-                  0, // subscore
-                  { matchday: input.matchday, fixtureId: input.fixtureId }
-                );
-              } catch (e: any) {
-                logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", obj.userId, e.message || String(e));
-              }
+          var idxEntry = obj.value as { userId: string; seasonId: string };
+          if (!idxEntry || !idxEntry.userId) continue;
 
-              // Write to per-match leaderboard
-              try {
-                nk.leaderboardRecordWrite(
-                  FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId,
-                  obj.userId,
-                  "",
-                  Math.round(mp.totalPoints),
-                  0,
-                  {}
-                );
-              } catch (e: any) {
-                logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", obj.userId, e.message || String(e));
-              }
+          var teamUserId = idxEntry.userId;
+          var mp = computeUserMatchPoints(
+            nk, teamUserId, input.seasonId, input.fixtureId, input.matchday, stats, cfg
+          );
+          if (mp) {
+            allMatchPoints.push(mp);
+            usersProcessed++;
+
+            // Write to season leaderboard
+            try {
+              nk.leaderboardRecordWrite(
+                FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId,
+                teamUserId,
+                "",
+                Math.round(mp.totalPoints),
+                0,
+                { matchday: input.matchday, fixtureId: input.fixtureId }
+              );
+            } catch (e: any) {
+              logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", teamUserId, e.message || String(e));
+            }
+
+            // Write to per-match leaderboard
+            try {
+              nk.leaderboardRecordWrite(
+                FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId,
+                teamUserId,
+                "",
+                Math.round(mp.totalPoints),
+                0,
+                {}
+              );
+            } catch (e: any) {
+              logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", teamUserId, e.message || String(e));
             }
           }
         }

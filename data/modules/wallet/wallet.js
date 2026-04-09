@@ -176,8 +176,12 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     }
     
     var currency = data.currency;
-    var amount = data.amount;
+    var amount = Number(data.amount);
     var operation = data.operation; // "add" or "subtract"
+
+    if (!isFinite(amount) || amount < 0) {
+        return utils.handleError(ctx, null, "Invalid amount: must be a non-negative finite number");
+    }
     
     // Get global wallet
     var wallet = getGlobalWallet(nk, logger, userId);
@@ -249,6 +253,10 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     var currency = data.currency;
     var amount = Number(data.amount);
     var operation = data.operation;
+
+    if (!isFinite(amount) || amount < 0) {
+        return utils.handleError(ctx, null, "Invalid amount: must be a non-negative finite number");
+    }
     
     //  NORMALIZE CURRENCY KEY - Map client aliases to storage keys
     var storageCurrency = currency;
@@ -347,7 +355,11 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     }
     
     var currency = data.currency;
-    var amount = data.amount;
+    var amount = Number(data.amount);
+
+    if (!isFinite(amount) || amount <= 0) {
+        return utils.handleError(ctx, null, "Invalid amount: must be a positive finite number");
+    }
     
     // Get both wallets
     var fromWallet = getGameWallet(nk, logger, userId, fromGameId);

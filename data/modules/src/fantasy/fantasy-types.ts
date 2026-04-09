@@ -10,12 +10,14 @@ namespace FantasyTypes {
 
   export var Keys = {
     TEAM: "team",                   // per-user squad
+    MATCH_XI: "match_xi",           // per-user per-fixture playing XI (11 from 15)
     SEASON_STATE: "season_state",   // per-user season metadata (transfers, boosters)
     SCORING_CONFIG: "scoring_config", // system-level scoring rules
     PLAYER_CATALOG: "player_catalog", // system-level credit values
     TRANSFER_WINDOW: "transfer_window", // system-level window state
     MATCH_POINTS: "match_points",   // per-user per-match points
     LEAGUE_META: "league_meta",     // per-group metadata
+    MATCH_DEADLINE: "match_deadline", // system-level per-fixture deadline
   };
 
   export var LEADERBOARD_SEASON = "fantasy_season";
@@ -63,6 +65,56 @@ namespace FantasyTypes {
     createdAt: string;
     updatedAt: string;
   }
+
+  // ---- Match Playing XI (11 selected from 15-player squad per fixture) ----
+
+  export interface MatchXI {
+    userId: string;
+    fixtureId: string;
+    seasonId: string;
+    selectedPlayerIds: string[];
+    captainId: string;
+    viceCaptainId: string;
+    lockedAt: string;
+  }
+
+  export interface MatchDeadline {
+    fixtureId: string;
+    seasonId: string;
+    deadlineAt: number;  // unix seconds — XI must be locked before this
+    matchStartAt: number;
+  }
+
+  export interface SelectMatchXIPayload {
+    fixtureId: string;
+    seasonId: string;
+    playerIds: string[];     // exactly 11 player IDs from the squad
+    captainId: string;
+    viceCaptainId: string;
+  }
+
+  // ---- Squad Composition Constants ----
+
+  export var SQUAD_SIZE = 15;
+  export var XI_SIZE = 11;
+  export var CREDIT_BUDGET = 100;
+  export var MAX_PER_REAL_TEAM = 7;
+  export var MAX_OVERSEAS_IN_XI = 4;
+  export var MAX_OVERSEAS_IN_SQUAD = 8;
+
+  export var SQUAD_MIN_ROLES: { [role: string]: number } = {
+    "batsman": 3,
+    "bowler": 3,
+    "all-rounder": 1,
+    "wicket-keeper": 1,
+  };
+
+  export var XI_MIN_ROLES: { [role: string]: number } = {
+    "batsman": 3,
+    "bowler": 2,
+    "all-rounder": 1,
+    "wicket-keeper": 1,
+  };
 
   // ---- Season State (per-user, tracks transfers & boosters) ----
 

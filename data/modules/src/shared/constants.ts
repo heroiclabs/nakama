@@ -30,6 +30,13 @@ namespace Constants {
   export const SATORI_MESSAGES_COLLECTION = "satori_messages";
   export const SATORI_METRICS_COLLECTION = "satori_metrics";
 
+  // Cricket Auction storage collections
+  export const CRICKET_AUCTION_COLLECTION = "cricket_auctions";
+  export const CRICKET_AUCTION_EVENTS_COLLECTION = "cricket_auction_events";
+
+  // Cricket Director storage collections
+  export const CRICKET_DIRECTOR_COLLECTION = "cricket_director_sessions";
+
   // Fantasy Cricket storage collections
   export const FANTASY_COLLECTION = "fantasy_cricket";
   export const FANTASY_SEASON_LEADERBOARD = "fantasy_season";

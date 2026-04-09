@@ -106,6 +106,12 @@ namespace Satori {
 
   export type LiveEventStatus = "upcoming" | "active" | "ended";
 
+  export interface LiveEventPrizeTier {
+    rank: string;
+    description: string;
+    reward: Hiro.Reward;
+  }
+
   export interface LiveEventDefinition {
     id: string;
     name: string;
@@ -114,8 +120,15 @@ namespace Satori {
     startAt: number;
     endAt: number;
     recurrenceCron?: string;
+    recurrenceIntervalSec?: number;
     reward?: Hiro.Reward;
+    prizeTiers?: LiveEventPrizeTier[];
     config?: { [key: string]: string };
+    sticky?: boolean;
+    requiresJoin?: boolean;
+    category?: string;
+    flagOverrides?: any;
+    onJoinMessageId?: string;
     createdAt: number;
     updatedAt: number;
   }

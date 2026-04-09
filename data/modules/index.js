@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-04T21:29:29.025Z
-// RPC Count: 438
+// Generated: 2026-04-09T03:41:05.714Z
+// RPC Count: 464
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -63,12 +63,23 @@ var __rpc_quizverse_track_session_start;
 var __rpc_quizverse_track_session_end;
 var __rpc_quizverse_get_server_config;
 var __rpc_quizverse_admin_grant_item;
+var __rpc_cricket_auction_create_room;
+var __rpc_cricket_auction_get_room;
+var __rpc_cricket_auction_place_bid;
+var __rpc_cricket_auction_next_player;
+var __rpc_cricket_auction_get_events;
+var __rpc_cricket_director_start_session;
+var __rpc_cricket_director_save_session;
+var __rpc_cricket_director_end_session;
+var __rpc_cricket_director_get_session;
+var __rpc_cricket_director_list_history;
 var __rpc_fantasy_league_create;
 var __rpc_fantasy_league_join;
 var __rpc_fantasy_league_leave;
 var __rpc_fantasy_league_leaderboard;
 var __rpc_fantasy_league_my_leagues;
 var __rpc_fantasy_league_info;
+var __rpc_fantasy_league_list;
 var __rpc_fantasy_scoring_process;
 var __rpc_fantasy_scoring_finalize;
 var __rpc_fantasy_scoring_get_points;
@@ -76,6 +87,9 @@ var __rpc_fantasy_scoring_live;
 var __rpc_fantasy_team_create;
 var __rpc_fantasy_team_get;
 var __rpc_fantasy_team_update_captain;
+var __rpc_fantasy_match_xi_select;
+var __rpc_fantasy_match_xi_get;
+var __rpc_fantasy_match_deadline_set;
 var __rpc_fantasy_transfer;
 var __rpc_fantasy_transfer_window;
 var __rpc_fantasy_transfer_history;
@@ -109,6 +123,8 @@ var __rpc_admin_live_event_schedule;
 var __rpc_admin_experiment_setup;
 var __rpc_admin_events_timeline;
 var __rpc_admin_storage_list;
+var __rpc_gift_claims_list;
+var __rpc_admin_gift_claim_update;
 var __rpc_admin_health_check;
 var __rpc_hiro_iap_validate;
 var __rpc_hiro_iap_history;
@@ -282,6 +298,7 @@ var __rpc_satori_identity_update_properties;
 var __rpc_satori_live_events_list;
 var __rpc_satori_live_events_join;
 var __rpc_satori_live_events_claim;
+var __rpc_fantasy_auto_join_live_event;
 var __rpc_satori_messages_list;
 var __rpc_satori_messages_read;
 var __rpc_satori_messages_delete;
@@ -447,8 +464,17 @@ var __rpc_get_clan_leaderboard;
 var __rpc_get_player_stats;
 var __rpc_submit_score;
 var __rpc_onboarding_grant_streak_shield;
+var __rpc_qe_player_full_profile;
+var __rpc_qe_stale_sessions;
+var __rpc_qe_cohort_export;
+var __rpc_qe_user_event_summary;
+var __rpc_quests_wallet_balance;
+var __rpc_quests_wallet_earn;
+var __rpc_quests_wallet_spend;
+var __rpc_quests_wallet_history;
+var __rpc_quests_wallet_migrate_from_postgres;
 
-// --- Discovered Modules (65 files) ---
+// --- Discovered Modules (66 files) ---
 
 // --- Module: achievements/achievements.js ---
 /**
@@ -8548,7 +8574,7 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
         });
     } catch (e) {
         logger.error("fortune_wheel_get_state error: " + e.message);
-        return JSON.stringify({ success: false, error: e.message });
+        return JSON.stringify({ success: false, error: "An internal error occurred" });
     }
 };
 
@@ -8576,10 +8602,7 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         var segmentIndex = getWeightedRandomIndex();
         var reward = SEGMENTS[segmentIndex];
 
-        // Grant rewards server-side
-        grantReward(nk, userId, reward.type, reward.amount, logger);
-
-        // Update state
+        // Update state BEFORE granting reward (atomic claim via version check)
         var now = new Date();
         var nextSpin = new Date(now.getTime() + COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
 
@@ -8594,10 +8617,18 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         };
         state.history = state.history || [];
         state.history.push(state.lastReward);
-        // Keep last 120 entries (~1 year at every-3-day spins)
         if (state.history.length > 120) state.history = state.history.slice(-120);
 
-        saveWheelState(nk, userId, state);
+        // Save with optimistic concurrency — fails if another spin raced us
+        try {
+            saveWheelState(nk, userId, state);
+        } catch (saveErr) {
+            logger.warn("fortune_wheel_spin: concurrent spin detected for " + userId + " — " + saveErr.message);
+            return JSON.stringify({ success: false, error: "Spin already in progress. Please try again." });
+        }
+
+        // State claimed successfully — now grant reward (safe: double-grant impossible)
+        grantReward(nk, userId, reward.type, reward.amount, logger);
 
         logger.info("fortune_wheel_spin: " + userId + " won segment " + segmentIndex + " → " + reward.label);
 
@@ -8614,7 +8645,7 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         });
     } catch (e) {
         logger.error("fortune_wheel_spin error: " + e.message);
-        return JSON.stringify({ success: false, error: e.message });
+        return JSON.stringify({ success: false, error: "An internal error occurred" });
     }
 };
 
@@ -8628,26 +8659,26 @@ function getWheelState(nk, userId) {
             userId: userId
         }]);
         if (objects && objects.length > 0) {
-            return objects[0].value || {};
+            var result = objects[0].value || {};
+            result._version = objects[0].version || "";
+            return result;
         }
     } catch(e) { /* first time user */ }
     return {};
 }
 
 function saveWheelState(nk, userId, state) {
-    try {
-        nk.storageWrite([{
-            collection: "fortune_wheel",
-            key: "state",
-            userId: userId,
-            value: state,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-    } catch(e) {
-        // Log but don't throw — state save failure shouldn't crash the spin
-        // The reward is already granted; next spin will recalculate cooldown
-    }
+    var version = state._version || "*";
+    delete state._version;
+    nk.storageWrite([{
+        collection: "fortune_wheel",
+        key: "state",
+        userId: userId,
+        value: state,
+        version: version,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
 }
 
 function canUserSpin(state) {
@@ -8732,14 +8763,16 @@ function grantReward(nk, userId, rewardType, amount, logger) {
 
 
 // --- Module: friend_quests/friend_quests.js ---
-// friend_quests.js - Friend Quest System for QuizVerse v3.0
+// friend_quests.js - Friend Quest System for QuizVerse v4.0
 // RPCs: friend_quest_get_state, friend_quest_complete
-// Spec: MRS §31 — 4 quest types
+// Spec: MRS §31 — 10 quest types, server-authoritative generation
+// v4.0: Server generates quests from user's friends list
 
 /**
- * Friend Quest System — Production-Ready
+ * Friend Quest System — Server-Authoritative
  *
- * 4 quest types: PlayTogether, ChallengeFriend, StudyBuddy, GroupStreak.
+ * 10 quest types generated from user's real friends list.
+ * Server is the source of truth — client only renders.
  * Tracks progress, grants rewards (wallet + notification), duplicate protection.
  *
  * Storage: collection="friend_quests", key="quest_state_{userId}"
@@ -8748,6 +8781,76 @@ function grantReward(nk, userId, rewardType, amount, logger) {
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
 
 var FQ_COLLECTION = 'friend_quests';
+var FQ_MAX_ACTIVE = 3;
+var FQ_REFRESH_HOURS = 8;
+
+// 10 quest types matching client-side QuestType enum
+var FQ_QUEST_TYPES = [
+    'PlayTogether',
+    'ChallengeFriend',
+    'StudyBuddy',
+    'GroupStreak',
+    'BeatInSpeedQuiz',
+    'DailyQuizDuo',
+    'PerfectRound',
+    'ExploreTogether',
+    'ShareScore',
+    'WinThreeQuizzes'
+];
+
+// Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
+var FQ_TEMPLATES = {
+    PlayTogether: {
+        title: 'Play with {0}',
+        desc: 'Complete a quiz while {0} is online',
+        target: 1, coins: 50, xp: 25
+    },
+    ChallengeFriend: {
+        title: 'Challenge {0}',
+        desc: 'Send a challenge to {0} and have them accept',
+        target: 1, coins: 75, xp: 40
+    },
+    StudyBuddy: {
+        title: 'Study with {0}',
+        desc: 'Both you and {0} complete a review session today',
+        target: 1, coins: 100, xp: 50
+    },
+    GroupStreak: {
+        title: '7-Day Streak with {0}',
+        desc: 'Maintain your friend streak with {0} for 7 days',
+        target: 7, coins: 200, xp: 100
+    },
+    BeatInSpeedQuiz: {
+        title: 'Beat {0} in Speed Quiz',
+        desc: 'Score higher than {0} in a Speed Quiz',
+        target: 1, coins: 75, xp: 40
+    },
+    DailyQuizDuo: {
+        title: 'Daily Quiz Duo with {0}',
+        desc: 'Both you and {0} complete the Daily Quiz today',
+        target: 1, coins: 60, xp: 30
+    },
+    PerfectRound: {
+        title: 'Perfect Round with {0}',
+        desc: 'Both answer 5 questions correctly in same session',
+        target: 5, coins: 100, xp: 50
+    },
+    ExploreTogether: {
+        title: 'Explore Together with {0}',
+        desc: 'Both play GeoExplore mode on the same day',
+        target: 1, coins: 75, xp: 40
+    },
+    ShareScore: {
+        title: 'Share a Score with {0}',
+        desc: 'Share your quiz result with {0}',
+        target: 1, coins: 50, xp: 25
+    },
+    WinThreeQuizzes: {
+        title: 'Win 3 Quizzes with {0}',
+        desc: 'Win 3 quizzes while {0} is online',
+        target: 3, coins: 150, xp: 75
+    }
+};
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -8792,6 +8895,7 @@ function fqInitData() {
     return {
         quests: [],
         completedIds: [],
+        lastRefresh: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
@@ -8799,6 +8903,106 @@ function fqInitData() {
 
 function fqError(msg) {
     return JSON.stringify({ success: false, error: msg });
+}
+
+function fqGenerateId() {
+    // 8-char hex ID
+    var chars = '0123456789abcdef';
+    var id = '';
+    for (var i = 0; i < 8; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
+}
+
+function fqFormatString(template, friendName) {
+    return template.replace(/\{0\}/g, friendName);
+}
+
+// ─── SERVER-SIDE QUEST GENERATION ───────────────────────────────────────────
+
+/**
+ * Generate quests from user's Nakama friends list.
+ * Called by friend_quest_get_state when no active quests exist or they've expired.
+ */
+function fqGenerateQuests(nk, logger, userId, existingData) {
+    // Get user's friends list
+    var friends = [];
+    try {
+        var friendsResult = nk.friendsList(userId, null, null, null);
+        if (friendsResult && friendsResult.friends) {
+            for (var i = 0; i < friendsResult.friends.length; i++) {
+                var f = friendsResult.friends[i];
+                if (f && f.user && f.user.id) {
+                    var displayName = f.user.displayName || f.user.username || 'Friend';
+                    friends.push({ id: f.user.id, name: displayName });
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn('[FriendQuests] Could not fetch friends list: ' + err.message);
+    }
+
+    if (friends.length === 0) {
+        logger.info('[FriendQuests] No friends found for user ' + userId + ' — no quests generated');
+        return [];
+    }
+
+    // Determine how many quests to generate
+    var activeCount = 0;
+    var now = new Date();
+    if (existingData && existingData.quests) {
+        for (var j = 0; j < existingData.quests.length; j++) {
+            var q = existingData.quests[j];
+            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) {
+                activeCount++;
+            }
+        }
+    }
+
+    var toGenerate = FQ_MAX_ACTIVE - activeCount;
+    if (toGenerate <= 0) return existingData ? existingData.quests : [];
+
+    // Shuffle quest types to get random selection
+    var shuffledTypes = FQ_QUEST_TYPES.slice();
+    for (var s = shuffledTypes.length - 1; s > 0; s--) {
+        var r = Math.floor(Math.random() * (s + 1));
+        var tmp = shuffledTypes[s];
+        shuffledTypes[s] = shuffledTypes[r];
+        shuffledTypes[r] = tmp;
+    }
+
+    var newQuests = [];
+    var expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString();
+    var createdAt = now.toISOString();
+
+    for (var k = 0; k < toGenerate; k++) {
+        var friend = friends[k % friends.length];
+        var questType = shuffledTypes[k % shuffledTypes.length];
+        var template = FQ_TEMPLATES[questType];
+
+        if (!template) continue;
+
+        newQuests.push({
+            questId: fqGenerateId(),
+            type: questType,
+            friendId: friend.id,
+            friendDisplayName: friend.name,
+            title: fqFormatString(template.title, friend.name),
+            description: fqFormatString(template.desc, friend.name),
+            currentProgress: 0,
+            targetProgress: template.target,
+            isCompleted: false,
+            coinReward: template.coins,
+            xpReward: template.xp,
+            createdAt: createdAt,
+            expiresAt: expiresAt
+        });
+    }
+
+    logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests from ' +
+                friends.length + ' friends for user ' + userId);
+    return newQuests;
 }
 
 // ─── RPC: friend_quest_get_state ────────────────────────────────────────────
@@ -8809,12 +9013,67 @@ function rpcFriendQuestGetState(ctx, logger, nk, payload) {
     var data = fqReadData(nk, logger, ctx.userId);
     if (!data) data = fqInitData();
 
+    // Check if we need to generate new quests
+    var now = new Date();
+    var needsRefresh = false;
+
+    // Filter active non-expired quests
+    var activeQuests = [];
+    var expiredOrCompleted = [];
+    if (data.quests && data.quests.length > 0) {
+        for (var i = 0; i < data.quests.length; i++) {
+            var q = data.quests[i];
+            if (q.isCompleted) {
+                expiredOrCompleted.push(q);
+            } else if (q.expiresAt && new Date(q.expiresAt) <= now) {
+                // Expired — don't include
+                expiredOrCompleted.push(q);
+            } else {
+                activeQuests.push(q);
+            }
+        }
+    }
+
+    // Check refresh timer
+    if (data.lastRefresh) {
+        var lastRefreshDate = new Date(data.lastRefresh);
+        var hoursSince = (now.getTime() - lastRefreshDate.getTime()) / (1000 * 60 * 60);
+        if (hoursSince >= FQ_REFRESH_HOURS) {
+            needsRefresh = true;
+        }
+    } else {
+        needsRefresh = true;
+    }
+
+    // Generate new quests if needed
+    if (activeQuests.length < FQ_MAX_ACTIVE && needsRefresh) {
+        // Keep completed quests for history, replace active with fresh
+        data.quests = activeQuests; // Keep valid active ones
+        var newQuests = fqGenerateQuests(nk, logger, ctx.userId, data);
+
+        // Merge new quests
+        for (var j = 0; j < newQuests.length; j++) {
+            data.quests.push(newQuests[j]);
+        }
+
+        data.lastRefresh = now.toISOString();
+        data.updatedAt = now.toISOString();
+        fqWriteData(nk, logger, ctx.userId, data);
+
+        activeQuests = [];
+        for (var k = 0; k < data.quests.length; k++) {
+            if (!data.quests[k].isCompleted) {
+                activeQuests.push(data.quests[k]);
+            }
+        }
+    }
+
     return JSON.stringify({
         success: true,
-        quests: data.quests || [],
+        quests: activeQuests,
         completedIds: data.completedIds || [],
-        lastRefresh: data.updatedAt || null,
-        timestamp: new Date().toISOString()
+        lastRefresh: data.lastRefresh || null,
+        timestamp: now.toISOString()
     });
 }
 
@@ -8851,11 +9110,14 @@ function rpcFriendQuestComplete(ctx, logger, nk, payload) {
     // Mark completed
     data.completedIds.push(questId);
 
-    // Update quest record if exists
+    // Update quest record if exists — use server-stored rewards for authority
     if (data.quests) {
         for (var j = 0; j < data.quests.length; j++) {
             if (data.quests[j].questId === questId) {
                 data.quests[j].isCompleted = true;
+                // Use server-stored reward values (authoritative)
+                if (data.quests[j].coinReward) coinReward = data.quests[j].coinReward;
+                if (data.quests[j].xpReward) xpReward = data.quests[j].xpReward;
                 break;
             }
         }
@@ -8882,7 +9144,7 @@ function rpcFriendQuestComplete(ctx, logger, nk, payload) {
         try {
             nk.notificationsSend([{
                 userId: friendId,
-                subject: 'Friend Quest Completed! 🎯',
+                subject: 'Friend Quest Completed!',
                 content: {
                     type: 'friend_quest_complete',
                     quest_type: questType,
@@ -20443,16 +20705,244 @@ function rpcPushGetEndpoints(ctx, logger, nk, payload) {
 }
 
 
+// --- Module: quests_analytics_bridge.js ---
+/**
+ * quests_analytics_bridge.js
+ *
+ * Nakama RPCs that expose analytics and player-profile data for the
+ * quests-economy NestJS API.  This replaces the direct SQL queries that
+ * the NestJS side was running against Nakama's storage / users tables
+ * through the wrong DataSource.
+ *
+ * RPCs registered:
+ *   qe_player_full_profile  – single-user profile aggregate
+ *   qe_stale_sessions       – batch: sessions inactive > N days
+ *   qe_cohort_export        – batch: active sessions + events
+ *   qe_user_event_summary   – single-user event ring-buffer
+ */
+
+// ─── helpers ─────────────────────────────────────────────────────
+
+function _qeParseMaybeJson(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch (e) { return v; }
+}
+
+// ─── RPC: qe_player_full_profile ─────────────────────────────────
+
+function rpcQePlayerFullProfile(ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var userId = input.user_id || '';
+  if (!userId) {
+    throw Error('user_id is required');
+  }
+
+  var profile = {};
+  var gameStats = {};
+  var analytics = {};
+  var questAnalytics = null;
+
+  try {
+    var records = nk.storageRead([
+      { collection: 'user_metadata', key: 'profile',    userId: userId },
+      { collection: 'user_metadata', key: 'game_stats', userId: userId },
+      { collection: 'user_metadata', key: 'analytics',  userId: userId },
+      { collection: 'quest_analytics', key: 'summary',  userId: userId }
+    ]);
+
+    for (var i = 0; i < records.length; i++) {
+      var rec = records[i];
+      if (rec.collection === 'user_metadata') {
+        if (rec.key === 'profile')    profile    = rec.value || {};
+        if (rec.key === 'game_stats') gameStats  = rec.value || {};
+        if (rec.key === 'analytics')  analytics  = rec.value || {};
+      }
+      if (rec.collection === 'quest_analytics' && rec.key === 'summary') {
+        questAnalytics = rec.value || null;
+      }
+    }
+  } catch (e) {
+    logger.warn('[QeAnalytics] storageRead failed for ' + userId + ': ' + e);
+  }
+
+  var userRow = null;
+  try {
+    var userRows = nk.sqlQuery(
+      'SELECT id, username, display_name, lang_tag, location, timezone, ' +
+      'metadata, wallet, create_time, update_time, edge_count ' +
+      'FROM users WHERE id = $1 LIMIT 1',
+      [userId]
+    );
+    if (userRows && userRows.length > 0) {
+      userRow = userRows[0];
+      if (userRow.metadata && typeof userRow.metadata === 'string') {
+        try { userRow.metadata = JSON.parse(userRow.metadata); } catch (e2) { /* keep raw */ }
+      }
+    }
+  } catch (e) {
+    logger.warn('[QeAnalytics] users query failed: ' + e);
+  }
+
+  var leaderboardCount = 0;
+  try {
+    var lbRows = nk.sqlQuery(
+      'SELECT COUNT(*)::int AS cnt FROM leaderboard_record WHERE owner_id = $1',
+      [userId]
+    );
+    if (lbRows && lbRows.length > 0) {
+      leaderboardCount = Number(lbRows[0].cnt) || 0;
+    }
+  } catch (e) {
+    logger.warn('[QeAnalytics] leaderboard count query failed: ' + e);
+  }
+
+  return JSON.stringify({
+    profile:           profile,
+    game_stats:        gameStats,
+    analytics:         analytics,
+    quest_analytics:   questAnalytics,
+    user:              userRow,
+    leaderboard_count: leaderboardCount
+  });
+}
+
+// ─── RPC: qe_stale_sessions ─────────────────────────────────────
+
+function rpcQeStaleSessions(ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var inactiveDays = Number(input.inactive_days) || 3;
+  var limit = Math.min(Number(input.limit) || 5000, 10000);
+
+  try {
+    var rows = nk.sqlQuery(
+      "SELECT user_id, value FROM storage " +
+      "WHERE collection = 'user_sessions' AND key = 'current' " +
+      "AND update_time < (CURRENT_TIMESTAMP - ($1::int * interval '1 day')) " +
+      "ORDER BY update_time ASC LIMIT $2::int",
+      [inactiveDays, limit]
+    );
+
+    var results = [];
+    for (var i = 0; i < rows.length; i++) {
+      results.push({
+        user_id: rows[i].user_id,
+        session: _qeParseMaybeJson(rows[i].value)
+      });
+    }
+
+    return JSON.stringify({ sessions: results, count: results.length });
+  } catch (e) {
+    logger.error('[QeAnalytics] qe_stale_sessions failed: ' + e);
+    return JSON.stringify({ sessions: [], count: 0, error: String(e) });
+  }
+}
+
+// ─── RPC: qe_cohort_export ──────────────────────────────────────
+
+function rpcQeCohortExport(ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var activeSinceDays = Number(input.active_since_days) || 30;
+  var limit = Math.min(Number(input.limit) || 500, 2000);
+
+  try {
+    var rows = nk.sqlQuery(
+      "SELECT user_id, value FROM storage " +
+      "WHERE collection = 'user_sessions' AND key = 'current' " +
+      "AND update_time >= (CURRENT_TIMESTAMP - ($1::int * interval '1 day')) " +
+      "ORDER BY update_time DESC LIMIT $2::int",
+      [activeSinceDays, limit]
+    );
+
+    // Batch-read analytics_events for every returned user in one call
+    var readRequests = [];
+    for (var i = 0; i < rows.length; i++) {
+      readRequests.push({
+        collection: 'analytics_events',
+        key:        'events',
+        userId:     rows[i].user_id
+      });
+    }
+
+    var evMap = {};
+    if (readRequests.length > 0) {
+      try {
+        var evRecords = nk.storageRead(readRequests);
+        for (var j = 0; j < evRecords.length; j++) {
+          evMap[evRecords[j].userId] = evRecords[j].value;
+        }
+      } catch (e) {
+        logger.warn('[QeAnalytics] batch event read failed: ' + e);
+      }
+    }
+
+    var cohort = [];
+    for (var k = 0; k < rows.length; k++) {
+      var uid = rows[k].user_id;
+      cohort.push({
+        user_id: uid,
+        session: _qeParseMaybeJson(rows[k].value),
+        events:  evMap[uid] || null
+      });
+    }
+
+    return JSON.stringify({ cohort: cohort, count: cohort.length });
+  } catch (e) {
+    logger.error('[QeAnalytics] qe_cohort_export failed: ' + e);
+    return JSON.stringify({ cohort: [], count: 0, error: String(e) });
+  }
+}
+
+// ─── RPC: qe_user_event_summary ─────────────────────────────────
+
+function rpcQeUserEventSummary(ctx, logger, nk, payload) {
+  var input = JSON.parse(payload);
+  var userId = input.user_id || '';
+  if (!userId) {
+    throw Error('user_id is required');
+  }
+
+  try {
+    var records = nk.storageRead([
+      { collection: 'analytics_events', key: 'events', userId: userId }
+    ]);
+
+    if (records && records.length > 0 && records[0].value) {
+      return JSON.stringify({ events: records[0].value, found: true });
+    }
+  } catch (e) {
+    logger.warn('[QeAnalytics] qe_user_event_summary failed for ' + userId + ': ' + e);
+  }
+
+  return JSON.stringify({ events: null, found: false });
+}
+
+// ─── Registration (postbuild picks up initializer.registerRpc) ──
+
+function _QeAnalyticsBridgeInit(ctx, logger, nk, initializer) {
+  logger.info('[QeAnalyticsBridge] Registering RPCs');
+  __rpc_qe_player_full_profile = __rpc_qe_player_full_profile || (rpcQePlayerFullProfile);
+  __rpc_qe_stale_sessions = __rpc_qe_stale_sessions || (rpcQeStaleSessions);
+  __rpc_qe_cohort_export = __rpc_qe_cohort_export || (rpcQeCohortExport);
+  __rpc_qe_user_event_summary = __rpc_qe_user_event_summary || (rpcQeUserEventSummary);
+  logger.info('[QeAnalyticsBridge] 4 RPCs registered');
+}
+
+
 // --- Module: quests_economy_bridge.js ---
 /**
- * Quests Economy Bridge — connects Nakama wallet operations to the
- * quests-economy global PointsLedger via S2S authenticated HTTP calls.
+ * Quests Economy Bridge — Nakama is the single source of truth for XUT wallet.
  *
- * The quests-economy API is the single source of truth for all wallet balances.
- * This module exposes RPCs that games can call to earn/spend/query the global wallet.
+ * All balance reads and mutations use Nakama's NATIVE wallet system:
+ *   - nk.walletUpdate(userId, changeset, metadata, updateLedger)
+ *   - nk.walletLedgerList(userId, limit, cursor)
+ *   - nk.accountGetId(userId) → account.wallet
  *
- * Environment variables (set in Nakama config or docker-compose):
- *   QUESTS_ECONOMY_API_URL  — e.g. http://quests-api:3001
+ * No HTTP callbacks to Postgres. The quests-economy API consumes these RPCs
+ * via REST and treats Nakama as the authoritative store.
+ *
+ * Environment variables:
+ *   QUESTS_ECONOMY_API_URL  — still used for IntelliDraws / non-wallet RPCs
  *   NAKAMA_WEBHOOK_SECRET   — shared HMAC secret for S2S auth
  *   DEFAULT_GAME_ID         — default game_id if not provided
  */
@@ -20460,13 +20950,20 @@ function rpcPushGetEndpoints(ctx, logger, nk, payload) {
 var QUESTS_API_URL = '';
 var WEBHOOK_SECRET = '';
 var DEFAULT_GAME_ID = 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+var _bridgeEnvInitialized = false;
 
-/**
- * Per-game conversion ratios.
- * Key = game_id, value = how many game coins equal 1 global wallet point.
- * E.g. 1000 means 1000 game coins = 1 global point.
- */
 var GAME_CONVERSION_RATIOS = {};
+
+function _ensureBridgeEnv(ctx) {
+    if (_bridgeEnvInitialized) return;
+    if (ctx && ctx.env) {
+        QUESTS_API_URL = QUESTS_API_URL
+            || (ctx.env['QUESTS_ECONOMY_API_URL'] || 'http://quests-api.quests-economy.svc.cluster.local:3001').replace(/\/$/, '');
+        WEBHOOK_SECRET = WEBHOOK_SECRET || ctx.env['NAKAMA_WEBHOOK_SECRET'] || '';
+        DEFAULT_GAME_ID = ctx.env['DEFAULT_GAME_ID'] || DEFAULT_GAME_ID;
+        _bridgeEnvInitialized = true;
+    }
+}
 
 function _QuestsBridgeInit(ctx, logger, nk, initializer) {
     QUESTS_API_URL = (ctx.env['QUESTS_ECONOMY_API_URL'] || 'http://localhost:3001').replace(/\/$/, '');
@@ -20475,30 +20972,392 @@ function _QuestsBridgeInit(ctx, logger, nk, initializer) {
 
     loadConversionRatios(nk, logger);
 
-    logger.info('[QuestsBridge] Initializing — API: ' + QUESTS_API_URL);
+    logger.info('[QuestsBridge] Initializing — Nakama native wallet as single source of truth');
 
-    __rpc_global_wallet_balance = __rpc_global_wallet_balance || (rpcGlobalWalletBalance);
-    __rpc_global_wallet_earn = __rpc_global_wallet_earn || (rpcGlobalWalletEarn);
-    __rpc_global_wallet_spend = __rpc_global_wallet_spend || (rpcGlobalWalletSpend);
-    __rpc_global_wallet_history = __rpc_global_wallet_history || (rpcGlobalWalletHistory);
+    // Wallet RPCs — Nakama native (no Postgres proxy)
+    __rpc_quests_wallet_balance = __rpc_quests_wallet_balance || (rpcQuestsWalletBalance);
+    __rpc_quests_wallet_earn = __rpc_quests_wallet_earn || (rpcQuestsWalletEarn);
+    __rpc_quests_wallet_spend = __rpc_quests_wallet_spend || (rpcQuestsWalletSpend);
+    __rpc_quests_wallet_history = __rpc_quests_wallet_history || (rpcQuestsWalletHistory);
+
+    // Keep old names as aliases for backward compatibility (games may call them)
+    __rpc_global_wallet_balance = __rpc_global_wallet_balance || (rpcQuestsWalletBalance);
+    __rpc_global_wallet_earn = __rpc_global_wallet_earn || (rpcQuestsWalletEarn);
+    __rpc_global_wallet_spend = __rpc_global_wallet_spend || (rpcQuestsWalletSpend);
+    __rpc_global_wallet_history = __rpc_global_wallet_history || (rpcQuestsWalletHistory);
+
+    // One-time migration RPC (admin use only)
+    __rpc_quests_wallet_migrate_from_postgres = __rpc_quests_wallet_migrate_from_postgres || (rpcMigrateFromPostgres);
+
+    // Conversion RPCs
     __rpc_game_to_global_convert = __rpc_game_to_global_convert || (rpcGameToGlobalConvert);
     __rpc_game_to_global_preview = __rpc_game_to_global_preview || (rpcGameToGlobalPreview);
     __rpc_conversion_ratio_set = __rpc_conversion_ratio_set || (rpcConversionRatioSet);
     __rpc_conversion_ratio_get = __rpc_conversion_ratio_get || (rpcConversionRatioGet);
 
+    // IntelliDraws RPCs
     __rpc_intellidraws_list = __rpc_intellidraws_list || (rpcIntelliDrawsList);
     __rpc_intellidraws_winners = __rpc_intellidraws_winners || (rpcIntelliDrawsWinners);
     __rpc_intellidraws_enter = __rpc_intellidraws_enter || (rpcIntelliDrawsEnter);
     __rpc_intellidraws_past = __rpc_intellidraws_past || (rpcIntelliDrawsPast);
 
-    logger.info('[QuestsBridge] RPCs registered (wallet + conversion + intellidraws)');
+    logger.info('[QuestsBridge] RPCs registered (native wallet + conversion + intellidraws + migration)');
 }
 
 function signRequest(nk, body) {
+    if (!WEBHOOK_SECRET) return '';
     return nk.hmacSha256Hash(WEBHOOK_SECRET, body);
 }
 
-// Lightweight game wallet helpers (self-contained, mirrors index.js storage format)
+// ═══════════════════════════════════════════════════════════════════
+//  NATIVE WALLET RPCs (Nakama single source of truth)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * RPC: quests_wallet_balance
+ * Returns all currency balances from Nakama's native wallet.
+ * No HTTP callback — reads directly from nk.accountGetId().
+ */
+function rpcQuestsWalletBalance(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ error: 'User not authenticated' });
+    }
+
+    try {
+        var account = nk.accountGetId(userId);
+        var wallet = {};
+        if (account.wallet) {
+            wallet = typeof account.wallet === 'string'
+                ? JSON.parse(account.wallet)
+                : account.wallet;
+        }
+
+        return JSON.stringify({
+            success: true,
+            data: {
+                userId: userId,
+                xut: wallet.xut || 0,
+                ivx: wallet.ivx || 0,
+                spark: wallet.spark || 0,
+                nova: wallet.nova || 0,
+                nexus: wallet.nexus || 0,
+            },
+        });
+    } catch (err) {
+        logger.error('[QuestsBridge] quests_wallet_balance failed: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quests_wallet_earn
+ * Credits currency to the user's Nakama native wallet.
+ * Payload: { amount, currency?, sourceType?, sourceId?, description? }
+ */
+function rpcQuestsWalletEarn(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ error: 'User not authenticated' });
+    }
+
+    var parsed = JSON.parse(payload || '{}');
+    var amount = parsed.amount;
+    if (!amount || amount <= 0) {
+        return JSON.stringify({ success: false, error: 'amount must be > 0' });
+    }
+
+    var currency = parsed.currency || 'xut';
+    var changeset = {};
+    changeset[currency] = amount;
+
+    var metadata = {
+        type: 'earn',
+        source: parsed.sourceType || 'quests_reward',
+        sourceId: parsed.sourceId || '',
+        description: parsed.description || ('Earned ' + amount + ' ' + currency),
+    };
+
+    try {
+        var result = nk.walletUpdate(userId, changeset, metadata, true);
+        var updated = result.updated || {};
+
+        // Auto-credit 1 NOVA per XUT earned (loyalty program)
+        if (currency === 'xut' && amount > 0) {
+            try {
+                nk.walletUpdate(userId, { nova: amount }, {
+                    type: 'earn',
+                    source: 'nova_auto_credit',
+                    description: 'Auto NOVA: 1 per XUT earned',
+                }, true);
+            } catch (novaErr) {
+                logger.warn('[QuestsBridge] NOVA auto-credit failed: ' + novaErr.message);
+            }
+        }
+
+        logger.info('[QuestsBridge] Earned ' + amount + ' ' + currency + ' for user ' + userId);
+
+        return JSON.stringify({
+            success: true,
+            data: {
+                userId: userId,
+                amountEarned: amount,
+                currency: currency,
+                newBalance: updated[currency] || 0,
+                wallet: updated,
+            },
+        });
+    } catch (err) {
+        logger.error('[QuestsBridge] quests_wallet_earn failed: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quests_wallet_spend
+ * Debits currency from the user's Nakama native wallet.
+ * Nakama natively rejects negative balances.
+ * Payload: { amount, currency?, sourceType?, sourceId?, description? }
+ */
+function rpcQuestsWalletSpend(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ error: 'User not authenticated' });
+    }
+
+    var parsed = JSON.parse(payload || '{}');
+    var amount = parsed.amount;
+    if (!amount || amount <= 0) {
+        return JSON.stringify({ success: false, error: 'amount must be > 0' });
+    }
+
+    var currency = parsed.currency || 'xut';
+
+    // Pre-check balance to give a clear error message
+    try {
+        var account = nk.accountGetId(userId);
+        var wallet = {};
+        if (account.wallet) {
+            wallet = typeof account.wallet === 'string'
+                ? JSON.parse(account.wallet)
+                : account.wallet;
+        }
+        var currentBalance = wallet[currency] || 0;
+        if (currentBalance < amount) {
+            return JSON.stringify({
+                success: false,
+                error: 'Insufficient ' + currency + ' balance. Available: ' + currentBalance + ', Required: ' + amount,
+            });
+        }
+    } catch (err) {
+        logger.error('[QuestsBridge] Balance pre-check failed: ' + err.message);
+        return JSON.stringify({ success: false, error: 'Failed to check balance' });
+    }
+
+    var changeset = {};
+    changeset[currency] = -amount;
+
+    var metadata = {
+        type: 'spend',
+        source: parsed.sourceType || 'redemption',
+        sourceId: parsed.sourceId || '',
+        description: parsed.description || ('Spent ' + amount + ' ' + currency),
+    };
+
+    try {
+        var result = nk.walletUpdate(userId, changeset, metadata, true);
+        var updated = result.updated || {};
+
+        logger.info('[QuestsBridge] Spent ' + amount + ' ' + currency + ' for user ' + userId);
+
+        return JSON.stringify({
+            success: true,
+            data: {
+                userId: userId,
+                amountSpent: amount,
+                currency: currency,
+                newBalance: updated[currency] || 0,
+                wallet: updated,
+            },
+        });
+    } catch (err) {
+        logger.error('[QuestsBridge] quests_wallet_spend failed: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quests_wallet_history
+ * Returns wallet ledger entries from Nakama's built-in wallet ledger.
+ * Payload: { limit?, cursor? }
+ */
+function rpcQuestsWalletHistory(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ error: 'User not authenticated' });
+    }
+
+    var parsed = JSON.parse(payload || '{}');
+    var limit = parsed.limit || 50;
+    var cursor = parsed.cursor || '';
+
+    try {
+        var result = nk.walletLedgerList(userId, limit, cursor);
+        var items = result.items || [];
+
+        var entries = [];
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            entries.push({
+                id: item.id,
+                changeset: item.changeset,
+                metadata: item.metadata,
+                create_time: item.createTime
+                    ? Math.floor(new Date(item.createTime).getTime() / 1000)
+                    : 0,
+            });
+        }
+
+        return JSON.stringify({
+            success: true,
+            data: {
+                userId: userId,
+                entries: entries,
+                count: entries.length,
+                cursor: result.cursor || '',
+            },
+        });
+    } catch (err) {
+        logger.error('[QuestsBridge] quests_wallet_history failed: ' + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  ONE-TIME MIGRATION: Postgres → Nakama native wallet
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * RPC: quests_wallet_migrate_from_postgres
+ * Seeds user balances into Nakama's native wallet via nk.walletUpdate.
+ *
+ * Payload: { dryRun?: boolean, balances: [{ user_id: string, balance: number }] }
+ *
+ * If balances are provided in the payload, uses them directly.
+ * Otherwise attempts to fetch from the quests-economy API.
+ * Should be called once by an admin after deploying native wallet RPCs.
+ */
+function rpcMigrateFromPostgres(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
+    var parsed = JSON.parse(payload || '{}');
+    var dryRun = parsed.dryRun === true;
+    var balances = parsed.balances || [];
+
+    if (balances.length === 0) {
+        var apiUrl = QUESTS_API_URL || 'http://quests-api.quests-economy.svc.cluster.local:3001';
+        logger.info('[QuestsBridge] No balances in payload, fetching from API: ' + apiUrl);
+
+        var bodyStr = JSON.stringify({});
+        var sig = WEBHOOK_SECRET ? nk.hmacSha256Hash(WEBHOOK_SECRET, bodyStr) : '';
+        var url = apiUrl + '/api/game-bridge/s2s/wallet/all-balances';
+        var headers = {};
+        headers['Content-Type'] = 'application/json';
+        headers['X-Source'] = 'nakama-rpc';
+        if (sig) headers['X-Webhook-Signature'] = sig;
+
+        try {
+            var response = nk.httpRequest(url, 'POST', headers, bodyStr);
+            if (response.code >= 200 && response.code < 300) {
+                var data = JSON.parse(response.body);
+                balances = data.balances || data.data || [];
+            } else {
+                logger.error('[QuestsBridge] API returned ' + response.code);
+                return JSON.stringify({ success: false, error: 'API returned ' + response.code });
+            }
+        } catch (err) {
+            logger.error('[QuestsBridge] HTTP call failed: ' + err.message);
+            return JSON.stringify({ success: false, error: 'HTTP failed: ' + err.message + '. Pass balances directly in the payload instead.' });
+        }
+    }
+
+    logger.info('[QuestsBridge] Starting migration (dryRun=' + dryRun + ', users=' + balances.length + ')');
+    var migrated = 0;
+    var skipped = 0;
+    var errors = 0;
+
+    for (var i = 0; i < balances.length; i++) {
+        var entry = balances[i];
+        var userId = entry.user_id || entry.userId;
+        var xut = entry.balance || entry.xut || 0;
+
+        if (!userId || xut <= 0) {
+            skipped++;
+            continue;
+        }
+
+        if (dryRun) {
+            logger.info('[QuestsBridge] DRY RUN: would migrate user=' + userId + ' xut=' + xut);
+            migrated++;
+            continue;
+        }
+
+        try {
+            // Resolve Cognito ID → Nakama ID (creates account if needed)
+            var nakamaId = userId;
+            try {
+                var authResult = nk.authenticateCustom(userId, '', true);
+                nakamaId = authResult.userId || userId;
+                logger.info('[QuestsBridge] Resolved cognito=' + userId + ' → nakama=' + nakamaId);
+            } catch (authErr) {
+                logger.warn('[QuestsBridge] authenticateCustom failed for ' + userId + ': ' + authErr.message + ' — trying direct');
+            }
+
+            var account = nk.accountGetId(nakamaId);
+            var wallet = {};
+            if (account.wallet) {
+                wallet = typeof account.wallet === 'string'
+                    ? JSON.parse(account.wallet)
+                    : account.wallet;
+            }
+
+            if ((wallet.xut || 0) > 0) {
+                logger.info('[QuestsBridge] Skip user=' + nakamaId + ' — already has ' + wallet.xut + ' XUT in Nakama');
+                skipped++;
+                continue;
+            }
+
+            nk.walletUpdate(nakamaId, { xut: xut }, {
+                type: 'migration',
+                source: 'postgres_migration',
+                description: 'One-time migration from Postgres points_ledger (cognito=' + userId + ')',
+            }, true);
+
+            migrated++;
+            logger.info('[QuestsBridge] Migrated cognito=' + userId + ' nakama=' + nakamaId + ' xut=' + xut);
+        } catch (err) {
+            errors++;
+            logger.error('[QuestsBridge] Failed to migrate user=' + userId + ': ' + err.message);
+        }
+    }
+
+    var summary = 'Migration complete: ' + migrated + ' migrated, ' + skipped + ' skipped, ' + errors + ' errors (total ' + balances.length + ')';
+    logger.info('[QuestsBridge] ' + summary);
+
+    return JSON.stringify({
+        success: true,
+        dryRun: dryRun,
+        migrated: migrated,
+        skipped: skipped,
+        errors: errors,
+        total: balances.length,
+        summary: summary,
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GAME WALLET HELPERS (Nakama storage-based — unchanged)
+// ═══════════════════════════════════════════════════════════════════
+
 function bridgeGetGameWallet(nk, logger, userId, gameId) {
     var key = 'wallet_' + userId + '_' + gameId;
     try {
@@ -20560,169 +21419,6 @@ function bridgeLogTransaction(nk, logger, userId, data) {
     }
 }
 
-function questsApiCall(nk, logger, userId, gameId, endpoint, body) {
-    var bodyStr = JSON.stringify(body || {});
-    var signature = signRequest(nk, bodyStr);
-    var url = QUESTS_API_URL + '/game-bridge/s2s/wallet/' + endpoint;
-
-    var headers = {
-        'Content-Type': 'application/json',
-        'X-Source': 'nakama-rpc',
-        'X-Webhook-Signature': signature,
-        'X-User-Id': userId,
-        'X-Game-Id': gameId || DEFAULT_GAME_ID,
-    };
-
-    try {
-        var response = nk.httpRequest(url, 'post', headers, bodyStr);
-        if (response.code >= 200 && response.code < 300) {
-            return JSON.parse(response.body);
-        }
-        logger.error('[QuestsBridge] API error ' + response.code + ': ' + response.body);
-        return { error: 'API returned ' + response.code, details: response.body };
-    } catch (err) {
-        logger.error('[QuestsBridge] HTTP request failed: ' + err.message);
-        return { error: 'HTTP request failed', details: err.message };
-    }
-}
-
-/**
- * RPC: Get global wallet balance from quests-economy PointsLedger.
- * Payload: {} (none required)
- * Returns: { userId, balance }
- */
-function rpcGlobalWalletBalance(ctx, logger, nk, payload) {
-    var userId = ctx.userId;
-    if (!userId) {
-        return JSON.stringify({ error: 'User not authenticated' });
-    }
-
-    var result = questsApiCall(nk, logger, userId, DEFAULT_GAME_ID, 'balance', {});
-
-    if (result.error) {
-        return JSON.stringify({ success: false, error: result.error });
-    }
-
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        balance: result.balance || 0,
-    });
-}
-
-/**
- * RPC: Earn points into the global wallet.
- * Payload: { amount: number, sourceType?: string, sourceId?: string, description?: string }
- * Returns: { userId, amountEarned, newBalance }
- */
-function rpcGlobalWalletEarn(ctx, logger, nk, payload) {
-    var userId = ctx.userId;
-    if (!userId) {
-        return JSON.stringify({ error: 'User not authenticated' });
-    }
-
-    var parsed = JSON.parse(payload || '{}');
-    var amount = parsed.amount;
-    if (!amount || amount <= 0) {
-        return JSON.stringify({ success: false, error: 'amount must be > 0' });
-    }
-
-    var gameId = parsed.gameId || DEFAULT_GAME_ID;
-    var body = {
-        amount: amount,
-        sourceType: parsed.sourceType || 'game_reward',
-        sourceId: parsed.sourceId || gameId,
-        description: parsed.description || ('Game reward: ' + amount + ' points'),
-    };
-
-    var result = questsApiCall(nk, logger, userId, gameId, 'earn', body);
-
-    if (result.error) {
-        return JSON.stringify({ success: false, error: result.error });
-    }
-
-    logger.info('[QuestsBridge] Earned ' + amount + ' for user ' + userId + ' → balance ' + result.newBalance);
-
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        amountEarned: result.amountEarned,
-        newBalance: result.newBalance,
-    });
-}
-
-/**
- * RPC: Spend points from the global wallet.
- * Payload: { amount: number, sourceType?: string, sourceId?: string, description?: string }
- * Returns: { userId, amountSpent, newBalance }
- */
-function rpcGlobalWalletSpend(ctx, logger, nk, payload) {
-    var userId = ctx.userId;
-    if (!userId) {
-        return JSON.stringify({ error: 'User not authenticated' });
-    }
-
-    var parsed = JSON.parse(payload || '{}');
-    var amount = parsed.amount;
-    if (!amount || amount <= 0) {
-        return JSON.stringify({ success: false, error: 'amount must be > 0' });
-    }
-
-    var gameId = parsed.gameId || DEFAULT_GAME_ID;
-    var body = {
-        amount: amount,
-        sourceType: parsed.sourceType || 'game_spend',
-        sourceId: parsed.sourceId || gameId,
-        description: parsed.description || ('Game spend: ' + amount + ' points'),
-    };
-
-    var result = questsApiCall(nk, logger, userId, gameId, 'spend', body);
-
-    if (result.error) {
-        return JSON.stringify({ success: false, error: result.error });
-    }
-
-    logger.info('[QuestsBridge] Spent ' + amount + ' for user ' + userId + ' → balance ' + result.newBalance);
-
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        amountSpent: result.amountSpent,
-        newBalance: result.newBalance,
-    });
-}
-
-/**
- * RPC: Get global wallet transaction history.
- * Payload: { limit?: number, offset?: number }
- * Returns: { userId, entries: [...], total }
- */
-function rpcGlobalWalletHistory(ctx, logger, nk, payload) {
-    var userId = ctx.userId;
-    if (!userId) {
-        return JSON.stringify({ error: 'User not authenticated' });
-    }
-
-    var parsed = JSON.parse(payload || '{}');
-    var body = {
-        limit: parsed.limit || 50,
-        offset: parsed.offset || 0,
-    };
-
-    var result = questsApiCall(nk, logger, userId, DEFAULT_GAME_ID, 'history', body);
-
-    if (result.error) {
-        return JSON.stringify({ success: false, error: result.error });
-    }
-
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        entries: result.entries || [],
-        total: result.total || 0,
-    });
-}
-
 // ═══════════════════════════════════════════════════════════════════
 //  CONVERSION RATIO STORAGE
 // ═══════════════════════════════════════════════════════════════════
@@ -20745,7 +21441,6 @@ function loadConversionRatios(nk, logger) {
         logger.warn('[QuestsBridge] No saved conversion ratios found, using defaults');
     }
 
-    // Hardcoded default: game 126bf539-dae2-4bcf-964d-316c0fa1f92b = 1000:1
     if (!GAME_CONVERSION_RATIOS['126bf539-dae2-4bcf-964d-316c0fa1f92b']) {
         GAME_CONVERSION_RATIOS['126bf539-dae2-4bcf-964d-316c0fa1f92b'] = 1000;
     }
@@ -20775,15 +21470,11 @@ function getConversionRatio(gameId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  CONVERSION RPCs
+//  CONVERSION RPCs (game coins → global XUT via Nakama native wallet)
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * RPC: Preview how many global points a game coin amount would yield.
- * Payload: { gameId: string, gameCoinAmount: number }
- * Returns: { gameId, gameCoinAmount, globalPointsYield, ratio, gameBalance }
- */
 function rpcGameToGlobalPreview(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var userId = ctx.userId;
     if (!userId) {
         return JSON.stringify({ error: 'User not authenticated' });
@@ -20800,7 +21491,6 @@ function rpcGameToGlobalPreview(ctx, logger, nk, payload) {
         return JSON.stringify({ success: false, error: 'No conversion ratio configured for game ' + gameId });
     }
 
-    // Read current game wallet balance
     var gameWallet = bridgeGetGameWallet(nk, logger, userId, gameId);
     var gameBalance = (gameWallet.currencies && (gameWallet.currencies.game || gameWallet.currencies.tokens)) || 0;
 
@@ -20811,9 +21501,20 @@ function rpcGameToGlobalPreview(ctx, logger, nk, payload) {
 
     var globalPointsYield = Math.floor(gameCoinAmount / ratio);
 
-    // Also fetch global balance from quests-economy
-    var globalResult = questsApiCall(nk, logger, userId, gameId, 'balance', {});
-    var currentGlobalBalance = (globalResult && !globalResult.error) ? (globalResult.balance || 0) : 0;
+    // Read global balance from Nakama native wallet
+    var currentGlobalBalance = 0;
+    try {
+        var account = nk.accountGetId(userId);
+        var wallet = {};
+        if (account.wallet) {
+            wallet = typeof account.wallet === 'string'
+                ? JSON.parse(account.wallet)
+                : account.wallet;
+        }
+        currentGlobalBalance = wallet.xut || 0;
+    } catch (err) {
+        logger.warn('[QuestsBridge] Failed to read global balance for preview: ' + err.message);
+    }
 
     return JSON.stringify({
         success: true,
@@ -20827,14 +21528,8 @@ function rpcGameToGlobalPreview(ctx, logger, nk, payload) {
     });
 }
 
-/**
- * RPC: Convert game wallet coins into global wallet points.
- * Deducts from game wallet in Nakama storage, credits to quests-economy PointsLedger.
- *
- * Payload: { gameId: string, gameCoinAmount: number }
- * Returns: { gameId, gameCoinsBurned, globalPointsEarned, newGameBalance, newGlobalBalance }
- */
 function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var userId = ctx.userId;
     if (!userId) {
         return JSON.stringify({ error: 'User not authenticated' });
@@ -20856,7 +21551,6 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
         return JSON.stringify({ success: false, error: 'gameCoinAmount must be > 0' });
     }
 
-    // Must be at least 1 ratio unit to yield any global points
     if (gameCoinAmount < ratio) {
         return JSON.stringify({
             success: false,
@@ -20864,7 +21558,6 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
         });
     }
 
-    // Read game wallet
     var gameWallet = bridgeGetGameWallet(nk, logger, userId, gameId);
     var gameBalance = (gameWallet.currencies && (gameWallet.currencies.game || gameWallet.currencies.tokens)) || 0;
 
@@ -20875,11 +21568,10 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
         });
     }
 
-    // Calculate yield (floor — fractional global points are not awarded)
     var globalPointsEarned = Math.floor(gameCoinAmount / ratio);
-    var actualCoinsBurned = globalPointsEarned * ratio; // only burn exact multiples
+    var actualCoinsBurned = globalPointsEarned * ratio;
 
-    // Step 1: Deduct from game wallet
+    // Step 1: Deduct from game wallet (Nakama storage)
     var currenciesToUpdate = ['game', 'tokens'];
     for (var i = 0; i < currenciesToUpdate.length; i++) {
         var curr = currenciesToUpdate[i];
@@ -20892,15 +21584,51 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
         return JSON.stringify({ success: false, error: 'Failed to deduct game coins' });
     }
 
-    // Step 2: Credit to quests-economy global wallet
-    var earnResult = questsApiCall(nk, logger, userId, gameId, 'earn', {
-        amount: globalPointsEarned,
-        sourceType: 'game_to_global_conversion',
-        sourceId: gameId,
-        description: 'Converted ' + actualCoinsBurned + ' game coins → ' + globalPointsEarned + ' global points (ratio ' + ratio + ':1)',
-    });
+    // Step 2: Credit to Nakama native wallet (NOT Postgres)
+    try {
+        var walletResult = nk.walletUpdate(userId, { xut: globalPointsEarned }, {
+            type: 'earn',
+            source: 'game_to_global_conversion',
+            sourceId: gameId,
+            description: 'Converted ' + actualCoinsBurned + ' game coins → ' + globalPointsEarned + ' XUT (ratio ' + ratio + ':1)',
+        }, true);
 
-    if (earnResult.error) {
+        // Also auto-credit NOVA
+        try {
+            nk.walletUpdate(userId, { nova: globalPointsEarned }, {
+                type: 'earn',
+                source: 'nova_auto_credit',
+                description: 'Auto NOVA from game conversion',
+            }, true);
+        } catch (novaErr) {
+            logger.warn('[QuestsBridge] NOVA auto-credit failed during conversion: ' + novaErr.message);
+        }
+
+        var newGlobalBalance = (walletResult.updated && walletResult.updated.xut) || 0;
+
+        bridgeLogTransaction(nk, logger, userId, {
+            type: 'game_to_global_conversion',
+            gameId: gameId,
+            gameCoinsBurned: actualCoinsBurned,
+            globalPointsEarned: globalPointsEarned,
+            ratio: ratio,
+        });
+
+        var newGameBalance = (gameWallet.currencies.game || gameWallet.currencies.tokens || 0);
+
+        logger.info('[QuestsBridge] User ' + userId + ' converted ' + actualCoinsBurned + ' game coins → ' +
+            globalPointsEarned + ' XUT (game ' + gameId + ')');
+
+        return JSON.stringify({
+            success: true,
+            gameId: gameId,
+            gameCoinsBurned: actualCoinsBurned,
+            globalPointsEarned: globalPointsEarned,
+            ratio: ratio,
+            newGameBalance: newGameBalance,
+            newGlobalBalance: newGlobalBalance,
+        });
+    } catch (err) {
         // Rollback: re-add game coins
         for (var i = 0; i < currenciesToUpdate.length; i++) {
             var curr = currenciesToUpdate[i];
@@ -20909,39 +21637,11 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
             }
         }
         bridgeSaveGameWallet(nk, logger, userId, gameId, gameWallet);
-        logger.error('[QuestsBridge] Conversion rolled back for user ' + userId + ': ' + earnResult.error);
+        logger.error('[QuestsBridge] Conversion rolled back for user ' + userId + ': ' + err.message);
         return JSON.stringify({ success: false, error: 'Failed to credit global wallet, game coins restored' });
     }
-
-    // Log the conversion
-    bridgeLogTransaction(nk, logger, userId, {
-        type: 'game_to_global_conversion',
-        gameId: gameId,
-        gameCoinsBurned: actualCoinsBurned,
-        globalPointsEarned: globalPointsEarned,
-        ratio: ratio,
-    });
-
-    var newGameBalance = (gameWallet.currencies.game || gameWallet.currencies.tokens || 0);
-
-    logger.info('[QuestsBridge] User ' + userId + ' converted ' + actualCoinsBurned + ' game coins → ' +
-        globalPointsEarned + ' global pts (game ' + gameId + ')');
-
-    return JSON.stringify({
-        success: true,
-        gameId: gameId,
-        gameCoinsBurned: actualCoinsBurned,
-        globalPointsEarned: globalPointsEarned,
-        ratio: ratio,
-        newGameBalance: newGameBalance,
-        newGlobalBalance: earnResult.newBalance,
-    });
 }
 
-/**
- * RPC: Set conversion ratio for a game (admin only — server-side trusted call).
- * Payload: { gameId: string, ratio: number }
- */
 function rpcConversionRatioSet(ctx, logger, nk, payload) {
     var parsed = JSON.parse(payload || '{}');
     var gameId = parsed.gameId;
@@ -20964,10 +21664,6 @@ function rpcConversionRatioSet(ctx, logger, nk, payload) {
     });
 }
 
-/**
- * RPC: Get conversion ratio(s).
- * Payload: { gameId?: string } — if omitted, returns all ratios
- */
 function rpcConversionRatioGet(ctx, logger, nk, payload) {
     var parsed = JSON.parse(payload || '{}');
 
@@ -20988,7 +21684,7 @@ function rpcConversionRatioGet(ctx, logger, nk, payload) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  INTELLIDRAWS (LOTTERY) RPCs
+//  INTELLIDRAWS (LOTTERY) RPCs — still proxy to quests-economy API
 // ═══════════════════════════════════════════════════════════════════
 
 function questsApiGet(nk, logger, path) {
@@ -21029,10 +21725,8 @@ function questsApiPost(nk, logger, userId, path, body) {
     }
 }
 
-/**
- * RPC: intellidraws_list — get active IntelliDraws sweepstakes
- */
 function rpcIntelliDrawsList(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var result = questsApiGet(nk, logger, '/consumer/intellidraws');
     if (result.error) {
         return JSON.stringify({ success: false, error: result.error });
@@ -21040,10 +21734,8 @@ function rpcIntelliDrawsList(ctx, logger, nk, payload) {
     return JSON.stringify({ success: true, sweepstakes: result });
 }
 
-/**
- * RPC: intellidraws_winners — get recent IntelliDraws winners
- */
 function rpcIntelliDrawsWinners(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var result = questsApiGet(nk, logger, '/consumer/intellidraws/winners');
     if (result.error) {
         return JSON.stringify({ success: false, error: result.error });
@@ -21051,11 +21743,8 @@ function rpcIntelliDrawsWinners(ctx, logger, nk, payload) {
     return JSON.stringify({ success: true, winners: result });
 }
 
-/**
- * RPC: intellidraws_enter — enter an IntelliDraws sweepstake
- * Payload: { sweepstakeId: string, entries?: number }
- */
 function rpcIntelliDrawsEnter(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var userId = ctx.userId;
     if (!userId) {
         return JSON.stringify({ error: 'User not authenticated' });
@@ -21079,10 +21768,8 @@ function rpcIntelliDrawsEnter(ctx, logger, nk, payload) {
     return JSON.stringify({ success: true, result: result });
 }
 
-/**
- * RPC: intellidraws_past — get past completed draws
- */
 function rpcIntelliDrawsPast(ctx, logger, nk, payload) {
+    _ensureBridgeEnv(ctx);
     var result = questsApiGet(nk, logger, '/consumer/intellidraws/past');
     if (result.error) {
         return JSON.stringify({ success: false, error: result.error });
@@ -28172,8 +28859,12 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     }
     
     var currency = data.currency;
-    var amount = data.amount;
+    var amount = Number(data.amount);
     var operation = data.operation; // "add" or "subtract"
+
+    if (!isFinite(amount) || amount < 0) {
+        return utils.handleError(ctx, null, "Invalid amount: must be a non-negative finite number");
+    }
     
     // Get global wallet
     var wallet = getGlobalWallet(nk, logger, userId);
@@ -28245,6 +28936,10 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     var currency = data.currency;
     var amount = Number(data.amount);
     var operation = data.operation;
+
+    if (!isFinite(amount) || amount < 0) {
+        return utils.handleError(ctx, null, "Invalid amount: must be a non-negative finite number");
+    }
     
     //  NORMALIZE CURRENCY KEY - Map client aliases to storage keys
     var storageCurrency = currency;
@@ -28343,7 +29038,11 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     }
     
     var currency = data.currency;
-    var amount = data.amount;
+    var amount = Number(data.amount);
+
+    if (!isFinite(amount) || amount <= 0) {
+        return utils.handleError(ctx, null, "Invalid amount: must be a positive finite number");
+    }
     
     // Get both wallets
     var fromWallet = getGameWallet(nk, logger, userId, fromGameId);
@@ -43071,30 +43770,6 @@ function rpcOnboardingGetState(ctx, logger, nk, payload) {
         }]);
 
         if (result.length === 0) {
-            // FIX: Check if completion exists in legacy 'onboarding' collection
-            // before creating new state (users who completed via old onboarding_complete RPC)
-            try {
-                var legacyResult = nk.storageRead([{ collection: 'onboarding', key: 'state', userId: userId }]);
-                if (legacyResult.length > 0) {
-                    var legacyState = legacyResult[0].value;
-                    if (typeof legacyState === 'string') { try { legacyState = JSON.parse(legacyState); } catch(pe) {} }
-                    if (legacyState && legacyState.completed === true) {
-                        // Migrate: create proper state in correct collection
-                        var migratedState = {
-                            userId: userId, currentStep: 5, totalSteps: 5,
-                            completedSteps: [1,2,3,4,5], onboardingComplete: true,
-                            welcomeBonusClaimed: true, firstQuizCompleted: true,
-                            lastUpdated: Date.now(), migratedFromLegacy: true
-                        };
-                        nk.storageWrite([{ collection: COLLECTION_ONBOARDING, key: KEY_ONBOARDING, userId: userId, value: migratedState, permissionRead: 1, permissionWrite: 0 }]);
-                        logger.info("[Onboarding] Migrated legacy completed state for user: " + userId);
-                        return JSON.stringify({ success: true, isNewUser: false, state: migratedState });
-                    }
-                }
-            } catch (legacyErr) {
-                logger.warn("[Onboarding] Legacy check failed (non-fatal): " + legacyErr.message);
-            }
-
             initializeNewOnboardingUser(nk, logger, userId);
             return JSON.stringify({
                 success: true,
@@ -50589,24 +51264,13 @@ function rpcCollectionsClaimSetReward(ctx, logger, nk, payload) {
 function rpcOnboardingComplete(ctx, logger, nk, payload) {
     try {
         var data = payload ? JSON.parse(payload) : {};
-        // FIX: Read from correct collection (onboarding_state) not legacy (onboarding)
-        var storage = nk.storageRead([{ collection: COLLECTION_ONBOARDING, key: KEY_ONBOARDING, userId: ctx.userId }]);
-        var state = (storage && storage.length > 0) ? storage[0].value : {};
-        // FIX: Use correct field name (onboardingComplete) not legacy (completed)
-        state.onboardingComplete = true;
-        state.completedAt = Math.floor(Date.now() / 1000);
+        var storage = nk.storageRead([{ collection: 'onboarding', key: 'state', userId: ctx.userId }]);
+        var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : {};
+        state.completed = true; state.completedAt = Math.floor(Date.now() / 1000);
         if (data.interests) { state.interests = data.interests; }
-        if (state.completedSteps && state.totalSteps) {
-            // Backfill all steps as completed
-            for (var i = 1; i <= state.totalSteps; i++) {
-                if (state.completedSteps.indexOf(i) === -1) state.completedSteps.push(i);
-            }
-        }
-        state.lastUpdated = Date.now();
-        nk.storageWrite([{ collection: COLLECTION_ONBOARDING, key: KEY_ONBOARDING, userId: ctx.userId, value: state, permissionRead: 1, permissionWrite: 0 }]);
-        logger.info('[Onboarding] User ' + ctx.userId + ' completed onboarding via onboarding_complete RPC');
+        nk.storageWrite([{ collection: 'onboarding', key: 'state', userId: ctx.userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
         return JSON.stringify({ success: true, state: state });
-    } catch(e) { logger.error('[Onboarding] onboarding_complete error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
+    } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
 }
 
 function rpcUserSetInterests(ctx, logger, nk, payload) {
@@ -53406,6 +54070,17 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[Fantasy] Failed to register Fantasy Cricket RPCs: " + (err.message || String(err)));
     }
+    // ---- Cricket Game Modules ----
+    try {
+        logger.info("[Cricket] Registering Auction RPCs...");
+        CricketAuction.register(initializer);
+        logger.info("[Cricket] Registering Director RPCs...");
+        CricketDirector.register(initializer);
+        logger.info("[Cricket] All Cricket RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[Cricket] Failed to register Cricket RPCs: " + (err.message || String(err)));
+    }
     // ---- Admin Console RPCs ----
     try {
         logger.info("[Admin] Registering Admin Console RPCs...");
@@ -53432,7 +54107,7 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     // All handler functions live in the same VM global scope.
     try {
         if (typeof LegacyInitModule === "function") {
-            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,lasttolive_get_weapon_stats,link_wallet_to_game,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
+            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,cricket_auction_create_room,cricket_auction_get_events,cricket_auction_get_room,cricket_auction_next_player,cricket_auction_place_bid,cricket_director_end_session,cricket_director_get_session,cricket_director_list_history,cricket_director_save_session,cricket_director_start_session,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,lasttolive_get_weapon_stats,link_wallet_to_game,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
             var _alreadyRegistered = {};
             for (var _ri = 0; _ri < _tsRpcList.length; _ri++) {
                 _alreadyRegistered[_tsRpcList[_ri]] = true;
@@ -53464,6 +54139,542 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     logger.info("IntelliVerse-X Runtime initialized!");
     logger.info("========================================");
 }
+/**
+ * Cricket Auction — Nakama server module
+ *
+ * Provides real-time, server-authoritative IPL-style auction rooms.
+ * Each room is identified by {leagueId}_{seasonId} and persists in
+ * the CRICKET_AUCTION_COLLECTION storage collection.
+ *
+ * RPCs:
+ *   cricket_auction_create_room   — create / reset an auction room
+ *   cricket_auction_get_room      — read current room state
+ *   cricket_auction_place_bid     — place a server-validated bid
+ *   cricket_auction_next_player   — advance to the next nominated player
+ *   cricket_auction_get_events    — paginated event log for replay / UI
+ */
+// ─────────────────────────────── Constants ────────────────────────────────────
+var TOTAL_BUDGET = 12000;
+var MAX_PLAYERS = 25;
+var MAX_OVERSEAS = 8;
+// ─────────────────────────────── Helpers ──────────────────────────────────────
+function roomKey(leagueId, seasonId) {
+    return leagueId.toLowerCase() + "_" + seasonId;
+}
+function readRoom(nk, key) {
+    return Storage.readSystemJson(nk, Constants.CRICKET_AUCTION_COLLECTION, key);
+}
+function writeRoom(nk, key, state) {
+    state.updatedAt = new Date().toISOString();
+    Storage.writeSystemJson(nk, Constants.CRICKET_AUCTION_COLLECTION, key, state);
+}
+function appendEvent(nk, event) {
+    Storage.writeSystemJson(nk, Constants.CRICKET_AUCTION_EVENTS_COLLECTION, event.eventId, event);
+}
+function generateId() {
+    var ts = Date.now().toString(36);
+    var rand = Math.random().toString(36).substring(2, 8);
+    return ts + "_" + rand;
+}
+// ─────────────────────────────── RPC: Create Room ────────────────────────────
+function rpcCreateRoom(ctx, logger, nk, payload) {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId", "teams"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var key = roomKey(data.leagueId, data.seasonId);
+    var existing = readRoom(nk, key);
+    if (existing && existing.status === "active") {
+        return RpcHelpers.errorResponse("Auction room already active. Pause or complete it first.");
+    }
+    var budgets = {};
+    var teams = data.teams;
+    for (var i = 0; i < teams.length; i++) {
+        budgets[teams[i]] = { remaining: TOTAL_BUDGET, playersAcquired: 0, overseasUsed: 0 };
+    }
+    var now = new Date().toISOString();
+    var state = {
+        leagueId: data.leagueId,
+        seasonId: data.seasonId,
+        status: "active",
+        currentPlayer: null,
+        currentBid: null,
+        bidHistory: [],
+        soldPlayers: [],
+        unsoldPlayers: [],
+        teamBudgets: budgets,
+        round: 1,
+        createdAt: now,
+        updatedAt: now,
+    };
+    writeRoom(nk, key, state);
+    appendEvent(nk, {
+        eventId: generateId(),
+        roomKey: key,
+        type: "room_created",
+        data: { teams: teams, round: 1 },
+        userId: ctx.userId || "",
+        timestamp: now,
+    });
+    logger.info("[CricketAuction] Room created: " + key + " with " + teams.length + " teams");
+    return RpcHelpers.successResponse({ roomKey: key, status: "active", teams: teams.length });
+}
+// ─────────────────────────────── RPC: Get Room ───────────────────────────────
+function rpcGetRoom(ctx, logger, nk, payload) {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var state = readRoom(nk, roomKey(data.leagueId, data.seasonId));
+    if (!state) {
+        return RpcHelpers.errorResponse("Auction room not found");
+    }
+    return RpcHelpers.successResponse(state);
+}
+// ─────────────────────────────── RPC: Place Bid ──────────────────────────────
+function rpcPlaceBid(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId", "teamId", "amount"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var key = roomKey(data.leagueId, data.seasonId);
+    var state = readRoom(nk, key);
+    if (!state)
+        return RpcHelpers.errorResponse("Auction room not found");
+    if (state.status !== "active")
+        return RpcHelpers.errorResponse("Auction is not active (status: " + state.status + ")");
+    if (!state.currentPlayer)
+        return RpcHelpers.errorResponse("No player currently nominated");
+    var budget = state.teamBudgets[data.teamId];
+    if (!budget)
+        return RpcHelpers.errorResponse("Team not in this auction: " + data.teamId);
+    var amount = data.amount;
+    var minBid = state.currentBid ? state.currentBid.amount + 5 : state.currentPlayer.basePrice;
+    if (amount < minBid)
+        return RpcHelpers.errorResponse("Bid must be at least " + minBid);
+    if (amount > budget.remaining)
+        return RpcHelpers.errorResponse("Exceeds remaining budget (" + budget.remaining + ")");
+    if (budget.playersAcquired >= MAX_PLAYERS)
+        return RpcHelpers.errorResponse("Squad full (25 players)");
+    var now = new Date().toISOString();
+    var bid = { teamId: data.teamId, amount: amount, bidderId: userId, timestamp: now };
+    state.currentBid = bid;
+    state.bidHistory.push(bid);
+    writeRoom(nk, key, state);
+    appendEvent(nk, {
+        eventId: generateId(),
+        roomKey: key,
+        type: "bid_placed",
+        data: { teamId: data.teamId, playerId: state.currentPlayer.playerId, amount: amount },
+        userId: userId,
+        timestamp: now,
+    });
+    logger.info("[CricketAuction] Bid: " + data.teamId + " → " + amount + " for " + state.currentPlayer.playerName);
+    return RpcHelpers.successResponse({
+        accepted: true,
+        currentBid: bid,
+        budgetRemaining: budget.remaining - amount,
+    });
+}
+// ─────────────────────────────── RPC: Next Player ────────────────────────────
+function rpcNextPlayer(ctx, logger, nk, payload) {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var key = roomKey(data.leagueId, data.seasonId);
+    var state = readRoom(nk, key);
+    if (!state)
+        return RpcHelpers.errorResponse("Auction room not found");
+    if (state.status !== "active")
+        return RpcHelpers.errorResponse("Auction is not active");
+    var now = new Date().toISOString();
+    // Resolve current player if there was one
+    if (state.currentPlayer) {
+        if (state.currentBid) {
+            var winTeam = state.currentBid.teamId;
+            var winAmount = state.currentBid.amount;
+            state.soldPlayers.push({
+                playerId: state.currentPlayer.playerId,
+                playerName: state.currentPlayer.playerName,
+                soldToTeamId: winTeam,
+                soldPrice: winAmount,
+            });
+            state.teamBudgets[winTeam].remaining -= winAmount;
+            state.teamBudgets[winTeam].playersAcquired++;
+            appendEvent(nk, {
+                eventId: generateId(),
+                roomKey: key,
+                type: "player_sold",
+                data: { playerId: state.currentPlayer.playerId, teamId: winTeam, price: winAmount },
+                userId: ctx.userId || "",
+                timestamp: now,
+            });
+            logger.info("[CricketAuction] SOLD: " + state.currentPlayer.playerName + " → " + winTeam + " @ " + winAmount);
+        }
+        else {
+            state.unsoldPlayers.push(state.currentPlayer.playerId);
+            appendEvent(nk, {
+                eventId: generateId(),
+                roomKey: key,
+                type: "player_unsold",
+                data: { playerId: state.currentPlayer.playerId },
+                userId: ctx.userId || "",
+                timestamp: now,
+            });
+            logger.info("[CricketAuction] UNSOLD: " + state.currentPlayer.playerName);
+        }
+    }
+    // Nominate next player (from payload or null to complete)
+    if (data.nextPlayer) {
+        var np = {
+            playerId: data.nextPlayer.playerId,
+            playerName: data.nextPlayer.playerName || data.nextPlayer.playerId,
+            basePrice: data.nextPlayer.basePrice || 20,
+            category: data.nextPlayer.category || "General",
+            role: data.nextPlayer.role || "Unknown",
+            nationality: data.nextPlayer.nationality || "",
+        };
+        state.currentPlayer = np;
+        state.currentBid = null;
+        state.bidHistory = [];
+        appendEvent(nk, {
+            eventId: generateId(),
+            roomKey: key,
+            type: "next_player",
+            data: { playerId: np.playerId, basePrice: np.basePrice },
+            userId: ctx.userId || "",
+            timestamp: now,
+        });
+    }
+    else {
+        state.currentPlayer = null;
+        state.currentBid = null;
+        state.status = "completed";
+        appendEvent(nk, {
+            eventId: generateId(),
+            roomKey: key,
+            type: "room_completed",
+            data: { soldCount: state.soldPlayers.length, unsoldCount: state.unsoldPlayers.length },
+            userId: ctx.userId || "",
+            timestamp: now,
+        });
+        logger.info("[CricketAuction] Auction completed: " + key);
+    }
+    writeRoom(nk, key, state);
+    return RpcHelpers.successResponse(state);
+}
+// ─────────────────────────────── RPC: Get Events ─────────────────────────────
+function rpcGetEvents(ctx, logger, nk, payload) {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var validation = RpcHelpers.validatePayload(data, ["leagueId", "seasonId"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("Missing fields: " + validation.missing.join(", "));
+    }
+    var key = roomKey(data.leagueId, data.seasonId);
+    var limit = data.limit || 50;
+    var cursor = data.cursor || "";
+    var result = Storage.listUserRecords(nk, Constants.CRICKET_AUCTION_EVENTS_COLLECTION, Constants.SYSTEM_USER_ID, limit, cursor);
+    var events = [];
+    for (var i = 0; i < result.records.length; i++) {
+        var rec = result.records[i].value;
+        if (rec.roomKey === key) {
+            events.push(rec);
+        }
+    }
+    return RpcHelpers.successResponse({
+        events: events,
+        cursor: result.cursor || null,
+        total: events.length,
+    });
+}
+// ─────────────────────────────── Registration ────────────────────────────────
+var CricketAuction;
+(function (CricketAuction) {
+    function register(initializer) {
+        __rpc_cricket_auction_create_room = rpcCreateRoom;
+        __rpc_cricket_auction_get_room = rpcGetRoom;
+        __rpc_cricket_auction_place_bid = rpcPlaceBid;
+        __rpc_cricket_auction_next_player = rpcNextPlayer;
+        __rpc_cricket_auction_get_events = rpcGetEvents;
+    }
+    CricketAuction.register = register;
+    register();
+})(CricketAuction || (CricketAuction = {}));
+/**
+ * Cricket Director — Nakama server module
+ *
+ * Enforces single-active session per player for the AI Director game mode.
+ * Supports save / resume / end flows so players can leave and return
+ * to the exact same game state.
+ *
+ * Storage: CRICKET_DIRECTOR_COLLECTION  (one key per userId)
+ *
+ * RPCs:
+ *   cricket_director_start_session   — start or resume a session
+ *   cricket_director_save_session    — checkpoint current state
+ *   cricket_director_end_session     — explicitly finish a session
+ *   cricket_director_get_session     — read current session (if any)
+ *   cricket_director_list_history    — past completed sessions
+ */
+// ─────────────────────────────── Constants ────────────────────────────────────
+var HISTORY_COLLECTION = "cricket_director_history";
+var SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 min inactivity → auto-pause
+// ─────────────────────────────── Helpers ──────────────────────────────────────
+function generateSessionId() {
+    var ts = Date.now().toString(36);
+    var rand = Math.random().toString(36).substring(2, 8);
+    return "dir_" + ts + "_" + rand;
+}
+function readSession(nk, userId) {
+    return Storage.readJson(nk, Constants.CRICKET_DIRECTOR_COLLECTION, "active_session", userId);
+}
+function writeSession(nk, userId, session) {
+    session.updatedAt = new Date().toISOString();
+    session.lastActiveAt = session.updatedAt;
+    Storage.writeJson(nk, Constants.CRICKET_DIRECTOR_COLLECTION, "active_session", userId, session, 2, // owner-read + public-read
+    1);
+}
+function deleteSession(nk, userId) {
+    Storage.deleteRecord(nk, Constants.CRICKET_DIRECTOR_COLLECTION, "active_session", userId);
+}
+function archiveSession(nk, userId, session) {
+    var entry = {
+        sessionId: session.sessionId,
+        gameMode: session.gameMode,
+        fixtureId: session.fixtureId,
+        finalScore: session.matchContext.score + "/" + session.matchContext.wickets,
+        totalPlayTimeSec: session.totalPlayTimeSec,
+        completedAt: session.completedAt || new Date().toISOString(),
+    };
+    Storage.writeJson(nk, HISTORY_COLLECTION, session.sessionId, userId, entry, 2, 1);
+}
+function isTimedOut(session) {
+    var lastActive = new Date(session.lastActiveAt).getTime();
+    return Date.now() - lastActive > SESSION_TIMEOUT_MS;
+}
+// ─────────────────────────────── RPC: Start Session ──────────────────────────
+function rpcStartSession(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var existing = readSession(nk, userId);
+    if (existing) {
+        if (existing.status === "active" && !isTimedOut(existing)) {
+            return RpcHelpers.successResponse({
+                resumed: true,
+                message: "Existing active session resumed",
+                session: existing,
+            });
+        }
+        if (existing.status === "active" && isTimedOut(existing)) {
+            existing.status = "paused";
+            writeSession(nk, userId, existing);
+            logger.info("[CricketDirector] Auto-paused timed-out session: " + existing.sessionId);
+        }
+        if (existing.status === "paused") {
+            existing.status = "active";
+            writeSession(nk, userId, existing);
+            logger.info("[CricketDirector] Resumed paused session: " + existing.sessionId);
+            return RpcHelpers.successResponse({
+                resumed: true,
+                message: "Paused session resumed",
+                session: existing,
+            });
+        }
+        // abandoned or completed — archive and allow new
+        archiveSession(nk, userId, existing);
+        deleteSession(nk, userId);
+    }
+    // Create new session
+    var validation = RpcHelpers.validatePayload(data, ["gameMode", "fixtureId"]);
+    if (!validation.valid) {
+        return RpcHelpers.errorResponse("New session requires: " + validation.missing.join(", "));
+    }
+    var now = new Date().toISOString();
+    var session = {
+        sessionId: generateSessionId(),
+        userId: userId,
+        status: "active",
+        gameMode: data.gameMode,
+        fixtureId: data.fixtureId,
+        matchContext: {
+            battingTeamId: data.battingTeamId || "",
+            bowlingTeamId: data.bowlingTeamId || "",
+            innings: 1,
+            overs: 0,
+            balls: 0,
+            score: 0,
+            wickets: 0,
+        },
+        directorState: {
+            commentaryQueue: [],
+            soundManifestVersion: data.soundManifestVersion || "v1",
+            difficultyLevel: data.difficultyLevel || 3,
+            aiPersonality: data.aiPersonality || "neutral",
+            lastDecisionTimestamp: now,
+        },
+        checkpoints: [],
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+        totalPlayTimeSec: 0,
+        lastActiveAt: now,
+    };
+    writeSession(nk, userId, session);
+    EventBus.emit(nk, logger, ctx, EventBus.Events.SESSION_START, {
+        gameId: "cricket_director",
+        sessionId: session.sessionId,
+        gameMode: session.gameMode,
+        fixtureId: session.fixtureId,
+    });
+    logger.info("[CricketDirector] New session: " + session.sessionId + " for user " + userId);
+    return RpcHelpers.successResponse({ resumed: false, message: "New session created", session: session });
+}
+// ─────────────────────────────── RPC: Save Session ───────────────────────────
+function rpcSaveSession(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var session = readSession(nk, userId);
+    if (!session)
+        return RpcHelpers.errorResponse("No active session found");
+    if (session.status !== "active")
+        return RpcHelpers.errorResponse("Session is not active (status: " + session.status + ")");
+    // Merge matchContext updates
+    if (data.matchContext) {
+        var mc = session.matchContext;
+        var incoming = data.matchContext;
+        if (incoming.innings !== undefined)
+            mc.innings = incoming.innings;
+        if (incoming.overs !== undefined)
+            mc.overs = incoming.overs;
+        if (incoming.balls !== undefined)
+            mc.balls = incoming.balls;
+        if (incoming.score !== undefined)
+            mc.score = incoming.score;
+        if (incoming.wickets !== undefined)
+            mc.wickets = incoming.wickets;
+        if (incoming.battingTeamId)
+            mc.battingTeamId = incoming.battingTeamId;
+        if (incoming.bowlingTeamId)
+            mc.bowlingTeamId = incoming.bowlingTeamId;
+    }
+    // Merge directorState updates
+    if (data.directorState) {
+        var ds = session.directorState;
+        var incDs = data.directorState;
+        if (incDs.commentaryQueue)
+            ds.commentaryQueue = incDs.commentaryQueue;
+        if (incDs.difficultyLevel !== undefined)
+            ds.difficultyLevel = incDs.difficultyLevel;
+        if (incDs.aiPersonality)
+            ds.aiPersonality = incDs.aiPersonality;
+        ds.lastDecisionTimestamp = new Date().toISOString();
+    }
+    // Add checkpoint if label provided
+    if (data.checkpointLabel) {
+        session.checkpoints.push({
+            timestamp: new Date().toISOString(),
+            label: data.checkpointLabel,
+            stateSnapshot: { matchContext: session.matchContext },
+        });
+        if (session.checkpoints.length > 20) {
+            session.checkpoints = session.checkpoints.slice(-20);
+        }
+    }
+    if (data.playTimeDelta) {
+        session.totalPlayTimeSec += data.playTimeDelta;
+    }
+    writeSession(nk, userId, session);
+    logger.info("[CricketDirector] Session saved: " + session.sessionId);
+    return RpcHelpers.successResponse({ saved: true, sessionId: session.sessionId, checkpoints: session.checkpoints.length });
+}
+// ─────────────────────────────── RPC: End Session ────────────────────────────
+function rpcEndSession(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var session = readSession(nk, userId);
+    if (!session)
+        return RpcHelpers.errorResponse("No active session found");
+    var reason = data.reason || "player_ended";
+    if (data.matchContext) {
+        var mc = session.matchContext;
+        var fin = data.matchContext;
+        if (fin.score !== undefined)
+            mc.score = fin.score;
+        if (fin.wickets !== undefined)
+            mc.wickets = fin.wickets;
+        if (fin.overs !== undefined)
+            mc.overs = fin.overs;
+    }
+    session.status = reason === "abandoned" ? "abandoned" : "completed";
+    session.completedAt = new Date().toISOString();
+    if (data.playTimeDelta)
+        session.totalPlayTimeSec += data.playTimeDelta;
+    archiveSession(nk, userId, session);
+    deleteSession(nk, userId);
+    EventBus.emit(nk, logger, ctx, EventBus.Events.SESSION_END, {
+        gameId: "cricket_director",
+        sessionId: session.sessionId,
+        reason: reason,
+        totalPlayTimeSec: session.totalPlayTimeSec,
+        finalScore: session.matchContext.score + "/" + session.matchContext.wickets,
+    });
+    logger.info("[CricketDirector] Session ended: " + session.sessionId + " (" + reason + ")");
+    return RpcHelpers.successResponse({
+        ended: true,
+        sessionId: session.sessionId,
+        finalScore: session.matchContext.score + "/" + session.matchContext.wickets,
+        totalPlayTimeSec: session.totalPlayTimeSec,
+    });
+}
+// ─────────────────────────────── RPC: Get Session ────────────────────────────
+function rpcGetSession(ctx, logger, nk, _payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var session = readSession(nk, userId);
+    if (!session) {
+        return RpcHelpers.successResponse({ hasActiveSession: false, session: null });
+    }
+    if (session.status === "active" && isTimedOut(session)) {
+        session.status = "paused";
+        writeSession(nk, userId, session);
+    }
+    return RpcHelpers.successResponse({ hasActiveSession: true, session: session });
+}
+// ─────────────────────────────── RPC: List History ────────────────────────────
+function rpcListHistory(ctx, logger, nk, payload) {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var limit = data.limit || 20;
+    var cursor = data.cursor || "";
+    var result = Storage.listUserRecords(nk, HISTORY_COLLECTION, userId, limit, cursor);
+    var sessions = [];
+    for (var i = 0; i < result.records.length; i++) {
+        sessions.push(result.records[i].value);
+    }
+    return RpcHelpers.successResponse({
+        sessions: sessions,
+        cursor: result.cursor || null,
+        total: sessions.length,
+    });
+}
+// ─────────────────────────────── Registration ────────────────────────────────
+var CricketDirector;
+(function (CricketDirector) {
+    function register(initializer) {
+        __rpc_cricket_director_start_session = rpcStartSession;
+        __rpc_cricket_director_save_session = rpcSaveSession;
+        __rpc_cricket_director_end_session = rpcEndSession;
+        __rpc_cricket_director_get_session = rpcGetSession;
+        __rpc_cricket_director_list_history = rpcListHistory;
+    }
+    CricketDirector.register = register;
+    register();
+})(CricketDirector || (CricketDirector = {}));
 // ============================================================================
 // FANTASY CRICKET — Private Leagues
 // ============================================================================
@@ -53510,8 +54721,8 @@ var FantasyLeague;
     }
     // ---- RPCs ----
     function rpcCreateLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["leagueName", "seasonId"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -53562,8 +54773,8 @@ var FantasyLeague;
         });
     }
     function rpcJoinLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.inviteCode) {
             return RpcHelpers.errorResponse("inviteCode is required");
         }
@@ -53610,8 +54821,8 @@ var FantasyLeague;
         });
     }
     function rpcLeaveLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.groupId) {
             return RpcHelpers.errorResponse("groupId is required");
         }
@@ -53690,7 +54901,8 @@ var FantasyLeague;
         });
     }
     function rpcMyLeagues(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var leagues = [];
         try {
             var userGroups = nk.userGroupsList(userId, 100, undefined, "");
@@ -53749,6 +54961,46 @@ var FantasyLeague;
             createdAt: meta.createdAt,
         });
     }
+    function rpcListLeagues(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var limit = input.limit || 100;
+        var leagues = [];
+        try {
+            var cursor = "";
+            var keepGoing = true;
+            while (keepGoing && leagues.length < limit) {
+                var result = nk.storageList(Constants.SYSTEM_USER_ID, FantasyTypes.COLLECTION, 100, cursor);
+                if (!result || !result.objects || result.objects.length === 0) {
+                    keepGoing = false;
+                    break;
+                }
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    if (!obj.key || obj.key.indexOf(FantasyTypes.Keys.LEAGUE_META + "_") !== 0)
+                        continue;
+                    var meta = obj.value;
+                    if (!meta || !meta.groupId)
+                        continue;
+                    if (input.seasonId && meta.seasonId !== input.seasonId)
+                        continue;
+                    leagues.push({
+                        groupId: meta.groupId,
+                        leagueName: meta.leagueName,
+                        seasonId: meta.seasonId,
+                        inviteCode: meta.inviteCode,
+                        maxMembers: meta.maxMembers,
+                        createdAt: meta.createdAt,
+                    });
+                }
+                cursor = result.cursor || "";
+                keepGoing = cursor.length > 0;
+            }
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to list leagues: " + (e.message || String(e)));
+        }
+        return RpcHelpers.successResponse({ leagues: leagues, count: leagues.length });
+    }
     // ---- Registration ----
     function register(initializer) {
         __rpc_fantasy_league_create = rpcCreateLeague;
@@ -53757,6 +55009,7 @@ var FantasyLeague;
         __rpc_fantasy_league_leaderboard = rpcLeagueLeaderboard;
         __rpc_fantasy_league_my_leagues = rpcMyLeagues;
         __rpc_fantasy_league_info = rpcLeagueInfo;
+        __rpc_fantasy_league_list = rpcListLeagues;
     }
     FantasyLeague.register = register;
     register();
@@ -53942,27 +55195,49 @@ var FantasyScoring;
         var team = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, userId);
         if (!team)
             return null;
+        // Use the match XI if the user selected one; otherwise fall back to full squad
+        var matchXI = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + fixtureId, userId);
+        var activeCaptainId = team.captainId;
+        var activeVcId = team.viceCaptainId;
+        var activePlayerIds = {};
+        if (matchXI && matchXI.selectedPlayerIds && matchXI.selectedPlayerIds.length > 0) {
+            // Score only the selected 11
+            for (var j = 0; j < matchXI.selectedPlayerIds.length; j++) {
+                activePlayerIds[matchXI.selectedPlayerIds[j]] = true;
+            }
+            activeCaptainId = matchXI.captainId;
+            activeVcId = matchXI.viceCaptainId;
+        }
+        else {
+            // Fallback: score all 15 in the squad
+            for (var j = 0; j < team.players.length; j++) {
+                activePlayerIds[team.players[j].playerId] = true;
+            }
+        }
         var playerPoints = {};
         var totalPoints = 0;
         var captainPts = 0;
         var vcPts = 0;
         for (var i = 0; i < team.players.length; i++) {
             var sp = team.players[i];
+            // Skip players not in the active XI
+            if (!activePlayerIds[sp.playerId])
+                continue;
             var rawPts = 0;
             if (stats[sp.playerId]) {
                 rawPts = stats[sp.playerId].fantasyPoints;
             }
             var multiplier = 1;
-            if (sp.isCaptain)
+            if (sp.playerId === activeCaptainId)
                 multiplier = cfg.captainMultiplier;
-            else if (sp.isViceCaptain)
+            else if (sp.playerId === activeVcId)
                 multiplier = cfg.viceCaptainMultiplier;
             var finalPts = Math.round(rawPts * multiplier * 10) / 10;
             playerPoints[sp.playerId] = finalPts;
             totalPoints += finalPts;
-            if (sp.isCaptain)
+            if (sp.playerId === activeCaptainId)
                 captainPts = finalPts;
-            if (sp.isViceCaptain)
+            if (sp.playerId === activeVcId)
                 vcPts = finalPts;
         }
         // Subtract any penalty points from extra transfers
@@ -54048,7 +55323,8 @@ var FantasyScoring;
         }
         applyEndOfMatchBonuses(stats, cfg);
         savePlayerStats(nk, input.fixtureId, stats);
-        // Enumerate users with fantasy teams for this season
+        // Enumerate users with fantasy teams via the system-owned team index
+        var idxPrefix = "team_idx_" + input.seasonId + "_";
         var cursor = undefined;
         var usersProcessed = 0;
         var allMatchPoints = [];
@@ -54057,27 +55333,29 @@ var FantasyScoring;
             if (list && list.objects) {
                 for (var i = 0; i < list.objects.length; i++) {
                     var obj = list.objects[i];
-                    if (obj.key.indexOf(FantasyTypes.Keys.TEAM + "_" + input.seasonId) === 0 && obj.userId) {
-                        var mp = computeUserMatchPoints(nk, obj.userId, input.seasonId, input.fixtureId, input.matchday, stats, cfg);
-                        if (mp) {
-                            allMatchPoints.push(mp);
-                            usersProcessed++;
-                            // Write to season leaderboard
-                            try {
-                                nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId, obj.userId, "", // username filled by Nakama
-                                Math.round(mp.totalPoints), 0, // subscore
-                                { matchday: input.matchday, fixtureId: input.fixtureId });
-                            }
-                            catch (e) {
-                                logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", obj.userId, e.message || String(e));
-                            }
-                            // Write to per-match leaderboard
-                            try {
-                                nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId, obj.userId, "", Math.round(mp.totalPoints), 0, {});
-                            }
-                            catch (e) {
-                                logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", obj.userId, e.message || String(e));
-                            }
+                    if (obj.key.indexOf(idxPrefix) !== 0)
+                        continue;
+                    var idxEntry = obj.value;
+                    if (!idxEntry || !idxEntry.userId)
+                        continue;
+                    var teamUserId = idxEntry.userId;
+                    var mp = computeUserMatchPoints(nk, teamUserId, input.seasonId, input.fixtureId, input.matchday, stats, cfg);
+                    if (mp) {
+                        allMatchPoints.push(mp);
+                        usersProcessed++;
+                        // Write to season leaderboard
+                        try {
+                            nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_SEASON + "_" + input.seasonId, teamUserId, "", Math.round(mp.totalPoints), 0, { matchday: input.matchday, fixtureId: input.fixtureId });
+                        }
+                        catch (e) {
+                            logger.warn("[FantasyScoring] Leaderboard write failed for user %s: %s", teamUserId, e.message || String(e));
+                        }
+                        // Write to per-match leaderboard
+                        try {
+                            nk.leaderboardRecordWrite(FantasyTypes.LEADERBOARD_MATCH_PREFIX + input.fixtureId, teamUserId, "", Math.round(mp.totalPoints), 0, {});
+                        }
+                        catch (e) {
+                            logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", teamUserId, e.message || String(e));
                         }
                     }
                 }
@@ -54146,13 +55424,6 @@ var FantasyScoring;
 // ============================================================================
 var FantasyTeam;
 (function (FantasyTeam) {
-    var SQUAD_SIZE = 15;
-    var CREDIT_BUDGET = 100;
-    var MAX_PER_REAL_TEAM = 7;
-    var MIN_BATSMEN = 3;
-    var MIN_BOWLERS = 3;
-    var MIN_ALL_ROUNDERS = 1;
-    var MIN_WICKET_KEEPERS = 1;
     // ---- Helpers ----
     function getPlayerCatalog(nk, seasonId) {
         return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.PLAYER_CATALOG + "_" + seasonId, Constants.SYSTEM_USER_ID);
@@ -54165,10 +55436,13 @@ var FantasyTeam;
     function getTeam(nk, userId, seasonId) {
         return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, userId);
     }
+    function getMatchDeadline(nk, fixtureId) {
+        return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_DEADLINE + "_" + fixtureId, Constants.SYSTEM_USER_ID);
+    }
     function validateSquad(players, catalog) {
         var errors = [];
-        if (players.length !== SQUAD_SIZE) {
-            errors.push("Squad must contain exactly " + SQUAD_SIZE + " players, got " + players.length);
+        if (players.length !== FantasyTypes.SQUAD_SIZE) {
+            errors.push("Squad must contain exactly " + FantasyTypes.SQUAD_SIZE + " players, got " + players.length);
         }
         var uniqueIds = {};
         for (var i = 0; i < players.length; i++) {
@@ -54196,6 +55470,7 @@ var FantasyTeam;
             }
         }
         var totalCredits = 0;
+        var overseasCount = 0;
         var teamCounts = {};
         var roleCounts = { "batsman": 0, "bowler": 0, "all-rounder": 0, "wicket-keeper": 0 };
         for (var i = 0; i < players.length; i++) {
@@ -54205,6 +55480,8 @@ var FantasyTeam;
                 continue;
             }
             totalCredits += entry.creditValue;
+            if (entry.isOverseas)
+                overseasCount++;
             if (!teamCounts[entry.teamId])
                 teamCounts[entry.teamId] = 0;
             teamCounts[entry.teamId]++;
@@ -54212,29 +55489,100 @@ var FantasyTeam;
                 roleCounts[entry.role]++;
             }
         }
-        if (totalCredits > CREDIT_BUDGET) {
-            errors.push("Total credits " + totalCredits.toFixed(1) + " exceeds budget of " + CREDIT_BUDGET);
+        if (totalCredits > FantasyTypes.CREDIT_BUDGET) {
+            errors.push("Total credits " + totalCredits.toFixed(1) + " exceeds budget of " + FantasyTypes.CREDIT_BUDGET);
+        }
+        if (overseasCount > FantasyTypes.MAX_OVERSEAS_IN_SQUAD) {
+            errors.push("Max " + FantasyTypes.MAX_OVERSEAS_IN_SQUAD + " overseas players in squad, got " + overseasCount);
         }
         var teamIds = Object.keys(teamCounts);
         for (var i = 0; i < teamIds.length; i++) {
-            if (teamCounts[teamIds[i]] > MAX_PER_REAL_TEAM) {
-                errors.push("Max " + MAX_PER_REAL_TEAM + " players from one team, team " + teamIds[i] + " has " + teamCounts[teamIds[i]]);
+            if (teamCounts[teamIds[i]] > FantasyTypes.MAX_PER_REAL_TEAM) {
+                errors.push("Max " + FantasyTypes.MAX_PER_REAL_TEAM + " players from one team, team " + teamIds[i] + " has " + teamCounts[teamIds[i]]);
             }
         }
-        if (roleCounts["batsman"] < MIN_BATSMEN)
-            errors.push("Need at least " + MIN_BATSMEN + " batsmen, got " + roleCounts["batsman"]);
-        if (roleCounts["bowler"] < MIN_BOWLERS)
-            errors.push("Need at least " + MIN_BOWLERS + " bowlers, got " + roleCounts["bowler"]);
-        if (roleCounts["all-rounder"] < MIN_ALL_ROUNDERS)
-            errors.push("Need at least " + MIN_ALL_ROUNDERS + " all-rounder, got " + roleCounts["all-rounder"]);
-        if (roleCounts["wicket-keeper"] < MIN_WICKET_KEEPERS)
-            errors.push("Need at least " + MIN_WICKET_KEEPERS + " wicket-keeper, got " + roleCounts["wicket-keeper"]);
+        var roles = Object.keys(FantasyTypes.SQUAD_MIN_ROLES);
+        for (var i = 0; i < roles.length; i++) {
+            var r = roles[i];
+            if ((roleCounts[r] || 0) < FantasyTypes.SQUAD_MIN_ROLES[r]) {
+                errors.push("Need at least " + FantasyTypes.SQUAD_MIN_ROLES[r] + " " + r + "(s), got " + (roleCounts[r] || 0));
+            }
+        }
+        return { valid: errors.length === 0, errors: errors };
+    }
+    // ---- Match XI Validation ----
+    function validateMatchXI(playerIds, captainId, viceCaptainId, squad, catalog) {
+        var errors = [];
+        if (playerIds.length !== FantasyTypes.XI_SIZE) {
+            errors.push("Playing XI must contain exactly " + FantasyTypes.XI_SIZE + " players, got " + playerIds.length);
+        }
+        // Check for duplicates
+        var uniqueIds = {};
+        for (var i = 0; i < playerIds.length; i++) {
+            if (uniqueIds[playerIds[i]]) {
+                errors.push("Duplicate player in XI: " + playerIds[i]);
+            }
+            uniqueIds[playerIds[i]] = true;
+        }
+        // All XI players must be in the 15-player squad
+        var squadLookup = {};
+        for (var i = 0; i < squad.players.length; i++) {
+            squadLookup[squad.players[i].playerId] = squad.players[i];
+        }
+        for (var i = 0; i < playerIds.length; i++) {
+            if (!squadLookup[playerIds[i]]) {
+                errors.push("Player " + playerIds[i] + " is not in your squad");
+            }
+        }
+        // Captain and vice-captain must be in XI
+        if (!uniqueIds[captainId]) {
+            errors.push("Captain " + captainId + " must be in the playing XI");
+        }
+        if (!uniqueIds[viceCaptainId]) {
+            errors.push("Vice-captain " + viceCaptainId + " must be in the playing XI");
+        }
+        if (captainId === viceCaptainId) {
+            errors.push("Captain and vice-captain must be different players");
+        }
+        // Role composition and overseas limit for the XI
+        var overseasCount = 0;
+        var teamCounts = {};
+        var roleCounts = { "batsman": 0, "bowler": 0, "all-rounder": 0, "wicket-keeper": 0 };
+        for (var i = 0; i < playerIds.length; i++) {
+            var entry = catalog.players[playerIds[i]];
+            if (!entry)
+                continue;
+            if (entry.isOverseas)
+                overseasCount++;
+            if (!teamCounts[entry.teamId])
+                teamCounts[entry.teamId] = 0;
+            teamCounts[entry.teamId]++;
+            if (roleCounts[entry.role] !== undefined) {
+                roleCounts[entry.role]++;
+            }
+        }
+        if (overseasCount > FantasyTypes.MAX_OVERSEAS_IN_XI) {
+            errors.push("Max " + FantasyTypes.MAX_OVERSEAS_IN_XI + " overseas players in XI, got " + overseasCount);
+        }
+        var teamIds = Object.keys(teamCounts);
+        for (var i = 0; i < teamIds.length; i++) {
+            if (teamCounts[teamIds[i]] > FantasyTypes.MAX_PER_REAL_TEAM) {
+                errors.push("Max " + FantasyTypes.MAX_PER_REAL_TEAM + " players from one team in XI, team " + teamIds[i] + " has " + teamCounts[teamIds[i]]);
+            }
+        }
+        var roles = Object.keys(FantasyTypes.XI_MIN_ROLES);
+        for (var i = 0; i < roles.length; i++) {
+            var r = roles[i];
+            if ((roleCounts[r] || 0) < FantasyTypes.XI_MIN_ROLES[r]) {
+                errors.push("XI needs at least " + FantasyTypes.XI_MIN_ROLES[r] + " " + r + "(s), got " + (roleCounts[r] || 0));
+            }
+        }
         return { valid: errors.length === 0, errors: errors };
     }
     // ---- RPCs ----
     function rpcCreateTeam(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["seasonId", "leagueId", "teamName", "players"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -54300,6 +55648,8 @@ var FantasyTeam;
             };
             Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + input.seasonId, userId, state, 2, 1);
         }
+        // Write to team index so auto-join can discover all users with teams
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, "team_idx_" + input.seasonId + "_" + userId, Constants.SYSTEM_USER_ID, { userId: userId, seasonId: input.seasonId, teamName: input.teamName, lockedAt: now }, 2, 0);
         logger.info("[FantasyTeam] User %s created squad '%s' (credits: %s)", userId, input.teamName, totalCredits.toFixed(1));
         EventBus.emit(nk, logger, ctx, "fantasy_team_created", {
             userId: userId, seasonId: input.seasonId, teamName: input.teamName, totalCredits: totalCredits,
@@ -54307,8 +55657,8 @@ var FantasyTeam;
         return RpcHelpers.successResponse(team);
     }
     function rpcGetTeam(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.seasonId) {
             return RpcHelpers.errorResponse("seasonId is required");
         }
@@ -54319,8 +55669,8 @@ var FantasyTeam;
         return RpcHelpers.successResponse(team);
     }
     function rpcUpdateCaptain(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["seasonId", "captainId", "viceCaptainId"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -54354,11 +55704,96 @@ var FantasyTeam;
         saveTeam(nk, team);
         return RpcHelpers.successResponse(team);
     }
+    // ---- Match XI RPCs ----
+    function rpcSelectMatchXI(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
+        var check = RpcHelpers.validatePayload(input, ["fixtureId", "seasonId", "playerIds", "captainId", "viceCaptainId"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        if (!input.playerIds || !input.playerIds.length) {
+            return RpcHelpers.errorResponse("playerIds array is required");
+        }
+        // Deadline enforcement
+        var deadline = getMatchDeadline(nk, input.fixtureId);
+        if (deadline) {
+            var nowSec = Math.floor(Date.now() / 1000);
+            if (nowSec >= deadline.deadlineAt) {
+                return RpcHelpers.errorResponse("Selection deadline has passed for this match. " +
+                    "Deadline was " + new Date(deadline.deadlineAt * 1000).toISOString());
+            }
+        }
+        // Get squad
+        var squad = getTeam(nk, userId, input.seasonId);
+        if (!squad) {
+            return RpcHelpers.errorResponse("No squad found for season " + input.seasonId + ". Create a team first.");
+        }
+        // Get catalog for role/overseas validation
+        var catalog = getPlayerCatalog(nk, input.seasonId);
+        if (!catalog) {
+            return RpcHelpers.errorResponse("Player catalog not found for season " + input.seasonId);
+        }
+        // Validate the XI
+        var validation = validateMatchXI(input.playerIds, input.captainId, input.viceCaptainId, squad, catalog);
+        if (!validation.valid) {
+            return RpcHelpers.errorResponse("XI validation failed: " + validation.errors.join("; "));
+        }
+        var now = new Date().toISOString();
+        var matchXI = {
+            userId: userId,
+            fixtureId: input.fixtureId,
+            seasonId: input.seasonId,
+            selectedPlayerIds: input.playerIds,
+            captainId: input.captainId,
+            viceCaptainId: input.viceCaptainId,
+            lockedAt: now,
+        };
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + input.fixtureId, userId, matchXI, 2, 1);
+        logger.info("[FantasyTeam] User %s selected XI for fixture %s (captain=%s, vc=%s)", userId, input.fixtureId, input.captainId, input.viceCaptainId);
+        return RpcHelpers.successResponse(matchXI);
+    }
+    function rpcGetMatchXI(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
+        if (!input.fixtureId) {
+            return RpcHelpers.errorResponse("fixtureId is required");
+        }
+        var xi = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + input.fixtureId, userId);
+        if (!xi) {
+            return RpcHelpers.errorResponse("No playing XI selected for fixture " + input.fixtureId);
+        }
+        return RpcHelpers.successResponse(xi);
+    }
+    /**
+     * Admin RPC to set the selection deadline for a fixture.
+     * Called by Intelliverse-X-AI when a match is scheduled.
+     */
+    function rpcSetMatchDeadline(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["fixtureId", "seasonId", "deadlineAt", "matchStartAt"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        var dl = {
+            fixtureId: input.fixtureId,
+            seasonId: input.seasonId,
+            deadlineAt: input.deadlineAt,
+            matchStartAt: input.matchStartAt,
+        };
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_DEADLINE + "_" + input.fixtureId, Constants.SYSTEM_USER_ID, dl, 2, 0);
+        logger.info("[FantasyTeam] Deadline set for fixture %s: %s", input.fixtureId, new Date(input.deadlineAt * 1000).toISOString());
+        return RpcHelpers.successResponse(dl);
+    }
     // ---- Registration ----
     function register(initializer) {
         __rpc_fantasy_team_create = rpcCreateTeam;
         __rpc_fantasy_team_get = rpcGetTeam;
         __rpc_fantasy_team_update_captain = rpcUpdateCaptain;
+        __rpc_fantasy_match_xi_select = rpcSelectMatchXI;
+        __rpc_fantasy_match_xi_get = rpcGetMatchXI;
+        __rpc_fantasy_match_deadline_set = rpcSetMatchDeadline;
     }
     FantasyTeam.register = register;
     register();
@@ -54631,16 +56066,37 @@ var FantasyTypes;
     FantasyTypes.COLLECTION = "fantasy_cricket";
     FantasyTypes.Keys = {
         TEAM: "team", // per-user squad
+        MATCH_XI: "match_xi", // per-user per-fixture playing XI (11 from 15)
         SEASON_STATE: "season_state", // per-user season metadata (transfers, boosters)
         SCORING_CONFIG: "scoring_config", // system-level scoring rules
         PLAYER_CATALOG: "player_catalog", // system-level credit values
         TRANSFER_WINDOW: "transfer_window", // system-level window state
         MATCH_POINTS: "match_points", // per-user per-match points
         LEAGUE_META: "league_meta", // per-group metadata
+        MATCH_DEADLINE: "match_deadline", // system-level per-fixture deadline
     };
     FantasyTypes.LEADERBOARD_SEASON = "fantasy_season";
     FantasyTypes.LEADERBOARD_MATCH_PREFIX = "fantasy_match_";
     FantasyTypes.LEADERBOARD_LEAGUE_PREFIX = "fantasy_league_";
+    // ---- Squad Composition Constants ----
+    FantasyTypes.SQUAD_SIZE = 15;
+    FantasyTypes.XI_SIZE = 11;
+    FantasyTypes.CREDIT_BUDGET = 100;
+    FantasyTypes.MAX_PER_REAL_TEAM = 7;
+    FantasyTypes.MAX_OVERSEAS_IN_XI = 4;
+    FantasyTypes.MAX_OVERSEAS_IN_SQUAD = 8;
+    FantasyTypes.SQUAD_MIN_ROLES = {
+        "batsman": 3,
+        "bowler": 3,
+        "all-rounder": 1,
+        "wicket-keeper": 1,
+    };
+    FantasyTypes.XI_MIN_ROLES = {
+        "batsman": 3,
+        "bowler": 2,
+        "all-rounder": 1,
+        "wicket-keeper": 1,
+    };
     // ---- Default Scoring Config ----
     function defaultScoringConfig(seasonId) {
         return {
@@ -55481,11 +56937,30 @@ var AdminConsole;
         __rpc_admin_events_timeline = rpcEventsTimeline;
         // Storage browser
         __rpc_admin_storage_list = rpcStorageList;
+        // Gift claims
+        __rpc_gift_claims_list = rpcGiftClaimsList;
+        __rpc_admin_gift_claim_update = rpcGiftClaimUpdate;
         // Health
         __rpc_admin_health_check = rpcHealthCheck;
     }
     AdminConsole.register = register;
     register();
+    function rpcGiftClaimsList(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var claims = RewardEngine.getGiftClaims(nk, userId);
+        return RpcHelpers.successResponse({ claims: claims });
+    }
+    function rpcGiftClaimUpdate(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.userId || !data.claimId || !data.status) {
+            return RpcHelpers.errorResponse("userId, claimId, and status required");
+        }
+        var updated = RewardEngine.updateGiftClaimStatus(nk, data.userId, data.claimId, data.status);
+        if (!updated)
+            return RpcHelpers.errorResponse("Claim not found");
+        return RpcHelpers.successResponse({ updated: true });
+    }
 })(AdminConsole || (AdminConsole = {}));
 var HiroBase;
 (function (HiroBase) {
@@ -61699,6 +63174,8 @@ var SatoriLiveEvents;
                 joined: userState ? !!userState.joinedAt : false,
                 claimed: userState ? !!userState.claimedAt : false,
                 hasReward: !!def.reward,
+                hasGifts: !!(def.reward && def.reward.guaranteed && def.reward.guaranteed.gifts && def.reward.guaranteed.gifts.length > 0),
+                prizeTiers: def.prizeTiers || [],
                 sticky: !!def.sticky,
                 requiresJoin: !!def.requiresJoin,
                 flagOverrides: def.flagOverrides
@@ -61760,10 +63237,70 @@ var SatoriLiveEvents;
         saveUserLiveEventStates(nk, userId, userStates);
         return RpcHelpers.successResponse({ reward: reward });
     }
+    /**
+     * Auto-join all users who have locked fantasy teams for a given season
+     * to a specific live event. Called server-to-server by Intelliverse-X-AI
+     * after creating a live event for a match.
+     */
+    function rpcAutoJoinFantasyTeamHolders(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId || !data.seasonId) {
+            return RpcHelpers.errorResponse("eventId and seasonId required");
+        }
+        var events = getEventDefinitions(nk);
+        var def = events[data.eventId];
+        if (!def) {
+            return RpcHelpers.errorResponse("Event not found: " + data.eventId);
+        }
+        var keyPrefix = "team_idx_" + data.seasonId + "_";
+        var cursor = "";
+        var joinedCount = 0;
+        var totalScanned = 0;
+        var now = Math.floor(Date.now() / 1000);
+        // Scan the fantasy team index (system-owned records)
+        do {
+            var result = nk.storageList(Constants.SYSTEM_USER_ID, Constants.FANTASY_COLLECTION, 100, cursor);
+            var objects = result.objects || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.key.indexOf(keyPrefix) !== 0)
+                    continue;
+                totalScanned++;
+                var entry = obj.value;
+                if (!entry.userId)
+                    continue;
+                // Write join state for this user
+                try {
+                    var userStates = getUserLiveEventStates(nk, entry.userId);
+                    if (!userStates[data.eventId] || !userStates[data.eventId].joinedAt) {
+                        if (!userStates[data.eventId]) {
+                            userStates[data.eventId] = { eventId: data.eventId };
+                        }
+                        userStates[data.eventId].joinedAt = now;
+                        saveUserLiveEventStates(nk, entry.userId, userStates);
+                        joinedCount++;
+                    }
+                }
+                catch (err) {
+                    logger.warn("[AutoJoin] Failed to join user %s to event %s: %s", entry.userId, data.eventId, err.message);
+                }
+            }
+            cursor = result.cursor || "";
+        } while (cursor);
+        logger.info("[AutoJoin] Joined %d users to event %s (scanned %d index entries for season %s)", joinedCount, data.eventId, totalScanned, data.seasonId);
+        return RpcHelpers.successResponse({
+            eventId: data.eventId,
+            seasonId: data.seasonId,
+            joinedCount: joinedCount,
+            totalTeamHolders: totalScanned,
+        });
+    }
     function register(initializer) {
         __rpc_satori_live_events_list = rpcList;
         __rpc_satori_live_events_join = rpcJoin;
         __rpc_satori_live_events_claim = rpcClaim;
+        __rpc_fantasy_auto_join_live_event = rpcAutoJoinFantasyTeamHolders;
     }
     SatoriLiveEvents.register = register;
     register();
@@ -62509,6 +64046,11 @@ var Constants;
     Constants.SATORI_ASSIGNMENTS_COLLECTION = "satori_assignments";
     Constants.SATORI_MESSAGES_COLLECTION = "satori_messages";
     Constants.SATORI_METRICS_COLLECTION = "satori_metrics";
+    // Cricket Auction storage collections
+    Constants.CRICKET_AUCTION_COLLECTION = "cricket_auctions";
+    Constants.CRICKET_AUCTION_EVENTS_COLLECTION = "cricket_auction_events";
+    // Cricket Director storage collections
+    Constants.CRICKET_DIRECTOR_COLLECTION = "cricket_director_sessions";
     // Fantasy Cricket storage collections
     Constants.FANTASY_COLLECTION = "fantasy_cricket";
     Constants.FANTASY_SEASON_LEADERBOARD = "fantasy_season";
@@ -62628,6 +64170,7 @@ var RewardEngine;
             currencies: {},
             items: {},
             energies: {},
+            gifts: [],
             modifiers: []
         };
         if (reward.guaranteed) {
@@ -62699,6 +64242,11 @@ var RewardEngine;
                 target.energies[eid] += grant.energies[eid];
             }
         }
+        if (grant.gifts) {
+            for (var g = 0; g < grant.gifts.length; g++) {
+                target.gifts.push(grant.gifts[g]);
+            }
+        }
         if (grant.energyModifiers) {
             for (var m = 0; m < grant.energyModifiers.length; m++) {
                 target.modifiers.push(grant.energyModifiers[m]);
@@ -62729,11 +64277,63 @@ var RewardEngine;
                 HiroEnergy.addEnergy(nk, logger, ctx, userId, eid, resolved.energies[eid], gameId);
             }
         }
+        // Record gift claims for fulfillment (physical items, vouchers, etc.)
+        if (resolved.gifts && resolved.gifts.length > 0) {
+            var existing = Storage.readJson(nk, "gift_claims", "pending_" + userId, userId);
+            var claims = (existing && existing.claims) || [];
+            var now = Math.floor(Date.now() / 1000);
+            for (var gi = 0; gi < resolved.gifts.length; gi++) {
+                var gift = resolved.gifts[gi];
+                claims.push({
+                    claimId: nk.uuidv4(),
+                    giftId: gift.id,
+                    name: gift.name,
+                    description: gift.description,
+                    imageUrl: gift.imageUrl || "",
+                    type: gift.type,
+                    value: gift.value || "",
+                    quantity: gift.quantity || 1,
+                    fulfillmentUrl: gift.fulfillmentUrl || "",
+                    terms: gift.terms || "",
+                    status: "pending",
+                    claimedAt: now,
+                    fulfilledAt: 0
+                });
+            }
+            Storage.writeJson(nk, "gift_claims", "pending_" + userId, userId, { claims: claims });
+            logger.info("[RewardEngine] Recorded %d gift claim(s) for user %s", resolved.gifts.length, userId);
+        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.REWARD_GRANTED, {
             userId: userId, gameId: gameId, reward: resolved
         });
     }
     RewardEngine.grantReward = grantReward;
+    function getGiftClaims(nk, userId) {
+        var data = Storage.readJson(nk, "gift_claims", "pending_" + userId, userId);
+        return (data && data.claims) || [];
+    }
+    RewardEngine.getGiftClaims = getGiftClaims;
+    function updateGiftClaimStatus(nk, userId, claimId, status) {
+        var data = Storage.readJson(nk, "gift_claims", "pending_" + userId, userId);
+        if (!data || !data.claims)
+            return false;
+        var found = false;
+        for (var i = 0; i < data.claims.length; i++) {
+            if (data.claims[i].claimId === claimId) {
+                data.claims[i].status = status;
+                if (status === "fulfilled" || status === "delivered") {
+                    data.claims[i].fulfilledAt = Math.floor(Date.now() / 1000);
+                }
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            Storage.writeJson(nk, "gift_claims", "pending_" + userId, userId, data);
+        }
+        return found;
+    }
+    RewardEngine.updateGiftClaimStatus = updateGiftClaimStatus;
     function grantToMailbox(nk, userId, subject, reward, expiresAt) {
         var msg = {
             id: nk.uuidv4(),
@@ -62824,6 +64424,16 @@ var RpcHelpers;
         return ctx.userId;
     }
     RpcHelpers.requireUserId = requireUserId;
+    function resolveUserId(ctx, payload) {
+        if (ctx.userId) {
+            return ctx.userId;
+        }
+        if (payload && typeof payload.userId === "string" && payload.userId.length > 0) {
+            return payload.userId;
+        }
+        throw new Error("User ID is required (provide via auth token or 'userId' field in payload)");
+    }
+    RpcHelpers.resolveUserId = resolveUserId;
     function requireAdmin(ctx, nk) {
         if (!ctx.userId)
             throw new Error("Authentication required");
@@ -63322,10 +64932,19 @@ try { __rpc_onboarding_get_tomorrow_preview = __rpc_onboarding_get_tomorrow_prev
 try { __rpc_onboarding_track_session = __rpc_onboarding_track_session || (rpcTrackSession); } catch(e) {}
 try { __rpc_onboarding_get_retention_data = __rpc_onboarding_get_retention_data || (rpcGetRetentionData); } catch(e) {}
 try { __rpc_onboarding_grant_streak_shield = __rpc_onboarding_grant_streak_shield || (rpcGrantStreakShield); } catch(e) {}
-try { __rpc_global_wallet_balance = __rpc_global_wallet_balance || (rpcGlobalWalletBalance); } catch(e) {}
-try { __rpc_global_wallet_earn = __rpc_global_wallet_earn || (rpcGlobalWalletEarn); } catch(e) {}
-try { __rpc_global_wallet_spend = __rpc_global_wallet_spend || (rpcGlobalWalletSpend); } catch(e) {}
-try { __rpc_global_wallet_history = __rpc_global_wallet_history || (rpcGlobalWalletHistory); } catch(e) {}
+try { __rpc_qe_player_full_profile = __rpc_qe_player_full_profile || (rpcQePlayerFullProfile); } catch(e) {}
+try { __rpc_qe_stale_sessions = __rpc_qe_stale_sessions || (rpcQeStaleSessions); } catch(e) {}
+try { __rpc_qe_cohort_export = __rpc_qe_cohort_export || (rpcQeCohortExport); } catch(e) {}
+try { __rpc_qe_user_event_summary = __rpc_qe_user_event_summary || (rpcQeUserEventSummary); } catch(e) {}
+try { __rpc_quests_wallet_balance = __rpc_quests_wallet_balance || (rpcQuestsWalletBalance); } catch(e) {}
+try { __rpc_quests_wallet_earn = __rpc_quests_wallet_earn || (rpcQuestsWalletEarn); } catch(e) {}
+try { __rpc_quests_wallet_spend = __rpc_quests_wallet_spend || (rpcQuestsWalletSpend); } catch(e) {}
+try { __rpc_quests_wallet_history = __rpc_quests_wallet_history || (rpcQuestsWalletHistory); } catch(e) {}
+try { __rpc_global_wallet_balance = __rpc_global_wallet_balance || (rpcQuestsWalletBalance); } catch(e) {}
+try { __rpc_global_wallet_earn = __rpc_global_wallet_earn || (rpcQuestsWalletEarn); } catch(e) {}
+try { __rpc_global_wallet_spend = __rpc_global_wallet_spend || (rpcQuestsWalletSpend); } catch(e) {}
+try { __rpc_global_wallet_history = __rpc_global_wallet_history || (rpcQuestsWalletHistory); } catch(e) {}
+try { __rpc_quests_wallet_migrate_from_postgres = __rpc_quests_wallet_migrate_from_postgres || (rpcMigrateFromPostgres); } catch(e) {}
 try { __rpc_game_to_global_convert = __rpc_game_to_global_convert || (rpcGameToGlobalConvert); } catch(e) {}
 try { __rpc_game_to_global_preview = __rpc_game_to_global_preview || (rpcGameToGlobalPreview); } catch(e) {}
 try { __rpc_conversion_ratio_set = __rpc_conversion_ratio_set || (rpcConversionRatioSet); } catch(e) {}
@@ -63395,12 +65014,23 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quizverse_track_session_end", __rpc_quizverse_track_session_end); } catch(e) {}
   try { initializer.registerRpc("quizverse_get_server_config", __rpc_quizverse_get_server_config); } catch(e) {}
   try { initializer.registerRpc("quizverse_admin_grant_item", __rpc_quizverse_admin_grant_item); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_create_room", __rpc_cricket_auction_create_room); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_get_room", __rpc_cricket_auction_get_room); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_place_bid", __rpc_cricket_auction_place_bid); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_next_player", __rpc_cricket_auction_next_player); } catch(e) {}
+  try { initializer.registerRpc("cricket_auction_get_events", __rpc_cricket_auction_get_events); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_start_session", __rpc_cricket_director_start_session); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_save_session", __rpc_cricket_director_save_session); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_end_session", __rpc_cricket_director_end_session); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_get_session", __rpc_cricket_director_get_session); } catch(e) {}
+  try { initializer.registerRpc("cricket_director_list_history", __rpc_cricket_director_list_history); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_create", __rpc_fantasy_league_create); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_join", __rpc_fantasy_league_join); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_leave", __rpc_fantasy_league_leave); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_leaderboard", __rpc_fantasy_league_leaderboard); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_my_leagues", __rpc_fantasy_league_my_leagues); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_info", __rpc_fantasy_league_info); } catch(e) {}
+  try { initializer.registerRpc("fantasy_league_list", __rpc_fantasy_league_list); } catch(e) {}
   try { initializer.registerRpc("fantasy_scoring_process", __rpc_fantasy_scoring_process); } catch(e) {}
   try { initializer.registerRpc("fantasy_scoring_finalize", __rpc_fantasy_scoring_finalize); } catch(e) {}
   try { initializer.registerRpc("fantasy_scoring_get_points", __rpc_fantasy_scoring_get_points); } catch(e) {}
@@ -63408,6 +65038,9 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("fantasy_team_create", __rpc_fantasy_team_create); } catch(e) {}
   try { initializer.registerRpc("fantasy_team_get", __rpc_fantasy_team_get); } catch(e) {}
   try { initializer.registerRpc("fantasy_team_update_captain", __rpc_fantasy_team_update_captain); } catch(e) {}
+  try { initializer.registerRpc("fantasy_match_xi_select", __rpc_fantasy_match_xi_select); } catch(e) {}
+  try { initializer.registerRpc("fantasy_match_xi_get", __rpc_fantasy_match_xi_get); } catch(e) {}
+  try { initializer.registerRpc("fantasy_match_deadline_set", __rpc_fantasy_match_deadline_set); } catch(e) {}
   try { initializer.registerRpc("fantasy_transfer", __rpc_fantasy_transfer); } catch(e) {}
   try { initializer.registerRpc("fantasy_transfer_window", __rpc_fantasy_transfer_window); } catch(e) {}
   try { initializer.registerRpc("fantasy_transfer_history", __rpc_fantasy_transfer_history); } catch(e) {}
@@ -63441,6 +65074,8 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("admin_experiment_setup", __rpc_admin_experiment_setup); } catch(e) {}
   try { initializer.registerRpc("admin_events_timeline", __rpc_admin_events_timeline); } catch(e) {}
   try { initializer.registerRpc("admin_storage_list", __rpc_admin_storage_list); } catch(e) {}
+  try { initializer.registerRpc("gift_claims_list", __rpc_gift_claims_list); } catch(e) {}
+  try { initializer.registerRpc("admin_gift_claim_update", __rpc_admin_gift_claim_update); } catch(e) {}
   try { initializer.registerRpc("admin_health_check", __rpc_admin_health_check); } catch(e) {}
   try { initializer.registerRpc("hiro_iap_validate", __rpc_hiro_iap_validate); } catch(e) {}
   try { initializer.registerRpc("hiro_iap_history", __rpc_hiro_iap_history); } catch(e) {}
@@ -63614,6 +65249,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("satori_live_events_list", __rpc_satori_live_events_list); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_join", __rpc_satori_live_events_join); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_claim", __rpc_satori_live_events_claim); } catch(e) {}
+  try { initializer.registerRpc("fantasy_auto_join_live_event", __rpc_fantasy_auto_join_live_event); } catch(e) {}
   try { initializer.registerRpc("satori_messages_list", __rpc_satori_messages_list); } catch(e) {}
   try { initializer.registerRpc("satori_messages_read", __rpc_satori_messages_read); } catch(e) {}
   try { initializer.registerRpc("satori_messages_delete", __rpc_satori_messages_delete); } catch(e) {}
@@ -63779,5 +65415,14 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("get_player_stats", __rpc_get_player_stats); } catch(e) {}
   try { initializer.registerRpc("submit_score", __rpc_submit_score); } catch(e) {}
   try { initializer.registerRpc("onboarding_grant_streak_shield", __rpc_onboarding_grant_streak_shield); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 438 + " RPCs via AST-compatible wrapper");
+  try { initializer.registerRpc("qe_player_full_profile", __rpc_qe_player_full_profile); } catch(e) {}
+  try { initializer.registerRpc("qe_stale_sessions", __rpc_qe_stale_sessions); } catch(e) {}
+  try { initializer.registerRpc("qe_cohort_export", __rpc_qe_cohort_export); } catch(e) {}
+  try { initializer.registerRpc("qe_user_event_summary", __rpc_qe_user_event_summary); } catch(e) {}
+  try { initializer.registerRpc("quests_wallet_balance", __rpc_quests_wallet_balance); } catch(e) {}
+  try { initializer.registerRpc("quests_wallet_earn", __rpc_quests_wallet_earn); } catch(e) {}
+  try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
+  try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
+  try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
+  logger.info("[Postbuild] Registered " + 464 + " RPCs via AST-compatible wrapper");
 }
