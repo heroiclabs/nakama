@@ -42444,10 +42444,10 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
 // ============================================================================
 
 /**
- * RPC: quizverse_find_friends
+ * RPC: quizverse_find_friends (multigame variant — renamed to avoid hoisting conflict)
  * Find friends by username or user ID
  */
-function quizverseFindFriends(context, logger, nk, payload) {
+function quizverseFindFriends_multigame(context, logger, nk, payload) {
     try {
         var data = payload ? JSON.parse(payload) : {};
 
@@ -42487,7 +42487,7 @@ function quizverseFindFriends(context, logger, nk, payload) {
         // Try wildcard SQL search for partial matches if few results
         if (results.length < limit) {
             try {
-                var sqlQuery = "SELECT id, username, display_name, avatar_url FROM users WHERE username LIKE $1 OR display_name LIKE $1 LIMIT $2";
+                var sqlQuery = "SELECT id, username, display_name, avatar_url FROM users WHERE username ILIKE $1 OR display_name ILIKE $1 LIMIT $2";
                 var sqlResults = nk.sqlQuery(sqlQuery, ['%' + query + '%', limit]);
                 if (sqlResults && sqlResults.length > 0) {
                     var existingIds = {};
