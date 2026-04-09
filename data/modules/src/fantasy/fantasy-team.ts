@@ -127,8 +127,8 @@ namespace FantasyTeam {
   // ---- RPCs ----
 
   function rpcCreateTeam(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
     var input = RpcHelpers.parseRpcPayload(payload) as FantasyTypes.CreateTeamPayload;
+    var userId = RpcHelpers.resolveUserId(ctx, input);
 
     var check = RpcHelpers.validatePayload(input, ["seasonId", "leagueId", "teamName", "players"]);
     if (!check.valid) {
@@ -218,8 +218,8 @@ namespace FantasyTeam {
   }
 
   function rpcGetTeam(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
-    var input = RpcHelpers.parseRpcPayload(payload) as { seasonId: string };
+    var input = RpcHelpers.parseRpcPayload(payload) as { seasonId: string; userId?: string };
+    var userId = RpcHelpers.resolveUserId(ctx, input);
 
     if (!input.seasonId) {
       return RpcHelpers.errorResponse("seasonId is required");
@@ -234,8 +234,8 @@ namespace FantasyTeam {
   }
 
   function rpcUpdateCaptain(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
-    var input = RpcHelpers.parseRpcPayload(payload) as { seasonId: string; captainId: string; viceCaptainId: string };
+    var input = RpcHelpers.parseRpcPayload(payload) as { seasonId: string; captainId: string; viceCaptainId: string; userId?: string };
+    var userId = RpcHelpers.resolveUserId(ctx, input);
 
     var check = RpcHelpers.validatePayload(input, ["seasonId", "captainId", "viceCaptainId"]);
     if (!check.valid) {

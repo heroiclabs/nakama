@@ -789,8 +789,8 @@ var FantasyLeague;
     }
     // ---- RPCs ----
     function rpcCreateLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["leagueName", "seasonId"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -841,8 +841,8 @@ var FantasyLeague;
         });
     }
     function rpcJoinLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.inviteCode) {
             return RpcHelpers.errorResponse("inviteCode is required");
         }
@@ -889,8 +889,8 @@ var FantasyLeague;
         });
     }
     function rpcLeaveLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.groupId) {
             return RpcHelpers.errorResponse("groupId is required");
         }
@@ -969,7 +969,8 @@ var FantasyLeague;
         });
     }
     function rpcMyLeagues(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var leagues = [];
         try {
             var userGroups = nk.userGroupsList(userId, 100, undefined, "");
@@ -1028,6 +1029,46 @@ var FantasyLeague;
             createdAt: meta.createdAt,
         });
     }
+    function rpcListLeagues(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var limit = input.limit || 100;
+        var leagues = [];
+        try {
+            var cursor = "";
+            var keepGoing = true;
+            while (keepGoing && leagues.length < limit) {
+                var result = nk.storageList(Constants.SYSTEM_USER_ID, FantasyTypes.COLLECTION, 100, cursor);
+                if (!result || !result.objects || result.objects.length === 0) {
+                    keepGoing = false;
+                    break;
+                }
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    if (!obj.key || obj.key.indexOf(FantasyTypes.Keys.LEAGUE_META + "_") !== 0)
+                        continue;
+                    var meta = obj.value;
+                    if (!meta || !meta.groupId)
+                        continue;
+                    if (input.seasonId && meta.seasonId !== input.seasonId)
+                        continue;
+                    leagues.push({
+                        groupId: meta.groupId,
+                        leagueName: meta.leagueName,
+                        seasonId: meta.seasonId,
+                        inviteCode: meta.inviteCode,
+                        maxMembers: meta.maxMembers,
+                        createdAt: meta.createdAt,
+                    });
+                }
+                cursor = result.cursor || "";
+                keepGoing = cursor.length > 0;
+            }
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to list leagues: " + (e.message || String(e)));
+        }
+        return RpcHelpers.successResponse({ leagues: leagues, count: leagues.length });
+    }
     // ---- Registration ----
     function register(initializer) {
         initializer.registerRpc("fantasy_league_create", rpcCreateLeague);
@@ -1036,6 +1077,7 @@ var FantasyLeague;
         initializer.registerRpc("fantasy_league_leaderboard", rpcLeagueLeaderboard);
         initializer.registerRpc("fantasy_league_my_leagues", rpcMyLeagues);
         initializer.registerRpc("fantasy_league_info", rpcLeagueInfo);
+        initializer.registerRpc("fantasy_league_list", rpcListLeagues);
     }
     FantasyLeague.register = register;
 })(FantasyLeague || (FantasyLeague = {}));
@@ -1510,8 +1552,8 @@ var FantasyTeam;
     }
     // ---- RPCs ----
     function rpcCreateTeam(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["seasonId", "leagueId", "teamName", "players"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -1584,8 +1626,8 @@ var FantasyTeam;
         return RpcHelpers.successResponse(team);
     }
     function rpcGetTeam(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.seasonId) {
             return RpcHelpers.errorResponse("seasonId is required");
         }
@@ -1596,8 +1638,8 @@ var FantasyTeam;
         return RpcHelpers.successResponse(team);
     }
     function rpcUpdateCaptain(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["seasonId", "captainId", "viceCaptainId"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -10030,6 +10072,16 @@ var RpcHelpers;
         return ctx.userId;
     }
     RpcHelpers.requireUserId = requireUserId;
+    function resolveUserId(ctx, payload) {
+        if (ctx.userId) {
+            return ctx.userId;
+        }
+        if (payload && typeof payload.userId === "string" && payload.userId.length > 0) {
+            return payload.userId;
+        }
+        throw new Error("User ID is required (provide via auth token or 'userId' field in payload)");
+    }
+    RpcHelpers.resolveUserId = resolveUserId;
     function requireAdmin(ctx, nk) {
         if (!ctx.userId)
             throw new Error("Authentication required");

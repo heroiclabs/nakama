@@ -83,8 +83,8 @@ namespace FantasyLeague {
   // ---- RPCs ----
 
   function rpcCreateLeague(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
     var input = RpcHelpers.parseRpcPayload(payload) as FantasyTypes.CreateLeaguePayload;
+    var userId = RpcHelpers.resolveUserId(ctx, input);
 
     var check = RpcHelpers.validatePayload(input, ["leagueName", "seasonId"]);
     if (!check.valid) {
@@ -151,8 +151,8 @@ namespace FantasyLeague {
   }
 
   function rpcJoinLeague(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
     var input = RpcHelpers.parseRpcPayload(payload) as FantasyTypes.JoinLeaguePayload;
+    var userId = RpcHelpers.resolveUserId(ctx, input);
 
     if (!input.inviteCode) {
       return RpcHelpers.errorResponse("inviteCode is required");
@@ -207,8 +207,8 @@ namespace FantasyLeague {
   }
 
   function rpcLeaveLeague(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
-    var input = RpcHelpers.parseRpcPayload(payload) as { groupId: string };
+    var input = RpcHelpers.parseRpcPayload(payload) as { groupId: string; userId?: string };
+    var userId = RpcHelpers.resolveUserId(ctx, input);
 
     if (!input.groupId) {
       return RpcHelpers.errorResponse("groupId is required");
@@ -306,7 +306,8 @@ namespace FantasyLeague {
   }
 
   function rpcMyLeagues(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
+    var input = RpcHelpers.parseRpcPayload(payload) as { userId?: string };
+    var userId = RpcHelpers.resolveUserId(ctx, input);
 
     var leagues: {
       groupId: string;
@@ -379,6 +380,59 @@ namespace FantasyLeague {
     });
   }
 
+  function rpcListLeagues(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var input = RpcHelpers.parseRpcPayload(payload) as { seasonId?: string; limit?: number };
+    var limit = input.limit || 100;
+
+    var leagues: {
+      groupId: string;
+      leagueName: string;
+      seasonId: string;
+      inviteCode: string;
+      maxMembers: number;
+      createdAt: string;
+    }[] = [];
+
+    try {
+      var cursor: string = "";
+      var keepGoing = true;
+
+      while (keepGoing && leagues.length < limit) {
+        var result = nk.storageList(Constants.SYSTEM_USER_ID, FantasyTypes.COLLECTION, 100, cursor);
+
+        if (!result || !result.objects || result.objects.length === 0) {
+          keepGoing = false;
+          break;
+        }
+
+        for (var i = 0; i < result.objects.length; i++) {
+          var obj = result.objects[i];
+          if (!obj.key || obj.key.indexOf(FantasyTypes.Keys.LEAGUE_META + "_") !== 0) continue;
+
+          var meta = obj.value as unknown as FantasyTypes.LeagueMeta;
+          if (!meta || !meta.groupId) continue;
+          if (input.seasonId && meta.seasonId !== input.seasonId) continue;
+
+          leagues.push({
+            groupId: meta.groupId,
+            leagueName: meta.leagueName,
+            seasonId: meta.seasonId,
+            inviteCode: meta.inviteCode,
+            maxMembers: meta.maxMembers,
+            createdAt: meta.createdAt,
+          });
+        }
+
+        cursor = result.cursor || "";
+        keepGoing = cursor.length > 0;
+      }
+    } catch (e: any) {
+      return RpcHelpers.errorResponse("Failed to list leagues: " + (e.message || String(e)));
+    }
+
+    return RpcHelpers.successResponse({ leagues: leagues, count: leagues.length });
+  }
+
   // ---- Registration ----
 
   export function register(initializer: nkruntime.Initializer): void {
@@ -388,5 +442,6 @@ namespace FantasyLeague {
     initializer.registerRpc("fantasy_league_leaderboard", rpcLeagueLeaderboard);
     initializer.registerRpc("fantasy_league_my_leagues", rpcMyLeagues);
     initializer.registerRpc("fantasy_league_info", rpcLeagueInfo);
+    initializer.registerRpc("fantasy_league_list", rpcListLeagues);
   }
 }

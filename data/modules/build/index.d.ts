@@ -764,6 +764,7 @@ declare namespace RpcHelpers {
     function parseRpcPayload(payload: string): any;
     function logRpcError(nk: nkruntime.Nakama, logger: nkruntime.Logger, rpcName: string, errorMessage: string, userId?: string, gameId?: string): void;
     function requireUserId(ctx: nkruntime.Context): string;
+    function resolveUserId(ctx: nkruntime.Context, payload?: any): string;
     function requireAdmin(ctx: nkruntime.Context, nk: nkruntime.Nakama): void;
 }
 declare namespace Storage {

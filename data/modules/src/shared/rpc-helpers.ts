@@ -69,6 +69,16 @@ namespace RpcHelpers {
     return ctx.userId;
   }
 
+  export function resolveUserId(ctx: nkruntime.Context, payload?: any): string {
+    if (ctx.userId) {
+      return ctx.userId;
+    }
+    if (payload && typeof payload.userId === "string" && payload.userId.length > 0) {
+      return payload.userId;
+    }
+    throw new Error("User ID is required (provide via auth token or 'userId' field in payload)");
+  }
+
   export function requireAdmin(ctx: nkruntime.Context, nk: nkruntime.Nakama): void {
     if (!ctx.userId) throw new Error("Authentication required");
     try {

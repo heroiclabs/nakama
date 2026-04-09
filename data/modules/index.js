@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-08T09:38:45.532Z
-// RPC Count: 457
+// Generated: 2026-04-09T01:42:20.223Z
+// RPC Count: 458
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -79,6 +79,7 @@ var __rpc_fantasy_league_leave;
 var __rpc_fantasy_league_leaderboard;
 var __rpc_fantasy_league_my_leagues;
 var __rpc_fantasy_league_info;
+var __rpc_fantasy_league_list;
 var __rpc_fantasy_scoring_process;
 var __rpc_fantasy_scoring_finalize;
 var __rpc_fantasy_scoring_get_points;
@@ -54581,8 +54582,8 @@ var FantasyLeague;
     }
     // ---- RPCs ----
     function rpcCreateLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["leagueName", "seasonId"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -54633,8 +54634,8 @@ var FantasyLeague;
         });
     }
     function rpcJoinLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.inviteCode) {
             return RpcHelpers.errorResponse("inviteCode is required");
         }
@@ -54681,8 +54682,8 @@ var FantasyLeague;
         });
     }
     function rpcLeaveLeague(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.groupId) {
             return RpcHelpers.errorResponse("groupId is required");
         }
@@ -54761,7 +54762,8 @@ var FantasyLeague;
         });
     }
     function rpcMyLeagues(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var leagues = [];
         try {
             var userGroups = nk.userGroupsList(userId, 100, undefined, "");
@@ -54820,6 +54822,46 @@ var FantasyLeague;
             createdAt: meta.createdAt,
         });
     }
+    function rpcListLeagues(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var limit = input.limit || 100;
+        var leagues = [];
+        try {
+            var cursor = "";
+            var keepGoing = true;
+            while (keepGoing && leagues.length < limit) {
+                var result = nk.storageList(Constants.SYSTEM_USER_ID, FantasyTypes.COLLECTION, 100, cursor);
+                if (!result || !result.objects || result.objects.length === 0) {
+                    keepGoing = false;
+                    break;
+                }
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    if (!obj.key || obj.key.indexOf(FantasyTypes.Keys.LEAGUE_META + "_") !== 0)
+                        continue;
+                    var meta = obj.value;
+                    if (!meta || !meta.groupId)
+                        continue;
+                    if (input.seasonId && meta.seasonId !== input.seasonId)
+                        continue;
+                    leagues.push({
+                        groupId: meta.groupId,
+                        leagueName: meta.leagueName,
+                        seasonId: meta.seasonId,
+                        inviteCode: meta.inviteCode,
+                        maxMembers: meta.maxMembers,
+                        createdAt: meta.createdAt,
+                    });
+                }
+                cursor = result.cursor || "";
+                keepGoing = cursor.length > 0;
+            }
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Failed to list leagues: " + (e.message || String(e)));
+        }
+        return RpcHelpers.successResponse({ leagues: leagues, count: leagues.length });
+    }
     // ---- Registration ----
     function register(initializer) {
         __rpc_fantasy_league_create = rpcCreateLeague;
@@ -54828,6 +54870,7 @@ var FantasyLeague;
         __rpc_fantasy_league_leaderboard = rpcLeagueLeaderboard;
         __rpc_fantasy_league_my_leagues = rpcMyLeagues;
         __rpc_fantasy_league_info = rpcLeagueInfo;
+        __rpc_fantasy_league_list = rpcListLeagues;
     }
     FantasyLeague.register = register;
     register();
@@ -55304,8 +55347,8 @@ var FantasyTeam;
     }
     // ---- RPCs ----
     function rpcCreateTeam(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["seasonId", "leagueId", "teamName", "players"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -55378,8 +55421,8 @@ var FantasyTeam;
         return RpcHelpers.successResponse(team);
     }
     function rpcGetTeam(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         if (!input.seasonId) {
             return RpcHelpers.errorResponse("seasonId is required");
         }
@@ -55390,8 +55433,8 @@ var FantasyTeam;
         return RpcHelpers.successResponse(team);
     }
     function rpcUpdateCaptain(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var input = RpcHelpers.parseRpcPayload(payload);
+        var userId = RpcHelpers.resolveUserId(ctx, input);
         var check = RpcHelpers.validatePayload(input, ["seasonId", "captainId", "viceCaptainId"]);
         if (!check.valid) {
             return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
@@ -63900,6 +63943,16 @@ var RpcHelpers;
         return ctx.userId;
     }
     RpcHelpers.requireUserId = requireUserId;
+    function resolveUserId(ctx, payload) {
+        if (ctx.userId) {
+            return ctx.userId;
+        }
+        if (payload && typeof payload.userId === "string" && payload.userId.length > 0) {
+            return payload.userId;
+        }
+        throw new Error("User ID is required (provide via auth token or 'userId' field in payload)");
+    }
+    RpcHelpers.resolveUserId = resolveUserId;
     function requireAdmin(ctx, nk) {
         if (!ctx.userId)
             throw new Error("Authentication required");
@@ -64496,6 +64549,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("fantasy_league_leaderboard", __rpc_fantasy_league_leaderboard); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_my_leagues", __rpc_fantasy_league_my_leagues); } catch(e) {}
   try { initializer.registerRpc("fantasy_league_info", __rpc_fantasy_league_info); } catch(e) {}
+  try { initializer.registerRpc("fantasy_league_list", __rpc_fantasy_league_list); } catch(e) {}
   try { initializer.registerRpc("fantasy_scoring_process", __rpc_fantasy_scoring_process); } catch(e) {}
   try { initializer.registerRpc("fantasy_scoring_finalize", __rpc_fantasy_scoring_finalize); } catch(e) {}
   try { initializer.registerRpc("fantasy_scoring_get_points", __rpc_fantasy_scoring_get_points); } catch(e) {}
@@ -64883,5 +64937,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 457 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 458 + " RPCs via AST-compatible wrapper");
 }
