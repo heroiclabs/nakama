@@ -15822,8 +15822,8 @@ function quizverseFindFriends(context, logger, nk, payload) {
         }
 
         var query = data.query.trim();
-        if (query.length < 2) {
-            throw Error("Query must be at least 2 characters");
+        if (query.length < 1) {
+            throw Error("Query must be at least 1 character");
         }
         if (query.length > 50) {
             query = query.substring(0, 50);
@@ -15838,27 +15838,61 @@ function quizverseFindFriends(context, logger, nk, payload) {
             throw Error("User not authenticated");
         }
 
-        // ── Phase 1: Partial search via SQL ──
-        // Uses PostgreSQL ILIKE for case-insensitive substring matching.
-        // The '%' wildcards around the query enable "contains" matching.
-        // We exclude the caller, disabled accounts, and fetch limit+1 to account
-        // for possible self-exclusion in results.
-        var sqlPattern = "%" + query + "%";
+        // Escape SQL ILIKE wildcard characters in user input
+        // This prevents users from typing % or _ to act as wildcards
+        var safeQuery = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+
+        // ── Phase 1: SQL search with relevance scoring ──
+        // For 1-char queries: prefix match only (username ILIKE 'x%') — fast & relevant
+        // For 2+ char queries: contains match (username ILIKE '%xy%') — broader results
+        // Results ordered by relevance: exact match > prefix > contains
         var rows = [];
         try {
-            rows = nk.sqlQuery(
-                "SELECT id, username, display_name, avatar_url, create_time " +
-                "FROM users " +
-                "WHERE (username ILIKE $1 OR display_name ILIKE $1) " +
-                "AND id != $2 " +
-                "AND disable_time = '1970-01-01 00:00:00 UTC' " +
-                "ORDER BY username ASC " +
-                "LIMIT $3",
-                [sqlPattern, userId, limit]
-            );
+            if (query.length === 1) {
+                // Single character: prefix match for speed and relevance
+                var prefixPattern = safeQuery + "%";
+                rows = nk.sqlQuery(
+                    "SELECT id, username, display_name, avatar_url, create_time, " +
+                    "CASE " +
+                    "  WHEN LOWER(username) = LOWER($1) THEN 0 " +
+                    "  WHEN LOWER(username) LIKE LOWER($4) THEN 1 " +
+                    "  WHEN LOWER(display_name) LIKE LOWER($4) THEN 2 " +
+                    "  ELSE 3 " +
+                    "END AS relevance " +
+                    "FROM users " +
+                    "WHERE (username ILIKE $4 OR display_name ILIKE $4) " +
+                    "AND id != $2 " +
+                    "AND disable_time = '1970-01-01 00:00:00 UTC' " +
+                    "ORDER BY relevance ASC, username ASC " +
+                    "LIMIT $3",
+                    [query, userId, limit, prefixPattern]
+                );
+            } else {
+                // 2+ chars: contains match with relevance scoring
+                var containsPattern = "%" + safeQuery + "%";
+                var prefixPat = safeQuery + "%";
+                rows = nk.sqlQuery(
+                    "SELECT id, username, display_name, avatar_url, create_time, " +
+                    "CASE " +
+                    "  WHEN LOWER(username) = LOWER($1) THEN 0 " +
+                    "  WHEN LOWER(username) LIKE LOWER($4) THEN 1 " +
+                    "  WHEN LOWER(display_name) LIKE LOWER($4) THEN 2 " +
+                    "  WHEN username ILIKE $5 THEN 3 " +
+                    "  WHEN display_name ILIKE $5 THEN 4 " +
+                    "  ELSE 5 " +
+                    "END AS relevance " +
+                    "FROM users " +
+                    "WHERE (username ILIKE $5 OR display_name ILIKE $5) " +
+                    "AND id != $2 " +
+                    "AND disable_time = '1970-01-01 00:00:00 UTC' " +
+                    "ORDER BY relevance ASC, username ASC " +
+                    "LIMIT $3",
+                    [query, userId, limit, prefixPat, containsPattern]
+                );
+            }
         } catch (sqlErr) {
-            logger.warn("quizverse_find_friends SQL fallback: " + sqlErr.message);
-            // Fallback: exact match via Nakama API (original behaviour)
+            logger.warn("quizverse_find_friends SQL error: " + sqlErr.message);
+            // Fallback: exact match via Nakama API
             try {
                 var exactUsers = nk.usersGetUsername([query]);
                 if (exactUsers && exactUsers.length > 0) {
@@ -15902,10 +15936,28 @@ function quizverseFindFriends(context, logger, nk, payload) {
             }
         } catch (friendsErr) {
             logger.warn("quizverse_find_friends: could not load friends list: " + friendsErr.message);
-            // Continue without relationship data — search still works
         }
 
-        // ── Phase 3: Build enriched results ──
+        // ── Phase 3: Enrich with online status via batch user lookup ──
+        var onlineMap = {};
+        if (rows.length > 0) {
+            try {
+                var userIds = [];
+                for (var u = 0; u < rows.length; u++) {
+                    userIds.push(rows[u].id);
+                }
+                var usersInfo = nk.usersGetId(userIds);
+                if (usersInfo) {
+                    for (var ui = 0; ui < usersInfo.length; ui++) {
+                        onlineMap[usersInfo[ui].id] = usersInfo[ui].online || false;
+                    }
+                }
+            } catch (onlineErr) {
+                logger.warn("quizverse_find_friends: online status lookup failed: " + onlineErr.message);
+            }
+        }
+
+        // ── Phase 4: Build enriched results ──
         var results = [];
         for (var i = 0; i < rows.length && results.length < limit; i++) {
             var row = rows[i];
@@ -15921,7 +15973,7 @@ function quizverseFindFriends(context, logger, nk, payload) {
                 username: row.username || "",
                 displayName: row.display_name || row.username || "",
                 avatarUrl: row.avatar_url || "",
-                online: false, // SQL doesn't tell us; client can check separately
+                online: onlineMap[rid] || false,
                 createTime: row.create_time || "",
                 relationshipStatus: status
             });
@@ -41744,126 +41796,9 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
 // SOCIAL
 // ============================================================================
 
-/**
- * RPC: quizverse_find_friends
- * Find friends by username or user ID
- */
-function quizverseFindFriends(context, logger, nk, payload) {
-    try {
-        var data = payload ? JSON.parse(payload) : {};
-
-        var query = data.query;
-        if (!query || typeof query !== 'string' || query.trim().length < 2) {
-            throw Error("Query string is required (min 2 characters)");
-        }
-        query = query.trim();
-
-        var limit = parseInt(data.limit) || 20;
-        if (limit < 1) limit = 1;
-        if (limit > 100) limit = 100;
-
-        var userId = context.userId || '';
-        var results = [];
-
-        // Try exact username match first
-        try {
-            var users = nk.usersGetUsername([query]);
-            if (users && users.length > 0) {
-                for (var i = 0; i < users.length && results.length < limit; i++) {
-                    if (users[i].id !== userId) {
-                        results.push({
-                            userId: users[i].id,
-                            username: users[i].username,
-                            displayName: users[i].displayName || users[i].username,
-                            avatarUrl: users[i].avatarUrl || '',
-                            relationship: 'none'
-                        });
-                    }
-                }
-            }
-        } catch (usernameErr) {
-            logger.warn('quizverse_find_friends username search: ' + usernameErr.message);
-        }
-
-        // Try wildcard SQL search for partial matches if few results
-        if (results.length < limit) {
-            try {
-                var sqlQuery = "SELECT id, username, display_name, avatar_url FROM users WHERE username LIKE $1 OR display_name LIKE $1 LIMIT $2";
-                var sqlResults = nk.sqlQuery(sqlQuery, ['%' + query + '%', limit]);
-                if (sqlResults && sqlResults.length > 0) {
-                    var existingIds = {};
-                    for (var e = 0; e < results.length; e++) existingIds[results[e].userId] = true;
-
-                    for (var s = 0; s < sqlResults.length && results.length < limit; s++) {
-                        var row = sqlResults[s];
-                        if (!existingIds[row.id] && row.id !== userId) {
-                            results.push({
-                                userId: row.id,
-                                username: row.username || '',
-                                displayName: row.display_name || row.username || '',
-                                avatarUrl: row.avatar_url || '',
-                                relationship: 'none'
-                            });
-                            existingIds[row.id] = true;
-                        }
-                    }
-                }
-            } catch (sqlErr) {
-                logger.warn('quizverse_find_friends SQL search: ' + sqlErr.message);
-            }
-        }
-
-        // Enrich with friend relationship status
-        if (userId && results.length > 0) {
-            try {
-                var friends = nk.friendsList(userId, 100, null, '');
-                if (friends && friends.friends) {
-                    var friendMap = {};
-                    for (var f = 0; f < friends.friends.length; f++) {
-                        var fr = friends.friends[f];
-                        var state = fr.state != null ? fr.state.value || fr.state : -1;
-                        if (state === 0) friendMap[fr.user.id] = 'friend';
-                        else if (state === 1) friendMap[fr.user.id] = 'invite_sent';
-                        else if (state === 2) friendMap[fr.user.id] = 'invite_received';
-                        else if (state === 3) friendMap[fr.user.id] = 'blocked';
-                    }
-                    for (var r = 0; r < results.length; r++) {
-                        if (friendMap[results[r].userId]) {
-                            results[r].relationship = friendMap[results[r].userId];
-                        }
-                    }
-                }
-            } catch (friendsErr) {
-                logger.warn('quizverse_find_friends friends enrichment: ' + friendsErr.message);
-            }
-        }
-
-        logger.info('quizverse_find_friends: query="' + query + '" found ' + results.length + ' results');
-
-        return JSON.stringify({
-            success: true,
-            data: {
-                results: results,
-                query: query,
-                count: results.length
-            }
-        });
-
-    } catch (err) {
-        logger.error('quizverse_find_friends error: ' + err.message);
-        return JSON.stringify({
-            success: false,
-            error: err.message
-        });
-    }
-}
-
-/**
- * RPC: lasttolive_find_friends
- */
-function lasttolliveFindFriends(context, logger, nk, payload) {
-    return quizverseFindFriends(context, logger, nk, payload);
-}
+// quizverseFindFriends: Production SQL implementation is defined in the GAME RPCS section above.
+// This duplicate declaration was removed to prevent JS hoisting from overriding the production version.
+// lasttolliveFindFriends redirect is also defined above.
 
 // ============================================================================
 // PLAYER DATA
@@ -51515,11 +51450,8 @@ var quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
     logger.warn('quizverseClaimDailyReward called but not implemented');
     return JSON.stringify({ error: 'quizverseClaimDailyReward not implemented', success: false });
 };
-// Stub: quizverseFindFriends - TODO: implement actual function
-var quizverseFindFriends = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseFindFriends called but not implemented');
-    return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
-};
+// quizverseFindFriends: Production SQL-search implementation defined above.
+// Stub removed — the hoisted function-declaration provides the real search.
 // Stub: quizverseSavePlayerData - TODO: implement actual function
 var quizverseSavePlayerData = function(ctx, logger, nk, payload) {
     logger.warn('quizverseSavePlayerData called but not implemented');
@@ -51741,7 +51673,6 @@ var lasttoliveAdminGrantItem = function(ctx, logger, nk, payload) {
     return JSON.stringify({ error: 'lasttoliveAdminGrantItem not implemented', success: false });
 };
 
-<<<<<<< HEAD
 // ══════════════════════════════════════════════════════════════════════════════
 // Fortune Wheel Inline Handlers (from fortune_wheel/fortune_wheel.js)
 // NOTE: Nakama JS runtime loads each .js file in its own scope — subdirectory
@@ -51944,9 +51875,6 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function InitModule(ctx, logger, nk, initializer) {
-=======
-function LegacyInitModule(ctx, logger, nk, initializer) {
->>>>>>> 597e8d819049d9dc71c5790cecec1dc5b509ab91
     logger.info('========================================');
     logger.info('Legacy JavaScript Runtime Initialization');
     logger.info('========================================');

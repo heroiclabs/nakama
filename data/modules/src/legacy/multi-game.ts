@@ -100,11 +100,59 @@ namespace LegacyMultiGame {
   }
 
   function findFriends(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: any, userId: string, gId: string): any {
-    var friends = nk.friendsList(userId, 100, 0, "");
-    var result = (friends.friends || []).map(function (f: any) {
-      return { userId: f.user.userId, username: f.user.username, displayName: f.user.displayName };
+    var query = (data.query || "").trim();
+    if (query.length < 1) throw new Error("Query must be at least 1 character");
+    if (query.length > 50) query = query.substring(0, 50);
+
+    var limit = parseInt(data.limit) || 20;
+    if (limit < 1) limit = 1;
+    if (limit > 100) limit = 100;
+
+    // Escape SQL ILIKE wildcard characters in user input
+    var safeQuery = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+
+    // SQL search: prefix match for 1-char, contains match for 2+
+    var sqlPattern = query.length === 1 ? (safeQuery + "%") : ("%" + safeQuery + "%");
+    var rows: any[] = [];
+    try {
+      rows = nk.sqlQuery(
+        "SELECT id, username, display_name, avatar_url, create_time " +
+        "FROM users " +
+        "WHERE (username ILIKE $1 OR display_name ILIKE $1) " +
+        "AND id != $2 " +
+        "AND disable_time = '1970-01-01 00:00:00 UTC' " +
+        "ORDER BY username ASC LIMIT $3",
+        [sqlPattern, userId, limit]
+      );
+    } catch (sqlErr: any) {
+      logger.warn("findFriends SQL error: " + sqlErr.message);
+    }
+
+    // Build relationship map
+    var relationMap: Record<string, string> = {};
+    try {
+      var friendsResult = nk.friendsList(userId, 1000, 0, "");
+      (friendsResult.friends || []).forEach(function (fr: any) {
+        var fid = fr.user.userId || fr.user.id;
+        if (fr.state === 0) relationMap[fid] = "friend";
+        else if (fr.state === 1) relationMap[fid] = "pending_sent";
+        else if (fr.state === 2) relationMap[fid] = "pending_received";
+        else if (fr.state === 3) relationMap[fid] = "blocked";
+      });
+    } catch (e) { /* continue without relationship data */ }
+
+    var results = rows.filter(function (r: any) { return r.id !== userId; }).map(function (r: any) {
+      return {
+        userId: r.id,
+        username: r.username || "",
+        displayName: r.display_name || r.username || "",
+        avatarUrl: r.avatar_url || "",
+        online: false,
+        relationshipStatus: relationMap[r.id] || "none"
+      };
     });
-    return { friends: result };
+
+    return { success: true, data: { results: results, query: query, count: results.length, searcherId: userId } };
   }
 
   function savePlayerData(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: any, userId: string, gId: string): any {
