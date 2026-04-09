@@ -372,6 +372,18 @@ if (modulesContent) {
   }
 }
 
+// ── 3d. Rename legacy InitModule to avoid duplicate ──────────────
+if (legacyContent) {
+  var legacyRenamed = legacyContent.replace(
+    /function InitModule\s*\(/g,
+    'function _LegacyInitModule('
+  );
+  if (legacyRenamed !== legacyContent) {
+    legacyContent = legacyRenamed;
+    console.log('[postbuild] Renamed legacy InitModule → _LegacyInitModule');
+  }
+}
+
 // ── 4. Rename original InitModule → __OriginalInitModule ─────────
 var initModuleReplaced = false;
 var renamed = buildContent.replace(
