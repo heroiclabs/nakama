@@ -208,6 +208,16 @@ namespace FantasyTeam {
       Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + input.seasonId, userId, state, 2, 1);
     }
 
+    // Write to team index so auto-join can discover all users with teams
+    Storage.writeJson(
+      nk,
+      FantasyTypes.COLLECTION,
+      "team_idx_" + input.seasonId + "_" + userId,
+      Constants.SYSTEM_USER_ID,
+      { userId: userId, seasonId: input.seasonId, teamName: input.teamName, lockedAt: now },
+      2, 0
+    );
+
     logger.info("[FantasyTeam] User %s created squad '%s' (credits: %s)", userId, input.teamName, totalCredits.toFixed(1));
 
     EventBus.emit(nk, logger, ctx, "fantasy_team_created", {

@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-09T01:42:20.223Z
-// RPC Count: 458
+// Generated: 2026-04-09T02:13:58.016Z
+// RPC Count: 459
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -293,6 +293,7 @@ var __rpc_satori_identity_update_properties;
 var __rpc_satori_live_events_list;
 var __rpc_satori_live_events_join;
 var __rpc_satori_live_events_claim;
+var __rpc_fantasy_auto_join_live_event;
 var __rpc_satori_messages_list;
 var __rpc_satori_messages_read;
 var __rpc_satori_messages_delete;
@@ -55414,6 +55415,8 @@ var FantasyTeam;
             };
             Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + input.seasonId, userId, state, 2, 1);
         }
+        // Write to team index so auto-join can discover all users with teams
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, "team_idx_" + input.seasonId + "_" + userId, Constants.SYSTEM_USER_ID, { userId: userId, seasonId: input.seasonId, teamName: input.teamName, lockedAt: now }, 2, 0);
         logger.info("[FantasyTeam] User %s created squad '%s' (credits: %s)", userId, input.teamName, totalCredits.toFixed(1));
         EventBus.emit(nk, logger, ctx, "fantasy_team_created", {
             userId: userId, seasonId: input.seasonId, teamName: input.teamName, totalCredits: totalCredits,
@@ -62874,10 +62877,70 @@ var SatoriLiveEvents;
         saveUserLiveEventStates(nk, userId, userStates);
         return RpcHelpers.successResponse({ reward: reward });
     }
+    /**
+     * Auto-join all users who have locked fantasy teams for a given season
+     * to a specific live event. Called server-to-server by Intelliverse-X-AI
+     * after creating a live event for a match.
+     */
+    function rpcAutoJoinFantasyTeamHolders(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId || !data.seasonId) {
+            return RpcHelpers.errorResponse("eventId and seasonId required");
+        }
+        var events = getEventDefinitions(nk);
+        var def = events[data.eventId];
+        if (!def) {
+            return RpcHelpers.errorResponse("Event not found: " + data.eventId);
+        }
+        var keyPrefix = "team_idx_" + data.seasonId + "_";
+        var cursor = "";
+        var joinedCount = 0;
+        var totalScanned = 0;
+        var now = Math.floor(Date.now() / 1000);
+        // Scan the fantasy team index (system-owned records)
+        do {
+            var result = nk.storageList(Constants.SYSTEM_USER_ID, Constants.FANTASY_COLLECTION, 100, cursor);
+            var objects = result.objects || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.key.indexOf(keyPrefix) !== 0)
+                    continue;
+                totalScanned++;
+                var entry = obj.value;
+                if (!entry.userId)
+                    continue;
+                // Write join state for this user
+                try {
+                    var userStates = getUserLiveEventStates(nk, entry.userId);
+                    if (!userStates[data.eventId] || !userStates[data.eventId].joinedAt) {
+                        if (!userStates[data.eventId]) {
+                            userStates[data.eventId] = { eventId: data.eventId };
+                        }
+                        userStates[data.eventId].joinedAt = now;
+                        saveUserLiveEventStates(nk, entry.userId, userStates);
+                        joinedCount++;
+                    }
+                }
+                catch (err) {
+                    logger.warn("[AutoJoin] Failed to join user %s to event %s: %s", entry.userId, data.eventId, err.message);
+                }
+            }
+            cursor = result.cursor || "";
+        } while (cursor);
+        logger.info("[AutoJoin] Joined %d users to event %s (scanned %d index entries for season %s)", joinedCount, data.eventId, totalScanned, data.seasonId);
+        return RpcHelpers.successResponse({
+            eventId: data.eventId,
+            seasonId: data.seasonId,
+            joinedCount: joinedCount,
+            totalTeamHolders: totalScanned,
+        });
+    }
     function register(initializer) {
         __rpc_satori_live_events_list = rpcList;
         __rpc_satori_live_events_join = rpcJoin;
         __rpc_satori_live_events_claim = rpcClaim;
+        __rpc_fantasy_auto_join_live_event = rpcAutoJoinFantasyTeamHolders;
     }
     SatoriLiveEvents.register = register;
     register();
@@ -64763,6 +64826,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("satori_live_events_list", __rpc_satori_live_events_list); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_join", __rpc_satori_live_events_join); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_claim", __rpc_satori_live_events_claim); } catch(e) {}
+  try { initializer.registerRpc("fantasy_auto_join_live_event", __rpc_fantasy_auto_join_live_event); } catch(e) {}
   try { initializer.registerRpc("satori_messages_list", __rpc_satori_messages_list); } catch(e) {}
   try { initializer.registerRpc("satori_messages_read", __rpc_satori_messages_read); } catch(e) {}
   try { initializer.registerRpc("satori_messages_delete", __rpc_satori_messages_delete); } catch(e) {}
@@ -64937,5 +65001,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 458 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 459 + " RPCs via AST-compatible wrapper");
 }
