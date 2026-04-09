@@ -48176,16 +48176,19 @@ function asyncChallengeAwardRewards(nk, logger, userId, coins, xp, reason) {
             logger.debug('[AsyncChallenge] Awarded ' + coins + ' coins to ' + userId + ' for: ' + reason);
         }
 
-        // Award XP - use account metadata or dedicated storage
+        // Award XP - use account metadata (retry once on conflict)
         if (xp > 0) {
-            try {
-                var account = nk.accountGetId(userId);
-                var metadata = account.user.metadata || {};
-                metadata.totalXp = (metadata.totalXp || 0) + xp;
-                nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
-                logger.debug('[AsyncChallenge] Awarded ' + xp + ' XP to ' + userId + ' for: ' + reason);
-            } catch (xpErr) {
-                logger.warn('[AsyncChallenge] Could not award XP: ' + xpErr.message);
+            for (var attempt = 0; attempt < 2; attempt++) {
+                try {
+                    var account = nk.accountGetId(userId);
+                    var metadata = account.user.metadata || {};
+                    metadata.totalXp = (metadata.totalXp || 0) + xp;
+                    nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
+                    logger.debug('[AsyncChallenge] Awarded ' + xp + ' XP to ' + userId + ' for: ' + reason);
+                    break;
+                } catch (xpErr) {
+                    if (attempt === 1) logger.warn('[AsyncChallenge] Could not award XP after retry: ' + xpErr.message);
+                }
             }
         }
     } catch (err) {
@@ -48298,7 +48301,7 @@ function asyncChallengeGenerateShareCode(sessionId) {
     var code = Math.abs(hash).toString(36).toUpperCase().substring(0, 6);
     // Pad with random chars if needed
     while (code.length < 6) {
-        code = code + '0';
+        code = code + String.fromCharCode(65 + Math.floor(Math.random() * 26));
     }
     return code;
 }
@@ -48545,9 +48548,16 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
         var challengedDisplayName = request.challengedDisplayName || request.ChallengedDisplayName || null;
         var playerDisplayName = request.playerDisplayName || request.PlayerDisplayName || 'Unknown';
 
-        // Generate session ID and share code
+        // Generate session ID and share code (with collision check)
         var sessionId = nk.uuidv4();
         var shareCode = asyncChallengeGenerateShareCode(sessionId);
+        var codeRetries = 0;
+        while (codeRetries < 3) {
+            var existing = nk.storageRead([{ collection: COLLECTION_ASYNC_CHALLENGES, key: 'code_' + shareCode, userId: ASYNC_CHALLENGE_SYSTEM_USER }]);
+            if (existing.length === 0) break;
+            shareCode = asyncChallengeGenerateShareCode(nk.uuidv4());
+            codeRetries++;
+        }
         var now = Date.now();
         var expiresAt = now + (ASYNC_CHALLENGE_EXPIRY_HOURS * 60 * 60 * 1000);
 
@@ -48767,8 +48777,24 @@ function rpcAsyncChallengeJoin(ctx, logger, nk, payload) {
         session.opponentId = userId;
         session.opponentName = opponentName;
         session.status = ASYNC_STATUS_OPPONENT_JOINED;
+        session.version = (session.version || 0) + 1;
 
-        // Save updated session
+        // Save updated session (with version to detect concurrent modifications)
+        // Re-read and verify nobody else joined in the meantime
+        var verifyResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: creatorId
+        }]);
+        if (verifyResults.length > 0 && verifyResults[0].value.opponentId !== null && verifyResults[0].value.opponentId !== userId) {
+            return JSON.stringify({
+                success: false,
+                message: 'Another player just joined this challenge. Please try a different one.',
+                data: null,
+                errorCode: 'ALREADY_JOINED'
+            });
+        }
+
         nk.storageWrite([{
             collection: COLLECTION_ASYNC_CHALLENGES,
             key: sessionId,
@@ -48978,6 +49004,22 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
         var totalQuestions = typeof request.totalQuestions === 'number' ? request.totalQuestions : (request.TotalQuestions || 0);
         var timeTaken = typeof request.timeTaken === 'number' ? request.timeTaken : (request.TimeTaken || 0);
 
+        // Validate score ranges (production safety)
+        score = Math.max(0, Math.min(100, Math.floor(score)));
+        correctAnswers = Math.max(0, Math.min(50, Math.floor(correctAnswers)));
+        totalQuestions = Math.max(5, Math.min(50, Math.floor(totalQuestions)));
+        timeTaken = Math.max(0, Math.min(3600, Math.floor(timeTaken))); // Max 1 hour
+
+        // Validate correctAnswers does not exceed totalQuestions
+        if (correctAnswers > totalQuestions) {
+            return JSON.stringify({
+                success: false,
+                message: 'Invalid results: correct answers cannot exceed total questions.',
+                data: null,
+                errorCode: 'INVALID_RESULTS'
+            });
+        }
+
         // Find the session
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_ASYNC_CHALLENGES,
@@ -48988,17 +49030,30 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
         var creatorId = userId;
         var isCreator = sessionResults.length > 0;
 
-        // If not found as owner, search for it
+        // If not found as owner, look up creator via share code index or session index
         if (!isCreator) {
-            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
-            var objects = listResults.objects || [];
-
-            for (var i = 0; i < objects.length; i++) {
-                var obj = objects[i];
-                if (obj.value.sessionId === sessionId) {
-                    creatorId = obj.value.creatorId;
-                    sessionResults = [obj];
-                    break;
+            // Try reading session using system user (opponent accessing creator's record)
+            try {
+                var indexResults = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_CHALLENGES,
+                    key: sessionId,
+                    userId: null
+                }]);
+                if (indexResults.length > 0) {
+                    creatorId = indexResults[0].userId;
+                    sessionResults = indexResults;
+                }
+            } catch (lookupErr) {
+                // Fallback: scan (limited to 50 for safety)
+                var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 50, '');
+                var objects = listResults.objects || [];
+                for (var i = 0; i < objects.length; i++) {
+                    var obj = objects[i];
+                    if (obj.value.sessionId === sessionId) {
+                        creatorId = obj.value.creatorId;
+                        sessionResults = [obj];
+                        break;
+                    }
                 }
             }
         }
@@ -49071,14 +49126,64 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
             session.opponentCompletedAt = now;
         }
 
+        // Re-read session to merge with any concurrent updates (race condition guard)
+        var freshResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: session.creatorId
+        }]);
+        if (freshResults.length > 0) {
+            var freshSession = freshResults[0].value;
+            // Merge: preserve the OTHER player's latest data
+            if (isCreator) {
+                // Preserve opponent's data from the fresh read
+                session.opponentCompleted = freshSession.opponentCompleted || false;
+                session.opponentScore = freshSession.opponentScore || 0;
+                session.opponentCorrectAnswers = freshSession.opponentCorrectAnswers || 0;
+                session.opponentTotalQuestions = freshSession.opponentTotalQuestions || 0;
+                session.opponentTimeTaken = freshSession.opponentTimeTaken || 0;
+                session.opponentCompletedAt = freshSession.opponentCompletedAt || 0;
+                session.opponentId = freshSession.opponentId;
+                session.opponentName = freshSession.opponentName;
+            } else {
+                // Preserve creator's data from the fresh read
+                session.creatorCompleted = freshSession.creatorCompleted || false;
+                session.creatorScore = freshSession.creatorScore || 0;
+                session.creatorCorrectAnswers = freshSession.creatorCorrectAnswers || 0;
+                session.creatorTotalQuestions = freshSession.creatorTotalQuestions || 0;
+                session.creatorTimeTaken = freshSession.creatorTimeTaken || 0;
+                session.creatorCompletedAt = freshSession.creatorCompletedAt || 0;
+            }
+            // Re-apply own data (already set above)
+            if (isCreator) {
+                session.creatorCompleted = true;
+                session.creatorScore = score;
+                session.creatorCorrectAnswers = correctAnswers;
+                session.creatorTotalQuestions = totalQuestions;
+                session.creatorTimeTaken = timeTaken;
+                session.creatorCompletedAt = now;
+            } else {
+                session.opponentCompleted = true;
+                session.opponentScore = score;
+                session.opponentCorrectAnswers = correctAnswers;
+                session.opponentTotalQuestions = totalQuestions;
+                session.opponentTimeTaken = timeTaken;
+                session.opponentCompletedAt = now;
+            }
+            // Preserve version and reward state
+            session.rewardsProcessed = freshSession.rewardsProcessed || false;
+        }
+
         // Update status if both completed
         if (session.creatorCompleted && session.opponentCompleted) {
             session.status = ASYNC_STATUS_BOTH_COMPLETED;
+        }
 
-            // Store rewardsProcessed flag to prevent duplicate rewards
-            if (!session.rewardsProcessed) {
-                session.rewardsProcessed = true;
-            }
+        // Set rewardsProcessed flag ONLY if transitioning to both-completed AND not already processed
+        var shouldProcessRewards = false;
+        if (session.status === ASYNC_STATUS_BOTH_COMPLETED && !session.rewardsProcessed) {
+            session.rewardsProcessed = true;
+            shouldProcessRewards = true;
         }
 
         // Save updated session
@@ -49091,9 +49196,8 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
             permissionWrite: 1
         }]);
 
-        // Process completion rewards if both completed (do this after save to ensure data is persisted)
-        if (session.status === ASYNC_STATUS_BOTH_COMPLETED && session.rewardsProcessed) {
-            // Only process once per session completion
+        // Process completion rewards if both completed (only once, guarded by shouldProcessRewards)
+        if (shouldProcessRewards) {
             asyncChallengeProcessCompletion(nk, logger, session);
         }
 
