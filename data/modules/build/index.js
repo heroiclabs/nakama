@@ -1424,6 +1424,27 @@ var FantasyScoring;
                         catch (e) {
                             logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", teamUserId, e.message || String(e));
                         }
+                        // Write to league leaderboards the user belongs to
+                        try {
+                            var userGroups = nk.userGroupsList(teamUserId, 100);
+                            if (userGroups && userGroups.userGroups) {
+                                for (var g = 0; g < userGroups.userGroups.length; g++) {
+                                    var ug = userGroups.userGroups[g];
+                                    if (!ug.group)
+                                        continue;
+                                    var leagueLeaderboardId = FantasyTypes.LEADERBOARD_LEAGUE_PREFIX + ug.group.id;
+                                    try {
+                                        nk.leaderboardRecordWrite(leagueLeaderboardId, teamUserId, "", Math.round(mp.totalPoints), 0, { matchday: input.matchday, fixtureId: input.fixtureId });
+                                    }
+                                    catch (le) {
+                                        // Leaderboard may not exist yet for non-fantasy groups; skip silently
+                                    }
+                                }
+                            }
+                        }
+                        catch (e) {
+                            logger.warn("[FantasyScoring] League LB write failed for user %s: %s", teamUserId, e.message || String(e));
+                        }
                     }
                 }
                 cursor = list.cursor;
@@ -5566,7 +5587,7 @@ var LegacyDailyRewards;
     }
     function getTodayDateString() {
         var d = new Date();
-        return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+        return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
     }
     function getStatus(nk, userId) {
         return Storage.readJson(nk, Constants.DAILY_REWARDS_COLLECTION, "status_" + userId, userId);
@@ -6717,7 +6738,7 @@ var LegacyMissions;
     }
     function getTodayDateString() {
         var d = new Date();
-        return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+        return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
     }
     function getDefaultMissions() {
         return [
@@ -6938,11 +6959,60 @@ var LegacyMultiGame;
         return { streak: state.streak, reward: rewardAmount };
     }
     function findFriends(ctx, logger, nk, data, userId, gId) {
-        var friends = nk.friendsList(userId, 100, 0, "");
-        var result = (friends.friends || []).map(function (f) {
-            return { userId: f.user.userId, username: f.user.username, displayName: f.user.displayName };
+        var query = (data.query || "").trim();
+        if (query.length < 1)
+            throw new Error("Query must be at least 1 character");
+        if (query.length > 50)
+            query = query.substring(0, 50);
+        var limit = parseInt(data.limit) || 20;
+        if (limit < 1)
+            limit = 1;
+        if (limit > 100)
+            limit = 100;
+        // Escape SQL ILIKE wildcard characters in user input
+        var safeQuery = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+        // SQL search: prefix match for 1-char, contains match for 2+
+        var sqlPattern = query.length === 1 ? (safeQuery + "%") : ("%" + safeQuery + "%");
+        var rows = [];
+        try {
+            rows = nk.sqlQuery("SELECT id, username, display_name, avatar_url, create_time " +
+                "FROM users " +
+                "WHERE (username ILIKE $1 OR display_name ILIKE $1) " +
+                "AND id != $2 " +
+                "AND disable_time = '1970-01-01 00:00:00 UTC' " +
+                "ORDER BY username ASC LIMIT $3", [sqlPattern, userId, limit]);
+        }
+        catch (sqlErr) {
+            logger.warn("findFriends SQL error: " + sqlErr.message);
+        }
+        // Build relationship map
+        var relationMap = {};
+        try {
+            var friendsResult = nk.friendsList(userId, 1000, 0, "");
+            (friendsResult.friends || []).forEach(function (fr) {
+                var fid = fr.user.userId || fr.user.id;
+                if (fr.state === 0)
+                    relationMap[fid] = "friend";
+                else if (fr.state === 1)
+                    relationMap[fid] = "pending_sent";
+                else if (fr.state === 2)
+                    relationMap[fid] = "pending_received";
+                else if (fr.state === 3)
+                    relationMap[fid] = "blocked";
+            });
+        }
+        catch (e) { /* continue without relationship data */ }
+        var results = rows.filter(function (r) { return r.id !== userId; }).map(function (r) {
+            return {
+                userId: r.id,
+                username: r.username || "",
+                displayName: r.display_name || r.username || "",
+                avatarUrl: r.avatar_url || "",
+                online: false,
+                relationshipStatus: relationMap[r.id] || "none"
+            };
         });
-        return { friends: result };
+        return { success: true, data: { results: results, query: query, count: results.length, searcherId: userId } };
     }
     function savePlayerData(ctx, logger, nk, data, userId, gId) {
         if (!data.data)
@@ -7479,7 +7549,7 @@ var LegacyQuiz;
         if (!dateStr || typeof dateStr !== "string") {
             var d = new Date();
             var pad2 = function (n) { return n < 10 ? "0" + n : String(n); };
-            dateStr = d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+            dateStr = d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
         }
         var listResult = Storage.listUserRecords(nk, Constants.QUIZ_RESULTS_COLLECTION, userId, 100, "");
         var records = listResult.records || [];

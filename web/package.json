@@ -1,0 +1,19 @@
+{
+  "name": "nakama-web-platform",
+  "private": true,
+  "scripts": {
+    "dev:admin": "pnpm --filter @nakama/admin dev",
+    "dev:player": "pnpm --filter @nakama/player dev",
+    "dev": "pnpm -r --parallel dev",
+    "build:admin": "pnpm --filter @nakama/admin build",
+    "build:player": "pnpm --filter @nakama/player build",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "preview:admin": "pnpm --filter @nakama/admin preview",
+    "preview:player": "pnpm --filter @nakama/player preview"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  }
+}

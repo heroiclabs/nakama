@@ -466,6 +466,32 @@ namespace FantasyScoring {
             } catch (e: any) {
               logger.warn("[FantasyScoring] Match LB write failed for user %s: %s", teamUserId, e.message || String(e));
             }
+
+            // Write to league leaderboards the user belongs to
+            try {
+              var userGroups = nk.userGroupsList(teamUserId, 100);
+              if (userGroups && userGroups.userGroups) {
+                for (var g = 0; g < userGroups.userGroups.length; g++) {
+                  var ug = userGroups.userGroups[g];
+                  if (!ug.group) continue;
+                  var leagueLeaderboardId = FantasyTypes.LEADERBOARD_LEAGUE_PREFIX + ug.group.id;
+                  try {
+                    nk.leaderboardRecordWrite(
+                      leagueLeaderboardId,
+                      teamUserId,
+                      "",
+                      Math.round(mp.totalPoints),
+                      0,
+                      { matchday: input.matchday, fixtureId: input.fixtureId }
+                    );
+                  } catch (le: any) {
+                    // Leaderboard may not exist yet for non-fantasy groups; skip silently
+                  }
+                }
+              }
+            } catch (e: any) {
+              logger.warn("[FantasyScoring] League LB write failed for user %s: %s", teamUserId, e.message || String(e));
+            }
           }
         }
         cursor = list.cursor;

@@ -120,7 +120,7 @@ namespace LegacyQuiz {
     if (!dateStr || typeof dateStr !== "string") {
       var d = new Date();
       var pad2 = function (n: number) { return n < 10 ? "0" + n : String(n); };
-      dateStr = d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+      dateStr = d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
     }
 
     var listResult = Storage.listUserRecords(nk, Constants.QUIZ_RESULTS_COLLECTION, userId, 100, "");

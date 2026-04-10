@@ -15,7 +15,7 @@ namespace LegacyDailyRewards {
 
   function getTodayDateString(): string {
     var d = new Date();
-    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
   }
 
   function getStatus(nk: nkruntime.Nakama, userId: string): DailyRewardStatus | null {
