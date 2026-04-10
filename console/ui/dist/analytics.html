@@ -234,21 +234,44 @@
         }
         
         .game-selector select {
-            background: transparent;
-            border: none;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
             color: var(--text-primary);
             font-size: 0.9rem;
             font-weight: 600;
             cursor: pointer;
-            padding-right: 1.5rem;
+            padding: 0.5rem 2rem 0.5rem 0.75rem;
             appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right center;
+            background-position: right 0.75rem center;
+            min-width: 160px;
+            transition: all 0.2s ease;
+        }
+        
+        .game-selector select:hover {
+            border-color: var(--accent);
+            background-color: var(--bg-card);
         }
         
         .game-selector select:focus {
             outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        
+        .game-selector select option {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 0.5rem;
+        }
+        
+        .game-selector select option:checked {
+            background: var(--accent);
+            color: white;
         }
         
         .config-panel {
@@ -473,11 +496,12 @@
         
         .chart-card h3 {
             font-size: 0.9rem;
-            margin-bottom: 1rem;
+            margin-bottom: 0.85rem;
             color: var(--text-secondary);
             font-weight: 600;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 0.5rem;
         }
         
@@ -559,10 +583,13 @@
         
         .funnel-step {
             display: flex;
-            align-items: center;
+            flex-direction: column;
+            gap: 0.3rem;
             padding: 1rem;
-            background: var(--bg-secondary);
-            margin-bottom: 2px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid var(--border);
             position: relative;
         }
         
@@ -652,6 +679,487 @@
             border-color: var(--accent);
             color: white;
         }
+
+        /* ── Skeleton Loader ─────────────────────────────────────────── */
+        @keyframes skeleton-shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg,
+                var(--bg-card) 25%,
+                var(--bg-card-hover) 50%,
+                var(--bg-card) 75%);
+            background-size: 400% 100%;
+            animation: skeleton-shimmer 1.6s ease-in-out infinite;
+            border-radius: 6px;
+            display: block;
+        }
+        .skeleton-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .skeleton-row { height: 12px; }
+        .skeleton-h1  { height: 32px; width: 70%; }
+        .skeleton-h2  { height: 18px; width: 45%; }
+        /* ── Players Search ──────────────────────────────────────────── */
+        .players-search {
+            width: 100%; box-sizing: border-box;
+            padding: 0.6rem 1rem 0.6rem 2.5rem;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text-primary); font-size: 0.9rem;
+            margin-bottom: 1rem; outline: none; transition: border-color 0.2s;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.868-3.833zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: 0.75rem center;
+        }
+        .players-search:focus { border-color: var(--accent); }
+
+        /* ── Toast Notifications ─────────────────────────────────────── */
+        @keyframes toast-in  { from { transform: translateX(110%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+        @keyframes toast-out { from { opacity:1; } to { opacity:0; } }
+        #toast-container {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            pointer-events: none;
+        }
+        .toast {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.7rem 1.25rem;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            box-shadow: var(--shadow-lg);
+            animation: toast-in 0.3s ease forwards;
+            max-width: 320px;
+            pointer-events: auto;
+        }
+        .toast.success { border-color: var(--success); }
+        .toast.error   { border-color: var(--danger);  }
+        .toast.warn    { border-color: var(--warning);  }
+        .toast.fade-out { animation: toast-out 0.4s ease forwards; }
+
+        /* ── Date Range & Auto-Refresh controls ──────────────────────── */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .header-select {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 0.45rem 1.8rem 0.45rem 0.75rem;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2394a3b8' d='M2 3l3 4 3-4'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            transition: border-color 0.2s;
+        }
+        .header-select:hover { border-color: var(--accent); }
+        .header-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .header-select option { background: #12121a; color: var(--text-primary); }
+        .header-select option:checked,
+        .header-select option:hover { background: #22222e; color: var(--text-primary); }
+        /* Force dark-mode for native select on Chromium/Firefox */
+        select { color-scheme: dark; }
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: rgba(16,185,129,0.15);
+            color: var(--success);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 20px;
+            padding: 0.3rem 0.7rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .live-badge::before {
+            content: '';
+            width: 7px; height: 7px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse-dot 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%,100% { opacity: 1; transform: scale(1); }
+            50%      { opacity: 0.4; transform: scale(0.7); }
+        }
+        .live-badge.hidden { display: none; }
+
+        /* ── Export button on card headers ───────────────────────────── */
+        .export-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            padding: 0.25rem 0.6rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .export-btn:hover { border-color: var(--accent); color: var(--accent-light); }
+
+        /* ── KPI delta trend badges ──────────────────────────────────── */
+        .delta-up   { color: var(--success); font-size: 0.78rem; font-weight:600; }
+        .delta-down { color: var(--danger);  font-size: 0.78rem; font-weight:600; }
+        .delta-flat { color: var(--text-muted); font-size: 0.78rem; }
+
+        /* ── Stickiness gauge ────────────────────────────────────────── */
+        .stickiness-ring {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .stickiness-ring svg { position: absolute; top:0; left:0; transform: rotate(-90deg); }
+        .stickiness-ring .ring-label {
+            font-size: 1.6rem;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ── Rank badge for top players ──────────────────────────────── */
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        .rank-1 { background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid rgba(255,215,0,0.4); }
+        .rank-2 { background: rgba(192, 192, 192, 0.2); color: #c0c0c0; border: 1px solid rgba(192,192,192,0.4); }
+        .rank-3 { background: rgba(205, 127, 50, 0.2); color: #cd7f32; border: 1px solid rgba(205,127,50,0.4); }
+        .rank-other { background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border); }
+
+        /* ── Platform pill ───────────────────────────────────────────── */
+        .plat-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .plat-ios     { background: rgba(0,122,255,0.15);  color: #007aff; }
+        .plat-android { background: rgba(61,220,132,0.15); color: #3ddc84; }
+        .plat-webgl   { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .plat-windows { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+        .plat-other   { background: var(--bg-secondary); color: var(--text-muted); }
+
+        /* ── KPI items used inside kpi-grid for sub-tabs (Quiz, AI, Monet) ── */
+        .kpi-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            transition: all 0.18s ease;
+        }
+        .kpi-item:hover { background: var(--bg-card-hover); border-color: var(--border-light); }
+        .kpi-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            line-height: 1.15;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .kpi-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           TAB GROUPS
+        ══════════════════════════════════════════════════════════════ */
+        .tab-groups {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.3rem;
+        }
+        .tab-group-row {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .tab-group-row::-webkit-scrollbar { display: none; }
+        .tab-group-row + .tab-group-row {
+            border-top: 1px solid rgba(45, 45, 58, 0.55);
+        }
+        .tab-group-label {
+            font-size: 0.62rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 0.55rem 0.9rem 0.55rem 0;
+            white-space: nowrap;
+            min-width: 58px;
+            user-select: none;
+        }
+        .tab-group-divider {
+            width: 1px;
+            background: var(--border);
+            height: 28px;
+            margin: 0 0.75rem 0 0;
+            flex-shrink: 0;
+        }
+        /* override .tabs so old code still works */
+        .tabs {
+            display: none !important;
+        }
+        /* Tab buttons inside groups — slim down padding for compact layout */
+        .tab-group-row .tab {
+            padding: 0.48rem 0.95rem;
+            font-size: 0.82rem;
+            border-radius: 6px;
+            margin: 0.3rem 0.15rem;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-group-row .tab.active {
+            background: rgba(99,102,241,0.15);
+            border-bottom-color: var(--accent);
+            color: var(--accent-light);
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           HEALTH SCORE BAR
+        ══════════════════════════════════════════════════════════════ */
+        #healthBar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 0.8rem 1.4rem;
+            margin-bottom: 1.6rem;
+            flex-wrap: wrap;
+            animation: fadeIn 0.4s ease;
+        }
+        #healthBar.hidden { display: none; }
+        .health-score-circle {
+            width: 56px; height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            font-weight: 800;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .health-score-circle.good  { background: rgba(16,185,129,0.18); color: var(--success); box-shadow: 0 0 0 2px rgba(16,185,129,0.35); }
+        .health-score-circle.warn  { background: rgba(245,158,11,0.18);  color: var(--warning);  box-shadow: 0 0 0 2px rgba(245,158,11,0.35); }
+        .health-score-circle.bad   { background: rgba(239,68,68,0.18);   color: var(--danger);   box-shadow: 0 0 0 2px rgba(239,68,68,0.35); }
+        .health-divider { width: 1px; height: 36px; background: var(--border); flex-shrink: 0; }
+        .health-metrics { display: flex; gap: 1.25rem; flex-wrap: wrap; flex: 1; }
+        .health-metric {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.2rem;
+            min-width: 90px;
+        }
+        .health-metric .hm-label {
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-muted);
+        }
+        .health-metric .hm-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .health-metric .hm-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .hm-dot.green  { background: var(--success); }
+        .hm-dot.yellow { background: var(--warning); }
+        .hm-dot.red    { background: var(--danger); }
+        .health-title  {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .health-bar-track {
+            flex: 1;
+            min-width: 120px;
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .health-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s cubic-bezier(.4,0,.2,1);
+        }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+
+        /* ══════════════════════════════════════════════════════════════
+           SORTABLE TABLE HEADERS
+        ══════════════════════════════════════════════════════════════ */
+        .data-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .data-table th.sortable::after {
+            content: ' ⇅';
+            opacity: 0.35;
+            font-size: 0.7em;
+        }
+        .data-table th.sort-asc::after  { content: ' ▲'; opacity: 0.9; }
+        .data-table th.sort-desc::after { content: ' ▼'; opacity: 0.9; }
+
+        /* ══════════════════════════════════════════════════════════════
+           CHART CARD  — COLLAPSIBLE + EXPAND BUTTON
+        ══════════════════════════════════════════════════════════════ */
+        .chart-card {
+            position: relative;   /* needed for expand-btn */
+        }
+        .card-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        .card-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            padding: 0.22rem 0.55rem;
+            cursor: pointer;
+            transition: all 0.18s;
+            line-height: 1.4;
+        }
+        .card-btn:hover { border-color: var(--accent); color: var(--accent-light); }
+        /* smooth collapse transition */
+        .card-body {
+            overflow: hidden;
+            max-height: 2000px;
+            opacity: 1;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.2s ease;
+        }
+        .chart-card.collapsed .card-body {
+            max-height: 0 !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .chart-card.collapsed { padding-bottom: 1rem; }
+        .collapse-btn.collapsed-icon::before { content: '▸  '; font-size: 0.65rem; }
+        .collapse-btn::before              { content: '▾  '; font-size: 0.65rem; }
+
+        /* ══════════════════════════════════════════════════════════════
+           FULLSCREEN MODAL
+        ══════════════════════════════════════════════════════════════ */
+        #fullscreenModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.88);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            backdrop-filter: blur(6px);
+        }
+        #fullscreenModal.open { display: flex; }
+        #fullscreenModal.open .modal-inner { animation: modalIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes modalIn { from { opacity:0; transform:scale(0.93) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+        #fullscreenModal .modal-inner {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
+            padding: 1.75rem;
+            width: 92vw;
+            max-width: 1200px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg);
+        }
+        #fullscreenModal .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+        }
+        #fullscreenModal .modal-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        #fullscreenModal .modal-close {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            width: 34px; height: 34px;
+            cursor: pointer;
+            transition: all 0.18s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #fullscreenModal .modal-close:hover { border-color: var(--danger); color: var(--danger); }
+        #fullscreenModal .modal-canvas-wrap {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+        }
+        #fullscreenModal canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
     </style>
 </head>
 <body>
@@ -676,7 +1184,7 @@
     
     <header class="header">
         <div class="header-left">
-            <a href="/#/" class="back-btn" title="Back to Nakama Console">
+            <a href="https://nakama-rest.intelli-verse-x.ai" class="back-btn" title="Back to Nakama Console">
                 <span>←</span> Nakama
             </a>
             <h1><span class="logo">📊</span> Analytics Dashboard</h1>
@@ -691,42 +1199,136 @@
                     <option value="cricketvr" data-name="Cricket VR">🏏 Cricket VR</option>
                 </select>
             </div>
+            <div class="header-controls">
+                <label style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">Range:</label>
+                <select id="daysSelector" class="header-select" onchange="onDaysChange()">
+                    <option value="7">7 Days</option>
+                    <option value="14">14 Days</option>
+                    <option value="30" selected>30 Days</option>
+                    <option value="60">60 Days</option>
+                    <option value="90">90 Days</option>
+                    <option value="180">180 Days</option>
+                </select>
+                <label style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">Auto:</label>
+                <select id="autoRefreshSelector" class="header-select" onchange="onAutoRefreshChange()">
+                    <option value="0" selected>Off</option>
+                    <option value="30">30s</option>
+                    <option value="60">1 min</option>
+                    <option value="300">5 min</option>
+                </select>
+                <span id="liveBadge" class="live-badge hidden">LIVE</span>
+            </div>
             <button id="refreshBtn" onclick="refreshAll()">🔄 Refresh</button>
             <span id="connectionStatus" class="status disconnected">Disconnected</span>
             <button class="logout-btn" onclick="logout()">🚪 Logout</button>
         </div>
     </header>
     
+    <!-- Fullscreen chart modal -->
+    <div id="fullscreenModal">
+        <div class="modal-inner">
+            <div class="modal-header">
+                <span class="modal-title" id="modalTitle"></span>
+                <button class="modal-close" onclick="closeFullscreen()" title="Close (Esc)">✕</button>
+            </div>
+            <div class="modal-canvas-wrap">
+                <canvas id="modalCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
     <main class="main">
+        <!-- Legacy flat tab bar (hidden via CSS) -->
         <div class="tabs">
             <button class="tab active" data-tab="overview">📈 Overview</button>
-            <button class="tab" data-tab="revenue">💵 Revenue</button>
-            <button class="tab" data-tab="retention">🔄 Retention</button>
-            <button class="tab" data-tab="sessions">⏱️ Sessions</button>
-            <button class="tab" data-tab="funnel">🎯 Funnel</button>
-            <button class="tab" data-tab="economy">💰 Economy</button>
-            <button class="tab" data-tab="errors">🐛 Errors</button>
-            <button class="tab" data-tab="features">🎮 Features</button>
         </div>
+
+        <!-- Grouped tab navigation -->
+        <nav class="tab-groups" id="tabGroups">
+            <div class="tab-group-row">
+                <span class="tab-group-label">Core</span>
+                <span class="tab-group-divider"></span>
+                <button class="tab active" data-tab="overview">📈 Overview</button>
+                <button class="tab" data-tab="sessions">⏱️ Sessions</button>
+                <button class="tab" data-tab="retention">🔄 Retention</button>
+            </div>
+            <div class="tab-group-row">
+                <span class="tab-group-label">Revenue</span>
+                <span class="tab-group-divider"></span>
+                <button class="tab" data-tab="revenue">💵 Revenue</button>
+                <button class="tab" data-tab="economy">💰 Economy</button>
+                <button class="tab" data-tab="monet">💸 Monetization</button>
+            </div>
+            <div class="tab-group-row">
+                <span class="tab-group-label">Content</span>
+                <span class="tab-group-divider"></span>
+                <button class="tab" data-tab="quiz">🧩 Quiz</button>
+                <button class="tab" data-tab="ai">🤖 AI</button>
+                <button class="tab" data-tab="features">🎮 Features</button>
+                <button class="tab" data-tab="funnel">🎯 Funnel</button>
+            </div>
+            <div class="tab-group-row">
+                <span class="tab-group-label">Players</span>
+                <span class="tab-group-divider"></span>
+                <button class="tab" data-tab="players">👑 Players</button>
+                <button class="tab" data-tab="platforms">📱 Platforms</button>
+                <button class="tab" data-tab="heatmap">🔥 Heatmap</button>
+            </div>
+            <div class="tab-group-row">
+                <span class="tab-group-label">Tech</span>
+                <span class="tab-group-divider"></span>
+                <button class="tab" data-tab="errors">🐛 Errors</button>
+                <button class="tab" data-tab="events">📋 Events</button>
+                <button class="tab" data-tab="storage">💾 Storage</button>
+            </div>
+        </nav>
         
         <!-- Overview Tab -->
         <div id="overview" class="tab-content active">
-            <div class="kpi-grid" id="overviewKpis">
-                <div class="loading">Loading dashboard data...</div>
+            <!-- Health Score Bar (populated by JS) -->
+            <div id="healthBar" class="hidden">
+                <div class="health-score-circle" id="healthScoreCircle">—</div>
+                <div class="health-divider"></div>
+                <div style="display:flex;flex-direction:column;gap:0.25rem;min-width:80px">
+                    <span class="health-title">Platform Health</span>
+                    <div class="health-bar-track"><div class="health-bar-fill" id="healthBarFill" style="width:0%"></div></div>
+                </div>
+                <div class="health-divider"></div>
+                <div class="health-metrics" id="healthMetrics"></div>
             </div>
-            <div class="chart-grid">
-                <div class="chart-card">
-                    <h3>Daily Active Users (7 Days)</h3>
-                    <div class="chart-container">
-                        <canvas id="dauChart"></canvas>
-                    </div>
+            <div class="kpi-grid" id="overviewKpis">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
+            <div class="chart-grid" id="overviewChartRow" style="display:none">
+                <div class="chart-card" style="grid-column: span 2;">
+                    <h3>🎮 Top Games by DAU <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)" title="Collapse">Collapse</button><button class="card-btn" onclick="expandChart('overviewChart','Top Games by DAU')" title="Expand">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
+                        <canvas id="overviewChart"></canvas>
+                    </div></div>
                 </div>
-                <div class="chart-card">
-                    <h3>Top Games by DAU</h3>
-                    <div class="chart-container">
-                        <canvas id="topGamesChart"></canvas>
-                    </div>
-                </div>
+            </div>
+        </div>
+        
+        <!-- Events Tab (NEW - Uses admin_events_timeline) -->
+        <div id="events" class="tab-content">
+            <div class="chart-card">
+                <h3>📋 Events Timeline <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><div id="eventsContent">
+                    <div class="loading">Loading events...</div>
+                </div></div>
+            </div>
+        </div>
+        
+        <!-- Storage Tab (NEW - Uses admin_storage_list) -->
+        <div id="storage" class="tab-content">
+            <div class="chart-card">
+                <h3>💾 Analytics Storage Browser <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><div id="storageContent">
+                    <div class="loading">Loading storage...</div>
+                </div></div>
             </div>
         </div>
         
@@ -738,20 +1340,23 @@
                 <button class="period-btn" data-period="90d" onclick="loadRevenue('90d')">90 Days</button>
             </div>
             <div class="kpi-grid" id="revenueKpis">
-                <div class="loading">Loading revenue data...</div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
             </div>
             <div class="chart-grid">
                 <div class="chart-card">
-                    <h3>Revenue Metrics</h3>
-                    <div class="chart-container">
+                    <h3>Revenue Metrics <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('revenueChart','Revenue Metrics')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
                         <canvas id="revenueChart"></canvas>
-                    </div>
+                    </div></div>
                 </div>
                 <div class="chart-card">
-                    <h3>Conversion Breakdown</h3>
-                    <div class="chart-container">
+                    <h3>Conversion Breakdown <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('conversionChart','Conversion Breakdown')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
                         <canvas id="conversionChart"></canvas>
-                    </div>
+                    </div></div>
                 </div>
             </div>
         </div>
@@ -759,14 +1364,16 @@
         <!-- Retention Tab -->
         <div id="retention" class="tab-content">
             <div class="kpi-grid" id="retentionKpis">
-                <div class="loading">Loading retention data...</div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
             </div>
             <div class="chart-grid">
                 <div class="chart-card" style="grid-column: span 2;">
-                    <h3>Retention Curve</h3>
-                    <div class="chart-container">
+                    <h3>Retention Curve <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('retentionChart','Retention Curve')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
                         <canvas id="retentionChart"></canvas>
-                    </div>
+                    </div></div>
                 </div>
             </div>
         </div>
@@ -774,20 +1381,23 @@
         <!-- Sessions Tab -->
         <div id="sessions" class="tab-content">
             <div class="kpi-grid" id="sessionKpis">
-                <div class="loading">Loading session data...</div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
             </div>
             <div class="chart-grid">
                 <div class="chart-card">
-                    <h3>Sessions by Hour (UTC)</h3>
-                    <div class="chart-container">
+                    <h3>Sessions by Hour (UTC) <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('hourlyChart','Sessions by Hour (UTC)')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
                         <canvas id="hourlyChart"></canvas>
-                    </div>
+                    </div></div>
                 </div>
                 <div class="chart-card">
-                    <h3>Daily Sessions & Duration</h3>
-                    <div class="chart-container">
+                    <h3>Daily Sessions &amp; Duration <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('dailySessionChart','Daily Sessions &amp; Duration')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
                         <canvas id="dailySessionChart"></canvas>
-                    </div>
+                    </div></div>
                 </div>
             </div>
         </div>
@@ -795,30 +1405,32 @@
         <!-- Funnel Tab -->
         <div id="funnel" class="tab-content">
             <div class="chart-card">
-                <h3>Conversion Funnel</h3>
-                <div id="funnelSteps">
-                    <div class="loading">Loading funnel data...</div>
-                </div>
+                <h3>Conversion Funnel <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><div id="funnelSteps">
+                    <div class="skeleton" style="height:240px;border-radius:8px"></div>
+                </div></div>
             </div>
         </div>
         
         <!-- Economy Tab -->
         <div id="economy" class="tab-content">
             <div class="kpi-grid" id="economyKpis">
-                <div class="loading">Loading economy data...</div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
             </div>
             <div class="chart-grid">
                 <div class="chart-card">
-                    <h3>Coin Distribution</h3>
-                    <div class="chart-container">
+                    <h3>Coin Distribution <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('coinDistChart','Coin Distribution')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
                         <canvas id="coinDistChart"></canvas>
-                    </div>
+                    </div></div>
                 </div>
                 <div class="chart-card">
-                    <h3>Source vs Sink</h3>
-                    <div class="chart-container">
+                    <h3>Source vs Sink <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('sourceSinkChart','Source vs Sink')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
                         <canvas id="sourceSinkChart"></canvas>
-                    </div>
+                    </div></div>
                 </div>
             </div>
         </div>
@@ -826,43 +1438,190 @@
         <!-- Errors Tab -->
         <div id="errors" class="tab-content">
             <div class="kpi-grid" id="errorKpis">
-                <div class="loading">Loading error data...</div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
             </div>
             <div class="chart-card">
-                <h3>Errors by RPC</h3>
-                <table class="data-table" id="errorTable">
+                <h3>Errors by RPC <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><table class="data-table" id="errorTable">
                     <thead>
                         <tr>
-                            <th>RPC Name</th>
-                            <th>Count</th>
-                            <th>Last Occurred</th>
+                            <th class="sortable" data-col="0" onclick="sortTable('errorTable',0,this)">RPC Name</th>
+                            <th class="sortable" data-col="1" onclick="sortTable('errorTable',1,this)">Count</th>
+                            <th class="sortable" data-col="2" onclick="sortTable('errorTable',2,this)">Last Occurred</th>
                             <th>Sample Error</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td colspan="4" class="loading">Loading...</td></tr>
+                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr>
+                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr>
+                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr>
                     </tbody>
-                </table>
+                </table></div>
             </div>
         </div>
         
         <!-- Features Tab -->
         <div id="features" class="tab-content">
             <div class="chart-card">
-                <h3>Feature Adoption</h3>
-                <table class="data-table" id="featureTable">
+                <h3>Feature Adoption <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><table class="data-table" id="featureTable">
                     <thead>
                         <tr>
-                            <th>Feature</th>
-                            <th>Users</th>
-                            <th>Adoption %</th>
+                            <th class="sortable" onclick="sortTable('featureTable',0,this)">Feature</th>
+                            <th class="sortable" onclick="sortTable('featureTable',1,this)">Users</th>
+                            <th class="sortable" onclick="sortTable('featureTable',2,this)">Adoption %</th>
                             <th>Progress</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td colspan="4" class="loading">Loading...</td></tr>
+                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr>
+                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr>
+                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr>
                     </tbody>
-                </table>
+                </table></div>
+            </div>
+        </div>
+
+        <!-- Quiz Performance Tab -->
+        <div id="quiz" class="tab-content">
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Quiz Funnel <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('quizFunnelChart','Quiz Funnel')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="quizFunnelChart" height="180"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Accuracy &amp; Engagement <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body"><div id="quizKpis" class="kpi-grid" style="margin-top:1rem"></div></div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Top Topics <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('quizTopicsChart','Top Topics')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="quizTopicsChart" height="200"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Difficulty Breakdown <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('quizDifficultyChart','Difficulty Breakdown')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="quizDifficultyChart" height="200"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Features Tab -->
+        <div id="ai" class="tab-content">
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>AI Feature Usage <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('aiUsageChart','AI Feature Usage')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="aiUsageChart" height="200"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>AI Adoption &amp; Overview <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body"><div id="aiKpis" class="kpi-grid" style="margin-top:1rem"></div></div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>Feature Adoption Details <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><table class="data-table" id="aiFeatureTable">
+                    <thead><tr><th class="sortable" onclick="sortTable('aiFeatureTable',0,this)">Feature</th><th class="sortable" onclick="sortTable('aiFeatureTable',1,this)">Events</th><th class="sortable" onclick="sortTable('aiFeatureTable',2,this)">Unique Users</th><th class="sortable" onclick="sortTable('aiFeatureTable',3,this)">Adoption %</th></tr></thead>
+                    <tbody><tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr><tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr><tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr></tbody>
+                </table></div>
+            </div>
+        </div>
+
+        <!-- Home Heatmap Tab -->
+        <div id="heatmap" class="tab-content">
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Home Button Tap Frequency <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('heatmapButtonChart','Home Button Tap Frequency')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="heatmapButtonChart" height="250"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Top Screens by Views <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('heatmapScreenChart','Top Screens by Views')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="heatmapScreenChart" height="250"></canvas></div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Avg Time per Screen (sec) <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('heatmapTimeChart','Avg Time per Screen')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="heatmapTimeChart" height="200"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Top Popups Shown <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('heatmapPopupChart','Top Popups Shown')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="heatmapPopupChart" height="200"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monetization Detail Tab -->
+        <div id="monet" class="tab-content">
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Ad Performance <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body"><div id="monetKpis" class="kpi-grid" style="margin-top:1rem"></div></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Ad Type Breakdown <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('monetAdTypesChart','Ad Type Breakdown')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="monetAdTypesChart" height="200"></canvas></div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Daily Ad Revenue <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('monetRevenueChart','Daily Ad Revenue')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="monetRevenueChart" height="200"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Top Purchased Products <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('monetProductsChart','Top Purchased Products')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="monetProductsChart" height="200"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Platforms Tab -->
+        <div id="platforms" class="tab-content">
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Platform Distribution <div class="card-actions"><button class="export-btn" onclick="exportPlatforms()">⬇ Export</button><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformPieChart','Platform Distribution')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="platformPieChart" height="220"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Users by Platform <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformUsersChart','Users by Platform')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="platformUsersChart" height="220"></canvas></div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>OS Versions <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformOsChart','OS Versions')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="platformOsChart" height="200"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Top Devices <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformDeviceChart','Top Devices')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="platformDeviceChart" height="200"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Players Tab -->
+        <div id="players" class="tab-content">
+            <div class="kpi-grid" id="playersKpis" style="margin-bottom:1.5rem"></div>
+            <div class="chart-card">
+                <h3>Top Players by Activity <div class="card-actions"><button class="export-btn" onclick="exportPlayers()">⬇ CSV</button><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><input type="search" id="playersSearch" class="players-search" placeholder="Filter by User ID..." oninput="filterPlayers(this.value)">
+                <table class="data-table" id="playersTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortTable('playersTable',0,this)">#</th>
+                            <th>User ID</th>
+                            <th class="sortable" onclick="sortTable('playersTable',2,this)">Events</th>
+                            <th class="sortable" onclick="sortTable('playersTable',3,this)">Quizzes</th>
+                            <th class="sortable" onclick="sortTable('playersTable',4,this)">Daily Q</th>
+                            <th class="sortable" onclick="sortTable('playersTable',5,this)">AI Events</th>
+                            <th class="sortable" onclick="sortTable('playersTable',6,this)">Sessions</th>
+                            <th class="sortable" onclick="sortTable('playersTable',7,this)">Purchases</th>
+                            <th class="sortable" onclick="sortTable('playersTable',8,this)">Last Active</th>
+                        </tr>
+                    </thead>
+                    <tbody><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:65%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:78%"></div></td></tr></tbody>
+                </table></div>
             </div>
         </div>
     </main>
@@ -876,7 +1635,10 @@
             <span>IntelliVerseX Analytics v2.0</span>
         </div>
     </footer>
-    
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
     <style>
         .footer {
             background: var(--bg-secondary);
@@ -913,7 +1675,7 @@
         const CONFIG = {
             serverUrl: 'https://nakama-rest.intelli-verse-x.ai',
             serverKey: 'defaultkey',
-            nakamaConsoleUrl: '/', // Back button destination
+            nakamaConsoleUrl: 'https://nakama-rest.intelli-verse-x.ai', // Back button destination
             // Admin credentials
             adminUsername: 'admin',
             adminPassword: 'password',
@@ -930,6 +1692,8 @@
         let sessionToken = null;
         let isAuthenticated = false;
         let selectedGameId = 'all';
+        let selectedDays = 30;
+        let autoRefreshTimer = null;
         
         // ─────────────────────────────────────────────────────────────────────
         // Admin Authentication
@@ -980,6 +1744,24 @@
             console.log(`Switched to: ${game.icon} ${game.name}`);
             refreshAll();
         }
+
+        function onDaysChange() {
+            selectedDays = parseInt(document.getElementById('daysSelector').value, 10);
+            if (isAuthenticated) refreshAll();
+        }
+
+        function onAutoRefreshChange() {
+            const secs = parseInt(document.getElementById('autoRefreshSelector').value, 10);
+            if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+            const badge = document.getElementById('liveBadge');
+            if (secs > 0) {
+                autoRefreshTimer = setInterval(refreshAll, secs * 1000);
+                badge.classList.remove('hidden');
+                badge.textContent = `LIVE ${secs < 60 ? secs+'s' : (secs/60)+'m'}`;
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
         
         function getGamePayload() {
             if (selectedGameId === 'all') {
@@ -989,15 +1771,63 @@
         }
         
         // ─────────────────────────────────────────────────────────────────────
+        // Tab Lazy Loading
+        // ─────────────────────────────────────────────────────────────────────
+
+        // Maps tab name → its loader function (called on first click)
+        const TAB_LOADERS = {
+            overview:  () => loadOverview(),
+            revenue:   () => loadRevenue('30d'),
+            retention: () => loadRetention(),
+            events:    () => loadEvents(),
+            storage:   () => loadStorage(),
+            sessions:  () => loadSessions(),
+            funnel:    () => loadFunnel(),
+            economy:   () => loadEconomy(),
+            errors:    () => loadErrors(),
+            features:  () => loadFeatures(),
+            quiz:      () => loadQuiz(),
+            ai:        () => loadAiFeatures(),
+            heatmap:   () => loadHeatmap(),
+            monet:     () => loadMonetizationDetail(),
+            platforms: () => loadPlatforms(),
+            players:   () => loadTopPlayers()
+        };
+
+        // Tracks which tabs have been loaded at least once since last refresh
+        const loadedTabs = new Set();
+
+        // Returns the name of the currently-active tab
+        function getActiveTab() {
+            const active = document.querySelector('.tab.active');
+            return active ? active.dataset.tab : 'overview';
+        }
+
+        // Load a tab's data unless it is already fresh (loaded since last refresh)
+        async function loadTab(name) {
+            if (loadedTabs.has(name) || !TAB_LOADERS[name]) return;
+            loadedTabs.add(name);           // optimistic – mark before await to prevent double-calls
+            try {
+                await TAB_LOADERS[name]();
+            } catch (e) {
+                loadedTabs.delete(name);    // allow retry on failure
+                console.error(`loadTab(${name}) error:`, e);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
         // Tab Navigation
         // ─────────────────────────────────────────────────────────────────────
-        
+
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
+                // Deactivate all tabs across ALL tab-group rows + legacy .tabs
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                 tab.classList.add('active');
                 document.getElementById(tab.dataset.tab).classList.add('active');
+                // Lazy-load this tab's data on first visit
+                loadTab(tab.dataset.tab);
             });
         });
         
@@ -1069,59 +1899,63 @@
         function createLineChart(canvasId, labels, datasets, options = {}) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
-            
-            if (charts[canvasId]) {
-                charts[canvasId].destroy();
-            }
-            
+            if (charts[canvasId]) charts[canvasId].destroy();
+            // Enrich each dataset with default styles if not already set
+            const enriched = datasets.map(ds => ({
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                borderWidth: 2,
+                ...ds
+            }));
             charts[canvasId] = new Chart(ctx, {
                 type: 'line',
-                data: { labels, datasets },
+                data: { labels, datasets: enriched },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { labels: { color: '#94a3b8' } }
+                        legend: { labels: { color: '#94a3b8', boxWidth: 12, padding: 14 } },
+                        tooltip: { backgroundColor: '#1a1a24', borderColor: '#2d2d3a', borderWidth: 1, titleColor: '#f8fafc', bodyColor: '#94a3b8' }
                     },
                     scales: {
-                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                        x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(51,65,85,0.4)' } },
+                        y: { ticks: { color: '#94a3b8', callback: v => formatNumber(v) }, grid: { color: 'rgba(51,65,85,0.4)' } }
                     },
                     ...options
                 }
             });
         }
         
-        function createBarChart(canvasId, labels, data, options = {}) {
+        function createBarChart(canvasId, labels, data, titleOrOpts = {}) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
-            
-            if (charts[canvasId]) {
-                charts[canvasId].destroy();
-            }
-            
+            if (charts[canvasId]) charts[canvasId].destroy();
+            // Accept a plain string title OR a Chart.js options object
+            const extraOpts = (typeof titleOrOpts === 'string') ? { plugins: { title: { display: !!titleOrOpts, text: titleOrOpts, color: '#94a3b8', font: { size: 12 } } } } : titleOrOpts;
             charts[canvasId] = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels,
                     datasets: [{
                         data,
-                        backgroundColor: 'rgba(124, 58, 237, 0.6)',
-                        borderColor: '#7c3aed',
-                        borderWidth: 1
+                        backgroundColor: 'rgba(99,102,241,0.65)',
+                        borderColor: '#6366f1',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                        hoverBackgroundColor: 'rgba(129,140,248,0.85)'
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + formatNumber(ctx.parsed.y ?? ctx.parsed.x) } } },
                     scales: {
-                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                        x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(51,65,85,0.5)' } },
+                        y: { ticks: { color: '#94a3b8', callback: v => formatNumber(v) }, grid: { color: 'rgba(51,65,85,0.5)' } }
                     },
-                    ...options
+                    ...extraOpts
                 }
             });
         }
@@ -1129,37 +1963,37 @@
         function createDoughnutChart(canvasId, labels, data, colors) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
-            
-            if (charts[canvasId]) {
-                charts[canvasId].destroy();
-            }
-            
+            if (charts[canvasId]) charts[canvasId].destroy();
+            const palette = [
+                '#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b',
+                '#ef4444','#3b82f6','#ec4899','#84cc16','#f97316'
+            ];
+            const bg = colors || labels.map((_, i) => palette[i % palette.length]);
             charts[canvasId] = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels,
-                    datasets: [{
-                        data,
-                        backgroundColor: colors,
-                        borderWidth: 0
-                    }]
+                    datasets: [{ data, backgroundColor: bg, borderColor: bg.map(c => c + '99'), borderWidth: 2, hoverOffset: 6 }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { 
-                            position: 'right',
-                            labels: { color: '#94a3b8' } 
-                        }
+                        legend: { position: 'right', labels: { color: '#94a3b8', padding: 14, boxWidth: 12, font: { size: 12 } } },
+                        tooltip: { callbacks: {
+                            label: ctx => ` ${ctx.label}: ${formatNumber(ctx.parsed)} (${((ctx.parsed / ctx.dataset.data.reduce((a,b)=>a+b,0))*100).toFixed(1)}%)`
+                        }}
                     }
                 }
             });
         }
         
         function formatNumber(num) {
+            if (num === null || num === undefined || isNaN(num)) return '—';
+            num = Number(num);
             if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            if (num >= 10000)   return (num / 1000).toFixed(1) + 'K';
+            if (num >= 1000)    return num.toLocaleString();
             return num.toString();
         }
         
@@ -1170,72 +2004,147 @@
         }
         
         // ─────────────────────────────────────────────────────────────────────
+        // Skeleton Helpers
+        // ─────────────────────────────────────────────────────────────────────
+
+        function skKpi(n) {
+            const c = `<div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>`;
+            return Array(n).fill(c).join('');
+        }
+        function skBlock(h) {
+            return `<div class="skeleton" style="height:${h || 200}px;border-radius:8px"></div>`;
+        }
+        function skTable(cols, n) {
+            const r = `<tr><td colspan="${cols}"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:85%"></div></td></tr>`;
+            return Array(n || 4).fill(r).join('');
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
         // Data Loaders
         // ─────────────────────────────────────────────────────────────────────
         
         async function loadOverview() {
             try {
-                const gameLabel = selectedGameId === 'all' ? '' : ` (${CONFIG.games[selectedGameId]?.name || selectedGameId})`;
-                const data = await callRpc('analytics_dashboard', getGamePayload());
-                
+                document.getElementById('overviewKpis').innerHTML = skKpi(7);
+                const payload = getGamePayload();
+                const data = await callRpc('analytics_dashboard', payload);
                 if (data.error) {
                     document.getElementById('overviewKpis').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                
-                const trendIcon = data.trends?.dau_7d_change_pct >= 0 ? '↗' : '↘';
-                const trendClass = data.trends?.dau_7d_change_pct >= 0 ? 'positive' : 'negative';
-                
+                const gameLabel = selectedGameId === 'all' ? '' : ` (${CONFIG.games[selectedGameId]?.name || selectedGameId})`;
+                const dauMauHealth = data.dau_mau_ratio > 0.15 ? 'positive' : data.dau_mau_ratio > 0.05 ? '' : 'negative';
+                const dau7chg = data.trends?.dau_7d_change_pct || 0;
                 document.getElementById('overviewKpis').innerHTML = `
                     <div class="kpi-card">
-                        <div class="icon">👥</div>
-                        <div class="label">Daily Active Users${gameLabel}</div>
-                        <div class="value">${formatNumber(data.dau)}</div>
-                        <div class="trend ${trendClass}">${data.trends?.dau_7d_change_pct || 0}% vs 7d ago</div>
-                    </div>
-                    <div class="kpi-card">
                         <div class="icon">📅</div>
-                        <div class="label">Weekly Active Users</div>
-                        <div class="value">${formatNumber(data.wau)}</div>
+                        <div class="label">DAU${gameLabel}</div>
+                        <div class="value">${formatNumber(data.dau)}</div>
+                        <div class="trend ${dau7chg >= 0 ? 'positive' : 'negative'}">${dau7chg >= 0 ? '▲' : '▼'} ${Math.abs(dau7chg)}% vs 7d ago</div>
+                        ${data.dau_trend && data.dau_trend.length >= 2 ? '<canvas id="dauSparkline" height="36" style="width:100%;height:36px;margin-top:0.4rem"></canvas>' : ''}
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📆</div>
-                        <div class="label">Monthly Active Users</div>
-                        <div class="value">${formatNumber(data.mau)}</div>
+                        <div class="label">WAU</div>
+                        <div class="value">${formatNumber(data.wau)}</div>
+                        <div class="trend">Last 7 days</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="icon">📊</div>
+                        <div class="icon">🗓️</div>
+                        <div class="label">MAU</div>
+                        <div class="value">${formatNumber(data.mau)}</div>
+                        <div class="trend">Last 30 days</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🔥</div>
                         <div class="label">DAU/MAU Ratio</div>
-                        <div class="value plain">${(data.dau_mau_ratio * 100).toFixed(1)}%</div>
+                        <div class="value plain ${dauMauHealth}">${(data.dau_mau_ratio * 100).toFixed(1)}%</div>
+                        <div class="trend">Stickiness · ${data.dau_mau_ratio > 0.2 ? '🟢 Excellent' : data.dau_mau_ratio > 0.1 ? '🟡 Good' : '🔴 Low'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">⏱️</div>
-                        <div class="label">Avg Session Duration</div>
-                        <div class="value plain">${formatDuration(data.avg_session_duration_seconds || 0)}</div>
+                        <div class="label">Avg Session</div>
+                        <div class="value plain">${formatDuration(data.avg_session_duration_seconds)}</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="icon">✨</div>
-                        <div class="label">New Users Today</div>
-                        <div class="value">${formatNumber(data.new_users_today)}</div>
+                        <div class="icon">🆕</div>
+                        <div class="label">New vs Returning</div>
+                        <div class="value plain">${formatNumber(data.new_users_today)} / ${formatNumber(data.returning_users_today)}</div>
+                        <div class="trend">Today</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="icon">🔄</div>
-                        <div class="label">Returning Users</div>
-                        <div class="value">${formatNumber(data.returning_users_today)}</div>
+                        <div class="icon">📊</div>
+                        <div class="label">DAU Range</div>
+                        <div class="value plain">${formatNumber(data.dau_7d_min || 0)} – ${formatNumber(data.dau_7d_max || 0)}</div>
+                        <div class="trend">7-day min/max</div>
                     </div>
                 `;
-                
-                // Top games chart
-                if (data.top_games && data.top_games.length > 0) {
-                    createBarChart('topGamesChart', 
-                        data.top_games.slice(0, 5).map(g => CONFIG.games[g.game_id]?.name || g.game_id.substring(0, 8)),
+                // DAU sparkline
+                if (data.dau_trend && data.dau_trend.length >= 2) {
+                    const cvs = document.getElementById('dauSparkline');
+                    if (cvs) {
+                        if (charts['dauSparkline']) charts['dauSparkline'].destroy();
+                        charts['dauSparkline'] = new Chart(cvs, {
+                            type: 'line',
+                            data: {
+                                labels: data.dau_trend.map(d => d.date.slice(5)),
+                                datasets: [{
+                                    data: data.dau_trend.map(d => d.dau),
+                                    borderColor: '#6366f1',
+                                    borderWidth: 2,
+                                    pointRadius: 0,
+                                    pointHoverRadius: 4,
+                                    tension: 0.4,
+                                    fill: true,
+                                    backgroundColor: 'rgba(99,102,241,0.15)'
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                animation: { duration: 600 },
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { callbacks: { label: c => ` DAU: ${formatNumber(c.parsed.y)}` } }
+                                },
+                                scales: { x: { display: false }, y: { display: false } }
+                            }
+                        });
+                    }
+                }
+
+                if (data.top_games && data.top_games.length) {
+                    document.getElementById('overviewChartRow').style.display = '';
+                    createBarChart('overviewChart',
+                        data.top_games.slice(0, 5).map(g => g.game_id.slice(0, 8) + '...'),
                         data.top_games.slice(0, 5).map(g => g.dau)
                     );
                 }
-                
+
+                // Update health score bar with actual overview RPC fields
+                updateHealthBar({
+                    dau:           data.dau                           || 0,
+                    dau_mau_ratio: data.dau_mau_ratio                 || 0,
+                    wau:           data.wau                           || 0,
+                    growth_pct:    data.trends?.dau_7d_change_pct     || 0,
+                    new_users:     data.new_users_today               || 0,
+                    avg_session:   data.avg_session_duration_seconds  || 0
+                });
             } catch (e) {
                 console.error('Overview error:', e);
-                document.getElementById('overviewKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+                const gameLabel = selectedGameId === 'all' ? '' : ` (${CONFIG.games[selectedGameId]?.name || selectedGameId})`;
+                document.getElementById('overviewKpis').innerHTML = `
+                    <div class="kpi-card" style="grid-column: span 2;">
+                        <div class="icon">⚠️</div>
+                        <div class="label">Overview${gameLabel}</div>
+                        <div class="value plain" style="font-size: 1rem; color: var(--text-muted);">Could not connect to analytics_dashboard RPC: ${e.message}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🔗</div>
+                        <div class="label">Server Status</div>
+                        <div class="value plain" style="color: var(--success);">Connected</div>
+                        <div class="trend">Nakama REST API</div>
+                    </div>`;
             }
         }
         
@@ -1245,7 +2154,7 @@
                 document.querySelectorAll('.period-btn').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.period === period);
                 });
-                
+                document.getElementById('revenueKpis').innerHTML = skKpi(4);
                 const payload = { period: period, ...getGamePayload() };
                 const data = await callRpc('analytics_arpu', payload);
                 
@@ -1319,7 +2228,8 @@
         
         async function loadRetention() {
             try {
-                const data = await callRpc('analytics_retention_cohort', getGamePayload());
+                document.getElementById('retentionKpis').innerHTML = skKpi(5);
+                const data = await callRpc('analytics_cohort_retention', getGamePayload());
                 
                 if (data.error) {
                     document.getElementById('retentionKpis').innerHTML = `<div class="error">${data.error}</div>`;
@@ -1370,7 +2280,8 @@
         
         async function loadSessions() {
             try {
-                const payload = { days: 7, ...getGamePayload() };
+                document.getElementById('sessionKpis').innerHTML = skKpi(4);
+                const payload = { days: selectedDays, ...getGamePayload() };
                 const data = await callRpc('analytics_session_stats', payload);
                 
                 if (data.error) {
@@ -1448,36 +2359,29 @@
         
         async function loadFunnel() {
             try {
-                const data = await callRpc('analytics_funnel', getGamePayload());
-                
+                const payload = { days: selectedDays, ...getGamePayload() };
+                const data = await callRpc('analytics_funnel', payload);
                 if (data.error) {
                     document.getElementById('funnelSteps').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                
-                if (!data.steps || data.steps.length === 0) {
-                    document.getElementById('funnelSteps').innerHTML = `<div class="empty-state"><h3>No funnel data</h3><p>Users need to complete funnel steps to see data here.</p></div>`;
-                    return;
-                }
-                
-                let html = `<div style="margin-bottom: 1rem; color: var(--text-secondary);">Worst drop-off: <strong style="color: var(--danger);">${data.worst_drop_off.step}</strong> (${data.worst_drop_off.drop_pct}%)</div>`;
-                
-                data.steps.forEach((step, i) => {
-                    const dropClass = step.drop_off_pct > 50 ? 'high' : step.drop_off_pct > 25 ? 'medium' : 'low';
-                    const width = step.pct_of_total;
-                    
-                    html += `
-                        <div class="funnel-step" style="padding-left: ${(100 - width) / 2}%; padding-right: ${(100 - width) / 2}%; background: linear-gradient(90deg, var(--accent) ${width}%, var(--bg-secondary) ${width}%);">
-                            <span class="name">${step.name.replace(/_/g, ' ')}</span>
-                            <span class="count">${formatNumber(step.count)}</span>
-                            <span class="pct">${step.pct_of_total}%</span>
-                            ${i > 0 ? `<span class="drop ${dropClass}">-${step.drop_off_pct}%</span>` : '<span class="drop">-</span>'}
+                const steps = data.steps || [];
+                document.getElementById('funnelSteps').innerHTML = steps.map(step => `
+                    <div class="funnel-step" style="border-left-color: ${step.drop_off_pct > 50 ? 'var(--danger)' : step.drop_off_pct > 25 ? 'var(--warning)' : 'var(--success)'};">  
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <strong>${step.name.replace(/_/g,' ')}</strong>
+                            <span style="font-size:1.25rem;font-weight:700;color:var(--accent-light);">${formatNumber(step.count)}</span>
                         </div>
-                    `;
-                });
-                
-                document.getElementById('funnelSteps').innerHTML = html;
-                
+                        <div style="font-size:0.875rem;color:var(--text-muted);margin-top:0.25rem;">
+                            ${step.pct_of_total}% of total · ${step.pct_of_previous}% from previous
+                            ${step.drop_off_pct > 0 ? `<span style="color:var(--danger);">(-${step.drop_off_pct}% drop)</span>` : ''}
+                        </div>
+                    </div>`).join('') || '<div class="empty-state">No funnel data yet</div>';
+                if (data.worst_drop_off && data.worst_drop_off.step) {
+                    const worstEl = document.getElementById('worstDropOff');
+                    if (worstEl) worstEl.textContent = `Biggest drop: ${data.worst_drop_off.step.replace(/_/g,' ')} (${data.worst_drop_off.drop_pct}%)`;
+                }
+
             } catch (e) {
                 console.error('Funnel error:', e);
                 document.getElementById('funnelSteps').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
@@ -1486,75 +2390,59 @@
         
         async function loadEconomy() {
             try {
-                const data = await callRpc('analytics_economy_health', getGamePayload());
-                
+                const payload = getGamePayload();
+                const data = await callRpc('analytics_economy_health', payload);
                 if (data.error) {
                     document.getElementById('economyKpis').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                
-                const giniColor = data.gini_coefficient > 0.6 ? 'var(--danger)' : data.gini_coefficient > 0.4 ? 'var(--warning)' : 'var(--success)';
-                
+                const giniHealth = data.gini_coefficient > 0.7 ? 'negative' : data.gini_coefficient > 0.4 ? '' : 'positive';
+                const ssRatio = data.source_sink_ratio || {};
                 document.getElementById('economyKpis').innerHTML = `
                     <div class="kpi-card">
                         <div class="icon">🪙</div>
-                        <div class="label">Total Coins</div>
+                        <div class="label">Total Coins (sample)</div>
                         <div class="value">${formatNumber(data.total_coins)}</div>
+                        <div class="trend">${formatNumber(data.sample_size)} users sampled</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">💎</div>
-                        <div class="label">Total Gems</div>
+                        <div class="label">Total Gems (sample)</div>
                         <div class="value">${formatNumber(data.total_gems)}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📊</div>
-                        <div class="label">Avg Coins</div>
+                        <div class="label">Avg Coins/User</div>
                         <div class="value">${formatNumber(data.avg_coins)}</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="icon">📈</div>
-                        <div class="label">Median Coins</div>
-                        <div class="value">${formatNumber(data.median_coins)}</div>
+                        <div class="trend">Median: ${formatNumber(data.median_coins)}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">⚖️</div>
                         <div class="label">Gini Coefficient</div>
-                        <div class="value plain" style="color: ${giniColor}">${data.gini_coefficient}</div>
-                        <div class="trend">${data.gini_coefficient > 0.6 ? 'High inequality' : data.gini_coefficient > 0.4 ? 'Moderate' : 'Balanced'}</div>
+                        <div class="value plain ${giniHealth}">${data.gini_coefficient}</div>
+                        <div class="trend">0=equal, 1=unequal</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🐋</div>
-                        <div class="label">Whale Count (Top 1%)</div>
-                        <div class="value">${data.whale_count}</div>
+                        <div class="label">Whale Users (top 1%)</div>
+                        <div class="value">${formatNumber(data.whale_count)}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🔄</div>
                         <div class="label">Source/Sink Ratio</div>
-                        <div class="value plain">${data.source_sink_ratio?.ratio || 0}</div>
-                        <div class="trend">${data.source_sink_ratio?.ratio > 1.5 ? 'Inflation risk' : data.source_sink_ratio?.ratio < 0.8 ? 'Deflation' : 'Healthy'}</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="icon">📋</div>
-                        <div class="label">Sample Size</div>
-                        <div class="value">${data.sample_size}</div>
+                        <div class="value plain">${ssRatio.ratio || 0}</div>
+                        <div class="trend">In: ${formatNumber(ssRatio.sources_total)} / Out: ${formatNumber(ssRatio.sinks_total)}</div>
                     </div>
                 `;
-                
-                // Coin distribution chart (min/median/avg/max)
-                createBarChart('coinDistChart', 
-                    ['Min', 'Median', 'Average', 'Max'],
-                    [data.min_coins, data.median_coins, data.avg_coins, data.max_coins]
+                createDoughnutChart('coinDistChart',
+                    ['Coins', 'Gems', 'Whale Reserve (×10)'],
+                    [data.total_coins || 0, data.total_gems || 0, (data.whale_count || 0) * 10]
                 );
-                
-                // Source vs Sink pie
-                if (data.source_sink_ratio) {
-                    createDoughnutChart('sourceSinkChart',
-                        ['Sources (In)', 'Sinks (Out)'],
-                        [data.source_sink_ratio.sources_total, data.source_sink_ratio.sinks_total],
-                        ['rgba(34, 197, 94, 0.8)', 'rgba(239, 68, 68, 0.8)']
-                    );
-                }
-                
+                createDoughnutChart('sourceSinkChart',
+                    ['Sources (In)', 'Sinks (Out)'],
+                    [ssRatio.sources_total || 0, ssRatio.sinks_total || 0],
+                    ['rgba(16,185,129,0.8)', 'rgba(239,68,68,0.8)']
+                );
             } catch (e) {
                 console.error('Economy error:', e);
                 document.getElementById('economyKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
@@ -1563,43 +2451,42 @@
         
         async function loadErrors() {
             try {
-                const payload = { days: 7, ...getGamePayload() };
+                document.getElementById('errorKpis').innerHTML = skKpi(2);
+                document.querySelector('#errorTable tbody').innerHTML = skTable(4, 3);
+                const payload = { days: selectedDays, ...getGamePayload() };
                 const data = await callRpc('analytics_error_log', payload);
-                
                 if (data.error) {
                     document.getElementById('errorKpis').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                
+                const most = data.most_failing_rpc || {};
                 document.getElementById('errorKpis').innerHTML = `
                     <div class="kpi-card">
-                        <div class="icon">🐛</div>
+                        <div class="icon">🚨</div>
                         <div class="label">Total Errors (7d)</div>
-                        <div class="value">${formatNumber(data.total_errors)}</div>
+                        <div class="value ${(data.total_errors||0) > 0 ? 'negative' : 'positive'}">${formatNumber(data.total_errors)}</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="icon">⚠️</div>
+                        <div class="icon">💥</div>
                         <div class="label">Most Failing RPC</div>
-                        <div class="value plain" style="font-size: 1.2rem">${data.most_failing_rpc?.name || 'N/A'}</div>
-                        <div class="trend negative">${data.most_failing_rpc?.count || 0} failures</div>
+                        <div class="value plain" style="font-size:0.9rem;">${most.name || 'None'}</div>
+                        <div class="trend">${most.count || 0} errors</div>
                     </div>
                 `;
-                
-                // Error table
                 const tbody = document.querySelector('#errorTable tbody');
-                if (!data.errors_by_rpc || data.errors_by_rpc.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No errors in the last 7 days 🎉</td></tr>';
-                } else {
-                    tbody.innerHTML = data.errors_by_rpc.map(e => `
+                const errors = data.errors_by_rpc || [];
+                if (errors.length) {
+                    tbody.innerHTML = errors.map(e => `
                         <tr>
                             <td>${e.rpc_name}</td>
-                            <td>${e.count}</td>
-                            <td>${e.last_occurred || '-'}</td>
-                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${e.sample_error || '-'}</td>
-                        </tr>
-                    `).join('');
+                            <td style="color:var(--danger);">${e.count}</td>
+                            <td style="font-size:0.8rem;">${e.last_occurred || '-'}</td>
+                            <td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${(e.sample_error||'').slice(0,80) || '-'}</td>
+                        </tr>`).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No errors logged</td></tr>';
                 }
-                
+
             } catch (e) {
                 console.error('Errors error:', e);
                 document.getElementById('errorKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
@@ -1609,43 +2496,565 @@
         async function loadFeatures() {
             try {
                 const data = await callRpc('analytics_feature_adoption', getGamePayload());
-                
                 if (data.error) {
-                    document.querySelector('#featureTable tbody').innerHTML = `<tr><td colspan="4" class="error">${data.error}</td></tr>`;
+                    document.querySelector('#featureTable tbody').innerHTML = `<tr><td colspan="4" class="empty-state">${data.error}</td></tr>`;
                     return;
                 }
-                
-                if (!data.features || data.features.length === 0) {
-                    document.querySelector('#featureTable tbody').innerHTML = '<tr><td colspan="4" class="empty-state">No feature data available</td></tr>';
-                    return;
-                }
-                
+                const features = data.features || [];
                 const tbody = document.querySelector('#featureTable tbody');
-                tbody.innerHTML = data.features
-                    .sort((a, b) => b.adoption_pct - a.adoption_pct)
-                    .map(f => `
-                        <tr>
-                            <td>${f.name.replace(/_/g, ' ')}</td>
-                            <td>${f.users_count}</td>
-                            <td>${f.adoption_pct}%</td>
+                if (features.length) {
+                    tbody.innerHTML = features.map(f => {
+                        const health = f.adoption_pct >= 30 ? 'positive' : f.adoption_pct >= 10 ? '' : 'negative';
+                        const barWidth = Math.min(f.adoption_pct, 100);
+                        return `<tr>
+                            <td>${f.name.replace(/_/g,' ')}</td>
+                            <td>${formatNumber(f.users_count)}</td>
+                            <td><span class="${health}" style="font-weight:600;">${f.adoption_pct}%</span></td>
                             <td>
-                                <div class="progress-bar">
-                                    <div class="fill" style="width: ${f.adoption_pct}%"></div>
+                                <div style="display:flex;align-items:center;gap:0.5rem;">
+                                    <div style="flex:1;background:var(--border);border-radius:4px;height:8px;min-width:60px;"><div style="width:${barWidth}%;background:var(--${health==='positive'?'success':health==='negative'?'danger':'warning'});height:8px;border-radius:4px;"></div></div>
+                                    <span style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">${f.collection || ''}</span>
                                 </div>
                             </td>
-                        </tr>
-                    `).join('');
-                
+                        </tr>`;
+                    }).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No feature data yet</td></tr>';
+                }
+                const recs = document.getElementById('featureRecommendations');
+                if (recs && data.recommendations) {
+                    recs.innerHTML = data.recommendations.map(r => `<li>${r}</li>`).join('');
+                }
             } catch (e) {
                 console.error('Features error:', e);
-                document.querySelector('#featureTable tbody').innerHTML = `<tr><td colspan="4" class="error">Failed to load: ${e.message}</td></tr>`;
+                document.querySelector('#featureTable tbody').innerHTML = `<tr><td colspan="4" class="empty-state">Failed to load: ${e.message}</td></tr>`;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Quiz Performance
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadQuiz() {
+            try {
+                const data = await callRpc('analytics_quiz_performance', { days: selectedDays, ...getGamePayload() });
+                if (data.error) { document.getElementById('quizKpis').innerHTML = `<p class="empty-state">${data.error}</p>`; return; }
+                // KPIs
+                document.getElementById('quizKpis').innerHTML = [
+                    { label: 'Started', value: formatNumber(data.quiz_started) },
+                    { label: 'Completed', value: formatNumber(data.quiz_completed) },
+                    { label: 'Completion %', value: data.completion_rate_pct + '%' },
+                    { label: 'Accuracy %', value: data.accuracy_rate_pct + '%' },
+                    { label: 'Avg Score', value: data.avg_score },
+                    { label: 'Hints Used', value: formatNumber(data.hints_used) },
+                    { label: 'Daily Quizzes', value: formatNumber(data.daily_completed) },
+                    { label: 'Avg Streak', value: data.avg_streak }
+                ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
+                // Funnel chart
+                const funnelLabels = ['Started', 'Completed', 'Abandoned'];
+                const funnelData = [data.quiz_started, data.quiz_completed, data.quiz_abandoned];
+                if (charts.quizFunnel) charts.quizFunnel.destroy();
+                charts.quizFunnel = createBarChart('quizFunnelChart', funnelLabels, funnelData, 'Quiz Funnel');
+                // Topics chart
+                if (data.top_topics && data.top_topics.length > 0) {
+                    if (charts.quizTopics) charts.quizTopics.destroy();
+                    charts.quizTopics = createBarChart('quizTopicsChart', data.top_topics.map(t => t.topic), data.top_topics.map(t => t.count), 'Questions by Topic');
+                }
+                // Difficulty chart
+                if (data.difficulty_breakdown && data.difficulty_breakdown.length > 0) {
+                    if (charts.quizDifficulty) charts.quizDifficulty.destroy();
+                    charts.quizDifficulty = createDoughnutChart('quizDifficultyChart', data.difficulty_breakdown.map(d => d.difficulty), data.difficulty_breakdown.map(d => d.count));
+                }
+            } catch(e) { console.error('Quiz error:', e); }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // AI Features
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadAiFeatures() {
+            try {
+                const data = await callRpc('analytics_ai_features', { days: selectedDays, ...getGamePayload() });
+                if (data.error) { document.querySelector('#aiFeatureTable tbody').innerHTML = `<tr><td colspan="4" class="empty-state">${data.error}</td></tr>`; return; }
+                document.getElementById('aiKpis').innerHTML = [
+                    { label: 'Total AI Events', value: formatNumber(data.total_ai_events) },
+                    { label: 'AI Users', value: formatNumber(data.total_ai_users) },
+                    { label: 'AI Adoption %', value: data.ai_adoption_pct + '%' },
+                    { label: 'Credits Used', value: formatNumber(data.credits_consumed) },
+                    { label: 'Voice Answers', value: formatNumber(data.voice_answers) },
+                    { label: 'Users Sampled', value: formatNumber(data.users_sampled) }
+                ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
+                if (data.features && data.features.length > 0) {
+                    if (charts.aiUsage) charts.aiUsage.destroy();
+                    charts.aiUsage = createBarChart('aiUsageChart', data.features.map(f => f.feature), data.features.map(f => f.events), 'Events per Feature');
+                    document.querySelector('#aiFeatureTable tbody').innerHTML = data.features.map(f =>
+                        `<tr><td>${f.feature}</td><td>${formatNumber(f.events)}</td><td>${formatNumber(f.unique_users)}</td><td><div style="background:#7c3aed;height:6px;border-radius:3px;width:${f.adoption_pct}%;min-width:2px"></div>${f.adoption_pct}%</td></tr>`
+                    ).join('');
+                } else {
+                    document.querySelector('#aiFeatureTable tbody').innerHTML = '<tr><td colspan="4" class="empty-state">No AI events found</td></tr>';
+                }
+            } catch(e) { console.error('AI features error:', e); }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Home Heatmap
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadHeatmap() {
+            try {
+                const data = await callRpc('analytics_home_heatmap', { days: selectedDays, ...getGamePayload() });
+                if (data.error) { console.error('Heatmap error:', data.error); return; }
+                if (data.buttons && data.buttons.length > 0) {
+                    if (charts.heatmapBtn) charts.heatmapBtn.destroy();
+                    charts.heatmapBtn = createBarChart('heatmapButtonChart', data.buttons.map(b => b.button), data.buttons.map(b => b.count), 'Tap Count');
+                }
+                if (data.top_screens && data.top_screens.length > 0) {
+                    if (charts.heatmapScreen) charts.heatmapScreen.destroy();
+                    charts.heatmapScreen = createBarChart('heatmapScreenChart', data.top_screens.map(s => s.screen), data.top_screens.map(s => s.views), 'Views');
+                }
+                if (data.screen_time && data.screen_time.length > 0) {
+                    if (charts.heatmapTime) charts.heatmapTime.destroy();
+                    charts.heatmapTime = createBarChart('heatmapTimeChart', data.screen_time.map(s => s.screen), data.screen_time.map(s => s.avg_seconds), 'Avg Seconds');
+                }
+                if (data.top_popups && data.top_popups.length > 0) {
+                    if (charts.heatmapPopup) charts.heatmapPopup.destroy();
+                    charts.heatmapPopup = createDoughnutChart('heatmapPopupChart', data.top_popups.map(p => p.popup), data.top_popups.map(p => p.shown));
+                }
+            } catch(e) { console.error('Heatmap error:', e); }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Monetization Detail
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadMonetizationDetail() {
+            try {
+                const data = await callRpc('analytics_monetization_detail', { days: selectedDays, ...getGamePayload() });
+                if (data.error) { document.getElementById('monetKpis').innerHTML = `<p class="empty-state">${data.error}</p>`; return; }
+                document.getElementById('monetKpis').innerHTML = [
+                    { label: 'Ad Impressions', value: formatNumber(data.ad_impressions) },
+                    { label: 'Ad Completed', value: formatNumber(data.ad_completed) },
+                    { label: 'Fill Rate %', value: data.ad_fill_rate_pct + '%' },
+                    { label: 'Ad Revenue', value: '$' + data.ad_revenue_total },
+                    { label: 'IAP Purchases', value: formatNumber(data.iap_completed) },
+                    { label: 'Paywall Shown', value: formatNumber(data.paywall_shown) },
+                    { label: 'Conversion %', value: data.paywall_conversion_rate_pct + '%' },
+                    { label: 'Store Opens', value: formatNumber(data.store_opens) }
+                ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
+                if (data.ad_types && data.ad_types.length > 0) {
+                    if (charts.monetAdTypes) charts.monetAdTypes.destroy();
+                    charts.monetAdTypes = createDoughnutChart('monetAdTypesChart', data.ad_types.map(a => a.type), data.ad_types.map(a => a.count));
+                }
+                if (data.daily_ad_revenue && data.daily_ad_revenue.length > 0) {
+                    createLineChart('monetRevenueChart',
+                        data.daily_ad_revenue.map(d => d.date),
+                        [{ label: 'Daily Ad Revenue ($)', data: data.daily_ad_revenue.map(d => d.revenue), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }]
+                    );
+                }
+                if (data.top_products && data.top_products.length > 0) {
+                    if (charts.monetProducts) charts.monetProducts.destroy();
+                    charts.monetProducts = createBarChart('monetProductsChart', data.top_products.map(p => p.product_id), data.top_products.map(p => p.purchases), 'Purchases');
+                }
+            } catch(e) { console.error('Monetization detail error:', e); }
+        }
+        
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Events Timeline Viewer (uses admin_events_timeline)
+        // ─────────────────────────────────────────────────────────────────────
+        
+        async function loadEvents() {
+            try {
+                const payload = { days: 7, limit: 100, ...getGamePayload() };
+                const data = await callRpc('admin_events_timeline', payload);
+                
+                const container = document.getElementById('eventsContent');
+                if (!container) return;
+                
+                if (data.error) {
+                    container.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                if (!data.events || data.events.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No Events Found</h3>
+                            <p>No events recorded in the last 7 days.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = `
+                    <div style="margin-bottom: 1rem; color: var(--text-secondary);">
+                        Found <strong>${data.events.length}</strong> events (last 7 days)
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Event Name</th>
+                                <th>User ID</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                data.events.forEach(event => {
+                    const timestamp = new Date(event.timestamp).toLocaleString();
+                    const details = event.properties ? JSON.stringify(event.properties).substring(0, 100) : '-';
+                    html += `
+                        <tr>
+                            <td style="white-space: nowrap;">${timestamp}</td>
+                            <td><code>${event.name || event.event_name || '-'}</code></td>
+                            <td style="font-family: monospace; font-size: 0.8rem;">${(event.user_id || '-').substring(0, 12)}...</td>
+                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${details}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+                
+            } catch (e) {
+                console.error('Events error:', e);
+                const container = document.getElementById('eventsContent');
+                if (container) {
+                    container.innerHTML = `<div class="error">Events timeline not available: ${e.message}</div>`;
+                }
             }
         }
         
         // ─────────────────────────────────────────────────────────────────────
+        // Storage Browser (uses admin_storage_list)
+        // ─────────────────────────────────────────────────────────────────────
+        
+        async function loadStorage() {
+            try {
+                const payload = { 
+                    collection: 'analytics',
+                    limit: 50,
+                    ...getGamePayload() 
+                };
+                const data = await callRpc('admin_storage_list', payload);
+                
+                const container = document.getElementById('storageContent');
+                if (!container) return;
+                
+                if (data.error) {
+                    container.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                if (!data.objects || data.objects.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No Storage Objects</h3>
+                            <p>No analytics data found in storage.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = `
+                    <div style="margin-bottom: 1rem; color: var(--text-secondary);">
+                        Found <strong>${data.objects.length}</strong> storage objects
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Collection</th>
+                                <th>Key</th>
+                                <th>User ID</th>
+                                <th>Updated</th>
+                                <th>Value Preview</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                data.objects.forEach(obj => {
+                    const updated = obj.update_time ? new Date(obj.update_time).toLocaleString() : '-';
+                    const preview = obj.value ? JSON.stringify(obj.value).substring(0, 80) + '...' : '-';
+                    html += `
+                        <tr>
+                            <td><code>${obj.collection || '-'}</code></td>
+                            <td><code>${obj.key || '-'}</code></td>
+                            <td style="font-family: monospace; font-size: 0.8rem;">${(obj.user_id || '-').substring(0, 12)}...</td>
+                            <td style="white-space: nowrap;">${updated}</td>
+                            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis;">${preview}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+                
+            } catch (e) {
+                console.error('Storage error:', e);
+                const container = document.getElementById('storageContent');
+                if (container) {
+                    container.innerHTML = `<div class="error">Storage browser not available: ${e.message}</div>`;
+                }
+            }
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Utilities: Toast, CSV Export, Stickiness
+        // ─────────────────────────────────────────────────────────────────────
+
+        function showToast(msg, type = 'success', duration = 3000) {
+            const c = document.getElementById('toast-container');
+            if (!c) return;
+            const t = document.createElement('div');
+            t.className = `toast ${type}`;
+            t.textContent = msg;
+            c.appendChild(t);
+            setTimeout(() => {
+                t.classList.add('fade-out');
+                setTimeout(() => t.remove(), 400);
+            }, duration);
+        }
+
+        function exportToCSV(rows, filename) {
+            if (!rows || rows.length === 0) { showToast('No data to export', 'warn'); return; }
+            const headers = Object.keys(rows[0]);
+            const csv = [
+                headers.join(','),
+                ...rows.map(r => headers.map(h => JSON.stringify(r[h] !== undefined ? r[h] : '')).join(','))
+            ].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+            showToast(`✓ Exported ${rows.length} rows to ${filename}`);
+        }
+
+        function platIcon(p) {
+            return {ios:'🍎', android:'🤖', webgl:'🌐', windows:'🪟', macos:'🍏', editor:'🎮'}[p] || '📱';
+        }
+
+        function platClass(p) {
+            return {ios:'plat-ios', android:'plat-android', webgl:'plat-webgl', windows:'plat-windows'}[p] || 'plat-other';
+        }
+
+        let _platformData = null;
+        let _playersData  = null;
+
+        function exportPlatforms() { if (_platformData) exportToCSV(_platformData, 'platforms.csv'); else showToast('Load the Platforms tab first', 'warn'); }
+        function exportPlayers()   { if (_playersData)  exportToCSV(_playersData,  'top_players.csv'); else showToast('Load the Players tab first', 'warn'); }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Platform Breakdown
+        // ─────────────────────────────────────────────────────────────────────
+
+        async function loadPlatforms() {
+            try {
+                const data = await callRpc('analytics_platform_breakdown', { days: selectedDays, ...getGamePayload() });
+                if (data.error) { console.error('Platforms:', data.error); return; }
+                _platformData = data.platforms;
+
+                if (data.platforms && data.platforms.length > 0) {
+                    const labels = data.platforms.map(p => `${platIcon(p.platform)} ${p.platform}`);
+                    const events = data.platforms.map(p => p.events);
+                    const users  = data.platforms.map(p => p.unique_users);
+                    const colors = data.platforms.map(p =>
+                        ({ ios:'rgba(0,122,255,0.7)', android:'rgba(61,220,132,0.7)', webgl:'rgba(245,158,11,0.7)', windows:'rgba(99,102,241,0.7)' }[p.platform] || 'rgba(148,163,184,0.7)')
+                    );
+                    if (charts.platformPie) charts.platformPie.destroy();
+                    const pCtx = document.getElementById('platformPieChart');
+                    if (pCtx) charts.platformPie = new Chart(pCtx, {
+                        type: 'doughnut',
+                        data: { labels, datasets: [{ data: events, backgroundColor: colors, borderColor: colors.map(c => c.replace('0.7','1')), borderWidth: 1 }] },
+                        options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position:'right', labels:{ color:'#94a3b8', padding:12, boxWidth:14 } } } }
+                    });
+                    if (charts.platformUsers) charts.platformUsers.destroy();
+                    charts.platformUsers = createBarChart('platformUsersChart', labels, users, 'Unique Users');
+                }
+                if (data.os_versions && data.os_versions.length > 0) {
+                    createBarChart('platformOsChart', data.os_versions.map(o => o.version), data.os_versions.map(o => o.count), 'Count');
+                }
+                if (data.top_devices && data.top_devices.length > 0) {
+                    createBarChart('platformDeviceChart', data.top_devices.map(d => d.model), data.top_devices.map(d => d.count), 'Count');
+                }
+            } catch(e) { console.error('Platforms error:', e); }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Top Players
+        // ─────────────────────────────────────────────────────────────────────
+
+        async function loadTopPlayers() {
+            try {
+                document.querySelector('#playersTable tbody').innerHTML = skTable(9, 5);
+                const data = await callRpc('analytics_top_players', { days: selectedDays, limit: 25, ...getGamePayload() });
+                if (data.error) {
+                    document.querySelector('#playersTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">${data.error}</td></tr>`;
+                    return;
+                }
+                _playersData = data.players;
+
+                document.getElementById('playersKpis').innerHTML = [
+                    { label: 'Active Players', value: formatNumber(data.total_active_users), icon: '🏃' },
+                    { label: 'Users Sampled', value: formatNumber(data.users_sampled), icon: '🔬' },
+                    { label: 'Days Analyzed', value: data.days, icon: '📅' }
+                ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.value}</div></div>`).join('');
+
+                if (data.players && data.players.length > 0) {
+                    renderPlayersRows(data.players);
+                } else {
+                    document.querySelector('#playersTable tbody').innerHTML = '<tr><td colspan="9" class="empty-state">No player activity found</td></tr>';
+                }
+            } catch(e) {
+                console.error('Top players error:', e);
+                document.querySelector('#playersTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">Failed: ${e.message}</td></tr>`;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
         // Refresh All
         // ─────────────────────────────────────────────────────────────────────
         
+        // ─────────────────────────────────────────────────────────────────────
+        // Sortable Tables
+        // ─────────────────────────────────────────────────────────────────────
+
+        function sortTable(tableId, colIdx, th) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const tbody = table.tBodies[0];
+            const rows  = Array.from(tbody.querySelectorAll('tr'));
+            // Determine direction
+            const wasSorted = th.classList.contains('sort-asc') || th.classList.contains('sort-desc');
+            const asc = wasSorted ? !th.classList.contains('sort-asc') : true;
+            // Reset all header sort indicators in same table
+            table.querySelectorAll('th').forEach(h => {
+                h.classList.remove('sort-asc', 'sort-desc');
+            });
+            th.classList.toggle('sort-asc', asc);
+            th.classList.toggle('sort-desc', !asc);
+
+            rows.sort((a, b) => {
+                const at = (a.cells[colIdx] ? a.cells[colIdx].innerText.replace(/[,$%🥇🥈🥉💰]/g, '').trim() : '');
+                const bt = (b.cells[colIdx] ? b.cells[colIdx].innerText.replace(/[,$%🥇🥈🥉💰]/g, '').trim() : '');
+                const an = parseFloat(at); const bn = parseFloat(bt);
+                if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
+                return asc ? at.localeCompare(bt) : bt.localeCompare(at);
+            });
+            rows.forEach(r => tbody.appendChild(r));
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Collapsible Chart Cards
+        // ─────────────────────────────────────────────────────────────────────
+
+        function toggleCard(btn) {
+            const card = btn.closest('.chart-card');
+            if (!card) return;
+            const isCollapsed = card.classList.toggle('collapsed');
+            btn.textContent = isCollapsed ? 'Expand' : 'Collapse';
+            btn.classList.toggle('collapsed-icon', isCollapsed);
+            // Re-render all charts inside this card after the expand transition
+            if (!isCollapsed) {
+                setTimeout(() => {
+                    card.querySelectorAll('canvas').forEach(cvs => {
+                        const ch = Chart.getChart(cvs);
+                        if (ch) ch.resize();
+                    });
+                }, 380);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Fullscreen Chart Modal
+        // ─────────────────────────────────────────────────────────────────────
+
+        let _modalChartInstance = null;
+
+        function expandChart(canvasId, title) {
+            const srcCanvas = document.getElementById(canvasId);
+            if (!srcCanvas) return;
+            const srcChart = Chart.getChart(srcCanvas)
+                          || Object.values(window.charts || {}).find(c => c && c.canvas === srcCanvas);
+            if (!srcChart) { showToast('Chart not ready', 'warn', 1800); return; }
+
+            const modal = document.getElementById('fullscreenModal');
+            const modalCanvas = document.getElementById('modalCanvas');
+            document.getElementById('modalTitle').textContent = title || 'Chart';
+
+            // Destroy previous modal chart
+            if (_modalChartInstance) { _modalChartInstance.destroy(); _modalChartInstance = null; }
+
+            // Deep-clone the config
+            const cfg = JSON.parse(JSON.stringify(srcChart.config));
+            if (cfg.options) {
+                cfg.options.responsive  = true;
+                cfg.options.maintainAspectRatio = false;
+                if (!cfg.options.animation) cfg.options.animation = {};
+                cfg.options.animation.duration = 400;
+            }
+            _modalChartInstance = new Chart(modalCanvas, cfg);
+
+            modal.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeFullscreen() {
+            const modal = document.getElementById('fullscreenModal');
+            modal.classList.remove('open');
+            document.body.style.overflow = '';
+            if (_modalChartInstance) { _modalChartInstance.destroy(); _modalChartInstance = null; }
+        }
+
+        // Close on backdrop click
+        document.getElementById('fullscreenModal').addEventListener('click', function(e) {
+            if (e.target === this) closeFullscreen();
+        });
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Health Score Bar  (called from loadOverview with data object)
+        // ─────────────────────────────────────────────────────────────────────
+
+        function updateHealthBar(data) {
+            const bar     = document.getElementById('healthBar');
+            const circle  = document.getElementById('healthScoreCircle');
+            const fill    = document.getElementById('healthBarFill');
+            const metrics = document.getElementById('healthMetrics');
+            if (!bar) return;
+
+            const dau        = data.dau           || 0;
+            const ratio      = data.dau_mau_ratio || 0;   // 0–1 stickiness
+            const growth     = data.growth_pct    || 0;   // % week-over-week, can be negative
+            const avgSession = data.avg_session   || 0;   // seconds
+            const newUsers   = data.new_users     || 0;
+
+            // Score components (0–25 each → max 100)
+            const dauScore     = Math.min(25, dau > 5000 ? 25 : dau > 1000 ? 20 : dau > 100 ? 13 : dau > 0 ? 5 : 0);
+            const stickyScore  = Math.min(25, ratio > 0.25 ? 25 : ratio > 0.15 ? 20 : ratio > 0.05 ? 12 : ratio > 0 ? 4 : 0);
+            const growthScore  = Math.min(25, growth > 20 ? 25 : growth > 5 ? 20 : growth >= 0 ? 15 : growth > -10 ? 8 : 2);
+            const sessionScore = Math.min(25, avgSession > 300 ? 25 : avgSession > 120 ? 20 : avgSession > 60 ? 13 : avgSession > 0 ? 6 : 0);
+
+            const score = Math.round(dauScore + stickyScore + growthScore + sessionScore);
+            const level = score >= 75 ? 'good' : score >= 45 ? 'warn' : 'bad';
+            const color = level === 'good' ? 'var(--success)' : level === 'warn' ? 'var(--warning)' : 'var(--danger)';
+
+            circle.innerHTML = `<span style="line-height:1;font-size:1.25rem;font-weight:800">${score}</span><span style="font-size:0.38rem;font-weight:700;letter-spacing:0.12em;opacity:0.6;margin-top:2px">SCORE</span>`;
+            circle.className = `health-score-circle ${level}`;
+            fill.style.width      = score + '%';
+            fill.style.background = color;
+
+            const dot = (pass, warn) => `<span class="hm-dot ${pass ? 'green' : warn ? 'yellow' : 'red'}"></span>`;
+
+            metrics.innerHTML = [
+                { label: 'DAU',        val: formatNumber(dau),                                    d: dot(dau > 1000, dau > 100)              },
+                { label: 'Stickiness', val: (ratio * 100).toFixed(1) + '%',                       d: dot(ratio > 0.15, ratio > 0.05)         },
+                { label: 'Growth',     val: (growth >= 0 ? '+' : '') + growth.toFixed(1) + '%',   d: dot(growth > 5, growth >= 0)            },
+                { label: 'Session',    val: formatDuration(avgSession),                            d: dot(avgSession > 120, avgSession > 30)  },
+                { label: 'New Users',  val: formatNumber(newUsers),                                d: dot(newUsers > 0, false)                }
+            ].map(m => `<div class="health-metric"><span class="hm-label">${m.d}${m.label}</span><span class="hm-value">${m.val}</span></div>`).join('');
+
+            bar.classList.remove('hidden');
+        }
+
         async function refreshAll() {
             if (!isAuthenticated) return;
             
@@ -1658,48 +3067,105 @@
             document.getElementById('selectedGameLabel').textContent = `${game.icon} ${game.name}`;
             
             try {
-                await Promise.all([
-                    loadOverview(),
-                    loadRevenue('30d'),
-                    loadRetention(),
-                    loadSessions(),
-                    loadFunnel(),
-                    loadEconomy(),
-                    loadErrors(),
-                    loadFeatures()
-                ]);
+                // Mark all tabs stale — they will reload on next click (lazy)
+                loadedTabs.clear();
+                // Immediately reload the currently-active tab so the user sees fresh data
+                const active = getActiveTab();
+                await loadTab(active);
+                // Pre-load overview in the background if it wasn't the active tab
+                if (active !== 'overview') loadTab('overview');
                 
-                // Update last refreshed time
                 const now = new Date();
                 document.getElementById('lastUpdated').textContent = `Last updated: ${now.toLocaleTimeString()}`;
+                showToast('Dashboard refreshed ✓', 'success', 2500);
             } catch (e) {
                 console.error('Refresh error:', e);
+                showToast('Refresh failed: ' + e.message, 'error');
             }
             
             btn.disabled = false;
             btn.textContent = '🔄 Refresh';
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Filter Players
+        // ─────────────────────────────────────────────────────────────────────
+
+        function renderPlayersRows(players) {
+            if (!players || !players.length) {
+                document.querySelector('#playersTable tbody').innerHTML = '<tr><td colspan="9" class="empty-state">No matching players</td></tr>';
+                return;
+            }
+            document.querySelector('#playersTable tbody').innerHTML = players.map((p, i) => {
+                const r = i < 3 ? `rank-${i+1}` : 'rank-other';
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
+                return `<tr>
+                    <td><span class="rank-badge ${r}">${medal}</span></td>
+                    <td style="font-family:monospace;font-size:0.82rem">${p.user_id}</td>
+                    <td><strong>${formatNumber(p.total_events)}</strong></td>
+                    <td>${formatNumber(p.quiz_completed)}</td>
+                    <td>${formatNumber(p.daily_quizzes)}</td>
+                    <td>${formatNumber(p.ai_events)}</td>
+                    <td>${formatNumber(p.sessions)}</td>
+                    <td>${p.purchases > 0 ? `<span style="color:var(--success)">💰 ${p.purchases}</span>` : '—'}</td>
+                    <td style="font-size:0.8rem;color:var(--text-muted)">${p.last_active}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function filterPlayers(q) {
+            if (!_playersData) return;
+            const term = (q || '').toLowerCase().trim();
+            const filtered = term
+                ? _playersData.filter(p => p.user_id.toLowerCase().includes(term))
+                : _playersData;
+            renderPlayersRows(filtered);
         }
         
         // ─────────────────────────────────────────────────────────────────────
         // Initialize
         // ─────────────────────────────────────────────────────────────────────
         
-        // Auto-load on page load (after auth check)
         document.addEventListener('DOMContentLoaded', () => {
-            // Check if already authenticated from session
+            // Restore session auth and lazy-load the initial (overview) tab
             if (checkAuth()) {
-                refreshAll();
+                loadTab('overview');
             }
             
             // Allow Enter key on login inputs
-            const handleLoginKeypress = (e) => {
-                if (e.key === 'Enter') attemptLogin();
-            };
+            const handleLoginKeypress = (e) => { if (e.key === 'Enter') attemptLogin(); };
             document.getElementById('adminUsername').addEventListener('keypress', handleLoginKeypress);
             document.getElementById('adminPassword').addEventListener('keypress', handleLoginKeypress);
-            
-            // Focus username input
             document.getElementById('adminUsername').focus();
+
+            // ── Keyboard shortcuts ──────────────────────────────────────────
+            document.addEventListener('keydown', e => {
+                // Skip when focus is inside any input, textarea, or select
+                const tag = (e.target.tagName || '').toUpperCase();
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+                // R → force refresh current tab
+                if (e.key === 'r' || e.key === 'R') {
+                    e.preventDefault();
+                    refreshAll();
+                    return;
+                }
+                // R → force refresh  |  Escape → close fullscreen modal
+                if (e.key === 'Escape') {
+                    closeFullscreen();
+                    document.querySelectorAll('#toast-container .toast').forEach(t => t.remove());
+                    return;
+                }
+
+                // 1–9 → switch to that tab (1-indexed) — only visible tabs in the group nav
+                const n = parseInt(e.key, 10);
+                if (n >= 1 && n <= 9) {
+                    const tabBtns = Array.from(document.querySelectorAll('#tabGroups .tab'))
+                        .filter(t => t.dataset && t.dataset.tab);
+                    if (tabBtns[n - 1]) tabBtns[n - 1].click();
+                }
+            });
         });
     </script>
 </body>

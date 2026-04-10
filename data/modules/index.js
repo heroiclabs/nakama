@@ -51273,10 +51273,10 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
 function rpcStreakShieldFreeze(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
-        var storage = nk.storageRead([{ collection: 'streak_shield', key: 'state', userId: userId }]);
-        var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { active: false, freezesUsed: 0 };
+        var storage = nk.storageRead([{ collection: 'streak_shield', key: 'shield', userId: userId }]);
+        var state = (storage && storage.length > 0) ? storage[0].value : { active: false, freezesUsed: 0 };
         state.active = true; state.frozenAt = Math.floor(Date.now() / 1000); state.freezesUsed = (state.freezesUsed || 0) + 1;
-        nk.storageWrite([{ collection: 'streak_shield', key: 'state', userId: userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
+        nk.storageWrite([{ collection: 'streak_shield', key: 'shield', userId: userId, value: state, permissionRead: 1, permissionWrite: 0 }]);
         return JSON.stringify({ success: true, state: state });
     } catch(e) { logger.error('[StreakShield] freeze error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
 }
@@ -51284,10 +51284,10 @@ function rpcStreakShieldFreeze(ctx, logger, nk, payload) {
 function rpcStreakShieldRepair(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
-        var storage = nk.storageRead([{ collection: 'streak_shield', key: 'state', userId: userId }]);
-        var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { active: false, repairsUsed: 0 };
+        var storage = nk.storageRead([{ collection: 'streak_shield', key: 'shield', userId: userId }]);
+        var state = (storage && storage.length > 0) ? storage[0].value : { active: false, repairsUsed: 0 };
         state.active = false; state.repairedAt = Math.floor(Date.now() / 1000); state.repairsUsed = (state.repairsUsed || 0) + 1;
-        nk.storageWrite([{ collection: 'streak_shield', key: 'state', userId: userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
+        nk.storageWrite([{ collection: 'streak_shield', key: 'shield', userId: userId, value: state, permissionRead: 1, permissionWrite: 0 }]);
         return JSON.stringify({ success: true, state: state });
     } catch(e) { logger.error('[StreakShield] repair error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
 }

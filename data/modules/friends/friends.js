@@ -414,14 +414,36 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
     if (challengeDataStr.length > 4096) {
         return utils.handleError(ctx, null, "Challenge data too large (max 4KB)");
     }
-    
+
+    // Get challenger's display name for notifications
+    var challengerName = "A friend";
+    try {
+        var users = nk.usersGetId([userId]);
+        if (users && users.length > 0) {
+            challengerName = users[0].displayName || users[0].username || "A friend";
+        }
+    } catch (err) {
+        utils.logWarn(logger, "Could not fetch challenger display name: " + err.message);
+    }
+
+    // Extract room code / share code from challengeData for auto-join
+    var roomCode = challengeData.roomCode || challengeData.shareCode || "";
+    var quizModeName = challengeData.quizModeName || challengeData.modeName || "Quiz";
+    var isAsync = challengeData.isAsync !== undefined ? challengeData.isAsync : false;
+    var expiresAt = challengeData.expiresAt || (Date.now() + 24 * 60 * 60 * 1000); // 24h default
+
     // Create challenge
     var challengeId = "challenge_" + userId + "_" + friendUserId + "_" + utils.getUnixTimestamp();
     var challenge = {
         challengeId: challengeId,
         fromUserId: userId,
+        fromDisplayName: challengerName,
         toUserId: friendUserId,
         gameId: gameId,
+        roomCode: roomCode,
+        quizModeName: quizModeName,
+        isAsync: isAsync,
+        expiresAt: expiresAt,
         challengeData: challengeData,
         status: "pending",
         createdAt: utils.getCurrentTimestamp()
@@ -432,35 +454,186 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
     if (!utils.writeStorage(nk, logger, collection, challengeId, userId, challenge)) {
         return utils.handleError(ctx, null, "Failed to create challenge");
     }
+
+    // Notification content for in-app, push, and chat
+    var notificationContent = {
+        type: "friend_challenge",
+        challengeId: challengeId,
+        fromUserId: userId,
+        fromDisplayName: challengerName,
+        gameId: gameId,
+        roomCode: roomCode,
+        shareCode: roomCode,
+        quizModeName: quizModeName,
+        isAsync: isAsync,
+        expiresAt: expiresAt
+    };
     
-    // Send notification to friend using batch API
+    // 1. Send in-app notification to friend
     try {
-        var notifications = [{
+        nk.notificationsSend([{
             userId: friendUserId,
             subject: "Friend Challenge",
-            content: JSON.stringify({
-                type: "friend_challenge",
-                challengeId: challengeId,
-                fromUserId: userId,
-                gameId: gameId
-            }),
+            content: JSON.stringify(notificationContent),
             code: 100,
             persistent: true
-        }];
-        nk.notificationsSend(notifications);
+        }]);
+        utils.logInfo(logger, "In-app notification sent for challenge " + challengeId);
     } catch (err) {
         utils.logWarn(logger, "Failed to send challenge notification: " + err.message);
+    }
+
+    // 2. Send push notification (for when app is closed/background)
+    try {
+        sendChallengePushNotification(nk, logger, friendUserId, gameId, challengerName, quizModeName, challengeId, roomCode, isAsync);
+    } catch (pushErr) {
+        utils.logWarn(logger, "Push notification failed: " + pushErr.message);
+    }
+
+    // 3. Send challenge as chat message (so it appears in conversation)
+    try {
+        sendChallengeChatMessage(nk, logger, userId, friendUserId, challengerName, notificationContent);
+    } catch (chatErr) {
+        utils.logWarn(logger, "Chat message failed: " + chatErr.message);
     }
     
     return JSON.stringify({
         success: true,
         challengeId: challengeId,
         fromUserId: userId,
+        fromDisplayName: challengerName,
         toUserId: friendUserId,
         gameId: gameId,
+        roomCode: roomCode,
+        quizModeName: quizModeName,
+        isAsync: isAsync,
         status: "pending",
         timestamp: utils.getCurrentTimestamp()
     });
+}
+
+/**
+ * Send push notification for friend challenge
+ * Calls the push notification Lambda endpoint
+ */
+function sendChallengePushNotification(nk, logger, targetUserId, gameId, challengerName, quizModeName, challengeId, roomCode, isAsync) {
+    var LAMBDA_PUSH_URL = process.env.PUSH_SEND_URL || "https://your-lambda-url.lambda-url.region.on.aws/send-push";
+
+    // Get all push endpoints for target user
+    var endpoints = [];
+    try {
+        var records = nk.storageList(targetUserId, "push_endpoints", 100);
+        for (var i = 0; i < records.length; i++) {
+            var value = records[i].value;
+            if (value.gameId === gameId) {
+                endpoints.push(value);
+            }
+        }
+    } catch (err) {
+        utils.logWarn(logger, "Could not list push endpoints: " + err.message);
+        return;
+    }
+
+    if (endpoints.length === 0) {
+        utils.logInfo(logger, "No push endpoints for user " + targetUserId);
+        return;
+    }
+
+    var challengeType = isAsync ? "Async Challenge" : "Live Challenge";
+    var title = "🎮 " + challengerName + " challenged you!";
+    var body = "Accept the " + quizModeName + " " + challengeType + " now!";
+
+    for (var j = 0; j < endpoints.length; j++) {
+        var endpoint = endpoints[j];
+
+        var pushPayload = {
+            endpointArn: endpoint.endpointArn,
+            platform: endpoint.platform,
+            title: title,
+            body: body,
+            data: {
+                type: "friend_challenge",
+                challengeId: challengeId,
+                roomCode: roomCode,
+                isAsync: isAsync,
+                click_action: "OPEN_CHALLENGE"
+            },
+            gameId: gameId,
+            eventType: "friend_challenge"
+        };
+
+        try {
+            var response = nk.httpRequest(
+                LAMBDA_PUSH_URL,
+                "post",
+                { "Content-Type": "application/json", "Accept": "application/json" },
+                JSON.stringify(pushPayload)
+            );
+            if (response.code === 200 || response.code === 201) {
+                utils.logInfo(logger, "Push sent to " + endpoint.platform + " for challenge " + challengeId);
+            }
+        } catch (pushErr) {
+            utils.logWarn(logger, "Push to " + endpoint.platform + " failed: " + pushErr.message);
+        }
+    }
+}
+
+/**
+ * Send challenge as a chat message so it appears in the conversation
+ */
+function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, challengeData) {
+    // Create or get DM channel between the two users
+    var channelId = null;
+    try {
+        // Sort user IDs to create consistent channel ID
+        var sortedIds = [senderId, receiverId].sort();
+        channelId = "dm_" + sortedIds[0] + "_" + sortedIds[1];
+    } catch (err) {
+        utils.logWarn(logger, "Could not create channel ID: " + err.message);
+        return;
+    }
+
+    // Build challenge message content
+    var messageContent = {
+        type: "friend_challenge",
+        text: "🎮 " + senderName + " challenged you to " + challengeData.quizModeName + "!",
+        challenge: {
+            challengeId: challengeData.challengeId,
+            roomCode: challengeData.roomCode,
+            shareCode: challengeData.roomCode,
+            quizModeName: challengeData.quizModeName,
+            isAsync: challengeData.isAsync,
+            fromUserId: challengeData.fromUserId,
+            fromDisplayName: challengeData.fromDisplayName,
+            expiresAt: challengeData.expiresAt,
+            status: "pending"
+        }
+    };
+
+    try {
+        // Use channel message write to insert challenge as a special message
+        nk.channelMessageSend(
+            channelId,
+            JSON.stringify(messageContent),
+            senderId,
+            senderName,
+            true  // persistent
+        );
+        utils.logInfo(logger, "Challenge chat message sent to channel " + channelId);
+    } catch (chatErr) {
+        // Fallback: Write to storage-based chat if channel doesn't exist
+        utils.logWarn(logger, "Channel message failed, using storage fallback: " + chatErr.message);
+        
+        // Store as pending chat message  
+        var msgKey = "pending_chat_" + receiverId + "_" + Date.now();
+        utils.writeStorage(nk, logger, "pending_chat_messages", msgKey, senderId, {
+            senderId: senderId,
+            senderName: senderName,
+            receiverId: receiverId,
+            content: messageContent,
+            timestamp: utils.getCurrentTimestamp()
+        });
+    }
 }
 
 /**

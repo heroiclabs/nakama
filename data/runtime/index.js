@@ -22,6 +22,8 @@ function InitModule(ctx, logger, nk, initializer) {
         LegacyMissions.register(initializer);
         logger.info("[Legacy] Registering analytics RPCs...");
         LegacyAnalytics.register(initializer);
+        logger.info("[Legacy] Registering analytics v2 RPCs...");
+        AnalyticsV2.register(initializer);
         logger.info("[Legacy] Registering friends RPCs...");
         LegacyFriends.register(initializer);
         logger.info("[Legacy] Registering groups RPCs...");
@@ -3221,6 +3223,458 @@ var LegacyAnalytics;
     }
     LegacyAnalytics.register = register;
 })(LegacyAnalytics || (LegacyAnalytics = {}));
+// ---------------------------------------------------------------------------
+// AnalyticsV2 - Advanced Analytics RPCs
+// Sourced from: data/modules/analytics_v2/analytics_v2.js
+// ---------------------------------------------------------------------------
+var AnalyticsV2;
+(function (AnalyticsV2) {
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    function nowSeconds() { return Math.floor(Date.now() / 1000); }
+    function dateStr(date) { var d = date || new Date(); return d.getUTCFullYear() + "-" + ("0" + (d.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + d.getUTCDate()).slice(-2); }
+    function daysAgo(n) { var d = new Date(); d.setUTCDate(d.getUTCDate() - n); return dateStr(d); }
+    function dateFromStr(s) { var p = s.split("-"); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }
+    function round(v, dec) { var f = Math.pow(10, dec || 2); return Math.round(v * f) / f; }
+    function safeRead(nk, col, key, uid) { try { var r = nk.storageRead([{collection:col,key:key,userId:uid}]); if (r && r.length > 0) return r[0].value; } catch(_){} return null; }
+    function safeList(nk, uid, col, lim, cur) { try { return nk.storageList(uid, col, lim, cur); } catch(_){} return {objects:[],cursor:""}; }
+    function safeJson(payload) { if (!payload || payload === "") return {}; try { return JSON.parse(payload); } catch(_){ return {}; } }
+    function unique(arr) { var s={},o=[]; for(var i=0;i<arr.length;i++){if(!s[arr[i]]){s[arr[i]]=true;o.push(arr[i]);}} return o; }
+    function median(sorted) { if(!sorted.length)return 0; var m=Math.floor(sorted.length/2); return sorted.length%2===0?(sorted[m-1]+sorted[m])/2:sorted[m]; }
+    function pct(sorted, p) { if(!sorted.length)return 0; var i=Math.ceil(p/100*sorted.length)-1; return sorted[Math.max(0,Math.min(i,sorted.length-1))]; }
+    function gini(vals) { if(!vals.length)return 0; var s=vals.slice().sort(function(a,b){return a-b;}),n=s.length,sum=0,wsum=0; for(var i=0;i<n;i++){sum+=s[i];wsum+=(i+1)*s[i];} return sum===0?0:(2*wsum)/(n*sum)-(n+1)/n; }
+    function readDau(nk, gameId, ds) { return safeRead(nk, "analytics_dau", "dau_"+gameId+"_"+ds, SYSTEM_USER); }
+    function collectDauUsers(nk, gameId, days) { var u=[]; for(var i=0;i<days;i++){var r=readDau(nk,gameId,daysAgo(i)); if(r&&r.users)for(var j=0;j<r.users.length;j++)u.push(r.users[j]);} return u; }
+    function discoverGameIds(nk) { var ids={},r=safeList(nk,SYSTEM_USER,"analytics_dau",100,""); if(r&&r.objects)for(var i=0;i<r.objects.length;i++){var v=r.objects[i].value;if(v&&v.gameId)ids[v.gameId]=true;} var o=[]; for(var k in ids){if(ids.hasOwnProperty(k))o.push(k);} return o; }
+    function sampleUsers(nk, lim) { var u=[],s={},r=safeList(nk,null,"first_session",lim||100,""); if(r&&r.objects)for(var i=0;i<r.objects.length;i++){var id=r.objects[i].userId;if(id&&!s[id]){s[id]=true;u.push(id);}} return u; }
+
+    function rpcDashboard(ctx, logger, nk, payload) {
+        try {
+            var data = safeJson(payload);
+            var gameIds = data.game_id ? [data.game_id] : discoverGameIds(nk);
+            var todayStr = daysAgo(0);
+            var dauArr=[], wauArr=[], mauArr=[], topGames=[];
+            for (var g=0;g<gameIds.length;g++) {
+                var gid=gameIds[g];
+                var todayRec=readDau(nk,gid,todayStr);
+                var gameDau=(todayRec&&todayRec.users)?todayRec.users.length:0;
+                topGames.push({game_id:gid,dau:gameDau});
+                var uts=(todayRec&&todayRec.users)?todayRec.users:[];
+                for(var t=0;t<uts.length;t++)dauArr.push(uts[t]);
+                var w=collectDauUsers(nk,gid,7); for(var wi=0;wi<w.length;wi++)wauArr.push(w[wi]);
+                var m=collectDauUsers(nk,gid,30); for(var mi=0;mi<m.length;mi++)mauArr.push(m[mi]);
+            }
+            var dau=unique(dauArr).length, wau=unique(wauArr).length, mau=unique(mauArr).length;
+            var dauMau=mau>0?round(dau/mau,4):0;
+            var totalDur=0,sessCount=0,newToday=0,retToday=0;
+            var uniqToday=unique(dauArr);
+            for(var u=0;u<uniqToday.length;u++){
+                var uid=uniqToday[u];
+                var sl=safeList(nk,uid,"analytics_session_summaries",10,"");
+                if(sl&&sl.objects)for(var s=0;s<sl.objects.length;s++){var sv=sl.objects[s].value;if(sv&&sv.duration){totalDur+=sv.duration;sessCount++;}}
+                var fs=safeRead(nk,"first_session","session_data",uid);
+                if(fs){var fd=new Date(fs.firstSessionAt);if(dateStr(fd)===todayStr)newToday++;else retToday++;}else{newToday++;}
+            }
+            var avgDur=sessCount>0?round(totalDur/sessCount,1):0;
+            var dau7ago=0;
+            for(var gt=0;gt<gameIds.length;gt++){var r7=readDau(nk,gameIds[gt],daysAgo(7));if(r7&&r7.users)dau7ago+=r7.users.length;}
+            var dau7chg=dau7ago>0?round(((dau-dau7ago)/dau7ago)*100,1):0;
+            // 7-day daily DAU trend series
+            var dauTrend=[],dauMin=9999999,dauMax=0;
+            for(var td=6;td>=0;td--){var ds=daysAgo(td),dayDau=0;for(var tg=0;tg<gameIds.length;tg++){var dr=readDau(nk,gameIds[tg],ds);if(dr&&dr.users)dayDau+=dr.users.length;}dauTrend.push({date:ds,dau:dayDau});if(dayDau<dauMin)dauMin=dayDau;if(dayDau>dauMax)dauMax=dayDau;}
+            if(dauMin===9999999)dauMin=0;
+            topGames.sort(function(a,b){return b.dau-a.dau;});
+            return JSON.stringify({dau:dau,wau:wau,mau:mau,dau_mau_ratio:dauMau,avg_session_duration_seconds:avgDur,new_users_today:newToday,returning_users_today:retToday,top_games:topGames,period:"today",trends:{dau_7d_change_pct:dau7chg},dau_trend:dauTrend,dau_7d_min:dauMin,dau_7d_max:dauMax});
+        } catch(e) { logger.error("AnalyticsV2 dashboard error: %s", e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    function rpcSessionStats(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload), gameId=data.game_id, days=data.days||7;
+            var cutoff=nowSeconds()-days*86400, durations=[], dailyMap={}, hourBuckets={};
+            for(var h=0;h<24;h++)hourBuckets[h]=0;
+            var userIds=sampleUsers(nk,100);
+            for(var u=0;u<userIds.length;u++){
+                var rl=safeList(nk,userIds[u],"analytics_session_summaries",50,"");
+                if(!rl||!rl.objects)continue;
+                for(var s=0;s<rl.objects.length;s++){
+                    var sess=rl.objects[s].value;
+                    if(!sess||!sess.startTime||sess.startTime<cutoff)continue;
+                    if(gameId&&sess.gameId!==gameId)continue;
+                    var dur=sess.duration||0; durations.push(dur);
+                    var sd=dateStr(new Date(sess.startTime*1000));
+                    if(!dailyMap[sd])dailyMap[sd]={sessions:0,totalDur:0};
+                    dailyMap[sd].sessions++; dailyMap[sd].totalDur+=dur;
+                    var sh=new Date(sess.startTime*1000).getUTCHours(); hourBuckets[sh]++;
+                }
+            }
+            durations.sort(function(a,b){return a-b;});
+            var total=durations.length, sumD=0;
+            for(var di=0;di<durations.length;di++)sumD+=durations[di];
+            var avgD=total>0?round(sumD/total,1):0;
+            var peakHours=[];
+            for(var ph=0;ph<24;ph++){if(hourBuckets[ph]>0)peakHours.push({hour:ph,count:hourBuckets[ph]});}
+            peakHours.sort(function(a,b){return b.count-a.count;});
+            var daily=[]; for(var dk in dailyMap){if(dailyMap.hasOwnProperty(dk)){var e=dailyMap[dk];daily.push({date:dk,sessions:e.sessions,avg_duration:e.sessions>0?round(e.totalDur/e.sessions,1):0});}}
+            daily.sort(function(a,b){return a.date<b.date?-1:1;});
+            return JSON.stringify({total_sessions:total,avg_duration_seconds:avgD,median_duration_seconds:median(durations),p95_duration_seconds:pct(durations,95),min_duration_seconds:durations.length>0?durations[0]:0,max_duration_seconds:durations.length>0?durations[durations.length-1]:0,sessions_per_day_avg:days>0?round(total/days,1):0,peak_hours:peakHours.slice(0,5),daily_breakdown:daily});
+        } catch(e) { logger.error("AnalyticsV2 session_stats error: %s", e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    function countEventType(nk, userIds, gameId, eventName) { var c=0; for(var i=0;i<userIds.length;i++){var r=safeList(nk,userIds[i],"analytics_events",100,"");if(!r||!r.objects)continue;for(var j=0;j<r.objects.length;j++){var ev=r.objects[j].value;if(ev&&ev.eventName===eventName&&(!gameId||ev.gameId===gameId)){c++;break;}}} return c; }
+    function countOnboarding(nk, userIds, step) { var c=0; for(var i=0;i<userIds.length;i++){var ob=safeRead(nk,"onboarding_state","state",userIds[i]);if(!ob)continue;if(step==="started"&&ob.currentStep&&ob.currentStep>0)c++;else if(step==="completed"&&ob.onboardingComplete===true)c++;else if(step==="first_quiz"&&ob.firstQuizCompleted===true)c++;} return c; }
+    function countSessMilestone(nk, userIds, min) { var c=0; for(var i=0;i<userIds.length;i++){var fs=safeRead(nk,"first_session","session_data",userIds[i]);if(fs&&fs.totalSessions>=min)c++;} return c; }
+    function countGroups(nk, userIds) { var c=0; for(var i=0;i<userIds.length;i++){try{var g=nk.userGroupsList(userIds[i],1,null,"");if(g&&g.userGroups&&g.userGroups.length>0)c++;}catch(_){}} return c; }
+    function countD7(nk, userIds) { var c=0; for(var i=0;i<userIds.length;i++){var fs=safeRead(nk,"first_session","session_data",userIds[i]);if(fs&&fs.d7Returned===true)c++;} return c; }
+
+    function rpcFunnel(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload), gameId=data.game_id;
+            var userIds=sampleUsers(nk,100), total=userIds.length;
+            var stepDefs=[
+                {name:"account_created",count:total},
+                {name:"onboarding_started",count:countOnboarding(nk,userIds,"started")},
+                {name:"onboarding_completed",count:countOnboarding(nk,userIds,"completed")},
+                {name:"first_quiz_played",count:countOnboarding(nk,userIds,"first_quiz")},
+                {name:"second_session",count:countSessMilestone(nk,userIds,2)},
+                {name:"made_purchase",count:countEventType(nk,userIds,gameId,"purchase_completed")},
+                {name:"joined_group",count:countGroups(nk,userIds)},
+                {name:"played_multiplayer",count:countEventType(nk,userIds,gameId,"mp_game_completed")},
+                {name:"day_7_return",count:countD7(nk,userIds)}
+            ];
+            var steps=[], worst={step:"",drop_pct:0};
+            for(var i=0;i<stepDefs.length;i++){
+                var sd=stepDefs[i], prev=(i>0&&steps[i-1])?steps[i-1].count:total;
+                var p2p=prev>0?round((sd.count/prev)*100,1):0, drop=round(100-p2p,1);
+                steps.push({name:sd.name,count:sd.count,pct_of_total:total>0?round((sd.count/total)*100,1):0,pct_of_previous:p2p,drop_off_pct:drop});
+                if(i>0&&drop>worst.drop_pct)worst={step:sd.name,drop_pct:drop};
+            }
+            return JSON.stringify({steps:steps,total_users:total,worst_drop_off:worst});
+        } catch(e) { logger.error("AnalyticsV2 funnel error: %s", e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    function rpcEconomyHealth(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload), userIds=sampleUsers(nk,100), n=userIds.length;
+            if(n===0)return JSON.stringify({total_coins:0,total_gems:0,avg_coins:0,median_coins:0,max_coins:0,min_coins:0,gini_coefficient:0,source_sink_ratio:{sources_total:0,sinks_total:0,ratio:0},whale_count:0,sample_size:0});
+            var coins=[],totalC=0,totalG=0,src=0,snk=0;
+            var accounts=[];try{accounts=nk.accountsGetId(userIds);}catch(_){}
+            for(var a=0;a<accounts.length;a++){var ac=accounts[a],w={};if(ac&&ac.wallet){w=typeof ac.wallet==="string"?JSON.parse(ac.wallet):ac.wallet;} var c=w.coins||w.tokens||0,g=w.gems||w.diamonds||0;totalC+=c;totalG+=g;coins.push(c);}
+            var lsz=Math.min(userIds.length,20);
+            for(var li=0;li<lsz;li++){try{var ledger=nk.walletLedgerList(userIds[li],50,"");if(ledger&&ledger.items)for(var lj=0;lj<ledger.items.length;lj++){var cs=ledger.items[lj].changeset;if(typeof cs==="string")try{cs=JSON.parse(cs);}catch(_){continue;}for(var ck in cs){if(cs.hasOwnProperty(ck)){var v=cs[ck];if(v>0)src+=v;else if(v<0)snk+=Math.abs(v);}}}}catch(_){}}
+            coins.sort(function(a,b){return a-b;});
+            var avgC=round(totalC/n,1),medC=median(coins),maxC=coins.length?coins[coins.length-1]:0,minC=coins.length?coins[0]:0,giniC=round(gini(coins),4);
+            var whaleIdx=Math.floor(coins.length*0.99),whaleCount=coins.length-whaleIdx;
+            var ssRatio=snk>0?round(src/snk,2):(src>0?999:0);
+            return JSON.stringify({total_coins:totalC,total_gems:totalG,avg_coins:avgC,median_coins:medC,max_coins:maxC,min_coins:minC,gini_coefficient:giniC,source_sink_ratio:{sources_total:src,sinks_total:snk,ratio:ssRatio},whale_count:whaleCount,sample_size:n});
+        } catch(e) { logger.error("AnalyticsV2 economy_health error: %s", e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    function rpcErrorLog(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload), gameId=data.game_id, days=data.days||7, cutoff=nowSeconds()-days*86400;
+            var result=safeList(nk,SYSTEM_USER,"analytics_error_events",100,""), errors=[];
+            if(result&&result.objects)for(var i=0;i<result.objects.length;i++){var v=result.objects[i].value;if(!v)continue;if(v.timestamp&&v.timestamp<cutoff)continue;if(gameId&&v.game_id&&v.game_id!==gameId)continue;errors.push(v);}
+            var rpcMap={},dailyMap={};
+            for(var ei=0;ei<errors.length;ei++){var er=errors[ei],rn=er.rpc_name||"unknown";if(!rpcMap[rn])rpcMap[rn]={count:0,last_occurred:"",sample_error:""};rpcMap[rn].count++;var et=er.timestamp_iso||"";if(et>rpcMap[rn].last_occurred){rpcMap[rn].last_occurred=et;rpcMap[rn].sample_error=er.error_message||"";}var ed=er.date||"";if(ed){if(!dailyMap[ed])dailyMap[ed]=0;dailyMap[ed]++;}}
+            var byRpc=[],most={name:"",count:0};
+            for(var rk in rpcMap){if(rpcMap.hasOwnProperty(rk)){byRpc.push({rpc_name:rk,count:rpcMap[rk].count,last_occurred:rpcMap[rk].last_occurred,sample_error:rpcMap[rk].sample_error});if(rpcMap[rk].count>most.count)most={name:rk,count:rpcMap[rk].count};}}
+            byRpc.sort(function(a,b){return b.count-a.count;});
+            var trend=[]; for(var dk in dailyMap){if(dailyMap.hasOwnProperty(dk))trend.push({date:dk,count:dailyMap[dk]});} trend.sort(function(a,b){return a.date<b.date?-1:1;});
+            return JSON.stringify({total_errors:errors.length,errors_by_rpc:byRpc,error_trend_daily:trend,most_failing_rpc:most});
+        } catch(e) { logger.error("AnalyticsV2 error_log error: %s", e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    function rpcLogError(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload), nowSec=nowSeconds(), todayStr=daysAgo(0);
+            var rec={rpc_name:data.rpc_name||"unknown",error_message:data.error_message||"",user_id:data.user_id||ctx.userId||"",game_id:data.game_id||"",stack_trace:data.stack_trace||"",timestamp:nowSec,timestamp_iso:new Date().toISOString(),date:todayStr};
+            var key="error_"+(data.rpc_name||"unknown")+"_"+nowSec+"_"+Math.floor(Math.random()*10000);
+            nk.storageWrite([{collection:"analytics_error_events",key:key,userId:SYSTEM_USER,value:rec,permissionRead:1,permissionWrite:0}]);
+            return JSON.stringify({success:true});
+        } catch(e) { logger.error("AnalyticsV2 log_error error: %s", e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    function rpcFeatureAdoption(ctx, logger, nk, payload) {
+        try {
+            var userIds=sampleUsers(nk,100), total=userIds.length;
+            var featureDefs=[
+                {name:"tournaments",collection:"tournament_records"},{name:"challenges",collection:"challenges_v2"},
+                {name:"daily_missions",collection:"daily_missions"},{name:"weekly_goals",collection:"weekly_goals"},
+                {name:"season_pass",collection:"season_pass"},{name:"mystery_box",collection:"mystery_box"},
+                {name:"bounties",collection:"bounties"},{name:"duels",collection:"duels"},
+                {name:"team_quiz",collection:"team_quiz"},{name:"daily_duo",collection:"daily_duo"},
+                {name:"knowledge_duel",collection:"knowledge_duel"},{name:"trivia_night",collection:"trivia_night"},
+                {name:"loadouts",collection:"loadouts"},{name:"group_quests",collection:"group_quests"}
+            ];
+            var features=[],mostA={name:"",users_count:0},leastA={name:"",users_count:total+1};
+            for(var fi=0;fi<featureDefs.length;fi++){var fd=featureDefs[fi],uf=0;for(var ui=0;ui<userIds.length;ui++){var r=safeList(nk,userIds[ui],fd.collection,1,"");if(r&&r.objects&&r.objects.length>0)uf++;}var ap=total>0?round((uf/total)*100,1):0;features.push({name:fd.name,users_count:uf,adoption_pct:ap,collection:fd.collection});if(uf>mostA.users_count)mostA={name:fd.name,users_count:uf};if(uf<leastA.users_count)leastA={name:fd.name,users_count:uf};}
+            features.sort(function(a,b){return b.users_count-a.users_count;});
+            var recs=[];
+            for(var ri=0;ri<features.length;ri++){if(features[ri].adoption_pct<10)recs.push("Feature '"+features[ri].name+"' has low adoption ("+features[ri].adoption_pct+"%). Consider improving discoverability.");}
+            if(!recs.length)recs.push("All features have reasonable adoption rates.");
+            return JSON.stringify({features:features,total_users_sampled:total,most_adopted:mostA.name,least_adopted:leastA.name,recommendations:recs});
+        } catch(e) { logger.error("AnalyticsV2 feature_adoption error: %s", e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    function rpcEngagementScore(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload), userId=data.user_id||ctx.userId, gameId=data.game_id;
+            if(!userId)return JSON.stringify({error:"user_id required"});
+            var fs=safeRead(nk,"first_session","session_data",userId);
+            var totalSess=(fs&&fs.totalSessions)?fs.totalSessions:0, firstAt=(fs&&fs.firstSessionAt)?fs.firstSessionAt:Date.now(), lastAct=(fs&&fs.lastSessionAt)?new Date(fs.lastSessionAt).toISOString():"";
+            var daysSince=Math.floor((Date.now()-firstAt)/86400000), sess7=0;
+            var gameIds=gameId?[gameId]:discoverGameIds(nk);
+            for(var d=0;d<7;d++){var ds=daysAgo(d);for(var gi=0;gi<gameIds.length;gi++){var dr=readDau(nk,gameIds[gi],ds);if(dr&&dr.users&&dr.users.indexOf(userId)!==-1){sess7++;break;}}}
+            var evts7=0,evtList=safeList(nk,userId,"analytics_events",100,"");
+            var cutoff7=nowSeconds()-7*86400;
+            if(evtList&&evtList.objects)for(var ei=0;ei<evtList.objects.length;ei++){var ev=evtList.objects[ei].value;if(ev&&ev.unixTimestamp&&ev.unixTimestamp>=cutoff7&&(!gameId||ev.gameId===gameId))evts7++;}
+            var friendsC=0;try{var fr=nk.friendsList(userId,null,100,"");if(fr&&fr.friends)friendsC=fr.friends.length;}catch(_){}
+            var txC=0;try{var ledger=nk.walletLedgerList(userId,100,"");if(ledger&&ledger.items)txC=ledger.items.length;}catch(_){}
+            var hasGrp=false;try{var grps=nk.userGroupsList(userId,100,null,"");if(grps&&grps.userGroups&&grps.userGroups.length>0)hasGrp=true;}catch(_){}
+            var sf=Math.min(sess7/7,1)*25,ad=Math.min(evts7/50,1)*25,ss=Math.min(friendsC/10,1)*20+(hasGrp?5:0),sp=Math.min(txC/20,1)*25;
+            var score=Math.min(round(sf+ad+ss+sp,1),100);
+            var risk="churning";if(score>=80)risk="power_user";else if(score>=60)risk="engaged";else if(score>=40)risk="moderate";else if(score>=20)risk="at_risk";
+            return JSON.stringify({user_id:userId,engagement_score:score,risk_level:risk,breakdown:{session_frequency:round(sf,1),action_density:round(ad,1),social_score:round(ss,1),spending_score:round(sp,1)},last_active:lastAct,days_since_first:daysSince});
+        } catch(e) { logger.error("AnalyticsV2 engagement_score error: %s", e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    // -------------------------------------------------------------------------
+    // analytics_quiz_performance
+    // -------------------------------------------------------------------------
+    function rpcQuizPerformance(ctx, logger, nk, payload) {
+        try {
+            var data = safeJson(payload); var gameId = data.game_id; var days = data.days || 30; var cutoff = nowSeconds() - days * 86400;
+            var userIds = sampleUsers(nk, 100);
+            var quizStarted=0,quizCompleted=0,quizAbandoned=0,dailyCompleted=0,hintsUsed=0,correctAnswers=0,wrongAnswers=0,scoreSum=0,scoreCount=0,streakSum=0,streakCount=0;
+            var topicCounts={},difficultyMap={};
+            for (var u=0;u<userIds.length;u++) {
+                var evtList=safeList(nk,userIds[u],"analytics_events",200,"");
+                if(!evtList||!evtList.objects) continue;
+                for (var i=0;i<evtList.objects.length;i++) {
+                    var ev=evtList.objects[i].value; if(!ev||!ev.eventName) continue;
+                    if(ev.unixTimestamp&&ev.unixTimestamp<cutoff) continue;
+                    if(gameId&&ev.gameId!==gameId) continue;
+                    var ed=ev.eventData||{};
+                    switch(ev.eventName) {
+                        case "quiz_started": quizStarted++; break;
+                        case "quiz_completed": quizCompleted++; if(ed.score!==undefined){scoreSum+=(ed.score||0);scoreCount++;} break;
+                        case "quiz_abandoned": quizAbandoned++; break;
+                        case "daily_quiz_completed": dailyCompleted++; break;
+                        case "hint_used": case "question_hint_used": hintsUsed++; break;
+                        case "question_answered": case "question_answered_correct":
+                            if(ed.correct===true) correctAnswers++; else if(ed.correct===false) wrongAnswers++;
+                            if(ed.topic||ed.category){var t=ed.topic||ed.category;topicCounts[t]=(topicCounts[t]||0)+1;}
+                            if(ed.difficulty) difficultyMap[ed.difficulty]=(difficultyMap[ed.difficulty]||0)+1;
+                            break;
+                        case "question_answered_wrong": wrongAnswers++; break;
+                        case "streak_updated": if(ed.streak!==undefined){streakSum+=(ed.streak||0);streakCount++;} break;
+                    }
+                }
+            }
+            var totalAnswers=correctAnswers+wrongAnswers;
+            var topTopics=[]; for(var tk in topicCounts){if(topicCounts.hasOwnProperty(tk))topTopics.push({topic:tk,count:topicCounts[tk]});} topTopics.sort(function(a,b){return b.count-a.count;});
+            var difficulty=[]; for(var dk in difficultyMap){if(difficultyMap.hasOwnProperty(dk))difficulty.push({difficulty:dk,count:difficultyMap[dk]});} difficulty.sort(function(a,b){return b.count-a.count;});
+            return JSON.stringify({quiz_started:quizStarted,quiz_completed:quizCompleted,quiz_abandoned:quizAbandoned,daily_completed:dailyCompleted,completion_rate_pct:quizStarted>0?round((quizCompleted/quizStarted)*100,1):0,abandon_rate_pct:quizStarted>0?round((quizAbandoned/quizStarted)*100,1):0,total_answers:totalAnswers,correct_answers:correctAnswers,wrong_answers:wrongAnswers,accuracy_rate_pct:totalAnswers>0?round((correctAnswers/totalAnswers)*100,1):0,avg_score:scoreCount>0?round(scoreSum/scoreCount,1):0,hints_used:hintsUsed,hint_rate_pct:quizStarted>0?round((hintsUsed/quizStarted)*100,1):0,avg_streak:streakCount>0?round(streakSum/streakCount,1):0,top_topics:topTopics.slice(0,10),difficulty_breakdown:difficulty,days:days,users_sampled:userIds.length});
+        } catch(e) { logger.error("rpcQuizPerformance error: %s",e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    // -------------------------------------------------------------------------
+    // analytics_monetization_detail
+    // -------------------------------------------------------------------------
+    function rpcMonetizationDetail(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload); var gameId=data.game_id; var days=data.days||30; var cutoff=nowSeconds()-days*86400;
+            var userIds=sampleUsers(nk,100);
+            var adImpressions=0,adCompleted=0,adSkipped=0,adFailed=0,adRevTotal=0,iapCompleted=0,iapFailed=0,paywallShown=0,paywallDismissed=0,storeOpened=0;
+            var productMap={},adTypeMap={},dailyRevenueMap={};
+            for (var u=0;u<userIds.length;u++) {
+                var evtList=safeList(nk,userIds[u],"analytics_events",200,"");
+                if(!evtList||!evtList.objects) continue;
+                for (var i=0;i<evtList.objects.length;i++) {
+                    var ev=evtList.objects[i].value; if(!ev||!ev.eventName) continue;
+                    if(ev.unixTimestamp&&ev.unixTimestamp<cutoff) continue;
+                    if(gameId&&ev.gameId!==gameId) continue;
+                    var ed=ev.eventData||{};
+                    switch(ev.eventName) {
+                        case "ad_impression": adImpressions++; if(ed.ad_type) adTypeMap[ed.ad_type]=(adTypeMap[ed.ad_type]||0)+1; break;
+                        case "ad_completed": adCompleted++; break;
+                        case "ad_skipped": adSkipped++; break;
+                        case "ad_failed": adFailed++; break;
+                        case "ad_revenue": var rev=ed.revenue||ed.amount||0; adRevTotal+=rev; if(ev.unixTimestamp){var d=new Date(ev.unixTimestamp*1000); var dk=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); dailyRevenueMap[dk]=(dailyRevenueMap[dk]||0)+rev;} break;
+                        case "iap_completed": case "purchase_completed": iapCompleted++; var pid=ed.product_id||ed.productId||"unknown"; productMap[pid]=(productMap[pid]||0)+1; break;
+                        case "iap_failed": case "purchase_failed": iapFailed++; break;
+                        case "paywall_shown": paywallShown++; break;
+                        case "paywall_dismissed": paywallDismissed++; break;
+                        case "store_opened": storeOpened++; break;
+                    }
+                }
+            }
+            var topProducts=[]; for(var pk in productMap){if(productMap.hasOwnProperty(pk))topProducts.push({product_id:pk,purchases:productMap[pk]});} topProducts.sort(function(a,b){return b.purchases-a.purchases;});
+            var adTypes=[]; for(var ak in adTypeMap){if(adTypeMap.hasOwnProperty(ak))adTypes.push({type:ak,count:adTypeMap[ak]});} adTypes.sort(function(a,b){return b.count-a.count;});
+            var dailyRev=[]; for(var drk in dailyRevenueMap){if(dailyRevenueMap.hasOwnProperty(drk))dailyRev.push({date:drk,revenue:round(dailyRevenueMap[drk],4)});} dailyRev.sort(function(a,b){return a.date<b.date?-1:1;});
+            return JSON.stringify({ad_impressions:adImpressions,ad_completed:adCompleted,ad_skipped:adSkipped,ad_failed:adFailed,ad_fill_rate_pct:adImpressions>0?round((adCompleted/adImpressions)*100,1):0,ad_completion_rate_pct:adImpressions>0?round((adCompleted/adImpressions)*100,1):0,ad_revenue_total:round(adRevTotal,4),iap_completed:iapCompleted,iap_failed:iapFailed,paywall_shown:paywallShown,paywall_dismissed:paywallDismissed,paywall_conversion_rate_pct:paywallShown>0?round((iapCompleted/paywallShown)*100,1):0,store_opens:storeOpened,top_products:topProducts.slice(0,10),ad_types:adTypes,daily_ad_revenue:dailyRev,days:days,users_sampled:userIds.length});
+        } catch(e) { logger.error("rpcMonetizationDetail error: %s",e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    // -------------------------------------------------------------------------
+    // analytics_ai_features
+    // -------------------------------------------------------------------------
+    function rpcAiFeatures(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload); var gameId=data.game_id; var days=data.days||30; var cutoff=nowSeconds()-days*86400;
+            var userIds=sampleUsers(nk,100);
+            var featureGroups={"ai_host":["ai_host_session_started","ai_host_turn_completed","ai_host_credits_consumed","ai_host_voice_answer","ai_host_text_mode_toggled"],"ai_fortune":["ai_fortune_session_started","ai_fortune_topic_selected","ai_fortune_question_submitted","ai_fortune_reading_started","ai_fortune_result_viewed","ai_fortune_session_ended"],"ai_tutor":["ai_tutor_question_asked","ai_chat_message_sent"],"ai_quiz":["ai_quiz_requested","ai_quiz_generated","ai_questions_generated","ai_generated_quiz_started"],"ai_voice":["ai_voice_input_used","voice_input_started","voice_input_completed","voice_answer_matched","voice_answer_attempt"]};
+            var eventToGroup={};
+            for(var fg in featureGroups){if(!featureGroups.hasOwnProperty(fg))continue; var fevts=featureGroups[fg]; for(var ei=0;ei<fevts.length;ei++) eventToGroup[fevts[ei]]=fg;}
+            var featureMap={},creditsConsumed=0,voiceAnswers=0;
+            for (var u=0;u<userIds.length;u++) {
+                var evtList=safeList(nk,userIds[u],"analytics_events",200,"");
+                if(!evtList||!evtList.objects) continue;
+                for (var i=0;i<evtList.objects.length;i++) {
+                    var ev=evtList.objects[i].value; if(!ev||!ev.eventName) continue;
+                    if(ev.unixTimestamp&&ev.unixTimestamp<cutoff) continue;
+                    if(gameId&&ev.gameId!==gameId) continue;
+                    var en=ev.eventName; var ed=ev.eventData||{};
+                    var grp=eventToGroup[en];
+                    if(grp){if(!featureMap[grp])featureMap[grp]={events:0,unique_users:0,_users:{}}; featureMap[grp].events++; if(!featureMap[grp]._users[userIds[u]]){featureMap[grp]._users[userIds[u]]=true;featureMap[grp].unique_users++;}}
+                    if(en==="ai_host_credits_consumed") creditsConsumed+=(ed.credits||1);
+                    if(en==="ai_host_voice_answer"||en==="voice_answer_matched") voiceAnswers++;
+                }
+            }
+            var features=[]; var totalAiEvents=0; var aiUsersSeen={};
+            for(var fk in featureMap){if(!featureMap.hasOwnProperty(fk))continue; var fm=featureMap[fk]; totalAiEvents+=fm.events; features.push({feature:fk,events:fm.events,unique_users:fm.unique_users,adoption_pct:round((fm.unique_users/userIds.length)*100,1)}); for(var auid in fm._users){if(!aiUsersSeen[auid])aiUsersSeen[auid]=true;}}
+            features.sort(function(a,b){return b.events-a.events;});
+            var totalAiUsers=0; for(var auk in aiUsersSeen){if(aiUsersSeen.hasOwnProperty(auk))totalAiUsers++;}
+            return JSON.stringify({total_ai_events:totalAiEvents,total_ai_users:totalAiUsers,ai_adoption_pct:round((totalAiUsers/userIds.length)*100,1),credits_consumed:creditsConsumed,voice_answers:voiceAnswers,features:features,days:days,users_sampled:userIds.length});
+        } catch(e) { logger.error("rpcAiFeatures error: %s",e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    // -------------------------------------------------------------------------
+    // analytics_home_heatmap
+    // -------------------------------------------------------------------------
+    function rpcHomeHeatmap(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload); var gameId=data.game_id; var days=data.days||30; var cutoff=nowSeconds()-days*86400;
+            var userIds=sampleUsers(nk,100);
+            var buttonCounts={},screenViewCounts={},popupCounts={},screenTimeSums={},screenTimeCounts={},totalTaps=0;
+            for (var u=0;u<userIds.length;u++) {
+                var evtList=safeList(nk,userIds[u],"analytics_events",200,"");
+                if(!evtList||!evtList.objects) continue;
+                for (var i=0;i<evtList.objects.length;i++) {
+                    var ev=evtList.objects[i].value; if(!ev||!ev.eventName) continue;
+                    if(ev.unixTimestamp&&ev.unixTimestamp<cutoff) continue;
+                    if(gameId&&ev.gameId!==gameId) continue;
+                    var en=ev.eventName; var ed=ev.eventData||{};
+                    if(en.indexOf("home_")===0&&en.indexOf("_tapped")!==-1){buttonCounts[en]=(buttonCounts[en]||0)+1;totalTaps++;}
+                    if(en==="screen_view"){var sn=ed.screen_name||ed.screenName||"unknown";screenViewCounts[sn]=(screenViewCounts[sn]||0)+1;}
+                    if(en==="popup_shown"){var pn=ed.popup_id||ed.popupType||"unknown";popupCounts[pn]=(popupCounts[pn]||0)+1;}
+                    if(en==="screen_time_spent"){var tsn=ed.screen_name||ed.screenName||"unknown";var dur=ed.duration_seconds||ed.duration||0;screenTimeSums[tsn]=(screenTimeSums[tsn]||0)+dur;screenTimeCounts[tsn]=(screenTimeCounts[tsn]||0)+1;}
+                }
+            }
+            var buttons=[]; for(var bk in buttonCounts){if(buttonCounts.hasOwnProperty(bk))buttons.push({button:bk.replace("home_","").replace("_tapped",""),event:bk,count:buttonCounts[bk]});} buttons.sort(function(a,b){return b.count-a.count;}); var maxBtn=buttons.length>0?buttons[0].count:1; for(var bi=0;bi<buttons.length;bi++) buttons[bi].heat=round((buttons[bi].count/maxBtn)*100,0);
+            var screens=[]; for(var sk in screenViewCounts){if(screenViewCounts.hasOwnProperty(sk))screens.push({screen:sk,views:screenViewCounts[sk]});} screens.sort(function(a,b){return b.views-a.views;});
+            var screenTimes=[]; for(var stk in screenTimeSums){if(screenTimeSums.hasOwnProperty(stk)){var cnt=screenTimeCounts[stk]||1;screenTimes.push({screen:stk,avg_seconds:round(screenTimeSums[stk]/cnt,1),total_seconds:round(screenTimeSums[stk],0)});}} screenTimes.sort(function(a,b){return b.total_seconds-a.total_seconds;});
+            var popups=[]; for(var ppk in popupCounts){if(popupCounts.hasOwnProperty(ppk))popups.push({popup:ppk,shown:popupCounts[ppk]});} popups.sort(function(a,b){return b.shown-a.shown;});
+            return JSON.stringify({total_home_taps:totalTaps,buttons:buttons,top_screens:screens.slice(0,15),screen_time:screenTimes.slice(0,10),top_popups:popups.slice(0,10),days:days,users_sampled:userIds.length});
+        } catch(e) { logger.error("rpcHomeHeatmap error: %s",e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    // -------------------------------------------------------------------------
+    // analytics_platform_breakdown
+    // Aggregates events by platform (ios/android/webgl) from eventData.platform
+    // -------------------------------------------------------------------------
+    function rpcPlatformBreakdown(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload); var gameId=data.game_id; var days=data.days||30; var cutoff=nowSeconds()-days*86400;
+            var userIds=sampleUsers(nk,200);
+            var platformEvents={},platformUsers={},platformSessions={};
+            var osMap={},deviceMap={};
+            for (var u=0;u<userIds.length;u++) {
+                var evtList=safeList(nk,userIds[u],"analytics_events",200,"");
+                if(!evtList||!evtList.objects) continue;
+                var userPlatform=null;
+                for (var i=0;i<evtList.objects.length;i++) {
+                    var ev=evtList.objects[i].value; if(!ev||!ev.eventName) continue;
+                    if(ev.unixTimestamp&&ev.unixTimestamp<cutoff) continue;
+                    if(gameId&&ev.gameId!==gameId) continue;
+                    var ed=ev.eventData||{};
+                    var plat=(ev.platform||ed.platform||ed.device_platform||ed.os||"unknown").toLowerCase();
+                    if(plat.indexOf("ios")!==-1||plat.indexOf("iphone")!==-1||plat.indexOf("ipad")!==-1) plat="ios";
+                    else if(plat.indexOf("android")!==-1) plat="android";
+                    else if(plat.indexOf("webgl")!==-1||plat.indexOf("web")!==-1) plat="webgl";
+                    else if(plat.indexOf("windows")!==-1) plat="windows";
+                    else if(plat.indexOf("mac")!==-1) plat="macos";
+                    else if(plat.indexOf("editor")!==-1) plat="editor";
+                    platformEvents[plat]=(platformEvents[plat]||0)+1;
+                    if(!userPlatform) userPlatform=plat;
+                    if(!platformUsers[plat]) platformUsers[plat]={};
+                    platformUsers[plat][userIds[u]]=true;
+                    if(ev.eventName==="session_start"||ev.eventName==="app_start") platformSessions[plat]=(platformSessions[plat]||0)+1;
+                    if(ed.os_version) osMap[ed.os_version]=(osMap[ed.os_version]||0)+1;
+                    if(ed.device_model) deviceMap[ed.device_model]=(deviceMap[ed.device_model]||0)+1;
+                }
+            }
+            var platforms=[]; for(var pk in platformEvents){if(platformEvents.hasOwnProperty(pk)){var uc=0;for(var uk in (platformUsers[pk]||{})) uc++; platforms.push({platform:pk,events:platformEvents[pk],unique_users:uc,sessions:platformSessions[pk]||0,user_pct:round((uc/userIds.length)*100,1)});}} platforms.sort(function(a,b){return b.events-a.events;});
+            var osVersions=[]; for(var ok in osMap){if(osMap.hasOwnProperty(ok))osVersions.push({version:ok,count:osMap[ok]});} osVersions.sort(function(a,b){return b.count-a.count;});
+            var devices=[]; for(var dk in deviceMap){if(deviceMap.hasOwnProperty(dk))devices.push({model:dk,count:deviceMap[dk]});} devices.sort(function(a,b){return b.count-a.count;});
+            return JSON.stringify({platforms:platforms,os_versions:osVersions.slice(0,10),top_devices:devices.slice(0,10),days:days,users_sampled:userIds.length});
+        } catch(e) { logger.error("rpcPlatformBreakdown error: %s",e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    // -------------------------------------------------------------------------
+    // analytics_top_players
+    // Returns top N most active users ranked by events in the period
+    // -------------------------------------------------------------------------
+    function rpcTopPlayers(ctx, logger, nk, payload) {
+        try {
+            var data=safeJson(payload); var gameId=data.game_id; var days=data.days||30; var topN=data.limit||25; var cutoff=nowSeconds()-days*86400;
+            var userIds=sampleUsers(nk,200);
+            var playerData={};
+            for (var u=0;u<userIds.length;u++) {
+                var uid=userIds[u];
+                var evtList=safeList(nk,uid,"analytics_events",300,"");
+                if(!evtList||!evtList.objects) continue;
+                var p={total_events:0,quiz_completed:0,daily_quizzes:0,purchases:0,ai_events:0,session_count:0,last_active:0};
+                for (var i=0;i<evtList.objects.length;i++) {
+                    var ev=evtList.objects[i].value; if(!ev||!ev.eventName) continue;
+                    if(ev.unixTimestamp&&ev.unixTimestamp<cutoff) continue;
+                    if(gameId&&ev.gameId!==gameId) continue;
+                    p.total_events++;
+                    if(ev.unixTimestamp>p.last_active) p.last_active=ev.unixTimestamp;
+                    switch(ev.eventName){
+                        case "quiz_completed": p.quiz_completed++; break;
+                        case "daily_quiz_completed": p.daily_quizzes++; break;
+                        case "iap_completed": case "purchase_completed": p.purchases++; break;
+                        case "session_start": case "app_start": p.session_count++; break;
+                    }
+                    if(ev.eventName.indexOf("ai_")===0) p.ai_events++;
+                }
+                if(p.total_events>0) playerData[uid]=p;
+            }
+            var players=[]; for(var ppk in playerData){if(playerData.hasOwnProperty(ppk))players.push({user_id:ppk.slice(0,8)+"…",full_id:ppk,total_events:playerData[ppk].total_events,quiz_completed:playerData[ppk].quiz_completed,daily_quizzes:playerData[ppk].daily_quizzes,purchases:playerData[ppk].purchases,ai_events:playerData[ppk].ai_events,sessions:playerData[ppk].session_count,last_active:playerData[ppk].last_active>0?new Date(playerData[ppk].last_active*1000).toISOString().slice(0,10):"—"});}
+            players.sort(function(a,b){return b.total_events-a.total_events;});
+            return JSON.stringify({players:players.slice(0,topN),total_active_users:players.length,days:days,users_sampled:userIds.length});
+        } catch(e) { logger.error("rpcTopPlayers error: %s",e.message||e); return JSON.stringify({error:e.message||"Internal error"}); }
+    }
+
+    function register(initializer) {
+        try { initializer.registerRpc("analytics_dashboard", rpcDashboard); } catch(e) {}
+        try { initializer.registerRpc("analytics_session_stats", rpcSessionStats); } catch(e) {}
+        try { initializer.registerRpc("analytics_funnel", rpcFunnel); } catch(e) {}
+        try { initializer.registerRpc("analytics_economy_health", rpcEconomyHealth); } catch(e) {}
+        try { initializer.registerRpc("analytics_error_log", rpcErrorLog); } catch(e) {}
+        try { initializer.registerRpc("analytics_log_error", rpcLogError); } catch(e) {}
+        try { initializer.registerRpc("analytics_feature_adoption", rpcFeatureAdoption); } catch(e) {}
+        try { initializer.registerRpc("analytics_engagement_score", rpcEngagementScore); } catch(e) {}
+        try { initializer.registerRpc("analytics_quiz_performance", rpcQuizPerformance); } catch(e) {}
+        try { initializer.registerRpc("analytics_monetization_detail", rpcMonetizationDetail); } catch(e) {}
+        try { initializer.registerRpc("analytics_ai_features", rpcAiFeatures); } catch(e) {}
+        try { initializer.registerRpc("analytics_home_heatmap", rpcHomeHeatmap); } catch(e) {}
+        try { initializer.registerRpc("analytics_platform_breakdown", rpcPlatformBreakdown); } catch(e) {}
+        try { initializer.registerRpc("analytics_top_players", rpcTopPlayers); } catch(e) {}
+    }
+    AnalyticsV2.register = register;
+})(AnalyticsV2 || (AnalyticsV2 = {}));
 var LegacyChat;
 (function (LegacyChat) {
     function rpcSendGroupChatMessage(ctx, logger, nk, payload) {
