@@ -1028,10 +1028,11 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
  *
  * Features:
  *   1. Case-insensitive partial match on username AND display_name via SQL ILIKE
- *   2. Excludes self, disabled, and banned accounts
+ *   2. Excludes self, disabled, banned, and blocked accounts
  *   3. Enriches every result with relationshipStatus (friend / blocked / pending_sent / pending_received / none)
  *   4. Returns avatarUrl, online status, createTime
  *   5. SQL-injection safe via parameterised queries
+ *   6. Sanitises query input (strips wildcards to prevent rogue LIKE patterns)
  *
  * Payload: { gameID: "quizverse", query: "carlos", limit: 20 }
  * Response: { success: true, data: { results: [...], query: "...", count: N, searcherId: "..." } }
@@ -1052,9 +1053,12 @@ function quizverseFindFriends(context, logger, nk, payload) {
             query = query.substring(0, 50);
         }
 
+        // Sanitise: escape SQL LIKE wildcards in user input to prevent pattern injection
+        var sanitisedQuery = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
+
         var limit = parseInt(data.limit) || 20;
         if (limit < 1) limit = 1;
-        if (limit > 100) limit = 100;
+        if (limit > 50) limit = 50;
 
         var userId = context.userId;
         if (!userId) {
@@ -1063,21 +1067,23 @@ function quizverseFindFriends(context, logger, nk, payload) {
 
         // ── Phase 1: Partial search via SQL ──
         // Uses PostgreSQL ILIKE for case-insensitive substring matching.
-        // The '%' wildcards around the query enable "contains" matching.
-        // We exclude the caller, disabled accounts, and fetch limit+1 to account
-        // for possible self-exclusion in results.
-        var sqlPattern = "%" + query + "%";
+        // The '%' wildcards around the sanitised query enable "contains" matching.
+        // We exclude the caller, disabled accounts, and fetch extra rows to account
+        // for blocked-user filtering in Phase 3.
+        var sqlPattern = "%" + sanitisedQuery + "%";
+        var fetchLimit = limit + 20; // Over-fetch to compensate for blocked-user filtering
         var rows = [];
         try {
             rows = nk.sqlQuery(
-                "SELECT id, username, display_name, avatar_url, create_time " +
+                "SELECT id, username, display_name, avatar_url, create_time, " +
+                "CASE WHEN edge_count > 0 THEN true ELSE false END AS online " +
                 "FROM users " +
                 "WHERE (username ILIKE $1 OR display_name ILIKE $1) " +
                 "AND id != $2 " +
                 "AND disable_time = '1970-01-01 00:00:00 UTC' " +
                 "ORDER BY username ASC " +
                 "LIMIT $3",
-                [sqlPattern, userId, limit]
+                [sqlPattern, userId, fetchLimit]
             );
         } catch (sqlErr) {
             logger.warn("quizverse_find_friends SQL fallback: " + sqlErr.message);
@@ -1092,7 +1098,8 @@ function quizverseFindFriends(context, logger, nk, payload) {
                                 username: exactUsers[e].username,
                                 display_name: exactUsers[e].displayName || exactUsers[e].username,
                                 avatar_url: exactUsers[e].avatarUrl || "",
-                                create_time: exactUsers[e].createTime || ""
+                                create_time: exactUsers[e].createTime || "",
+                                online: exactUsers[e].online || false
                             });
                         }
                     }
@@ -1105,6 +1112,7 @@ function quizverseFindFriends(context, logger, nk, payload) {
         // ── Phase 2: Build relationship map from caller's friends list ──
         // States: 0 = mutual friends, 1 = sent invite, 2 = received invite, 3 = blocked
         var relationMap = {};
+        var blockedSet = {};
         try {
             var friendsResult = nk.friendsList(userId, 1000, null, null);
             if (friendsResult && friendsResult.friends) {
@@ -1120,6 +1128,7 @@ function quizverseFindFriends(context, logger, nk, payload) {
                         relationMap[fid] = "pending_received";
                     } else if (state === 3) {
                         relationMap[fid] = "blocked";
+                        blockedSet[fid] = true;
                     }
                 }
             }
@@ -1128,7 +1137,7 @@ function quizverseFindFriends(context, logger, nk, payload) {
             // Continue without relationship data — search still works
         }
 
-        // ── Phase 3: Build enriched results ──
+        // ── Phase 3: Build enriched results (exclude blocked users) ──
         var results = [];
         for (var i = 0; i < rows.length && results.length < limit; i++) {
             var row = rows[i];
@@ -1137,6 +1146,9 @@ function quizverseFindFriends(context, logger, nk, payload) {
             // Skip self (safety net)
             if (rid === userId) continue;
 
+            // Skip blocked users — don't reveal their existence in search
+            if (blockedSet[rid]) continue;
+
             var status = relationMap[rid] || "none";
 
             results.push({
@@ -1144,7 +1156,7 @@ function quizverseFindFriends(context, logger, nk, payload) {
                 username: row.username || "",
                 displayName: row.display_name || row.username || "",
                 avatarUrl: row.avatar_url || "",
-                online: false, // SQL doesn't tell us; client can check separately
+                online: row.online || false,
                 createTime: row.create_time || "",
                 relationshipStatus: status
             });

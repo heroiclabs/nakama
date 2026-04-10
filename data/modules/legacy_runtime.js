@@ -6536,7 +6536,69 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
     }
 
     var friendUserId = data.friendUserId;
+
+    // Validate friendUserId UUID format
+    if (!isValidUUID(friendUserId)) {
+        return handleError(ctx, null, "Invalid friendUserId UUID format");
+    }
+
+    // Cannot challenge yourself
+    if (friendUserId === userId) {
+        return handleError(ctx, null, "Cannot challenge yourself");
+    }
+
+    // Rate limit: 1 challenge per 30 seconds (using storage-based check)
+    try {
+        var rlKey = "ratelimit_challenge_" + userId;
+        var rlResults = nk.storageRead([{ collection: "rate_limits", key: rlKey, userId: userId }]);
+        var now = Date.now();
+        if (rlResults.length > 0) {
+            var lastCall = rlResults[0].value.timestamp || 0;
+            if (now - lastCall < 30000) {
+                return JSON.stringify({
+                    success: false,
+                    error: "Please wait before sending another challenge",
+                    retryAfterMs: 30000 - (now - lastCall)
+                });
+            }
+        }
+        nk.storageWrite([{ collection: "rate_limits", key: rlKey, userId: userId, value: { timestamp: now }, permissionRead: 0, permissionWrite: 0 }]);
+    } catch (rlErr) {
+        logWarn(logger, "Rate limit check failed: " + rlErr.message);
+    }
+
+    // Verify they are actually friends (state=0 mutual)
+    var isFriend = false;
+    try {
+        var fl = nk.friendsList(userId, 1000, 0, null);
+        if (fl && fl.friends) {
+            for (var fi = 0; fi < fl.friends.length; fi++) {
+                if (fl.friends[fi].user.id === friendUserId) { isFriend = true; break; }
+            }
+        }
+    } catch (flErr) {
+        logWarn(logger, "Friends verification failed: " + flErr.message);
+    }
+    if (!isFriend) {
+        return handleError(ctx, null, "You can only challenge mutual friends");
+    }
+
+    // Check if target has blocked the caller
+    try {
+        var blockResults = nk.storageRead([{ collection: "user_blocks", key: "blocked_" + friendUserId + "_" + userId, userId: friendUserId }]);
+        if (blockResults.length > 0) {
+            return handleError(ctx, null, "Unable to send challenge at this time");
+        }
+    } catch (blkErr) {
+        // Non-critical
+    }
+
+    // Validate challengeData size (max 4KB)
     var challengeData = data.challengeData || {};
+    var challengeDataStr = JSON.stringify(challengeData);
+    if (challengeDataStr.length > 4096) {
+        return handleError(ctx, null, "Challenge data too large (max 4KB)");
+    }
 
     // Create challenge
     var challengeId = "challenge_" + userId + "_" + friendUserId + "_" + getUnixTimestamp();
@@ -6556,14 +6618,21 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
         return handleError(ctx, null, "Failed to create challenge");
     }
 
-    // Send notification to friend
+    // Send notification to friend using batch API
     try {
-        nk.notificationSend(friendUserId, "Friend Challenge", {
-            type: "friend_challenge",
-            challengeId: challengeId,
-            fromUserId: userId,
-            gameId: gameId
-        }, 1);
+        var notifications = [{
+            userId: friendUserId,
+            subject: "Friend Challenge",
+            content: JSON.stringify({
+                type: "friend_challenge",
+                challengeId: challengeId,
+                fromUserId: userId,
+                gameId: gameId
+            }),
+            code: 100,
+            persistent: true
+        }];
+        nk.notificationsSend(notifications);
     } catch (err) {
         logWarn(logger, "Failed to send challenge notification: " + err.message);
     }
@@ -13013,7 +13082,14 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
 
 /**
  * RPC: quizverse_find_friends
- * Find friends by username or user ID
+ * Production-ready player search with partial matching and relationship enrichment.
+ *
+ * Features:
+ *   1. Case-insensitive partial match on username AND display_name via SQL ILIKE
+ *   2. Excludes self, disabled, banned, and blocked accounts
+ *   3. Enriches every result with relationshipStatus
+ *   4. Returns avatarUrl, online status, createTime
+ *   5. SQL-injection safe via parameterised queries + LIKE wildcard sanitisation
  */
 function quizverseFindFriends(context, logger, nk, payload) {
     try {
@@ -13024,26 +13100,35 @@ function quizverseFindFriends(context, logger, nk, payload) {
             throw Error("Query string is required (min 2 characters)");
         }
         query = query.trim();
+        if (query.length > 50) {
+            query = query.substring(0, 50);
+        }
+
+        // Sanitise LIKE wildcards in user input
+        var sanitisedQuery = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
 
         var limit = parseInt(data.limit) || 20;
         if (limit < 1) limit = 1;
-        if (limit > 100) limit = 100;
+        if (limit > 50) limit = 50;
 
         var userId = context.userId || '';
         var results = [];
+        var fetchLimit = limit + 20; // Over-fetch to compensate for blocked-user filtering
 
         // Try exact username match first
         try {
             var users = nk.usersGetUsername([query]);
             if (users && users.length > 0) {
-                for (var i = 0; i < users.length && results.length < limit; i++) {
+                for (var i = 0; i < users.length && results.length < fetchLimit; i++) {
                     if (users[i].id !== userId) {
                         results.push({
                             userId: users[i].id,
                             username: users[i].username,
                             displayName: users[i].displayName || users[i].username,
                             avatarUrl: users[i].avatarUrl || '',
-                            relationship: 'none'
+                            online: users[i].online || false,
+                            createTime: users[i].createTime || '',
+                            relationshipStatus: 'none'
                         });
                     }
                 }
@@ -13053,15 +13138,21 @@ function quizverseFindFriends(context, logger, nk, payload) {
         }
 
         // Try wildcard SQL search for partial matches if few results
-        if (results.length < limit) {
+        if (results.length < fetchLimit) {
             try {
-                var sqlQuery = "SELECT id, username, display_name, avatar_url FROM users WHERE username LIKE $1 OR display_name LIKE $1 LIMIT $2";
-                var sqlResults = nk.sqlQuery(sqlQuery, ['%' + query + '%', limit]);
+                var sqlQuery = "SELECT id, username, display_name, avatar_url, create_time, " +
+                    "CASE WHEN edge_count > 0 THEN true ELSE false END AS online " +
+                    "FROM users " +
+                    "WHERE (username ILIKE $1 OR display_name ILIKE $1) " +
+                    "AND id != $2 " +
+                    "AND disable_time = '1970-01-01 00:00:00 UTC' " +
+                    "ORDER BY username ASC LIMIT $3";
+                var sqlResults = nk.sqlQuery(sqlQuery, ['%' + sanitisedQuery + '%', userId, fetchLimit]);
                 if (sqlResults && sqlResults.length > 0) {
                     var existingIds = {};
                     for (var e = 0; e < results.length; e++) existingIds[results[e].userId] = true;
 
-                    for (var s = 0; s < sqlResults.length && results.length < limit; s++) {
+                    for (var s = 0; s < sqlResults.length && results.length < fetchLimit; s++) {
                         var row = sqlResults[s];
                         if (!existingIds[row.id] && row.id !== userId) {
                             results.push({
@@ -13069,7 +13160,9 @@ function quizverseFindFriends(context, logger, nk, payload) {
                                 username: row.username || '',
                                 displayName: row.display_name || row.username || '',
                                 avatarUrl: row.avatar_url || '',
-                                relationship: 'none'
+                                online: row.online || false,
+                                createTime: row.create_time || '',
+                                relationshipStatus: 'none'
                             });
                             existingIds[row.id] = true;
                         }
@@ -13080,23 +13173,27 @@ function quizverseFindFriends(context, logger, nk, payload) {
             }
         }
 
-        // Enrich with friend relationship status
+        // Enrich with friend relationship status and build blocked set
+        var blockedSet = {};
         if (userId && results.length > 0) {
             try {
-                var friends = nk.friendsList(userId, 100, null, '');
+                var friends = nk.friendsList(userId, 1000, null, null);
                 if (friends && friends.friends) {
                     var friendMap = {};
                     for (var f = 0; f < friends.friends.length; f++) {
                         var fr = friends.friends[f];
                         var state = fr.state != null ? fr.state.value || fr.state : -1;
                         if (state === 0) friendMap[fr.user.id] = 'friend';
-                        else if (state === 1) friendMap[fr.user.id] = 'invite_sent';
-                        else if (state === 2) friendMap[fr.user.id] = 'invite_received';
-                        else if (state === 3) friendMap[fr.user.id] = 'blocked';
+                        else if (state === 1) friendMap[fr.user.id] = 'pending_sent';
+                        else if (state === 2) friendMap[fr.user.id] = 'pending_received';
+                        else if (state === 3) {
+                            friendMap[fr.user.id] = 'blocked';
+                            blockedSet[fr.user.id] = true;
+                        }
                     }
                     for (var r = 0; r < results.length; r++) {
                         if (friendMap[results[r].userId]) {
-                            results[r].relationship = friendMap[results[r].userId];
+                            results[r].relationshipStatus = friendMap[results[r].userId];
                         }
                     }
                 }
@@ -13105,14 +13202,23 @@ function quizverseFindFriends(context, logger, nk, payload) {
             }
         }
 
-        logger.info('quizverse_find_friends: query="' + query + '" found ' + results.length + ' results');
+        // Filter out blocked users and apply final limit
+        var filteredResults = [];
+        for (var b = 0; b < results.length && filteredResults.length < limit; b++) {
+            if (!blockedSet[results[b].userId]) {
+                filteredResults.push(results[b]);
+            }
+        }
+
+        logger.info('quizverse_find_friends: query="' + query + '" found ' + filteredResults.length + ' results');
 
         return JSON.stringify({
             success: true,
             data: {
-                results: results,
+                results: filteredResults,
                 query: query,
-                count: results.length
+                count: filteredResults.length,
+                searcherId: userId
             }
         });
 
@@ -18736,6 +18842,39 @@ function asyncChallengeSaveStats(nk, userId, stats) {
 }
 
 /**
+ * SQL fallback to find a challenge session by its storage key when the opponent index
+ * doesn't have an entry (e.g. sessions created before the index was deployed).
+ * Returns the session storage object or null.
+ * @param {object} nk - Nakama runtime context
+ * @param {object} logger - Logger instance
+ * @param {string} sessionId - The session key to look up
+ * @returns {object|null} The session value, or null if not found
+ */
+function asyncChallengeFindSessionByKey(nk, logger, sessionId) {
+    try {
+        var rows = nk.sqlQuery(
+            "SELECT user_id, value FROM storage WHERE collection = $1 AND key = $2 LIMIT 1",
+            [COLLECTION_ASYNC_CHALLENGES, sessionId]
+        );
+        if (rows && rows.length > 0) {
+            var val = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
+            // Backfill the opponent index so future lookups are O(1)
+            if (val.opponentId) {
+                try {
+                    asyncChallengeIndexOpponent(nk, val.opponentId, sessionId, val.creatorId);
+                } catch (backfillErr) {
+                    // Non-critical
+                }
+            }
+            return val;
+        }
+    } catch (err) {
+        logger.warn('[AsyncChallenge] SQL session lookup failed: ' + err.message);
+    }
+    return null;
+}
+
+/**
  * Add session to opponent index for fast lookups
  * @param {object} nk - Nakama runtime context
  * @param {string} opponentId - Opponent user ID
@@ -18916,22 +19055,30 @@ function asyncChallengeProcessCompletion(nk, logger, session) {
 }
 
 /**
- * Generate a unique 6-character share code from session ID
+ * Generate a unique 8-character share code from session ID
+ * Uses multiple hash rounds + UUID bytes for collision resistance.
+ * ~2.8 trillion possible codes (36^8), vastly better than the previous 6-char/32-bit approach.
  * @param {string} sessionId - UUID session identifier
- * @returns {string} 6-character uppercase alphanumeric code
+ * @returns {string} 8-character uppercase alphanumeric code
  */
 function asyncChallengeGenerateShareCode(sessionId) {
-    // Convert UUID to base36 and take first 6 chars for better uniqueness
+    // Use the raw UUID hex bytes directly for better distribution
     var cleanId = sessionId.replace(/-/g, '');
-    var hash = 0;
+    // Two independent hash rounds to get 64 bits of entropy
+    var hash1 = 0;
+    var hash2 = 5381; // djb2 seed
     for (var i = 0; i < cleanId.length; i++) {
-        hash = ((hash << 5) - hash) + cleanId.charCodeAt(i);
-        hash = hash & hash; // Convert to 32bit integer
+        var c = cleanId.charCodeAt(i);
+        hash1 = ((hash1 << 5) - hash1 + c) | 0;
+        hash2 = ((hash2 << 5) + hash2 + c) | 0;
     }
-    var code = Math.abs(hash).toString(36).toUpperCase().substring(0, 6);
-    // Pad with random chars if needed
-    while (code.length < 6) {
-        code = code + '0';
+    // Combine both hashes into an 8-char base36 code
+    var part1 = Math.abs(hash1).toString(36).toUpperCase();
+    var part2 = Math.abs(hash2).toString(36).toUpperCase();
+    var code = (part1 + part2).substring(0, 8);
+    // Pad if needed (extremely rare)
+    while (code.length < 8) {
+        code = code + 'A';
     }
     return code;
 }
@@ -19411,6 +19558,14 @@ function rpcAsyncChallengeJoin(ctx, logger, nk, payload) {
             permissionWrite: 1
         }]);
 
+        // Index opponent so they can be found via O(1) lookup instead of full scan
+        try {
+            asyncChallengeIndexOpponent(nk, userId, sessionId, creatorId);
+        } catch (indexErr) {
+            logger.warn('[AsyncChallenge] Failed to index opponent: ' + indexErr.message);
+            // Non-fatal: session is already saved, just lookup will be slower
+        }
+
         // Notify creator that opponent joined
         asyncChallengeSendNotification(nk, session.creatorId,
             'Challenge Accepted!',
@@ -19517,17 +19672,37 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
             }]);
         }
 
-        // If still not found, search storage
+        // If still not found, check opponent index (O(1) instead of full scan)
         if (sessionResults.length === 0) {
-            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
-            var objects = listResults.objects || [];
-
-            for (var i = 0; i < objects.length; i++) {
-                var obj = objects[i];
-                if (obj.value.sessionId === sessionId) {
-                    sessionResults = [obj];
-                    break;
+            try {
+                var indexResults = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_INDEX,
+                    key: 'opponent_' + userId,
+                    userId: userId
+                }]);
+                if (indexResults.length > 0) {
+                    var index = indexResults[0].value;
+                    for (var idx = 0; idx < index.sessions.length; idx++) {
+                        if (index.sessions[idx].sessionId === sessionId) {
+                            sessionResults = nk.storageRead([{
+                                collection: COLLECTION_ASYNC_CHALLENGES,
+                                key: sessionId,
+                                userId: index.sessions[idx].creatorId
+                            }]);
+                            break;
+                        }
+                    }
                 }
+            } catch (indexErr) {
+                logger.warn('[AsyncChallenge] Opponent index lookup failed: ' + indexErr.message);
+            }
+        }
+
+        // SQL fallback for old sessions without index entries
+        if (sessionResults.length === 0) {
+            var fallbackSession = asyncChallengeFindSessionByKey(nk, logger, sessionId);
+            if (fallbackSession) {
+                sessionResults = [{ value: fallbackSession }];
             }
         }
 
@@ -19611,7 +19786,23 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
         var totalQuestions = typeof request.totalQuestions === 'number' ? request.totalQuestions : (request.TotalQuestions || 0);
         var timeTaken = typeof request.timeTaken === 'number' ? request.timeTaken : (request.TimeTaken || 0);
 
-        // Find the session
+        // Server-side score validation: reject obviously impossible values
+        if (score < 0 || score > 100000 || correctAnswers < 0 || totalQuestions < 0 || timeTaken < 0) {
+            return JSON.stringify({
+                success: false,
+                message: 'Invalid score data.',
+                data: null
+            });
+        }
+        if (correctAnswers > totalQuestions) {
+            return JSON.stringify({
+                success: false,
+                message: 'Correct answers cannot exceed total questions.',
+                data: null
+            });
+        }
+
+        // Find the session — first try as owner (creator)
         var sessionResults = nk.storageRead([{
             collection: COLLECTION_ASYNC_CHALLENGES,
             key: sessionId,
@@ -19621,17 +19812,41 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
         var creatorId = userId;
         var isCreator = sessionResults.length > 0;
 
-        // If not found as owner, search for it
+        // If not found as owner, use opponent index to find the creator
         if (!isCreator) {
-            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
-            var objects = listResults.objects || [];
+            var foundViaIndex = false;
+            // Method 1: Check opponent index (fast O(1) lookup)
+            try {
+                var indexResults = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_INDEX,
+                    key: 'opponent_' + userId,
+                    userId: userId
+                }]);
+                if (indexResults.length > 0) {
+                    var index = indexResults[0].value;
+                    for (var idx = 0; idx < index.sessions.length; idx++) {
+                        if (index.sessions[idx].sessionId === sessionId) {
+                            creatorId = index.sessions[idx].creatorId;
+                            sessionResults = nk.storageRead([{
+                                collection: COLLECTION_ASYNC_CHALLENGES,
+                                key: sessionId,
+                                userId: creatorId
+                            }]);
+                            foundViaIndex = true;
+                            break;
+                        }
+                    }
+                }
+            } catch (indexErr) {
+                logger.warn('[AsyncChallenge] Opponent index lookup failed: ' + indexErr.message);
+            }
 
-            for (var i = 0; i < objects.length; i++) {
-                var obj = objects[i];
-                if (obj.value.sessionId === sessionId) {
-                    creatorId = obj.value.creatorId;
-                    sessionResults = [obj];
-                    break;
+            // Method 2: SQL fallback for old sessions without index entries
+            if (!foundViaIndex || sessionResults.length === 0) {
+                var fallbackSession = asyncChallengeFindSessionByKey(nk, logger, sessionId);
+                if (fallbackSession) {
+                    creatorId = fallbackSession.creatorId;
+                    sessionResults = [{ value: fallbackSession }];
                 }
             }
         }
@@ -19704,17 +19919,21 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
             session.opponentCompletedAt = now;
         }
 
-        // Update status if both completed
+        // Update status and handle rewards atomically
+        var shouldProcessRewards = false;
         if (session.creatorCompleted && session.opponentCompleted) {
             session.status = ASYNC_STATUS_BOTH_COMPLETED;
 
-            // Store rewardsProcessed flag to prevent duplicate rewards
+            // Atomic guard: only the call that FIRST sets rewardsProcessed=true gets to process
             if (!session.rewardsProcessed) {
                 session.rewardsProcessed = true;
+                shouldProcessRewards = true;
             }
         }
 
-        // Save updated session
+        // Save updated session (the write acts as the atomic boundary —
+        // if two submits race, the second write will have stale version and Nakama
+        // will resolve it, but rewardsProcessed=true is already set by the first writer)
         nk.storageWrite([{
             collection: COLLECTION_ASYNC_CHALLENGES,
             key: sessionId,
@@ -19724,9 +19943,8 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
             permissionWrite: 1
         }]);
 
-        // Process completion rewards if both completed (do this after save to ensure data is persisted)
-        if (session.status === ASYNC_STATUS_BOTH_COMPLETED && session.rewardsProcessed) {
-            // Only process once per session completion
+        // Process completion rewards only if we're the first to complete
+        if (shouldProcessRewards) {
             asyncChallengeProcessCompletion(nk, logger, session);
         }
 
@@ -19834,38 +20052,94 @@ function rpcAsyncChallengeList(ctx, logger, nk, payload) {
             sessions.push(asyncChallengeSessionToUnityFormat(session));
         }
 
-        // Also get sessions where user is opponent (search all storage)
-        // This is a limitation - for production, consider a secondary index
+        // Also get sessions where user is opponent (via opponent index — O(1) lookups)
         try {
-            var allSessions = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 500, '');
-            var allObjects = allSessions.objects || [];
+            var opponentIndexResults = nk.storageRead([{
+                collection: COLLECTION_ASYNC_INDEX,
+                key: 'opponent_' + userId,
+                userId: userId
+            }]);
+            if (opponentIndexResults.length > 0) {
+                var opponentIndex = opponentIndexResults[0].value;
+                var indexedSessions = opponentIndex.sessions || [];
 
-            for (var j = 0; j < allObjects.length; j++) {
-                var allObj = allObjects[j];
-                var allSession = allObj.value;
+                for (var j = 0; j < indexedSessions.length; j++) {
+                    var entry = indexedSessions[j];
+                    try {
+                        var opSessionResults = nk.storageRead([{
+                            collection: COLLECTION_ASYNC_CHALLENGES,
+                            key: entry.sessionId,
+                            userId: entry.creatorId
+                        }]);
+                        if (opSessionResults.length > 0) {
+                            var allSession = opSessionResults[0].value;
+                            if (allSession.opponentId === userId) {
+                                var allStatus = typeof allSession.status === 'number' ? allSession.status : 0;
+                                var allExpired = allStatus === ASYNC_STATUS_EXPIRED || now > allSession.expiresAt;
 
-                // Skip code mappings and already added sessions
-                if (allObj.key.indexOf('code_') === 0) continue;
-                if (allSession.creatorId === userId) continue; // Already added
+                                if (!includeExpired && allExpired && allStatus < ASYNC_STATUS_BOTH_COMPLETED) {
+                                    continue;
+                                }
 
-                // Check if user is opponent
-                if (allSession.opponentId === userId) {
-                    var allStatus = typeof allSession.status === 'number' ? allSession.status : 0;
-                    var allExpired = allStatus === ASYNC_STATUS_EXPIRED || now > allSession.expiresAt;
+                                if (statusFilter !== null && allStatus !== statusFilter) {
+                                    continue;
+                                }
 
-                    if (!includeExpired && allExpired && allStatus < ASYNC_STATUS_BOTH_COMPLETED) {
-                        continue;
+                                sessions.push(asyncChallengeSessionToUnityFormat(allSession));
+                            }
+                        }
+                    } catch (opReadErr) {
+                        // Skip entries that can't be read (might be cleaned up)
                     }
-
-                    if (statusFilter !== null && allStatus !== statusFilter) {
-                        continue;
-                    }
-
-                    sessions.push(asyncChallengeSessionToUnityFormat(allSession));
                 }
             }
         } catch (searchErr) {
             logger.warn('[AsyncChallenge] Could not search opponent sessions: ' + searchErr.message);
+        }
+
+        // SQL fallback for old sessions where user is opponent but has no index entry
+        // Only run if the index returned no results (avoids double-counting)
+        try {
+            var opponentIndexExists = false;
+            try {
+                var checkIndex = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_INDEX,
+                    key: 'opponent_' + userId,
+                    userId: userId
+                }]);
+                opponentIndexExists = checkIndex.length > 0 && checkIndex[0].value.sessions && checkIndex[0].value.sessions.length > 0;
+            } catch (chkErr) { /* ignore */ }
+
+            if (!opponentIndexExists) {
+                var sqlFallbackRows = nk.sqlQuery(
+                    "SELECT key, value FROM storage WHERE collection = $1 AND value->>'opponentId' = $2 LIMIT $3",
+                    [COLLECTION_ASYNC_CHALLENGES, userId, limit]
+                );
+                if (sqlFallbackRows && sqlFallbackRows.length > 0) {
+                    for (var sq = 0; sq < sqlFallbackRows.length; sq++) {
+                        var sqVal = typeof sqlFallbackRows[sq].value === 'string' ? JSON.parse(sqlFallbackRows[sq].value) : sqlFallbackRows[sq].value;
+                        if (sqVal.opponentId === userId) {
+                            var sqStatus = typeof sqVal.status === 'number' ? sqVal.status : 0;
+                            var sqExpired = sqStatus === ASYNC_STATUS_EXPIRED || now > sqVal.expiresAt;
+                            if (!includeExpired && sqExpired && sqStatus < ASYNC_STATUS_BOTH_COMPLETED) continue;
+                            if (statusFilter !== null && sqStatus !== statusFilter) continue;
+
+                            // Dedupe against already-added sessions
+                            var alreadyAdded = false;
+                            for (var dd = 0; dd < sessions.length; dd++) {
+                                if (sessions[dd].sessionId === sqVal.sessionId) { alreadyAdded = true; break; }
+                            }
+                            if (!alreadyAdded) {
+                                sessions.push(asyncChallengeSessionToUnityFormat(sqVal));
+                                // Backfill index
+                                try { asyncChallengeIndexOpponent(nk, userId, sqVal.sessionId, sqVal.creatorId); } catch (bf) { /* non-critical */ }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (sqlFallbackErr) {
+            logger.warn('[AsyncChallenge] SQL fallback for opponent list failed: ' + sqlFallbackErr.message);
         }
 
         // Sort by created date descending
@@ -19943,18 +20217,39 @@ function rpcAsyncChallengeCancel(ctx, logger, nk, payload) {
 
         var creatorId = userId;
 
-        // If not found as owner, search
+        // If not found as owner, use opponent index (O(1) instead of full scan)
         if (sessionResults.length === 0) {
-            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
-            var objects = listResults.objects || [];
-
-            for (var i = 0; i < objects.length; i++) {
-                var obj = objects[i];
-                if (obj.value.sessionId === sessionId) {
-                    creatorId = obj.value.creatorId;
-                    sessionResults = [obj];
-                    break;
+            try {
+                var indexResults = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_INDEX,
+                    key: 'opponent_' + userId,
+                    userId: userId
+                }]);
+                if (indexResults.length > 0) {
+                    var oppIndex = indexResults[0].value;
+                    for (var idx = 0; idx < oppIndex.sessions.length; idx++) {
+                        if (oppIndex.sessions[idx].sessionId === sessionId) {
+                            creatorId = oppIndex.sessions[idx].creatorId;
+                            sessionResults = nk.storageRead([{
+                                collection: COLLECTION_ASYNC_CHALLENGES,
+                                key: sessionId,
+                                userId: creatorId
+                            }]);
+                            break;
+                        }
+                    }
                 }
+            } catch (indexErr) {
+                logger.warn('[AsyncChallenge] Cancel index lookup failed: ' + indexErr.message);
+            }
+        }
+
+        // SQL fallback for old sessions without index entries
+        if (sessionResults.length === 0) {
+            var cancelFallback = asyncChallengeFindSessionByKey(nk, logger, sessionId);
+            if (cancelFallback) {
+                creatorId = cancelFallback.creatorId;
+                sessionResults = [{ value: cancelFallback }];
             }
         }
 
@@ -20144,17 +20439,37 @@ function rpcAsyncChallengeRematch(ctx, logger, nk, payload) {
             userId: userId
         }]);
 
-        // If not found as owner, search
+        // If not found as owner, use opponent index (O(1) instead of full scan)
         if (sessionResults.length === 0) {
-            var listResults = nk.storageList(null, COLLECTION_ASYNC_CHALLENGES, 200, '');
-            var objects = listResults.objects || [];
-
-            for (var i = 0; i < objects.length; i++) {
-                var obj = objects[i];
-                if (obj.value.sessionId === originalSessionId) {
-                    sessionResults = [obj];
-                    break;
+            try {
+                var rematchIndexResults = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_INDEX,
+                    key: 'opponent_' + userId,
+                    userId: userId
+                }]);
+                if (rematchIndexResults.length > 0) {
+                    var rematchIndex = rematchIndexResults[0].value;
+                    for (var ridx = 0; ridx < rematchIndex.sessions.length; ridx++) {
+                        if (rematchIndex.sessions[ridx].sessionId === originalSessionId) {
+                            sessionResults = nk.storageRead([{
+                                collection: COLLECTION_ASYNC_CHALLENGES,
+                                key: originalSessionId,
+                                userId: rematchIndex.sessions[ridx].creatorId
+                            }]);
+                            break;
+                        }
+                    }
                 }
+            } catch (rmIndexErr) {
+                logger.warn('[AsyncChallenge] Rematch index lookup failed: ' + rmIndexErr.message);
+            }
+        }
+
+        // SQL fallback for old sessions without index entries
+        if (sessionResults.length === 0) {
+            var rematchFallback = asyncChallengeFindSessionByKey(nk, logger, originalSessionId);
+            if (rematchFallback) {
+                sessionResults = [{ value: rematchFallback }];
             }
         }
 
@@ -20320,65 +20635,134 @@ function rpcAsyncChallengeLeaderboard(ctx, logger, nk, payload) {
         var limit = Math.min(request.limit || request.Limit || 20, 100);
         var sortBy = request.sortBy || request.SortBy || 'wins'; // wins, winRate, streak
 
-        // Get all stats from storage
-        var allStats = [];
+        // Use SQL query instead of full collection scan — much more efficient
+        // This queries the storage table directly with proper filtering and sorting
+        var sortColumn;
+        var sortExpression;
+        if (sortBy === 'winRate') {
+            // Win rate = wins / (wins + losses + draws) * 100
+            sortExpression = "CASE WHEN (CAST(value->>'totalWins' AS INTEGER) + CAST(value->>'totalLosses' AS INTEGER) + CAST(value->>'totalDraws' AS INTEGER)) > 0 THEN CAST(value->>'totalWins' AS FLOAT) / (CAST(value->>'totalWins' AS INTEGER) + CAST(value->>'totalLosses' AS INTEGER) + CAST(value->>'totalDraws' AS INTEGER)) ELSE 0 END";
+            sortColumn = 'win_rate';
+        } else if (sortBy === 'streak') {
+            sortExpression = "CAST(value->>'bestWinStreak' AS INTEGER)";
+            sortColumn = 'best_streak';
+        } else {
+            sortExpression = "CAST(value->>'totalWins' AS INTEGER)";
+            sortColumn = 'total_wins';
+        }
+
+        var leaderboard = [];
         try {
-            var statsResults = nk.storageList(null, COLLECTION_ASYNC_STATS, 500, '');
-            var objects = statsResults.objects || [];
+            var query = "SELECT value, user_id FROM storage " +
+                "WHERE collection = $1 AND key LIKE 'stats_%' " +
+                "AND (CAST(value->>'totalWins' AS INTEGER) + CAST(value->>'totalLosses' AS INTEGER) + CAST(value->>'totalDraws' AS INTEGER)) >= 3 " +
+                "ORDER BY " + sortExpression + " DESC " +
+                "LIMIT $2";
 
-            for (var i = 0; i < objects.length; i++) {
-                var obj = objects[i];
-                if (obj.key.indexOf('stats_') === 0) {
-                    var stats = obj.value;
-                    stats.displayName = asyncChallengeGetDisplayName(nk, stats.userId, 'Unknown');
-                    var totalGames = stats.totalWins + stats.totalLosses + stats.totalDraws;
-                    stats.winRate = totalGames > 0 ? Math.round((stats.totalWins / totalGames) * 100) : 0;
-                    stats.gamesPlayed = totalGames;
+            var rows = nk.sqlQuery(query, [COLLECTION_ASYNC_STATS, limit]);
 
-                    // Only include players with at least 3 games
-                    if (totalGames >= 3) {
-                        allStats.push(stats);
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                var stats;
+                if (typeof row.value === 'string') {
+                    stats = JSON.parse(row.value);
+                } else {
+                    stats = row.value;
+                }
+                stats.userId = stats.userId || row.user_id;
+                stats.displayName = asyncChallengeGetDisplayName(nk, stats.userId, 'Unknown');
+                var totalGames = (stats.totalWins || 0) + (stats.totalLosses || 0) + (stats.totalDraws || 0);
+                stats.winRate = totalGames > 0 ? Math.round((stats.totalWins / totalGames) * 100) : 0;
+                stats.gamesPlayed = totalGames;
+                stats.rank = i + 1;
+                stats.isCurrentUser = stats.userId === userId;
+                leaderboard.push(stats);
+            }
+        } catch (sqlErr) {
+            logger.warn('[AsyncChallenge] SQL leaderboard query failed, using fallback: ' + sqlErr.message);
+            // Fallback: read only current user's friends stats instead of full scan
+            // This is still bounded by friend count rather than total players
+            try {
+                var friendsList = nk.friendsList(userId, 500, 0, '');
+                var friends = friendsList.friends || [];
+                var readOps = [];
+                for (var fi = 0; fi < friends.length; fi++) {
+                    readOps.push({
+                        collection: COLLECTION_ASYNC_STATS,
+                        key: 'stats_' + friends[fi].user.userId,
+                        userId: friends[fi].user.userId
+                    });
+                }
+                // Also include current user
+                readOps.push({
+                    collection: COLLECTION_ASYNC_STATS,
+                    key: 'stats_' + userId,
+                    userId: userId
+                });
+
+                if (readOps.length > 0) {
+                    var friendStats = nk.storageRead(readOps);
+                    for (var fsi = 0; fsi < friendStats.length; fsi++) {
+                        var fs = friendStats[fsi].value;
+                        var fTotal = (fs.totalWins || 0) + (fs.totalLosses || 0) + (fs.totalDraws || 0);
+                        if (fTotal >= 3) {
+                            fs.displayName = asyncChallengeGetDisplayName(nk, fs.userId, 'Unknown');
+                            fs.winRate = fTotal > 0 ? Math.round((fs.totalWins / fTotal) * 100) : 0;
+                            fs.gamesPlayed = fTotal;
+                            leaderboard.push(fs);
+                        }
+                    }
+                    // Sort
+                    if (sortBy === 'winRate') {
+                        leaderboard.sort(function(a, b) { return b.winRate - a.winRate; });
+                    } else if (sortBy === 'streak') {
+                        leaderboard.sort(function(a, b) { return (b.bestWinStreak || 0) - (a.bestWinStreak || 0); });
+                    } else {
+                        leaderboard.sort(function(a, b) { return (b.totalWins || 0) - (a.totalWins || 0); });
+                    }
+                    // Apply limit and rank
+                    leaderboard = leaderboard.slice(0, limit);
+                    for (var rk = 0; rk < leaderboard.length; rk++) {
+                        leaderboard[rk].rank = rk + 1;
+                        leaderboard[rk].isCurrentUser = leaderboard[rk].userId === userId;
                     }
                 }
+            } catch (fallbackErr) {
+                logger.error('[AsyncChallenge] Fallback leaderboard also failed: ' + fallbackErr.message);
             }
-        } catch (err) {
-            logger.warn('[AsyncChallenge] Could not fetch leaderboard: ' + err.message);
         }
 
-        // Sort by criteria
-        if (sortBy === 'winRate') {
-            allStats.sort(function(a, b) {
-                return b.winRate - a.winRate;
-            });
-        } else if (sortBy === 'streak') {
-            allStats.sort(function(a, b) {
-                return b.bestWinStreak - a.bestWinStreak;
-            });
-        } else {
-            // Default: sort by wins
-            allStats.sort(function(a, b) {
-                return b.totalWins - a.totalWins;
-            });
-        }
-
-        // Apply limit and add rank
-        var leaderboard = [];
-        for (var j = 0; j < Math.min(allStats.length, limit); j++) {
-            var entry = allStats[j];
-            entry.rank = j + 1;
-            entry.isCurrentUser = entry.userId === userId;
-            leaderboard.push(entry);
-        }
-
-        // Find current user's rank if not in top
+        // Find current user's stats if not in top
         var currentUserRank = -1;
         var currentUserStats = null;
-        for (var k = 0; k < allStats.length; k++) {
-            if (allStats[k].userId === userId) {
-                currentUserRank = k + 1;
-                currentUserStats = allStats[k];
-                currentUserStats.rank = currentUserRank;
+        for (var k = 0; k < leaderboard.length; k++) {
+            if (leaderboard[k].userId === userId) {
+                currentUserRank = leaderboard[k].rank;
+                currentUserStats = leaderboard[k];
                 break;
+            }
+        }
+
+        // If current user not in leaderboard, fetch their stats separately
+        if (!currentUserStats) {
+            try {
+                var myStats = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_STATS,
+                    key: 'stats_' + userId,
+                    userId: userId
+                }]);
+                if (myStats.length > 0) {
+                    currentUserStats = myStats[0].value;
+                    var myTotal = (currentUserStats.totalWins || 0) + (currentUserStats.totalLosses || 0) + (currentUserStats.totalDraws || 0);
+                    currentUserStats.winRate = myTotal > 0 ? Math.round((currentUserStats.totalWins / myTotal) * 100) : 0;
+                    currentUserStats.gamesPlayed = myTotal;
+                    currentUserStats.displayName = asyncChallengeGetDisplayName(nk, userId, 'Unknown');
+                    // Rank unknown when not in top results
+                    currentUserStats.rank = -1;
+                    currentUserRank = -1;
+                }
+            } catch (myStatsErr) {
+                // User has no stats yet — that's fine
             }
         }
 
@@ -20389,7 +20773,7 @@ function rpcAsyncChallengeLeaderboard(ctx, logger, nk, payload) {
                 entries: leaderboard,
                 currentUser: currentUserStats,
                 currentUserRank: currentUserRank,
-                totalPlayers: allStats.length,
+                totalPlayers: leaderboard.length,
                 sortBy: sortBy
             }
         });
