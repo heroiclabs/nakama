@@ -188,6 +188,20 @@ var __rpc_analytics_track_retention_event;
 var __rpc_analytics_arpu;
 var __rpc_analytics_track_revenue;
 var __rpc_analytics_log_event;
+var __rpc_analytics_dashboard;
+var __rpc_analytics_session_stats;
+var __rpc_analytics_funnel;
+var __rpc_analytics_economy_health;
+var __rpc_analytics_error_log;
+var __rpc_analytics_feature_adoption;
+var __rpc_analytics_quiz_performance;
+var __rpc_analytics_ai_features;
+var __rpc_analytics_home_heatmap;
+var __rpc_analytics_monetization_detail;
+var __rpc_analytics_platform_breakdown;
+var __rpc_analytics_top_players;
+var __rpc_admin_events_timeline;
+var __rpc_admin_storage_list;
 var __rpc_send_group_chat_message;
 var __rpc_send_direct_message;
 var __rpc_send_chat_room_message;
@@ -53819,6 +53833,8 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
         LegacyMissions.register(initializer);
         logger.info("[Legacy] Registering analytics RPCs...");
         LegacyAnalytics.register(initializer);
+        logger.info("[Analytics] Registering analytics dashboard RPCs...");
+        AnalyticsDashboard.register(initializer);
         logger.info("[Legacy] Registering friends RPCs...");
         LegacyFriends.register(initializer);
         logger.info("[Legacy] Registering groups RPCs...");
@@ -59116,6 +59132,726 @@ var LegacyAnalytics;
     LegacyAnalytics.register = register;
     register();
 })(LegacyAnalytics || (LegacyAnalytics = {}));
+// ══════════════════════════════════════════════════════════════════════════════
+// ANALYTICS DASHBOARD MODULE - Production-Ready RPCs for analytics.html
+// ══════════════════════════════════════════════════════════════════════════════
+var AnalyticsDashboard;
+(function (AnalyticsDashboard) {
+    // Helper: read aggregated storage with safe null handling
+    function readAggStorage(nk, collection, key) {
+        try {
+            var recs = nk.storageRead([{ collection: collection, key: key, userId: Constants.SYSTEM_USER_ID }]);
+            if (recs && recs.length > 0 && recs[0].value) {
+                return recs[0].value;
+            }
+        } catch (_) {}
+        return null;
+    }
+
+    // Helper: get date string for N days ago (YYYY-MM-DD)
+    function dateNDaysAgo(n) {
+        return new Date(Date.now() - n * 86400000).toISOString().split("T")[0];
+    }
+
+    // Helper: safe get nested property
+    function safeGet(obj, key, fallback) {
+        if (obj && typeof obj[key] !== "undefined" && obj[key] !== null) {
+            return obj[key];
+        }
+        return fallback;
+    }
+
+    // Helper: safe get array length
+    function safeArrayLen(arr) {
+        return (arr && Array.isArray(arr)) ? arr.length : 0;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_dashboard - Main overview
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var today = dateNDaysAgo(0);
+            logger.debug("[AnalyticsDashboard] Loading overview for gameId=" + (gameId || "platform"));
+
+            // Get today's DAU
+            var dauKey = gameId ? "dau_" + gameId + "_" + today : "dau_platform_" + today;
+            var dauData = readAggStorage(nk, "analytics_dau", dauKey);
+            var dau = 0;
+            var newUsersToday = 0;
+            if (dauData) {
+                dau = safeGet(dauData, "count", 0) || safeArrayLen(dauData.uniqueUsers);
+                newUsersToday = safeGet(dauData, "newUsers", 0);
+            }
+
+            // Calculate WAU (7 days) using object for O(1) deduplication
+            var wauUsersMap = {};
+            for (var d = 0; d < 7; d++) {
+                var dayKey = gameId ? "dau_" + gameId + "_" + dateNDaysAgo(d) : "dau_platform_" + dateNDaysAgo(d);
+                var dayData = readAggStorage(nk, "analytics_dau", dayKey);
+                if (dayData && dayData.uniqueUsers && Array.isArray(dayData.uniqueUsers)) {
+                    for (var i = 0; i < dayData.uniqueUsers.length; i++) {
+                        wauUsersMap[dayData.uniqueUsers[i]] = true;
+                    }
+                }
+            }
+            var wau = Object.keys(wauUsersMap).length;
+
+            // Calculate MAU (30 days) using object for O(1) deduplication
+            var mauUsersMap = {};
+            for (var d = 0; d < 30; d++) {
+                var dayKey = gameId ? "dau_" + gameId + "_" + dateNDaysAgo(d) : "dau_platform_" + dateNDaysAgo(d);
+                var dayData = readAggStorage(nk, "analytics_dau", dayKey);
+                if (dayData && dayData.uniqueUsers && Array.isArray(dayData.uniqueUsers)) {
+                    for (var i = 0; i < dayData.uniqueUsers.length; i++) {
+                        mauUsersMap[dayData.uniqueUsers[i]] = true;
+                    }
+                }
+            }
+            var mau = Object.keys(mauUsersMap).length;
+            var dauMauRatio = mau > 0 ? (dau / mau) : 0;
+
+            // DAU trend (last 7 days)
+            var dauTrend = [];
+            var dau7dMin = Number.MAX_SAFE_INTEGER;
+            var dau7dMax = 0;
+            for (var d = 6; d >= 0; d--) {
+                var trendDate = dateNDaysAgo(d);
+                var trendKey = gameId ? "dau_" + gameId + "_" + trendDate : "dau_platform_" + trendDate;
+                var trendData = readAggStorage(nk, "analytics_dau", trendKey);
+                var dayDau = 0;
+                if (trendData) {
+                    dayDau = safeGet(trendData, "count", 0) || safeArrayLen(trendData.uniqueUsers);
+                }
+                dauTrend.push({ date: trendDate, dau: dayDau });
+                if (dayDau < dau7dMin) dau7dMin = dayDau;
+                if (dayDau > dau7dMax) dau7dMax = dayDau;
+            }
+
+            // DAU 7d change %
+            var dau7dAgo = dauTrend.length > 0 ? dauTrend[0].dau : 0;
+            var dau7dChangePct = dau7dAgo > 0 ? Math.round(((dau - dau7dAgo) / dau7dAgo) * 100) : 0;
+
+            // Average session duration from storage
+            var sessionData = readAggStorage(nk, "analytics_sessions", "session_stats_" + today);
+            var avgSessionDuration = sessionData ? safeGet(sessionData, "avgDuration", 0) : 0;
+
+            // Top games (if querying platform-wide)
+            var topGames = [];
+            if (!gameId) {
+                var gameRegistry = readAggStorage(nk, Constants.GAME_REGISTRY_COLLECTION, "registry");
+                if (gameRegistry && gameRegistry.games && Array.isArray(gameRegistry.games)) {
+                    for (var g = 0; g < Math.min(gameRegistry.games.length, 5); g++) {
+                        var gid = gameRegistry.games[g].id || gameRegistry.games[g].gameId;
+                        var gDauKey = "dau_" + gid + "_" + today;
+                        var gDauData = readAggStorage(nk, "analytics_dau", gDauKey);
+                        var gDau = 0;
+                        if (gDauData) {
+                            gDau = safeGet(gDauData, "count", 0) || safeArrayLen(gDauData.uniqueUsers);
+                        }
+                        topGames.push({ game_id: gid, dau: gDau });
+                    }
+                    topGames.sort(function(a, b) { return b.dau - a.dau; });
+                }
+            }
+
+            return RpcHelpers.successResponse({
+                dau: dau,
+                wau: wau,
+                mau: mau,
+                dau_mau_ratio: parseFloat(dauMauRatio.toFixed(3)),
+                new_users_today: newUsersToday,
+                returning_users_today: Math.max(0, dau - newUsersToday),
+                avg_session_duration_seconds: avgSessionDuration,
+                dau_trend: dauTrend,
+                dau_7d_min: dau7dMin === Number.MAX_SAFE_INTEGER ? 0 : dau7dMin,
+                dau_7d_max: dau7dMax,
+                trends: { dau_7d_change_pct: dau7dChangePct },
+                top_games: topGames,
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Dashboard error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Dashboard error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_session_stats - Session statistics
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcSessionStats(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var days = parseInt(data.days, 10) || 7;
+            logger.debug("[AnalyticsDashboard] Loading session stats for " + days + " days");
+
+            var totalSessions = 0;
+            var totalDuration = 0;
+            var durations = [];
+            var dailyBreakdown = [];
+            var peakHours = [];
+            for (var h = 0; h < 24; h++) {
+                peakHours.push({ hour: h, count: 0 });
+            }
+
+            for (var d = 0; d < days; d++) {
+                var dayStr = dateNDaysAgo(d);
+                var sessKey = gameId ? "sessions_" + gameId + "_" + dayStr : "sessions_platform_" + dayStr;
+                var sessData = readAggStorage(nk, "analytics_sessions", sessKey);
+                var daySessions = sessData ? safeGet(sessData, "count", 0) : 0;
+                var dayDuration = sessData ? safeGet(sessData, "totalDuration", 0) : 0;
+                totalSessions += daySessions;
+                totalDuration += dayDuration;
+
+                if (sessData && sessData.durations && Array.isArray(sessData.durations)) {
+                    for (var i = 0; i < sessData.durations.length; i++) {
+                        durations.push(sessData.durations[i]);
+                    }
+                }
+                if (sessData && sessData.hourlyDistribution) {
+                    for (var hr = 0; hr < 24; hr++) {
+                        peakHours[hr].count += safeGet(sessData.hourlyDistribution, hr, 0);
+                    }
+                }
+                dailyBreakdown.push({
+                    date: dayStr,
+                    sessions: daySessions,
+                    avg_duration: daySessions > 0 ? Math.round(dayDuration / daySessions) : 0
+                });
+            }
+            dailyBreakdown.reverse();
+            durations.sort(function(a, b) { return a - b; });
+
+            var avgDuration = totalSessions > 0 ? Math.round(totalDuration / totalSessions) : 0;
+            var medianDuration = durations.length > 0 ? durations[Math.floor(durations.length / 2)] : 0;
+            var p95Duration = durations.length > 0 ? durations[Math.floor(durations.length * 0.95)] : 0;
+
+            return RpcHelpers.successResponse({
+                total_sessions: totalSessions,
+                avg_duration_seconds: avgDuration,
+                median_duration_seconds: medianDuration,
+                p95_duration_seconds: p95Duration,
+                sessions_per_day_avg: days > 0 ? Math.round(totalSessions / days) : 0,
+                daily_breakdown: dailyBreakdown,
+                peak_hours: peakHours,
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Session stats error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Session stats error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_funnel - Conversion funnel
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcFunnel(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var funnelKey = gameId ? "funnel_" + gameId : "funnel_platform";
+            var funnelData = readAggStorage(nk, "analytics_funnel", funnelKey);
+
+            // Default empty funnel if no data
+            if (!funnelData) {
+                funnelData = {
+                    app_open: 0, tutorial_start: 0, tutorial_complete: 0,
+                    first_game: 0, first_purchase: 0, repeat_purchase: 0
+                };
+            }
+
+            var stepNames = ["app_open", "tutorial_start", "tutorial_complete", "first_game", "first_purchase", "repeat_purchase"];
+            var steps = [];
+            var prevCount = 0;
+            for (var i = 0; i < stepNames.length; i++) {
+                var name = stepNames[i];
+                var count = safeGet(funnelData, name, 0);
+                var appOpenCount = safeGet(funnelData, "app_open", 0);
+                var pctOfTotal = appOpenCount > 0 ? Math.round((count / appOpenCount) * 100) : 0;
+                var pctOfPrev = prevCount > 0 ? Math.round((count / prevCount) * 100) : 100;
+                var dropOff = prevCount > 0 ? Math.round(((prevCount - count) / prevCount) * 100) : 0;
+                steps.push({
+                    name: name,
+                    count: count,
+                    pct_of_total: pctOfTotal,
+                    pct_of_previous: pctOfPrev,
+                    drop_off_pct: dropOff
+                });
+                prevCount = count;
+            }
+
+            var worstDrop = { step: "", drop_pct: 0 };
+            for (var i = 1; i < steps.length; i++) {
+                if (steps[i].drop_off_pct > worstDrop.drop_pct) {
+                    worstDrop = { step: steps[i].name, drop_pct: steps[i].drop_off_pct };
+                }
+            }
+
+            return RpcHelpers.successResponse({ steps: steps, worst_drop_off: worstDrop, gameId: gameId });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Funnel error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Funnel error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_economy_health - Economy metrics
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcEconomyHealth(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var economyKey = gameId ? "economy_" + gameId : "economy_platform";
+            var economyData = readAggStorage(nk, "analytics_economy", economyKey);
+
+            // Return empty/zero data if no aggregated data exists
+            if (!economyData) {
+                economyData = {
+                    total_coins: 0, total_gems: 0, avg_coins: 0, median_coins: 0,
+                    whale_count: 0, gini_coefficient: 0, sample_size: 0,
+                    source_sink_ratio: { sources_total: 0, sinks_total: 0, ratio: 0 }
+                };
+            }
+
+            return RpcHelpers.successResponse({
+                total_coins: safeGet(economyData, "total_coins", 0),
+                total_gems: safeGet(economyData, "total_gems", 0),
+                avg_coins: safeGet(economyData, "avg_coins", 0),
+                median_coins: safeGet(economyData, "median_coins", 0),
+                whale_count: safeGet(economyData, "whale_count", 0),
+                gini_coefficient: safeGet(economyData, "gini_coefficient", 0),
+                sample_size: safeGet(economyData, "sample_size", 0),
+                source_sink_ratio: economyData.source_sink_ratio || { sources_total: 0, sinks_total: 0, ratio: 0 },
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Economy health error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Economy health error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_error_log - Error tracking
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcErrorLog(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var days = parseInt(data.days, 10) || 7;
+            var errorsByRpc = {};
+            var totalErrors = 0;
+
+            // Read from analytics_error_events collection
+            try {
+                var limit = 500;
+                var cutoffTime = Date.now() - (days * 86400000);
+                var result = nk.storageList(Constants.SYSTEM_USER_ID, Constants.ANALYTICS_COLLECTION, limit, "");
+                var objects = (result && result.objects) ? result.objects : [];
+
+                for (var i = 0; i < objects.length; i++) {
+                    var obj = objects[i];
+                    if (obj.key && obj.key.indexOf("err_") === 0) {
+                        var errData = obj.value;
+                        var errTimestamp = errData ? safeGet(errData, "timestamp", 0) : 0;
+                        if (errData && errTimestamp * 1000 >= cutoffTime) {
+                            totalErrors++;
+                            var rpcName = safeGet(errData, "rpcName", "unknown");
+                            if (!errorsByRpc[rpcName]) {
+                                errorsByRpc[rpcName] = { rpc_name: rpcName, count: 0, last_occurred: "", sample_error: "" };
+                            }
+                            errorsByRpc[rpcName].count++;
+                            errorsByRpc[rpcName].last_occurred = errTimestamp ? new Date(errTimestamp * 1000).toISOString() : "";
+                            errorsByRpc[rpcName].sample_error = safeGet(errData, "errorMessage", "") || safeGet(errData, "message", "");
+                        }
+                    }
+                }
+            } catch (listErr) {
+                logger.warn("[AnalyticsDashboard] Error listing error events: " + (listErr.message || String(listErr)));
+            }
+
+            var errorsArray = [];
+            for (var rpc in errorsByRpc) {
+                if (errorsByRpc.hasOwnProperty(rpc)) {
+                    errorsArray.push(errorsByRpc[rpc]);
+                }
+            }
+            errorsArray.sort(function(a, b) { return b.count - a.count; });
+
+            var mostFailing = errorsArray.length > 0
+                ? { name: errorsArray[0].rpc_name, count: errorsArray[0].count }
+                : { name: "None", count: 0 };
+
+            return RpcHelpers.successResponse({
+                total_errors: totalErrors,
+                errors_by_rpc: errorsArray.slice(0, 20),
+                most_failing_rpc: mostFailing,
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Error log error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Error log error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_feature_adoption - Feature usage
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcFeatureAdoption(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var featureKey = gameId ? "features_" + gameId : "features_platform";
+            var featureData = readAggStorage(nk, "analytics_features", featureKey);
+
+            var totalUsers = 0;
+            var features = [];
+            if (featureData) {
+                totalUsers = safeGet(featureData, "total_users", 0);
+                features = featureData.features && Array.isArray(featureData.features) ? featureData.features : [];
+            }
+
+            // Calculate adoption percentage for each feature
+            for (var i = 0; i < features.length; i++) {
+                var usersCount = safeGet(features[i], "users_count", 0);
+                features[i].adoption_pct = totalUsers > 0 ? Math.round((usersCount / totalUsers) * 100) : 0;
+            }
+            features.sort(function(a, b) { return (b.users_count || 0) - (a.users_count || 0); });
+
+            return RpcHelpers.successResponse({
+                features: features,
+                total_users: totalUsers,
+                recommendations: [],
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Feature adoption error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Feature adoption error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_quiz_performance - Quiz metrics
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcQuizPerformance(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var quizKey = gameId ? "quiz_" + gameId : "quiz_platform";
+            var quizData = readAggStorage(nk, "analytics_quiz", quizKey);
+
+            // Return zeros if no data
+            if (!quizData) {
+                quizData = {
+                    quiz_started: 0, quiz_completed: 0, quiz_abandoned: 0,
+                    accuracy_rate_pct: 0, avg_score: 0, hints_used: 0,
+                    daily_completed: 0, avg_streak: 0,
+                    top_topics: [], difficulty_breakdown: []
+                };
+            }
+
+            var quizStarted = safeGet(quizData, "quiz_started", 0);
+            var quizCompleted = safeGet(quizData, "quiz_completed", 0);
+            var completionRate = quizStarted > 0 ? Math.round((quizCompleted / quizStarted) * 100) : 0;
+
+            return RpcHelpers.successResponse({
+                quiz_started: quizStarted,
+                quiz_completed: quizCompleted,
+                quiz_abandoned: safeGet(quizData, "quiz_abandoned", 0),
+                completion_rate_pct: completionRate,
+                accuracy_rate_pct: safeGet(quizData, "accuracy_rate_pct", 0),
+                avg_score: safeGet(quizData, "avg_score", 0),
+                hints_used: safeGet(quizData, "hints_used", 0),
+                daily_completed: safeGet(quizData, "daily_completed", 0),
+                avg_streak: safeGet(quizData, "avg_streak", 0),
+                top_topics: quizData.top_topics || [],
+                difficulty_breakdown: quizData.difficulty_breakdown || [],
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Quiz performance error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Quiz performance error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_ai_features - AI feature usage
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcAiFeatures(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var aiKey = gameId ? "ai_" + gameId : "ai_platform";
+            var aiData = readAggStorage(nk, "analytics_ai", aiKey);
+
+            // Return zeros if no data
+            if (!aiData) {
+                aiData = {
+                    total_ai_events: 0, total_ai_users: 0, ai_adoption_pct: 0,
+                    credits_consumed: 0, voice_answers: 0, users_sampled: 0,
+                    features: []
+                };
+            }
+
+            return RpcHelpers.successResponse({
+                total_ai_events: safeGet(aiData, "total_ai_events", 0),
+                total_ai_users: safeGet(aiData, "total_ai_users", 0),
+                ai_adoption_pct: safeGet(aiData, "ai_adoption_pct", 0),
+                credits_consumed: safeGet(aiData, "credits_consumed", 0),
+                voice_answers: safeGet(aiData, "voice_answers", 0),
+                users_sampled: safeGet(aiData, "users_sampled", 0),
+                features: aiData.features || [],
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] AI features error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "AI features error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_home_heatmap - Screen heatmap
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcHomeHeatmap(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var heatmapKey = gameId ? "heatmap_" + gameId : "heatmap_platform";
+            var heatmapData = readAggStorage(nk, "analytics_heatmap", heatmapKey);
+
+            // Return empty arrays if no data
+            if (!heatmapData) {
+                heatmapData = { buttons: [], top_screens: [], screen_time: [], top_popups: [] };
+            }
+
+            return RpcHelpers.successResponse({
+                buttons: heatmapData.buttons || [],
+                top_screens: heatmapData.top_screens || [],
+                screen_time: heatmapData.screen_time || [],
+                top_popups: heatmapData.top_popups || [],
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Heatmap error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Heatmap error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_monetization_detail - Monetization stats
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcMonetizationDetail(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var monetKey = gameId ? "monetization_" + gameId : "monetization_platform";
+            var monetData = readAggStorage(nk, "analytics_monetization", monetKey);
+
+            // Return zeros if no data
+            if (!monetData) {
+                monetData = {
+                    ad_impressions: 0, ad_completed: 0, ad_fill_rate_pct: 0,
+                    ad_revenue_total: 0, iap_completed: 0, paywall_shown: 0,
+                    paywall_conversion_rate_pct: 0, store_opens: 0,
+                    ad_types: [], daily_ad_revenue: [], top_products: []
+                };
+            }
+
+            return RpcHelpers.successResponse({
+                ad_impressions: safeGet(monetData, "ad_impressions", 0),
+                ad_completed: safeGet(monetData, "ad_completed", 0),
+                ad_fill_rate_pct: safeGet(monetData, "ad_fill_rate_pct", 0),
+                ad_revenue_total: safeGet(monetData, "ad_revenue_total", 0),
+                iap_completed: safeGet(monetData, "iap_completed", 0),
+                paywall_shown: safeGet(monetData, "paywall_shown", 0),
+                paywall_conversion_rate_pct: safeGet(monetData, "paywall_conversion_rate_pct", 0),
+                store_opens: safeGet(monetData, "store_opens", 0),
+                ad_types: monetData.ad_types || [],
+                daily_ad_revenue: monetData.daily_ad_revenue || [],
+                top_products: monetData.top_products || [],
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Monetization detail error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Monetization detail error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_platform_breakdown - Platform distribution
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcPlatformBreakdown(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var platformKey = gameId ? "platforms_" + gameId : "platforms_all";
+            var platformData = readAggStorage(nk, "analytics_platforms", platformKey);
+
+            // Return empty arrays if no data
+            if (!platformData) {
+                platformData = { platforms: [], os_versions: [], top_devices: [] };
+            }
+
+            return RpcHelpers.successResponse({
+                platforms: platformData.platforms || [],
+                os_versions: platformData.os_versions || [],
+                top_devices: platformData.top_devices || [],
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Platform breakdown error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Platform breakdown error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: analytics_top_players - Top players
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcTopPlayers(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || null;
+            var days = parseInt(data.days, 10) || 7;
+            var limit = parseInt(data.limit, 10) || 25;
+            var playersKey = gameId ? "top_players_" + gameId : "top_players_platform";
+            var playersData = readAggStorage(nk, "analytics_players", playersKey);
+
+            var players = [];
+            var totalActiveUsers = 0;
+            var usersSampled = 0;
+
+            if (playersData) {
+                players = playersData.players && Array.isArray(playersData.players) ? playersData.players : [];
+                totalActiveUsers = safeGet(playersData, "total_active_users", 0);
+                usersSampled = safeGet(playersData, "users_sampled", 0);
+            }
+
+            return RpcHelpers.successResponse({
+                players: players.slice(0, limit),
+                total_active_users: totalActiveUsers,
+                users_sampled: usersSampled,
+                days: days,
+                gameId: gameId
+            });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Top players error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Top players error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: admin_events_timeline - Events timeline (ADMIN ONLY)
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcAdminEventsTimeline(ctx, logger, nk, payload) {
+        try {
+            // Require admin access
+            RpcHelpers.requireAdmin(ctx, nk);
+
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var days = parseInt(data.days, 10) || 7;
+            var limit = parseInt(data.limit, 10) || 100;
+            var events = [];
+            var cutoffTime = Date.now() - (days * 86400000);
+
+            logger.debug("[AnalyticsDashboard] Admin loading events timeline for " + days + " days");
+
+            try {
+                var result = nk.storageList(Constants.SYSTEM_USER_ID, Constants.ANALYTICS_COLLECTION, limit, "");
+                var objects = (result && result.objects) ? result.objects : [];
+
+                for (var i = 0; i < objects.length; i++) {
+                    var obj = objects[i];
+                    if (obj.key && obj.key.indexOf("evt_") === 0 && obj.value) {
+                        var evtData = obj.value;
+                        var evtTimestamp = safeGet(evtData, "timestamp", 0);
+                        if (evtTimestamp * 1000 >= cutoffTime) {
+                            events.push({
+                                timestamp: evtTimestamp ? new Date(evtTimestamp * 1000).toISOString() : "",
+                                name: safeGet(evtData, "eventName", "unknown"),
+                                user_id: safeGet(evtData, "userId", ""),
+                                properties: evtData.properties || {}
+                            });
+                        }
+                    }
+                }
+            } catch (listErr) {
+                logger.warn("[AnalyticsDashboard] Error listing events: " + (listErr.message || String(listErr)));
+            }
+
+            events.sort(function(a, b) {
+                return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+            });
+
+            return RpcHelpers.successResponse({ events: events.slice(0, limit) });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Events timeline error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Events timeline error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RPC: admin_storage_list - Storage browser (ADMIN ONLY)
+    // ──────────────────────────────────────────────────────────────────────────
+    function rpcAdminStorageList(ctx, logger, nk, payload) {
+        try {
+            // Require admin access
+            RpcHelpers.requireAdmin(ctx, nk);
+
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var collection = data.collection || "analytics";
+            var limit = parseInt(data.limit, 10) || 50;
+            var objects = [];
+
+            logger.debug("[AnalyticsDashboard] Admin listing storage collection=" + collection);
+
+            try {
+                var result = nk.storageList(Constants.SYSTEM_USER_ID, collection, limit, "");
+                var recs = (result && result.objects) ? result.objects : [];
+
+                for (var i = 0; i < recs.length; i++) {
+                    objects.push({
+                        collection: recs[i].collection,
+                        key: recs[i].key,
+                        user_id: recs[i].userId,
+                        update_time: recs[i].updateTime,
+                        value: recs[i].value
+                    });
+                }
+            } catch (listErr) {
+                logger.warn("[AnalyticsDashboard] Error listing storage: " + (listErr.message || String(listErr)));
+            }
+
+            return RpcHelpers.successResponse({ objects: objects });
+        } catch (e) {
+            logger.error("[AnalyticsDashboard] Storage list error: " + (e.message || String(e)));
+            return RpcHelpers.errorResponse(e.message || "Storage list error");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Register all RPCs
+    // ──────────────────────────────────────────────────────────────────────────
+    function register(initializer) {
+        __rpc_analytics_dashboard = rpcAnalyticsDashboard;
+        __rpc_analytics_session_stats = rpcSessionStats;
+        __rpc_analytics_funnel = rpcFunnel;
+        __rpc_analytics_economy_health = rpcEconomyHealth;
+        __rpc_analytics_error_log = rpcErrorLog;
+        __rpc_analytics_feature_adoption = rpcFeatureAdoption;
+        __rpc_analytics_quiz_performance = rpcQuizPerformance;
+        __rpc_analytics_ai_features = rpcAiFeatures;
+        __rpc_analytics_home_heatmap = rpcHomeHeatmap;
+        __rpc_analytics_monetization_detail = rpcMonetizationDetail;
+        __rpc_analytics_platform_breakdown = rpcPlatformBreakdown;
+        __rpc_analytics_top_players = rpcTopPlayers;
+        __rpc_admin_events_timeline = rpcAdminEventsTimeline;
+        __rpc_admin_storage_list = rpcAdminStorageList;
+    }
+    AnalyticsDashboard.register = register;
+    register();
+})(AnalyticsDashboard || (AnalyticsDashboard = {}));
 var LegacyChat;
 (function (LegacyChat) {
     function rpcSendGroupChatMessage(ctx, logger, nk, payload) {
@@ -65076,6 +65812,21 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("analytics_arpu", __rpc_analytics_arpu); } catch(e) {}
   try { initializer.registerRpc("analytics_track_revenue", __rpc_analytics_track_revenue); } catch(e) {}
   try { initializer.registerRpc("analytics_log_event", __rpc_analytics_log_event); } catch(e) {}
+  // Analytics Dashboard RPCs (12 new endpoints)
+  try { initializer.registerRpc("analytics_dashboard", __rpc_analytics_dashboard); } catch(e) {}
+  try { initializer.registerRpc("analytics_session_stats", __rpc_analytics_session_stats); } catch(e) {}
+  try { initializer.registerRpc("analytics_funnel", __rpc_analytics_funnel); } catch(e) {}
+  try { initializer.registerRpc("analytics_economy_health", __rpc_analytics_economy_health); } catch(e) {}
+  try { initializer.registerRpc("analytics_error_log", __rpc_analytics_error_log); } catch(e) {}
+  try { initializer.registerRpc("analytics_feature_adoption", __rpc_analytics_feature_adoption); } catch(e) {}
+  try { initializer.registerRpc("analytics_quiz_performance", __rpc_analytics_quiz_performance); } catch(e) {}
+  try { initializer.registerRpc("analytics_ai_features", __rpc_analytics_ai_features); } catch(e) {}
+  try { initializer.registerRpc("analytics_home_heatmap", __rpc_analytics_home_heatmap); } catch(e) {}
+  try { initializer.registerRpc("analytics_monetization_detail", __rpc_analytics_monetization_detail); } catch(e) {}
+  try { initializer.registerRpc("analytics_platform_breakdown", __rpc_analytics_platform_breakdown); } catch(e) {}
+  try { initializer.registerRpc("analytics_top_players", __rpc_analytics_top_players); } catch(e) {}
+  try { initializer.registerRpc("admin_events_timeline", __rpc_admin_events_timeline); } catch(e) {}
+  try { initializer.registerRpc("admin_storage_list", __rpc_admin_storage_list); } catch(e) {}
   try { initializer.registerRpc("send_group_chat_message", __rpc_send_group_chat_message); } catch(e) {}
   try { initializer.registerRpc("send_direct_message", __rpc_send_direct_message); } catch(e) {}
   try { initializer.registerRpc("send_chat_room_message", __rpc_send_chat_room_message); } catch(e) {}
