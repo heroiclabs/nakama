@@ -264,7 +264,7 @@ export class NakamaApiClient {
   }
 
   async callRpc(rpcId: string, payload: unknown = {}): Promise<unknown> {
-    const url = `${this.baseUrl}/v2/rpc/${encodeURIComponent(rpcId)}?http_key=${encodeURIComponent(this.httpKey)}`;
+    const url = `${this.baseUrl}/v2/rpc/${encodeURIComponent(rpcId)}?unwrap&http_key=${encodeURIComponent(this.httpKey)}`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
