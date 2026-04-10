@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntelliVerseX Analytics Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --bg-card-hover: #22222e;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --success: #10b981;
+            --success-bg: rgba(16, 185, 129, 0.15);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.15);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.15);
+            --border: #2d2d3a;
+            --border-light: #3d3d4a;
+            --gradient-1: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --gradient-2: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
+            --shadow-glow: 0 0 20px var(--accent-glow);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            background-image: 
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 100% 100%, rgba(139, 92, 246, 0.1), transparent);
+            color: var(--text-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* Login Modal */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .login-overlay.hidden {
+            display: none;
+        }
+        
+        .login-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 3rem;
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: var(--shadow-lg), var(--shadow-glow);
+        }
+        
+        .login-logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .login-box h2 {
+            margin-bottom: 0.5rem;
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .login-box p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+        
+        .input-group {
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+        
+        .input-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .login-box input {
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.875rem 1rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .login-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        
+        .login-box button {
+            width: 100%;
+            background: var(--gradient-1);
+            color: white;
+            border: none;
+            padding: 0.875rem 1.5rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            margin-top: 0.5rem;
+            transition: background 0.2s;
+        }
+        
+        .login-box button:hover {
+            background: var(--accent-light);
+        }
+        
+        .login-error {
+            color: var(--danger);
+            font-size: 0.875rem;
+            margin-top: 1rem;
+            display: none;
+        }
+        
+        .login-error.show {
+            display: block;
+        }
+        
+        .header {
+            background: var(--bg-secondary);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        
+        .back-btn:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 700;
+        }
+        
+        .header h1 .logo {
+            font-size: 1.75rem;
+        }
+        
+        .game-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.5rem 1rem;
+        }
+        
+        .game-selector label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        
+        .game-selector select {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding-right: 1.5rem;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right center;
+        }
+        
+        .game-selector select:focus {
+            outline: none;
+        }
+        
+        .config-panel {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .config-panel button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .config-panel button:hover {
+            background: var(--accent-light);
+        }
+        
+        .config-panel button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .config-panel button.logout-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        
+        .config-panel button.logout-btn:hover {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+        
+        .status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .status.connected {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+        
+        .status.disconnected {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+        
+        .main {
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-radius: 10px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+        
+        .tab.active {
+            color: var(--text-primary);
+            background: var(--accent);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .kpi-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-1);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .kpi-card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-light);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .kpi-card:hover::before {
+            opacity: 1;
+        }
+        
+        .kpi-card .icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .kpi-card .label {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .kpi-card .value {
+            font-size: 2.25rem;
+            font-weight: 800;
+            line-height: 1.1;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .kpi-card .value.plain {
+            background: none;
+            -webkit-text-fill-color: var(--text-primary);
+        }
+        
+        .kpi-card .value.currency::before {
+            content: '$';
+            font-size: 1.25rem;
+        }
+        
+        .kpi-card .trend {
+            font-size: 0.8rem;
+            margin-top: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .kpi-card .trend.positive {
+            color: var(--success);
+        }
+        
+        .kpi-card .trend.positive::before {
+            content: '↗';
+        }
+        
+        .kpi-card .trend.negative {
+            color: var(--danger);
+        }
+        
+        .kpi-card .trend.negative::before {
+            content: '↘';
+        }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .chart-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+        }
+        
+        .chart-card:hover {
+            border-color: var(--border-light);
+        }
+        
+        .chart-card h3 {
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .data-table th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        
+        .data-table tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .progress-bar {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            height: 8px;
+            width: 100px;
+            display: inline-block;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+        
+        .progress-bar .fill {
+            background: var(--accent);
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--accent);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .funnel-step {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            margin-bottom: 2px;
+            position: relative;
+        }
+        
+        .funnel-step .name {
+            flex: 1;
+            font-weight: 500;
+        }
+        
+        .funnel-step .count {
+            width: 80px;
+            text-align: right;
+        }
+        
+        .funnel-step .pct {
+            width: 80px;
+            text-align: right;
+            color: var(--text-secondary);
+        }
+        
+        .funnel-step .drop {
+            width: 100px;
+            text-align: right;
+            font-size: 0.875rem;
+        }
+        
+        .funnel-step .drop.high {
+            color: var(--danger);
+        }
+        
+        .funnel-step .drop.medium {
+            color: var(--warning);
+        }
+        
+        .funnel-step .drop.low {
+            color: var(--success);
+        }
+        
+        .score-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .score-badge.power_user { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+        .score-badge.engaged { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .score-badge.moderate { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .score-badge.at_risk { background: rgba(249, 115, 22, 0.2); color: #f97316; }
+        .score-badge.churning { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+        
+        .period-selector {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .period-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        
+        .period-btn:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        
+        .period-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Admin Login Modal -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-box">
+            <div class="login-logo">📊</div>
+            <h2>Analytics Dashboard</h2>
+            <p>IntelliVerseX Platform - Admin Access Only</p>
+            <div class="input-group">
+                <label for="adminUsername">Username</label>
+                <input type="text" id="adminUsername" placeholder="Enter username" autocomplete="username">
+            </div>
+            <div class="input-group">
+                <label for="adminPassword">Password</label>
+                <input type="password" id="adminPassword" placeholder="Enter password" autocomplete="current-password">
+            </div>
+            <button onclick="attemptLogin()">Sign In</button>
+            <div id="loginError" class="login-error">Invalid credentials. Please try again.</div>
+        </div>
+    </div>
+    
+    <header class="header">
+        <div class="header-left">
+            <a href="https://nakama-rest.intelli-verse-x.ai" class="back-btn" title="Back to Nakama Console">
+                <span>←</span> Nakama
+            </a>
+            <h1><span class="logo">📊</span> Analytics Dashboard</h1>
+        </div>
+        <div class="config-panel">
+            <div class="game-selector">
+                <label>Game:</label>
+                <select id="gameSelector" onchange="onGameChange()">
+                    <option value="all">🌐 All Games</option>
+                    <option value="126bf539-dae2-4bcf-964d-316c0fa1f92b" data-name="QuizVerse">🧠 QuizVerse</option>
+                    <option value="lasttolive" data-name="Last To Live">🎮 Last To Live</option>
+                    <option value="cricketvr" data-name="Cricket VR">🏏 Cricket VR</option>
+                </select>
+            </div>
+            <button id="refreshBtn" onclick="refreshAll()">🔄 Refresh</button>
+            <span id="connectionStatus" class="status disconnected">Disconnected</span>
+            <button class="logout-btn" onclick="logout()">🚪 Logout</button>
+        </div>
+    </header>
+    
+    <main class="main">
+        <div class="tabs">
+            <button class="tab active" data-tab="overview">📈 Overview</button>
+            <button class="tab" data-tab="revenue">💵 Revenue</button>
+            <button class="tab" data-tab="retention">🔄 Retention</button>
+            <button class="tab" data-tab="sessions">⏱️ Sessions</button>
+            <button class="tab" data-tab="funnel">🎯 Funnel</button>
+            <button class="tab" data-tab="economy">💰 Economy</button>
+            <button class="tab" data-tab="errors">🐛 Errors</button>
+            <button class="tab" data-tab="features">🎮 Features</button>
+        </div>
+        
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content active">
+            <div class="kpi-grid" id="overviewKpis">
+                <div class="loading">Loading dashboard data...</div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Daily Active Users (7 Days)</h3>
+                    <div class="chart-container">
+                        <canvas id="dauChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Top Games by DAU</h3>
+                    <div class="chart-container">
+                        <canvas id="topGamesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Revenue Tab -->
+        <div id="revenue" class="tab-content">
+            <div class="period-selector">
+                <button class="period-btn" data-period="7d" onclick="loadRevenue('7d')">7 Days</button>
+                <button class="period-btn active" data-period="30d" onclick="loadRevenue('30d')">30 Days</button>
+                <button class="period-btn" data-period="90d" onclick="loadRevenue('90d')">90 Days</button>
+            </div>
+            <div class="kpi-grid" id="revenueKpis">
+                <div class="loading">Loading revenue data...</div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Revenue Metrics</h3>
+                    <div class="chart-container">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Conversion Breakdown</h3>
+                    <div class="chart-container">
+                        <canvas id="conversionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Retention Tab -->
+        <div id="retention" class="tab-content">
+            <div class="kpi-grid" id="retentionKpis">
+                <div class="loading">Loading retention data...</div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card" style="grid-column: span 2;">
+                    <h3>Retention Curve</h3>
+                    <div class="chart-container">
+                        <canvas id="retentionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sessions Tab -->
+        <div id="sessions" class="tab-content">
+            <div class="kpi-grid" id="sessionKpis">
+                <div class="loading">Loading session data...</div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Sessions by Hour (UTC)</h3>
+                    <div class="chart-container">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Daily Sessions & Duration</h3>
+                    <div class="chart-container">
+                        <canvas id="dailySessionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Funnel Tab -->
+        <div id="funnel" class="tab-content">
+            <div class="chart-card">
+                <h3>Conversion Funnel</h3>
+                <div id="funnelSteps">
+                    <div class="loading">Loading funnel data...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Economy Tab -->
+        <div id="economy" class="tab-content">
+            <div class="kpi-grid" id="economyKpis">
+                <div class="loading">Loading economy data...</div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Coin Distribution</h3>
+                    <div class="chart-container">
+                        <canvas id="coinDistChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Source vs Sink</h3>
+                    <div class="chart-container">
+                        <canvas id="sourceSinkChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Errors Tab -->
+        <div id="errors" class="tab-content">
+            <div class="kpi-grid" id="errorKpis">
+                <div class="loading">Loading error data...</div>
+            </div>
+            <div class="chart-card">
+                <h3>Errors by RPC</h3>
+                <table class="data-table" id="errorTable">
+                    <thead>
+                        <tr>
+                            <th>RPC Name</th>
+                            <th>Count</th>
+                            <th>Last Occurred</th>
+                            <th>Sample Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="4" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Features Tab -->
+        <div id="features" class="tab-content">
+            <div class="chart-card">
+                <h3>Feature Adoption</h3>
+                <table class="data-table" id="featureTable">
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Users</th>
+                            <th>Adoption %</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="4" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+    
+    <footer class="footer">
+        <div class="footer-content">
+            <span id="lastUpdated">Last updated: —</span>
+            <span class="footer-divider">|</span>
+            <span id="selectedGameLabel">🌐 All Games</span>
+            <span class="footer-divider">|</span>
+            <span>IntelliVerseX Analytics v2.0</span>
+        </div>
+    </footer>
+    
+    <style>
+        .footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 1rem 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        
+        .footer-content {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .footer-divider {
+            color: var(--border);
+        }
+        
+        #selectedGameLabel {
+            color: var(--accent-light);
+            font-weight: 500;
+        }
+    </style>
+    
+    <script>
+        // ─────────────────────────────────────────────────────────────────────
+        // Configuration & State
+        // ─────────────────────────────────────────────────────────────────────
+        
+        // Production Nakama Server Configuration
+        const CONFIG = {
+            serverUrl: 'https://nakama-rest.intelli-verse-x.ai',
+            serverKey: 'defaultkey',
+            nakamaConsoleUrl: 'https://nakama-rest.intelli-verse-x.ai', // Back button destination
+            // Admin credentials
+            adminUsername: 'admin',
+            adminPassword: 'password',
+            // Known games with their IDs and names
+            games: {
+                'all': { name: 'All Games', icon: '🌐' },
+                '126bf539-dae2-4bcf-964d-316c0fa1f92b': { name: 'QuizVerse', icon: '🧠' },
+                'lasttolive': { name: 'Last To Live', icon: '🎮' },
+                'cricketvr': { name: 'Cricket VR', icon: '🏏' }
+            }
+        };
+        
+        let charts = {};
+        let sessionToken = null;
+        let isAuthenticated = false;
+        let selectedGameId = 'all';
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Admin Authentication
+        // ─────────────────────────────────────────────────────────────────────
+        
+        function attemptLogin() {
+            const username = document.getElementById('adminUsername').value.trim();
+            const password = document.getElementById('adminPassword').value;
+            
+            // Check credentials
+            if (username === CONFIG.adminUsername && password === CONFIG.adminPassword) {
+                isAuthenticated = true;
+                sessionStorage.setItem('qv_analytics_auth', 'true');
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('loginError').classList.remove('show');
+                refreshAll();
+            } else {
+                document.getElementById('loginError').classList.add('show');
+                document.getElementById('adminPassword').value = '';
+            }
+        }
+        
+        function logout() {
+            isAuthenticated = false;
+            sessionToken = null;
+            sessionStorage.removeItem('qv_analytics_auth');
+            document.getElementById('loginOverlay').classList.remove('hidden');
+            document.getElementById('connectionStatus').className = 'status disconnected';
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+        }
+        
+        function checkAuth() {
+            if (sessionStorage.getItem('qv_analytics_auth') === 'true') {
+                isAuthenticated = true;
+                document.getElementById('loginOverlay').classList.add('hidden');
+                return true;
+            }
+            return false;
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Game Selection
+        // ─────────────────────────────────────────────────────────────────────
+        
+        function onGameChange() {
+            selectedGameId = document.getElementById('gameSelector').value;
+            const game = CONFIG.games[selectedGameId];
+            console.log(`Switched to: ${game.icon} ${game.name}`);
+            refreshAll();
+        }
+        
+        function getGamePayload() {
+            if (selectedGameId === 'all') {
+                return {};
+            }
+            return { gameId: selectedGameId };
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Tab Navigation
+        // ─────────────────────────────────────────────────────────────────────
+        
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Nakama API Client
+        // ─────────────────────────────────────────────────────────────────────
+        
+        async function authenticate() {
+            try {
+                // Authenticate as device (admin device)
+                const deviceId = 'analytics-dashboard-' + Date.now();
+                const response = await fetch(`${CONFIG.serverUrl}/v2/account/authenticate/device?create=true`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Basic ' + btoa(CONFIG.serverKey + ':'),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ id: deviceId })
+                });
+                
+                if (!response.ok) throw new Error('Auth failed: ' + response.status);
+                
+                const data = await response.json();
+                sessionToken = data.token;
+                
+                document.getElementById('connectionStatus').className = 'status connected';
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                
+                return true;
+            } catch (e) {
+                console.error('Auth error:', e);
+                document.getElementById('connectionStatus').className = 'status disconnected';
+                document.getElementById('connectionStatus').textContent = 'Error';
+                return false;
+            }
+        }
+        
+        async function callRpc(rpcId, payload = {}) {
+            if (!sessionToken) {
+                const authed = await authenticate();
+                if (!authed) throw new Error('Not authenticated');
+            }
+            
+            const response = await fetch(`${CONFIG.serverUrl}/v2/rpc/${rpcId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + sessionToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    sessionToken = null;
+                    return callRpc(rpcId, payload); // Retry with new auth
+                }
+                throw new Error('RPC failed: ' + response.status);
+            }
+            
+            const data = await response.json();
+            return data.payload ? JSON.parse(data.payload) : data;
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Chart Helpers
+        // ─────────────────────────────────────────────────────────────────────
+        
+        function createLineChart(canvasId, labels, datasets, options = {}) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+            
+            if (charts[canvasId]) {
+                charts[canvasId].destroy();
+            }
+            
+            charts[canvasId] = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8' } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                    },
+                    ...options
+                }
+            });
+        }
+        
+        function createBarChart(canvasId, labels, data, options = {}) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+            
+            if (charts[canvasId]) {
+                charts[canvasId].destroy();
+            }
+            
+            charts[canvasId] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: 'rgba(124, 58, 237, 0.6)',
+                        borderColor: '#7c3aed',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                    },
+                    ...options
+                }
+            });
+        }
+        
+        function createDoughnutChart(canvasId, labels, data, colors) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+            
+            if (charts[canvasId]) {
+                charts[canvasId].destroy();
+            }
+            
+            charts[canvasId] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: colors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            position: 'right',
+                            labels: { color: '#94a3b8' } 
+                        }
+                    }
+                }
+            });
+        }
+        
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+        
+        function formatDuration(seconds) {
+            if (seconds < 60) return seconds + 's';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
+            return Math.floor(seconds / 3600) + 'h ' + Math.floor((seconds % 3600) / 60) + 'm';
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Data Loaders
+        // ─────────────────────────────────────────────────────────────────────
+        
+        async function loadOverview() {
+            try {
+                const gameLabel = selectedGameId === 'all' ? '' : ` (${CONFIG.games[selectedGameId]?.name || selectedGameId})`;
+                const data = await callRpc('analytics_dashboard', getGamePayload());
+                
+                if (data.error) {
+                    document.getElementById('overviewKpis').innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                const trendIcon = data.trends?.dau_7d_change_pct >= 0 ? '↗' : '↘';
+                const trendClass = data.trends?.dau_7d_change_pct >= 0 ? 'positive' : 'negative';
+                
+                document.getElementById('overviewKpis').innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">👥</div>
+                        <div class="label">Daily Active Users${gameLabel}</div>
+                        <div class="value">${formatNumber(data.dau)}</div>
+                        <div class="trend ${trendClass}">${data.trends?.dau_7d_change_pct || 0}% vs 7d ago</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📅</div>
+                        <div class="label">Weekly Active Users</div>
+                        <div class="value">${formatNumber(data.wau)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📆</div>
+                        <div class="label">Monthly Active Users</div>
+                        <div class="value">${formatNumber(data.mau)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📊</div>
+                        <div class="label">DAU/MAU Ratio</div>
+                        <div class="value plain">${(data.dau_mau_ratio * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">⏱️</div>
+                        <div class="label">Avg Session Duration</div>
+                        <div class="value plain">${formatDuration(data.avg_session_duration_seconds || 0)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">✨</div>
+                        <div class="label">New Users Today</div>
+                        <div class="value">${formatNumber(data.new_users_today)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🔄</div>
+                        <div class="label">Returning Users</div>
+                        <div class="value">${formatNumber(data.returning_users_today)}</div>
+                    </div>
+                `;
+                
+                // Top games chart
+                if (data.top_games && data.top_games.length > 0) {
+                    createBarChart('topGamesChart', 
+                        data.top_games.slice(0, 5).map(g => CONFIG.games[g.game_id]?.name || g.game_id.substring(0, 8)),
+                        data.top_games.slice(0, 5).map(g => g.dau)
+                    );
+                }
+                
+            } catch (e) {
+                console.error('Overview error:', e);
+                document.getElementById('overviewKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+        
+        async function loadRevenue(period = '30d') {
+            try {
+                // Update period selector UI
+                document.querySelectorAll('.period-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.period === period);
+                });
+                
+                const payload = { period: period, ...getGamePayload() };
+                const data = await callRpc('analytics_arpu', payload);
+                
+                if (data.error) {
+                    document.getElementById('revenueKpis').innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                const arppuHealth = data.arppu > 5 ? 'positive' : data.arppu < 1 ? 'negative' : '';
+                const convRateNum = parseFloat(data.conversionRate) || 0;
+                const convHealth = convRateNum > 3 ? 'positive' : convRateNum < 1 ? 'negative' : '';
+                
+                document.getElementById('revenueKpis').innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">💰</div>
+                        <div class="label">Total Revenue (${period})</div>
+                        <div class="value currency">${formatNumber(data.totalRevenue)}</div>
+                        <div class="trend">${data.totalPurchases} purchases</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📈</div>
+                        <div class="label">ARPU</div>
+                        <div class="value currency">${data.arpu?.toFixed(2) || '0.00'}</div>
+                        <div class="trend">Avg Revenue Per User</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">💎</div>
+                        <div class="label">ARPPU</div>
+                        <div class="value currency ${arppuHealth}">${data.arppu?.toFixed(2) || '0.00'}</div>
+                        <div class="trend">Avg Revenue Per Paying User</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🎯</div>
+                        <div class="label">Paying Users</div>
+                        <div class="value">${formatNumber(data.uniquePayingUsers)}</div>
+                        <div class="trend">Unique payers</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🔄</div>
+                        <div class="label">Conversion Rate</div>
+                        <div class="value plain ${convHealth}">${data.conversionRate || '0%'}</div>
+                        <div class="trend">DAU → Paying</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">👥</div>
+                        <div class="label">Avg DAU</div>
+                        <div class="value">${formatNumber(data.avgDau)}</div>
+                        <div class="trend">Over ${data.daysBack} days</div>
+                    </div>
+                `;
+                
+                // Revenue metrics chart (bar)
+                createBarChart('revenueChart', 
+                    ['Total Revenue', 'ARPU × 100', 'ARPPU × 10'],
+                    [data.totalRevenue, (data.arpu || 0) * 100, (data.arppu || 0) * 10]
+                );
+                
+                // Conversion funnel (doughnut)
+                const nonPaying = data.avgDau - data.uniquePayingUsers;
+                createDoughnutChart('conversionChart',
+                    ['Paying Users', 'Non-Paying Users'],
+                    [data.uniquePayingUsers, nonPaying > 0 ? nonPaying : 0],
+                    ['rgba(34, 197, 94, 0.8)', 'rgba(100, 116, 139, 0.5)']
+                );
+                
+            } catch (e) {
+                console.error('Revenue error:', e);
+                document.getElementById('revenueKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+        
+        async function loadRetention() {
+            try {
+                const data = await callRpc('analytics_retention_cohort', getGamePayload());
+                
+                if (data.error) {
+                    document.getElementById('retentionKpis').innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                document.getElementById('retentionKpis').innerHTML = `
+                    <div class="kpi-card">
+                        <div class="label">Cohort Date</div>
+                        <div class="value">${data.cohort_date}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="label">Cohort Size</div>
+                        <div class="value">${formatNumber(data.cohort_size)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="label">D1 Retention</div>
+                        <div class="value">${data.d1_pct}%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="label">D7 Retention</div>
+                        <div class="value">${data.d7_pct}%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="label">D30 Retention</div>
+                        <div class="value">${data.d30_pct}%</div>
+                    </div>
+                `;
+                
+                // Retention curve chart
+                createLineChart('retentionChart',
+                    ['D1', 'D3', 'D7', 'D14', 'D30'],
+                    [{
+                        label: 'Retention %',
+                        data: [data.d1_pct, data.d3_pct, data.d7_pct, data.d14_pct, data.d30_pct],
+                        borderColor: '#7c3aed',
+                        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                );
+                
+            } catch (e) {
+                console.error('Retention error:', e);
+                document.getElementById('retentionKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+        
+        async function loadSessions() {
+            try {
+                const payload = { days: 7, ...getGamePayload() };
+                const data = await callRpc('analytics_session_stats', payload);
+                
+                if (data.error) {
+                    document.getElementById('sessionKpis').innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                document.getElementById('sessionKpis').innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">📊</div>
+                        <div class="label">Total Sessions (7d)</div>
+                        <div class="value">${formatNumber(data.total_sessions)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">⏱️</div>
+                        <div class="label">Avg Duration</div>
+                        <div class="value plain">${formatDuration(data.avg_duration_seconds)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📈</div>
+                        <div class="label">Median Duration</div>
+                        <div class="value plain">${formatDuration(data.median_duration_seconds)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🚀</div>
+                        <div class="label">P95 Duration</div>
+                        <div class="value plain">${formatDuration(data.p95_duration_seconds)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📅</div>
+                        <div class="label">Sessions/Day Avg</div>
+                        <div class="value">${data.sessions_per_day_avg}</div>
+                    </div>
+                `;
+                
+                // Hourly distribution
+                if (data.peak_hours) {
+                    const hours = Array.from({length: 24}, (_, i) => i);
+                    const hourCounts = hours.map(h => {
+                        const found = data.peak_hours.find(p => p.hour === h);
+                        return found ? found.count : 0;
+                    });
+                    createBarChart('hourlyChart', hours.map(h => h + ':00'), hourCounts);
+                }
+                
+                // Daily breakdown
+                if (data.daily_breakdown && data.daily_breakdown.length > 0) {
+                    createLineChart('dailySessionChart',
+                        data.daily_breakdown.map(d => d.date),
+                        [{
+                            label: 'Sessions',
+                            data: data.daily_breakdown.map(d => d.sessions),
+                            borderColor: '#7c3aed',
+                            yAxisID: 'y'
+                        }, {
+                            label: 'Avg Duration (s)',
+                            data: data.daily_breakdown.map(d => d.avg_duration),
+                            borderColor: '#22c55e',
+                            yAxisID: 'y1'
+                        }],
+                        {
+                            scales: {
+                                y: { type: 'linear', position: 'left', ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                                y1: { type: 'linear', position: 'right', ticks: { color: '#94a3b8' }, grid: { display: false } }
+                            }
+                        }
+                    );
+                }
+                
+            } catch (e) {
+                console.error('Sessions error:', e);
+                document.getElementById('sessionKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+        
+        async function loadFunnel() {
+            try {
+                const data = await callRpc('analytics_funnel', getGamePayload());
+                
+                if (data.error) {
+                    document.getElementById('funnelSteps').innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                if (!data.steps || data.steps.length === 0) {
+                    document.getElementById('funnelSteps').innerHTML = `<div class="empty-state"><h3>No funnel data</h3><p>Users need to complete funnel steps to see data here.</p></div>`;
+                    return;
+                }
+                
+                let html = `<div style="margin-bottom: 1rem; color: var(--text-secondary);">Worst drop-off: <strong style="color: var(--danger);">${data.worst_drop_off.step}</strong> (${data.worst_drop_off.drop_pct}%)</div>`;
+                
+                data.steps.forEach((step, i) => {
+                    const dropClass = step.drop_off_pct > 50 ? 'high' : step.drop_off_pct > 25 ? 'medium' : 'low';
+                    const width = step.pct_of_total;
+                    
+                    html += `
+                        <div class="funnel-step" style="padding-left: ${(100 - width) / 2}%; padding-right: ${(100 - width) / 2}%; background: linear-gradient(90deg, var(--accent) ${width}%, var(--bg-secondary) ${width}%);">
+                            <span class="name">${step.name.replace(/_/g, ' ')}</span>
+                            <span class="count">${formatNumber(step.count)}</span>
+                            <span class="pct">${step.pct_of_total}%</span>
+                            ${i > 0 ? `<span class="drop ${dropClass}">-${step.drop_off_pct}%</span>` : '<span class="drop">-</span>'}
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('funnelSteps').innerHTML = html;
+                
+            } catch (e) {
+                console.error('Funnel error:', e);
+                document.getElementById('funnelSteps').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+        
+        async function loadEconomy() {
+            try {
+                const data = await callRpc('analytics_economy_health', getGamePayload());
+                
+                if (data.error) {
+                    document.getElementById('economyKpis').innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                const giniColor = data.gini_coefficient > 0.6 ? 'var(--danger)' : data.gini_coefficient > 0.4 ? 'var(--warning)' : 'var(--success)';
+                
+                document.getElementById('economyKpis').innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">🪙</div>
+                        <div class="label">Total Coins</div>
+                        <div class="value">${formatNumber(data.total_coins)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">💎</div>
+                        <div class="label">Total Gems</div>
+                        <div class="value">${formatNumber(data.total_gems)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📊</div>
+                        <div class="label">Avg Coins</div>
+                        <div class="value">${formatNumber(data.avg_coins)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📈</div>
+                        <div class="label">Median Coins</div>
+                        <div class="value">${formatNumber(data.median_coins)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">⚖️</div>
+                        <div class="label">Gini Coefficient</div>
+                        <div class="value plain" style="color: ${giniColor}">${data.gini_coefficient}</div>
+                        <div class="trend">${data.gini_coefficient > 0.6 ? 'High inequality' : data.gini_coefficient > 0.4 ? 'Moderate' : 'Balanced'}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🐋</div>
+                        <div class="label">Whale Count (Top 1%)</div>
+                        <div class="value">${data.whale_count}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🔄</div>
+                        <div class="label">Source/Sink Ratio</div>
+                        <div class="value plain">${data.source_sink_ratio?.ratio || 0}</div>
+                        <div class="trend">${data.source_sink_ratio?.ratio > 1.5 ? 'Inflation risk' : data.source_sink_ratio?.ratio < 0.8 ? 'Deflation' : 'Healthy'}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📋</div>
+                        <div class="label">Sample Size</div>
+                        <div class="value">${data.sample_size}</div>
+                    </div>
+                `;
+                
+                // Coin distribution chart (min/median/avg/max)
+                createBarChart('coinDistChart', 
+                    ['Min', 'Median', 'Average', 'Max'],
+                    [data.min_coins, data.median_coins, data.avg_coins, data.max_coins]
+                );
+                
+                // Source vs Sink pie
+                if (data.source_sink_ratio) {
+                    createDoughnutChart('sourceSinkChart',
+                        ['Sources (In)', 'Sinks (Out)'],
+                        [data.source_sink_ratio.sources_total, data.source_sink_ratio.sinks_total],
+                        ['rgba(34, 197, 94, 0.8)', 'rgba(239, 68, 68, 0.8)']
+                    );
+                }
+                
+            } catch (e) {
+                console.error('Economy error:', e);
+                document.getElementById('economyKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+        
+        async function loadErrors() {
+            try {
+                const payload = { days: 7, ...getGamePayload() };
+                const data = await callRpc('analytics_error_log', payload);
+                
+                if (data.error) {
+                    document.getElementById('errorKpis').innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                document.getElementById('errorKpis').innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">🐛</div>
+                        <div class="label">Total Errors (7d)</div>
+                        <div class="value">${formatNumber(data.total_errors)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">⚠️</div>
+                        <div class="label">Most Failing RPC</div>
+                        <div class="value plain" style="font-size: 1.2rem">${data.most_failing_rpc?.name || 'N/A'}</div>
+                        <div class="trend negative">${data.most_failing_rpc?.count || 0} failures</div>
+                    </div>
+                `;
+                
+                // Error table
+                const tbody = document.querySelector('#errorTable tbody');
+                if (!data.errors_by_rpc || data.errors_by_rpc.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No errors in the last 7 days 🎉</td></tr>';
+                } else {
+                    tbody.innerHTML = data.errors_by_rpc.map(e => `
+                        <tr>
+                            <td>${e.rpc_name}</td>
+                            <td>${e.count}</td>
+                            <td>${e.last_occurred || '-'}</td>
+                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${e.sample_error || '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+                
+            } catch (e) {
+                console.error('Errors error:', e);
+                document.getElementById('errorKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+        
+        async function loadFeatures() {
+            try {
+                const data = await callRpc('analytics_feature_adoption', getGamePayload());
+                
+                if (data.error) {
+                    document.querySelector('#featureTable tbody').innerHTML = `<tr><td colspan="4" class="error">${data.error}</td></tr>`;
+                    return;
+                }
+                
+                if (!data.features || data.features.length === 0) {
+                    document.querySelector('#featureTable tbody').innerHTML = '<tr><td colspan="4" class="empty-state">No feature data available</td></tr>';
+                    return;
+                }
+                
+                const tbody = document.querySelector('#featureTable tbody');
+                tbody.innerHTML = data.features
+                    .sort((a, b) => b.adoption_pct - a.adoption_pct)
+                    .map(f => `
+                        <tr>
+                            <td>${f.name.replace(/_/g, ' ')}</td>
+                            <td>${f.users_count}</td>
+                            <td>${f.adoption_pct}%</td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="fill" style="width: ${f.adoption_pct}%"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                
+            } catch (e) {
+                console.error('Features error:', e);
+                document.querySelector('#featureTable tbody').innerHTML = `<tr><td colspan="4" class="error">Failed to load: ${e.message}</td></tr>`;
+            }
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Refresh All
+        // ─────────────────────────────────────────────────────────────────────
+        
+        async function refreshAll() {
+            if (!isAuthenticated) return;
+            
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Loading...';
+            
+            // Update game label in footer
+            const game = CONFIG.games[selectedGameId];
+            document.getElementById('selectedGameLabel').textContent = `${game.icon} ${game.name}`;
+            
+            try {
+                await Promise.all([
+                    loadOverview(),
+                    loadRevenue('30d'),
+                    loadRetention(),
+                    loadSessions(),
+                    loadFunnel(),
+                    loadEconomy(),
+                    loadErrors(),
+                    loadFeatures()
+                ]);
+                
+                // Update last refreshed time
+                const now = new Date();
+                document.getElementById('lastUpdated').textContent = `Last updated: ${now.toLocaleTimeString()}`;
+            } catch (e) {
+                console.error('Refresh error:', e);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '🔄 Refresh';
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Initialize
+        // ─────────────────────────────────────────────────────────────────────
+        
+        // Auto-load on page load (after auth check)
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if already authenticated from session
+            if (checkAuth()) {
+                refreshAll();
+            }
+            
+            // Allow Enter key on login inputs
+            const handleLoginKeypress = (e) => {
+                if (e.key === 'Enter') attemptLogin();
+            };
+            document.getElementById('adminUsername').addEventListener('keypress', handleLoginKeypress);
+            document.getElementById('adminPassword').addEventListener('keypress', handleLoginKeypress);
+            
+            // Focus username input
+            document.getElementById('adminUsername').focus();
+        });
+    </script>
+</body>
+</html>
