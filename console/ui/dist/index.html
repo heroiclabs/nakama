@@ -13,6 +13,133 @@
     </script>
     <script type="module" crossorigin src="/static/index-C69ekwQb.js"></script>
     <link rel="stylesheet" crossorigin href="/static/index-DgkeZLvR.css">
+    
+    <!-- IntelliVerseX Analytics Integration -->
+    <style>
+      #ivx-analytics-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: none;
+        font-size: 14px;
+        font-family: Inter, system-ui, sans-serif;
+        transition: all 0.2s ease;
+        border-left: 3px solid transparent;
+        margin: 2px 0;
+      }
+      #ivx-analytics-link:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.05);
+        border-left-color: #8b5cf6;
+      }
+      #ivx-analytics-link svg {
+        width: 18px;
+        height: 18px;
+        opacity: 0.8;
+      }
+      #ivx-analytics-section {
+        padding: 16px 16px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.4);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        font-family: Inter, system-ui, sans-serif;
+      }
+    </style>
+    <script>
+      (function() {
+        const analyticsIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>';
+        
+        function injectAnalyticsLink() {
+          if (document.getElementById('ivx-analytics-link')) return true;
+          
+          // Find sidebar by looking for common patterns
+          const sidebar = document.querySelector('[class*="sidebar"]') || 
+                          document.querySelector('[class*="Sidebar"]') ||
+                          document.querySelector('aside') ||
+                          document.querySelector('nav');
+          
+          if (!sidebar) return false;
+          
+          // Look for menu items by finding links with specific text
+          const allLinks = Array.from(document.querySelectorAll('a'));
+          const chatLink = allLinks.find(a => a.textContent && a.textContent.includes('Chat'));
+          const forumLink = allLinks.find(a => a.textContent && a.textContent.includes('Forum'));
+          
+          // Insert after Chat Messages (before DEVELOPMENT section)
+          if (chatLink) {
+            const container = chatLink.parentElement;
+            
+            // Create analytics section header
+            const sectionHeader = document.createElement('div');
+            sectionHeader.id = 'ivx-analytics-section';
+            sectionHeader.textContent = 'ANALYTICS';
+            
+            // Create analytics link
+            const analyticsLink = document.createElement('a');
+            analyticsLink.id = 'ivx-analytics-link';
+            analyticsLink.href = '/analytics.html';
+            analyticsLink.innerHTML = analyticsIcon + '<span>Game Analytics</span>';
+            
+            // Find where to insert (after Chat Messages link)
+            const chatParent = chatLink.closest('div[class]') || chatLink.parentElement;
+            if (chatParent && chatParent.parentElement) {
+              chatParent.parentElement.insertBefore(sectionHeader, chatParent.nextSibling);
+              chatParent.parentElement.insertBefore(analyticsLink, sectionHeader.nextSibling);
+              console.log('[IVX] Analytics link injected successfully');
+              return true;
+            }
+          }
+          
+          // Fallback: Insert at the end of sidebar
+          if (sidebar) {
+            const sectionHeader = document.createElement('div');
+            sectionHeader.id = 'ivx-analytics-section';
+            sectionHeader.textContent = 'ANALYTICS';
+            
+            const analyticsLink = document.createElement('a');
+            analyticsLink.id = 'ivx-analytics-link';
+            analyticsLink.href = '/analytics.html';
+            analyticsLink.innerHTML = analyticsIcon + '<span>Game Analytics</span>';
+            
+            sidebar.appendChild(sectionHeader);
+            sidebar.appendChild(analyticsLink);
+            console.log('[IVX] Analytics link appended to sidebar');
+            return true;
+          }
+          
+          return false;
+        }
+        
+        function tryInject() {
+          if (!injectAnalyticsLink()) {
+            const observer = new MutationObserver((mutations, obs) => {
+              if (injectAnalyticsLink()) {
+                obs.disconnect();
+              }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            
+            let attempts = 0;
+            const interval = setInterval(() => {
+              attempts++;
+              if (injectAnalyticsLink() || attempts > 30) {
+                clearInterval(interval);
+              }
+            }, 300);
+          }
+        }
+        
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', tryInject);
+        } else {
+          setTimeout(tryInject, 200);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
