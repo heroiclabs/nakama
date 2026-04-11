@@ -73,54 +73,53 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
 }
 
 /**
- * Track Daily Active User
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} userId - User ID
- * @param {string} gameId - Game ID (UUID)
+ * Track Daily Active User - writes both game-level and platform-level DAU keys.
+ * Dashboard reads: dauData.uniqueUsers, dauData.count, dauData.newUsers
  */
 function trackDAU(nk, logger, userId, gameId) {
     var today = utils.getStartOfDay();
     var collection = "analytics_dau";
-    var key = "dau_" + gameId + "_" + today;
-    
-    // Read existing DAU data
-    var dauData = utils.readStorage(nk, logger, collection, key, "00000000-0000-0000-0000-000000000000");
-    
-    if (!dauData) {
-        dauData = {
-            gameId: gameId,
-            date: today,
-            users: [],
-            count: 0
-        };
-    }
-    
-    // Add user if not already in list
-    if (dauData.users.indexOf(userId) === -1) {
-        dauData.users.push(userId);
-        dauData.count = dauData.users.length;
-        
-        // Save updated DAU data
-        utils.writeStorage(nk, logger, collection, key, "00000000-0000-0000-0000-000000000000", dauData);
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+
+    var keys = [
+        "dau_" + gameId + "_" + today,
+        "dau_platform_" + today
+    ];
+
+    for (var k = 0; k < keys.length; k++) {
+        var key = keys[k];
+        var dauData = utils.readStorage(nk, logger, collection, key, SYSTEM_USER);
+
+        if (!dauData) {
+            dauData = {
+                date: today,
+                uniqueUsers: [],
+                count: 0,
+                newUsers: 0
+            };
+        }
+
+        // Migrate old "users" field to "uniqueUsers" for dashboard compatibility
+        if (!Array.isArray(dauData.uniqueUsers)) {
+            dauData.uniqueUsers = Array.isArray(dauData.users) ? dauData.users : [];
+        }
+
+        if (dauData.uniqueUsers.indexOf(userId) === -1) {
+            dauData.uniqueUsers.push(userId);
+            dauData.count = dauData.uniqueUsers.length;
+            utils.writeStorage(nk, logger, collection, key, SYSTEM_USER, dauData);
+        }
     }
 }
 
 /**
- * Track session data
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} userId - User ID
- * @param {string} gameId - Game ID (UUID)
- * @param {string} eventName - Event name (session_start or session_end)
- * @param {object} eventData - Event data
+ * Track session data (start/end)
  */
 function trackSession(nk, logger, userId, gameId, eventName, eventData) {
     var collection = "analytics_sessions";
     var key = utils.makeGameStorageKey("analytics_session", userId, gameId);
     
     if (eventName === "session_start") {
-        // Start new session
         var sessionData = {
             userId: userId,
             gameId: gameId,
@@ -130,7 +129,6 @@ function trackSession(nk, logger, userId, gameId, eventName, eventData) {
         };
         utils.writeStorage(nk, logger, collection, key, userId, sessionData);
     } else if (eventName === "session_end") {
-        // End session
         var sessionData = utils.readStorage(nk, logger, collection, key, userId);
         if (sessionData && sessionData.active) {
             sessionData.endTime = utils.getUnixTimestamp();
@@ -144,6 +142,31 @@ function trackSession(nk, logger, userId, gameId, eventName, eventData) {
             
             // Clear active session
             utils.writeStorage(nk, logger, collection, key, userId, { active: false });
+
+            // Aggregate session stats for dashboard
+            aggregateSessionStats(nk, logger, sessionData.duration);
         }
     }
+}
+
+/**
+ * Aggregate session stats into a daily summary for the analytics dashboard.
+ * Key: session_stats_{YYYY-MM-DD}, stored under SYSTEM_USER.
+ */
+function aggregateSessionStats(nk, logger, durationSeconds) {
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var today = utils.getStartOfDay();
+    var collection = "analytics_sessions";
+    var key = "session_stats_" + today;
+
+    var stats = utils.readStorage(nk, logger, collection, key, SYSTEM_USER);
+    if (!stats) {
+        stats = { date: today, totalSessions: 0, totalDuration: 0, avgDuration: 0 };
+    }
+
+    stats.totalSessions++;
+    stats.totalDuration += (durationSeconds || 0);
+    stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
+
+    utils.writeStorage(nk, logger, collection, key, SYSTEM_USER, stats);
 }

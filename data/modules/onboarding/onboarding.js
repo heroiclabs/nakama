@@ -110,7 +110,9 @@ function afterAuthHook(ctx, logger, nk, data, request) {
             userId: userId
         }]);
 
-        if (existing.length === 0) {
+        var isNewUser = existing.length === 0;
+
+        if (isNewUser) {
             // New user - initialize onboarding state
             logger.info(`[Onboarding] New user detected: ${userId}`);
             initializeNewUser(nk, logger, userId);
@@ -122,8 +124,75 @@ function afterAuthHook(ctx, logger, nk, data, request) {
             // Backfill avatar for returning users who don't have one
             ensureUserHasAvatar(nk, logger, userId);
         }
+
+        // Track DAU on every authentication (new + returning)
+        try {
+            trackDAUOnAuth(nk, logger, userId, isNewUser);
+        } catch (dauErr) {
+            logger.warn(`[Onboarding] DAU tracking failed (non-fatal): ${dauErr.message}`);
+        }
     } catch (e) {
         logger.error(`[Onboarding] Auth hook error: ${e.message}`);
+    }
+}
+
+/**
+ * Track DAU on every authentication - writes both game-level and platform-level keys.
+ * Uses the dashboard-compatible schema: { uniqueUsers, count, newUsers, date }
+ */
+function trackDAUOnAuth(nk, logger, userId, isNewUser) {
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var today = new Date().toISOString().split("T")[0];
+    var gameId = typeof DEFAULT_GAME_ID !== "undefined" ? DEFAULT_GAME_ID : "f6f7fe36-03de-43b8-8b5d-1a1892da4eed";
+    var collection = "analytics_dau";
+
+    // Write both game-specific and platform-level DAU
+    var keys = [
+        "dau_" + gameId + "_" + today,
+        "dau_platform_" + today
+    ];
+
+    for (var k = 0; k < keys.length; k++) {
+        var key = keys[k];
+        var dauData = null;
+        try {
+            var recs = nk.storageRead([{ collection: collection, key: key, userId: SYSTEM_USER }]);
+            if (recs && recs.length > 0 && recs[0].value) {
+                dauData = recs[0].value;
+            }
+        } catch (_) {}
+
+        if (!dauData) {
+            dauData = {
+                date: today,
+                uniqueUsers: [],
+                count: 0,
+                newUsers: 0
+            };
+        }
+
+        // Ensure uniqueUsers is an array (migrate from old "users" field)
+        if (!Array.isArray(dauData.uniqueUsers)) {
+            dauData.uniqueUsers = Array.isArray(dauData.users) ? dauData.users : [];
+        }
+
+        // Add user if not already tracked today
+        if (dauData.uniqueUsers.indexOf(userId) === -1) {
+            dauData.uniqueUsers.push(userId);
+            dauData.count = dauData.uniqueUsers.length;
+            if (isNewUser) {
+                dauData.newUsers = (dauData.newUsers || 0) + 1;
+            }
+
+            nk.storageWrite([{
+                collection: collection,
+                key: key,
+                userId: SYSTEM_USER,
+                value: dauData,
+                permissionRead: 0,
+                permissionWrite: 0
+            }]);
+        }
     }
 }
 

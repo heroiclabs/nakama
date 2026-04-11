@@ -1280,6 +1280,9 @@
                 <button class="tab" data-tab="errors">🐛 Errors</button>
                 <button class="tab" data-tab="events">📋 Events</button>
                 <button class="tab" data-tab="storage">💾 Storage</button>
+                <button class="tab" data-tab="appodeal">📊 Appodeal</button>
+                <button class="tab" data-tab="apple">🍎 App Store</button>
+                <button class="tab" data-tab="unity_ext">🎮 Unity</button>
             </div>
         </nav>
         
@@ -1624,6 +1627,66 @@
                 </table></div>
             </div>
         </div>
+
+        <!-- Appodeal Tab -->
+        <div id="appodeal" class="tab-content">
+            <div class="kpi-grid" id="appodealKpis">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Ad Revenue Over Time <div class="card-actions"><button class="export-btn" onclick="exportAppodeal()">⬇ CSV</button><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('appodealRevenueChart','Ad Revenue')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="appodealRevenueChart" height="220"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Impressions &amp; Clicks <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('appodealImpressionsChart','Impressions & Clicks')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="appodealImpressionsChart" height="220"></canvas></div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>eCPM Trend <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('appodealEcpmChart','eCPM Trend')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="appodealEcpmChart" height="200"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Fill Rate <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('appodealFillChart','Fill Rate')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="appodealFillChart" height="200"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Apple App Store Tab -->
+        <div id="apple" class="tab-content">
+            <div class="kpi-grid" id="appleKpis">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
+            <div class="chart-card">
+                <h3>App Store Data <div class="card-actions"><button class="export-btn" onclick="exportApple()">⬇ CSV</button><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body" id="appleDataContainer">
+                    <p style="color:#aaa;text-align:center;padding:2rem">Loading App Store data...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unity External Tab -->
+        <div id="unity_ext" class="tab-content">
+            <div class="kpi-grid" id="unityExtKpis">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
+            <div class="chart-card">
+                <h3>Unity Gaming Services Data <div class="card-actions"><button class="export-btn" onclick="exportUnityExt()">⬇ CSV</button><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body" id="unityExtDataContainer">
+                    <p style="color:#aaa;text-align:center;padding:2rem">Loading Unity data...</p>
+                </div>
+            </div>
+        </div>
+
     </main>
     
     <footer class="footer">
@@ -1791,7 +1854,10 @@
             heatmap:   () => loadHeatmap(),
             monet:     () => loadMonetizationDetail(),
             platforms: () => loadPlatforms(),
-            players:   () => loadTopPlayers()
+            players:   () => loadTopPlayers(),
+            appodeal:  () => loadAppodeal(),
+            apple:     () => loadApple(),
+            unity_ext: () => loadUnityExt()
         };
 
         // Tracks which tabs have been loaded at least once since last refresh
@@ -2909,6 +2975,128 @@
                 document.querySelector('#playersTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">Failed: ${e.message}</td></tr>`;
             }
         }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // External Analytics: Appodeal
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadAppodeal() {
+            try {
+                const days = parseInt(document.getElementById('dayRange')?.value) || 7;
+                const data = await callRpc('analytics_appodeal', { days });
+                const kpis = document.getElementById('appodealKpis');
+                if (!data.success) {
+                    kpis.innerHTML = `<div class="kpi-card"><span class="kpi-label">Error</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${data.error || 'Unknown error'}</span></div>`;
+                    return;
+                }
+                const results = Array.isArray(data.data) ? data.data : [data.data];
+                // Aggregate totals
+                let totalRevenue = 0, totalImpressions = 0, totalClicks = 0, totalRequests = 0;
+                const dates = [], revenues = [], impressions = [], clicks = [], ecpms = [], fillrates = [];
+                results.forEach(r => {
+                    totalRevenue += parseFloat(r.revenue || 0);
+                    totalImpressions += parseInt(r.impressions || 0);
+                    totalClicks += parseInt(r.clicks || 0);
+                    totalRequests += parseInt(r.requests || 0);
+                    if (r.date) {
+                        dates.push(r.date);
+                        revenues.push(parseFloat(r.revenue || 0));
+                        impressions.push(parseInt(r.impressions || 0));
+                        clicks.push(parseInt(r.clicks || 0));
+                        ecpms.push(parseFloat(r.ecpm || 0));
+                        fillrates.push(parseFloat(r.fillrate || 0));
+                    }
+                });
+                const avgEcpm = ecpms.length ? (ecpms.reduce((a,b) => a+b, 0) / ecpms.length).toFixed(2) : '0';
+                const avgFill = fillrates.length ? (fillrates.reduce((a,b) => a+b, 0) / fillrates.length).toFixed(1) : '0';
+                kpis.innerHTML = `
+                    <div class="kpi-card"><span class="kpi-label">Total Revenue</span><span class="kpi-value">$${totalRevenue.toFixed(2)}</span></div>
+                    <div class="kpi-card"><span class="kpi-label">Impressions</span><span class="kpi-value">${totalImpressions.toLocaleString()}</span></div>
+                    <div class="kpi-card"><span class="kpi-label">Avg eCPM</span><span class="kpi-value">$${avgEcpm}</span></div>
+                    <div class="kpi-card"><span class="kpi-label">Fill Rate</span><span class="kpi-value">${avgFill}%</span></div>`;
+                // Charts
+                if (dates.length > 0) {
+                    createLineChart('appodealRevenueChart', dates, [{label:'Revenue ($)', data:revenues, borderColor:'#4ecdc4', backgroundColor:'rgba(78,205,196,0.1)', fill:true}]);
+                    createLineChart('appodealImpressionsChart', dates, [
+                        {label:'Impressions', data:impressions, borderColor:'#45b7d1', backgroundColor:'rgba(69,183,209,0.1)', fill:true},
+                        {label:'Clicks', data:clicks, borderColor:'#f7dc6f', backgroundColor:'rgba(247,220,111,0.1)', fill:true}
+                    ]);
+                    createLineChart('appodealEcpmChart', dates, [{label:'eCPM ($)', data:ecpms, borderColor:'#bb86fc', backgroundColor:'rgba(187,134,252,0.1)', fill:true}]);
+                    createLineChart('appodealFillChart', dates, [{label:'Fill Rate (%)', data:fillrates, borderColor:'#4ecdc4', backgroundColor:'rgba(78,205,196,0.1)', fill:true}]);
+                }
+            } catch (e) {
+                console.error('Appodeal load error:', e);
+                document.getElementById('appodealKpis').innerHTML = `<div class="kpi-card"><span class="kpi-label">Error</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${e.message}</span></div>`;
+            }
+        }
+        function exportAppodeal() { showToast('Appodeal CSV export coming soon', 'info'); }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // External Analytics: Apple App Store
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadApple() {
+            try {
+                const days = parseInt(document.getElementById('dayRange')?.value) || 7;
+                const data = await callRpc('analytics_apple_appstore', { days });
+                const kpis = document.getElementById('appleKpis');
+                const container = document.getElementById('appleDataContainer');
+                if (!data.success) {
+                    kpis.innerHTML = `<div class="kpi-card"><span class="kpi-label">Status</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${data.error || 'No data'}</span></div>`;
+                    if (data.hint) container.innerHTML = `<p style="color:#aaa;text-align:center;padding:2rem">💡 ${data.hint}</p>`;
+                    return;
+                }
+                const d = data.data || {};
+                const fetchedAt = data.fetched_at || d.fetched_at || 'unknown';
+                // Show apps info if available
+                let appsHtml = '';
+                if (d.apps && d.apps.length) {
+                    appsHtml = d.apps.map(a => `<div class="kpi-card"><span class="kpi-label">${a.name || 'App'}</span><span class="kpi-value" style="font-size:.9rem">${a.bundleId || a.id}</span></div>`).join('');
+                }
+                kpis.innerHTML = `
+                    <div class="kpi-card"><span class="kpi-label">Data Source</span><span class="kpi-value" style="font-size:1rem">App Store Connect</span></div>
+                    <div class="kpi-card"><span class="kpi-label">Last Fetched</span><span class="kpi-value" style="font-size:.9rem">${new Date(fetchedAt).toLocaleString()}</span></div>
+                    ${appsHtml}`;
+                // Show metrics
+                const metrics = d.metrics || {};
+                let metricsHtml = '<div style="padding:1rem">';
+                for (const [key, val] of Object.entries(metrics)) {
+                    metricsHtml += `<div class="chart-card" style="margin-bottom:1rem"><h3>${key.replace(/_/g, ' ').toUpperCase()}</h3><div class="card-body"><pre style="color:#ccc;font-size:.85rem;max-height:300px;overflow:auto">${JSON.stringify(val, null, 2)}</pre></div></div>`;
+                }
+                metricsHtml += '</div>';
+                container.innerHTML = metricsHtml || '<p style="color:#aaa;text-align:center;padding:2rem">No metrics data available</p>';
+            } catch (e) {
+                console.error('Apple load error:', e);
+                document.getElementById('appleKpis').innerHTML = `<div class="kpi-card"><span class="kpi-label">Error</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${e.message}</span></div>`;
+            }
+        }
+        function exportApple() { showToast('Apple CSV export coming soon', 'info'); }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // External Analytics: Unity
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadUnityExt() {
+            try {
+                const days = parseInt(document.getElementById('dayRange')?.value) || 7;
+                const data = await callRpc('analytics_unity', { days });
+                const kpis = document.getElementById('unityExtKpis');
+                const container = document.getElementById('unityExtDataContainer');
+                if (!data.success) {
+                    kpis.innerHTML = `<div class="kpi-card"><span class="kpi-label">Status</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${data.error || 'No data'}</span></div>`;
+                    return;
+                }
+                const d = data.data || {};
+                const fromCache = data.from_cache ? ' (cached)' : '';
+                kpis.innerHTML = `
+                    <div class="kpi-card"><span class="kpi-label">Data Source</span><span class="kpi-value" style="font-size:1rem">Unity Gaming Services${fromCache}</span></div>
+                    <div class="kpi-card"><span class="kpi-label">Last Fetched</span><span class="kpi-value" style="font-size:.9rem">${data.fetched_at ? new Date(data.fetched_at).toLocaleString() : 'Live'}</span></div>`;
+                // Render data
+                const results = d.results || d;
+                container.innerHTML = `<pre style="color:#ccc;font-size:.85rem;max-height:500px;overflow:auto;padding:1rem">${JSON.stringify(results, null, 2)}</pre>`;
+            } catch (e) {
+                console.error('Unity ext load error:', e);
+                document.getElementById('unityExtKpis').innerHTML = `<div class="kpi-card"><span class="kpi-label">Error</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${e.message}</span></div>`;
+            }
+        }
+        function exportUnityExt() { showToast('Unity CSV export coming soon', 'info'); }
 
         // ─────────────────────────────────────────────────────────────────────
         // Refresh All
