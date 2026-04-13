@@ -45,13 +45,18 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
         unixTimestamp: utils.getUnixTimestamp()
     };
     
-    // Store event
+    // Store event under user's ID (for user-specific queries)
     var collection = "analytics_events";
     var key = "event_" + userId + "_" + gameId + "_" + utils.getUnixTimestamp();
     
     if (!utils.writeStorage(nk, logger, collection, key, userId, event)) {
         return utils.handleError(ctx, null, "Failed to log event");
     }
+    
+    // ALSO store under SYSTEM_USER for dashboard aggregation (analytics_extended RPCs)
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var dashboardKey = "dash_" + utils.getStartOfDay() + "_" + eventName + "_" + utils.getUnixTimestamp();
+    utils.writeStorage(nk, logger, collection, dashboardKey, SYSTEM_USER, event);
     
     // Track DAU (Daily Active Users)
     trackDAU(nk, logger, userId, gameId);

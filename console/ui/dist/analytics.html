@@ -2986,43 +2986,71 @@
                 const kpis = document.getElementById('appodealKpis');
                 if (!data.success) {
                     kpis.innerHTML = `<div class="kpi-card"><span class="kpi-label">Error</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${data.error || 'Unknown error'}</span></div>`;
+                    if (data.how_to_populate || data.setup) {
+                        const hint = data.setup || data.how_to_populate;
+                        kpis.innerHTML += `<div class="kpi-card" style="grid-column:span 4"><span class="kpi-label">Setup</span><span class="kpi-value" style="font-size:.8rem;color:#aaa">${JSON.stringify(hint)}</span></div>`;
+                    }
                     return;
                 }
                 const results = Array.isArray(data.data) ? data.data : [data.data];
-                // Aggregate totals
-                let totalRevenue = 0, totalImpressions = 0, totalClicks = 0, totalRequests = 0;
-                const dates = [], revenues = [], impressions = [], clicks = [], ecpms = [], fillrates = [];
+                // Use summary if available (new format) or calculate manually
+                const summary = data.summary || {};
+                let totalRevenue = summary.total_revenue || 0;
+                let totalImpressions = summary.total_impressions || 0;
+                let totalClicks = summary.total_clicks || 0; 
+                let totalRequests = summary.total_requests || 0;
+                let avgEcpm = summary.avg_ecpm || 0;
+                let avgFill = summary.avg_fillrate || 0;
+                let androidRev = summary.android_revenue || 0;
+                let iosRev = summary.ios_revenue || 0;
+
+                // Build chart data from daily rows
+                const dateMap = {};
                 results.forEach(r => {
-                    totalRevenue += parseFloat(r.revenue || 0);
-                    totalImpressions += parseInt(r.impressions || 0);
-                    totalClicks += parseInt(r.clicks || 0);
-                    totalRequests += parseInt(r.requests || 0);
+                    if (!summary.total_revenue) {
+                        totalRevenue += parseFloat(r.revenue || 0);
+                        totalImpressions += parseInt(r.impressions || 0);
+                        totalClicks += parseInt(r.clicks || 0);
+                        totalRequests += parseInt(r.requests || 0);
+                    }
                     if (r.date) {
-                        dates.push(r.date);
-                        revenues.push(parseFloat(r.revenue || 0));
-                        impressions.push(parseInt(r.impressions || 0));
-                        clicks.push(parseInt(r.clicks || 0));
-                        ecpms.push(parseFloat(r.ecpm || 0));
-                        fillrates.push(parseFloat(r.fillrate || 0));
+                        if (!dateMap[r.date]) dateMap[r.date] = { revenue: 0, impressions: 0, clicks: 0, ecpm: 0, fillrate: 0, count: 0 };
+                        dateMap[r.date].revenue += parseFloat(r.revenue || 0);
+                        dateMap[r.date].impressions += parseInt(r.impressions || 0);
+                        dateMap[r.date].clicks += parseInt(r.clicks || 0);
+                        dateMap[r.date].ecpm += parseFloat(r.ecpm || 0);
+                        dateMap[r.date].fillrate += parseFloat(r.fillrate || 0);
+                        dateMap[r.date].count++;
                     }
                 });
-                const avgEcpm = ecpms.length ? (ecpms.reduce((a,b) => a+b, 0) / ecpms.length).toFixed(2) : '0';
-                const avgFill = fillrates.length ? (fillrates.reduce((a,b) => a+b, 0) / fillrates.length).toFixed(1) : '0';
+                if (!summary.avg_ecpm && totalImpressions > 0) avgEcpm = (totalRevenue / totalImpressions * 1000).toFixed(2);
+                if (!summary.avg_fillrate && totalRequests > 0) avgFill = (totalImpressions / totalRequests * 100).toFixed(1);
+
                 kpis.innerHTML = `
-                    <div class="kpi-card"><span class="kpi-label">Total Revenue</span><span class="kpi-value">$${totalRevenue.toFixed(2)}</span></div>
+                    <div class="kpi-card"><span class="kpi-label">Total Revenue</span><span class="kpi-value">$${parseFloat(totalRevenue).toFixed(2)}</span></div>
                     <div class="kpi-card"><span class="kpi-label">Impressions</span><span class="kpi-value">${totalImpressions.toLocaleString()}</span></div>
                     <div class="kpi-card"><span class="kpi-label">Avg eCPM</span><span class="kpi-value">$${avgEcpm}</span></div>
-                    <div class="kpi-card"><span class="kpi-label">Fill Rate</span><span class="kpi-value">${avgFill}%</span></div>`;
-                // Charts
+                    <div class="kpi-card"><span class="kpi-label">Fill Rate</span><span class="kpi-value">${avgFill}%</span></div>
+                    <div class="kpi-card"><span class="kpi-label">Android Revenue</span><span class="kpi-value">$${parseFloat(androidRev).toFixed(2)}</span></div>
+                    <div class="kpi-card"><span class="kpi-label">iOS Revenue</span><span class="kpi-value">$${parseFloat(iosRev).toFixed(2)}</span></div>`;
+
+                // Charts from aggregated date data
+                const dates = Object.keys(dateMap).sort();
                 if (dates.length > 0) {
+                    const revenues = dates.map(d => dateMap[d].revenue);
+                    const imps = dates.map(d => dateMap[d].impressions);
+                    const cls = dates.map(d => dateMap[d].clicks);
+                    const ecpms = dates.map(d => dateMap[d].count > 0 ? (dateMap[d].ecpm / dateMap[d].count) : 0);
+                    const fills = dates.map(d => dateMap[d].count > 0 ? (dateMap[d].fillrate / dateMap[d].count) : 0);
                     createLineChart('appodealRevenueChart', dates, [{label:'Revenue ($)', data:revenues, borderColor:'#4ecdc4', backgroundColor:'rgba(78,205,196,0.1)', fill:true}]);
                     createLineChart('appodealImpressionsChart', dates, [
-                        {label:'Impressions', data:impressions, borderColor:'#45b7d1', backgroundColor:'rgba(69,183,209,0.1)', fill:true},
-                        {label:'Clicks', data:clicks, borderColor:'#f7dc6f', backgroundColor:'rgba(247,220,111,0.1)', fill:true}
+                        {label:'Impressions', data:imps, borderColor:'#45b7d1', backgroundColor:'rgba(69,183,209,0.1)', fill:true},
+                        {label:'Clicks', data:cls, borderColor:'#f7dc6f', backgroundColor:'rgba(247,220,111,0.1)', fill:true}
                     ]);
                     createLineChart('appodealEcpmChart', dates, [{label:'eCPM ($)', data:ecpms, borderColor:'#bb86fc', backgroundColor:'rgba(187,134,252,0.1)', fill:true}]);
-                    createLineChart('appodealFillChart', dates, [{label:'Fill Rate (%)', data:fillrates, borderColor:'#4ecdc4', backgroundColor:'rgba(78,205,196,0.1)', fill:true}]);
+                    createLineChart('appodealFillChart', dates, [{label:'Fill Rate (%)', data:fills, borderColor:'#4ecdc4', backgroundColor:'rgba(78,205,196,0.1)', fill:true}]);
                 }
+                if (data.from_cache) showToast('Appodeal data served from cache', 'info');
             } catch (e) {
                 console.error('Appodeal load error:', e);
                 document.getElementById('appodealKpis').innerHTML = `<div class="kpi-card"><span class="kpi-label">Error</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${e.message}</span></div>`;
@@ -3040,13 +3068,19 @@
                 const kpis = document.getElementById('appleKpis');
                 const container = document.getElementById('appleDataContainer');
                 if (!data.success) {
-                    kpis.innerHTML = `<div class="kpi-card"><span class="kpi-label">Status</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${data.error || 'No data'}</span></div>`;
-                    if (data.hint) container.innerHTML = `<p style="color:#aaa;text-align:center;padding:2rem">💡 ${data.hint}</p>`;
+                    let errorHtml = `<div class="kpi-card"><span class="kpi-label">Status</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${data.error || 'No data'}</span></div>`;
+                    if (data.bundle_id) {
+                        errorHtml += `<div class="kpi-card"><span class="kpi-label">Bundle ID</span><span class="kpi-value" style="font-size:.9rem">${data.bundle_id}</span></div>`;
+                    }
+                    kpis.innerHTML = errorHtml;
+                    if (data.how_to_populate) {
+                        let steps = Object.entries(data.how_to_populate).map(([k,v]) => `<li style="margin:.5rem 0">${v}</li>`).join('');
+                        container.innerHTML = `<div style="padding:2rem;color:#aaa"><h3 style="color:#f7dc6f">📋 How to populate Apple data:</h3><ol>${steps}</ol></div>`;
+                    }
                     return;
                 }
                 const d = data.data || {};
                 const fetchedAt = data.fetched_at || d.fetched_at || 'unknown';
-                // Show apps info if available
                 let appsHtml = '';
                 if (d.apps && d.apps.length) {
                     appsHtml = d.apps.map(a => `<div class="kpi-card"><span class="kpi-label">${a.name || 'App'}</span><span class="kpi-value" style="font-size:.9rem">${a.bundleId || a.id}</span></div>`).join('');
@@ -3054,8 +3088,8 @@
                 kpis.innerHTML = `
                     <div class="kpi-card"><span class="kpi-label">Data Source</span><span class="kpi-value" style="font-size:1rem">App Store Connect</span></div>
                     <div class="kpi-card"><span class="kpi-label">Last Fetched</span><span class="kpi-value" style="font-size:.9rem">${new Date(fetchedAt).toLocaleString()}</span></div>
+                    ${data.bundle_id ? `<div class="kpi-card"><span class="kpi-label">Bundle</span><span class="kpi-value" style="font-size:.85rem">${data.bundle_id}</span></div>` : ''}
                     ${appsHtml}`;
-                // Show metrics
                 const metrics = d.metrics || {};
                 let metricsHtml = '<div style="padding:1rem">';
                 for (const [key, val] of Object.entries(metrics)) {
@@ -3080,16 +3114,23 @@
                 const kpis = document.getElementById('unityExtKpis');
                 const container = document.getElementById('unityExtDataContainer');
                 if (!data.success) {
-                    kpis.innerHTML = `<div class="kpi-card"><span class="kpi-label">Status</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${data.error || 'No data'}</span></div>`;
+                    let errorHtml = `<div class="kpi-card"><span class="kpi-label">Status</span><span class="kpi-value" style="font-size:1rem;color:#ff6b6b">${data.error || 'No data'}</span></div>`;
+                    if (data.project_id) {
+                        errorHtml += `<div class="kpi-card"><span class="kpi-label">Project ID</span><span class="kpi-value" style="font-size:.8rem">${data.project_id}</span></div>`;
+                    }
+                    kpis.innerHTML = errorHtml;
+                    if (data.hint) {
+                        container.innerHTML = `<div style="padding:2rem;color:#aaa"><h3 style="color:#f7dc6f">📋 How to populate Unity data:</h3><p style="margin-top:1rem">${data.hint}</p></div>`;
+                    }
                     return;
                 }
                 const d = data.data || {};
                 const fromCache = data.from_cache ? ' (cached)' : '';
                 kpis.innerHTML = `
                     <div class="kpi-card"><span class="kpi-label">Data Source</span><span class="kpi-value" style="font-size:1rem">Unity Gaming Services${fromCache}</span></div>
-                    <div class="kpi-card"><span class="kpi-label">Last Fetched</span><span class="kpi-value" style="font-size:.9rem">${data.fetched_at ? new Date(data.fetched_at).toLocaleString() : 'Live'}</span></div>`;
-                // Render data
-                const results = d.results || d;
+                    <div class="kpi-card"><span class="kpi-label">Last Fetched</span><span class="kpi-value" style="font-size:.9rem">${data.fetched_at ? new Date(data.fetched_at).toLocaleString() : 'Live'}</span></div>
+                    ${data.project_id ? `<div class="kpi-card"><span class="kpi-label">Project</span><span class="kpi-value" style="font-size:.8rem">${data.project_id}</span></div>` : ''}`;
+                const results = d.data || d.results || d;
                 container.innerHTML = `<pre style="color:#ccc;font-size:.85rem;max-height:500px;overflow:auto;padding:1rem">${JSON.stringify(results, null, 2)}</pre>`;
             } catch (e) {
                 console.error('Unity ext load error:', e);
