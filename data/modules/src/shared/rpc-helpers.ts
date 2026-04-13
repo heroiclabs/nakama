@@ -89,8 +89,6 @@ namespace RpcHelpers {
         if (metadata && (metadata as any).admin === true) return;
       }
     } catch (_) {}
-    // For development, allow all authenticated users admin access
-    // In production, uncomment the line below:
-    // throw new Error("Admin access required");
+    throw new Error("Admin access required");
   }
 }

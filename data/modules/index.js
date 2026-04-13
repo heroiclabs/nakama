@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-13T06:15:31.451Z
+// Generated: 2026-04-13T06:29:41.341Z
 // RPC Count: 469
 // ============================================================
 
@@ -66011,9 +66011,7 @@ var RpcHelpers;
             }
         }
         catch (_) { }
-        // For development, allow all authenticated users admin access
-        // In production, uncomment the line below:
-        // throw new Error("Admin access required");
+        throw new Error("Admin access required");
     }
     RpcHelpers.requireAdmin = requireAdmin;
 })(RpcHelpers || (RpcHelpers = {}));
