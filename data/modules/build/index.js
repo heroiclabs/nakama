@@ -7134,21 +7134,237 @@ var LegacyMultiGame;
         nk.channelMessageSend(data.channelId, { message: data.content }, userId, ctx.username || "", true);
         return { success: true };
     }
+    // ── QuizVerse Game ID (canonical UUID for analytics) ─────────────
+    var QUIZVERSE_GAME_ID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    var MAX_EVENT_NAME_LENGTH = 256;
+    var MAX_EVENT_DATA_SIZE = 50; // max top-level keys in eventData
+    function getStartOfDay() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    function resolveGameId(gId) {
+        return (gId === "quizverse") ? QUIZVERSE_GAME_ID : gId;
+    }
+    function resolveTimestamp(clientTimestamp) {
+        // Prefer client timestamp if valid (within 24h of server time), else use server time
+        var serverNow = Date.now();
+        var serverUnix = Math.floor(serverNow / 1000);
+        if (clientTimestamp && typeof clientTimestamp === "number") {
+            // Handle both seconds and milliseconds
+            var clientMs = clientTimestamp > 1e12 ? clientTimestamp : clientTimestamp * 1000;
+            var drift = Math.abs(clientMs - serverNow);
+            // Accept if within 24 hours
+            if (drift < 86400000) {
+                return { iso: new Date(clientMs).toISOString(), unix: Math.floor(clientMs / 1000) };
+            }
+        }
+        return { iso: new Date(serverNow).toISOString(), unix: serverUnix };
+    }
+    function validateEventPayload(data) {
+        var eventName = data.eventName;
+        if (!eventName || typeof eventName !== "string" || eventName.length === 0) {
+            return { valid: false, eventName: "", eventData: {}, error: "eventName is required and must be a non-empty string" };
+        }
+        if (eventName.length > MAX_EVENT_NAME_LENGTH) {
+            return { valid: false, eventName: "", eventData: {}, error: "eventName exceeds " + MAX_EVENT_NAME_LENGTH + " characters" };
+        }
+        var eventData = data.eventData || data.properties || {};
+        if (typeof eventData !== "object" || Array.isArray(eventData)) {
+            eventData = {};
+        }
+        // Limit top-level keys to prevent oversized payloads
+        var keys = Object.keys(eventData);
+        if (keys.length > MAX_EVENT_DATA_SIZE) {
+            var trimmed = {};
+            for (var i = 0; i < MAX_EVENT_DATA_SIZE; i++) {
+                trimmed[keys[i]] = eventData[keys[i]];
+            }
+            eventData = trimmed;
+        }
+        return { valid: true, eventName: eventName, eventData: eventData };
+    }
     function logEvent(ctx, logger, nk, data, userId, gId) {
-        var key = "ev_" + gId + "_" + userId + "_" + Date.now();
-        Storage.writeJson(nk, Constants.ANALYTICS_COLLECTION, key, Constants.SYSTEM_USER_ID, {
-            userId: userId, gameId: gId, event: data.eventName, data: data.eventData, timestamp: new Date().toISOString()
+        // 1. Validate payload
+        var validation = validateEventPayload(data);
+        if (!validation.valid) {
+            logger.warn("[logEvent] Invalid payload from " + userId + ": " + validation.error);
+            return { success: false, error: validation.error };
+        }
+        var eventName = validation.eventName;
+        var eventData = validation.eventData;
+        var now = Date.now();
+        // 2. Resolve canonical game ID and timestamp
+        var canonicalGameId = resolveGameId(gId);
+        var ts = resolveTimestamp(data.timestamp);
+        // 3. Extract platform from eventData for DAU platform breakdown
+        var platform = (eventData.platform || "unknown").toString().toLowerCase();
+        // 4. Build event record (dashboard-compatible format)
+        var event = {
+            userId: userId,
+            gameId: canonicalGameId,
+            eventName: eventName,
+            eventData: eventData,
+            timestamp: ts.iso,
+            unixTimestamp: ts.unix,
+            platform: platform
+        };
+        // 5. Write to analytics_events (dashboard primary collection) under user
+        var userKey = "event_" + userId + "_" + canonicalGameId + "_" + now;
+        Storage.writeJson(nk, "analytics_events", userKey, userId, event, 1, 1);
+        // 6. Write to analytics_events under SYSTEM_USER (dashboard aggregation)
+        var dashKey = "dash_" + getStartOfDay() + "_" + eventName + "_" + now;
+        Storage.writeJson(nk, "analytics_events", dashKey, Constants.SYSTEM_USER_ID, event, 0, 0);
+        // 7. Also write to legacy collection for backward compat
+        var legacyKey = "ev_" + gId + "_" + userId + "_" + now;
+        Storage.writeJson(nk, Constants.ANALYTICS_COLLECTION, legacyKey, Constants.SYSTEM_USER_ID, {
+            userId: userId, gameId: gId, event: eventName, data: eventData, timestamp: ts.iso
         }, 0, 0);
+        // 8. Track DAU (game-level + platform-level + per-platform)
+        trackDAUForEvent(nk, userId, canonicalGameId, platform);
+        // 9. Track session metrics if session event
+        if (eventName === "session_start" || eventName === "session_end") {
+            trackSessionForEvent(nk, userId, canonicalGameId, eventName, eventData);
+        }
         return { success: true };
     }
+    function trackDAUForEvent(nk, userId, gameId, platform) {
+        var today = getStartOfDay();
+        // Game-level + platform-aggregate + per-platform keys
+        var keys = ["dau_" + gameId + "_" + today, "dau_platform_" + today];
+        if (platform && platform !== "unknown") {
+            keys.push("dau_" + platform + "_" + today);
+        }
+        for (var k = 0; k < keys.length; k++) {
+            try {
+                var existing = Storage.readSystemJson(nk, "analytics_dau", keys[k]);
+                if (!existing) {
+                    existing = { date: today, uniqueUsers: [], count: 0, newUsers: 0 };
+                }
+                if (!Array.isArray(existing.uniqueUsers)) {
+                    existing.uniqueUsers = Array.isArray(existing.users) ? existing.users : [];
+                    delete existing.users; // migrate legacy field
+                }
+                if (existing.uniqueUsers.indexOf(userId) === -1) {
+                    existing.uniqueUsers.push(userId);
+                    existing.count = existing.uniqueUsers.length;
+                    Storage.writeJson(nk, "analytics_dau", keys[k], Constants.SYSTEM_USER_ID, existing, 0, 0);
+                }
+            }
+            catch (e) { /* DAU tracking non-fatal */ }
+        }
+    }
+    function trackSessionForEvent(nk, userId, gameId, eventName, eventData) {
+        var sessionKey = "analytics_session_" + userId + "_" + gameId;
+        try {
+            if (eventName === "session_start") {
+                var sessionData = {
+                    userId: userId,
+                    gameId: gameId,
+                    startTime: Math.floor(Date.now() / 1000),
+                    startTimestamp: new Date().toISOString(),
+                    active: true
+                };
+                Storage.writeJson(nk, "analytics_sessions", sessionKey, userId, sessionData, 1, 1);
+            }
+            else if (eventName === "session_end") {
+                var existing = Storage.readJson(nk, "analytics_sessions", sessionKey, userId);
+                if (existing && existing.active) {
+                    existing.endTime = Math.floor(Date.now() / 1000);
+                    existing.endTimestamp = new Date().toISOString();
+                    existing.duration = existing.endTime - existing.startTime;
+                    existing.active = false;
+                    var summaryKey = "session_summary_" + userId + "_" + gameId + "_" + existing.startTime;
+                    Storage.writeJson(nk, "analytics_session_summaries", summaryKey, userId, existing, 1, 1);
+                    aggregateSessionStats(nk, existing.duration);
+                    Storage.writeJson(nk, "analytics_sessions", sessionKey, userId, { active: false }, 1, 1);
+                }
+                else {
+                    // Orphaned session_end — no matching session_start (crash recovery)
+                    var duration = (eventData && eventData.duration) ? parseInt(eventData.duration, 10) : 0;
+                    if (duration > 0) {
+                        var orphanKey = "session_orphan_" + userId + "_" + gameId + "_" + Date.now();
+                        Storage.writeJson(nk, "analytics_session_summaries", orphanKey, userId, {
+                            userId: userId, gameId: gameId, duration: duration,
+                            endTimestamp: new Date().toISOString(), orphaned: true
+                        }, 1, 1);
+                        aggregateSessionStats(nk, duration);
+                    }
+                }
+            }
+        }
+        catch (e) { /* Session tracking non-fatal */ }
+    }
+    function aggregateSessionStats(nk, durationSeconds) {
+        var today = getStartOfDay();
+        var statsKey = "session_stats_" + today;
+        var stats = Storage.readSystemJson(nk, "analytics_sessions", statsKey);
+        if (!stats) {
+            stats = { date: today, totalSessions: 0, totalDuration: 0, avgDuration: 0 };
+        }
+        stats.totalSessions++;
+        stats.totalDuration += (durationSeconds || 0);
+        stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
+        Storage.writeJson(nk, "analytics_sessions", statsKey, Constants.SYSTEM_USER_ID, stats, 0, 0);
+    }
     function trackSessionStart(ctx, logger, nk, data, userId, gId) {
-        var key = "session_" + gId + "_" + userId;
-        Storage.writeJson(nk, "sessions", key, userId, { gameId: gId, startedAt: new Date().toISOString(), platform: data.platform });
-        EventBus.emit(nk, logger, ctx, EventBus.Events.SESSION_START, { userId: userId, gameId: gId });
+        var canonicalGameId = resolveGameId(gId);
+        // Extract device info (store full details, not just platform)
+        var platform = (data.platform || "unknown").toString().toLowerCase();
+        var deviceInfo = data.deviceInfo || {};
+        // Write to analytics_sessions (dashboard-readable)
+        var sessionData = {
+            userId: userId,
+            gameId: canonicalGameId,
+            startTime: Math.floor(Date.now() / 1000),
+            startTimestamp: new Date().toISOString(),
+            active: true,
+            platform: platform,
+            deviceModel: deviceInfo.deviceModel || "unknown",
+            operatingSystem: deviceInfo.operatingSystem || "unknown",
+            appVersion: deviceInfo.version || "unknown"
+        };
+        var sessionKey = "analytics_session_" + userId + "_" + canonicalGameId;
+        Storage.writeJson(nk, "analytics_sessions", sessionKey, userId, sessionData, 1, 1);
+        // Also write to legacy "sessions" collection for backward compat
+        var legacyKey = "session_" + gId + "_" + userId;
+        Storage.writeJson(nk, "sessions", legacyKey, userId, { gameId: gId, startedAt: new Date().toISOString(), platform: data.platform });
+        // Track DAU (game-level + platform-level + per-platform)
+        trackDAUForEvent(nk, userId, canonicalGameId, platform);
+        EventBus.emit(nk, logger, ctx, EventBus.Events.SESSION_START, { userId: userId, gameId: canonicalGameId });
         return { success: true };
     }
     function trackSessionEnd(ctx, logger, nk, data, userId, gId) {
-        EventBus.emit(nk, logger, ctx, EventBus.Events.SESSION_END, { userId: userId, gameId: gId, duration: data.duration });
+        var canonicalGameId = resolveGameId(gId);
+        // Update analytics_sessions with end data
+        var sessionKey = "analytics_session_" + userId + "_" + canonicalGameId;
+        try {
+            var existing = Storage.readJson(nk, "analytics_sessions", sessionKey, userId);
+            if (existing && existing.active) {
+                existing.endTime = Math.floor(Date.now() / 1000);
+                existing.endTimestamp = new Date().toISOString();
+                existing.duration = data.duration || (existing.endTime - existing.startTime);
+                existing.active = false;
+                // Save session summary
+                var summaryKey = "session_summary_" + userId + "_" + canonicalGameId + "_" + existing.startTime;
+                Storage.writeJson(nk, "analytics_session_summaries", summaryKey, userId, existing, 1, 1);
+                aggregateSessionStats(nk, existing.duration);
+                // Clear active session
+                Storage.writeJson(nk, "analytics_sessions", sessionKey, userId, { active: false }, 1, 1);
+            }
+            else {
+                // Orphaned session end — no matching start (app crash, server restart, etc.)
+                var duration = data.duration || 0;
+                if (duration > 0) {
+                    var orphanKey = "session_orphan_" + userId + "_" + canonicalGameId + "_" + Date.now();
+                    Storage.writeJson(nk, "analytics_session_summaries", orphanKey, userId, {
+                        userId: userId, gameId: canonicalGameId, duration: duration,
+                        endTimestamp: new Date().toISOString(), orphaned: true
+                    }, 1, 1);
+                    aggregateSessionStats(nk, duration);
+                }
+            }
+        }
+        catch (e) { /* Session end tracking non-fatal */ }
+        EventBus.emit(nk, logger, ctx, EventBus.Events.SESSION_END, { userId: userId, gameId: canonicalGameId, duration: data.duration });
         return { success: true };
     }
     function getServerConfig(ctx, logger, nk, data, userId, gId) {
@@ -10553,8 +10769,9 @@ var RpcHelpers;
     }
     RpcHelpers.resolveUserId = resolveUserId;
     function requireAdmin(ctx, nk) {
+        // Server-to-server calls via http_key have no userId — treat as trusted
         if (!ctx.userId)
-            throw new Error("Authentication required");
+            return;
         try {
             var accounts = nk.accountsGetId([ctx.userId]);
             if (accounts && accounts.length > 0) {
@@ -10564,9 +10781,7 @@ var RpcHelpers;
             }
         }
         catch (_) { }
-        // For development, allow all authenticated users admin access
-        // In production, uncomment the line below:
-        // throw new Error("Admin access required");
+        throw new Error("Admin access required");
     }
     RpcHelpers.requireAdmin = requireAdmin;
 })(RpcHelpers || (RpcHelpers = {}));
