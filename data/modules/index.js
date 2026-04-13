@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-13T05:58:16.595Z
+// Generated: 2026-04-13T06:15:31.451Z
 // RPC Count: 469
 // ============================================================
 
@@ -65999,8 +65999,9 @@ var RpcHelpers;
     }
     RpcHelpers.resolveUserId = resolveUserId;
     function requireAdmin(ctx, nk) {
+        // Server-to-server calls via http_key have no userId — treat as trusted
         if (!ctx.userId)
-            throw new Error("Authentication required");
+            return;
         try {
             var accounts = nk.accountsGetId([ctx.userId]);
             if (accounts && accounts.length > 0) {

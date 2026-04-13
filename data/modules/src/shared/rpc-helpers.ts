@@ -80,7 +80,8 @@ namespace RpcHelpers {
   }
 
   export function requireAdmin(ctx: nkruntime.Context, nk: nkruntime.Nakama): void {
-    if (!ctx.userId) throw new Error("Authentication required");
+    // Server-to-server calls via http_key have no userId — treat as trusted
+    if (!ctx.userId) return;
     try {
       var accounts = nk.accountsGetId([ctx.userId]);
       if (accounts && accounts.length > 0) {
