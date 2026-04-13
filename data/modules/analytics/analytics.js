@@ -298,8 +298,8 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         mau: mau,
         dau_mau_ratio: dauMauRatio,
         new_users_today: newUsersToday,
-        avg_session_duration: avgSessionDuration,
-        dau_trend: dauTrend.slice(-14).map(function(d) { return d.count; }),
+        avg_session_duration_seconds: avgSessionDuration,
+        dau_trend: dauTrend.slice(-14).map(function(d) { return { date: d.date, dau: d.count }; }),
         trends: {
             dau_7d_change_pct: dau7dChangePct
         },

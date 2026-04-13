@@ -80,7 +80,8 @@ namespace RpcHelpers {
   }
 
   export function requireAdmin(ctx: nkruntime.Context, nk: nkruntime.Nakama): void {
-    if (!ctx.userId) throw new Error("Authentication required");
+    // Server-to-server calls via http_key have no userId — treat as trusted
+    if (!ctx.userId) return;
     try {
       var accounts = nk.accountsGetId([ctx.userId]);
       if (accounts && accounts.length > 0) {
@@ -88,8 +89,6 @@ namespace RpcHelpers {
         if (metadata && (metadata as any).admin === true) return;
       }
     } catch (_) {}
-    // For development, allow all authenticated users admin access
-    // In production, uncomment the line below:
-    // throw new Error("Admin access required");
+    throw new Error("Admin access required");
   }
 }
