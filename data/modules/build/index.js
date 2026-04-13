@@ -1873,6 +1873,62 @@ var FantasyTeam;
         logger.info("[FantasyTeam] Deadline set for fixture %s: %s", input.fixtureId, new Date(input.deadlineAt * 1000).toISOString());
         return RpcHelpers.successResponse(dl);
     }
+    /**
+     * Admin RPC to sync the player catalog from the AI microservice.
+     * Called by Intelliverse-X-AI after publishing player data to S3.
+     * This bridges the S3 → Nakama storage gap so validateSquad() can
+     * look up player IDs, credit values, roles, and team membership.
+     */
+    function rpcCatalogSync(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var input = RpcHelpers.parseRpcPayload(payload);
+        var check = RpcHelpers.validatePayload(input, ["seasonId", "players"]);
+        if (!check.valid) {
+            return RpcHelpers.errorResponse("Missing fields: " + check.missing.join(", "));
+        }
+        if (!input.players || typeof input.players !== "object") {
+            return RpcHelpers.errorResponse("players must be a non-empty object keyed by playerId");
+        }
+        var playerIds = Object.keys(input.players);
+        if (playerIds.length === 0) {
+            return RpcHelpers.errorResponse("players catalog is empty — nothing to sync");
+        }
+        var catalog = {
+            seasonId: input.seasonId,
+            leagueId: input.leagueId || "",
+            updatedAt: input.updatedAt || new Date().toISOString(),
+            players: input.players,
+        };
+        Storage.writeJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.PLAYER_CATALOG + "_" + input.seasonId, Constants.SYSTEM_USER_ID, catalog, 2, 0);
+        logger.info("[FantasyTeam] Player catalog synced for season %s: %d players", input.seasonId, playerIds.length);
+        return RpcHelpers.successResponse({
+            seasonId: input.seasonId,
+            playerCount: playerIds.length,
+            syncedAt: catalog.updatedAt,
+        });
+    }
+    /**
+     * Admin RPC to inspect what's currently in the player catalog.
+     * Useful for debugging "Unknown player ID" errors.
+     */
+    function rpcCatalogGet(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.seasonId) {
+            return RpcHelpers.errorResponse("seasonId is required");
+        }
+        var catalog = getPlayerCatalog(nk, input.seasonId);
+        if (!catalog) {
+            return RpcHelpers.errorResponse("No player catalog found for season " + input.seasonId);
+        }
+        var playerIds = Object.keys(catalog.players);
+        return RpcHelpers.successResponse({
+            seasonId: catalog.seasonId,
+            leagueId: catalog.leagueId,
+            updatedAt: catalog.updatedAt,
+            playerCount: playerIds.length,
+            players: catalog.players,
+        });
+    }
     // ---- Registration ----
     function register(initializer) {
         initializer.registerRpc("fantasy_team_create", rpcCreateTeam);
@@ -1881,6 +1937,8 @@ var FantasyTeam;
         initializer.registerRpc("fantasy_match_xi_select", rpcSelectMatchXI);
         initializer.registerRpc("fantasy_match_xi_get", rpcGetMatchXI);
         initializer.registerRpc("fantasy_match_deadline_set", rpcSetMatchDeadline);
+        initializer.registerRpc("fantasy_catalog_sync", rpcCatalogSync);
+        initializer.registerRpc("fantasy_catalog_get", rpcCatalogGet);
     }
     FantasyTeam.register = register;
 })(FantasyTeam || (FantasyTeam = {}));
