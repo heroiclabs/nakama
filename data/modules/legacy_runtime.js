@@ -23192,9 +23192,8 @@ var rpcFriendQuestComplete = function(ctx, logger, nk, payload) {
     }
 
     logger.info('[FriendQuests] Quest completed: ' + questId + ' type=' + questType + ' coins=' + coinReward + ' xp=' + xpReward);
-    return JSON.stringify({ success: true, questId: questId, coinReward: coinReward, xpReward: xpReward, timestamp: new Date().toISOString()
-    'ShareScore', 'WinThreeQuizzes'
-];
+    return JSON.stringify({ success: true, questId: questId, coinReward: coinReward, xpReward: xpReward, timestamp: new Date().toISOString() });
+}
 
 // Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
 var FQ_TEMPLATES = {

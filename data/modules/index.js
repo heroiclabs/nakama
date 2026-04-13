@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-13T05:31:29.356Z
+// Generated: 2026-04-13T05:58:16.595Z
 // RPC Count: 469
 // ============================================================
 
@@ -53424,9 +53424,8 @@ var rpcFriendQuestComplete = function(ctx, logger, nk, payload) {
     }
 
     logger.info('[FriendQuests] Quest completed: ' + questId + ' type=' + questType + ' coins=' + coinReward + ' xp=' + xpReward);
-    return JSON.stringify({ success: true, questId: questId, coinReward: coinReward, xpReward: xpReward, timestamp: new Date().toISOString()
-    'ShareScore', 'WinThreeQuizzes'
-];
+    return JSON.stringify({ success: true, questId: questId, coinReward: coinReward, xpReward: xpReward, timestamp: new Date().toISOString() });
+}
 
 // Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
 var FQ_TEMPLATES = {
