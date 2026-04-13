@@ -540,7 +540,7 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 			req.Header.Set("X-Client-IP", "none")
 		}
 	} else if ipAddr, ok := ctx.Value(runtime.RUNTIME_CTX_CLIENT_IP).(string); ok {
-		req.Header.Set("X-Forwarded-For", ipAddr)
+		req.Header.Set("X-Client-IP", ipAddr)
 	}
 
 	res, err := s.httpc.Do(req)
