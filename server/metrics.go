@@ -523,6 +523,10 @@ func (m *LocalMetrics) StorageWriteRejectCount(tags map[string]string, delta int
 
 // CustomCounter adds the given delta to a counter with the specified name and tags.
 func (m *LocalMetrics) CustomCounter(name string, tags map[string]string, delta int64) {
+	if delta < 0 {
+		return
+	}
+
 	scope := m.prometheusCustomScope
 	if len(tags) != 0 {
 		scope = scope.Tagged(tags)

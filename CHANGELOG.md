@@ -5,6 +5,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+### Fixed
+- Ignore negative custom runtime counter deltas to avoid panics during metrics collection.
+
 ## [3.38.0] - 2026-03-20
 ### Added
 - Add runtime Satori client feature to delete identities.
