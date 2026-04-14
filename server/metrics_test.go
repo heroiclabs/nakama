@@ -25,6 +25,8 @@ func TestMetricsCounterAddNegativeDoesNotPanics(t *testing.T) {
 	logger := zap.NewNop()
 	cfg := NewConfig(logger)
 	cfg.Metrics.ReportingFreqSec = 1
+	reportingInterval := time.Duration(cfg.Metrics.ReportingFreqSec) * time.Second
+	flushWait := reportingInterval + 200*time.Millisecond
 
 	metrics := NewLocalMetrics(logger, logger, nil, cfg)
 	defer metrics.Stop(logger)
@@ -32,8 +34,8 @@ func TestMetricsCounterAddNegativeDoesNotPanics(t *testing.T) {
 	module := &RuntimeGoNakamaModule{metrics: metrics}
 	module.MetricsCounterAdd("panic_counter", nil, 1)
 
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(flushWait)
 	module.MetricsCounterAdd("panic_counter", nil, -1)
 
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(flushWait)
 }
