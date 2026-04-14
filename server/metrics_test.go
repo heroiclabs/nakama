@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestMetricsCounterAddNegativeDoesNotPanics(t *testing.T) {
+func TestMetricsCounterAddNegativeDoesNotPanic(t *testing.T) {
 	logger := zap.NewNop()
 	cfg := NewConfig(logger)
 	cfg.Metrics.ReportingFreqSec = 1
