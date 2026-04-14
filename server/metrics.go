@@ -524,6 +524,7 @@ func (m *LocalMetrics) StorageWriteRejectCount(tags map[string]string, delta int
 // CustomCounter adds the given delta to a counter with the specified name and tags.
 func (m *LocalMetrics) CustomCounter(name string, tags map[string]string, delta int64) {
 	if delta < 0 {
+		m.PrometheusScope.Tagged(map[string]string{"name": name, "err": "negative_increment"}).Counter("metrics_collection_errors_count").Inc(1)
 		return
 	}
 
