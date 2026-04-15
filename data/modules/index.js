@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-15T16:15:23.728Z
-// RPC Count: 484
+// Generated: 2026-04-15T16:37:51.886Z
+// RPC Count: 485
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -146,6 +146,7 @@ var __rpc_hiro_energy_add_modifier;
 var __rpc_hiro_event_lb_list;
 var __rpc_hiro_event_lb_submit;
 var __rpc_hiro_event_lb_claim;
+var __rpc_hiro_event_lb_get;
 var __rpc_hiro_incentives_referral_code;
 var __rpc_hiro_incentives_apply_referral;
 var __rpc_hiro_incentives_return_bonus;
@@ -60878,10 +60879,64 @@ var HiroEventLeaderboards;
         saveUserEventState(nk, userId, userState, data.gameId);
         return RpcHelpers.successResponse({ rank: rank, reward: reward });
     }
+    function rpcGetRankings(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var activeEvents = getActiveEvents(nk);
+        var ae = activeEvents.find(function (e) { return e.eventId === data.eventId; });
+        if (!ae)
+            return RpcHelpers.errorResponse("Event not found or not active");
+        var config = getConfig(nk);
+        var def = config.events[ae.eventId];
+        var limit = data.limit || 50;
+        var cursor = data.cursor || undefined;
+        var result = nk.leaderboardRecordsList(ae.leaderboardId, [], limit, cursor, 0);
+        var rankings = [];
+        if (result.records) {
+            for (var i = 0; i < result.records.length; i++) {
+                var r = result.records[i];
+                rankings.push({
+                    rank: r.rank,
+                    userId: r.ownerId,
+                    username: r.username || "",
+                    score: r.score,
+                    subscore: r.subscore,
+                    metadata: r.metadata,
+                    updateTime: r.updateTime,
+                });
+            }
+        }
+        var callerRank = null;
+        var userId = ctx.userId;
+        if (userId) {
+            var ownerRecords = nk.leaderboardRecordsList(ae.leaderboardId, [userId], 1, undefined, 0);
+            if (ownerRecords.records && ownerRecords.records.length > 0) {
+                var cr = ownerRecords.records[0];
+                callerRank = {
+                    rank: cr.rank,
+                    userId: cr.ownerId,
+                    username: cr.username || "",
+                    score: cr.score,
+                    subscore: cr.subscore,
+                };
+            }
+        }
+        return RpcHelpers.successResponse({
+            eventId: data.eventId,
+            name: def ? def.name : data.eventId,
+            leaderboardId: ae.leaderboardId,
+            rankings: rankings,
+            nextCursor: result.nextCursor || "",
+            prevCursor: result.prevCursor || "",
+            callerRank: callerRank,
+        });
+    }
     function register(initializer) {
         __rpc_hiro_event_lb_list = rpcList;
         __rpc_hiro_event_lb_submit = rpcSubmit;
         __rpc_hiro_event_lb_claim = rpcClaim;
+        __rpc_hiro_event_lb_get = rpcGetRankings;
     }
     HiroEventLeaderboards.register = register;
     register();
@@ -68567,6 +68622,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("hiro_event_lb_list", __rpc_hiro_event_lb_list); } catch(e) {}
   try { initializer.registerRpc("hiro_event_lb_submit", __rpc_hiro_event_lb_submit); } catch(e) {}
   try { initializer.registerRpc("hiro_event_lb_claim", __rpc_hiro_event_lb_claim); } catch(e) {}
+  try { initializer.registerRpc("hiro_event_lb_get", __rpc_hiro_event_lb_get); } catch(e) {}
   try { initializer.registerRpc("hiro_incentives_referral_code", __rpc_hiro_incentives_referral_code); } catch(e) {}
   try { initializer.registerRpc("hiro_incentives_apply_referral", __rpc_hiro_incentives_apply_referral); } catch(e) {}
   try { initializer.registerRpc("hiro_incentives_return_bonus", __rpc_hiro_incentives_return_bonus); } catch(e) {}
@@ -68914,5 +68970,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 484 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 485 + " RPCs via AST-compatible wrapper");
 }
