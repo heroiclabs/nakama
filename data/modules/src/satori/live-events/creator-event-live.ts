@@ -556,6 +556,26 @@ namespace SatoriCreatorEvents {
     saveEventDefinition(nk, event);
     logger.info("[CreatorEvent] Draft created by %s: %s (%s)", userId, event.title, event.id);
 
+    // Emit EVENT_CREATED so Content Factory can begin PRE-GENERATING the promo
+    // video immediately (well before rpcPublish). This gives the pipeline the
+    // maximum runway between creation and scheduledAt.
+    EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CREATED, {
+      eventId: event.id,
+      creatorId: event.creatorId,
+      title: event.title,
+      description: event.description,
+      category: event.category,
+      gameMode: event.gameMode,
+      region: event.region,
+      scheduledAt: event.scheduledAt,
+      duration: event.duration,
+      prizePool: event.prizePool,
+      giftCardPrizes: event.giftCardPrizes || null,
+      deepLinkUrl: event.deepLinkUrl || "",
+      createdAt: event.createdAt,
+      idempotencyKey: "event_created_" + event.id,
+    });
+
     return RpcHelpers.successResponse({
       success: true,
       eventId: event.id,
@@ -656,6 +676,7 @@ namespace SatoriCreatorEvents {
       eventId: event.id,
       creatorId: event.creatorId,
       title: event.title,
+      description: event.description,
       category: event.category,
       gameMode: event.gameMode,
       region: event.region,
@@ -665,6 +686,7 @@ namespace SatoriCreatorEvents {
       giftCardPrizes: event.giftCardPrizes || null,
       deepLinkUrl: event.deepLinkUrl || "",
       publishedAt: event.publishedAt,
+      idempotencyKey: "event_published_" + event.id,
     });
 
     broadcastEventPublishedNotification(nk, logger, event);
@@ -796,19 +818,57 @@ namespace SatoriCreatorEvents {
     logger.info("[CreatorEvent] Ended event %s — %d participants, %d tier assignments",
       def.id, allRecords.length, Object.keys(tierAssignments).length);
 
+    // Resolve usernames for winner + runners-up so downstream recap pipelines
+    // (n8n → Content Factory event-recap) can produce a real highlight video
+    // without having to do their own lookup.
+    var topOwnerIds: string[] = [];
+    for (var oi = 0; oi < allRecords.length && oi < 4; oi++) {
+      topOwnerIds.push(allRecords[oi].ownerId);
+    }
+    var idToUsername: { [uid: string]: string } = {};
+    if (topOwnerIds.length > 0) {
+      try {
+        var accts = nk.accountsGetId(topOwnerIds);
+        for (var ai = 0; ai < accts.length; ai++) {
+          var u: any = accts[ai].user;
+          if (u && u.id) idToUsername[u.id] = u.username || "";
+        }
+      } catch (err: any) {
+        logger.warn("[CreatorEvent] Failed to resolve usernames for recap: %s", err.message || String(err));
+      }
+    }
+    function rankInfo(rec: any, rank: number) {
+      return {
+        userId: rec.ownerId,
+        username: idToUsername[rec.ownerId] || "",
+        rank: rank,
+        score: rec.score || 0,
+      };
+    }
+    var winner = allRecords.length > 0 ? rankInfo(allRecords[0], 1) : null;
+    var runnersUp: any[] = [];
+    for (var ri2 = 1; ri2 < allRecords.length && ri2 < 4; ri2++) {
+      runnersUp.push(rankInfo(allRecords[ri2], ri2 + 1));
+    }
+
     EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
       eventId: def.id,
       creatorId: def.creatorId,
       title: def.title,
+      description: def.description,
       category: def.category,
       gameMode: def.gameMode,
       region: def.region,
       totalParticipants: allRecords.length,
       tierAssignments: tierAssignments,
       winnersPerTier: winnersPerTier,
+      winner: winner,
+      runnersUp: runnersUp,
+      answer: def.answer || "",
       prizePool: def.prizePool,
       giftCardPrizes: def.giftCardPrizes || null,
       endedAt: def.endedAt,
+      idempotencyKey: "event_ended_" + def.id,
     });
 
     return RpcHelpers.successResponse({

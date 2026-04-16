@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-16T18:46:37.297Z
-// RPC Count: 501
+// Generated: 2026-04-16T19:14:27.395Z
+// RPC Count: 504
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -494,6 +494,9 @@ var __rpc_analytics_platform_breakdown;
 var __rpc_analytics_home_heatmap;
 var __rpc_analytics_top_players;
 var __rpc_analytics_error_log;
+var __rpc_analytics_player_segments;
+var __rpc_analytics_churn_risk;
+var __rpc_analytics_conversion_funnel;
 var __rpc_analytics_appodeal;
 var __rpc_analytics_apple_appstore;
 var __rpc_apple_appstore_import;
@@ -2002,7 +2005,9 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var dau7dChangePct = dau7dAgo > 0 ? Math.round(((dau - dau7dAgo) / dau7dAgo) * 100) : 0;
 
     // Session stats
-    var sessionKey = 'session_stats_' + todayStr;
+    var sessionKey = gameId === 'all'
+        ? 'session_stats_' + todayStr
+        : 'session_stats_' + gameId + '_' + todayStr;
     var sessionStats = null;
     try {
         var sessObjs = nk.storageRead([{ collection: 'analytics_sessions', key: sessionKey, userId: SYSTEM_USER }]);
@@ -2033,12 +2038,23 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
                 });
             }
             topGames = Object.keys(gameStats).map(function(gid) {
-                return { gameId: gid, avgDau: Math.round(gameStats[gid].totalDau / Math.max(1, gameStats[gid].days)) };
+                var avgDau = Math.round(gameStats[gid].totalDau / Math.max(1, gameStats[gid].days));
+                return {
+                    gameId: gid,
+                    game_id: gid,
+                    avgDau: avgDau,
+                    avg_dau: avgDau,
+                    dau: avgDau
+                };
             }).sort(function(a, b) { return b.avgDau - a.avgDau; }).slice(0, 5);
         } catch (e) {
             logger.warn('[Analytics] Top games scan error: ' + e.message);
         }
     }
+
+    var dauWindow = dauTrend.slice(-7).map(function(day) { return day.count || 0; });
+    var dau7dMin = dauWindow.length > 0 ? Math.min.apply(null, dauWindow) : 0;
+    var dau7dMax = dauWindow.length > 0 ? Math.max.apply(null, dauWindow) : 0;
 
     return JSON.stringify({
         success: true,
@@ -2047,7 +2063,10 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         mau: mau,
         dau_mau_ratio: dauMauRatio,
         new_users_today: newUsersToday,
+        returning_users_today: Math.max(0, dau - newUsersToday),
         avg_session_duration_seconds: avgSessionDuration,
+        dau_7d_min: dau7dMin,
+        dau_7d_max: dau7dMax,
         dau_trend: dauTrend.slice(-14).map(function(d) { return { date: d.date, dau: d.count }; }),
         trends: {
             dau_7d_change_pct: dau7dChangePct
@@ -2066,7 +2085,7 @@ function __ModuleInit_2(ctx, logger, nk, initializer) {
 // --- Module: analytics_extended/analytics_extended.js ---
 /**
  * Analytics Extended Module
- * Implements 11 analytics RPCs for the dashboard.
+ * Implements 14 analytics RPCs for the dashboard.
  * 
  * RPCs:
  *   - analytics_session_stats
@@ -2088,6 +2107,176 @@ var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 function extSafeJsonParse(payload) {
     try { return JSON.parse(payload || '{}'); } catch (e) { return {}; }
+}
+
+function extIsoDate(value) {
+    if (!value) return null;
+    var parsed = new Date(value);
+    if (isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0, 10);
+}
+
+function extDaysSince(value) {
+    var dateStr = extIsoDate(value);
+    if (!dateStr) return 999;
+
+    var today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    var then = new Date(dateStr + 'T00:00:00.000Z');
+    return Math.floor((today.getTime() - then.getTime()) / 86400000);
+}
+
+function extNormalizeEvent(val, key) {
+    if (!val) return null;
+
+    if (val.event && !val.eventName) {
+        val.eventName = val.event;
+    }
+    if (!val.eventData) {
+        if (val.properties) val.eventData = val.properties;
+        else if (val.data) val.eventData = val.data;
+    }
+    if (!val.properties && val.eventData) {
+        val.properties = val.eventData;
+    }
+    if (!val.gameId && val.gameID) {
+        val.gameId = val.gameID;
+    }
+    if (!val.gameId && key) {
+        val.gameId = extractGameIdFromKey(key);
+    }
+    if (!val.date && val.timestamp) {
+        val.date = extIsoDate(val.timestamp);
+    }
+
+    return val;
+}
+
+function extResolveProfile(profile, gameId) {
+    if (!profile) return null;
+    if (!gameId) return profile;
+    if (!profile.games || !profile.games[gameId]) return null;
+    return profile.games[gameId];
+}
+
+function extProfileFirstSeen(profile) {
+    if (!profile) return null;
+    if (profile.firstSeenAt) return profile.firstSeenAt;
+    if (profile.global && profile.global.firstSeenAt) return profile.global.firstSeenAt;
+    if (profile.createdAt) return profile.createdAt;
+    return null;
+}
+
+function extProfileLastSeen(profile) {
+    if (!profile) return null;
+    if (profile.lastSeenAt) return profile.lastSeenAt;
+    if (profile.engagement && profile.engagement.lastSessionAt) return profile.engagement.lastSessionAt;
+    if (profile.global && profile.global.lastSeenAt) return profile.global.lastSeenAt;
+    if (profile.updatedAt) return profile.updatedAt;
+    return null;
+}
+
+function extProfileTotalSpent(profile) {
+    if (!profile) return 0;
+
+    if (profile.monetization) {
+        return profile.monetization.totalIapSpend || profile.monetization.ltv || 0;
+    }
+
+    if (profile.games) {
+        var total = 0;
+        for (var gameId in profile.games) {
+            if (profile.games.hasOwnProperty(gameId)) {
+                total += extProfileTotalSpent(profile.games[gameId]);
+            }
+        }
+        return total;
+    }
+
+    return (profile.global && profile.global.totalRevenue) || 0;
+}
+
+function extProfilePurchaseCount(profile) {
+    if (!profile) return 0;
+
+    if (profile.monetization) {
+        return profile.monetization.purchaseCount || 0;
+    }
+
+    if (profile.games) {
+        var total = 0;
+        for (var gameId in profile.games) {
+            if (profile.games.hasOwnProperty(gameId)) {
+                total += extProfilePurchaseCount(profile.games[gameId]);
+            }
+        }
+        return total;
+    }
+
+    return 0;
+}
+
+function extProfileRewardedAds(profile) {
+    if (!profile) return 0;
+
+    if (profile.monetization) {
+        return profile.monetization.rewardedAdsWatched || 0;
+    }
+
+    if (profile.games) {
+        var total = 0;
+        for (var gameId in profile.games) {
+            if (profile.games.hasOwnProperty(gameId)) {
+                total += extProfileRewardedAds(profile.games[gameId]);
+            }
+        }
+        return total;
+    }
+
+    return 0;
+}
+
+function extProfileAdRemovalPurchased(profile) {
+    if (!profile) return false;
+
+    if (profile.monetization) {
+        return !!profile.monetization.adRemovalPurchased;
+    }
+
+    if (profile.games) {
+        for (var gameId in profile.games) {
+            if (profile.games.hasOwnProperty(gameId) && extProfileAdRemovalPurchased(profile.games[gameId])) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function extProfileRecentSessions(profile) {
+    if (!profile) return 0;
+
+    if (profile.engagement) {
+        return profile.engagement.sessionsThisWeek || profile.engagement.totalSessions || 0;
+    }
+
+    if (profile.global) {
+        return profile.global.totalSessions || 0;
+    }
+
+    return 0;
+}
+
+function extProfileStreak(profile) {
+    if (!profile) return 0;
+
+    if (profile.engagement) {
+        return profile.engagement.currentStreak || 0;
+    }
+
+    return 0;
 }
 
 function extDaysAgo(days) {
@@ -2115,7 +2304,16 @@ function extStorageList(nk, collection, userId, limit) {
 // Collections where events are stored (legacy + new)
 var EVENT_COLLECTIONS = ['analytics_events', 'analytics_error_events'];
 
-function extScanEvents(nk, logger, collection, days, filter) {
+/**
+ * Scan events from storage with optional gameId filtering.
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger
+ * @param {string} collection - Collection name
+ * @param {number} days - Days to look back
+ * @param {function} filter - Custom filter function
+ * @param {string} gameId - Optional gameId to filter (null = all games)
+ */
+function extScanEvents(nk, logger, collection, days, filter, gameId) {
     var events = [];
     var cutoffDate = extDaysAgo(days);
     
@@ -2136,18 +2334,17 @@ function extScanEvents(nk, logger, collection, days, filter) {
                 
                 for (var i = 0; i < result.objects.length; i++) {
                     var obj = result.objects[i];
-                    var val = obj.value;
+                    var val = extNormalizeEvent(obj.value, obj.key);
+                    if (!val) continue;
                     
-                    // Normalize legacy format (event → eventName, data → eventData)
-                    if (val.event && !val.eventName) {
-                        val.eventName = val.event;
-                    }
-                    if (val.data && !val.eventData) {
-                        val.eventData = val.data;
+                    // GameId filter (supports both key prefix and value.gameId)
+                    if (gameId) {
+                        var eventGameId = val.gameId || extractGameIdFromKey(obj.key);
+                        if (eventGameId !== gameId) continue;
                     }
                     
                     // Date filter
-                    var eventDate = val.date || val.timestamp || obj.key.slice(-10);
+                    var eventDate = val.date || extIsoDate(val.timestamp) || obj.key.slice(-10);
                     if (eventDate && eventDate < cutoffDate) continue;
                     
                     // Custom filter
@@ -2165,6 +2362,30 @@ function extScanEvents(nk, logger, collection, days, filter) {
     }
     
     return events;
+}
+
+/**
+ * Extract gameId from storage key format: {gameId}_{eventName}_{timestamp}_{userId}
+ */
+function extractGameIdFromKey(key) {
+    if (!key) return null;
+    var parts = key.split('_');
+    // Key format: gameId_eventName_timestamp_userId
+    // gameId is typically "quizverse", "cricket", etc.
+    if (parts.length >= 4) {
+        return parts[0];
+    }
+    return null;
+}
+
+/**
+ * Get DAU key for a specific gameId or platform-wide
+ */
+function getDAUKey(dateStr, gameId) {
+    if (gameId) {
+        return 'dau_' + gameId + '_' + dateStr;
+    }
+    return 'dau_platform_' + dateStr;
 }
 
 function extCountByField(events, field) {
@@ -2211,16 +2432,19 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         var totalSessions = 0;
         var durations = [];
         var hourCounts = {};
         var dailyStats = [];
         
-        // Read session summaries from storage
+        // Read session summaries from storage (game-specific key if gameId provided)
         for (var d = 0; d < days; d++) {
             var dateStr = extDaysAgo(d);
-            var key = 'session_stats_' + dateStr;
+            var key = gameId 
+                ? 'session_stats_' + gameId + '_' + dateStr 
+                : 'session_stats_' + dateStr;
             var stats = extStorageRead(nk, 'analytics_sessions', key, SYSTEM_USER_ID);
             
             var daySessions = 0;
@@ -2275,6 +2499,7 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
         peakHours.sort(function(a, b) { return b.count - a.count; });
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             total_sessions: totalSessions,
             avg_duration_seconds: avgDuration,
             median_duration_seconds: medianDuration,
@@ -2295,6 +2520,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         var quizStarted = 0;
         var quizCompleted = 0;
@@ -2309,10 +2535,12 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
         var topicCounts = {};
         var difficultyCounts = {};
         
-        // Read quiz stats from storage
+        // Read quiz stats from storage (game-specific key if gameId provided)
         for (var d = 0; d < days; d++) {
             var dateStr = extDaysAgo(d);
-            var key = 'quiz_stats_' + dateStr;
+            var key = gameId 
+                ? 'quiz_stats_' + gameId + '_' + dateStr 
+                : 'quiz_stats_' + dateStr;
             var stats = extStorageRead(nk, 'analytics_quiz', key, SYSTEM_USER_ID);
             
             if (stats) {
@@ -2349,11 +2577,11 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
             }
         }
         
-        // Fallback: scan events collection  
+        // Fallback: scan events collection (with gameId filter)
         if (quizStarted === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
                 return val.eventName && val.eventName.indexOf('quiz') !== -1;
-            });
+            }, gameId);
             
             for (var i = 0; i < events.length; i++) {
                 var ev = events[i];
@@ -2393,6 +2621,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
         var difficultyBreakdown = extTopN(difficultyCounts, 5, 'difficulty', 'count');
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             quiz_started: quizStarted,
             quiz_completed: quizCompleted,
             completion_rate_pct: completionRate,
@@ -2417,6 +2646,7 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         var funnelType = data.funnel || 'onboarding';
         
         var stepCounts = {};
@@ -2438,10 +2668,12 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
             stepCounts[stepOrder[i]] = 0;
         }
         
-        // Read funnel data
+        // Read funnel data (game-specific key if gameId provided)
         for (var d = 0; d < days; d++) {
             var dateStr = extDaysAgo(d);
-            var key = 'funnel_' + funnelType + '_' + dateStr;
+            var key = gameId 
+                ? 'funnel_' + funnelType + '_' + gameId + '_' + dateStr 
+                : 'funnel_' + funnelType + '_' + dateStr;
             var stats = extStorageRead(nk, 'analytics_funnel', key, SYSTEM_USER_ID);
             
             if (stats && stats.steps) {
@@ -2453,9 +2685,9 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
             }
         }
         
-        // Fallback: scan events
+        // Fallback: scan events (with gameId filter)
         if (stepCounts[stepOrder[0]] === 0) {
-            var events = extScanEvents(nk, logger, 'analytics_events', days, null);
+            var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
             
             for (var j = 0; j < events.length; j++) {
                 var ev = events[j];
@@ -2496,6 +2728,7 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
         }
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             steps: steps,
             worst_drop_off: worstDropOff
         });
@@ -2511,6 +2744,7 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         var totalAIEvents = 0;
         var aiUserSet = {};
@@ -2519,12 +2753,12 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
         var featureCounts = {};
         var featureUsers = {};
         
-        // Scan AI-related events
+        // Scan AI-related events (with gameId filter)
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
             var evName = (val.eventName || '').toLowerCase();
             return evName.indexOf('ai') !== -1 || evName.indexOf('voice') !== -1 || 
                    evName.indexOf('gemini') !== -1 || evName.indexOf('trivia') !== -1;
-        });
+        }, gameId);
         
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
@@ -2552,8 +2786,9 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
         
         var totalAIUsers = Object.keys(aiUserSet).length;
         
-        // Read DAU to calculate adoption %
-        var todayDau = extStorageRead(nk, 'analytics_dau', 'dau_platform_' + extDaysAgo(0), SYSTEM_USER_ID);
+        // Read DAU to calculate adoption % (game-specific if filtered)
+        var dauKey = gameId ? 'dau_' + gameId + '_' + extDaysAgo(0) : 'dau_platform_' + extDaysAgo(0);
+        var todayDau = extStorageRead(nk, 'analytics_dau', dauKey, SYSTEM_USER_ID);
         var totalActiveUsers = (todayDau && todayDau.count) ? todayDau.count : (todayDau && todayDau.uniqueUsers) ? todayDau.uniqueUsers : 100;
         var aiAdoptionPct = totalActiveUsers > 0 ? Math.round((totalAIUsers / totalActiveUsers) * 100) : 0;
         
@@ -2570,6 +2805,7 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
         features.sort(function(a, b) { return b.events - a.events; });
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             total_ai_events: totalAIEvents,
             total_ai_users: totalAIUsers,
             ai_adoption_pct: aiAdoptionPct,
@@ -2590,6 +2826,7 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         // Define features to track
         var featureDefs = [
@@ -2605,15 +2842,16 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
             { name: 'Streaks', collection: 'streaks', eventName: 'streak' }
         ];
         
-        // Get total active users
-        var todayDau = extStorageRead(nk, 'analytics_dau', 'dau_platform_' + extDaysAgo(0), SYSTEM_USER_ID);
+        // Get total active users (game-specific if filtered)
+        var dauKey = gameId ? 'dau_' + gameId + '_' + extDaysAgo(0) : 'dau_platform_' + extDaysAgo(0);
+        var todayDau = extStorageRead(nk, 'analytics_dau', dauKey, SYSTEM_USER_ID);
         var totalActiveUsers = (todayDau && todayDau.count) ? todayDau.count : 100;
         
         var features = [];
         var lowAdoptionFeatures = [];
         
-        // Scan events for feature usage
-        var allEvents = extScanEvents(nk, logger, 'analytics_events', days, null);
+        // Scan events for feature usage (with gameId filter)
+        var allEvents = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
         var featureUserSets = {};
         
         for (var i = 0; i < allEvents.length; i++) {
@@ -2650,6 +2888,7 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
         features.sort(function(a, b) { return b.adoption_pct - a.adoption_pct; });
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             features: features,
             recommendations: lowAdoptionFeatures.slice(0, 5)
         });
@@ -2665,6 +2904,7 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var sampleSize = parseInt(data.sample_size, 10) || 100;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         var coinBalances = [];
         var gemBalances = [];
@@ -2673,8 +2913,9 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
         var whaleCount = 0;
         var whaleThreshold = 10000; // coins
         
-        // Read economy stats from storage
-        var economyStats = extStorageRead(nk, 'analytics_economy', 'economy_stats', SYSTEM_USER_ID);
+        // Read economy stats from storage (game-specific key if gameId provided)
+        var economyKey = gameId ? 'economy_stats_' + gameId : 'economy_stats';
+        var economyStats = extStorageRead(nk, 'analytics_economy', economyKey, SYSTEM_USER_ID);
         
         if (economyStats) {
             coinBalances = economyStats.coinBalances || [];
@@ -2683,13 +2924,13 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
             sinksTotal = economyStats.sinks || 0;
         }
         
-        // Fallback: scan wallet data
+        // Fallback: scan wallet data (with gameId filter)
         if (coinBalances.length === 0) {
             var walletEvents = extScanEvents(nk, logger, 'analytics_events', 30, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
                 return evName.indexOf('coin') !== -1 || evName.indexOf('gem') !== -1 || 
                        evName.indexOf('wallet') !== -1 || evName.indexOf('purchase') !== -1;
-            });
+            }, gameId);
             
             for (var i = 0; i < walletEvents.length; i++) {
                 var ev = walletEvents[i];
@@ -2735,6 +2976,7 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
         var sourceSinkRatio = sinksTotal > 0 ? Math.round((sourcesTotal / sinksTotal) * 100) / 100 : 0;
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             gini_coefficient: gini,
             total_coins: totalCoins,
             total_gems: totalGems,
@@ -2760,6 +3002,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         var adImpressions = 0;
         var adCompleted = 0;
@@ -2772,10 +3015,12 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         var dailyAdRevenue = [];
         var productPurchases = {};
         
-        // Read monetization stats
+        // Read monetization stats (game-specific key if gameId provided)
         for (var d = 0; d < days; d++) {
             var dateStr = extDaysAgo(d);
-            var key = 'monetization_' + dateStr;
+            var key = gameId 
+                ? 'monetization_' + gameId + '_' + dateStr 
+                : 'monetization_' + dateStr;
             var stats = extStorageRead(nk, 'analytics_monetization', key, SYSTEM_USER_ID);
             
             var dayRevenue = 0;
@@ -2809,14 +3054,14 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             });
         }
         
-        // Fallback: scan events
+        // Fallback: scan events (with gameId filter)
         if (adImpressions === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
                 return evName.indexOf('ad') !== -1 || evName.indexOf('purchase') !== -1 || 
                        evName.indexOf('iap') !== -1 || evName.indexOf('store') !== -1 || 
                        evName.indexOf('paywall') !== -1;
-            });
+            }, gameId);
             
             for (var i = 0; i < events.length; i++) {
                 var ev = events[i];
@@ -2845,6 +3090,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         var paywallConversionRate = paywallShown > 0 ? Math.round((paywallConverted / paywallShown) * 100) : 0;
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             ad_impressions: adImpressions,
             ad_completed: adCompleted,
             ad_fill_rate_pct: adFillRate,
@@ -2869,14 +3115,15 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         var platformCounts = {};
         var platformUsers = {};
         var osVersionCounts = {};
         var deviceCounts = {};
         
-        // Scan events for platform data
-        var events = extScanEvents(nk, logger, 'analytics_events', days, null);
+        // Scan events for platform data (with gameId filter)
+        var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
         
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
@@ -2899,7 +3146,7 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
             }
         }
         
-        // Also check DAU storage for platform breakdown
+        // Also check DAU storage for platform breakdown (game-specific if filtered)
         for (var d = 0; d < Math.min(days, 7); d++) {
             var dateStr = extDaysAgo(d);
             var platforms = ['android', 'ios', 'webgl', 'editor'];
@@ -2927,6 +3174,7 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
         platforms_arr.sort(function(a, b) { return b.events - a.events; });
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             platforms: platforms_arr,
             os_versions: extTopN(osVersionCounts, 10, 'version', 'count'),
             top_devices: extTopN(deviceCounts, 10, 'model', 'count')
@@ -2943,6 +3191,7 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         var buttonClicks = {};
         var screenViews = {};
@@ -2950,13 +3199,13 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
         var screenTimeCounts = {};
         var popupShown = {};
         
-        // Scan UI-related events
+        // Scan UI-related events (with gameId filter)
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
             var evName = (val.eventName || '').toLowerCase();
             return evName.indexOf('click') !== -1 || evName.indexOf('view') !== -1 || 
                    evName.indexOf('screen') !== -1 || evName.indexOf('popup') !== -1 ||
                    evName.indexOf('button') !== -1 || evName.indexOf('tap') !== -1;
-        });
+        }, gameId);
         
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
@@ -3000,6 +3249,7 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
         screenTimeAvg.sort(function(a, b) { return b.avg_seconds - a.avg_seconds; });
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             buttons: extTopN(buttonClicks, 15, 'button', 'count'),
             top_screens: extTopN(screenViews, 10, 'screen', 'views'),
             screen_time: screenTimeAvg.slice(0, 10),
@@ -3022,14 +3272,8 @@ function rpcAnalyticsTopPlayers(ctx, logger, nk, payload) {
         
         var playerStats = {};
         
-        // Scan events and aggregate by user (with optional game filter)
-        var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            // If gameId filter specified, only include matching events
-            if (gameId) {
-                return val.gameId === gameId;
-            }
-            return true; // No filter = all events
-        });
+        // Scan events and aggregate by user (with optional game filter) - use extScanEvents with gameId
+        var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
         
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
@@ -3130,16 +3374,17 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null; // Optional filter
         
         var totalErrors = 0;
         var errorsByRpc = {};
         
-        // Scan error events
+        // Scan error events (with gameId filter)
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
             var evName = (val.eventName || '').toLowerCase();
             return evName.indexOf('error') !== -1 || evName.indexOf('crash') !== -1 || 
                    evName.indexOf('exception') !== -1 || evName.indexOf('fail') !== -1;
-        });
+        }, gameId);
         
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
@@ -3215,12 +3460,358 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         errorsList.sort(function(a, b) { return b.count - a.count; });
         
         return JSON.stringify({
+            game_id: gameId || 'all',
             total_errors: totalErrors,
             most_failing_rpc: mostFailing,
             errors_by_rpc: errorsList.slice(0, 20)
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] error_log error: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
+
+// ─── RPC: analytics_player_segments (Phase 4) ─────────────
+
+/**
+ * Segment players into categories: whale, power_user, casual, at_risk, churned, new_user
+ * Uses player_analytics_profile collection from Phase 2.
+ * 
+ * Segment Definitions:
+ * - whale: totalSpent > $100
+ * - power_user: 10+ sessions in last 7 days AND 5+ day login streak
+ * - casual: active but not power_user
+ * - at_risk: 7-14 days inactive
+ * - churned: 14+ days inactive
+ * - new_user: first seen within 7 days
+ */
+function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
+    try {
+        var data = extSafeJsonParse(payload);
+        var gameId = data.game_id || data.gameId || null; // Optional filter
+        
+        // Thresholds (configurable)
+        var WHALE_THRESHOLD = 100; // $100 total spent
+        var POWER_USER_SESSIONS = 10; // 10+ sessions in 7 days
+        var POWER_USER_STREAK = 5; // 5+ day streak
+        var AT_RISK_DAYS = 7;
+        var CHURNED_DAYS = 14;
+        var NEW_USER_DAYS = 7;
+        
+        var now = new Date();
+        var segments = {
+            whale: 0,
+            power_user: 0,
+            casual: 0,
+            at_risk: 0,
+            churned: 0,
+            new_user: 0,
+            total_profiled: 0
+        };
+        
+        // Scan player_analytics_profile collection
+        try {
+            var cursor = null;
+            var iterations = 0;
+            var maxIterations = 50;
+            
+            do {
+                var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
+                if (!result || !result.objects) break;
+                
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    var profile = extResolveProfile(obj.value, gameId);
+                    if (!profile) continue;
+                    
+                    segments.total_profiled++;
+
+                    var daysSinceActive = extDaysSince(extProfileLastSeen(profile));
+                    var daysSinceFirst = extDaysSince(extProfileFirstSeen(profile));
+
+                    var totalSpent = extProfileTotalSpent(profile);
+                    var recentSessions = extProfileRecentSessions(profile);
+                    var loginStreak = extProfileStreak(profile);
+                    
+                    // Classify into segments (mutually exclusive priority order)
+                    if (daysSinceActive >= CHURNED_DAYS) {
+                        segments.churned++;
+                    } else if (daysSinceActive >= AT_RISK_DAYS) {
+                        segments.at_risk++;
+                    } else if (totalSpent >= WHALE_THRESHOLD) {
+                        segments.whale++;
+                    } else if (recentSessions >= POWER_USER_SESSIONS && loginStreak >= POWER_USER_STREAK) {
+                        segments.power_user++;
+                    } else if (daysSinceFirst <= NEW_USER_DAYS) {
+                        segments.new_user++;
+                    } else {
+                        segments.casual++;
+                    }
+                }
+                
+                cursor = result.cursor;
+                iterations++;
+            } while (cursor && iterations < maxIterations);
+        } catch (e) {
+            logger.warn('[AnalyticsExtended] player_segments scan error: ' + e.message);
+        }
+        
+        // Calculate percentages
+        var total = segments.total_profiled || 1;
+        
+        return JSON.stringify({
+            game_id: gameId || 'all',
+            segments: {
+                whale: { count: segments.whale, pct: Math.round((segments.whale / total) * 100) },
+                power_user: { count: segments.power_user, pct: Math.round((segments.power_user / total) * 100) },
+                casual: { count: segments.casual, pct: Math.round((segments.casual / total) * 100) },
+                at_risk: { count: segments.at_risk, pct: Math.round((segments.at_risk / total) * 100) },
+                churned: { count: segments.churned, pct: Math.round((segments.churned / total) * 100) },
+                new_user: { count: segments.new_user, pct: Math.round((segments.new_user / total) * 100) }
+            },
+            total_profiled: segments.total_profiled,
+            thresholds: {
+                whale_spend: WHALE_THRESHOLD,
+                power_user_sessions: POWER_USER_SESSIONS,
+                power_user_streak: POWER_USER_STREAK,
+                at_risk_days: AT_RISK_DAYS,
+                churned_days: CHURNED_DAYS,
+                new_user_days: NEW_USER_DAYS
+            }
+        });
+    } catch (e) {
+        logger.error('[AnalyticsExtended] player_segments error: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
+
+// ─── RPC: analytics_churn_risk (Phase 4) ──────────────────
+
+/**
+ * Identify at-risk and churned players.
+ * - At Risk: 7-14 days inactive
+ * - Churned: 14+ days inactive
+ * Uses player_analytics_profile collection.
+ */
+function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
+    try {
+        var data = extSafeJsonParse(payload);
+        var gameId = data.game_id || data.gameId || null; // Optional filter
+        
+        // Thresholds
+        var AT_RISK_DAYS = 7;
+        var CHURNED_DAYS = 14;
+        
+        var now = new Date();
+        var stats = {
+            active: 0,          // < 7 days
+            at_risk: 0,         // 7-14 days
+            churned: 0,         // 14+ days
+            total_profiled: 0,
+            at_risk_trend: 0,   // Change from previous period
+            churn_rate_pct: 0
+        };
+        
+        // Track activity by day for trend analysis
+        var inactivityBuckets = {};
+        for (var d = 0; d <= 30; d++) {
+            inactivityBuckets[d] = 0;
+        }
+        
+        // Scan player_analytics_profile collection
+        try {
+            var cursor = null;
+            var iterations = 0;
+            var maxIterations = 50;
+            
+            do {
+                var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
+                if (!result || !result.objects) break;
+                
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    var profile = extResolveProfile(obj.value, gameId);
+                    if (!profile) continue;
+                    
+                    stats.total_profiled++;
+
+                    var daysSinceActive = extDaysSince(extProfileLastSeen(profile));
+                    
+                    // Track in buckets
+                    if (daysSinceActive <= 30) {
+                        inactivityBuckets[daysSinceActive] = (inactivityBuckets[daysSinceActive] || 0) + 1;
+                    }
+                    
+                    // Classify
+                    if (daysSinceActive >= CHURNED_DAYS) {
+                        stats.churned++;
+                    } else if (daysSinceActive >= AT_RISK_DAYS) {
+                        stats.at_risk++;
+                    } else {
+                        stats.active++;
+                    }
+                }
+                
+                cursor = result.cursor;
+                iterations++;
+            } while (cursor && iterations < maxIterations);
+        } catch (e) {
+            logger.warn('[AnalyticsExtended] churn_risk scan error: ' + e.message);
+        }
+        
+        // Calculate churn rate
+        var total = stats.total_profiled || 1;
+        stats.churn_rate_pct = Math.round((stats.churned / total) * 100);
+        var atRiskRate = Math.round((stats.at_risk / total) * 100);
+        var activeRate = Math.round((stats.active / total) * 100);
+        
+        // Build inactivity distribution (days 1-30)
+        var distribution = [];
+        for (var day = 1; day <= 30; day++) {
+            distribution.push({
+                days_inactive: day,
+                count: inactivityBuckets[day] || 0
+            });
+        }
+        
+        return JSON.stringify({
+            game_id: gameId || 'all',
+            summary: {
+                active: { count: stats.active, pct: activeRate },
+                at_risk: { count: stats.at_risk, pct: atRiskRate },
+                churned: { count: stats.churned, pct: stats.churn_rate_pct }
+            },
+            total_profiled: stats.total_profiled,
+            churn_rate_pct: stats.churn_rate_pct,
+            at_risk_rate_pct: atRiskRate,
+            thresholds: {
+                at_risk_days: AT_RISK_DAYS,
+                churned_days: CHURNED_DAYS
+            },
+            inactivity_distribution: distribution.slice(0, 14) // First 14 days
+        });
+    } catch (e) {
+        logger.error('[AnalyticsExtended] churn_risk error: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
+
+// ─── RPC: analytics_conversion_funnel (Phase 4) ───────────
+
+/**
+ * Track conversion rates:
+ * - Free → First IAP purchase
+ * - Free → Ad removal purchase
+ * - Free → Any monetization event (ad watch, IAP)
+ * Uses player_analytics_profile collection.
+ */
+function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
+    try {
+        var data = extSafeJsonParse(payload);
+        var gameId = data.game_id || data.gameId || null; // Optional filter
+        
+        var stats = {
+            total_users: 0,
+            free_users: 0,
+            any_monetization: 0,     // Watched ad or made purchase
+            first_iap: 0,            // Made any IAP
+            ad_removal: 0,           // Purchased ad removal
+            rewarded_ad_watched: 0,  // Watched at least one rewarded ad
+            repeat_purchasers: 0     // More than 1 IAP
+        };
+        
+        // Scan player_analytics_profile collection
+        try {
+            var cursor = null;
+            var iterations = 0;
+            var maxIterations = 50;
+            
+            do {
+                var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
+                if (!result || !result.objects) break;
+                
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    var profile = extResolveProfile(obj.value, gameId);
+                    if (!profile) continue;
+                    
+                    stats.total_users++;
+
+                    var totalSpent = extProfileTotalSpent(profile);
+                    var purchaseCount = extProfilePurchaseCount(profile);
+                    var adRemovalPurchased = extProfileAdRemovalPurchased(profile);
+                    var rewardedAdsWatched = extProfileRewardedAds(profile);
+                    
+                    // Classify
+                    var hasMonetized = totalSpent > 0 || rewardedAdsWatched > 0;
+                    
+                    if (hasMonetized) {
+                        stats.any_monetization++;
+                    } else {
+                        stats.free_users++;
+                    }
+                    
+                    if (totalSpent > 0 || purchaseCount > 0) {
+                        stats.first_iap++;
+                        
+                        if (purchaseCount > 1) {
+                            stats.repeat_purchasers++;
+                        }
+                    }
+                    
+                    if (adRemovalPurchased) {
+                        stats.ad_removal++;
+                    }
+                    
+                    if (rewardedAdsWatched > 0) {
+                        stats.rewarded_ad_watched++;
+                    }
+                }
+                
+                cursor = result.cursor;
+                iterations++;
+            } while (cursor && iterations < maxIterations);
+        } catch (e) {
+            logger.warn('[AnalyticsExtended] conversion_funnel scan error: ' + e.message);
+        }
+        
+        // Calculate conversion rates
+        var total = stats.total_users || 1;
+        
+        var conversionRates = {
+            any_monetization: Math.round((stats.any_monetization / total) * 100),
+            first_iap: Math.round((stats.first_iap / total) * 100),
+            ad_removal: Math.round((stats.ad_removal / total) * 100),
+            rewarded_ad: Math.round((stats.rewarded_ad_watched / total) * 100),
+            repeat_purchase: stats.first_iap > 0 ? Math.round((stats.repeat_purchasers / stats.first_iap) * 100) : 0
+        };
+        
+        // Build funnel visualization data
+        var funnel = [
+            { step: 'Total Users', count: stats.total_users, pct: 100 },
+            { step: 'Any Monetization', count: stats.any_monetization, pct: conversionRates.any_monetization },
+            { step: 'Rewarded Ad Watched', count: stats.rewarded_ad_watched, pct: conversionRates.rewarded_ad },
+            { step: 'First IAP', count: stats.first_iap, pct: conversionRates.first_iap },
+            { step: 'Ad Removal', count: stats.ad_removal, pct: conversionRates.ad_removal },
+            { step: 'Repeat Purchaser', count: stats.repeat_purchasers, pct: Math.round((stats.repeat_purchasers / total) * 100) }
+        ];
+        
+        return JSON.stringify({
+            game_id: gameId || 'all',
+            total_users: stats.total_users,
+            free_users: stats.free_users,
+            conversion_rates: conversionRates,
+            counts: {
+                any_monetization: stats.any_monetization,
+                first_iap: stats.first_iap,
+                ad_removal: stats.ad_removal,
+                rewarded_ad_watched: stats.rewarded_ad_watched,
+                repeat_purchasers: stats.repeat_purchasers
+            },
+            funnel: funnel
+        });
+    } catch (e) {
+        logger.error('[AnalyticsExtended] conversion_funnel error: ' + e.message);
         return JSON.stringify({ error: e.message });
     }
 }
@@ -3239,7 +3830,11 @@ function __ModuleInit_3(ctx, logger, nk, initializer) {
     __rpc_analytics_home_heatmap = __rpc_analytics_home_heatmap || (rpcAnalyticsHomeHeatmap);
     __rpc_analytics_top_players = __rpc_analytics_top_players || (rpcAnalyticsTopPlayers);
     __rpc_analytics_error_log = __rpc_analytics_error_log || (rpcAnalyticsErrorLog);
-    logger.info("[AnalyticsExtended] Module registered: 11 RPCs");
+    // Phase 4: Advanced Analytics
+    __rpc_analytics_player_segments = __rpc_analytics_player_segments || (rpcAnalyticsPlayerSegments);
+    __rpc_analytics_churn_risk = __rpc_analytics_churn_risk || (rpcAnalyticsChurnRisk);
+    __rpc_analytics_conversion_funnel = __rpc_analytics_conversion_funnel || (rpcAnalyticsConversionFunnel);
+    logger.info("[AnalyticsExtended] Module registered: 14 RPCs");
 }
 
 
@@ -19455,7 +20050,7 @@ function initializeNewUser(nk, logger, userId) {
         userId: userId,
         createdAt: now,
         currentStep: 1,
-        totalSteps: 5,
+        totalSteps: 9,  // #QVVBS54 FIX: Match Unity's 9-step onboarding flow
         completedSteps: [],
         welcomeBonusClaimed: false,
         firstQuizCompleted: false,
@@ -19522,6 +20117,87 @@ function initializeNewUser(nk, logger, userId) {
 }
 
 /**
+ * #QVVBS54 FIX: Check if user has any game activity
+ * Used to detect returning users whose onboarding state was lost
+ */
+function checkUserHasGameActivity(nk, logger, userId) {
+    try {
+        // Check wallet - if user has coins/gems, they've played before
+        var walletResult = nk.storageRead([{
+            collection: "wallet",
+            key: "balance",
+            userId: userId
+        }]);
+        
+        if (walletResult.length > 0) {
+            var wallet = walletResult[0].value;
+            if (wallet.coins > 1000 || wallet.gems > 0) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has wallet balance (coins: ${wallet.coins}, gems: ${wallet.gems})`);
+                return true;
+            }
+        }
+        
+        // Check leaderboard entries - if user has any scores, they've played
+        try {
+            var leaderboardRecords = nk.leaderboardRecordsList("weekly_leaderboard", [userId], 1, null, 0);
+            if (leaderboardRecords && leaderboardRecords.records && leaderboardRecords.records.length > 0) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has leaderboard entries`);
+                return true;
+            }
+        } catch (e) {
+            // Leaderboard might not exist yet, that's ok
+        }
+        
+        // Check daily completion history
+        var dailyResult = nk.storageRead([{
+            collection: "daily_completion",
+            key: "history",
+            userId: userId
+        }]);
+        
+        if (dailyResult.length > 0) {
+            logger.info(`[Onboarding] #QVVBS54: User ${userId} has daily completion history`);
+            return true;
+        }
+        
+        // Check quiz stats
+        var statsResult = nk.storageRead([{
+            collection: "quiz_stats",
+            key: "stats",
+            userId: userId
+        }]);
+        
+        if (statsResult.length > 0) {
+            var stats = statsResult[0].value;
+            if (stats.totalGamesPlayed > 0 || stats.totalQuizzesCompleted > 0) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has quiz stats`);
+                return true;
+            }
+        }
+        
+        // Check first session data - if they've had multiple sessions, they're returning
+        var sessionResult = nk.storageRead([{
+            collection: COLLECTION_FIRST_SESSION,
+            key: KEY_SESSION,
+            userId: userId
+        }]);
+        
+        if (sessionResult.length > 0) {
+            var session = sessionResult[0].value;
+            if (session.totalSessions > 1 || session.totalQuizzesPlayed > 0) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has session history`);
+                return true;
+            }
+        }
+        
+        return false;
+    } catch (e) {
+        logger.error(`[Onboarding] #QVVBS54: Error checking game activity: ${e.message}`);
+        return false;
+    }
+}
+
+/**
  * Track returning user session
  */
 function trackUserSession(nk, logger, userId) {
@@ -19571,6 +20247,7 @@ function trackUserSession(nk, logger, userId) {
 
 /**
  * RPC: Get user's onboarding state
+ * #QVVBS54 FIX: Check for returning user evidence before declaring new user
  */
 function rpcGetOnboardingState(ctx, logger, nk, payload) {
     var userId = ctx.userId;
@@ -19583,14 +20260,48 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
         }]);
 
         if (result.length === 0) {
-            // Initialize if not exists
+            // #QVVBS54 FIX: Before creating new user state, check if user has game activity
+            // This catches users whose onboarding state was lost but have played before
+            var hasGameActivity = checkUserHasGameActivity(nk, logger, userId);
+            
+            if (hasGameActivity) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has game activity but no onboarding state - marking complete`);
+                var completedState = {
+                    userId: userId,
+                    createdAt: Date.now(),
+                    currentStep: 10,
+                    totalSteps: 9,
+                    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    welcomeBonusClaimed: true,
+                    firstQuizCompleted: true,
+                    onboardingComplete: true,
+                    recoveredFromActivity: true, // Flag for debugging
+                    lastUpdated: Date.now()
+                };
+                nk.storageWrite([{
+                    collection: COLLECTION_ONBOARDING,
+                    key: KEY_ONBOARDING,
+                    userId: userId,
+                    value: completedState,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+                return JSON.stringify({
+                    success: true,
+                    isNewUser: false,
+                    wasRecovered: true,
+                    state: completedState
+                });
+            }
+            
+            // Truly new user - initialize
             initializeNewUser(nk, logger, userId);
             return JSON.stringify({
                 success: true,
                 isNewUser: true,
                 state: {
                     currentStep: 1,
-                    totalSteps: 5,
+                    totalSteps: 9,  // #QVVBS54 FIX: Match Unity's 9-step flow
                     completedSteps: [],
                     welcomeBonusClaimed: false,
                     firstQuizCompleted: false,
@@ -19654,6 +20365,7 @@ function rpcUpdateOnboardingState(ctx, logger, nk, payload) {
 
 /**
  * RPC: Complete a specific onboarding step
+ * #QVVBS54 FIX: Also marks complete if stepId >= 9 (final step)
  */
 function rpcCompleteStep(ctx, logger, nk, payload) {
     var userId = ctx.userId;
@@ -19667,7 +20379,33 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
             userId: userId
         }]);
 
+        // #QVVBS54 FIX: If no state exists, create it and mark complete
+        // This handles edge case where user completed onboarding but state was lost
         if (result.length === 0) {
+            if (stepId >= 9) {
+                // User is trying to complete final step - they've done onboarding
+                logger.info(`[Onboarding] #QVVBS54: Creating completed state for user ${userId} (step ${stepId})`);
+                var completedState = {
+                    userId: userId,
+                    createdAt: Date.now(),
+                    currentStep: 10,
+                    totalSteps: 9,
+                    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    welcomeBonusClaimed: true,
+                    firstQuizCompleted: true,
+                    onboardingComplete: true,
+                    lastUpdated: Date.now()
+                };
+                nk.storageWrite([{
+                    collection: COLLECTION_ONBOARDING,
+                    key: KEY_ONBOARDING,
+                    userId: userId,
+                    value: completedState,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+                return JSON.stringify({ success: true, state: completedState, rewards: getStepRewards(9) });
+            }
             return JSON.stringify({ success: false, error: "No onboarding state" });
         }
 
@@ -19683,8 +20421,8 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
             state.currentStep = stepId + 1;
         }
 
-        // Check if onboarding is complete
-        if (state.completedSteps.length >= state.totalSteps) {
+        // #QVVBS54 FIX: Mark complete if step 9 is completed OR if all steps are done
+        if (stepId >= 9 || state.completedSteps.length >= state.totalSteps) {
             state.onboardingComplete = true;
             logger.info(`[Onboarding] User ${userId} completed onboarding!`);
         }
@@ -45577,505 +46315,26 @@ function lasttolliveSendChannelMessage(context, logger, nk, payload) {
 // TELEMETRY / ANALYTICS
 // ============================================================================
 
-var ANALYTICS_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
-
-function analyticsTodayStr() {
-    return new Date().toISOString().slice(0, 10);
-}
-
-function analyticsParseNumber(value) {
-    var parsed = parseFloat(value);
-    return isNaN(parsed) ? 0 : parsed;
-}
-
-function analyticsNormalizeEventName(eventName) {
-    return (eventName || "").toLowerCase();
-}
-
-function analyticsIsNoAdsProduct(productId) {
-    var normalized = (productId || "").toLowerCase();
-    return normalized.indexOf("no_ads") !== -1 ||
-        normalized.indexOf("noads") !== -1 ||
-        normalized.indexOf("remove_ads") !== -1 ||
-        normalized.indexOf("ad_free") !== -1;
-}
-
-function analyticsReadSystemStorage(nk, collection, key) {
-    try {
-        var records = nk.storageRead([{
-            collection: collection,
-            key: key,
-            userId: ANALYTICS_SYSTEM_USER_ID
-        }]);
-        if (records && records.length > 0 && records[0].value) {
-            return records[0].value;
-        }
-    } catch (err) {
-        // Ignore missing records.
-    }
-    return null;
-}
-
-function analyticsWriteSystemStorage(nk, collection, key, value) {
-    nk.storageWrite([{
-        collection: collection,
-        key: key,
-        userId: ANALYTICS_SYSTEM_USER_ID,
-        value: value,
-        permissionRead: 0,
-        permissionWrite: 0
-    }]);
-}
-
-function analyticsPushCapped(list, value, maxSize) {
-    var next = Array.isArray(list) ? list : [];
-    next.push(value);
-    if (next.length > maxSize) {
-        next.splice(0, next.length - maxSize);
-    }
-    return next;
-}
-
-function analyticsUtcHour(timestamp) {
-    var parsed = timestamp ? new Date(timestamp) : new Date();
-    if (isNaN(parsed.getTime())) parsed = new Date();
-    return parsed.getUTCHours();
-}
-
-function analyticsDateKey(timestamp) {
-    if (!timestamp) return analyticsTodayStr();
-    var parsed = new Date(timestamp);
-    if (isNaN(parsed.getTime())) return analyticsTodayStr();
-    return parsed.toISOString().slice(0, 10);
-}
-
-function analyticsDayDiff(startTimestamp, endTimestamp) {
-    var start = new Date(analyticsDateKey(startTimestamp) + "T00:00:00.000Z");
-    var end = new Date(analyticsDateKey(endTimestamp) + "T00:00:00.000Z");
-    return Math.floor((end.getTime() - start.getTime()) / 86400000);
-}
-
-function analyticsEnsureRetentionFlags(container) {
-    if (!container.retentionTracked) {
-        container.retentionTracked = {};
-    }
-
-    var keys = ["d1Returns", "d3Returns", "d7Returns", "d14Returns", "d30Returns"];
-    for (var i = 0; i < keys.length; i++) {
-        if (container.retentionTracked[keys[i]] !== true) {
-            container.retentionTracked[keys[i]] = false;
-        }
-    }
-}
-
-function analyticsIncrementRetentionCounter(nk, key, field) {
-    var counters = analyticsReadSystemStorage(nk, "analytics_retention_agg", key) || {
-        totalSignups: 0,
-        d1Returns: 0,
-        d3Returns: 0,
-        d7Returns: 0,
-        d14Returns: 0,
-        d30Returns: 0
-    };
-
-    counters[field] = (counters[field] || 0) + 1;
-    analyticsWriteSystemStorage(nk, "analytics_retention_agg", key, counters);
-}
-
-function trackAnalyticsDAU(nk, userId, gameId, isNewPlatformUser, isNewGameUser) {
-    var today = analyticsTodayStr();
-    var keys = [{ key: "dau_platform_" + today, isNew: isNewPlatformUser }];
-    if (gameId) {
-        keys.push({ key: "dau_" + gameId + "_" + today, isNew: isNewGameUser });
-    }
-
-    for (var i = 0; i < keys.length; i++) {
-        var record = analyticsReadSystemStorage(nk, "analytics_dau", keys[i].key) || {
-            date: today,
-            uniqueUsers: [],
-            count: 0,
-            newUsers: 0
-        };
-
-        if (!Array.isArray(record.uniqueUsers)) {
-            record.uniqueUsers = Array.isArray(record.users) ? record.users : [];
-        }
-
-        if (record.uniqueUsers.indexOf(userId) === -1) {
-            record.uniqueUsers.push(userId);
-            record.count = record.uniqueUsers.length;
-            if (keys[i].isNew) {
-                record.newUsers = (record.newUsers || 0) + 1;
-            }
-            analyticsWriteSystemStorage(nk, "analytics_dau", keys[i].key, record);
-        }
-    }
-}
-
-function aggregateSessionStatsCompat(nk, gameId, durationSeconds, sessionStartTimestamp) {
-    var today = analyticsTodayStr();
-    var hour = analyticsUtcHour(sessionStartTimestamp);
-    var keys = ["session_stats_" + today];
-    if (gameId) {
-        keys.push("session_stats_" + gameId + "_" + today);
-    }
-
-    for (var i = 0; i < keys.length; i++) {
-        var stats = analyticsReadSystemStorage(nk, "analytics_sessions", keys[i]) || {
-            date: today,
-            totalSessions: 0,
-            totalDuration: 0,
-            avgDuration: 0,
-            durations: [],
-            hourDistribution: {}
-        };
-
-        stats.totalSessions = (stats.totalSessions || 0) + 1;
-        stats.totalDuration = (stats.totalDuration || 0) + (durationSeconds || 0);
-        stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
-        stats.durations = analyticsPushCapped(stats.durations, durationSeconds || 0, 500);
-        if (!stats.hourDistribution) {
-            stats.hourDistribution = {};
-        }
-        stats.hourDistribution[hour] = (stats.hourDistribution[hour] || 0) + 1;
-
-        analyticsWriteSystemStorage(nk, "analytics_sessions", keys[i], stats);
-    }
-}
-
-function aggregateQuizStatsFromEvent(nk, gameId, eventName, eventData) {
-    var normalized = analyticsNormalizeEventName(eventName);
-    var relevantEvents = {
-        quiz_started: true,
-        quiz_completed: true,
-        quiz_finished: true,
-        quiz_abandoned: true,
-        hint_used: true,
-        daily_quiz_completed: true,
-        streak_milestone: true,
-        streak_updated: true
-    };
-
-    if (!relevantEvents[normalized]) {
-        return;
-    }
-
-    var today = analyticsTodayStr();
-    var keys = ["quiz_stats_" + today];
-    if (gameId) {
-        keys.push("quiz_stats_" + gameId + "_" + today);
-    }
-
-    var topic = eventData.topic || eventData.topic_name || eventData.category || eventData.category_name || null;
-    var difficulty = eventData.difficulty || null;
-    var streakCount = parseInt(eventData.streak_count || eventData.streak_day || 0, 10) || 0;
-
-    for (var i = 0; i < keys.length; i++) {
-        var stats = analyticsReadSystemStorage(nk, "analytics_quiz", keys[i]) || {
-            date: today,
-            started: 0,
-            completed: 0,
-            abandoned: 0,
-            hints: 0,
-            totalScore: 0,
-            correctAnswers: 0,
-            totalQuestions: 0,
-            dailyCompleted: 0,
-            avgStreak: 0,
-            streakTotal: 0,
-            streakSamples: 0,
-            topics: {},
-            difficulty: {}
-        };
-
-        if (normalized === "quiz_started") {
-            stats.started++;
-        }
-        if (normalized === "quiz_completed" || normalized === "quiz_finished") {
-            stats.completed++;
-            stats.totalScore += parseInt(eventData.score || 0, 10) || 0;
-            stats.correctAnswers += parseInt(eventData.correct_answers || eventData.correctCount || eventData.correctAnswers || 0, 10) || 0;
-            stats.totalQuestions += parseInt(eventData.questions_answered || eventData.totalQuestions || eventData.total_questions || 0, 10) || 0;
-            if (topic) {
-                stats.topics[topic] = (stats.topics[topic] || 0) + 1;
-            }
-            if (difficulty) {
-                stats.difficulty[difficulty] = (stats.difficulty[difficulty] || 0) + 1;
-            }
-        }
-        if (normalized === "quiz_abandoned") {
-            stats.abandoned++;
-        }
-        if (normalized === "hint_used") {
-            stats.hints++;
-        }
-        if (normalized === "daily_quiz_completed") {
-            stats.dailyCompleted++;
-        }
-        if (streakCount > 0) {
-            stats.streakTotal = (stats.streakTotal || 0) + streakCount;
-            stats.streakSamples = (stats.streakSamples || 0) + 1;
-            stats.avgStreak = Math.round(stats.streakTotal / Math.max(1, stats.streakSamples));
-        }
-
-        analyticsWriteSystemStorage(nk, "analytics_quiz", keys[i], stats);
-    }
-}
-
-function aggregateEconomyStatsFromEvent(nk, gameId, eventName, eventData) {
-    var normalized = analyticsNormalizeEventName(eventName);
-    var relevantEvents = {
-        balance_snapshot: true,
-        coins_earned: true,
-        coins_spent: true,
-        insufficient_coins: true,
-        daily_reward_claimed: true,
-        game_entry_paid: true,
-        game_entry_denied: true
-    };
-
-    if (!relevantEvents[normalized]) {
-        return;
-    }
-
-    var key = gameId ? "economy_stats_" + gameId : "economy_stats";
-    var stats = analyticsReadSystemStorage(nk, "analytics_economy", key) || {
-        coinBalances: [],
-        gemBalances: [],
-        sources: 0,
-        sinks: 0
-    };
-
-    var coins = analyticsParseNumber(eventData.balance_after || eventData.balance_current || eventData.current_balance || eventData.coins || 0);
-    var gems = analyticsParseNumber(eventData.gems || 0);
-    var amount = analyticsParseNumber(eventData.amount || eventData.coins_earned || eventData.coins_spent || 0);
-
-    if (coins > 0) {
-        stats.coinBalances = analyticsPushCapped(stats.coinBalances, Math.abs(coins), 500);
-    }
-    if (gems > 0) {
-        stats.gemBalances = analyticsPushCapped(stats.gemBalances, Math.abs(gems), 500);
-    }
-
-    if (normalized === "coins_earned" || normalized === "daily_reward_claimed") {
-        stats.sources = (stats.sources || 0) + Math.abs(amount);
-    }
-    if (normalized === "coins_spent" || normalized === "game_entry_paid") {
-        stats.sinks = (stats.sinks || 0) + Math.abs(amount);
-    }
-
-    analyticsWriteSystemStorage(nk, "analytics_economy", key, stats);
-}
-
-function aggregateRevenueFromEvent(nk, userId, gameId, eventData) {
-    var amount = analyticsParseNumber(eventData.price || eventData.price_local || eventData.amount || 0);
-    if (amount <= 0) {
-        return;
-    }
-
-    var today = analyticsTodayStr();
-    var keys = ["revenue_" + today];
-    if (gameId) {
-        keys.push("revenue_" + gameId + "_" + today);
-    }
-
-    for (var i = 0; i < keys.length; i++) {
-        var revenue = analyticsReadSystemStorage(nk, "analytics_revenue", keys[i]) || {
-            totalAmount: 0,
-            purchaseCount: 0,
-            payingUsers: [],
-            transactions: []
-        };
-
-        revenue.totalAmount = (revenue.totalAmount || 0) + amount;
-        revenue.purchaseCount = (revenue.purchaseCount || 0) + 1;
-        if (revenue.payingUsers.indexOf(userId) === -1) {
-            revenue.payingUsers.push(userId);
-        }
-        revenue.transactions = analyticsPushCapped(revenue.transactions, {
-            userId: userId,
-            amount: amount,
-            currency: eventData.currency || "USD",
-            productId: eventData.product_id || eventData.productId || "unknown",
-            timestamp: new Date().toISOString()
-        }, 250);
-
-        analyticsWriteSystemStorage(nk, "analytics_revenue", keys[i], revenue);
-    }
-}
-
-function aggregateMonetizationStatsFromEvent(nk, userId, gameId, eventName, eventData) {
-    var normalized = analyticsNormalizeEventName(eventName);
-    var relevantEvents = {
-        ad_impression: true,
-        ad_shown: true,
-        ad_completed: true,
-        rewarded_ad_completed: true,
-        ad_revenue: true,
-        purchase: true,
-        purchase_completed: true,
-        iap_purchase: true,
-        iap_completed: true,
-        paywall_shown: true,
-        paywall_converted: true,
-        store_opened: true
-    };
-
-    if (!relevantEvents[normalized]) {
-        return;
-    }
-
-    var today = analyticsTodayStr();
-    var keys = ["monetization_" + today];
-    if (gameId) {
-        keys.push("monetization_" + gameId + "_" + today);
-    }
-
-    for (var i = 0; i < keys.length; i++) {
-        var stats = analyticsReadSystemStorage(nk, "analytics_monetization", keys[i]) || {
-            date: today,
-            impressions: 0,
-            completed: 0,
-            revenue: 0,
-            iap: 0,
-            paywallShown: 0,
-            paywallConverted: 0,
-            storeOpens: 0,
-            adTypes: {},
-            products: {}
-        };
-
-        var adType = eventData.ad_type || eventData.adType || "unknown";
-        var productId = eventData.product_id || eventData.productId || null;
-
-        if (normalized === "ad_impression" || normalized === "ad_shown") {
-            stats.impressions++;
-            stats.adTypes[adType] = (stats.adTypes[adType] || 0) + 1;
-        }
-        if (normalized === "ad_completed" || normalized === "rewarded_ad_completed") {
-            stats.completed++;
-            stats.adTypes[adType] = (stats.adTypes[adType] || 0) + 1;
-        }
-        if (normalized === "ad_revenue") {
-            stats.revenue += analyticsParseNumber(eventData.revenue || eventData.revenue_usd || 0);
-            stats.adTypes[adType] = (stats.adTypes[adType] || 0) + 1;
-        }
-        if (normalized === "purchase" || normalized === "purchase_completed" || normalized === "iap_purchase" || normalized === "iap_completed") {
-            stats.iap++;
-            if (productId) {
-                stats.products[productId] = (stats.products[productId] || 0) + 1;
-            }
-            aggregateRevenueFromEvent(nk, userId, gameId, eventData);
-        }
-        if (normalized === "paywall_shown") {
-            stats.paywallShown++;
-        }
-        if (normalized === "paywall_converted") {
-            stats.paywallConverted++;
-        }
-        if (normalized === "store_opened") {
-            stats.storeOpens++;
-        }
-
-        analyticsWriteSystemStorage(nk, "analytics_monetization", keys[i], stats);
-    }
-}
-
-function analyticsShouldForceSaveProfile(eventName) {
-    var normalized = analyticsNormalizeEventName(eventName);
-    return normalized === "session_start" ||
-        normalized === "session_end" ||
-        normalized === "purchase" ||
-        normalized === "purchase_completed" ||
-        normalized === "iap_purchase" ||
-        normalized === "iap_completed" ||
-        normalized === "ad_completed" ||
-        normalized === "rewarded_ad_completed" ||
-        normalized === "paywall_shown" ||
-        normalized === "paywall_converted" ||
-        normalized === "quiz_completed" ||
-        normalized === "daily_quiz_completed" ||
-        normalized === "streak_milestone" ||
-        normalized === "streak_updated";
-}
-
-function updateRetentionCountersFromSessionStart(nk, gameId, profile, isNewPlatformUser, isNewGameUser) {
-    if (!profile || !profile.global) {
-        return;
-    }
-
-    analyticsEnsureRetentionFlags(profile.global);
-    var gameProfile = profile.games && profile.games[gameId] ? profile.games[gameId] : null;
-    if (gameProfile) {
-        analyticsEnsureRetentionFlags(gameProfile);
-    }
-
-    if (isNewPlatformUser) {
-        analyticsIncrementRetentionCounter(nk, "retention_counters", "totalSignups");
-    }
-    if (gameId && isNewGameUser) {
-        analyticsIncrementRetentionCounter(nk, "retention_counters_" + gameId, "totalSignups");
-    }
-
-    var checkpoints = [
-        { days: 1, field: "d1Returns" },
-        { days: 3, field: "d3Returns" },
-        { days: 7, field: "d7Returns" },
-        { days: 14, field: "d14Returns" },
-        { days: 30, field: "d30Returns" }
-    ];
-    var now = new Date().toISOString();
-    var platformAge = analyticsDayDiff(profile.global.firstSeenAt || profile.createdAt, now);
-
-    for (var i = 0; i < checkpoints.length; i++) {
-        var checkpoint = checkpoints[i];
-        if (platformAge === checkpoint.days && !profile.global.retentionTracked[checkpoint.field]) {
-            analyticsIncrementRetentionCounter(nk, "retention_counters", checkpoint.field);
-            profile.global.retentionTracked[checkpoint.field] = true;
-        }
-    }
-
-    if (gameId && gameProfile) {
-        var gameAge = analyticsDayDiff(gameProfile.firstSeenAt || profile.global.firstSeenAt || profile.createdAt, now);
-        for (var j = 0; j < checkpoints.length; j++) {
-            var gameCheckpoint = checkpoints[j];
-            if (gameAge === gameCheckpoint.days && !gameProfile.retentionTracked[gameCheckpoint.field]) {
-                analyticsIncrementRetentionCounter(nk, "retention_counters_" + gameId, gameCheckpoint.field);
-                gameProfile.retentionTracked[gameCheckpoint.field] = true;
-            }
-        }
-    }
-}
-
 /**
  * RPC: quizverse_log_event
  * Log analytics event
- * FIXED: Now writes to standard "analytics_events" collection with gameID in key for filtering
- * ENHANCED: Updates player analytics profile (batched every 10 events)
  */
 function quizverseLogEvent(context, logger, nk, payload) {
     try {
         var data = parseAndValidateGamePayload(payload, ["gameID", "eventName"]);
         var userId = getUserId(data, context);
-        var normalizedProperties = data.properties || data.eventData || {};
-        var timestamp = new Date().toISOString();
 
         var eventData = {
             eventName: data.eventName,
-            eventData: normalizedProperties,
-            properties: normalizedProperties,
+            properties: data.properties || {},
             userId: userId,
-            timestamp: timestamp,
-            unixTimestamp: Math.floor(Date.now() / 1000),
-            date: timestamp.slice(0, 10),
-            gameID: data.gameID,
-            gameId: data.gameID
+            timestamp: new Date().toISOString(),
+            gameID: data.gameID
         };
 
-        // Store event in standard analytics_events collection (dashboard reads from this)
-        // Key format: {gameID}_{eventName}_{timestamp}_{userId} - allows filtering by gameID
-        var collection = "analytics_events";
-        var key = data.gameID + "_" + data.eventName + "_" + Date.now() + "_" + userId;
+        // Store event
+        var collection = getCollection(data.gameID, "analytics");
+        var key = "event_" + userId + "_" + Date.now();
 
         nk.storageWrite([{
             collection: collection,
@@ -46085,28 +46344,6 @@ function quizverseLogEvent(context, logger, nk, payload) {
             permissionRead: 0,
             permissionWrite: 0
         }]);
-
-        var updatedProfile = null;
-
-        // Update player analytics profile (batched - saves every 10 events)
-        try {
-            updatedProfile = updatePlayerProfileFromEvent(nk, logger, userId, data.gameID, data.eventName, normalizedProperties);
-        } catch (profileErr) {
-            // Don't fail the event if profile update fails
-            logger.warn("Profile update failed: " + profileErr.message);
-        }
-
-        try {
-            aggregateQuizStatsFromEvent(nk, data.gameID, data.eventName, normalizedProperties);
-            aggregateMonetizationStatsFromEvent(nk, userId, data.gameID, data.eventName, normalizedProperties);
-            aggregateEconomyStatsFromEvent(nk, data.gameID, data.eventName, normalizedProperties);
-        } catch (aggregationErr) {
-            logger.warn("Analytics aggregation failed: " + aggregationErr.message);
-        }
-
-        if (updatedProfile && analyticsShouldForceSaveProfile(data.eventName)) {
-            forceSavePlayerProfile(nk, logger, userId, updatedProfile);
-        }
 
         logger.info("[" + data.gameID + "] Event logged: " + data.eventName);
 
@@ -46135,21 +46372,11 @@ function lasttoliveLogEvent(context, logger, nk, payload) {
 /**
  * RPC: quizverse_track_session_start
  * Track session start
- * FIXED: Now writes to standard "analytics_sessions" collection with gameID in key for filtering
- * ENHANCED: Updates player analytics profile on session start
  */
 function quizverseTrackSessionStart(context, logger, nk, payload) {
     try {
         var data = parseAndValidateGamePayload(payload, ["gameID"]);
         var userId = getUserId(data, context);
-        var existingProfile = getOrCreatePlayerAnalyticsProfile(nk, userId);
-        var existingGameProfile = existingProfile.games && existingProfile.games[data.gameID]
-            ? existingProfile.games[data.gameID]
-            : null;
-        var isNewPlatformUser = !existingProfile.global || (existingProfile.global.totalSessions || 0) === 0;
-        var isNewGameUser = !existingGameProfile ||
-            !existingGameProfile.engagement ||
-            (existingGameProfile.engagement.totalSessions || 0) === 0;
 
         var sessionData = {
             userId: userId,
@@ -46158,10 +46385,8 @@ function quizverseTrackSessionStart(context, logger, nk, payload) {
             deviceInfo: data.deviceInfo || {}
         };
 
-        // Store session in standard analytics_sessions collection (dashboard reads from this)
-        // Key format: {gameID}_session_{userId}_{timestamp} - allows filtering by gameID
-        var collection = "analytics_sessions";
-        var key = data.gameID + "_session_" + userId + "_" + Date.now();
+        var collection = getCollection(data.gameID, "sessions");
+        var key = "session_" + userId + "_" + Date.now();
 
         nk.storageWrite([{
             collection: collection,
@@ -46171,18 +46396,6 @@ function quizverseTrackSessionStart(context, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
-
-        var updatedProfile = null;
-
-        // Update player analytics profile for session start
-        try {
-            updatedProfile = updatePlayerProfileFromEvent(nk, logger, userId, data.gameID, "session_start", {});
-            trackAnalyticsDAU(nk, userId, data.gameID, isNewPlatformUser, isNewGameUser);
-            updateRetentionCountersFromSessionStart(nk, data.gameID, updatedProfile, isNewPlatformUser, isNewGameUser);
-            forceSavePlayerProfile(nk, logger, userId, updatedProfile);
-        } catch (profileErr) {
-            logger.warn("Profile update on session start failed: " + profileErr.message);
-        }
 
         logger.info("[" + data.gameID + "] Session started for user: " + userId);
 
@@ -46211,20 +46424,16 @@ function lasttoliveTrackSessionStart(context, logger, nk, payload) {
 /**
  * RPC: quizverse_track_session_end
  * Track session end
- * FIXED: Now reads/writes from standard "analytics_sessions" collection
- * BACKWARD COMPATIBLE: Falls back to old collection if session not found in new collection
  */
 function quizverseTrackSessionEnd(context, logger, nk, payload) {
     try {
         var data = parseAndValidateGamePayload(payload, ["gameID", "sessionKey"]);
         var userId = getUserId(data, context);
 
-        // Use standard analytics_sessions collection (matches session start)
-        var collection = "analytics_sessions";
-        var sessionData = null;
-        var foundInCollection = null;
+        var collection = getCollection(data.gameID, "sessions");
 
-        // Try new collection first
+        // Read session
+        var sessionData = null;
         try {
             var records = nk.storageRead([{
                 collection: collection,
@@ -46233,89 +46442,23 @@ function quizverseTrackSessionEnd(context, logger, nk, payload) {
             }]);
             if (records && records.length > 0 && records[0].value) {
                 sessionData = records[0].value;
-                foundInCollection = collection;
             }
         } catch (err) {
-            // Ignore, will try fallback
+            throw new Error("Session not found");
         }
 
-        // BACKWARD COMPATIBILITY: Try old collection format if not found
-        if (!sessionData) {
-            var oldCollection = getCollection(data.gameID, "sessions"); // e.g., "quizverse_sessions"
-            try {
-                var oldRecords = nk.storageRead([{
-                    collection: oldCollection,
-                    key: data.sessionKey,
-                    userId: userId
-                }]);
-                if (oldRecords && oldRecords.length > 0 && oldRecords[0].value) {
-                    sessionData = oldRecords[0].value;
-                    foundInCollection = oldCollection;
-                    logger.info("[" + data.gameID + "] Found session in old collection: " + oldCollection);
-                }
-            } catch (err) {
-                // Ignore
-            }
-        }
-
-        // BACKWARD COMPATIBILITY: Try with old key format (session_userId_timestamp)
-        if (!sessionData && data.sessionKey && data.sessionKey.startsWith("session_")) {
-            // Old Unity format: session_{userId}_{timestamp}
-            var oldCollection = getCollection(data.gameID, "sessions");
-            try {
-                var oldRecords = nk.storageRead([{
-                    collection: oldCollection,
-                    key: data.sessionKey,
-                    userId: userId
-                }]);
-                if (oldRecords && oldRecords.length > 0 && oldRecords[0].value) {
-                    sessionData = oldRecords[0].value;
-                    foundInCollection = oldCollection;
-                }
-            } catch (err) {
-                // Ignore
-            }
-        }
-
-        if (!sessionData) {
-            // Session not found - create a minimal end record anyway
-            logger.warn("[" + data.gameID + "] Session not found for key: " + data.sessionKey + ", creating end-only record");
-            sessionData = {
-                userId: userId,
-                gameID: data.gameID,
-                startTime: null, // Unknown
-                endTime: new Date().toISOString(),
-                duration: data.duration || 0,
-                note: "session_start_missing"
-            };
-            foundInCollection = collection;
-        } else {
+        if (sessionData) {
             sessionData.endTime = new Date().toISOString();
             sessionData.duration = data.duration || 0;
-        }
 
-        // Write to the collection where we found it (or new collection if not found)
-        nk.storageWrite([{
-            collection: foundInCollection,
-            key: data.sessionKey,
-            userId: userId,
-            value: sessionData,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-
-        // Update player profile with session end and FORCE SAVE (important event)
-        try {
-            var updatedProfile = updatePlayerProfileFromEvent(nk, logger, userId, data.gameID, "session_end", { duration: sessionData.duration });
-            forceSavePlayerProfile(nk, logger, userId, updatedProfile);
-        } catch (profileErr) {
-            logger.warn("Profile update on session end failed: " + profileErr.message);
-        }
-
-        try {
-            aggregateSessionStatsCompat(nk, data.gameID, sessionData.duration || 0, sessionData.startTime);
-        } catch (aggErr) {
-            logger.warn("Session aggregation failed: " + aggErr.message);
+            nk.storageWrite([{
+                collection: collection,
+                key: data.sessionKey,
+                userId: userId,
+                value: sessionData,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
         }
 
         logger.info("[" + data.gameID + "] Session ended for user: " + userId);
@@ -46340,585 +46483,6 @@ function quizverseTrackSessionEnd(context, logger, nk, payload) {
  */
 function lasttoliveTrackSessionEnd(context, logger, nk, payload) {
     return quizverseTrackSessionEnd(context, logger, nk, payload);
-}
-
-// ============================================================================
-// PLAYER ANALYTICS PROFILE SYSTEM
-// ============================================================================
-
-/**
- * Constants for Player Analytics Profile
- */
-var PLAYER_ANALYTICS_PROFILE_COLLECTION = "player_analytics_profile";
-var PLAYER_ANALYTICS_PROFILE_KEY = "profile";
-var PROFILE_UPDATE_BATCH_SIZE = 10; // Update profile every N events
-
-/**
- * Get or create empty player analytics profile
- */
-function getOrCreatePlayerAnalyticsProfile(nk, userId) {
-    var profile = null;
-    
-    try {
-        var records = nk.storageRead([{
-            collection: PLAYER_ANALYTICS_PROFILE_COLLECTION,
-            key: PLAYER_ANALYTICS_PROFILE_KEY,
-            userId: userId
-        }]);
-        
-        if (records && records.length > 0 && records[0].value) {
-            profile = records[0].value;
-        }
-    } catch (err) {
-        // Profile doesn't exist, will create new
-    }
-    
-    if (!profile) {
-        var now = new Date().toISOString();
-        profile = {
-            userId: userId,
-            createdAt: now,
-            updatedAt: now,
-            
-            // Global aggregate (all games combined)
-            global: {
-                totalSessions: 0,
-                totalPlaytimeMinutes: 0,
-                totalRevenue: 0,
-                firstSeenAt: now,
-                lastSeenAt: now,
-                gamesPlayed: [],
-                engagementTier: "minnow",
-                overallChurnRisk: 0,
-                totalEventsLogged: 0,
-                retentionTracked: {
-                    d1Returns: false,
-                    d3Returns: false,
-                    d7Returns: false,
-                    d14Returns: false,
-                    d30Returns: false
-                },
-                pendingEventCount: 0 // For batch updates
-            },
-            
-            // Per-game breakdown
-            games: {},
-            
-            // Computed segments
-            segments: [],
-            
-            // Recommendations per game
-            recommendations: {}
-        };
-    }
-    
-    return profile;
-}
-
-/**
- * Create empty game-specific profile
- */
-function createGameProfile(gameId, gameName) {
-    return {
-        gameId: gameId,
-        gameName: gameName || gameId,
-        firstSeenAt: new Date().toISOString(),
-        lastSeenAt: new Date().toISOString(),
-        
-        // Engagement
-        engagement: {
-            totalSessions: 0,
-            totalPlaytimeMinutes: 0,
-            avgSessionDurationSeconds: 0,
-            sessionsThisWeek: 0,
-            daysActiveLast7: 0,
-            daysActiveLast30: 0,
-            currentStreak: 0,
-            longestStreak: 0,
-            lastSessionAt: null,
-            churnRiskScore: 0,
-            totalEventsLogged: 0
-        },
-        
-        // Monetization
-        monetization: {
-            ltv: 0,
-            totalIapSpend: 0,
-            totalAdRevenue: 0,
-            purchaseCount: 0,
-            rewardedAdsWatched: 0,
-            adRemovalPurchased: false,
-            lastPurchaseAt: null,
-            daysSincePurchase: null,
-            purchaseFrequency: "never",
-            adEngagementRate: 0,
-            paywallImpressions: 0,
-            paywallConversions: 0,
-            willingnessToPayScore: 0
-        },
-        
-        // Behavior
-        behavior: {
-            preferredPlayHours: [],
-            preferredPlayDays: [],
-            abandonmentRate: 0,
-            socialEngagement: "solo",
-            featureUsage: {}
-        },
-        
-        // Preferences
-        preferences: {
-            favoriteCategories: [],
-            avoidedCategories: [],
-            difficultySweetSpot: 0.65
-        },
-        
-        // Conversion signals
-        conversion: {
-            daysToFirstPurchase: null,
-            iapOffersShown: 0,
-            iapOffersConverted: 0,
-            bestConvertingOfferType: null,
-            priceSensitivity: "medium",
-            optimalOfferTiming: "after_win"
-        },
-
-        retentionTracked: {
-            d1Returns: false,
-            d3Returns: false,
-            d7Returns: false,
-            d14Returns: false,
-            d30Returns: false
-        },
-        
-        // Game-specific fields (populated based on game type)
-        gameSpecific: {}
-    };
-}
-
-/**
- * Save player analytics profile
- */
-function savePlayerAnalyticsProfile(nk, userId, profile) {
-    profile.updatedAt = new Date().toISOString();
-    
-    nk.storageWrite([{
-        collection: PLAYER_ANALYTICS_PROFILE_COLLECTION,
-        key: PLAYER_ANALYTICS_PROFILE_KEY,
-        userId: userId,
-        value: profile,
-        permissionRead: 2, // Owner can read
-        permissionWrite: 0 // Only server can write
-    }]);
-}
-
-/**
- * Update player profile based on event
- * Uses batch mode - only writes to storage every PROFILE_UPDATE_BATCH_SIZE events
- */
-function updatePlayerProfileFromEvent(nk, logger, userId, gameId, eventName, eventData) {
-    var profile = getOrCreatePlayerAnalyticsProfile(nk, userId);
-    var now = new Date().toISOString();
-    var nowDate = new Date();
-    
-    // Ensure game profile exists
-    if (!profile.games[gameId]) {
-        profile.games[gameId] = createGameProfile(gameId, gameId);
-        if (profile.global.gamesPlayed.indexOf(gameId) === -1) {
-            profile.global.gamesPlayed.push(gameId);
-        }
-    }
-    
-    var gameProfile = profile.games[gameId];
-    
-    // Update timestamps
-    profile.global.lastSeenAt = now;
-    gameProfile.lastSeenAt = now;
-    
-    // Increment event counters
-    profile.global.totalEventsLogged++;
-    profile.global.pendingEventCount++;
-    gameProfile.engagement.totalEventsLogged++;
-    
-    // Update based on event type
-    switch (eventName) {
-        case "session_start":
-            gameProfile.engagement.totalSessions++;
-            gameProfile.engagement.lastSessionAt = now;
-            profile.global.totalSessions++;
-            break;
-            
-        case "session_end":
-            var duration = eventData.duration || 0;
-            var durationMinutes = duration / 60;
-            gameProfile.engagement.totalPlaytimeMinutes += durationMinutes;
-            profile.global.totalPlaytimeMinutes += durationMinutes;
-            
-            // Update average session duration
-            if (gameProfile.engagement.totalSessions > 0) {
-                gameProfile.engagement.avgSessionDurationSeconds = 
-                    (gameProfile.engagement.totalPlaytimeMinutes * 60) / gameProfile.engagement.totalSessions;
-            }
-            break;
-            
-        case "purchase":
-        case "purchase_completed":
-        case "iap_purchase":
-        case "iap_completed":
-            var amount = analyticsParseNumber(eventData.price || eventData.price_local || eventData.amount || 0);
-            gameProfile.monetization.ltv += amount;
-            gameProfile.monetization.totalIapSpend += amount;
-            gameProfile.monetization.purchaseCount++;
-            gameProfile.monetization.lastPurchaseAt = now;
-            profile.global.totalRevenue += amount;
-
-            var purchaseProductId = eventData.product_id || eventData.productId || "";
-            if (analyticsIsNoAdsProduct(purchaseProductId)) {
-                gameProfile.monetization.adRemovalPurchased = true;
-            }
-            
-            // Update purchase frequency
-            if (gameProfile.monetization.purchaseCount >= 10) {
-                gameProfile.monetization.purchaseFrequency = "whale";
-            } else if (gameProfile.monetization.purchaseCount >= 5) {
-                gameProfile.monetization.purchaseFrequency = "regular";
-            } else if (gameProfile.monetization.purchaseCount >= 2) {
-                gameProfile.monetization.purchaseFrequency = "occasional";
-            } else {
-                gameProfile.monetization.purchaseFrequency = "once";
-            }
-            break;
-            
-        case "ad_completed":
-        case "ad_watched":
-        case "rewarded_ad_completed":
-            var adRevenue = analyticsParseNumber(eventData.revenue || eventData.revenue_usd || 0.01);
-            gameProfile.monetization.totalAdRevenue += adRevenue;
-            gameProfile.monetization.rewardedAdsWatched = (gameProfile.monetization.rewardedAdsWatched || 0) + 1;
-            profile.global.totalRevenue += adRevenue;
-            break;
-            
-        case "paywall_shown":
-        case "offer_shown":
-            gameProfile.monetization.paywallImpressions++;
-            gameProfile.conversion.iapOffersShown++;
-            break;
-            
-        case "paywall_converted":
-        case "offer_converted":
-            gameProfile.monetization.paywallConversions++;
-            gameProfile.conversion.iapOffersConverted++;
-
-            var convertedProductId = eventData.product_id || eventData.productId || "";
-            if (analyticsIsNoAdsProduct(convertedProductId)) {
-                gameProfile.monetization.adRemovalPurchased = true;
-            }
-            break;
-
-        case "daily_quiz_completed":
-        case "streak_milestone":
-        case "streak_updated":
-            var streakCount = parseInt(eventData.streak_count || eventData.streak_day || 0, 10) || 0;
-            if (streakCount > 0) {
-                gameProfile.engagement.currentStreak = streakCount;
-                if (streakCount > gameProfile.engagement.longestStreak) {
-                    gameProfile.engagement.longestStreak = streakCount;
-                }
-            }
-            break;
-            
-        // QuizVerse-specific events
-        case "quiz_completed":
-        case "quiz_finished":
-            if (!gameProfile.gameSpecific.quiz) {
-                gameProfile.gameSpecific.quiz = {
-                    totalQuizzesCompleted: 0,
-                    totalQuestionsAnswered: 0,
-                    totalCorrectAnswers: 0,
-                    overallAccuracy: 0,
-                    avgResponseTimeMs: 0,
-                    categoriesMastery: {},
-                    bestCategory: null,
-                    weakestCategory: null,
-                    skillTier: "beginner"
-                };
-            }
-            
-            gameProfile.gameSpecific.quiz.totalQuizzesCompleted++;
-            
-            var questionsAnswered = eventData.questions_answered || eventData.totalQuestions || 0;
-            var correctAnswers = eventData.correct_answers || eventData.correctAnswers || 0;
-            
-            gameProfile.gameSpecific.quiz.totalQuestionsAnswered += questionsAnswered;
-            gameProfile.gameSpecific.quiz.totalCorrectAnswers += correctAnswers;
-            
-            if (gameProfile.gameSpecific.quiz.totalQuestionsAnswered > 0) {
-                gameProfile.gameSpecific.quiz.overallAccuracy = 
-                    gameProfile.gameSpecific.quiz.totalCorrectAnswers / gameProfile.gameSpecific.quiz.totalQuestionsAnswered;
-            }
-            
-            // Update category mastery
-            var category = eventData.category || eventData.quiz_category;
-            if (category) {
-                if (!gameProfile.gameSpecific.quiz.categoriesMastery[category]) {
-                    gameProfile.gameSpecific.quiz.categoriesMastery[category] = {
-                        attempts: 0,
-                        correct: 0,
-                        mastery: 0
-                    };
-                }
-                gameProfile.gameSpecific.quiz.categoriesMastery[category].attempts += questionsAnswered;
-                gameProfile.gameSpecific.quiz.categoriesMastery[category].correct += correctAnswers;
-                if (gameProfile.gameSpecific.quiz.categoriesMastery[category].attempts > 0) {
-                    gameProfile.gameSpecific.quiz.categoriesMastery[category].mastery = 
-                        (gameProfile.gameSpecific.quiz.categoriesMastery[category].correct / 
-                         gameProfile.gameSpecific.quiz.categoriesMastery[category].attempts) * 100;
-                }
-            }
-            
-            // Update skill tier based on accuracy and quizzes completed
-            var accuracy = gameProfile.gameSpecific.quiz.overallAccuracy;
-            var quizzes = gameProfile.gameSpecific.quiz.totalQuizzesCompleted;
-            if (quizzes >= 100 && accuracy >= 0.85) {
-                gameProfile.gameSpecific.quiz.skillTier = "expert";
-            } else if (quizzes >= 50 && accuracy >= 0.75) {
-                gameProfile.gameSpecific.quiz.skillTier = "advanced";
-            } else if (quizzes >= 20 && accuracy >= 0.60) {
-                gameProfile.gameSpecific.quiz.skillTier = "intermediate";
-            } else {
-                gameProfile.gameSpecific.quiz.skillTier = "beginner";
-            }
-            break;
-            
-        // Track feature usage
-        case "feature_used":
-        case "screen_view":
-            var feature = eventData.feature || eventData.screen_name || eventData.screen;
-            if (feature) {
-                if (!gameProfile.behavior.featureUsage[feature]) {
-                    gameProfile.behavior.featureUsage[feature] = 0;
-                }
-                gameProfile.behavior.featureUsage[feature]++;
-            }
-            break;
-            
-        default:
-            // Generic event - just count it
-            break;
-    }
-    
-    // Update engagement tier based on revenue and activity
-    var totalRevenue = profile.global.totalRevenue;
-    if (totalRevenue >= 100) {
-        profile.global.engagementTier = "whale";
-    } else if (totalRevenue >= 20) {
-        profile.global.engagementTier = "dolphin";
-    } else if (profile.global.totalSessions >= 10) {
-        profile.global.engagementTier = "minnow";
-    } else {
-        profile.global.engagementTier = "dormant";
-    }
-    
-    // Batch update: Only save to storage every PROFILE_UPDATE_BATCH_SIZE events
-    if (profile.global.pendingEventCount >= PROFILE_UPDATE_BATCH_SIZE) {
-        profile.global.pendingEventCount = 0;
-        savePlayerAnalyticsProfile(nk, userId, profile);
-        logger.debug("Player profile batch saved for user: " + userId);
-    }
-    
-    return profile;
-}
-
-/**
- * Force save player profile (call on session end or important events)
- */
-function forceSavePlayerProfile(nk, logger, userId, profile) {
-    var profileToSave = profile || getOrCreatePlayerAnalyticsProfile(nk, userId);
-    if (!profileToSave || !profileToSave.global) {
-        return;
-    }
-
-    profileToSave.global.pendingEventCount = 0;
-    savePlayerAnalyticsProfile(nk, userId, profileToSave);
-    logger.info("Player profile force saved for user: " + userId);
-}
-
-/**
- * RPC: analytics_get_player_profile
- * Get player analytics profile with optional gameId filtering
- * 
- * Request: { "userId": "optional", "gameId": "optional" }
- * Response: Full profile or filtered by gameId
- */
-function analyticsGetPlayerProfile(context, logger, nk, payload) {
-    try {
-        var data = {};
-        if (payload && payload.length > 0) {
-            data = JSON.parse(payload);
-        }
-        
-        // Get target user (default to caller)
-        var userId = data.userId || context.userId;
-        if (!userId) {
-            throw new Error("User ID required");
-        }
-        
-        var profile = getOrCreatePlayerAnalyticsProfile(nk, userId);
-        
-        // Filter by gameId if specified
-        if (data.gameId) {
-            var filteredProfile = {
-                userId: profile.userId,
-                createdAt: profile.createdAt,
-                updatedAt: profile.updatedAt,
-                global: profile.global,
-                games: {},
-                segments: profile.segments,
-                recommendations: {}
-            };
-            
-            if (profile.games[data.gameId]) {
-                filteredProfile.games[data.gameId] = profile.games[data.gameId];
-            }
-            
-            if (profile.recommendations[data.gameId]) {
-                filteredProfile.recommendations[data.gameId] = profile.recommendations[data.gameId];
-            }
-            
-            return JSON.stringify({
-                success: true,
-                data: filteredProfile
-            });
-        }
-        
-        return JSON.stringify({
-            success: true,
-            data: profile
-        });
-        
-    } catch (err) {
-        logger.error("analytics_get_player_profile error: " + err.message);
-        throw {
-            code: 400,
-            message: err.message,
-            data: {}
-        };
-    }
-}
-
-/**
- * RPC: analytics_update_player_profile
- * Manual profile update (admin use)
- */
-function analyticsUpdatePlayerProfile(context, logger, nk, payload) {
-    try {
-        var data = JSON.parse(payload);
-        
-        if (!data.userId) {
-            throw new Error("userId required");
-        }
-        
-        var profile = getOrCreatePlayerAnalyticsProfile(nk, data.userId);
-        
-        // Merge updates
-        if (data.updates) {
-            for (var key in data.updates) {
-                if (data.updates.hasOwnProperty(key)) {
-                    if (key === "games" && typeof data.updates[key] === "object") {
-                        for (var gameId in data.updates[key]) {
-                            if (!profile.games[gameId]) {
-                                profile.games[gameId] = createGameProfile(gameId, gameId);
-                            }
-                            // Deep merge game data
-                            for (var gKey in data.updates[key][gameId]) {
-                                profile.games[gameId][gKey] = data.updates[key][gameId][gKey];
-                            }
-                        }
-                    } else if (key === "global" && typeof data.updates[key] === "object") {
-                        for (var gKey in data.updates[key]) {
-                            profile.global[gKey] = data.updates[key][gKey];
-                        }
-                    } else {
-                        profile[key] = data.updates[key];
-                    }
-                }
-            }
-        }
-        
-        savePlayerAnalyticsProfile(nk, data.userId, profile);
-        
-        logger.info("Player profile manually updated for user: " + data.userId);
-        
-        return JSON.stringify({
-            success: true,
-            data: { updated: true }
-        });
-        
-    } catch (err) {
-        logger.error("analytics_update_player_profile error: " + err.message);
-        throw {
-            code: 400,
-            message: err.message,
-            data: {}
-        };
-    }
-}
-
-/**
- * RPC: analytics_get_players_by_segment
- * Get all players in a specific segment
- */
-function analyticsGetPlayersBySegment(context, logger, nk, payload) {
-    try {
-        var data = JSON.parse(payload);
-        
-        if (!data.segment) {
-            throw new Error("segment required");
-        }
-        
-        // List all profiles and filter by segment
-        // Note: In production, use a more efficient index-based approach
-        var cursor = "";
-        var limit = data.limit || 100;
-        var results = [];
-        
-        try {
-            var objects = nk.storageList(null, PLAYER_ANALYTICS_PROFILE_COLLECTION, limit, cursor);
-            
-            if (objects && objects.objects) {
-                for (var i = 0; i < objects.objects.length; i++) {
-                    var obj = objects.objects[i];
-                    if (obj.value && obj.value.segments && 
-                        obj.value.segments.indexOf(data.segment) !== -1) {
-                        results.push({
-                            userId: obj.userId,
-                            engagementTier: obj.value.global ? obj.value.global.engagementTier : "unknown",
-                            totalRevenue: obj.value.global ? obj.value.global.totalRevenue : 0
-                        });
-                    }
-                }
-            }
-        } catch (err) {
-            logger.warn("Error listing profiles: " + err.message);
-        }
-        
-        return JSON.stringify({
-            success: true,
-            data: {
-                segment: data.segment,
-                count: results.length,
-                players: results
-            }
-        });
-        
-    } catch (err) {
-        logger.error("analytics_get_players_by_segment error: " + err.message);
-        throw {
-            code: 400,
-            message: err.message,
-            data: {}
-        };
-    }
 }
 
 // ============================================================================
@@ -57060,11 +56624,6 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             { id: 'quizverse_track_session_start', handler: quizverseTrackSessionStart },
             { id: 'quizverse_track_session_end', handler: quizverseTrackSessionEnd },
 
-            // Player Analytics Profile RPCs (Cross-Game)
-            { id: 'analytics_get_player_profile', handler: analyticsGetPlayerProfile },
-            { id: 'analytics_update_player_profile', handler: analyticsUpdatePlayerProfile },
-            { id: 'analytics_get_players_by_segment', handler: analyticsGetPlayersBySegment },
-
             // QuizVerse RPCs - Admin
             { id: 'quizverse_get_server_config', handler: quizverseGetServerConfig },
             { id: 'quizverse_admin_grant_item', handler: quizverseAdminGrantItem },
@@ -63632,36 +63191,19 @@ var LegacyAnalyticsRetention;
                 cohorts.push({ date: cohortKey, dau: dauData.uniqueUsers.length || 0, newUsers: dauData.newUsers || 0 });
             }
         }
-        var retentionKey = gameId ? "retention_counters_" + gameId : "retention_counters";
-        var retentionData = readAggStorage(nk, "analytics_retention_agg", retentionKey) || {};
+        var retentionData = readAggStorage(nk, "analytics_retention_agg", "retention_counters") || {};
         var total = retentionData.totalSignups || 0;
-        var d1Pct = total > 0 ? ((retentionData.d1Returns || 0) / total * 100) : 0;
-        var d3Pct = total > 0 ? ((retentionData.d3Returns || 0) / total * 100) : 0;
-        var d7Pct = total > 0 ? ((retentionData.d7Returns || 0) / total * 100) : 0;
-        var d14Pct = total > 0 ? ((retentionData.d14Returns || 0) / total * 100) : 0;
-        var d30Pct = total > 0 ? ((retentionData.d30Returns || 0) / total * 100) : 0;
         return RpcHelpers.successResponse({
             cohorts: cohorts,
             retention: {
                 totalSignups: total,
                 d1Returns: retentionData.d1Returns || 0,
-                d3Returns: retentionData.d3Returns || 0,
                 d7Returns: retentionData.d7Returns || 0,
-                d14Returns: retentionData.d14Returns || 0,
                 d30Returns: retentionData.d30Returns || 0,
-                d1Rate: d1Pct.toFixed(1) + "%",
-                d3Rate: d3Pct.toFixed(1) + "%",
-                d7Rate: d7Pct.toFixed(1) + "%",
-                d14Rate: d14Pct.toFixed(1) + "%",
-                d30Rate: d30Pct.toFixed(1) + "%"
+                d1Rate: total > 0 ? ((retentionData.d1Returns || 0) / total * 100).toFixed(1) + "%" : "0%",
+                d7Rate: total > 0 ? ((retentionData.d7Returns || 0) / total * 100).toFixed(1) + "%" : "0%",
+                d30Rate: total > 0 ? ((retentionData.d30Returns || 0) / total * 100).toFixed(1) + "%" : "0%"
             },
-            cohort_date: cohorts.length > 0 ? cohorts[0].date : "-",
-            cohort_size: total,
-            d1_pct: Math.round(d1Pct),
-            d3_pct: Math.round(d3Pct),
-            d7_pct: Math.round(d7Pct),
-            d14_pct: Math.round(d14Pct),
-            d30_pct: Math.round(d30Pct),
             gameId: gameId, daysBack: daysBack
         });
     }
@@ -63705,8 +63247,7 @@ var LegacyAnalyticsRetention;
         var totalActiveUsers = 0;
         for (var d = 0; d < daysBack; d++) {
             var dayStr = new Date(now - d * 86400000).toISOString().split("T")[0];
-            var revenueKey = gameId ? "revenue_" + gameId + "_" + dayStr : "revenue_" + dayStr;
-            var revData = readAggStorage(nk, "analytics_revenue", revenueKey);
+            var revData = readAggStorage(nk, "analytics_revenue", "revenue_" + dayStr);
             if (revData) {
                 totalRevenue += revData.totalAmount || 0;
                 totalPurchases += revData.purchaseCount || 0;
@@ -68386,6 +67927,25 @@ var SatoriCreatorEvents;
         };
         saveEventDefinition(nk, event);
         logger.info("[CreatorEvent] Draft created by %s: %s (%s)", userId, event.title, event.id);
+        // Emit EVENT_CREATED so Content Factory can begin PRE-GENERATING the promo
+        // video immediately (well before rpcPublish). This gives the pipeline the
+        // maximum runway between creation and scheduledAt.
+        EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CREATED, {
+            eventId: event.id,
+            creatorId: event.creatorId,
+            title: event.title,
+            description: event.description,
+            category: event.category,
+            gameMode: event.gameMode,
+            region: event.region,
+            scheduledAt: event.scheduledAt,
+            duration: event.duration,
+            prizePool: event.prizePool,
+            giftCardPrizes: event.giftCardPrizes || null,
+            deepLinkUrl: event.deepLinkUrl || "",
+            createdAt: event.createdAt,
+            idempotencyKey: "event_created_" + event.id,
+        });
         return RpcHelpers.successResponse({
             success: true,
             eventId: event.id,
@@ -68485,6 +68045,7 @@ var SatoriCreatorEvents;
             eventId: event.id,
             creatorId: event.creatorId,
             title: event.title,
+            description: event.description,
             category: event.category,
             gameMode: event.gameMode,
             region: event.region,
@@ -68494,6 +68055,7 @@ var SatoriCreatorEvents;
             giftCardPrizes: event.giftCardPrizes || null,
             deepLinkUrl: event.deepLinkUrl || "",
             publishedAt: event.publishedAt,
+            idempotencyKey: "event_published_" + event.id,
         });
         broadcastEventPublishedNotification(nk, logger, event);
         logger.info("[CreatorEvent] Published event %s by %s: %s", event.id, event.creatorId, event.title);
@@ -68609,19 +68171,58 @@ var SatoriCreatorEvents;
         def.endedAt = Math.floor(Date.now() / 1000);
         saveEventDefinition(nk, def);
         logger.info("[CreatorEvent] Ended event %s — %d participants, %d tier assignments", def.id, allRecords.length, Object.keys(tierAssignments).length);
+        // Resolve usernames for winner + runners-up so downstream recap pipelines
+        // (n8n → Content Factory event-recap) can produce a real highlight video
+        // without having to do their own lookup.
+        var topOwnerIds = [];
+        for (var oi = 0; oi < allRecords.length && oi < 4; oi++) {
+            topOwnerIds.push(allRecords[oi].ownerId);
+        }
+        var idToUsername = {};
+        if (topOwnerIds.length > 0) {
+            try {
+                var accts = nk.accountsGetId(topOwnerIds);
+                for (var ai = 0; ai < accts.length; ai++) {
+                    var u = accts[ai].user;
+                    if (u && u.id)
+                        idToUsername[u.id] = u.username || "";
+                }
+            }
+            catch (err) {
+                logger.warn("[CreatorEvent] Failed to resolve usernames for recap: %s", err.message || String(err));
+            }
+        }
+        function rankInfo(rec, rank) {
+            return {
+                userId: rec.ownerId,
+                username: idToUsername[rec.ownerId] || "",
+                rank: rank,
+                score: rec.score || 0,
+            };
+        }
+        var winner = allRecords.length > 0 ? rankInfo(allRecords[0], 1) : null;
+        var runnersUp = [];
+        for (var ri2 = 1; ri2 < allRecords.length && ri2 < 4; ri2++) {
+            runnersUp.push(rankInfo(allRecords[ri2], ri2 + 1));
+        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
             eventId: def.id,
             creatorId: def.creatorId,
             title: def.title,
+            description: def.description,
             category: def.category,
             gameMode: def.gameMode,
             region: def.region,
             totalParticipants: allRecords.length,
             tierAssignments: tierAssignments,
             winnersPerTier: winnersPerTier,
+            winner: winner,
+            runnersUp: runnersUp,
+            answer: def.answer || "",
             prizePool: def.prizePool,
             giftCardPrizes: def.giftCardPrizes || null,
             endedAt: def.endedAt,
+            idempotencyKey: "event_ended_" + def.id,
         });
         return RpcHelpers.successResponse({
             success: true,
@@ -69646,7 +69247,8 @@ var SatoriWebhooks;
             EventBus.Events.LEVEL_UP, EventBus.Events.STORE_PURCHASE,
             EventBus.Events.GAME_STARTED, EventBus.Events.GAME_COMPLETED,
             EventBus.Events.SESSION_START, EventBus.Events.SESSION_END,
-            EventBus.Events.EVENT_PUBLISHED, EventBus.Events.EVENT_ENDED,
+            EventBus.Events.EVENT_CREATED, EventBus.Events.EVENT_PUBLISHED,
+            EventBus.Events.EVENT_ENDED, EventBus.Events.EVENT_CANCELLED,
             EventBus.Events.QUIZ_COMPLETED, EventBus.Events.SCORE_SUBMITTED,
             EventBus.Events.REWARD_GRANTED
         ];
@@ -69814,8 +69416,10 @@ var EventBus;
         GAME_COMPLETED: "game_completed",
         SESSION_START: "session_start",
         SESSION_END: "session_end",
+        EVENT_CREATED: "event_created",
         EVENT_PUBLISHED: "event_published",
         EVENT_ENDED: "event_ended",
+        EVENT_CANCELLED: "event_cancelled",
         QUIZ_COMPLETED: "quiz_completed",
     };
 })(EventBus || (EventBus = {}));
@@ -70635,6 +70239,9 @@ try { __rpc_analytics_platform_breakdown = __rpc_analytics_platform_breakdown ||
 try { __rpc_analytics_home_heatmap = __rpc_analytics_home_heatmap || (rpcAnalyticsHomeHeatmap); } catch(e) {}
 try { __rpc_analytics_top_players = __rpc_analytics_top_players || (rpcAnalyticsTopPlayers); } catch(e) {}
 try { __rpc_analytics_error_log = __rpc_analytics_error_log || (rpcAnalyticsErrorLog); } catch(e) {}
+try { __rpc_analytics_player_segments = __rpc_analytics_player_segments || (rpcAnalyticsPlayerSegments); } catch(e) {}
+try { __rpc_analytics_churn_risk = __rpc_analytics_churn_risk || (rpcAnalyticsChurnRisk); } catch(e) {}
+try { __rpc_analytics_conversion_funnel = __rpc_analytics_conversion_funnel || (rpcAnalyticsConversionFunnel); } catch(e) {}
 try { __rpc_analytics_appodeal = __rpc_analytics_appodeal || (rpcAnalyticsAppodeal); } catch(e) {}
 try { __rpc_analytics_apple_appstore = __rpc_analytics_apple_appstore || (rpcAnalyticsAppleAppstore); } catch(e) {}
 try { __rpc_apple_appstore_import = __rpc_apple_appstore_import || (rpcAppleImport); } catch(e) {}
@@ -71164,6 +70771,9 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("analytics_home_heatmap", __rpc_analytics_home_heatmap); } catch(e) {}
   try { initializer.registerRpc("analytics_top_players", __rpc_analytics_top_players); } catch(e) {}
   try { initializer.registerRpc("analytics_error_log", __rpc_analytics_error_log); } catch(e) {}
+  try { initializer.registerRpc("analytics_player_segments", __rpc_analytics_player_segments); } catch(e) {}
+  try { initializer.registerRpc("analytics_churn_risk", __rpc_analytics_churn_risk); } catch(e) {}
+  try { initializer.registerRpc("analytics_conversion_funnel", __rpc_analytics_conversion_funnel); } catch(e) {}
   try { initializer.registerRpc("analytics_appodeal", __rpc_analytics_appodeal); } catch(e) {}
   try { initializer.registerRpc("analytics_apple_appstore", __rpc_analytics_apple_appstore); } catch(e) {}
   try { initializer.registerRpc("apple_appstore_import", __rpc_apple_appstore_import); } catch(e) {}
@@ -71180,5 +70790,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 501 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 504 + " RPCs via AST-compatible wrapper");
 }
