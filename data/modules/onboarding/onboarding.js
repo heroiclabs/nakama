@@ -274,6 +274,87 @@ function initializeNewUser(nk, logger, userId) {
 }
 
 /**
+ * #QVVBS54 FIX: Check if user has any game activity
+ * Used to detect returning users whose onboarding state was lost
+ */
+function checkUserHasGameActivity(nk, logger, userId) {
+    try {
+        // Check wallet - if user has coins/gems, they've played before
+        var walletResult = nk.storageRead([{
+            collection: "wallet",
+            key: "balance",
+            userId: userId
+        }]);
+        
+        if (walletResult.length > 0) {
+            var wallet = walletResult[0].value;
+            if (wallet.coins > 1000 || wallet.gems > 0) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has wallet balance (coins: ${wallet.coins}, gems: ${wallet.gems})`);
+                return true;
+            }
+        }
+        
+        // Check leaderboard entries - if user has any scores, they've played
+        try {
+            var leaderboardRecords = nk.leaderboardRecordsList("weekly_leaderboard", [userId], 1, null, 0);
+            if (leaderboardRecords && leaderboardRecords.records && leaderboardRecords.records.length > 0) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has leaderboard entries`);
+                return true;
+            }
+        } catch (e) {
+            // Leaderboard might not exist yet, that's ok
+        }
+        
+        // Check daily completion history
+        var dailyResult = nk.storageRead([{
+            collection: "daily_completion",
+            key: "history",
+            userId: userId
+        }]);
+        
+        if (dailyResult.length > 0) {
+            logger.info(`[Onboarding] #QVVBS54: User ${userId} has daily completion history`);
+            return true;
+        }
+        
+        // Check quiz stats
+        var statsResult = nk.storageRead([{
+            collection: "quiz_stats",
+            key: "stats",
+            userId: userId
+        }]);
+        
+        if (statsResult.length > 0) {
+            var stats = statsResult[0].value;
+            if (stats.totalGamesPlayed > 0 || stats.totalQuizzesCompleted > 0) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has quiz stats`);
+                return true;
+            }
+        }
+        
+        // Check first session data - if they've had multiple sessions, they're returning
+        var sessionResult = nk.storageRead([{
+            collection: COLLECTION_FIRST_SESSION,
+            key: KEY_SESSION,
+            userId: userId
+        }]);
+        
+        if (sessionResult.length > 0) {
+            var session = sessionResult[0].value;
+            if (session.totalSessions > 1 || session.totalQuizzesPlayed > 0) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has session history`);
+                return true;
+            }
+        }
+        
+        return false;
+    } catch (e) {
+        logger.error(`[Onboarding] #QVVBS54: Error checking game activity: ${e.message}`);
+        return false;
+    }
+}
+
+/**
  * Track returning user session
  */
 function trackUserSession(nk, logger, userId) {
@@ -323,6 +404,7 @@ function trackUserSession(nk, logger, userId) {
 
 /**
  * RPC: Get user's onboarding state
+ * #QVVBS54 FIX: Check for returning user evidence before declaring new user
  */
 function rpcGetOnboardingState(ctx, logger, nk, payload) {
     var userId = ctx.userId;
@@ -335,7 +417,41 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
         }]);
 
         if (result.length === 0) {
-            // Initialize if not exists
+            // #QVVBS54 FIX: Before creating new user state, check if user has game activity
+            // This catches users whose onboarding state was lost but have played before
+            var hasGameActivity = checkUserHasGameActivity(nk, logger, userId);
+            
+            if (hasGameActivity) {
+                logger.info(`[Onboarding] #QVVBS54: User ${userId} has game activity but no onboarding state - marking complete`);
+                var completedState = {
+                    userId: userId,
+                    createdAt: Date.now(),
+                    currentStep: 10,
+                    totalSteps: 9,
+                    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    welcomeBonusClaimed: true,
+                    firstQuizCompleted: true,
+                    onboardingComplete: true,
+                    recoveredFromActivity: true, // Flag for debugging
+                    lastUpdated: Date.now()
+                };
+                nk.storageWrite([{
+                    collection: COLLECTION_ONBOARDING,
+                    key: KEY_ONBOARDING,
+                    userId: userId,
+                    value: completedState,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+                return JSON.stringify({
+                    success: true,
+                    isNewUser: false,
+                    wasRecovered: true,
+                    state: completedState
+                });
+            }
+            
+            // Truly new user - initialize
             initializeNewUser(nk, logger, userId);
             return JSON.stringify({
                 success: true,
@@ -406,6 +522,7 @@ function rpcUpdateOnboardingState(ctx, logger, nk, payload) {
 
 /**
  * RPC: Complete a specific onboarding step
+ * #QVVBS54 FIX: Also marks complete if stepId >= 9 (final step)
  */
 function rpcCompleteStep(ctx, logger, nk, payload) {
     var userId = ctx.userId;
@@ -419,7 +536,33 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
             userId: userId
         }]);
 
+        // #QVVBS54 FIX: If no state exists, create it and mark complete
+        // This handles edge case where user completed onboarding but state was lost
         if (result.length === 0) {
+            if (stepId >= 9) {
+                // User is trying to complete final step - they've done onboarding
+                logger.info(`[Onboarding] #QVVBS54: Creating completed state for user ${userId} (step ${stepId})`);
+                var completedState = {
+                    userId: userId,
+                    createdAt: Date.now(),
+                    currentStep: 10,
+                    totalSteps: 9,
+                    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    welcomeBonusClaimed: true,
+                    firstQuizCompleted: true,
+                    onboardingComplete: true,
+                    lastUpdated: Date.now()
+                };
+                nk.storageWrite([{
+                    collection: COLLECTION_ONBOARDING,
+                    key: KEY_ONBOARDING,
+                    userId: userId,
+                    value: completedState,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+                return JSON.stringify({ success: true, state: completedState, rewards: getStepRewards(9) });
+            }
             return JSON.stringify({ success: false, error: "No onboarding state" });
         }
 
@@ -435,8 +578,8 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
             state.currentStep = stepId + 1;
         }
 
-        // Check if onboarding is complete
-        if (state.completedSteps.length >= state.totalSteps) {
+        // #QVVBS54 FIX: Mark complete if step 9 is completed OR if all steps are done
+        if (stepId >= 9 || state.completedSteps.length >= state.totalSteps) {
             state.onboardingComplete = true;
             logger.info(`[Onboarding] User ${userId} completed onboarding!`);
         }

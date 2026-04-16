@@ -258,7 +258,9 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var dau7dChangePct = dau7dAgo > 0 ? Math.round(((dau - dau7dAgo) / dau7dAgo) * 100) : 0;
 
     // Session stats
-    var sessionKey = 'session_stats_' + todayStr;
+    var sessionKey = gameId === 'all'
+        ? 'session_stats_' + todayStr
+        : 'session_stats_' + gameId + '_' + todayStr;
     var sessionStats = null;
     try {
         var sessObjs = nk.storageRead([{ collection: 'analytics_sessions', key: sessionKey, userId: SYSTEM_USER }]);
@@ -289,12 +291,23 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
                 });
             }
             topGames = Object.keys(gameStats).map(function(gid) {
-                return { gameId: gid, avgDau: Math.round(gameStats[gid].totalDau / Math.max(1, gameStats[gid].days)) };
+                var avgDau = Math.round(gameStats[gid].totalDau / Math.max(1, gameStats[gid].days));
+                return {
+                    gameId: gid,
+                    game_id: gid,
+                    avgDau: avgDau,
+                    avg_dau: avgDau,
+                    dau: avgDau
+                };
             }).sort(function(a, b) { return b.avgDau - a.avgDau; }).slice(0, 5);
         } catch (e) {
             logger.warn('[Analytics] Top games scan error: ' + e.message);
         }
     }
+
+    var dauWindow = dauTrend.slice(-7).map(function(day) { return day.count || 0; });
+    var dau7dMin = dauWindow.length > 0 ? Math.min.apply(null, dauWindow) : 0;
+    var dau7dMax = dauWindow.length > 0 ? Math.max.apply(null, dauWindow) : 0;
 
     return JSON.stringify({
         success: true,
@@ -303,7 +316,10 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         mau: mau,
         dau_mau_ratio: dauMauRatio,
         new_users_today: newUsersToday,
+        returning_users_today: Math.max(0, dau - newUsersToday),
         avg_session_duration_seconds: avgSessionDuration,
+        dau_7d_min: dau7dMin,
+        dau_7d_max: dau7dMax,
         dau_trend: dauTrend.slice(-14).map(function(d) { return { date: d.date, dau: d.count }; }),
         trends: {
             dau_7d_change_pct: dau7dChangePct

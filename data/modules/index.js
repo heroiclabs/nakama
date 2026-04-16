@@ -45561,26 +45561,505 @@ function lasttolliveSendChannelMessage(context, logger, nk, payload) {
 // TELEMETRY / ANALYTICS
 // ============================================================================
 
+var ANALYTICS_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+function analyticsTodayStr() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function analyticsParseNumber(value) {
+    var parsed = parseFloat(value);
+    return isNaN(parsed) ? 0 : parsed;
+}
+
+function analyticsNormalizeEventName(eventName) {
+    return (eventName || "").toLowerCase();
+}
+
+function analyticsIsNoAdsProduct(productId) {
+    var normalized = (productId || "").toLowerCase();
+    return normalized.indexOf("no_ads") !== -1 ||
+        normalized.indexOf("noads") !== -1 ||
+        normalized.indexOf("remove_ads") !== -1 ||
+        normalized.indexOf("ad_free") !== -1;
+}
+
+function analyticsReadSystemStorage(nk, collection, key) {
+    try {
+        var records = nk.storageRead([{
+            collection: collection,
+            key: key,
+            userId: ANALYTICS_SYSTEM_USER_ID
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value;
+        }
+    } catch (err) {
+        // Ignore missing records.
+    }
+    return null;
+}
+
+function analyticsWriteSystemStorage(nk, collection, key, value) {
+    nk.storageWrite([{
+        collection: collection,
+        key: key,
+        userId: ANALYTICS_SYSTEM_USER_ID,
+        value: value,
+        permissionRead: 0,
+        permissionWrite: 0
+    }]);
+}
+
+function analyticsPushCapped(list, value, maxSize) {
+    var next = Array.isArray(list) ? list : [];
+    next.push(value);
+    if (next.length > maxSize) {
+        next.splice(0, next.length - maxSize);
+    }
+    return next;
+}
+
+function analyticsUtcHour(timestamp) {
+    var parsed = timestamp ? new Date(timestamp) : new Date();
+    if (isNaN(parsed.getTime())) parsed = new Date();
+    return parsed.getUTCHours();
+}
+
+function analyticsDateKey(timestamp) {
+    if (!timestamp) return analyticsTodayStr();
+    var parsed = new Date(timestamp);
+    if (isNaN(parsed.getTime())) return analyticsTodayStr();
+    return parsed.toISOString().slice(0, 10);
+}
+
+function analyticsDayDiff(startTimestamp, endTimestamp) {
+    var start = new Date(analyticsDateKey(startTimestamp) + "T00:00:00.000Z");
+    var end = new Date(analyticsDateKey(endTimestamp) + "T00:00:00.000Z");
+    return Math.floor((end.getTime() - start.getTime()) / 86400000);
+}
+
+function analyticsEnsureRetentionFlags(container) {
+    if (!container.retentionTracked) {
+        container.retentionTracked = {};
+    }
+
+    var keys = ["d1Returns", "d3Returns", "d7Returns", "d14Returns", "d30Returns"];
+    for (var i = 0; i < keys.length; i++) {
+        if (container.retentionTracked[keys[i]] !== true) {
+            container.retentionTracked[keys[i]] = false;
+        }
+    }
+}
+
+function analyticsIncrementRetentionCounter(nk, key, field) {
+    var counters = analyticsReadSystemStorage(nk, "analytics_retention_agg", key) || {
+        totalSignups: 0,
+        d1Returns: 0,
+        d3Returns: 0,
+        d7Returns: 0,
+        d14Returns: 0,
+        d30Returns: 0
+    };
+
+    counters[field] = (counters[field] || 0) + 1;
+    analyticsWriteSystemStorage(nk, "analytics_retention_agg", key, counters);
+}
+
+function trackAnalyticsDAU(nk, userId, gameId, isNewPlatformUser, isNewGameUser) {
+    var today = analyticsTodayStr();
+    var keys = [{ key: "dau_platform_" + today, isNew: isNewPlatformUser }];
+    if (gameId) {
+        keys.push({ key: "dau_" + gameId + "_" + today, isNew: isNewGameUser });
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+        var record = analyticsReadSystemStorage(nk, "analytics_dau", keys[i].key) || {
+            date: today,
+            uniqueUsers: [],
+            count: 0,
+            newUsers: 0
+        };
+
+        if (!Array.isArray(record.uniqueUsers)) {
+            record.uniqueUsers = Array.isArray(record.users) ? record.users : [];
+        }
+
+        if (record.uniqueUsers.indexOf(userId) === -1) {
+            record.uniqueUsers.push(userId);
+            record.count = record.uniqueUsers.length;
+            if (keys[i].isNew) {
+                record.newUsers = (record.newUsers || 0) + 1;
+            }
+            analyticsWriteSystemStorage(nk, "analytics_dau", keys[i].key, record);
+        }
+    }
+}
+
+function aggregateSessionStatsCompat(nk, gameId, durationSeconds, sessionStartTimestamp) {
+    var today = analyticsTodayStr();
+    var hour = analyticsUtcHour(sessionStartTimestamp);
+    var keys = ["session_stats_" + today];
+    if (gameId) {
+        keys.push("session_stats_" + gameId + "_" + today);
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+        var stats = analyticsReadSystemStorage(nk, "analytics_sessions", keys[i]) || {
+            date: today,
+            totalSessions: 0,
+            totalDuration: 0,
+            avgDuration: 0,
+            durations: [],
+            hourDistribution: {}
+        };
+
+        stats.totalSessions = (stats.totalSessions || 0) + 1;
+        stats.totalDuration = (stats.totalDuration || 0) + (durationSeconds || 0);
+        stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
+        stats.durations = analyticsPushCapped(stats.durations, durationSeconds || 0, 500);
+        if (!stats.hourDistribution) {
+            stats.hourDistribution = {};
+        }
+        stats.hourDistribution[hour] = (stats.hourDistribution[hour] || 0) + 1;
+
+        analyticsWriteSystemStorage(nk, "analytics_sessions", keys[i], stats);
+    }
+}
+
+function aggregateQuizStatsFromEvent(nk, gameId, eventName, eventData) {
+    var normalized = analyticsNormalizeEventName(eventName);
+    var relevantEvents = {
+        quiz_started: true,
+        quiz_completed: true,
+        quiz_finished: true,
+        quiz_abandoned: true,
+        hint_used: true,
+        daily_quiz_completed: true,
+        streak_milestone: true,
+        streak_updated: true
+    };
+
+    if (!relevantEvents[normalized]) {
+        return;
+    }
+
+    var today = analyticsTodayStr();
+    var keys = ["quiz_stats_" + today];
+    if (gameId) {
+        keys.push("quiz_stats_" + gameId + "_" + today);
+    }
+
+    var topic = eventData.topic || eventData.topic_name || eventData.category || eventData.category_name || null;
+    var difficulty = eventData.difficulty || null;
+    var streakCount = parseInt(eventData.streak_count || eventData.streak_day || 0, 10) || 0;
+
+    for (var i = 0; i < keys.length; i++) {
+        var stats = analyticsReadSystemStorage(nk, "analytics_quiz", keys[i]) || {
+            date: today,
+            started: 0,
+            completed: 0,
+            abandoned: 0,
+            hints: 0,
+            totalScore: 0,
+            correctAnswers: 0,
+            totalQuestions: 0,
+            dailyCompleted: 0,
+            avgStreak: 0,
+            streakTotal: 0,
+            streakSamples: 0,
+            topics: {},
+            difficulty: {}
+        };
+
+        if (normalized === "quiz_started") {
+            stats.started++;
+        }
+        if (normalized === "quiz_completed" || normalized === "quiz_finished") {
+            stats.completed++;
+            stats.totalScore += parseInt(eventData.score || 0, 10) || 0;
+            stats.correctAnswers += parseInt(eventData.correct_answers || eventData.correctCount || eventData.correctAnswers || 0, 10) || 0;
+            stats.totalQuestions += parseInt(eventData.questions_answered || eventData.totalQuestions || eventData.total_questions || 0, 10) || 0;
+            if (topic) {
+                stats.topics[topic] = (stats.topics[topic] || 0) + 1;
+            }
+            if (difficulty) {
+                stats.difficulty[difficulty] = (stats.difficulty[difficulty] || 0) + 1;
+            }
+        }
+        if (normalized === "quiz_abandoned") {
+            stats.abandoned++;
+        }
+        if (normalized === "hint_used") {
+            stats.hints++;
+        }
+        if (normalized === "daily_quiz_completed") {
+            stats.dailyCompleted++;
+        }
+        if (streakCount > 0) {
+            stats.streakTotal = (stats.streakTotal || 0) + streakCount;
+            stats.streakSamples = (stats.streakSamples || 0) + 1;
+            stats.avgStreak = Math.round(stats.streakTotal / Math.max(1, stats.streakSamples));
+        }
+
+        analyticsWriteSystemStorage(nk, "analytics_quiz", keys[i], stats);
+    }
+}
+
+function aggregateEconomyStatsFromEvent(nk, gameId, eventName, eventData) {
+    var normalized = analyticsNormalizeEventName(eventName);
+    var relevantEvents = {
+        balance_snapshot: true,
+        coins_earned: true,
+        coins_spent: true,
+        insufficient_coins: true,
+        daily_reward_claimed: true,
+        game_entry_paid: true,
+        game_entry_denied: true
+    };
+
+    if (!relevantEvents[normalized]) {
+        return;
+    }
+
+    var key = gameId ? "economy_stats_" + gameId : "economy_stats";
+    var stats = analyticsReadSystemStorage(nk, "analytics_economy", key) || {
+        coinBalances: [],
+        gemBalances: [],
+        sources: 0,
+        sinks: 0
+    };
+
+    var coins = analyticsParseNumber(eventData.balance_after || eventData.balance_current || eventData.current_balance || eventData.coins || 0);
+    var gems = analyticsParseNumber(eventData.gems || 0);
+    var amount = analyticsParseNumber(eventData.amount || eventData.coins_earned || eventData.coins_spent || 0);
+
+    if (coins > 0) {
+        stats.coinBalances = analyticsPushCapped(stats.coinBalances, Math.abs(coins), 500);
+    }
+    if (gems > 0) {
+        stats.gemBalances = analyticsPushCapped(stats.gemBalances, Math.abs(gems), 500);
+    }
+
+    if (normalized === "coins_earned" || normalized === "daily_reward_claimed") {
+        stats.sources = (stats.sources || 0) + Math.abs(amount);
+    }
+    if (normalized === "coins_spent" || normalized === "game_entry_paid") {
+        stats.sinks = (stats.sinks || 0) + Math.abs(amount);
+    }
+
+    analyticsWriteSystemStorage(nk, "analytics_economy", key, stats);
+}
+
+function aggregateRevenueFromEvent(nk, userId, gameId, eventData) {
+    var amount = analyticsParseNumber(eventData.price || eventData.price_local || eventData.amount || 0);
+    if (amount <= 0) {
+        return;
+    }
+
+    var today = analyticsTodayStr();
+    var keys = ["revenue_" + today];
+    if (gameId) {
+        keys.push("revenue_" + gameId + "_" + today);
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+        var revenue = analyticsReadSystemStorage(nk, "analytics_revenue", keys[i]) || {
+            totalAmount: 0,
+            purchaseCount: 0,
+            payingUsers: [],
+            transactions: []
+        };
+
+        revenue.totalAmount = (revenue.totalAmount || 0) + amount;
+        revenue.purchaseCount = (revenue.purchaseCount || 0) + 1;
+        if (revenue.payingUsers.indexOf(userId) === -1) {
+            revenue.payingUsers.push(userId);
+        }
+        revenue.transactions = analyticsPushCapped(revenue.transactions, {
+            userId: userId,
+            amount: amount,
+            currency: eventData.currency || "USD",
+            productId: eventData.product_id || eventData.productId || "unknown",
+            timestamp: new Date().toISOString()
+        }, 250);
+
+        analyticsWriteSystemStorage(nk, "analytics_revenue", keys[i], revenue);
+    }
+}
+
+function aggregateMonetizationStatsFromEvent(nk, userId, gameId, eventName, eventData) {
+    var normalized = analyticsNormalizeEventName(eventName);
+    var relevantEvents = {
+        ad_impression: true,
+        ad_shown: true,
+        ad_completed: true,
+        rewarded_ad_completed: true,
+        ad_revenue: true,
+        purchase: true,
+        purchase_completed: true,
+        iap_purchase: true,
+        iap_completed: true,
+        paywall_shown: true,
+        paywall_converted: true,
+        store_opened: true
+    };
+
+    if (!relevantEvents[normalized]) {
+        return;
+    }
+
+    var today = analyticsTodayStr();
+    var keys = ["monetization_" + today];
+    if (gameId) {
+        keys.push("monetization_" + gameId + "_" + today);
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+        var stats = analyticsReadSystemStorage(nk, "analytics_monetization", keys[i]) || {
+            date: today,
+            impressions: 0,
+            completed: 0,
+            revenue: 0,
+            iap: 0,
+            paywallShown: 0,
+            paywallConverted: 0,
+            storeOpens: 0,
+            adTypes: {},
+            products: {}
+        };
+
+        var adType = eventData.ad_type || eventData.adType || "unknown";
+        var productId = eventData.product_id || eventData.productId || null;
+
+        if (normalized === "ad_impression" || normalized === "ad_shown") {
+            stats.impressions++;
+            stats.adTypes[adType] = (stats.adTypes[adType] || 0) + 1;
+        }
+        if (normalized === "ad_completed" || normalized === "rewarded_ad_completed") {
+            stats.completed++;
+            stats.adTypes[adType] = (stats.adTypes[adType] || 0) + 1;
+        }
+        if (normalized === "ad_revenue") {
+            stats.revenue += analyticsParseNumber(eventData.revenue || eventData.revenue_usd || 0);
+            stats.adTypes[adType] = (stats.adTypes[adType] || 0) + 1;
+        }
+        if (normalized === "purchase" || normalized === "purchase_completed" || normalized === "iap_purchase" || normalized === "iap_completed") {
+            stats.iap++;
+            if (productId) {
+                stats.products[productId] = (stats.products[productId] || 0) + 1;
+            }
+            aggregateRevenueFromEvent(nk, userId, gameId, eventData);
+        }
+        if (normalized === "paywall_shown") {
+            stats.paywallShown++;
+        }
+        if (normalized === "paywall_converted") {
+            stats.paywallConverted++;
+        }
+        if (normalized === "store_opened") {
+            stats.storeOpens++;
+        }
+
+        analyticsWriteSystemStorage(nk, "analytics_monetization", keys[i], stats);
+    }
+}
+
+function analyticsShouldForceSaveProfile(eventName) {
+    var normalized = analyticsNormalizeEventName(eventName);
+    return normalized === "session_start" ||
+        normalized === "session_end" ||
+        normalized === "purchase" ||
+        normalized === "purchase_completed" ||
+        normalized === "iap_purchase" ||
+        normalized === "iap_completed" ||
+        normalized === "ad_completed" ||
+        normalized === "rewarded_ad_completed" ||
+        normalized === "paywall_shown" ||
+        normalized === "paywall_converted" ||
+        normalized === "quiz_completed" ||
+        normalized === "daily_quiz_completed" ||
+        normalized === "streak_milestone" ||
+        normalized === "streak_updated";
+}
+
+function updateRetentionCountersFromSessionStart(nk, gameId, profile, isNewPlatformUser, isNewGameUser) {
+    if (!profile || !profile.global) {
+        return;
+    }
+
+    analyticsEnsureRetentionFlags(profile.global);
+    var gameProfile = profile.games && profile.games[gameId] ? profile.games[gameId] : null;
+    if (gameProfile) {
+        analyticsEnsureRetentionFlags(gameProfile);
+    }
+
+    if (isNewPlatformUser) {
+        analyticsIncrementRetentionCounter(nk, "retention_counters", "totalSignups");
+    }
+    if (gameId && isNewGameUser) {
+        analyticsIncrementRetentionCounter(nk, "retention_counters_" + gameId, "totalSignups");
+    }
+
+    var checkpoints = [
+        { days: 1, field: "d1Returns" },
+        { days: 3, field: "d3Returns" },
+        { days: 7, field: "d7Returns" },
+        { days: 14, field: "d14Returns" },
+        { days: 30, field: "d30Returns" }
+    ];
+    var now = new Date().toISOString();
+    var platformAge = analyticsDayDiff(profile.global.firstSeenAt || profile.createdAt, now);
+
+    for (var i = 0; i < checkpoints.length; i++) {
+        var checkpoint = checkpoints[i];
+        if (platformAge === checkpoint.days && !profile.global.retentionTracked[checkpoint.field]) {
+            analyticsIncrementRetentionCounter(nk, "retention_counters", checkpoint.field);
+            profile.global.retentionTracked[checkpoint.field] = true;
+        }
+    }
+
+    if (gameId && gameProfile) {
+        var gameAge = analyticsDayDiff(gameProfile.firstSeenAt || profile.global.firstSeenAt || profile.createdAt, now);
+        for (var j = 0; j < checkpoints.length; j++) {
+            var gameCheckpoint = checkpoints[j];
+            if (gameAge === gameCheckpoint.days && !gameProfile.retentionTracked[gameCheckpoint.field]) {
+                analyticsIncrementRetentionCounter(nk, "retention_counters_" + gameId, gameCheckpoint.field);
+                gameProfile.retentionTracked[gameCheckpoint.field] = true;
+            }
+        }
+    }
+}
+
 /**
  * RPC: quizverse_log_event
  * Log analytics event
+ * FIXED: Now writes to standard "analytics_events" collection with gameID in key for filtering
+ * ENHANCED: Updates player analytics profile (batched every 10 events)
  */
 function quizverseLogEvent(context, logger, nk, payload) {
     try {
         var data = parseAndValidateGamePayload(payload, ["gameID", "eventName"]);
         var userId = getUserId(data, context);
+        var normalizedProperties = data.properties || data.eventData || {};
+        var timestamp = new Date().toISOString();
 
         var eventData = {
             eventName: data.eventName,
-            properties: data.properties || {},
+            eventData: normalizedProperties,
+            properties: normalizedProperties,
             userId: userId,
-            timestamp: new Date().toISOString(),
-            gameID: data.gameID
+            timestamp: timestamp,
+            unixTimestamp: Math.floor(Date.now() / 1000),
+            date: timestamp.slice(0, 10),
+            gameID: data.gameID,
+            gameId: data.gameID
         };
 
-        // Store event
-        var collection = getCollection(data.gameID, "analytics");
-        var key = "event_" + userId + "_" + Date.now();
+        // Store event in standard analytics_events collection (dashboard reads from this)
+        // Key format: {gameID}_{eventName}_{timestamp}_{userId} - allows filtering by gameID
+        var collection = "analytics_events";
+        var key = data.gameID + "_" + data.eventName + "_" + Date.now() + "_" + userId;
 
         nk.storageWrite([{
             collection: collection,
@@ -45590,6 +46069,28 @@ function quizverseLogEvent(context, logger, nk, payload) {
             permissionRead: 0,
             permissionWrite: 0
         }]);
+
+        var updatedProfile = null;
+
+        // Update player analytics profile (batched - saves every 10 events)
+        try {
+            updatedProfile = updatePlayerProfileFromEvent(nk, logger, userId, data.gameID, data.eventName, normalizedProperties);
+        } catch (profileErr) {
+            // Don't fail the event if profile update fails
+            logger.warn("Profile update failed: " + profileErr.message);
+        }
+
+        try {
+            aggregateQuizStatsFromEvent(nk, data.gameID, data.eventName, normalizedProperties);
+            aggregateMonetizationStatsFromEvent(nk, userId, data.gameID, data.eventName, normalizedProperties);
+            aggregateEconomyStatsFromEvent(nk, data.gameID, data.eventName, normalizedProperties);
+        } catch (aggregationErr) {
+            logger.warn("Analytics aggregation failed: " + aggregationErr.message);
+        }
+
+        if (updatedProfile && analyticsShouldForceSaveProfile(data.eventName)) {
+            forceSavePlayerProfile(nk, logger, userId, updatedProfile);
+        }
 
         logger.info("[" + data.gameID + "] Event logged: " + data.eventName);
 
@@ -45618,11 +46119,21 @@ function lasttoliveLogEvent(context, logger, nk, payload) {
 /**
  * RPC: quizverse_track_session_start
  * Track session start
+ * FIXED: Now writes to standard "analytics_sessions" collection with gameID in key for filtering
+ * ENHANCED: Updates player analytics profile on session start
  */
 function quizverseTrackSessionStart(context, logger, nk, payload) {
     try {
         var data = parseAndValidateGamePayload(payload, ["gameID"]);
         var userId = getUserId(data, context);
+        var existingProfile = getOrCreatePlayerAnalyticsProfile(nk, userId);
+        var existingGameProfile = existingProfile.games && existingProfile.games[data.gameID]
+            ? existingProfile.games[data.gameID]
+            : null;
+        var isNewPlatformUser = !existingProfile.global || (existingProfile.global.totalSessions || 0) === 0;
+        var isNewGameUser = !existingGameProfile ||
+            !existingGameProfile.engagement ||
+            (existingGameProfile.engagement.totalSessions || 0) === 0;
 
         var sessionData = {
             userId: userId,
@@ -45631,8 +46142,10 @@ function quizverseTrackSessionStart(context, logger, nk, payload) {
             deviceInfo: data.deviceInfo || {}
         };
 
-        var collection = getCollection(data.gameID, "sessions");
-        var key = "session_" + userId + "_" + Date.now();
+        // Store session in standard analytics_sessions collection (dashboard reads from this)
+        // Key format: {gameID}_session_{userId}_{timestamp} - allows filtering by gameID
+        var collection = "analytics_sessions";
+        var key = data.gameID + "_session_" + userId + "_" + Date.now();
 
         nk.storageWrite([{
             collection: collection,
@@ -45642,6 +46155,18 @@ function quizverseTrackSessionStart(context, logger, nk, payload) {
             permissionRead: 1,
             permissionWrite: 0
         }]);
+
+        var updatedProfile = null;
+
+        // Update player analytics profile for session start
+        try {
+            updatedProfile = updatePlayerProfileFromEvent(nk, logger, userId, data.gameID, "session_start", {});
+            trackAnalyticsDAU(nk, userId, data.gameID, isNewPlatformUser, isNewGameUser);
+            updateRetentionCountersFromSessionStart(nk, data.gameID, updatedProfile, isNewPlatformUser, isNewGameUser);
+            forceSavePlayerProfile(nk, logger, userId, updatedProfile);
+        } catch (profileErr) {
+            logger.warn("Profile update on session start failed: " + profileErr.message);
+        }
 
         logger.info("[" + data.gameID + "] Session started for user: " + userId);
 
@@ -45670,16 +46195,20 @@ function lasttoliveTrackSessionStart(context, logger, nk, payload) {
 /**
  * RPC: quizverse_track_session_end
  * Track session end
+ * FIXED: Now reads/writes from standard "analytics_sessions" collection
+ * BACKWARD COMPATIBLE: Falls back to old collection if session not found in new collection
  */
 function quizverseTrackSessionEnd(context, logger, nk, payload) {
     try {
         var data = parseAndValidateGamePayload(payload, ["gameID", "sessionKey"]);
         var userId = getUserId(data, context);
 
-        var collection = getCollection(data.gameID, "sessions");
-
-        // Read session
+        // Use standard analytics_sessions collection (matches session start)
+        var collection = "analytics_sessions";
         var sessionData = null;
+        var foundInCollection = null;
+
+        // Try new collection first
         try {
             var records = nk.storageRead([{
                 collection: collection,
@@ -45688,23 +46217,89 @@ function quizverseTrackSessionEnd(context, logger, nk, payload) {
             }]);
             if (records && records.length > 0 && records[0].value) {
                 sessionData = records[0].value;
+                foundInCollection = collection;
             }
         } catch (err) {
-            throw new Error("Session not found");
+            // Ignore, will try fallback
         }
 
-        if (sessionData) {
+        // BACKWARD COMPATIBILITY: Try old collection format if not found
+        if (!sessionData) {
+            var oldCollection = getCollection(data.gameID, "sessions"); // e.g., "quizverse_sessions"
+            try {
+                var oldRecords = nk.storageRead([{
+                    collection: oldCollection,
+                    key: data.sessionKey,
+                    userId: userId
+                }]);
+                if (oldRecords && oldRecords.length > 0 && oldRecords[0].value) {
+                    sessionData = oldRecords[0].value;
+                    foundInCollection = oldCollection;
+                    logger.info("[" + data.gameID + "] Found session in old collection: " + oldCollection);
+                }
+            } catch (err) {
+                // Ignore
+            }
+        }
+
+        // BACKWARD COMPATIBILITY: Try with old key format (session_userId_timestamp)
+        if (!sessionData && data.sessionKey && data.sessionKey.startsWith("session_")) {
+            // Old Unity format: session_{userId}_{timestamp}
+            var oldCollection = getCollection(data.gameID, "sessions");
+            try {
+                var oldRecords = nk.storageRead([{
+                    collection: oldCollection,
+                    key: data.sessionKey,
+                    userId: userId
+                }]);
+                if (oldRecords && oldRecords.length > 0 && oldRecords[0].value) {
+                    sessionData = oldRecords[0].value;
+                    foundInCollection = oldCollection;
+                }
+            } catch (err) {
+                // Ignore
+            }
+        }
+
+        if (!sessionData) {
+            // Session not found - create a minimal end record anyway
+            logger.warn("[" + data.gameID + "] Session not found for key: " + data.sessionKey + ", creating end-only record");
+            sessionData = {
+                userId: userId,
+                gameID: data.gameID,
+                startTime: null, // Unknown
+                endTime: new Date().toISOString(),
+                duration: data.duration || 0,
+                note: "session_start_missing"
+            };
+            foundInCollection = collection;
+        } else {
             sessionData.endTime = new Date().toISOString();
             sessionData.duration = data.duration || 0;
+        }
 
-            nk.storageWrite([{
-                collection: collection,
-                key: data.sessionKey,
-                userId: userId,
-                value: sessionData,
-                permissionRead: 1,
-                permissionWrite: 0
-            }]);
+        // Write to the collection where we found it (or new collection if not found)
+        nk.storageWrite([{
+            collection: foundInCollection,
+            key: data.sessionKey,
+            userId: userId,
+            value: sessionData,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+
+        // Update player profile with session end and FORCE SAVE (important event)
+        try {
+            var updatedProfile = updatePlayerProfileFromEvent(nk, logger, userId, data.gameID, "session_end", { duration: sessionData.duration });
+            forceSavePlayerProfile(nk, logger, userId, updatedProfile);
+        } catch (profileErr) {
+            logger.warn("Profile update on session end failed: " + profileErr.message);
+        }
+
+        try {
+            aggregateSessionStatsCompat(nk, data.gameID, sessionData.duration || 0, sessionData.startTime);
+        } catch (aggErr) {
+            logger.warn("Session aggregation failed: " + aggErr.message);
         }
 
         logger.info("[" + data.gameID + "] Session ended for user: " + userId);
@@ -45729,6 +46324,585 @@ function quizverseTrackSessionEnd(context, logger, nk, payload) {
  */
 function lasttoliveTrackSessionEnd(context, logger, nk, payload) {
     return quizverseTrackSessionEnd(context, logger, nk, payload);
+}
+
+// ============================================================================
+// PLAYER ANALYTICS PROFILE SYSTEM
+// ============================================================================
+
+/**
+ * Constants for Player Analytics Profile
+ */
+var PLAYER_ANALYTICS_PROFILE_COLLECTION = "player_analytics_profile";
+var PLAYER_ANALYTICS_PROFILE_KEY = "profile";
+var PROFILE_UPDATE_BATCH_SIZE = 10; // Update profile every N events
+
+/**
+ * Get or create empty player analytics profile
+ */
+function getOrCreatePlayerAnalyticsProfile(nk, userId) {
+    var profile = null;
+    
+    try {
+        var records = nk.storageRead([{
+            collection: PLAYER_ANALYTICS_PROFILE_COLLECTION,
+            key: PLAYER_ANALYTICS_PROFILE_KEY,
+            userId: userId
+        }]);
+        
+        if (records && records.length > 0 && records[0].value) {
+            profile = records[0].value;
+        }
+    } catch (err) {
+        // Profile doesn't exist, will create new
+    }
+    
+    if (!profile) {
+        var now = new Date().toISOString();
+        profile = {
+            userId: userId,
+            createdAt: now,
+            updatedAt: now,
+            
+            // Global aggregate (all games combined)
+            global: {
+                totalSessions: 0,
+                totalPlaytimeMinutes: 0,
+                totalRevenue: 0,
+                firstSeenAt: now,
+                lastSeenAt: now,
+                gamesPlayed: [],
+                engagementTier: "minnow",
+                overallChurnRisk: 0,
+                totalEventsLogged: 0,
+                retentionTracked: {
+                    d1Returns: false,
+                    d3Returns: false,
+                    d7Returns: false,
+                    d14Returns: false,
+                    d30Returns: false
+                },
+                pendingEventCount: 0 // For batch updates
+            },
+            
+            // Per-game breakdown
+            games: {},
+            
+            // Computed segments
+            segments: [],
+            
+            // Recommendations per game
+            recommendations: {}
+        };
+    }
+    
+    return profile;
+}
+
+/**
+ * Create empty game-specific profile
+ */
+function createGameProfile(gameId, gameName) {
+    return {
+        gameId: gameId,
+        gameName: gameName || gameId,
+        firstSeenAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+        
+        // Engagement
+        engagement: {
+            totalSessions: 0,
+            totalPlaytimeMinutes: 0,
+            avgSessionDurationSeconds: 0,
+            sessionsThisWeek: 0,
+            daysActiveLast7: 0,
+            daysActiveLast30: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            lastSessionAt: null,
+            churnRiskScore: 0,
+            totalEventsLogged: 0
+        },
+        
+        // Monetization
+        monetization: {
+            ltv: 0,
+            totalIapSpend: 0,
+            totalAdRevenue: 0,
+            purchaseCount: 0,
+            rewardedAdsWatched: 0,
+            adRemovalPurchased: false,
+            lastPurchaseAt: null,
+            daysSincePurchase: null,
+            purchaseFrequency: "never",
+            adEngagementRate: 0,
+            paywallImpressions: 0,
+            paywallConversions: 0,
+            willingnessToPayScore: 0
+        },
+        
+        // Behavior
+        behavior: {
+            preferredPlayHours: [],
+            preferredPlayDays: [],
+            abandonmentRate: 0,
+            socialEngagement: "solo",
+            featureUsage: {}
+        },
+        
+        // Preferences
+        preferences: {
+            favoriteCategories: [],
+            avoidedCategories: [],
+            difficultySweetSpot: 0.65
+        },
+        
+        // Conversion signals
+        conversion: {
+            daysToFirstPurchase: null,
+            iapOffersShown: 0,
+            iapOffersConverted: 0,
+            bestConvertingOfferType: null,
+            priceSensitivity: "medium",
+            optimalOfferTiming: "after_win"
+        },
+
+        retentionTracked: {
+            d1Returns: false,
+            d3Returns: false,
+            d7Returns: false,
+            d14Returns: false,
+            d30Returns: false
+        },
+        
+        // Game-specific fields (populated based on game type)
+        gameSpecific: {}
+    };
+}
+
+/**
+ * Save player analytics profile
+ */
+function savePlayerAnalyticsProfile(nk, userId, profile) {
+    profile.updatedAt = new Date().toISOString();
+    
+    nk.storageWrite([{
+        collection: PLAYER_ANALYTICS_PROFILE_COLLECTION,
+        key: PLAYER_ANALYTICS_PROFILE_KEY,
+        userId: userId,
+        value: profile,
+        permissionRead: 2, // Owner can read
+        permissionWrite: 0 // Only server can write
+    }]);
+}
+
+/**
+ * Update player profile based on event
+ * Uses batch mode - only writes to storage every PROFILE_UPDATE_BATCH_SIZE events
+ */
+function updatePlayerProfileFromEvent(nk, logger, userId, gameId, eventName, eventData) {
+    var profile = getOrCreatePlayerAnalyticsProfile(nk, userId);
+    var now = new Date().toISOString();
+    var nowDate = new Date();
+    
+    // Ensure game profile exists
+    if (!profile.games[gameId]) {
+        profile.games[gameId] = createGameProfile(gameId, gameId);
+        if (profile.global.gamesPlayed.indexOf(gameId) === -1) {
+            profile.global.gamesPlayed.push(gameId);
+        }
+    }
+    
+    var gameProfile = profile.games[gameId];
+    
+    // Update timestamps
+    profile.global.lastSeenAt = now;
+    gameProfile.lastSeenAt = now;
+    
+    // Increment event counters
+    profile.global.totalEventsLogged++;
+    profile.global.pendingEventCount++;
+    gameProfile.engagement.totalEventsLogged++;
+    
+    // Update based on event type
+    switch (eventName) {
+        case "session_start":
+            gameProfile.engagement.totalSessions++;
+            gameProfile.engagement.lastSessionAt = now;
+            profile.global.totalSessions++;
+            break;
+            
+        case "session_end":
+            var duration = eventData.duration || 0;
+            var durationMinutes = duration / 60;
+            gameProfile.engagement.totalPlaytimeMinutes += durationMinutes;
+            profile.global.totalPlaytimeMinutes += durationMinutes;
+            
+            // Update average session duration
+            if (gameProfile.engagement.totalSessions > 0) {
+                gameProfile.engagement.avgSessionDurationSeconds = 
+                    (gameProfile.engagement.totalPlaytimeMinutes * 60) / gameProfile.engagement.totalSessions;
+            }
+            break;
+            
+        case "purchase":
+        case "purchase_completed":
+        case "iap_purchase":
+        case "iap_completed":
+            var amount = analyticsParseNumber(eventData.price || eventData.price_local || eventData.amount || 0);
+            gameProfile.monetization.ltv += amount;
+            gameProfile.monetization.totalIapSpend += amount;
+            gameProfile.monetization.purchaseCount++;
+            gameProfile.monetization.lastPurchaseAt = now;
+            profile.global.totalRevenue += amount;
+
+            var purchaseProductId = eventData.product_id || eventData.productId || "";
+            if (analyticsIsNoAdsProduct(purchaseProductId)) {
+                gameProfile.monetization.adRemovalPurchased = true;
+            }
+            
+            // Update purchase frequency
+            if (gameProfile.monetization.purchaseCount >= 10) {
+                gameProfile.monetization.purchaseFrequency = "whale";
+            } else if (gameProfile.monetization.purchaseCount >= 5) {
+                gameProfile.monetization.purchaseFrequency = "regular";
+            } else if (gameProfile.monetization.purchaseCount >= 2) {
+                gameProfile.monetization.purchaseFrequency = "occasional";
+            } else {
+                gameProfile.monetization.purchaseFrequency = "once";
+            }
+            break;
+            
+        case "ad_completed":
+        case "ad_watched":
+        case "rewarded_ad_completed":
+            var adRevenue = analyticsParseNumber(eventData.revenue || eventData.revenue_usd || 0.01);
+            gameProfile.monetization.totalAdRevenue += adRevenue;
+            gameProfile.monetization.rewardedAdsWatched = (gameProfile.monetization.rewardedAdsWatched || 0) + 1;
+            profile.global.totalRevenue += adRevenue;
+            break;
+            
+        case "paywall_shown":
+        case "offer_shown":
+            gameProfile.monetization.paywallImpressions++;
+            gameProfile.conversion.iapOffersShown++;
+            break;
+            
+        case "paywall_converted":
+        case "offer_converted":
+            gameProfile.monetization.paywallConversions++;
+            gameProfile.conversion.iapOffersConverted++;
+
+            var convertedProductId = eventData.product_id || eventData.productId || "";
+            if (analyticsIsNoAdsProduct(convertedProductId)) {
+                gameProfile.monetization.adRemovalPurchased = true;
+            }
+            break;
+
+        case "daily_quiz_completed":
+        case "streak_milestone":
+        case "streak_updated":
+            var streakCount = parseInt(eventData.streak_count || eventData.streak_day || 0, 10) || 0;
+            if (streakCount > 0) {
+                gameProfile.engagement.currentStreak = streakCount;
+                if (streakCount > gameProfile.engagement.longestStreak) {
+                    gameProfile.engagement.longestStreak = streakCount;
+                }
+            }
+            break;
+            
+        // QuizVerse-specific events
+        case "quiz_completed":
+        case "quiz_finished":
+            if (!gameProfile.gameSpecific.quiz) {
+                gameProfile.gameSpecific.quiz = {
+                    totalQuizzesCompleted: 0,
+                    totalQuestionsAnswered: 0,
+                    totalCorrectAnswers: 0,
+                    overallAccuracy: 0,
+                    avgResponseTimeMs: 0,
+                    categoriesMastery: {},
+                    bestCategory: null,
+                    weakestCategory: null,
+                    skillTier: "beginner"
+                };
+            }
+            
+            gameProfile.gameSpecific.quiz.totalQuizzesCompleted++;
+            
+            var questionsAnswered = eventData.questions_answered || eventData.totalQuestions || 0;
+            var correctAnswers = eventData.correct_answers || eventData.correctAnswers || 0;
+            
+            gameProfile.gameSpecific.quiz.totalQuestionsAnswered += questionsAnswered;
+            gameProfile.gameSpecific.quiz.totalCorrectAnswers += correctAnswers;
+            
+            if (gameProfile.gameSpecific.quiz.totalQuestionsAnswered > 0) {
+                gameProfile.gameSpecific.quiz.overallAccuracy = 
+                    gameProfile.gameSpecific.quiz.totalCorrectAnswers / gameProfile.gameSpecific.quiz.totalQuestionsAnswered;
+            }
+            
+            // Update category mastery
+            var category = eventData.category || eventData.quiz_category;
+            if (category) {
+                if (!gameProfile.gameSpecific.quiz.categoriesMastery[category]) {
+                    gameProfile.gameSpecific.quiz.categoriesMastery[category] = {
+                        attempts: 0,
+                        correct: 0,
+                        mastery: 0
+                    };
+                }
+                gameProfile.gameSpecific.quiz.categoriesMastery[category].attempts += questionsAnswered;
+                gameProfile.gameSpecific.quiz.categoriesMastery[category].correct += correctAnswers;
+                if (gameProfile.gameSpecific.quiz.categoriesMastery[category].attempts > 0) {
+                    gameProfile.gameSpecific.quiz.categoriesMastery[category].mastery = 
+                        (gameProfile.gameSpecific.quiz.categoriesMastery[category].correct / 
+                         gameProfile.gameSpecific.quiz.categoriesMastery[category].attempts) * 100;
+                }
+            }
+            
+            // Update skill tier based on accuracy and quizzes completed
+            var accuracy = gameProfile.gameSpecific.quiz.overallAccuracy;
+            var quizzes = gameProfile.gameSpecific.quiz.totalQuizzesCompleted;
+            if (quizzes >= 100 && accuracy >= 0.85) {
+                gameProfile.gameSpecific.quiz.skillTier = "expert";
+            } else if (quizzes >= 50 && accuracy >= 0.75) {
+                gameProfile.gameSpecific.quiz.skillTier = "advanced";
+            } else if (quizzes >= 20 && accuracy >= 0.60) {
+                gameProfile.gameSpecific.quiz.skillTier = "intermediate";
+            } else {
+                gameProfile.gameSpecific.quiz.skillTier = "beginner";
+            }
+            break;
+            
+        // Track feature usage
+        case "feature_used":
+        case "screen_view":
+            var feature = eventData.feature || eventData.screen_name || eventData.screen;
+            if (feature) {
+                if (!gameProfile.behavior.featureUsage[feature]) {
+                    gameProfile.behavior.featureUsage[feature] = 0;
+                }
+                gameProfile.behavior.featureUsage[feature]++;
+            }
+            break;
+            
+        default:
+            // Generic event - just count it
+            break;
+    }
+    
+    // Update engagement tier based on revenue and activity
+    var totalRevenue = profile.global.totalRevenue;
+    if (totalRevenue >= 100) {
+        profile.global.engagementTier = "whale";
+    } else if (totalRevenue >= 20) {
+        profile.global.engagementTier = "dolphin";
+    } else if (profile.global.totalSessions >= 10) {
+        profile.global.engagementTier = "minnow";
+    } else {
+        profile.global.engagementTier = "dormant";
+    }
+    
+    // Batch update: Only save to storage every PROFILE_UPDATE_BATCH_SIZE events
+    if (profile.global.pendingEventCount >= PROFILE_UPDATE_BATCH_SIZE) {
+        profile.global.pendingEventCount = 0;
+        savePlayerAnalyticsProfile(nk, userId, profile);
+        logger.debug("Player profile batch saved for user: " + userId);
+    }
+    
+    return profile;
+}
+
+/**
+ * Force save player profile (call on session end or important events)
+ */
+function forceSavePlayerProfile(nk, logger, userId, profile) {
+    var profileToSave = profile || getOrCreatePlayerAnalyticsProfile(nk, userId);
+    if (!profileToSave || !profileToSave.global) {
+        return;
+    }
+
+    profileToSave.global.pendingEventCount = 0;
+    savePlayerAnalyticsProfile(nk, userId, profileToSave);
+    logger.info("Player profile force saved for user: " + userId);
+}
+
+/**
+ * RPC: analytics_get_player_profile
+ * Get player analytics profile with optional gameId filtering
+ * 
+ * Request: { "userId": "optional", "gameId": "optional" }
+ * Response: Full profile or filtered by gameId
+ */
+function analyticsGetPlayerProfile(context, logger, nk, payload) {
+    try {
+        var data = {};
+        if (payload && payload.length > 0) {
+            data = JSON.parse(payload);
+        }
+        
+        // Get target user (default to caller)
+        var userId = data.userId || context.userId;
+        if (!userId) {
+            throw new Error("User ID required");
+        }
+        
+        var profile = getOrCreatePlayerAnalyticsProfile(nk, userId);
+        
+        // Filter by gameId if specified
+        if (data.gameId) {
+            var filteredProfile = {
+                userId: profile.userId,
+                createdAt: profile.createdAt,
+                updatedAt: profile.updatedAt,
+                global: profile.global,
+                games: {},
+                segments: profile.segments,
+                recommendations: {}
+            };
+            
+            if (profile.games[data.gameId]) {
+                filteredProfile.games[data.gameId] = profile.games[data.gameId];
+            }
+            
+            if (profile.recommendations[data.gameId]) {
+                filteredProfile.recommendations[data.gameId] = profile.recommendations[data.gameId];
+            }
+            
+            return JSON.stringify({
+                success: true,
+                data: filteredProfile
+            });
+        }
+        
+        return JSON.stringify({
+            success: true,
+            data: profile
+        });
+        
+    } catch (err) {
+        logger.error("analytics_get_player_profile error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: analytics_update_player_profile
+ * Manual profile update (admin use)
+ */
+function analyticsUpdatePlayerProfile(context, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload);
+        
+        if (!data.userId) {
+            throw new Error("userId required");
+        }
+        
+        var profile = getOrCreatePlayerAnalyticsProfile(nk, data.userId);
+        
+        // Merge updates
+        if (data.updates) {
+            for (var key in data.updates) {
+                if (data.updates.hasOwnProperty(key)) {
+                    if (key === "games" && typeof data.updates[key] === "object") {
+                        for (var gameId in data.updates[key]) {
+                            if (!profile.games[gameId]) {
+                                profile.games[gameId] = createGameProfile(gameId, gameId);
+                            }
+                            // Deep merge game data
+                            for (var gKey in data.updates[key][gameId]) {
+                                profile.games[gameId][gKey] = data.updates[key][gameId][gKey];
+                            }
+                        }
+                    } else if (key === "global" && typeof data.updates[key] === "object") {
+                        for (var gKey in data.updates[key]) {
+                            profile.global[gKey] = data.updates[key][gKey];
+                        }
+                    } else {
+                        profile[key] = data.updates[key];
+                    }
+                }
+            }
+        }
+        
+        savePlayerAnalyticsProfile(nk, data.userId, profile);
+        
+        logger.info("Player profile manually updated for user: " + data.userId);
+        
+        return JSON.stringify({
+            success: true,
+            data: { updated: true }
+        });
+        
+    } catch (err) {
+        logger.error("analytics_update_player_profile error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
+}
+
+/**
+ * RPC: analytics_get_players_by_segment
+ * Get all players in a specific segment
+ */
+function analyticsGetPlayersBySegment(context, logger, nk, payload) {
+    try {
+        var data = JSON.parse(payload);
+        
+        if (!data.segment) {
+            throw new Error("segment required");
+        }
+        
+        // List all profiles and filter by segment
+        // Note: In production, use a more efficient index-based approach
+        var cursor = "";
+        var limit = data.limit || 100;
+        var results = [];
+        
+        try {
+            var objects = nk.storageList(null, PLAYER_ANALYTICS_PROFILE_COLLECTION, limit, cursor);
+            
+            if (objects && objects.objects) {
+                for (var i = 0; i < objects.objects.length; i++) {
+                    var obj = objects.objects[i];
+                    if (obj.value && obj.value.segments && 
+                        obj.value.segments.indexOf(data.segment) !== -1) {
+                        results.push({
+                            userId: obj.userId,
+                            engagementTier: obj.value.global ? obj.value.global.engagementTier : "unknown",
+                            totalRevenue: obj.value.global ? obj.value.global.totalRevenue : 0
+                        });
+                    }
+                }
+            }
+        } catch (err) {
+            logger.warn("Error listing profiles: " + err.message);
+        }
+        
+        return JSON.stringify({
+            success: true,
+            data: {
+                segment: data.segment,
+                count: results.length,
+                players: results
+            }
+        });
+        
+    } catch (err) {
+        logger.error("analytics_get_players_by_segment error: " + err.message);
+        throw {
+            code: 400,
+            message: err.message,
+            data: {}
+        };
+    }
 }
 
 // ============================================================================
@@ -55870,6 +57044,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             { id: 'quizverse_track_session_start', handler: quizverseTrackSessionStart },
             { id: 'quizverse_track_session_end', handler: quizverseTrackSessionEnd },
 
+            // Player Analytics Profile RPCs (Cross-Game)
+            { id: 'analytics_get_player_profile', handler: analyticsGetPlayerProfile },
+            { id: 'analytics_update_player_profile', handler: analyticsUpdatePlayerProfile },
+            { id: 'analytics_get_players_by_segment', handler: analyticsGetPlayersBySegment },
+
             // QuizVerse RPCs - Admin
             { id: 'quizverse_get_server_config', handler: quizverseGetServerConfig },
             { id: 'quizverse_admin_grant_item', handler: quizverseAdminGrantItem },
@@ -62315,19 +63494,36 @@ var LegacyAnalyticsRetention;
                 cohorts.push({ date: cohortKey, dau: dauData.uniqueUsers.length || 0, newUsers: dauData.newUsers || 0 });
             }
         }
-        var retentionData = readAggStorage(nk, "analytics_retention_agg", "retention_counters") || {};
+        var retentionKey = gameId ? "retention_counters_" + gameId : "retention_counters";
+        var retentionData = readAggStorage(nk, "analytics_retention_agg", retentionKey) || {};
         var total = retentionData.totalSignups || 0;
+        var d1Pct = total > 0 ? ((retentionData.d1Returns || 0) / total * 100) : 0;
+        var d3Pct = total > 0 ? ((retentionData.d3Returns || 0) / total * 100) : 0;
+        var d7Pct = total > 0 ? ((retentionData.d7Returns || 0) / total * 100) : 0;
+        var d14Pct = total > 0 ? ((retentionData.d14Returns || 0) / total * 100) : 0;
+        var d30Pct = total > 0 ? ((retentionData.d30Returns || 0) / total * 100) : 0;
         return RpcHelpers.successResponse({
             cohorts: cohorts,
             retention: {
                 totalSignups: total,
                 d1Returns: retentionData.d1Returns || 0,
+                d3Returns: retentionData.d3Returns || 0,
                 d7Returns: retentionData.d7Returns || 0,
+                d14Returns: retentionData.d14Returns || 0,
                 d30Returns: retentionData.d30Returns || 0,
-                d1Rate: total > 0 ? ((retentionData.d1Returns || 0) / total * 100).toFixed(1) + "%" : "0%",
-                d7Rate: total > 0 ? ((retentionData.d7Returns || 0) / total * 100).toFixed(1) + "%" : "0%",
-                d30Rate: total > 0 ? ((retentionData.d30Returns || 0) / total * 100).toFixed(1) + "%" : "0%"
+                d1Rate: d1Pct.toFixed(1) + "%",
+                d3Rate: d3Pct.toFixed(1) + "%",
+                d7Rate: d7Pct.toFixed(1) + "%",
+                d14Rate: d14Pct.toFixed(1) + "%",
+                d30Rate: d30Pct.toFixed(1) + "%"
             },
+            cohort_date: cohorts.length > 0 ? cohorts[0].date : "-",
+            cohort_size: total,
+            d1_pct: Math.round(d1Pct),
+            d3_pct: Math.round(d3Pct),
+            d7_pct: Math.round(d7Pct),
+            d14_pct: Math.round(d14Pct),
+            d30_pct: Math.round(d30Pct),
             gameId: gameId, daysBack: daysBack
         });
     }
@@ -62371,7 +63567,8 @@ var LegacyAnalyticsRetention;
         var totalActiveUsers = 0;
         for (var d = 0; d < daysBack; d++) {
             var dayStr = new Date(now - d * 86400000).toISOString().split("T")[0];
-            var revData = readAggStorage(nk, "analytics_revenue", "revenue_" + dayStr);
+            var revenueKey = gameId ? "revenue_" + gameId + "_" + dayStr : "revenue_" + dayStr;
+            var revData = readAggStorage(nk, "analytics_revenue", revenueKey);
             if (revData) {
                 totalRevenue += revData.totalAmount || 0;
                 totalPurchases += revData.purchaseCount || 0;
