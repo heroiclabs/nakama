@@ -207,7 +207,7 @@ function initializeNewUser(nk, logger, userId) {
         userId: userId,
         createdAt: now,
         currentStep: 1,
-        totalSteps: 5,
+        totalSteps: 9,  // #QVVBS54 FIX: Match Unity's 9-step onboarding flow
         completedSteps: [],
         welcomeBonusClaimed: false,
         firstQuizCompleted: false,
@@ -342,7 +342,7 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
                 isNewUser: true,
                 state: {
                     currentStep: 1,
-                    totalSteps: 5,
+                    totalSteps: 9,  // #QVVBS54 FIX: Match Unity's 9-step flow
                     completedSteps: [],
                     welcomeBonusClaimed: false,
                     firstQuizCompleted: false,
