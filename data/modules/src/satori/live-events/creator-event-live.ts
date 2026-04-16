@@ -851,6 +851,42 @@ namespace SatoriCreatorEvents {
       runnersUp.push(rankInfo(allRecords[ri2], ri2 + 1));
     }
 
+    // Next upcoming event lookup — lets the recap pipeline generate a
+    // "next event Thursday 8PM IST" CTA instead of a hard-coded "tomorrow".
+    // Scan the events index for the nearest scheduledAt > now, preferring
+    // same-region first so regional recaps promote their own region's next.
+    var nextEvent: any = null;
+    try {
+      var nowTs = Math.floor(Date.now() / 1000);
+      var idx = getEventsIndex(nk);
+      var bestSame: any = null;
+      var bestAny: any = null;
+      for (var ei = 0; ei < idx.eventIds.length; ei++) {
+        var eid = idx.eventIds[ei];
+        if (eid === def.id) continue;
+        var other = getEventDefinition(nk, eid);
+        if (!other) continue;
+        if (other.status === "cancelled" || other.status === "ended" || other.status === "distributed") continue;
+        if (!other.scheduledAt || other.scheduledAt <= nowTs) continue;
+        var candidate = {
+          eventId: other.id,
+          title: other.title,
+          category: other.category,
+          region: other.region,
+          scheduledAt: other.scheduledAt,
+          duration: other.duration,
+        };
+        if (other.region === def.region) {
+          if (!bestSame || other.scheduledAt < bestSame.scheduledAt) bestSame = candidate;
+        } else {
+          if (!bestAny || other.scheduledAt < bestAny.scheduledAt) bestAny = candidate;
+        }
+      }
+      nextEvent = bestSame || bestAny;
+    } catch (err: any) {
+      logger.warn("[CreatorEvent] next-event lookup failed: %s", err.message || String(err));
+    }
+
     EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
       eventId: def.id,
       creatorId: def.creatorId,
@@ -868,6 +904,7 @@ namespace SatoriCreatorEvents {
       prizePool: def.prizePool,
       giftCardPrizes: def.giftCardPrizes || null,
       endedAt: def.endedAt,
+      nextEvent: nextEvent,
       idempotencyKey: "event_ended_" + def.id,
     });
 
@@ -877,6 +914,71 @@ namespace SatoriCreatorEvents {
       totalParticipants: allRecords.length,
       tierAssignments: tierAssignments,
       winnersPerTier: winnersPerTier,
+    });
+  }
+
+  /**
+   * Cancel a draft or published event BEFORE it starts running.
+   *
+   * Emits EVENT_CANCELLED so the n8n takedown workflow can unpublish any
+   * already-scheduled promo posts on YouTube/TikTok/Instagram (via Postiz).
+   *
+   * Only draft | funded | published events can be cancelled. Events that
+   * have already ended or been distributed are terminal.
+   */
+  function rpcCancel(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var isAdmin = isAdminCtx(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+
+    var def = getEventDefinition(nk, String(data.eventId));
+    if (!def) return RpcHelpers.errorResponse("Event not found");
+
+    if (!isAdmin && def.creatorId !== userId) {
+      return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+    }
+
+    var current = def.status || "draft";
+    if (current !== "draft" && current !== "funded" && current !== "published") {
+      return RpcHelpers.errorResponse("Event cannot be cancelled once it's " + current);
+    }
+
+    def.status = "cancelled";
+    var now = Math.floor(Date.now() / 1000);
+    (def as any).cancelledAt = now;
+    (def as any).cancelReason = data.reason ? String(data.reason) : "";
+    saveEventDefinition(nk, def);
+
+    logger.info("[CreatorEvent] Cancelled by %s: %s (%s) — reason=%s",
+      userId, def.title, def.id, (def as any).cancelReason || "(none)");
+
+    // Fan out to n8n → Postiz takedown + Content Factory registry cleanup.
+    EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CANCELLED, {
+      eventId: def.id,
+      creatorId: def.creatorId,
+      title: def.title,
+      description: def.description,
+      category: def.category,
+      region: def.region,
+      scheduledAt: def.scheduledAt,
+      cancelledAt: now,
+      cancelledBy: userId,
+      reason: (def as any).cancelReason || "",
+      // Carry the prior idempotency keys so downstream can identify the
+      // exact promo tasks to tear down.
+      priorPromoIdempotencyKeys: [
+        "event_created_" + def.id,
+        "event_published_" + def.id,
+      ],
+      idempotencyKey: "event_cancelled_" + def.id,
+    });
+
+    return RpcHelpers.successResponse({
+      success: true,
+      eventId: def.id,
+      status: "cancelled",
     });
   }
 
@@ -890,6 +992,7 @@ namespace SatoriCreatorEvents {
     initializer.registerRpc("creator_event_create", rpcCreate);
     initializer.registerRpc("creator_event_publish", rpcPublish);
     initializer.registerRpc("creator_event_end", rpcEnd);
+    initializer.registerRpc("creator_event_cancel", rpcCancel);
     initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
   }
 }

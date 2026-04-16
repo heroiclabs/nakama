@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-16T19:14:27.395Z
-// RPC Count: 504
+// Generated: 2026-04-16T19:22:27.443Z
+// RPC Count: 505
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -310,6 +310,7 @@ var __rpc_creator_event_claim;
 var __rpc_creator_event_create;
 var __rpc_creator_event_publish;
 var __rpc_creator_event_end;
+var __rpc_creator_event_cancel;
 var __rpc_creator_event_update_promo;
 var __rpc_satori_live_events_list;
 var __rpc_satori_live_events_join;
@@ -68205,6 +68206,49 @@ var SatoriCreatorEvents;
         for (var ri2 = 1; ri2 < allRecords.length && ri2 < 4; ri2++) {
             runnersUp.push(rankInfo(allRecords[ri2], ri2 + 1));
         }
+        // Next upcoming event lookup — lets the recap pipeline generate a
+        // "next event Thursday 8PM IST" CTA instead of a hard-coded "tomorrow".
+        // Scan the events index for the nearest scheduledAt > now, preferring
+        // same-region first so regional recaps promote their own region's next.
+        var nextEvent = null;
+        try {
+            var nowTs = Math.floor(Date.now() / 1000);
+            var idx = getEventsIndex(nk);
+            var bestSame = null;
+            var bestAny = null;
+            for (var ei = 0; ei < idx.eventIds.length; ei++) {
+                var eid = idx.eventIds[ei];
+                if (eid === def.id)
+                    continue;
+                var other = getEventDefinition(nk, eid);
+                if (!other)
+                    continue;
+                if (other.status === "cancelled" || other.status === "ended" || other.status === "distributed")
+                    continue;
+                if (!other.scheduledAt || other.scheduledAt <= nowTs)
+                    continue;
+                var candidate = {
+                    eventId: other.id,
+                    title: other.title,
+                    category: other.category,
+                    region: other.region,
+                    scheduledAt: other.scheduledAt,
+                    duration: other.duration,
+                };
+                if (other.region === def.region) {
+                    if (!bestSame || other.scheduledAt < bestSame.scheduledAt)
+                        bestSame = candidate;
+                }
+                else {
+                    if (!bestAny || other.scheduledAt < bestAny.scheduledAt)
+                        bestAny = candidate;
+                }
+            }
+            nextEvent = bestSame || bestAny;
+        }
+        catch (err) {
+            logger.warn("[CreatorEvent] next-event lookup failed: %s", err.message || String(err));
+        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
             eventId: def.id,
             creatorId: def.creatorId,
@@ -68222,6 +68266,7 @@ var SatoriCreatorEvents;
             prizePool: def.prizePool,
             giftCardPrizes: def.giftCardPrizes || null,
             endedAt: def.endedAt,
+            nextEvent: nextEvent,
             idempotencyKey: "event_ended_" + def.id,
         });
         return RpcHelpers.successResponse({
@@ -68230,6 +68275,63 @@ var SatoriCreatorEvents;
             totalParticipants: allRecords.length,
             tierAssignments: tierAssignments,
             winnersPerTier: winnersPerTier,
+        });
+    }
+    /**
+     * Cancel a draft or published event BEFORE it starts running.
+     *
+     * Emits EVENT_CANCELLED so the n8n takedown workflow can unpublish any
+     * already-scheduled promo posts on YouTube/TikTok/Instagram (via Postiz).
+     *
+     * Only draft | funded | published events can be cancelled. Events that
+     * have already ended or been distributed are terminal.
+     */
+    function rpcCancel(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var isAdmin = isAdminCtx(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, String(data.eventId));
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        if (!isAdmin && def.creatorId !== userId) {
+            return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+        }
+        var current = def.status || "draft";
+        if (current !== "draft" && current !== "funded" && current !== "published") {
+            return RpcHelpers.errorResponse("Event cannot be cancelled once it's " + current);
+        }
+        def.status = "cancelled";
+        var now = Math.floor(Date.now() / 1000);
+        def.cancelledAt = now;
+        def.cancelReason = data.reason ? String(data.reason) : "";
+        saveEventDefinition(nk, def);
+        logger.info("[CreatorEvent] Cancelled by %s: %s (%s) — reason=%s", userId, def.title, def.id, def.cancelReason || "(none)");
+        // Fan out to n8n → Postiz takedown + Content Factory registry cleanup.
+        EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CANCELLED, {
+            eventId: def.id,
+            creatorId: def.creatorId,
+            title: def.title,
+            description: def.description,
+            category: def.category,
+            region: def.region,
+            scheduledAt: def.scheduledAt,
+            cancelledAt: now,
+            cancelledBy: userId,
+            reason: def.cancelReason || "",
+            // Carry the prior idempotency keys so downstream can identify the
+            // exact promo tasks to tear down.
+            priorPromoIdempotencyKeys: [
+                "event_created_" + def.id,
+                "event_published_" + def.id,
+            ],
+            idempotencyKey: "event_cancelled_" + def.id,
+        });
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: def.id,
+            status: "cancelled",
         });
     }
     function register(initializer) {
@@ -68242,6 +68344,7 @@ var SatoriCreatorEvents;
         __rpc_creator_event_create = rpcCreate;
         __rpc_creator_event_publish = rpcPublish;
         __rpc_creator_event_end = rpcEnd;
+        __rpc_creator_event_cancel = rpcCancel;
         __rpc_creator_event_update_promo = rpcUpdatePromo;
     }
     SatoriCreatorEvents.register = register;
@@ -70587,6 +70690,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("creator_event_create", __rpc_creator_event_create); } catch(e) {}
   try { initializer.registerRpc("creator_event_publish", __rpc_creator_event_publish); } catch(e) {}
   try { initializer.registerRpc("creator_event_end", __rpc_creator_event_end); } catch(e) {}
+  try { initializer.registerRpc("creator_event_cancel", __rpc_creator_event_cancel); } catch(e) {}
   try { initializer.registerRpc("creator_event_update_promo", __rpc_creator_event_update_promo); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_list", __rpc_satori_live_events_list); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_join", __rpc_satori_live_events_join); } catch(e) {}
@@ -70790,5 +70894,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 504 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 505 + " RPCs via AST-compatible wrapper");
 }
