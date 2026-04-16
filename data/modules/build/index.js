@@ -1090,6 +1090,7 @@ var FantasyLeague;
 //                                 compute per-user totals, write leaderboards
 //   fantasy_scoring_get_points — Get a user's points for a specific match
 //   fantasy_scoring_live       — Get live (partial) player stats for a fixture
+//   fantasy_event_leaderboard  — Live event leaderboard: rank all participants
 // ============================================================================
 var FantasyScoring;
 (function (FantasyScoring) {
@@ -1492,12 +1493,113 @@ var FantasyScoring;
             players: stats,
         });
     }
+    function rpcEventLeaderboard(ctx, logger, nk, payload) {
+        var input = RpcHelpers.parseRpcPayload(payload);
+        if (!input.fixtureId) {
+            return RpcHelpers.errorResponse("fixtureId is required");
+        }
+        var seasonId = input.seasonId || "ipl-2026";
+        var limit = input.limit || 50;
+        var cfg = getScoringConfig(nk, seasonId);
+        var stats = getPlayerStats(nk, input.fixtureId);
+        if (Object.keys(stats).length === 0) {
+            return RpcHelpers.successResponse({
+                fixtureId: input.fixtureId,
+                seasonId: seasonId,
+                rankings: [],
+                totalParticipants: 0,
+                message: "No stats yet — match may not have started",
+            });
+        }
+        var rankings = [];
+        var idxPrefix = "team_idx_" + seasonId + "_";
+        var cursor = undefined;
+        do {
+            var list = nk.storageList(Constants.SYSTEM_USER_ID, FantasyTypes.COLLECTION, 100, cursor);
+            if (list && list.objects) {
+                for (var i = 0; i < list.objects.length; i++) {
+                    var obj = list.objects[i];
+                    if (obj.key.indexOf(idxPrefix) !== 0)
+                        continue;
+                    var idxEntry = obj.value;
+                    if (!idxEntry || !idxEntry.userId)
+                        continue;
+                    var team = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, idxEntry.userId);
+                    if (!team)
+                        continue;
+                    var matchXI = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + input.fixtureId, idxEntry.userId);
+                    var activeCaptainId = team.captainId;
+                    var activeVcId = team.viceCaptainId;
+                    var activePlayerIds = {};
+                    if (matchXI && matchXI.selectedPlayerIds && matchXI.selectedPlayerIds.length > 0) {
+                        for (var j = 0; j < matchXI.selectedPlayerIds.length; j++) {
+                            activePlayerIds[matchXI.selectedPlayerIds[j]] = true;
+                        }
+                        activeCaptainId = matchXI.captainId;
+                        activeVcId = matchXI.viceCaptainId;
+                    }
+                    else {
+                        for (var j = 0; j < team.players.length; j++) {
+                            activePlayerIds[team.players[j].playerId] = true;
+                        }
+                    }
+                    var totalPoints = 0;
+                    for (var k = 0; k < team.players.length; k++) {
+                        var sp = team.players[k];
+                        if (!activePlayerIds[sp.playerId])
+                            continue;
+                        var rawPts = 0;
+                        if (stats[sp.playerId]) {
+                            rawPts = stats[sp.playerId].fantasyPoints;
+                        }
+                        var multiplier = 1;
+                        if (sp.playerId === activeCaptainId)
+                            multiplier = cfg.captainMultiplier;
+                        else if (sp.playerId === activeVcId)
+                            multiplier = cfg.viceCaptainMultiplier;
+                        totalPoints += Math.round(rawPts * multiplier * 10) / 10;
+                    }
+                    rankings.push({
+                        userId: idxEntry.userId,
+                        totalPoints: Math.round(totalPoints * 10) / 10,
+                        captainId: activeCaptainId,
+                        viceCaptainId: activeVcId,
+                    });
+                }
+                cursor = list.cursor;
+            }
+            else {
+                break;
+            }
+        } while (cursor);
+        rankings.sort(function (a, b) { return b.totalPoints - a.totalPoints; });
+        var total = rankings.length;
+        if (rankings.length > limit) {
+            rankings = rankings.slice(0, limit);
+        }
+        var ranked = rankings.map(function (r, idx) {
+            return {
+                rank: idx + 1,
+                userId: r.userId,
+                totalPoints: r.totalPoints,
+                captainId: r.captainId,
+                viceCaptainId: r.viceCaptainId,
+            };
+        });
+        return RpcHelpers.successResponse({
+            fixtureId: input.fixtureId,
+            seasonId: seasonId,
+            rankings: ranked,
+            totalParticipants: total,
+        });
+    }
     // ---- Registration ----
     function register(initializer) {
         initializer.registerRpc("fantasy_scoring_process", rpcProcessBallEvents);
         initializer.registerRpc("fantasy_scoring_finalize", rpcFinalize);
         initializer.registerRpc("fantasy_scoring_get_points", rpcGetPoints);
         initializer.registerRpc("fantasy_scoring_live", rpcLiveStats);
+        initializer.registerRpc("fantasy_event_leaderboard", rpcEventLeaderboard);
     }
     FantasyScoring.register = register;
 })(FantasyScoring || (FantasyScoring = {}));
@@ -1525,6 +1627,54 @@ var FantasyTeam;
     }
     function getMatchDeadline(nk, fixtureId) {
         return Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_DEADLINE + "_" + fixtureId, Constants.SYSTEM_USER_ID);
+    }
+    /**
+     * After a squad update, remove any un-locked Playing XI records that contain
+     * players no longer in the new squad.
+     */
+    function invalidateStaleXIs(nk, logger, userId, newSquadPlayerIds) {
+        var squadSet = {};
+        for (var i = 0; i < newSquadPlayerIds.length; i++) {
+            squadSet[newSquadPlayerIds[i]] = true;
+        }
+        var invalidated = [];
+        var cursor = "";
+        var keepGoing = true;
+        while (keepGoing) {
+            var result = Storage.listUserRecords(nk, FantasyTypes.COLLECTION, userId, 100, cursor);
+            for (var j = 0; j < result.records.length; j++) {
+                var obj = result.records[j];
+                if (!obj.key || obj.key.indexOf(FantasyTypes.Keys.MATCH_XI + "_") !== 0)
+                    continue;
+                var xi = obj.value;
+                if (!xi || !xi.selectedPlayerIds || !xi.fixtureId)
+                    continue;
+                var fixtureId = xi.fixtureId;
+                // Skip locked XIs (deadline has passed)
+                var deadline = getMatchDeadline(nk, fixtureId);
+                if (deadline) {
+                    var nowSec = Math.floor(Date.now() / 1000);
+                    if (nowSec >= deadline.deadlineAt)
+                        continue;
+                }
+                // Check if any XI player is no longer in the squad
+                var hasStale = false;
+                for (var k = 0; k < xi.selectedPlayerIds.length; k++) {
+                    if (!squadSet[xi.selectedPlayerIds[k]]) {
+                        hasStale = true;
+                        break;
+                    }
+                }
+                if (hasStale) {
+                    Storage.deleteRecord(nk, FantasyTypes.COLLECTION, obj.key, userId);
+                    invalidated.push(fixtureId);
+                    logger.info("[FantasyTeam] Invalidated stale XI for fixture %s (user %s) — squad was updated", fixtureId, userId);
+                }
+            }
+            cursor = result.cursor;
+            keepGoing = cursor.length > 0;
+        }
+        return invalidated;
     }
     function validateSquad(players, catalog) {
         var errors = [];
@@ -1720,6 +1870,9 @@ var FantasyTeam;
             updatedAt: now,
         };
         saveTeam(nk, team);
+        // Invalidate any un-locked Playing XI selections that contain removed players
+        var newSquadIds = squadPlayers.map(function (p) { return p.playerId; });
+        var invalidatedFixtures = invalidateStaleXIs(nk, logger, userId, newSquadIds);
         var existing = Storage.readJson(nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.SEASON_STATE + "_" + input.seasonId, userId);
         if (!existing) {
             var state = {
@@ -1741,7 +1894,16 @@ var FantasyTeam;
         EventBus.emit(nk, logger, ctx, "fantasy_team_created", {
             userId: userId, seasonId: input.seasonId, teamName: input.teamName, totalCredits: totalCredits,
         });
-        return RpcHelpers.successResponse(team);
+        var response = team;
+        if (invalidatedFixtures.length > 0) {
+            response = {
+                team: team,
+                invalidatedXIs: invalidatedFixtures,
+                warning: "Playing XI cleared for " + invalidatedFixtures.length +
+                    " fixture(s) due to squad changes. Please re-select your XI.",
+            };
+        }
+        return RpcHelpers.successResponse(response);
     }
     function rpcGetTeam(ctx, logger, nk, payload) {
         var input = RpcHelpers.parseRpcPayload(payload);
@@ -1890,8 +2052,9 @@ var FantasyTeam;
             return RpcHelpers.errorResponse("players must be a non-empty object keyed by playerId");
         }
         var playerIds = Object.keys(input.players);
-        if (playerIds.length === 0) {
-            return RpcHelpers.errorResponse("players catalog is empty — nothing to sync");
+        if (playerIds.length < 50) {
+            return RpcHelpers.errorResponse("Catalog rejected: only " + playerIds.length + " players (minimum 50 required). " +
+                "This prevents accidental overwrites from partial/test data.");
         }
         var catalog = {
             seasonId: input.seasonId,

@@ -7,6 +7,7 @@
 //                                 compute per-user totals, write leaderboards
 //   fantasy_scoring_get_points — Get a user's points for a specific match
 //   fantasy_scoring_live       — Get live (partial) player stats for a fixture
+//   fantasy_event_leaderboard  — Live event leaderboard: rank all participants
 // ============================================================================
 
 namespace FantasyScoring {
@@ -555,6 +556,131 @@ namespace FantasyScoring {
     });
   }
 
+  function rpcEventLeaderboard(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var input = RpcHelpers.parseRpcPayload(payload) as {
+      fixtureId: string;
+      seasonId?: string;
+      limit?: number;
+    };
+
+    if (!input.fixtureId) {
+      return RpcHelpers.errorResponse("fixtureId is required");
+    }
+
+    var seasonId = input.seasonId || "ipl-2026";
+    var limit = input.limit || 50;
+    var cfg = getScoringConfig(nk, seasonId);
+    var stats = getPlayerStats(nk, input.fixtureId);
+
+    if (Object.keys(stats).length === 0) {
+      return RpcHelpers.successResponse({
+        fixtureId: input.fixtureId,
+        seasonId: seasonId,
+        rankings: [],
+        totalParticipants: 0,
+        message: "No stats yet — match may not have started",
+      });
+    }
+
+    var rankings: { userId: string; totalPoints: number; captainId: string; viceCaptainId: string }[] = [];
+    var idxPrefix = "team_idx_" + seasonId + "_";
+    var cursor: string | undefined = undefined;
+
+    do {
+      var list = nk.storageList(
+        Constants.SYSTEM_USER_ID,
+        FantasyTypes.COLLECTION,
+        100,
+        cursor
+      );
+
+      if (list && list.objects) {
+        for (var i = 0; i < list.objects.length; i++) {
+          var obj = list.objects[i];
+          if (obj.key.indexOf(idxPrefix) !== 0) continue;
+
+          var idxEntry = obj.value as { userId: string; seasonId: string };
+          if (!idxEntry || !idxEntry.userId) continue;
+
+          var team = Storage.readJson<FantasyTypes.FantasyTeam>(
+            nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.TEAM + "_" + seasonId, idxEntry.userId
+          );
+          if (!team) continue;
+
+          var matchXI = Storage.readJson<FantasyTypes.MatchXI>(
+            nk, FantasyTypes.COLLECTION, FantasyTypes.Keys.MATCH_XI + "_" + input.fixtureId, idxEntry.userId
+          );
+
+          var activeCaptainId = team.captainId;
+          var activeVcId = team.viceCaptainId;
+          var activePlayerIds: { [id: string]: boolean } = {};
+
+          if (matchXI && matchXI.selectedPlayerIds && matchXI.selectedPlayerIds.length > 0) {
+            for (var j = 0; j < matchXI.selectedPlayerIds.length; j++) {
+              activePlayerIds[matchXI.selectedPlayerIds[j]] = true;
+            }
+            activeCaptainId = matchXI.captainId;
+            activeVcId = matchXI.viceCaptainId;
+          } else {
+            for (var j = 0; j < team.players.length; j++) {
+              activePlayerIds[team.players[j].playerId] = true;
+            }
+          }
+
+          var totalPoints = 0;
+          for (var k = 0; k < team.players.length; k++) {
+            var sp = team.players[k];
+            if (!activePlayerIds[sp.playerId]) continue;
+
+            var rawPts = 0;
+            if (stats[sp.playerId]) {
+              rawPts = stats[sp.playerId].fantasyPoints;
+            }
+
+            var multiplier = 1;
+            if (sp.playerId === activeCaptainId) multiplier = cfg.captainMultiplier;
+            else if (sp.playerId === activeVcId) multiplier = cfg.viceCaptainMultiplier;
+
+            totalPoints += Math.round(rawPts * multiplier * 10) / 10;
+          }
+
+          rankings.push({
+            userId: idxEntry.userId,
+            totalPoints: Math.round(totalPoints * 10) / 10,
+            captainId: activeCaptainId,
+            viceCaptainId: activeVcId,
+          });
+        }
+        cursor = list.cursor;
+      } else {
+        break;
+      }
+    } while (cursor);
+
+    rankings.sort(function (a, b) { return b.totalPoints - a.totalPoints; });
+    var total = rankings.length;
+    if (rankings.length > limit) {
+      rankings = rankings.slice(0, limit);
+    }
+
+    var ranked = rankings.map(function (r, idx) {
+      return {
+        rank: idx + 1,
+        userId: r.userId,
+        totalPoints: r.totalPoints,
+        captainId: r.captainId,
+        viceCaptainId: r.viceCaptainId,
+      };
+    });
+
+    return RpcHelpers.successResponse({
+      fixtureId: input.fixtureId,
+      seasonId: seasonId,
+      rankings: ranked,
+      totalParticipants: total,
+    });
+  }
+
   // ---- Registration ----
 
   export function register(initializer: nkruntime.Initializer): void {
@@ -562,5 +688,6 @@ namespace FantasyScoring {
     initializer.registerRpc("fantasy_scoring_finalize", rpcFinalize);
     initializer.registerRpc("fantasy_scoring_get_points", rpcGetPoints);
     initializer.registerRpc("fantasy_scoring_live", rpcLiveStats);
+    initializer.registerRpc("fantasy_event_leaderboard", rpcEventLeaderboard);
   }
 }

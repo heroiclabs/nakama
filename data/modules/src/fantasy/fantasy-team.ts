@@ -50,6 +50,70 @@ namespace FantasyTeam {
     );
   }
 
+  /**
+   * After a squad update, remove any un-locked Playing XI records that contain
+   * players no longer in the new squad.
+   */
+  function invalidateStaleXIs(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    userId: string,
+    newSquadPlayerIds: string[]
+  ): string[] {
+    var squadSet: { [id: string]: boolean } = {};
+    for (var i = 0; i < newSquadPlayerIds.length; i++) {
+      squadSet[newSquadPlayerIds[i]] = true;
+    }
+
+    var invalidated: string[] = [];
+    var cursor = "";
+    var keepGoing = true;
+
+    while (keepGoing) {
+      var result = Storage.listUserRecords(nk, FantasyTypes.COLLECTION, userId, 100, cursor);
+
+      for (var j = 0; j < result.records.length; j++) {
+        var obj = result.records[j];
+        if (!obj.key || obj.key.indexOf(FantasyTypes.Keys.MATCH_XI + "_") !== 0) continue;
+
+        var xi = obj.value as unknown as FantasyTypes.MatchXI;
+        if (!xi || !xi.selectedPlayerIds || !xi.fixtureId) continue;
+
+        var fixtureId = xi.fixtureId;
+
+        // Skip locked XIs (deadline has passed)
+        var deadline = getMatchDeadline(nk, fixtureId);
+        if (deadline) {
+          var nowSec = Math.floor(Date.now() / 1000);
+          if (nowSec >= deadline.deadlineAt) continue;
+        }
+
+        // Check if any XI player is no longer in the squad
+        var hasStale = false;
+        for (var k = 0; k < xi.selectedPlayerIds.length; k++) {
+          if (!squadSet[xi.selectedPlayerIds[k]]) {
+            hasStale = true;
+            break;
+          }
+        }
+
+        if (hasStale) {
+          Storage.deleteRecord(nk, FantasyTypes.COLLECTION, obj.key, userId);
+          invalidated.push(fixtureId);
+          logger.info(
+            "[FantasyTeam] Invalidated stale XI for fixture %s (user %s) — squad was updated",
+            fixtureId, userId
+          );
+        }
+      }
+
+      cursor = result.cursor;
+      keepGoing = cursor.length > 0;
+    }
+
+    return invalidated;
+  }
+
   function validateSquad(
     players: { playerId: string; isCaptain: boolean; isViceCaptain: boolean }[],
     catalog: FantasyTypes.PlayerCatalog
@@ -286,6 +350,10 @@ namespace FantasyTeam {
 
     saveTeam(nk, team);
 
+    // Invalidate any un-locked Playing XI selections that contain removed players
+    var newSquadIds = squadPlayers.map(function (p) { return p.playerId; });
+    var invalidatedFixtures = invalidateStaleXIs(nk, logger, userId, newSquadIds);
+
     var existing = Storage.readJson<FantasyTypes.SeasonState>(
       nk, FantasyTypes.COLLECTION,
       FantasyTypes.Keys.SEASON_STATE + "_" + input.seasonId,
@@ -322,7 +390,17 @@ namespace FantasyTeam {
       userId: userId, seasonId: input.seasonId, teamName: input.teamName, totalCredits: totalCredits,
     });
 
-    return RpcHelpers.successResponse(team);
+    var response: any = team;
+    if (invalidatedFixtures.length > 0) {
+      response = {
+        team: team,
+        invalidatedXIs: invalidatedFixtures,
+        warning: "Playing XI cleared for " + invalidatedFixtures.length +
+          " fixture(s) due to squad changes. Please re-select your XI.",
+      };
+    }
+
+    return RpcHelpers.successResponse(response);
   }
 
   function rpcGetTeam(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -539,8 +617,11 @@ namespace FantasyTeam {
     }
 
     var playerIds = Object.keys(input.players);
-    if (playerIds.length === 0) {
-      return RpcHelpers.errorResponse("players catalog is empty — nothing to sync");
+    if (playerIds.length < 50) {
+      return RpcHelpers.errorResponse(
+        "Catalog rejected: only " + playerIds.length + " players (minimum 50 required). " +
+        "This prevents accidental overwrites from partial/test data."
+      );
     }
 
     var catalog: FantasyTypes.PlayerCatalog = {
