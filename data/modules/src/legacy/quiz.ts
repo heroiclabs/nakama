@@ -64,6 +64,15 @@ namespace LegacyQuiz {
 
     saveStats(nk, userId, stats);
 
+    EventBus.emit(nk, logger, ctx, EventBus.Events.QUIZ_COMPLETED, {
+      userId: userId,
+      score: score,
+      totalQuestions: totalQuestions,
+      correctAnswers: correctAnswers,
+      category: category,
+      timestamp: ts,
+    });
+
     return RpcHelpers.successResponse({ result: result, stats: stats });
   }
 

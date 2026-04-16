@@ -48,5 +48,8 @@ namespace EventBus {
     GAME_COMPLETED: "game_completed",
     SESSION_START: "session_start",
     SESSION_END: "session_end",
+    EVENT_PUBLISHED: "event_published",
+    EVENT_ENDED: "event_ended",
+    QUIZ_COMPLETED: "quiz_completed",
   };
 }

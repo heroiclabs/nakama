@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-15T16:37:51.886Z
-// RPC Count: 485
+// Generated: 2026-04-16T18:46:37.297Z
+// RPC Count: 501
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -166,6 +166,8 @@ var __rpc_hiro_personalizer_get_overrides;
 var __rpc_hiro_personalizer_preview;
 var __rpc_hiro_progression_get;
 var __rpc_hiro_progression_add_xp;
+var __rpc_creator_event_rewards_get;
+var __rpc_creator_event_rewards_create;
 var __rpc_hiro_reward_bucket_get;
 var __rpc_hiro_reward_bucket_progress;
 var __rpc_hiro_reward_bucket_unlock;
@@ -299,6 +301,16 @@ var __rpc_satori_flags_get_all;
 var __rpc_satori_flags_set;
 var __rpc_satori_identity_get;
 var __rpc_satori_identity_update_properties;
+var __rpc_creator_event_list;
+var __rpc_creator_event_join;
+var __rpc_creator_event_submit;
+var __rpc_creator_event_leaderboard;
+var __rpc_creator_event_results;
+var __rpc_creator_event_claim;
+var __rpc_creator_event_create;
+var __rpc_creator_event_publish;
+var __rpc_creator_event_end;
+var __rpc_creator_event_update_promo;
 var __rpc_satori_live_events_list;
 var __rpc_satori_live_events_join;
 var __rpc_satori_live_events_claim;
@@ -316,6 +328,10 @@ var __rpc_satori_taxonomy_upsert;
 var __rpc_satori_taxonomy_delete;
 var __rpc_satori_taxonomy_validate;
 var __rpc_satori_taxonomy_strict_mode;
+var __rpc_video_feed_list;
+var __rpc_video_feed_add;
+var __rpc_video_feed_remove;
+var __rpc_video_feed_track;
 var __rpc_satori_webhooks_list;
 var __rpc_satori_webhooks_upsert;
 var __rpc_satori_webhooks_delete;
@@ -58141,6 +58157,8 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
         HiroMailbox.register(initializer);
         logger.info("[Hiro] Registering Reward Bucket RPCs...");
         HiroRewardBucket.register(initializer);
+        logger.info("[Hiro] Registering Creator Event Rewards RPCs...");
+        HiroCreatorEventRewards.register(initializer);
         logger.info("[Hiro] Registering Personalizers RPCs...");
         HiroPersonalizers.register(initializer);
         logger.info("[Hiro] Registering Base Module RPCs...");
@@ -58166,6 +58184,10 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
         SatoriExperiments.register(initializer);
         logger.info("[Satori] Registering Live Events RPCs...");
         SatoriLiveEvents.register(initializer);
+        logger.info("[Satori] Registering Creator Events RPCs...");
+        SatoriCreatorEvents.register(initializer);
+        logger.info("[Satori] Registering Video Feed RPCs...");
+        SatoriVideoFeed.register(initializer);
         logger.info("[Satori] Registering Messages RPCs...");
         SatoriMessages.register(initializer);
         logger.info("[Satori] Registering Metrics RPCs...");
@@ -58233,7 +58255,7 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     // All handler functions live in the same VM global scope.
     try {
         if (typeof LegacyInitModule === "function") {
-            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,cricket_auction_create_room,cricket_auction_get_events,cricket_auction_get_room,cricket_auction_next_player,cricket_auction_place_bid,cricket_director_end_session,cricket_director_get_session,cricket_director_list_history,cricket_director_save_session,cricket_director_start_session,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,lasttolive_get_weapon_stats,link_wallet_to_game,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
+            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,creator_event_claim,creator_event_create,creator_event_end,creator_event_join,creator_event_leaderboard,creator_event_list,creator_event_publish,creator_event_results,creator_event_rewards_create,creator_event_rewards_get,creator_event_submit,creator_event_update_promo,cricket_auction_create_room,cricket_auction_get_events,cricket_auction_get_room,cricket_auction_next_player,cricket_auction_place_bid,cricket_director_end_session,cricket_director_get_session,cricket_director_list_history,cricket_director_save_session,cricket_director_start_session,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,lasttolive_get_weapon_stats,link_wallet_to_game,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,video_feed_add,video_feed_list,video_feed_remove,video_feed_track,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
             var _alreadyRegistered = {};
             for (var _ri = 0; _ri < _tsRpcList.length; _ri++) {
                 _alreadyRegistered[_tsRpcList[_ri]] = true;
@@ -62785,6 +62807,122 @@ var HiroProgression;
     HiroProgression.register = register;
     register();
 })(HiroProgression || (HiroProgression = {}));
+var HiroCreatorEventRewards;
+(function (HiroCreatorEventRewards) {
+    var BUCKET_COLLECTION = "hiro_creator_event_rewards";
+    var BUCKET_PREFIX = "creator_event_";
+    var TIER_ORDER = ["platinum", "gold", "silver", "bronze", "participation"];
+    function getBucketDefinition(nk, eventId) {
+        return Storage.readSystemJson(nk, BUCKET_COLLECTION, BUCKET_PREFIX + eventId);
+    }
+    function saveBucketDefinition(nk, def) {
+        Storage.writeSystemJson(nk, BUCKET_COLLECTION, BUCKET_PREFIX + def.eventId, def);
+    }
+    function createBucketForEvent(nk, logger, eventId, prizes, prizePool) {
+        var tiers = [];
+        for (var to = 0; to < TIER_ORDER.length; to++) {
+            for (var pi = 0; pi < prizes.length; pi++) {
+                if (prizes[pi].tier !== TIER_ORDER[to])
+                    continue;
+                var prize = prizes[pi];
+                var tierPoolAmount = Math.floor((prizePool * prize.percentage) / 100);
+                var perWinnerAmount = prize.maxWinners > 0 ? Math.floor(tierPoolAmount / prize.maxWinners) : 0;
+                var reward = {};
+                var grant = {};
+                var hasGrant = false;
+                if (perWinnerAmount > 0) {
+                    grant.currencies = { xut: perWinnerAmount };
+                    hasGrant = true;
+                }
+                if (prize.nftBadgeId) {
+                    grant.items = {};
+                    grant.items[prize.nftBadgeId] = { min: 1 };
+                    hasGrant = true;
+                }
+                if (hasGrant) {
+                    reward.guaranteed = grant;
+                }
+                tiers.push({
+                    tier: prize.tier,
+                    percentage: prize.percentage,
+                    maxWinners: prize.maxWinners,
+                    nftBadgeId: prize.nftBadgeId,
+                    xutPerWinner: perWinnerAmount,
+                    totalPool: tierPoolAmount,
+                    reward: reward,
+                });
+            }
+        }
+        var def = {
+            eventId: eventId,
+            name: "Creator Event: " + eventId,
+            prizePool: prizePool,
+            tiers: tiers,
+            createdAt: Math.floor(Date.now() / 1000),
+        };
+        saveBucketDefinition(nk, def);
+        logger.info("[CreatorEventRewards] Created reward bucket for event %s with %d tiers, pool=%d", eventId, tiers.length, prizePool);
+    }
+    HiroCreatorEventRewards.createBucketForEvent = createBucketForEvent;
+    function getTierReward(nk, eventId, tierName) {
+        var def = getBucketDefinition(nk, eventId);
+        if (!def)
+            return null;
+        for (var i = 0; i < def.tiers.length; i++) {
+            if (def.tiers[i].tier === tierName) {
+                return def.tiers[i].reward;
+            }
+        }
+        return null;
+    }
+    HiroCreatorEventRewards.getTierReward = getTierReward;
+    // ---- RPCs ----
+    function rpcGet(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getBucketDefinition(nk, data.eventId);
+        if (!def)
+            return RpcHelpers.errorResponse("Reward bucket not found for event");
+        var tiersResponse = [];
+        for (var i = 0; i < def.tiers.length; i++) {
+            var tier = def.tiers[i];
+            tiersResponse.push({
+                tier: tier.tier,
+                percentage: tier.percentage,
+                maxWinners: tier.maxWinners,
+                nftBadgeId: tier.nftBadgeId || "",
+                xutPerWinner: tier.xutPerWinner,
+                totalPool: tier.totalPool,
+            });
+        }
+        return RpcHelpers.successResponse({
+            eventId: def.eventId,
+            name: def.name,
+            prizePool: def.prizePool,
+            tiers: tiersResponse,
+            createdAt: def.createdAt,
+        });
+    }
+    function rpcCreate(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var validation = RpcHelpers.validatePayload(data, ["eventId", "prizes", "prizePool"]);
+        if (!validation.valid)
+            return RpcHelpers.errorResponse("Missing: " + validation.missing.join(", "));
+        createBucketForEvent(nk, logger, data.eventId, data.prizes, data.prizePool);
+        return RpcHelpers.successResponse({
+            success: true,
+            bucketId: BUCKET_PREFIX + data.eventId,
+        });
+    }
+    function register(initializer) {
+        __rpc_creator_event_rewards_get = rpcGet;
+        __rpc_creator_event_rewards_create = rpcCreate;
+    }
+    HiroCreatorEventRewards.register = register;
+    register();
+})(HiroCreatorEventRewards || (HiroCreatorEventRewards = {}));
 var HiroRewardBucket;
 (function (HiroRewardBucket) {
     var BUCKET_COLLECTION = "hiro_reward_buckets";
@@ -66135,6 +66273,14 @@ var LegacyQuiz;
             : score;
         stats.lastPlayedAt = ts;
         saveStats(nk, userId, stats);
+        EventBus.emit(nk, logger, ctx, EventBus.Events.QUIZ_COMPLETED, {
+            userId: userId,
+            score: score,
+            totalQuestions: totalQuestions,
+            correctAnswers: correctAnswers,
+            category: category,
+            timestamp: ts,
+        });
         return RpcHelpers.successResponse({ result: result, stats: stats });
     }
     function rpcGetHistory(ctx, logger, nk, payload) {
@@ -67807,6 +67953,699 @@ var SatoriIdentities;
     SatoriIdentities.register = register;
     register();
 })(SatoriIdentities || (SatoriIdentities = {}));
+var SatoriCreatorEvents;
+(function (SatoriCreatorEvents) {
+    // ---- Types ----
+    var COLLECTION = "satori_creator_events";
+    var LEADERBOARD_PREFIX = "creator_event_";
+    var TIER_ORDER = ["platinum", "gold", "silver", "bronze", "participation"];
+    // ---- Storage helpers ----
+    function getEventDefinition(nk, eventId) {
+        return Storage.readSystemJson(nk, COLLECTION, eventId);
+    }
+    function saveEventDefinition(nk, def) {
+        Storage.writeSystemJson(nk, COLLECTION, def.id, def);
+    }
+    function getEventsIndex(nk) {
+        var data = Storage.readSystemJson(nk, COLLECTION, "events_index");
+        return data || { eventIds: [] };
+    }
+    function saveEventsIndex(nk, index) {
+        Storage.writeSystemJson(nk, COLLECTION, "events_index", index);
+    }
+    function getUserStates(nk, userId) {
+        var data = Storage.readJson(nk, COLLECTION, "user_state", userId);
+        return (data && data.events) || {};
+    }
+    function saveUserStates(nk, userId, states) {
+        Storage.writeJson(nk, COLLECTION, "user_state", userId, { events: states });
+    }
+    function computeEffectiveStatus(def) {
+        if (def.status === "cancelled" || def.status === "distributed")
+            return def.status;
+        if (def.status === "draft" || def.status === "funded")
+            return def.status;
+        var now = Math.floor(Date.now() / 1000);
+        var endAt = def.scheduledAt + (def.duration * 60);
+        if (now < def.scheduledAt)
+            return "published";
+        if (now > endAt)
+            return "ended";
+        return "live";
+    }
+    // ---- RPCs ----
+    function rpcList(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var filterStatus = data.status || null;
+        var index = getEventsIndex(nk);
+        var userStates = getUserStates(nk, userId);
+        var result = [];
+        for (var i = 0; i < index.eventIds.length; i++) {
+            var eventId = index.eventIds[i];
+            var def = getEventDefinition(nk, eventId);
+            if (!def)
+                continue;
+            var status = computeEffectiveStatus(def);
+            if (filterStatus && status !== filterStatus)
+                continue;
+            if (status === "draft" || status === "funded")
+                continue;
+            var userState = userStates[eventId];
+            var endAt = def.scheduledAt + (def.duration * 60);
+            result.push({
+                id: def.id,
+                creatorId: def.creatorId,
+                title: def.title,
+                description: def.description,
+                category: def.category,
+                customTopic: def.customTopic || "",
+                gameMode: def.gameMode,
+                scheduledAt: def.scheduledAt,
+                duration: def.duration,
+                endAt: endAt,
+                region: def.region,
+                entryFee: def.entryFee,
+                prizePool: def.prizePool,
+                prizes: def.prizes,
+                promoVideoUrl: def.promoVideoUrl || "",
+                deepLinkUrl: def.deepLinkUrl || "",
+                status: status,
+                participantCount: def.participantCount,
+                questionCount: def.questions ? def.questions.length : 0,
+                joined: userState ? !!userState.joinedAt : false,
+                score: userState ? userState.score : 0,
+                tierEarned: userState ? userState.tierEarned || "" : "",
+                claimed: userState ? !!userState.claimedAt : false,
+            });
+        }
+        return RpcHelpers.successResponse({ events: result });
+    }
+    function rpcJoin(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, data.eventId);
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        var status = computeEffectiveStatus(def);
+        if (status !== "live" && status !== "published") {
+            return RpcHelpers.errorResponse("Event is not accepting participants");
+        }
+        var userStates = getUserStates(nk, userId);
+        if (userStates[data.eventId] && userStates[data.eventId].joinedAt) {
+            return RpcHelpers.errorResponse("Already joined");
+        }
+        var gameId = data.gameId || Constants.DEFAULT_GAME_ID;
+        if (def.entryFee > 0) {
+            if (!WalletHelpers.hasCurrency(nk, userId, gameId, "xut", def.entryFee)) {
+                return RpcHelpers.errorResponse("Insufficient XUT balance for entry fee");
+            }
+            WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId, "xut", def.entryFee);
+            EventBus.emit(nk, logger, ctx, EventBus.Events.CURRENCY_SPENT, {
+                userId: userId,
+                gameId: gameId,
+                currencyId: "xut",
+                amount: def.entryFee,
+                reason: "creator_event_entry_fee",
+                eventId: data.eventId,
+            });
+        }
+        userStates[data.eventId] = {
+            eventId: data.eventId,
+            joinedAt: Math.floor(Date.now() / 1000),
+            currentQuestion: 0,
+            score: 0,
+            answers: [],
+            eliminated: false,
+        };
+        saveUserStates(nk, userId, userStates);
+        def.participantCount = (def.participantCount || 0) + 1;
+        saveEventDefinition(nk, def);
+        var leaderboardId = LEADERBOARD_PREFIX + data.eventId;
+        try {
+            nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", 0, 0);
+        }
+        catch (err) {
+            logger.warn("[CreatorEvent] Failed to write initial leaderboard record: %s", err.message || String(err));
+        }
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: data.eventId,
+            entryFeePaid: def.entryFee,
+        });
+    }
+    function rpcSubmit(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        if (data.answer === undefined || data.answer === null)
+            return RpcHelpers.errorResponse("answer required");
+        var def = getEventDefinition(nk, data.eventId);
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        var status = computeEffectiveStatus(def);
+        if (status !== "live")
+            return RpcHelpers.errorResponse("Event is not live");
+        var userStates = getUserStates(nk, userId);
+        var state = userStates[data.eventId];
+        if (!state || !state.joinedAt)
+            return RpcHelpers.errorResponse("Not joined");
+        if (state.eliminated)
+            return RpcHelpers.errorResponse("Eliminated from event");
+        var now = Math.floor(Date.now() / 1000);
+        var leaderboardId = LEADERBOARD_PREFIX + data.eventId;
+        // ---- Best Guess mode ----
+        if (def.gameMode === "best_guess") {
+            var userAnswer = data.answer.toString().toLowerCase().trim();
+            var correctAnswer = (def.answer || "").toLowerCase().trim();
+            var isCorrect = userAnswer === correctAnswer;
+            var elapsedSec = now - def.scheduledAt;
+            var maxDuration = def.duration * 60;
+            var timeBonus = isCorrect ? Math.max(0, Math.floor(((maxDuration - elapsedSec) / maxDuration) * 1000)) : 0;
+            var points = isCorrect ? 1000 + timeBonus : 0;
+            state.score = points;
+            state.answers.push({
+                questionId: "best_guess",
+                answer: data.answer.toString(),
+                correct: isCorrect,
+                answeredAt: now,
+                points: points,
+            });
+            saveUserStates(nk, userId, userStates);
+            try {
+                nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", points, 0);
+            }
+            catch (err) {
+                logger.warn("[CreatorEvent] Leaderboard write failed: %s", err.message || String(err));
+            }
+            return RpcHelpers.successResponse({
+                correct: isCorrect,
+                score: points,
+                timeBonus: timeBonus,
+            });
+        }
+        // ---- Speed Quiz / Elimination mode ----
+        if (!data.questionId)
+            return RpcHelpers.errorResponse("questionId required");
+        var question = null;
+        for (var qi = 0; qi < def.questions.length; qi++) {
+            if (def.questions[qi].id === data.questionId) {
+                question = def.questions[qi];
+                break;
+            }
+        }
+        if (!question)
+            return RpcHelpers.errorResponse("Question not found");
+        for (var ai = 0; ai < state.answers.length; ai++) {
+            if (state.answers[ai].questionId === data.questionId) {
+                return RpcHelpers.errorResponse("Question already answered");
+            }
+        }
+        var isCorrect = data.answer.toString().toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
+        var points = isCorrect ? question.points : 0;
+        if (isCorrect && typeof data.timeElapsed === "number") {
+            var speedBonus = Math.max(0, Math.floor(((question.timeLimit - data.timeElapsed) / question.timeLimit) * (question.points * 0.5)));
+            points += speedBonus;
+        }
+        if (def.gameMode === "elimination" && !isCorrect) {
+            state.eliminated = true;
+        }
+        state.score += points;
+        state.currentQuestion++;
+        state.answers.push({
+            questionId: data.questionId,
+            answer: data.answer.toString(),
+            correct: isCorrect,
+            answeredAt: now,
+            points: points,
+        });
+        saveUserStates(nk, userId, userStates);
+        try {
+            nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", state.score, 0);
+        }
+        catch (err) {
+            logger.warn("[CreatorEvent] Leaderboard write failed: %s", err.message || String(err));
+        }
+        EventBus.emit(nk, logger, ctx, EventBus.Events.SCORE_SUBMITTED, {
+            userId: userId,
+            eventId: data.eventId,
+            score: state.score,
+            questionId: data.questionId,
+        });
+        return RpcHelpers.successResponse({
+            correct: isCorrect,
+            points: points,
+            totalScore: state.score,
+            eliminated: state.eliminated || false,
+            questionsAnswered: state.answers.length,
+            totalQuestions: def.questions.length,
+        });
+    }
+    function rpcLeaderboard(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, data.eventId);
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        var leaderboardId = LEADERBOARD_PREFIX + data.eventId;
+        var limit = data.limit || 50;
+        try {
+            var records = nk.leaderboardRecordsList(leaderboardId, [], limit, data.cursor || "");
+            var entries = [];
+            var ownerRecords = records.records || [];
+            for (var ri = 0; ri < ownerRecords.length; ri++) {
+                var rec = ownerRecords[ri];
+                entries.push({
+                    userId: rec.ownerId,
+                    username: rec.username || "",
+                    score: rec.score,
+                    rank: rec.rank,
+                });
+            }
+            var userRank = null;
+            try {
+                var userRecords = nk.leaderboardRecordsList(leaderboardId, [userId], 1, "");
+                var userOwnerRecs = userRecords.ownerRecords || [];
+                if (userOwnerRecs.length > 0) {
+                    userRank = {
+                        userId: userOwnerRecs[0].ownerId,
+                        username: userOwnerRecs[0].username || "",
+                        score: userOwnerRecs[0].score,
+                        rank: userOwnerRecs[0].rank,
+                    };
+                }
+            }
+            catch (_) {
+                // user may not have a record yet
+            }
+            return RpcHelpers.successResponse({
+                eventId: data.eventId,
+                entries: entries,
+                userRank: userRank,
+                nextCursor: records.nextCursor || "",
+                prevCursor: records.prevCursor || "",
+            });
+        }
+        catch (err) {
+            return RpcHelpers.errorResponse("Failed to fetch leaderboard: " + (err.message || String(err)));
+        }
+    }
+    function rpcResults(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, data.eventId);
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        var status = computeEffectiveStatus(def);
+        if (status !== "ended" && status !== "distributed") {
+            return RpcHelpers.errorResponse("Event has not ended yet");
+        }
+        var userStates = getUserStates(nk, userId);
+        var state = userStates[data.eventId];
+        if (!state || !state.joinedAt)
+            return RpcHelpers.errorResponse("Not a participant");
+        var leaderboardId = LEADERBOARD_PREFIX + data.eventId;
+        var userRank = 0;
+        try {
+            var userRecords = nk.leaderboardRecordsList(leaderboardId, [userId], 1, "");
+            var ownerRecs = userRecords.ownerRecords || [];
+            if (ownerRecs.length > 0) {
+                userRank = ownerRecs[0].rank;
+            }
+        }
+        catch (_) {
+            // record may not exist
+        }
+        return RpcHelpers.successResponse({
+            eventId: data.eventId,
+            score: state.score,
+            rank: state.rank || userRank,
+            tierEarned: state.tierEarned || "",
+            claimed: !!state.claimedAt,
+            answers: state.answers,
+            totalParticipants: def.participantCount,
+            prizePool: def.prizePool,
+            prizes: def.prizes,
+        });
+    }
+    function rpcClaim(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, data.eventId);
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        var status = computeEffectiveStatus(def);
+        if (status !== "ended" && status !== "distributed") {
+            return RpcHelpers.errorResponse("Event has not ended yet");
+        }
+        var userStates = getUserStates(nk, userId);
+        var state = userStates[data.eventId];
+        if (!state || !state.joinedAt)
+            return RpcHelpers.errorResponse("Not a participant");
+        if (state.claimedAt)
+            return RpcHelpers.errorResponse("Already claimed");
+        if (!state.tierEarned) {
+            return RpcHelpers.errorResponse("No tier assigned - results not yet processed");
+        }
+        var gameId = data.gameId || Constants.DEFAULT_GAME_ID;
+        var tierReward = HiroCreatorEventRewards.getTierReward(nk, data.eventId, state.tierEarned);
+        var grantedReward = null;
+        if (tierReward) {
+            grantedReward = RewardEngine.resolveReward(nk, tierReward);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId, grantedReward);
+        }
+        state.claimedAt = Math.floor(Date.now() / 1000);
+        saveUserStates(nk, userId, userStates);
+        EventBus.emit(nk, logger, ctx, EventBus.Events.REWARD_GRANTED, {
+            userId: userId,
+            eventId: data.eventId,
+            tier: state.tierEarned,
+            reward: grantedReward,
+        });
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: data.eventId,
+            tier: state.tierEarned,
+            reward: grantedReward,
+        });
+    }
+    // ---- Creator RPCs ----
+    function isAdminCtx(ctx, nk) {
+        try {
+            RpcHelpers.requireAdmin(ctx, nk);
+            return true;
+        }
+        catch (_) {
+            return false;
+        }
+    }
+    function rpcCreate(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.title)
+            return RpcHelpers.errorResponse("title required");
+        if (!data.category)
+            return RpcHelpers.errorResponse("category required");
+        if (!data.scheduledAt)
+            return RpcHelpers.errorResponse("scheduledAt required");
+        if (typeof data.scheduledAt !== "number")
+            return RpcHelpers.errorResponse("scheduledAt must be a unix timestamp (number)");
+        var event = {
+            id: nk.uuidv4(),
+            creatorId: userId,
+            title: String(data.title),
+            description: String(data.description || ""),
+            category: String(data.category),
+            customTopic: data.customTopic ? String(data.customTopic) : "",
+            gameMode: String(data.gameMode || "best_guess"),
+            scheduledAt: data.scheduledAt,
+            duration: typeof data.duration === "number" ? data.duration : 30,
+            region: String(data.region || "global"),
+            timezone: String(data.timezone || "UTC"),
+            entryFee: typeof data.entryFee === "number" ? data.entryFee : 0,
+            prizePool: typeof data.prizePool === "number" ? data.prizePool : 0,
+            prizes: Array.isArray(data.prizes) ? data.prizes : [],
+            giftCardPrizes: data.giftCardPrizes || undefined,
+            questions: Array.isArray(data.questions) ? data.questions : [],
+            clues: Array.isArray(data.clues) ? data.clues : [],
+            answer: data.answer ? String(data.answer) : "",
+            promoVideoUrl: data.promoVideoUrl ? String(data.promoVideoUrl) : "",
+            deepLinkUrl: data.deepLinkUrl ? String(data.deepLinkUrl) : "",
+            status: "draft",
+            participantCount: 0,
+            createdAt: Math.floor(Date.now() / 1000),
+        };
+        saveEventDefinition(nk, event);
+        logger.info("[CreatorEvent] Draft created by %s: %s (%s)", userId, event.title, event.id);
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: event.id,
+            status: event.status,
+        });
+    }
+    function broadcastEventPublishedNotification(nk, logger, event) {
+        try {
+            var title = "🎮 New Live Event: " + event.title;
+            var body = event.description || "A new event is live — join now!";
+            if (event.giftCardPrizes && event.giftCardPrizes.totalValue) {
+                body = body + " Prizes up to " + event.giftCardPrizes.totalCurrency + " " + event.giftCardPrizes.totalValue + "!";
+            }
+            else if (event.prizePool) {
+                body = body + " Prize pool: " + event.prizePool + " XUT!";
+            }
+            nk.notificationsSend([{
+                    userId: "",
+                    code: 1001,
+                    subject: title,
+                    content: {
+                        eventId: event.id,
+                        title: event.title,
+                        scheduledAt: event.scheduledAt,
+                        deepLinkUrl: event.deepLinkUrl || "",
+                        promoVideoUrl: event.promoVideoUrl || "",
+                        type: "creator_event_published",
+                        body: body,
+                    },
+                    persistent: true,
+                }]);
+            logger.info("[CreatorEvent] Broadcast notification for event %s", event.id);
+        }
+        catch (err) {
+            logger.warn("[CreatorEvent] Failed to broadcast notification: %s", err.message || String(err));
+        }
+    }
+    function rpcPublish(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var isAdmin = isAdminCtx(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var event = null;
+        // Two modes: full event object (admin path) OR eventId-only (creator path publishing own draft)
+        if (data.event) {
+            event = data.event;
+            if (!event.id)
+                return RpcHelpers.errorResponse("event.id required");
+            var existingByObject = getEventDefinition(nk, event.id);
+            if (!isAdmin) {
+                if (!existingByObject)
+                    return RpcHelpers.errorResponse("Event not found — create it first via creator_event_create");
+                if (existingByObject.creatorId !== userId)
+                    return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+                // Preserve creatorId and createdAt on creator self-publish
+                event.creatorId = existingByObject.creatorId;
+                event.createdAt = existingByObject.createdAt;
+            }
+        }
+        else if (data.eventId) {
+            event = getEventDefinition(nk, String(data.eventId));
+            if (!event)
+                return RpcHelpers.errorResponse("Event not found");
+            if (!isAdmin && event.creatorId !== userId) {
+                return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+            }
+        }
+        else {
+            return RpcHelpers.errorResponse("Either event object or eventId required");
+        }
+        var currentStatus = event.status || "draft";
+        if (currentStatus !== "funded" && currentStatus !== "draft") {
+            return RpcHelpers.errorResponse("Event must be in funded or draft status to publish (currently: " + currentStatus + ")");
+        }
+        event.status = "published";
+        event.publishedAt = Math.floor(Date.now() / 1000);
+        event.participantCount = event.participantCount || 0;
+        saveEventDefinition(nk, event);
+        var index = getEventsIndex(nk);
+        if (index.eventIds.indexOf(event.id) < 0) {
+            index.eventIds.push(event.id);
+            saveEventsIndex(nk, index);
+        }
+        var leaderboardId = LEADERBOARD_PREFIX + event.id;
+        try {
+            nk.leaderboardCreate(leaderboardId, true, 1, 0);
+        }
+        catch (err) {
+            logger.warn("[CreatorEvent] Leaderboard may already exist: %s", err.message || String(err));
+        }
+        try {
+            HiroCreatorEventRewards.createBucketForEvent(nk, logger, event.id, event.prizes, event.prizePool);
+        }
+        catch (err) {
+            logger.warn("[CreatorEvent] Failed to create reward bucket: %s", err.message || String(err));
+        }
+        EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_PUBLISHED, {
+            eventId: event.id,
+            creatorId: event.creatorId,
+            title: event.title,
+            category: event.category,
+            gameMode: event.gameMode,
+            region: event.region,
+            scheduledAt: event.scheduledAt,
+            duration: event.duration,
+            prizePool: event.prizePool,
+            giftCardPrizes: event.giftCardPrizes || null,
+            deepLinkUrl: event.deepLinkUrl || "",
+            publishedAt: event.publishedAt,
+        });
+        broadcastEventPublishedNotification(nk, logger, event);
+        logger.info("[CreatorEvent] Published event %s by %s: %s", event.id, event.creatorId, event.title);
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: event.id,
+            leaderboardId: leaderboardId,
+            status: event.status,
+        });
+    }
+    function rpcUpdatePromo(ctx, logger, nk, payload) {
+        // Allow server-to-server calls (no userId) as trusted admin — this RPC is
+        // commonly invoked by Content Factory when a promo/recap video is published.
+        var userId = ctx.userId || "";
+        var isServerCall = !userId;
+        var isAdmin = isServerCall || isAdminCtx(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, String(data.eventId));
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        if (!isAdmin && def.creatorId !== userId) {
+            return RpcHelpers.errorResponse("Not authorized");
+        }
+        if (typeof data.promoVideoUrl === "string")
+            def.promoVideoUrl = data.promoVideoUrl;
+        if (typeof data.recapVideoUrl === "string")
+            def.recapVideoUrl = data.recapVideoUrl;
+        if (typeof data.deepLinkUrl === "string")
+            def.deepLinkUrl = data.deepLinkUrl;
+        saveEventDefinition(nk, def);
+        logger.info("[CreatorEvent] Updated media URLs for event %s", def.id);
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: def.id,
+            promoVideoUrl: def.promoVideoUrl || "",
+            recapVideoUrl: def.recapVideoUrl || "",
+            deepLinkUrl: def.deepLinkUrl || "",
+        });
+    }
+    function rpcEnd(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var isAdmin = isAdminCtx(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, data.eventId);
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        if (!isAdmin && def.creatorId !== userId) {
+            return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+        }
+        if (def.status === "ended" || def.status === "distributed" || def.status === "cancelled") {
+            return RpcHelpers.errorResponse("Event already ended/cancelled");
+        }
+        var leaderboardId = LEADERBOARD_PREFIX + data.eventId;
+        var allRecords = [];
+        var cursor = "";
+        do {
+            try {
+                var result = nk.leaderboardRecordsList(leaderboardId, [], 100, cursor);
+                var records = result.records || [];
+                for (var ri = 0; ri < records.length; ri++) {
+                    allRecords.push(records[ri]);
+                }
+                cursor = result.nextCursor || "";
+            }
+            catch (err) {
+                logger.error("[CreatorEvent] Failed to read leaderboard: %s", err.message || String(err));
+                break;
+            }
+        } while (cursor);
+        var sortedPrizes = [];
+        var winnersPerTier = {};
+        for (var to = 0; to < TIER_ORDER.length; to++) {
+            for (var pi = 0; pi < def.prizes.length; pi++) {
+                if (def.prizes[pi].tier === TIER_ORDER[to]) {
+                    sortedPrizes.push(def.prizes[pi]);
+                    winnersPerTier[def.prizes[pi].tier] = 0;
+                }
+            }
+        }
+        var tierAssignments = {};
+        for (var ri = 0; ri < allRecords.length; ri++) {
+            var record = allRecords[ri];
+            var currentRank = ri + 1;
+            var assignedTier = "";
+            for (var si = 0; si < sortedPrizes.length; si++) {
+                var prize = sortedPrizes[si];
+                if (winnersPerTier[prize.tier] < prize.maxWinners) {
+                    assignedTier = prize.tier;
+                    winnersPerTier[prize.tier]++;
+                    break;
+                }
+            }
+            if (assignedTier) {
+                tierAssignments[record.ownerId] = assignedTier;
+            }
+            try {
+                var userStates = getUserStates(nk, record.ownerId);
+                if (userStates[data.eventId]) {
+                    userStates[data.eventId].tierEarned = assignedTier || undefined;
+                    userStates[data.eventId].rank = currentRank;
+                    saveUserStates(nk, record.ownerId, userStates);
+                }
+            }
+            catch (err) {
+                logger.warn("[CreatorEvent] Failed to update user state for %s: %s", record.ownerId, err.message || String(err));
+            }
+        }
+        def.status = "ended";
+        def.endedAt = Math.floor(Date.now() / 1000);
+        saveEventDefinition(nk, def);
+        logger.info("[CreatorEvent] Ended event %s — %d participants, %d tier assignments", def.id, allRecords.length, Object.keys(tierAssignments).length);
+        EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
+            eventId: def.id,
+            creatorId: def.creatorId,
+            title: def.title,
+            category: def.category,
+            gameMode: def.gameMode,
+            region: def.region,
+            totalParticipants: allRecords.length,
+            tierAssignments: tierAssignments,
+            winnersPerTier: winnersPerTier,
+            prizePool: def.prizePool,
+            giftCardPrizes: def.giftCardPrizes || null,
+            endedAt: def.endedAt,
+        });
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: def.id,
+            totalParticipants: allRecords.length,
+            tierAssignments: tierAssignments,
+            winnersPerTier: winnersPerTier,
+        });
+    }
+    function register(initializer) {
+        __rpc_creator_event_list = rpcList;
+        __rpc_creator_event_join = rpcJoin;
+        __rpc_creator_event_submit = rpcSubmit;
+        __rpc_creator_event_leaderboard = rpcLeaderboard;
+        __rpc_creator_event_results = rpcResults;
+        __rpc_creator_event_claim = rpcClaim;
+        __rpc_creator_event_create = rpcCreate;
+        __rpc_creator_event_publish = rpcPublish;
+        __rpc_creator_event_end = rpcEnd;
+        __rpc_creator_event_update_promo = rpcUpdatePromo;
+    }
+    SatoriCreatorEvents.register = register;
+    register();
+})(SatoriCreatorEvents || (SatoriCreatorEvents = {}));
 var SatoriLiveEvents;
 (function (SatoriLiveEvents) {
     function getEventDefinitions(nk) {
@@ -68538,6 +69377,158 @@ var SatoriTaxonomy;
     SatoriTaxonomy.register = register;
     register();
 })(SatoriTaxonomy || (SatoriTaxonomy = {}));
+var SatoriVideoFeed;
+(function (SatoriVideoFeed) {
+    var COLLECTION = "satori_video_feed";
+    var INDEX_KEY = "videos_index";
+    var MAX_FEED_SIZE = 200;
+    function getIndex(nk) {
+        return Storage.readSystemJson(nk, COLLECTION, INDEX_KEY) || { videoIds: [] };
+    }
+    function saveIndex(nk, index) {
+        Storage.writeSystemJson(nk, COLLECTION, INDEX_KEY, index);
+    }
+    function getVideo(nk, videoId) {
+        return Storage.readSystemJson(nk, COLLECTION, videoId);
+    }
+    function saveVideo(nk, video) {
+        Storage.writeSystemJson(nk, COLLECTION, video.id, video);
+    }
+    function rpcList(ctx, logger, nk, payload) {
+        RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var filterRegion = data.region ? String(data.region) : "";
+        var filterSeries = data.series ? String(data.series) : "";
+        var filterCategory = data.category ? String(data.category) : "";
+        var filterEventId = data.eventId ? String(data.eventId) : "";
+        var limit = typeof data.limit === "number" ? Math.min(100, Math.max(1, data.limit)) : 20;
+        var index = getIndex(nk);
+        var now = Math.floor(Date.now() / 1000);
+        var results = [];
+        for (var i = 0; i < index.videoIds.length; i++) {
+            var v = getVideo(nk, index.videoIds[i]);
+            if (!v)
+                continue;
+            if (v.expiresAt && v.expiresAt > 0 && v.expiresAt < now)
+                continue;
+            if (filterRegion && v.region !== filterRegion && v.region !== "global")
+                continue;
+            if (filterSeries && v.series !== filterSeries)
+                continue;
+            if (filterCategory && v.category !== filterCategory)
+                continue;
+            if (filterEventId && v.eventId !== filterEventId)
+                continue;
+            results.push(v);
+        }
+        results.sort(function (a, b) {
+            if (a.priority !== b.priority)
+                return b.priority - a.priority;
+            return b.publishedAt - a.publishedAt;
+        });
+        if (results.length > limit)
+            results = results.slice(0, limit);
+        return RpcHelpers.successResponse({ videos: results, total: results.length });
+    }
+    function rpcAdd(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.videoUrl)
+            return RpcHelpers.errorResponse("videoUrl required");
+        if (!data.title)
+            return RpcHelpers.errorResponse("title required");
+        var id = data.id ? String(data.id) : nk.uuidv4();
+        var video = {
+            id: id,
+            title: String(data.title),
+            description: String(data.description || ""),
+            videoUrl: String(data.videoUrl),
+            thumbnailUrl: String(data.thumbnailUrl || ""),
+            platform: String(data.platform || "youtube"),
+            category: String(data.category || "general"),
+            region: String(data.region || "global"),
+            series: String(data.series || "custom"),
+            eventId: data.eventId ? String(data.eventId) : undefined,
+            deepLinkUrl: data.deepLinkUrl ? String(data.deepLinkUrl) : undefined,
+            seriesPart: typeof data.seriesPart === "number" ? data.seriesPart : undefined,
+            mysteryId: data.mysteryId ? String(data.mysteryId) : undefined,
+            publishedAt: typeof data.publishedAt === "number" ? data.publishedAt : Math.floor(Date.now() / 1000),
+            expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : 0,
+            priority: typeof data.priority === "number" ? data.priority : 0,
+            views: typeof data.views === "number" ? data.views : 0,
+            clicks: typeof data.clicks === "number" ? data.clicks : 0,
+            metadata: data.metadata || undefined,
+        };
+        saveVideo(nk, video);
+        var index = getIndex(nk);
+        var existingIdx = index.videoIds.indexOf(id);
+        if (existingIdx < 0) {
+            index.videoIds.push(id);
+        }
+        // Prune old entries beyond MAX_FEED_SIZE
+        if (index.videoIds.length > MAX_FEED_SIZE) {
+            var all = [];
+            for (var j = 0; j < index.videoIds.length; j++) {
+                var vv = getVideo(nk, index.videoIds[j]);
+                if (vv)
+                    all.push(vv);
+            }
+            all.sort(function (a, b) { return b.publishedAt - a.publishedAt; });
+            var keep = all.slice(0, MAX_FEED_SIZE);
+            var keepIds = [];
+            for (var k = 0; k < keep.length; k++)
+                keepIds.push(keep[k].id);
+            index.videoIds = keepIds;
+        }
+        saveIndex(nk, index);
+        logger.info("[VideoFeed] Added video %s (%s/%s)", id, video.series, video.category);
+        return RpcHelpers.successResponse({ success: true, videoId: id });
+    }
+    function rpcRemove(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.videoId)
+            return RpcHelpers.errorResponse("videoId required");
+        var id = String(data.videoId);
+        var index = getIndex(nk);
+        var idx = index.videoIds.indexOf(id);
+        if (idx >= 0) {
+            index.videoIds.splice(idx, 1);
+            saveIndex(nk, index);
+        }
+        try {
+            nk.storageDelete([{ collection: COLLECTION, key: id, userId: Constants.SYSTEM_USER_ID }]);
+        }
+        catch (err) {
+            logger.warn("[VideoFeed] Failed to delete video %s: %s", id, err.message || String(err));
+        }
+        return RpcHelpers.successResponse({ success: true, videoId: id });
+    }
+    function rpcTrackClick(ctx, logger, nk, payload) {
+        RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.videoId)
+            return RpcHelpers.errorResponse("videoId required");
+        var v = getVideo(nk, String(data.videoId));
+        if (!v)
+            return RpcHelpers.errorResponse("Video not found");
+        var field = data.field === "view" ? "view" : "click";
+        if (field === "view")
+            v.views = (v.views || 0) + 1;
+        else
+            v.clicks = (v.clicks || 0) + 1;
+        saveVideo(nk, v);
+        return RpcHelpers.successResponse({ success: true, videoId: v.id, views: v.views, clicks: v.clicks });
+    }
+    function register(initializer) {
+        __rpc_video_feed_list = rpcList;
+        __rpc_video_feed_add = rpcAdd;
+        __rpc_video_feed_remove = rpcRemove;
+        __rpc_video_feed_track = rpcTrackClick;
+    }
+    SatoriVideoFeed.register = register;
+    register();
+})(SatoriVideoFeed || (SatoriVideoFeed = {}));
 var SatoriWebhooks;
 (function (SatoriWebhooks) {
     var DEFAULT_CONFIG = { webhooks: [] };
@@ -68654,7 +69645,10 @@ var SatoriWebhooks;
             EventBus.Events.ACHIEVEMENT_COMPLETED, EventBus.Events.ACHIEVEMENT_CLAIMED,
             EventBus.Events.LEVEL_UP, EventBus.Events.STORE_PURCHASE,
             EventBus.Events.GAME_STARTED, EventBus.Events.GAME_COMPLETED,
-            EventBus.Events.SESSION_START, EventBus.Events.SESSION_END
+            EventBus.Events.SESSION_START, EventBus.Events.SESSION_END,
+            EventBus.Events.EVENT_PUBLISHED, EventBus.Events.EVENT_ENDED,
+            EventBus.Events.QUIZ_COMPLETED, EventBus.Events.SCORE_SUBMITTED,
+            EventBus.Events.REWARD_GRANTED
         ];
         for (var i = 0; i < events.length; i++) {
             (function (eventName) {
@@ -68820,6 +69814,9 @@ var EventBus;
         GAME_COMPLETED: "game_completed",
         SESSION_START: "session_start",
         SESSION_END: "session_end",
+        EVENT_PUBLISHED: "event_published",
+        EVENT_ENDED: "event_ended",
+        QUIZ_COMPLETED: "quiz_completed",
     };
 })(EventBus || (EventBus = {}));
 var HttpClient;
@@ -69839,6 +70836,8 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("hiro_personalizer_preview", __rpc_hiro_personalizer_preview); } catch(e) {}
   try { initializer.registerRpc("hiro_progression_get", __rpc_hiro_progression_get); } catch(e) {}
   try { initializer.registerRpc("hiro_progression_add_xp", __rpc_hiro_progression_add_xp); } catch(e) {}
+  try { initializer.registerRpc("creator_event_rewards_get", __rpc_creator_event_rewards_get); } catch(e) {}
+  try { initializer.registerRpc("creator_event_rewards_create", __rpc_creator_event_rewards_create); } catch(e) {}
   try { initializer.registerRpc("hiro_reward_bucket_get", __rpc_hiro_reward_bucket_get); } catch(e) {}
   try { initializer.registerRpc("hiro_reward_bucket_progress", __rpc_hiro_reward_bucket_progress); } catch(e) {}
   try { initializer.registerRpc("hiro_reward_bucket_unlock", __rpc_hiro_reward_bucket_unlock); } catch(e) {}
@@ -69972,6 +70971,16 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("satori_flags_set", __rpc_satori_flags_set); } catch(e) {}
   try { initializer.registerRpc("satori_identity_get", __rpc_satori_identity_get); } catch(e) {}
   try { initializer.registerRpc("satori_identity_update_properties", __rpc_satori_identity_update_properties); } catch(e) {}
+  try { initializer.registerRpc("creator_event_list", __rpc_creator_event_list); } catch(e) {}
+  try { initializer.registerRpc("creator_event_join", __rpc_creator_event_join); } catch(e) {}
+  try { initializer.registerRpc("creator_event_submit", __rpc_creator_event_submit); } catch(e) {}
+  try { initializer.registerRpc("creator_event_leaderboard", __rpc_creator_event_leaderboard); } catch(e) {}
+  try { initializer.registerRpc("creator_event_results", __rpc_creator_event_results); } catch(e) {}
+  try { initializer.registerRpc("creator_event_claim", __rpc_creator_event_claim); } catch(e) {}
+  try { initializer.registerRpc("creator_event_create", __rpc_creator_event_create); } catch(e) {}
+  try { initializer.registerRpc("creator_event_publish", __rpc_creator_event_publish); } catch(e) {}
+  try { initializer.registerRpc("creator_event_end", __rpc_creator_event_end); } catch(e) {}
+  try { initializer.registerRpc("creator_event_update_promo", __rpc_creator_event_update_promo); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_list", __rpc_satori_live_events_list); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_join", __rpc_satori_live_events_join); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_claim", __rpc_satori_live_events_claim); } catch(e) {}
@@ -69989,6 +70998,10 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("satori_taxonomy_delete", __rpc_satori_taxonomy_delete); } catch(e) {}
   try { initializer.registerRpc("satori_taxonomy_validate", __rpc_satori_taxonomy_validate); } catch(e) {}
   try { initializer.registerRpc("satori_taxonomy_strict_mode", __rpc_satori_taxonomy_strict_mode); } catch(e) {}
+  try { initializer.registerRpc("video_feed_list", __rpc_video_feed_list); } catch(e) {}
+  try { initializer.registerRpc("video_feed_add", __rpc_video_feed_add); } catch(e) {}
+  try { initializer.registerRpc("video_feed_remove", __rpc_video_feed_remove); } catch(e) {}
+  try { initializer.registerRpc("video_feed_track", __rpc_video_feed_track); } catch(e) {}
   try { initializer.registerRpc("satori_webhooks_list", __rpc_satori_webhooks_list); } catch(e) {}
   try { initializer.registerRpc("satori_webhooks_upsert", __rpc_satori_webhooks_upsert); } catch(e) {}
   try { initializer.registerRpc("satori_webhooks_delete", __rpc_satori_webhooks_delete); } catch(e) {}
@@ -70167,5 +71180,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 485 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 501 + " RPCs via AST-compatible wrapper");
 }
