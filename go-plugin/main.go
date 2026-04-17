@@ -9,11 +9,19 @@
 //   `prometheus.yml` picks them up for free.
 //
 // Design:
-//   • Zero coupling with the JS runtime source — we observe JS RPCs via
-//     initializer.RegisterAfterRpc hooks. No changes to the JS modules needed.
-//   • A background goroutine polls the JS-maintained bookkeeping storage docs
-//     every 15 s and updates gauges for "freshness" signals (age since last
-//     event, age since last rollup, age since last poll per provider).
+//   • Zero coupling with the JS runtime source — we observe pipeline state by
+//     polling the JS-maintained bookkeeping storage docs every pollInterval.
+//     No RPC hooks, no changes to the JS modules needed.
+//   • nakama-common's Initializer interface does NOT expose a RegisterAfterRpc
+//     hook for custom RPCs (only RegisterRpc, RegisterBefore/AfterRt for
+//     realtime, and Register{Before,After}{BuiltinApi} for Nakama's built-in
+//     gRPC endpoints). Previous versions of this file attempted to use
+//     RegisterAfterRpc; that call simply does not compile. We work off
+//     storage state instead.
+//   • Monotonic counters are bumped in the freshness loop by diffing the
+//     stored totals against the previous tick's values. Day boundary is
+//     handled by detecting when the date string in the stored doc changes
+//     (or when the observed total drops below our cached value).
 //   • All metrics use the default Prometheus registry, which is the same one
 //     Nakama uses for its built-in runtime metrics. They appear automatically
 //     at http://nakama:9100/ with no extra scrape config.
@@ -21,11 +29,11 @@
 // Metrics exposed:
 //   analytics_events_total{status}                  counter
 //   analytics_events_rejected_total                 counter (convenience; subset of above)
-//   analytics_rollup_runs_total{status}             counter
+//   analytics_rollup_runs_total                     counter
 //   analytics_rollup_last_events_matched            gauge
 //   analytics_rollup_last_games                     gauge
 //   analytics_rollup_age_seconds                    gauge
-//   analytics_poller_runs_total{provider,status}    counter
+//   analytics_poller_runs_total{provider}           counter
 //   analytics_poller_age_seconds{provider}          gauge
 //   analytics_pipeline_age_seconds                  gauge (since last log_event)
 //   analytics_events_today                          gauge (current-day accepted)
@@ -37,7 +45,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -66,17 +74,17 @@ var (
 	eventsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "analytics_events_total",
 		Help: "Total analytics events observed by the server since plugin startup, by acceptance status.",
-	}, []string{"status"}) // status = accepted | rejected | error
+	}, []string{"status"}) // status = accepted | rejected
 
 	rejectedTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "analytics_events_rejected_total",
 		Help: "Convenience counter — analytics events rejected by normalizeInboundEvent or persist failures.",
 	})
 
-	rollupRunsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	rollupRunsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "analytics_rollup_runs_total",
-		Help: "Count of analytics_rollup_run invocations, by outcome.",
-	}, []string{"status"}) // status = success | error
+		Help: "Count of analytics_rollup_run successful invocations observed since plugin startup.",
+	})
 
 	rollupLastEvents = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "analytics_rollup_last_events_matched",
@@ -95,8 +103,8 @@ var (
 
 	pollerRunsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "analytics_poller_runs_total",
-		Help: "Count of external_poll_* RPC invocations, by provider and outcome.",
-	}, []string{"provider", "status"}) // status = success | skipped | error
+		Help: "Count of external_poll_* successful invocations observed since plugin startup, by provider.",
+	}, []string{"provider"})
 
 	pollerAgeSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "analytics_poller_age_seconds",
@@ -119,174 +127,45 @@ var (
 	})
 )
 
-// lastLogEventNanos tracks the wall time of the most recent analytics_log_event
-// completion observed via the RegisterAfterRpc hook. Read by the poller goroutine
-// to update pipelineAgeSeconds without a storage round-trip. atomic for goroutine
-// safety.
-var lastLogEventNanos atomic.Int64
+// Delta-tracking state for converting JS-side daily counters into Prometheus
+// monotonic counters. Guarded by stateMu because refreshFreshness is always
+// called from a single goroutine, but the lock keeps us honest if that ever
+// changes.
+var (
+	stateMu        sync.Mutex
+	lastCounterDay string
+	lastAccepted   int64
+	lastRejected   int64
+
+	lastRollupTimestamp string
+
+	lastPollUnix = map[string]int64{}
+)
 
 // ─── InitModule ───────────────────────────────────────────
 
 // InitModule is the Nakama plugin entrypoint. It's called once by the runtime
-// when the .so is loaded. We register after-hooks (no latency on the hot path
-// since they run after the JS RPC returns) and start the background freshness
-// poller.
-func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
-	logger.Info("[analytics_metrics_go] plugin loading — registering hooks and metrics")
-
-	if err := initializer.RegisterAfterRpc("analytics_log_event", afterAnalyticsLogEvent); err != nil {
-		return fmt.Errorf("RegisterAfterRpc analytics_log_event: %w", err)
-	}
-	if err := initializer.RegisterAfterRpc("analytics_rollup_run", afterAnalyticsRollupRun); err != nil {
-		return fmt.Errorf("RegisterAfterRpc analytics_rollup_run: %w", err)
-	}
-	for _, rpc := range []string{
-		"external_poll_appodeal",
-		"external_poll_appstore",
-		"external_poll_ugs",
-		"external_poll_all",
-	} {
-		// Closure captures rpc name so the handler can extract the provider.
-		rpcName := rpc
-		if err := initializer.RegisterAfterRpc(rpcName, makeAfterPollerHook(rpcName)); err != nil {
-			return fmt.Errorf("RegisterAfterRpc %s: %w", rpcName, err)
-		}
-	}
-
-	// Seed the pipelineAge so "fresh start" isn't reported as age=0 (which
-	// would hide a broken pipeline). Use the last_log_event doc if present,
-	// otherwise mark as "never seen" with a sentinel of -1.
-	lastLogEventNanos.Store(0)
+// when the .so is loaded. We do NOT register any RPC hooks here (see package
+// doc comment). We just register metrics (done at package init via promauto)
+// and start the background freshness poller.
+//
+// The db and initializer args are unused but required by the Nakama plugin
+// contract; keeping them named for clarity.
+func InitModule(ctx context.Context, logger runtime.Logger, _ *sql.DB, nk runtime.NakamaModule, _ runtime.Initializer) error {
+	logger.Info("[analytics_metrics_go] plugin loading — starting freshness loop")
 
 	// Background freshness poller. A single goroutine is cheap and means the
-	// /metrics endpoint always serves up-to-date gauges even when no RPC has
-	// fired in a while.
+	// /metrics endpoint always serves up-to-date gauges AND monotonic counters
+	// derived from storage-side state.
 	go freshnessLoop(ctx, logger, nk)
 
-	logger.Info("[analytics_metrics_go] plugin ready — 10 metrics registered, freshness loop started")
+	logger.Info("[analytics_metrics_go] plugin ready — metrics registered, freshness loop started")
 	return nil
-}
-
-// ─── RPC after-hooks ──────────────────────────────────────
-
-// Parsed shape of analytics_log_event's JSON response. Fields we don't need
-// are ignored; keeping this minimal avoids allocations on the hot path.
-type logEventResult struct {
-	Success  bool `json:"success"`
-	Accepted int  `json:"accepted"`
-	Rejected int  `json:"rejected"`
-}
-
-// afterAnalyticsLogEvent observes every analytics_log_event call after the JS
-// RPC has returned. It bumps accepted / rejected counters based on the response
-// body. Runs on the Nakama worker pool so it doesn't add latency to the client.
-func afterAnalyticsLogEvent(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out string, in string) error {
-	var res logEventResult
-	if err := json.Unmarshal([]byte(out), &res); err != nil {
-		// Don't fail the hook chain — metrics are observational.
-		eventsTotal.WithLabelValues("error").Inc()
-		return nil
-	}
-	if res.Accepted > 0 {
-		eventsTotal.WithLabelValues("accepted").Add(float64(res.Accepted))
-		// Stamp pipeline liveness on any accepted event.
-		lastLogEventNanos.Store(time.Now().UnixNano())
-	}
-	if res.Rejected > 0 {
-		eventsTotal.WithLabelValues("rejected").Add(float64(res.Rejected))
-		rejectedTotal.Add(float64(res.Rejected))
-	}
-	return nil
-}
-
-// Parsed shape of analytics_rollup_run's JSON response.
-type rollupResult struct {
-	Success        bool `json:"success"`
-	GamesRolledUp  int  `json:"games_rolled_up"`
-	EventsMatched  int  `json:"events_matched"`
-}
-
-func afterAnalyticsRollupRun(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out string, in string) error {
-	var res rollupResult
-	if err := json.Unmarshal([]byte(out), &res); err != nil {
-		rollupRunsTotal.WithLabelValues("error").Inc()
-		return nil
-	}
-	if res.Success {
-		rollupRunsTotal.WithLabelValues("success").Inc()
-		rollupLastEvents.Set(float64(res.EventsMatched))
-		rollupLastGames.Set(float64(res.GamesRolledUp))
-	} else {
-		rollupRunsTotal.WithLabelValues("error").Inc()
-	}
-	return nil
-}
-
-// Parsed shape of external_poll_* results. The _all variant has nested per-provider results.
-type pollResult struct {
-	Success bool `json:"success"`
-	Skipped bool `json:"skipped"`
-	// For the provider-specific RPCs.
-	Provider string `json:"provider"`
-	// For external_poll_all.
-	Results map[string]json.RawMessage `json:"results"`
-}
-
-func makeAfterPollerHook(rpcName string) func(context.Context, runtime.Logger, *sql.DB, runtime.NakamaModule, string, string) error {
-	// Infer the provider from the RPC name for single-provider hooks. For the
-	// _all variant we walk the sub-results map and bump counters per provider.
-	defaultProvider := ""
-	switch rpcName {
-	case "external_poll_appodeal":
-		defaultProvider = "appodeal"
-	case "external_poll_appstore":
-		defaultProvider = "appstore"
-	case "external_poll_ugs":
-		defaultProvider = "ugs"
-	}
-
-	return func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out string, in string) error {
-		var res pollResult
-		if err := json.Unmarshal([]byte(out), &res); err != nil {
-			if defaultProvider != "" {
-				pollerRunsTotal.WithLabelValues(defaultProvider, "error").Inc()
-			}
-			return nil
-		}
-
-		if defaultProvider != "" {
-			status := "success"
-			if res.Skipped {
-				status = "skipped"
-			} else if !res.Success {
-				status = "error"
-			}
-			pollerRunsTotal.WithLabelValues(defaultProvider, status).Inc()
-			return nil
-		}
-
-		// external_poll_all: walk sub-results.
-		for provider, raw := range res.Results {
-			var sub pollResult
-			if err := json.Unmarshal(raw, &sub); err != nil {
-				pollerRunsTotal.WithLabelValues(provider, "error").Inc()
-				continue
-			}
-			status := "success"
-			if sub.Skipped {
-				status = "skipped"
-			} else if !sub.Success {
-				status = "error"
-			}
-			pollerRunsTotal.WithLabelValues(provider, status).Inc()
-		}
-		return nil
-	}
 }
 
 // ─── Freshness loop ───────────────────────────────────────
 
-// freshnessLoop updates "age since last X" gauges every pollInterval by reading
+// freshnessLoop updates gauges and bumps counters every pollInterval by reading
 // the bookkeeping docs the JS pipeline maintains. Runs for the lifetime of the
 // plugin; exits cleanly when ctx is cancelled (Nakama shutdown).
 func freshnessLoop(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule) {
@@ -308,10 +187,10 @@ func freshnessLoop(ctx context.Context, logger runtime.Logger, nk runtime.Nakama
 }
 
 type rollupMetaDoc struct {
-	Date           string `json:"date"`
-	Timestamp      string `json:"timestamp"`
-	EventsMatched  int    `json:"eventsMatched"`
-	GameIDs        []any  `json:"gameIds"`
+	Date          string `json:"date"`
+	Timestamp     string `json:"timestamp"`
+	EventsMatched int    `json:"eventsMatched"`
+	GameIDs       []any  `json:"gameIds"`
 }
 
 type pollMetaDoc struct {
@@ -322,80 +201,106 @@ type pollMetaDoc struct {
 
 type counterDoc struct {
 	Date           string `json:"date"`
-	EventsAccepted int    `json:"events_accepted"`
-	EventsRejected int    `json:"events_rejected"`
+	EventsAccepted int64  `json:"events_accepted"`
+	EventsRejected int64  `json:"events_rejected"`
+	UpdatedAt      string `json:"updated_at"`
 }
 
 func refreshFreshness(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule) {
 	now := time.Now()
 
-	// Pipeline age = seconds since the most recent analytics_log_event we
-	// observed. If we've never seen one since plugin start, fall back to
-	// reading today's counter doc's updated_at for a better signal.
-	if n := lastLogEventNanos.Load(); n > 0 {
-		pipelineAgeSeconds.Set(now.Sub(time.Unix(0, n)).Seconds())
-	} else {
-		// Best-effort read of today's counter doc to decide if we've just restarted.
-		pipelineAgeSeconds.Set(readPipelineAgeFromStorage(ctx, nk, now))
-	}
+	// Today's counters: drive eventsToday/rejectedToday gauges, bump monotonic
+	// eventsTotal / rejectedTotal counters by the delta, and derive
+	// pipelineAgeSeconds from the doc's updated_at timestamp.
+	readTodayCounters(ctx, logger, nk, now)
 
-	// Today's totals for Grafana "events per day" cards.
-	readTodayCounters(ctx, logger, nk)
-
-	// Rollup freshness.
+	// Rollup freshness + runs counter.
 	readRollupMeta(ctx, logger, nk, now)
 
-	// Poller freshness.
+	// Poller freshness + runs counter per provider.
 	readPollerMeta(ctx, logger, nk, now)
 }
 
-func readPipelineAgeFromStorage(ctx context.Context, nk runtime.NakamaModule, now time.Time) float64 {
-	key := fmt.Sprintf("counter_%s", now.UTC().Format("2006-01-02"))
+// readTodayCounters is the single source of truth for three metrics:
+//   - analytics_events_today / analytics_rejected_today (gauges)
+//   - analytics_events_total{accepted|rejected} (monotonic counters, bumped by delta)
+//   - analytics_pipeline_age_seconds (gauge, derived from updated_at)
+//
+// When the UTC day rolls over, the JS side writes a new `counter_<date>` doc
+// that starts at 0. We detect this by comparing the date string in the doc
+// against lastCounterDay; on day change we reset our delta baselines to 0
+// so the first tick of the new day correctly re-bumps the accepted/rejected
+// counters from zero.
+func readTodayCounters(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, now time.Time) {
+	today := now.UTC().Format("2006-01-02")
+	key := fmt.Sprintf("counter_%s", today)
 	objs, err := nk.StorageRead(ctx, []*runtime.StorageRead{{
 		Collection: collectionCounters,
 		Key:        key,
 		UserID:     systemUserID,
 	}})
 	if err != nil || len(objs) == 0 {
-		return 999999 // sentinel "never seen"
-	}
-	var doc struct {
-		UpdatedAt string `json:"updated_at"`
-	}
-	if err := json.Unmarshal([]byte(objs[0].Value), &doc); err != nil {
-		return 999999
-	}
-	if doc.UpdatedAt == "" {
-		return 999999
-	}
-	t, err := time.Parse(time.RFC3339Nano, doc.UpdatedAt)
-	if err != nil {
-		t, err = time.Parse(time.RFC3339, doc.UpdatedAt)
-		if err != nil {
-			return 999999
-		}
-	}
-	return now.Sub(t).Seconds()
-}
-
-func readTodayCounters(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule) {
-	key := fmt.Sprintf("counter_%s", time.Now().UTC().Format("2006-01-02"))
-	objs, err := nk.StorageRead(ctx, []*runtime.StorageRead{{
-		Collection: collectionCounters,
-		Key:        key,
-		UserID:     systemUserID,
-	}})
-	if err != nil || len(objs) == 0 {
+		// No events yet today — reset gauges, leave pipeline age as "never seen".
 		eventsToday.Set(0)
 		rejectedToday.Set(0)
+		pipelineAgeSeconds.Set(999999)
+		stateMu.Lock()
+		if lastCounterDay != today {
+			lastCounterDay = today
+			lastAccepted = 0
+			lastRejected = 0
+		}
+		stateMu.Unlock()
 		return
 	}
+
 	var doc counterDoc
 	if err := json.Unmarshal([]byte(objs[0].Value), &doc); err != nil {
+		if logger != nil {
+			logger.Warn("[analytics_metrics_go] counter doc parse error: %v", err)
+		}
 		return
 	}
+
 	eventsToday.Set(float64(doc.EventsAccepted))
 	rejectedToday.Set(float64(doc.EventsRejected))
+
+	stateMu.Lock()
+	// Day roll: reset baselines and skip delta for this tick (the raw values
+	// are already the "new" counts for today, but emitting them as delta would
+	// double-count what's already reflected in past eventsTotal increments).
+	if lastCounterDay != today {
+		lastCounterDay = today
+		lastAccepted = doc.EventsAccepted
+		lastRejected = doc.EventsRejected
+		stateMu.Unlock()
+	} else {
+		dAcc := doc.EventsAccepted - lastAccepted
+		dRej := doc.EventsRejected - lastRejected
+		if dAcc > 0 {
+			eventsTotal.WithLabelValues("accepted").Add(float64(dAcc))
+			lastAccepted = doc.EventsAccepted
+		}
+		if dRej > 0 {
+			eventsTotal.WithLabelValues("rejected").Add(float64(dRej))
+			rejectedTotal.Add(float64(dRej))
+			lastRejected = doc.EventsRejected
+		}
+		stateMu.Unlock()
+	}
+
+	// Pipeline age from doc.updated_at.
+	if doc.UpdatedAt != "" {
+		t, perr := time.Parse(time.RFC3339Nano, doc.UpdatedAt)
+		if perr != nil {
+			t, perr = time.Parse(time.RFC3339, doc.UpdatedAt)
+		}
+		if perr == nil {
+			pipelineAgeSeconds.Set(now.Sub(t).Seconds())
+			return
+		}
+	}
+	pipelineAgeSeconds.Set(999999)
 }
 
 func readRollupMeta(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, now time.Time) {
@@ -425,6 +330,16 @@ func readRollupMeta(ctx context.Context, logger runtime.Logger, nk runtime.Nakam
 	rollupAgeSeconds.Set(now.Sub(t).Seconds())
 	rollupLastEvents.Set(float64(doc.EventsMatched))
 	rollupLastGames.Set(float64(len(doc.GameIDs)))
+
+	// Bump runs counter only when the timestamp advances. On first observation
+	// we just record the baseline without incrementing (so a plugin restart
+	// doesn't spike the counter).
+	stateMu.Lock()
+	if lastRollupTimestamp != "" && doc.Timestamp != lastRollupTimestamp {
+		rollupRunsTotal.Inc()
+	}
+	lastRollupTimestamp = doc.Timestamp
+	stateMu.Unlock()
 }
 
 func readPollerMeta(ctx context.Context, logger runtime.Logger, nk runtime.NakamaModule, now time.Time) {
@@ -447,5 +362,14 @@ func readPollerMeta(ctx context.Context, logger runtime.Logger, nk runtime.Nakam
 			continue
 		}
 		pollerAgeSeconds.WithLabelValues(provider).Set(float64(now.Unix() - doc.LastPollUnix))
+
+		// Bump runs counter when the poll timestamp advances.
+		stateMu.Lock()
+		prev, seen := lastPollUnix[provider]
+		if seen && doc.LastPollUnix > prev {
+			pollerRunsTotal.WithLabelValues(provider).Inc()
+		}
+		lastPollUnix[provider] = doc.LastPollUnix
+		stateMu.Unlock()
 	}
 }
