@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Fix a possible deadlock when Lua/JS runtimes storage index filters are used.
 
 ## [3.38.0] - 2026-03-20
 ### Added
