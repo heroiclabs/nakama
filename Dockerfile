@@ -30,15 +30,24 @@ FROM heroiclabs/nakama-pluginbuilder:3.35.0 AS builder
 
 WORKDIR /build
 
-# Copy go.mod first to take advantage of Docker's layer cache. We intentionally
-# don't require a pre-committed go.sum — `go mod tidy` regenerates it using
+# Copy go.mod AND the source files together before running `go mod tidy`.
+#
+# Why not copy go.mod alone first (for layer caching)? `go mod tidy` run in a
+# directory with a go.mod but zero .go files interprets "nothing imports
+# anything" literally and PRUNES every require line out of go.mod — you can
+# see this in the AWS CodeBuild log as: `go: warning: "all" matched no
+# packages`. The later `go build` then fails with
+# `no required module provides package github.com/heroiclabs/nakama-common/runtime`.
+# Local builds masked this because Docker's layer cache kept the old go.mod;
+# `docker build --no-cache` (CI) exposed it.
+#
+# We intentionally don't commit a go.sum — `go mod tidy` regenerates it using
 # the toolchain inside the pluginbuilder image, which guarantees the versions
-# match what the ABI expects. A committed go.sum would need to be regenerated
-# with every nakama-common bump anyway.
+# match what the Nakama plugin ABI expects. A committed go.sum would need to
+# be regenerated with every nakama-common bump anyway.
 COPY go-plugin/go.mod ./
-RUN go mod tidy
-
 COPY go-plugin/*.go ./
+RUN go mod tidy
 
 # --trimpath        : reproducible builds, strips local paths
 # --buildmode=plugin: produces a .so Nakama can load at startup
