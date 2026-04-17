@@ -1,4 +1,11 @@
 data/modules/build/
+# build/index.js is the TypeScript compile output; the Dockerfile jsbuilder
+# stage reads it to regenerate data/modules/index.js via postbuild.js.
+# Without this negation the stage fails with "build/index.js missing". The
+# .lua files in build/ aren't needed inside Docker (they're copies of the
+# root-level .lua files already present in the modules tree) and index.d.ts
+# is type-only, so we only let the one file through.
+!data/modules/build/index.js
 data/modules/src/
 data/modules/node_modules/
 data/modules/*.bak
