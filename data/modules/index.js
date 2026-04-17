@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-16T19:22:27.443Z
-// RPC Count: 505
+// Generated: 2026-04-17T10:03:32.069Z
+// RPC Count: 522
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -310,7 +310,6 @@ var __rpc_creator_event_claim;
 var __rpc_creator_event_create;
 var __rpc_creator_event_publish;
 var __rpc_creator_event_end;
-var __rpc_creator_event_cancel;
 var __rpc_creator_event_update_promo;
 var __rpc_satori_live_events_list;
 var __rpc_satori_live_events_join;
@@ -484,6 +483,11 @@ var __rpc_contribute_clan_challenge;
 var __rpc_get_clan_leaderboard;
 var __rpc_get_player_stats;
 var __rpc_analytics_dashboard;
+var __rpc_analytics_dashboard_summary;
+var __rpc_admin_login;
+var __rpc_admin_diagnose_env;
+var __rpc_dashboard_events_timeline;
+var __rpc_dashboard_storage_list;
 var __rpc_analytics_session_stats;
 var __rpc_analytics_quiz_performance;
 var __rpc_analytics_funnel;
@@ -498,11 +502,24 @@ var __rpc_analytics_error_log;
 var __rpc_analytics_player_segments;
 var __rpc_analytics_churn_risk;
 var __rpc_analytics_conversion_funnel;
+var __rpc_analytics_schema_check;
+var __rpc_analytics_backfill_events;
+var __rpc_analytics_feature_flags;
+var __rpc_analytics_metrics;
+var __rpc_analytics_retention_curves;
+var __rpc_analytics_rollup_run;
+var __rpc_analytics_rollup_backfill;
+var __rpc_analytics_rollup_status;
 var __rpc_analytics_appodeal;
 var __rpc_analytics_apple_appstore;
 var __rpc_apple_appstore_import;
 var __rpc_analytics_unity;
 var __rpc_unity_analytics_import;
+var __rpc_external_poll_appodeal;
+var __rpc_external_poll_appstore;
+var __rpc_external_poll_ugs;
+var __rpc_external_poll_all;
+var __rpc_external_poll_status;
 var __rpc_submit_score;
 var __rpc_onboarding_grant_streak_shield;
 var __rpc_qe_player_full_profile;
@@ -515,9 +532,9 @@ var __rpc_quests_wallet_spend;
 var __rpc_quests_wallet_history;
 var __rpc_quests_wallet_migrate_from_postgres;
 
-// --- Discovered Modules (68 files) ---
+// --- Discovered Modules (73 files) ---
 
-// --- Module: achievements/achievements.js ---
+// --- Module: achievements\achievements.js ---
 /**
  * Achievement System for Multi-Game Platform
  * Supports per-game achievements with unlock tracking and rewards
@@ -1078,7 +1095,7 @@ var rpcAchievementsBulkCreate = function(ctx, logger, nk, payload) {
 };
 
 
-// --- Module: ai_player/ai_player.js ---
+// --- Module: ai_player\ai_player.js ---
 // ai_player.js - Player-Facing AI Features powered by LLM
 // Supports: Claude (Anthropic), OpenAI (GPT), xAI (Grok)
 // RPCs: ai_coach_advice, ai_match_recap, ai_player_journey, ai_rival_taunt,
@@ -1745,94 +1762,326 @@ function rpcAiGroupHype(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: analytics/analytics.js ---
+// --- Module: analytics\analytics.js ---
 // analytics.js - Analytics System (Per gameId UUID)
 
+var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+var FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
+
 /**
- * RPC: Log analytics event
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { gameId: "uuid", eventName: "string", eventData: {} }
- * @returns {string} JSON response
+ * Canonical event-name alias map. Clients emit various "-ed" suffix variants
+ * (historical), but the rollup/funnel logic keys on a single canonical form.
+ * Applied in normalizeInboundEvent so every downstream consumer sees the same
+ * name. Mirrored in analytics_rollup.js for events that may have been written
+ * before this alias map existed.
  */
-function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC analytics_log_event called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
+var EVENT_ALIASES = {
+    "quiz_started": "quiz_start",
+    "quiz_completed": "quiz_complete",
+    "purchase_completed": "iap_purchased",
+    "purchase_started": "iap_clicked",
+    "iap_completed": "iap_purchased",
+    "iap_started": "iap_clicked",
+    "login_succeeded": "login_success",
+    "onboarding_completed": "onboarded",
+    "onboarding_complete": "onboarded",
+    "registration_completed": "registration_complete"
+};
+
+/**
+ * Accept a client-supplied unix timestamp only if it's within ±48h of server
+ * clock. This lets the Unity offline-queue replay attribute events to the day
+ * they actually happened, while rejecting clock-skew / malicious future dates.
+ */
+function resolveEventTimestamp(rawEvent) {
+    var serverNow = utils.getUnixTimestamp();
+    var candidate = null;
+    if (rawEvent.unixTimestamp != null) candidate = parseInt(rawEvent.unixTimestamp, 10);
+    else if (rawEvent.unix_timestamp != null) candidate = parseInt(rawEvent.unix_timestamp, 10);
+    else if (rawEvent.client_unix_ts != null) candidate = parseInt(rawEvent.client_unix_ts, 10);
+    else if (typeof rawEvent.timestamp === "string" && rawEvent.timestamp) {
+        var parsedMs = Date.parse(rawEvent.timestamp);
+        if (!isNaN(parsedMs)) candidate = Math.floor(parsedMs / 1000);
     }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId', 'eventName']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
-    }
-    
+    if (!candidate || !isFinite(candidate)) return serverNow;
+    // Guard: reject absurd values (before 2020 or > 48h in future).
+    if (candidate < 1577836800) return serverNow;
+    if (candidate > serverNow + 172800) return serverNow;
+    return candidate;
+}
+
+/**
+ * Normalize a single inbound event into the canonical server-side record.
+ * Handles legacy casings (gameID, eventData=properties, etc.) so the dashboard
+ * sees one consistent shape regardless of client version.
+ */
+function normalizeInboundEvent(ctx, rawEvent) {
+    if (!rawEvent || typeof rawEvent !== 'object') return null;
+
+    var gameId = rawEvent.gameId || rawEvent.game_id || rawEvent.gameID || null;
+    if (!gameId || !utils.isValidUUID(gameId)) return { __invalid: "Invalid or missing gameId UUID" };
+
+    var eventName = rawEvent.eventName || rawEvent.event_name || rawEvent.event || null;
+    if (!eventName) return { __invalid: "Missing eventName" };
+    if (EVENT_ALIASES[eventName]) eventName = EVENT_ALIASES[eventName];
+
+    var eventData = rawEvent.eventData || rawEvent.event_data || rawEvent.properties || rawEvent.data || {};
+    if (typeof eventData !== 'object' || eventData === null) eventData = {};
+
+    // Inject platform / app_version from top-level if client didn't put them in eventData.
+    if (!eventData.platform && rawEvent.platform) eventData.platform = rawEvent.platform;
+    if (!eventData.app_version && rawEvent.app_version) eventData.app_version = rawEvent.app_version;
+    if (!eventData.device_model && rawEvent.device_model) eventData.device_model = rawEvent.device_model;
+    if (!eventData.session_id && rawEvent.session_id) eventData.session_id = rawEvent.session_id;
+    if (!eventData.session_id && rawEvent.sessionId) eventData.session_id = rawEvent.sessionId;
+
+    // Server-authoritative user id.
     var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var eventName = data.eventName;
-    var eventData = data.eventData || {};
-    
-    // Create event record
-    var event = {
+    if (!userId) return { __invalid: "User not authenticated" };
+
+    var unixTs = resolveEventTimestamp(rawEvent);
+
+    return {
         userId: userId,
         gameId: gameId,
         eventName: eventName,
         eventData: eventData,
-        timestamp: utils.getCurrentTimestamp(),
-        unixTimestamp: utils.getUnixTimestamp()
+        platform: eventData.platform || null,
+        sessionId: eventData.session_id || null,
+        timestamp: new Date(unixTs * 1000).toISOString(),
+        unixTimestamp: unixTs
     };
-    
-    // Store event under user's ID (for user-specific queries)
-    var collection = "analytics_events";
-    var key = "event_" + userId + "_" + gameId + "_" + utils.getUnixTimestamp();
-    
-    if (!utils.writeStorage(nk, logger, collection, key, userId, event)) {
-        return utils.handleError(ctx, null, "Failed to log event");
+}
+
+/**
+ * Atomic first-seen marker: creates analytics_user_first_seen/first_<uid>_<gid>
+ * on first write, otherwise no-ops. Returns true when THIS call created the
+ * doc (i.e. the user is new for this game on this day). Uses version:"*" for
+ * create-only semantics — the race loser reads back the winner's doc.
+ */
+function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
+    if (!userId || !gameId) return false;
+    var key = "first_" + userId + "_" + gameId;
+    try {
+        var existing = nk.storageRead([{ collection: FIRST_SEEN_COLLECTION, key: key, userId: SYSTEM_USER }]);
+        if (existing && existing.length > 0 && existing[0].value) return false;
+    } catch (e) { /* fall through to create */ }
+    try {
+        var dateStr = new Date((unixTs || utils.getUnixTimestamp()) * 1000).toISOString().slice(0, 10);
+        nk.storageWrite([{
+            collection: FIRST_SEEN_COLLECTION,
+            key: key,
+            userId: SYSTEM_USER,
+            value: { userId: userId, gameId: gameId, firstSeenDate: dateStr, firstSeenUnix: unixTs || utils.getUnixTimestamp() },
+            permissionRead: 2,
+            permissionWrite: 0,
+            version: "*"
+        }]);
+        return true;
+    } catch (e) {
+        // Lost race — another call created it first. Treat as not new.
+        return false;
     }
-    
-    // ALSO store under SYSTEM_USER for dashboard aggregation (analytics_extended RPCs)
-    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
-    var dashboardKey = "dash_" + utils.getStartOfDay() + "_" + eventName + "_" + utils.getUnixTimestamp();
-    utils.writeStorage(nk, logger, collection, dashboardKey, SYSTEM_USER, event);
-    
-    // Track DAU (Daily Active Users)
-    trackDAU(nk, logger, userId, gameId);
-    
-    // Track session if session event
-    if (eventName === "session_start" || eventName === "session_end") {
-        trackSession(nk, logger, userId, gameId, eventName, eventData);
+}
+
+/**
+ * Persist a single normalized event + fan-out to DAU + session aggregator.
+ * Returns null on success, or a string error.
+ */
+function persistNormalizedEvent(nk, logger, ev) {
+    var userKey = "event_" + ev.userId + "_" + ev.gameId + "_" + ev.unixTimestamp +
+                  "_" + Math.floor(Math.random() * 10000);
+    if (!utils.writeStorage(nk, logger, "analytics_events", userKey, ev.userId, ev)) {
+        return "Failed to write user event";
     }
-    
-    utils.logInfo(logger, "Event logged: " + eventName + " for user " + userId + " in game " + gameId);
-    
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        gameId: gameId,
-        eventName: eventName,
-        timestamp: event.timestamp
+
+    // Dashboard-aggregation copy under SYSTEM_USER so scans don't need cross-user lookups.
+    // Key day bucket off the event's unixTimestamp (honors client offline replay),
+    // not server wall-clock, so the rollup's date-bucket scan sees it correctly.
+    var eventDay = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
+    var dashboardKey = "dash_" + eventDay + "_" + ev.eventName +
+                       "_" + ev.unixTimestamp + "_" + Math.floor(Math.random() * 10000);
+    utils.writeStorage(nk, logger, "analytics_events", dashboardKey, SYSTEM_USER, ev);
+
+    // First-seen → daily active users. isNew only bumps newUsers on the day
+    // where the creator "won" the atomic storageWrite above.
+    var isNew = trackFirstSeen(nk, logger, ev.userId, ev.gameId, ev.unixTimestamp);
+    trackDAU(nk, logger, ev.userId, ev.gameId, isNew);
+
+    // Session lifecycle.
+    if (ev.eventName === "session_start" || ev.eventName === "session_end") {
+        trackSession(nk, logger, ev.userId, ev.gameId, ev.eventName, ev.eventData);
+    }
+
+    // Platform breakdown key (cheap counter keyed per day+platform+gameId).
+    if (ev.platform) {
+        trackPlatform(nk, logger, ev.gameId, ev.platform);
+    }
+
+    return null;
+}
+
+/**
+ * RPC: Log analytics event(s). Accepts a SINGLE event payload OR a BATCH.
+ *   Single: { gameId, eventName, eventData }
+ *   Batch : { events: [ { gameId, eventName, eventData }, ... ] }
+ *
+ * Returns: { success, accepted, rejected, errors?: [...] }
+ */
+function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC analytics_log_event called");
+
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+
+    var data = parsed.data || {};
+
+    // Accept batch or single.
+    var inbound = [];
+    if (Array.isArray(data.events) && data.events.length > 0) {
+        if (data.events.length > 200) {
+            return utils.handleError(ctx, null, "Batch too large: max 200 events per call");
+        }
+        inbound = data.events;
+    } else {
+        inbound = [data];
+    }
+
+    var accepted = 0;
+    var rejected = 0;
+    var errors = [];
+
+    for (var i = 0; i < inbound.length; i++) {
+        var normalized = normalizeInboundEvent(ctx, inbound[i]);
+        if (!normalized || normalized.__invalid) {
+            rejected++;
+            errors.push({ index: i, reason: (normalized && normalized.__invalid) || "Invalid event" });
+            continue;
+        }
+        var err = persistNormalizedEvent(nk, logger, normalized);
+        if (err) {
+            rejected++;
+            errors.push({ index: i, reason: err });
+        } else {
+            accepted++;
+        }
+    }
+
+    utils.logInfo(logger, "analytics_log_event accepted=" + accepted + " rejected=" + rejected);
+
+    // Best-effort counter tick (for analytics_metrics RPC). Ignored on failure
+    // so it never blocks event ingestion.
+    try { bumpMetricsCounter(nk, { accepted: accepted, rejected: rejected }); } catch (e) { /* swallow */ }
+
+    var resp = {
+        success: accepted > 0 || rejected === 0,
+        accepted: accepted,
+        rejected: rejected
+    };
+    if (errors.length > 0) resp.errors = errors.slice(0, 20);
+    return JSON.stringify(resp);
+}
+
+/**
+ * Optimistic-concurrency helper for read-modify-write counters.
+ *
+ * Race fix: prior versions did a naïve read → mutate → write. Under burst
+ * load (e.g. simultaneous iap_purchased and ad_impression for the same
+ * gameId/platform/day), two concurrent writers would both read the same
+ * stale doc, increment their copies, and the later writer would clobber
+ * the earlier one — losing increments silently.
+ *
+ * We now pass the record's `version` back to storageWrite; Nakama rejects
+ * the write with OCC failure if the doc changed underneath us, and we
+ * retry up to `maxRetries` times. On create we use version:"*" so only
+ * one of the racing creators wins; losers retry as updaters.
+ */
+function casUpdate(nk, logger, collection, key, owner, mutate) {
+    var maxRetries = 5;
+    for (var attempt = 0; attempt < maxRetries; attempt++) {
+        var existing = null;
+        var version = null;
+        try {
+            var objs = nk.storageRead([{ collection: collection, key: key, userId: owner }]);
+            if (objs && objs.length > 0) {
+                existing = objs[0].value || null;
+                version = objs[0].version || null;
+            }
+        } catch (e) { /* treat as not-exists */ }
+
+        var isCreate = !existing;
+        var next = mutate(existing ? JSON.parse(JSON.stringify(existing)) : null);
+        if (!next) return true; // mutator returned nothing → no write needed
+
+        try {
+            nk.storageWrite([{
+                collection: collection,
+                key: key,
+                userId: owner,
+                value: next,
+                permissionRead: 2,
+                permissionWrite: 0,
+                version: isCreate ? "*" : version
+            }]);
+            return true;
+        } catch (e) {
+            // Race lost — loop and re-read. If we keep losing after maxRetries,
+            // fall through to logging but don't throw: losing an occasional
+            // counter tick under extreme contention is better than failing
+            // the whole event-ingest path.
+            if (attempt === maxRetries - 1 && logger && logger.warn) {
+                logger.warn("[Analytics] CAS update lost after " + maxRetries + " tries: " +
+                            collection + "/" + key + " (" + e.message + ")");
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Lightweight ops counter, bucketed by UTC day.
+ * Collection: analytics_metrics_counters
+ * Key:        counter_<YYYY-MM-DD>
+ * Prometheus-style reset on day boundary. Used by analytics_metrics RPC.
+ */
+function bumpMetricsCounter(nk, delta) {
+    var today = new Date().toISOString().slice(0, 10);
+    var key = "counter_" + today;
+    casUpdate(nk, null, "analytics_metrics_counters", key, SYSTEM_USER, function (rec) {
+        if (!rec) rec = { date: today, events_accepted: 0, events_rejected: 0, log_calls: 0, updated_at: null };
+        rec.events_accepted += (delta.accepted || 0);
+        rec.events_rejected += (delta.rejected || 0);
+        rec.log_calls += 1;
+        rec.updated_at = new Date().toISOString();
+        return rec;
+    });
+}
+
+/**
+ * Track per-platform daily counter (used by analytics_platform_breakdown).
+ */
+function trackPlatform(nk, logger, gameId, platform) {
+    var today = utils.getStartOfDay();
+    var key = "platform_" + gameId + "_" + today + "_" + platform;
+    casUpdate(nk, logger, "analytics_platform", key, SYSTEM_USER, function (rec) {
+        if (!rec) rec = { gameId: gameId, date: today, platform: platform, count: 0 };
+        rec.count = (rec.count || 0) + 1;
+        return rec;
     });
 }
 
 /**
  * Track Daily Active User - writes both game-level and platform-level DAU keys.
  * Dashboard reads: dauData.uniqueUsers, dauData.count, dauData.newUsers
+ *
+ * isNewUser signals that trackFirstSeen just created the first-seen doc for
+ * this (user,game) pair. We bump newUsers only once per user per day-per-key.
  */
-function trackDAU(nk, logger, userId, gameId) {
+function trackDAU(nk, logger, userId, gameId, isNewUser) {
     var today = utils.getStartOfDay();
     var collection = "analytics_dau";
-    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 
     var keys = [
         "dau_" + gameId + "_" + today,
@@ -1840,39 +2089,54 @@ function trackDAU(nk, logger, userId, gameId) {
     ];
 
     for (var k = 0; k < keys.length; k++) {
-        var key = keys[k];
-        var dauData = utils.readStorage(nk, logger, collection, key, SYSTEM_USER);
-
-        if (!dauData) {
-            dauData = {
-                date: today,
-                uniqueUsers: [],
-                count: 0,
-                newUsers: 0
-            };
-        }
-
-        // Migrate old "users" field to "uniqueUsers" for dashboard compatibility
-        if (!Array.isArray(dauData.uniqueUsers)) {
-            dauData.uniqueUsers = Array.isArray(dauData.users) ? dauData.users : [];
-        }
-
-        if (dauData.uniqueUsers.indexOf(userId) === -1) {
-            dauData.uniqueUsers.push(userId);
-            dauData.count = dauData.uniqueUsers.length;
-            utils.writeStorage(nk, logger, collection, key, SYSTEM_USER, dauData);
-        }
+        (function (key) {
+            casUpdate(nk, logger, collection, key, SYSTEM_USER, function (dauData) {
+                if (!dauData) {
+                    dauData = { date: today, uniqueUsers: [], count: 0, newUsers: 0 };
+                }
+                if (!Array.isArray(dauData.uniqueUsers)) {
+                    dauData.uniqueUsers = Array.isArray(dauData.users) ? dauData.users : [];
+                }
+                if (dauData.uniqueUsers.indexOf(userId) !== -1) return null; // no-op, already recorded
+                dauData.uniqueUsers.push(userId);
+                dauData.count = dauData.uniqueUsers.length;
+                if (isNewUser) dauData.newUsers = (dauData.newUsers || 0) + 1;
+                return dauData;
+            });
+        })(keys[k]);
     }
 }
 
 /**
- * Track session data (start/end)
+ * Track session data (start/end).
+ *
+ * Double-fire guard: if a session_start arrives while the previous session
+ * is still "active" (client missed a session_end on kill/crash/background),
+ * we synthesize an end for the dangling session before starting the new one.
+ * Previously we silently overwrote the active-session doc and lost the
+ * prior session's duration entirely.
  */
 function trackSession(nk, logger, userId, gameId, eventName, eventData) {
     var collection = "analytics_sessions";
     var key = utils.makeGameStorageKey("analytics_session", userId, gameId);
-    
+
     if (eventName === "session_start") {
+        var existing = utils.readStorage(nk, logger, collection, key, userId);
+        if (existing && existing.active && existing.startTime) {
+            // Close out the dangling session with a best-effort end time.
+            var nowUnix = utils.getUnixTimestamp();
+            var duration = nowUnix - existing.startTime;
+            if (duration > 0 && duration < 86400) {
+                existing.endTime = nowUnix;
+                existing.endTimestamp = new Date(nowUnix * 1000).toISOString();
+                existing.duration = duration;
+                existing.active = false;
+                existing.closedBy = "session_start_double_fire";
+                var staleSummaryKey = "session_summary_" + userId + "_" + gameId + "_" + existing.startTime;
+                utils.writeStorage(nk, logger, "analytics_session_summaries", staleSummaryKey, userId, existing);
+                aggregateSessionStats(nk, logger, duration, gameId);
+            }
+        }
         var sessionData = {
             userId: userId,
             gameId: gameId,
@@ -1888,50 +2152,80 @@ function trackSession(nk, logger, userId, gameId, eventName, eventData) {
             sessionData.endTimestamp = utils.getCurrentTimestamp();
             sessionData.duration = sessionData.endTime - sessionData.startTime;
             sessionData.active = false;
-            
-            // Save session summary
+
             var summaryKey = "session_summary_" + userId + "_" + gameId + "_" + sessionData.startTime;
             utils.writeStorage(nk, logger, "analytics_session_summaries", summaryKey, userId, sessionData);
-            
-            // Clear active session
             utils.writeStorage(nk, logger, collection, key, userId, { active: false });
 
-            // Aggregate session stats for dashboard
-            aggregateSessionStats(nk, logger, sessionData.duration);
+            aggregateSessionStats(nk, logger, sessionData.duration, gameId);
         }
     }
 }
 
 /**
  * Aggregate session stats into a daily summary for the analytics dashboard.
- * Key: session_stats_{YYYY-MM-DD}, stored under SYSTEM_USER.
+ * Writes TWO keys so both "All games" and per-game dashboard views can resolve:
+ *   - session_stats_{YYYY-MM-DD}                  (platform-wide)
+ *   - session_stats_{gameId}_{YYYY-MM-DD}         (per-game)
+ * Both stored under SYSTEM_USER so dashboard scans don't need to cross users.
+ * Uses casUpdate to survive concurrent session_end bursts.
  */
-function aggregateSessionStats(nk, logger, durationSeconds) {
-    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+function aggregateSessionStats(nk, logger, durationSeconds, gameId) {
     var today = utils.getStartOfDay();
     var collection = "analytics_sessions";
-    var key = "session_stats_" + today;
-
-    var stats = utils.readStorage(nk, logger, collection, key, SYSTEM_USER);
-    if (!stats) {
-        stats = { date: today, totalSessions: 0, totalDuration: 0, avgDuration: 0 };
+    var keys = ["session_stats_" + today];
+    if (gameId) keys.push("session_stats_" + gameId + "_" + today);
+    for (var k = 0; k < keys.length; k++) {
+        (function (key) {
+            casUpdate(nk, logger, collection, key, SYSTEM_USER, function (stats) {
+                if (!stats) {
+                    stats = { date: today, gameId: gameId || null, totalSessions: 0, totalDuration: 0, avgDuration: 0 };
+                }
+                stats.totalSessions++;
+                stats.totalDuration += (durationSeconds || 0);
+                stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
+                return stats;
+            });
+        })(keys[k]);
     }
+}
 
-    stats.totalSessions++;
-    stats.totalDuration += (durationSeconds || 0);
-    stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
+/**
+ * Read a pre-aggregated rollup doc (written by analytics_rollup_run).
+ * Returns null if the rollup is missing for that date (caller should
+ * fall back to live-compute).
+ */
+function readRollupDaily(nk, gameId, dateStr) {
+    try {
+        var key = "rollup_" + (gameId || "all") + "_" + dateStr;
+        var r = nk.storageRead([{
+            collection: "analytics_rollup_daily",
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        if (r && r.length > 0) return r[0].value;
+    } catch (e) { /* ignore */ }
+    return null;
+}
 
-    utils.writeStorage(nk, logger, collection, key, SYSTEM_USER, stats);
+function preferRollups(ctx) {
+    if (!ctx || !ctx.env) return true;
+    var v = ctx.env.DASHBOARD_PREFER_ROLLUPS;
+    if (v === undefined || v === null || v === "" || v === "true" || v === "1") return true;
+    return false;
 }
 
 /**
  * RPC: analytics_dashboard
  * Returns DAU, WAU, MAU, retention ratios, trends for the dashboard.
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload { game_id?: string, days?: number }
- * @returns {string} JSON with dau, wau, mau, trends, top_games, etc.
+ *
+ * Phase-2 read path: for every day older than today we try to read a
+ * pre-computed rollup from `analytics_rollup_daily` first. Only fall back
+ * to the legacy DAU storageRead when the rollup is missing. Today is always
+ * computed live (from analytics_dau counters) because the nightly rollup
+ * hasn't run yet for today's date.
+ *
+ * Payload: { game_id?: string, gameId?: string, days?: number }
  */
 function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
@@ -1943,61 +2237,95 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
 
     var now = new Date();
     var todayStr = now.toISOString().slice(0, 10);
+    var useRollups = preferRollups(ctx);
+    var rollupHits = 0;
+    var liveFallbacks = 0;
 
-    // Collect DAU for the past N days
+    // Collect DAU for the past N days.
+    //
+    // WAU/MAU strategy: we dedup across days using the full user list when
+    // available (live-fallback path stores the list in analytics_dau). Rollup
+    // docs don't carry user lists — we fall back to summing daily DAU with an
+    // explicit `wau_estimated`/`mau_estimated` flag so the dashboard knows it
+    // is an upper-bound approximation, not an undercount. Previously the
+    // rollup-hit path bucketed each day into a distinct key (`rollup_<date>`),
+    // which made `Object.keys(wauSet).length` return the *day count* (≤7) and
+    // capped WAU at 7 — completely wrong.
     var dauTrend = [];
-    var dauSet = {};  // userId -> first seen date
-    var wauSet = {};
-    var mauSet = {};
+    var wauUserSet = {};
+    var mauUserSet = {};
+    var wauDailySum = 0;
+    var mauDailySum = 0;
+    var wauAnyRollup = false;
+    var mauAnyRollup = false;
     var newUsersToday = 0;
 
     for (var d = 0; d < days; d++) {
         var date = new Date(now.getTime() - d * 86400000);
         var dateStr = date.toISOString().slice(0, 10);
-        var key = gameId === 'all' ? 'dau_platform_' + dateStr : 'dau_' + gameId + '_' + dateStr;
-
-        var record = null;
-        try {
-            var objs = nk.storageRead([{ collection: 'analytics_dau', key: key, userId: SYSTEM_USER }]);
-            if (objs && objs.length > 0) record = objs[0].value;
-        } catch (e) { /* no data */ }
 
         var dayUsers = 0;
         var dayNewUsers = 0;
-        if (record) {
-            dayUsers = record.count || record.uniqueUsers || (record.users ? record.users.length : 0);
-            dayNewUsers = record.newUsers || 0;
-            if (d === 0) newUsersToday = dayNewUsers;
+        var resolved = false;
+        var dayHasUserList = false;
 
-            // Track unique users for WAU/MAU
-            var userList = record.users || record.uniqueUsers || [];
-            if (Array.isArray(userList)) {
-                userList.forEach(function(uid) {
-                    if (d < 7) wauSet[uid] = true;
-                    mauSet[uid] = true;
-                });
-            } else if (typeof dayUsers === 'number') {
-                // If we only have count, estimate
-                if (d < 7) wauSet['day_' + d] = dayUsers;
-                mauSet['day_' + d] = dayUsers;
+        // Phase-2: try rollup first for any day older than today.
+        if (useRollups && d > 0) {
+            var rollup = readRollupDaily(nk, gameId, dateStr);
+            if (rollup) {
+                dayUsers = rollup.dau || 0;
+                dayNewUsers = rollup.new_users || 0;
+                if (d < 7) { wauDailySum += dayUsers; wauAnyRollup = true; }
+                mauDailySum += dayUsers; mauAnyRollup = true;
+                rollupHits++;
+                resolved = true;
+            }
+        }
+
+        if (!resolved) {
+            var key = gameId === 'all' ? 'dau_platform_' + dateStr : 'dau_' + gameId + '_' + dateStr;
+            var record = null;
+            try {
+                var objs = nk.storageRead([{ collection: 'analytics_dau', key: key, userId: SYSTEM_USER }]);
+                if (objs && objs.length > 0) record = objs[0].value;
+            } catch (e) { /* no data */ }
+            liveFallbacks++;
+
+            if (record) {
+                dayUsers = record.count || record.uniqueUsers || (record.users ? record.users.length : 0);
+                dayNewUsers = record.newUsers || 0;
+                if (d === 0) newUsersToday = dayNewUsers;
+
+                var userList = record.users || record.uniqueUsers || [];
+                if (Array.isArray(userList) && userList.length > 0) {
+                    dayHasUserList = true;
+                    for (var ui = 0; ui < userList.length; ui++) {
+                        var uid = userList[ui];
+                        if (d < 7) wauUserSet[uid] = true;
+                        mauUserSet[uid] = true;
+                    }
+                }
+                if (!dayHasUserList && typeof dayUsers === 'number') {
+                    if (d < 7) wauDailySum += dayUsers;
+                    mauDailySum += dayUsers;
+                }
             }
         }
 
         dauTrend.unshift({ date: dateStr, count: dayUsers, newUsers: dayNewUsers });
     }
 
-    // Calculate DAU (today), WAU (7d), MAU (30d)
+    // Calculate DAU (today), WAU (7d), MAU (30d).
     var dau = dauTrend.length > 0 ? dauTrend[dauTrend.length - 1].count : 0;
-    var wau = Object.keys(wauSet).length;
-    var mau = Object.keys(mauSet).length;
-
-    // If wauSet/mauSet has estimated counts, sum them
-    if (wau === 0 && dauTrend.length > 0) {
-        wau = dauTrend.slice(-7).reduce(function(sum, day) { return sum + day.count; }, 0);
-    }
-    if (mau === 0 && dauTrend.length > 0) {
-        mau = dauTrend.reduce(function(sum, day) { return sum + day.count; }, 0);
-    }
+    var wauUnique = Object.keys(wauUserSet).length;
+    var mauUnique = Object.keys(mauUserSet).length;
+    // If we saw any rollup days (no user lists), we must use the sum path to
+    // avoid silently undercounting. The sum is an upper bound but more honest
+    // than zero or a days-with-data count.
+    var wau = wauAnyRollup ? (wauUnique + wauDailySum) : Math.max(wauUnique, wauDailySum);
+    var mau = mauAnyRollup ? (mauUnique + mauDailySum) : Math.max(mauUnique, mauDailySum);
+    var wauEstimated = wauAnyRollup || (wauUnique === 0 && wauDailySum > 0);
+    var mauEstimated = mauAnyRollup || (mauUnique === 0 && mauDailySum > 0);
 
     var dauMauRatio = mau > 0 ? dau / mau : 0;
 
@@ -2017,26 +2345,34 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
 
     var avgSessionDuration = sessionStats ? sessionStats.avgDuration : 0;
 
-    // Top games (if platform-wide)
+    // Top games (if platform-wide). Paginate up to 10 pages * 100 = 1000
+    // DAU records so active games beyond the first page aren't silently
+    // truncated. Previously a single 100-row slice capped the entire scan.
     var topGames = [];
     if (gameId === 'all') {
-        // Scan recent DAU keys to find game-specific data
         try {
-            var cursor = null;
             var gameStats = {};
-            var scanObjs = nk.storageList(SYSTEM_USER, 'analytics_dau', 100, cursor);
-            if (scanObjs && scanObjs.objects) {
-                scanObjs.objects.forEach(function(obj) {
-                    if (obj.key.indexOf('dau_platform_') === -1 && obj.key.indexOf('dau_') === 0) {
-                        var parts = obj.key.split('_');
-                        if (parts.length >= 3) {
-                            var gid = parts[1];
-                            if (!gameStats[gid]) gameStats[gid] = { gameId: gid, totalDau: 0, days: 0 };
-                            gameStats[gid].totalDau += obj.value.count || obj.value.uniqueUsers || 0;
-                            gameStats[gid].days++;
-                        }
-                    }
-                });
+            var cursor = null;
+            var pagesScanned = 0;
+            var maxPages = 10;
+            var pageSize = 100;
+            while (pagesScanned < maxPages) {
+                var scanObjs = nk.storageList(SYSTEM_USER, 'analytics_dau', pageSize, cursor);
+                if (!scanObjs || !scanObjs.objects || scanObjs.objects.length === 0) break;
+                for (var i = 0; i < scanObjs.objects.length; i++) {
+                    var obj = scanObjs.objects[i];
+                    if (!obj.key || obj.key.indexOf('dau_') !== 0) continue;
+                    if (obj.key.indexOf('dau_platform_') === 0) continue;
+                    var parts = obj.key.split('_');
+                    if (parts.length < 3) continue;
+                    var gid = parts[1];
+                    if (!gameStats[gid]) gameStats[gid] = { gameId: gid, totalDau: 0, days: 0 };
+                    gameStats[gid].totalDau += (obj.value && (obj.value.count || obj.value.uniqueUsers)) || 0;
+                    gameStats[gid].days++;
+                }
+                pagesScanned++;
+                if (!scanObjs.cursor) break;
+                cursor = scanObjs.cursor;
             }
             topGames = Object.keys(gameStats).map(function(gid) {
                 var avgDau = Math.round(gameStats[gid].totalDau / Math.max(1, gameStats[gid].days));
@@ -2049,7 +2385,7 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
                 };
             }).sort(function(a, b) { return b.avgDau - a.avgDau; }).slice(0, 5);
         } catch (e) {
-            logger.warn('[Analytics] Top games scan error: ' + e.message);
+            if (logger && logger.warn) logger.warn('[Analytics] Top games scan error: ' + e.message);
         }
     }
 
@@ -2062,6 +2398,8 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         dau: dau,
         wau: wau,
         mau: mau,
+        wau_estimated: wauEstimated,
+        mau_estimated: mauEstimated,
         dau_mau_ratio: dauMauRatio,
         new_users_today: newUsersToday,
         returning_users_today: Math.max(0, dau - newUsersToday),
@@ -2072,18 +2410,536 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         trends: {
             dau_7d_change_pct: dau7dChangePct
         },
-        top_games: topGames
+        top_games: topGames,
+        _meta: {
+            read_path: useRollups ? "rollup-preferred" : "live-only",
+            rollup_hits: rollupHits,
+            live_fallbacks: liveFallbacks,
+            generated_at: new Date().toISOString()
+        }
     });
+}
+
+// ─── RPC: analytics_dashboard_summary ────────────────────
+//
+// Phase-2 convenience RPC. Returns the full rollup doc for a single date
+// (defaults to yesterday) so the dashboard can render one card with one
+// round-trip. Complements analytics_dashboard (trend) with one-shot "KPI
+// for the most recent rolled-up day" reads.
+
+function rpcAnalyticsDashboardSummary(ctx, logger, nk, payload) {
+    var parsed = {};
+    try { parsed = JSON.parse(payload || '{}'); } catch (e) { /* ignore */ }
+
+    var gameId = parsed.game_id || parsed.gameId || "all";
+    var dateStr = parsed.date;
+    if (!dateStr) {
+        var y = new Date();
+        y.setUTCDate(y.getUTCDate() - 1);
+        dateStr = y.toISOString().slice(0, 10);
+    }
+
+    var doc = readRollupDaily(nk, gameId, dateStr);
+    if (!doc) {
+        return JSON.stringify({
+            success: false,
+            error: "No rollup for " + gameId + "/" + dateStr + ". Trigger analytics_rollup_run first.",
+            gameId: gameId,
+            date: dateStr
+        });
+    }
+    doc.success = true;
+    doc.source = "rollup";
+    return JSON.stringify(doc);
 }
 
 // Registration - postbuild.js scans for this
 function __ModuleInit_2(ctx, logger, nk, initializer) {
     __rpc_analytics_log_event = __rpc_analytics_log_event || (rpcAnalyticsLogEvent);
     __rpc_analytics_dashboard = __rpc_analytics_dashboard || (rpcAnalyticsDashboard);
-    logger.info("[Analytics] Module registered: 2 RPCs");
+    __rpc_analytics_dashboard_summary = __rpc_analytics_dashboard_summary || (rpcAnalyticsDashboardSummary);
+    logger.info("[Analytics] Module registered: 3 RPCs");
 }
 
-// --- Module: analytics_extended/analytics_extended.js ---
+// --- Module: analytics_admin\analytics_admin.js ---
+// analytics_admin.js — Admin-only RPCs for the Analytics Dashboard.
+//
+// Registers:
+//   - admin_login              : bcrypt login, mints a Nakama session with admin role.
+//   - admin_diagnose_env       : returns which required env vars are present on the running container.
+//   - dashboard_events_timeline: admin-gated, reads analytics_events without relying on Satori.
+//   - dashboard_storage_list   : admin-gated, lists objects in any storage collection.
+//
+// Auth model:
+//   Two equivalent ways to call any admin-gated RPC on this module:
+//     A. Bearer token from a prior admin_login call (ctx.userId starts with "admin:", and
+//        our "admin_users" storage collection confirms role=admin and not expired).
+//     B. Shared secret: payload.dashboard_secret === env.DASHBOARD_SECRET  (for CI/scripts).
+//
+// Required env vars (set via docker-compose -> runtime env -> ctx.env):
+//   ADMIN_USERNAME        e.g. "ivx-admin"
+//   ADMIN_PASSWORD_HASH   bcrypt hash, e.g. "$2y$12$..."
+//   DASHBOARD_SECRET      any long random string (32+ chars).
+
+var AA_ADMIN_USERS_COLLECTION = "admin_users";
+var AA_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+var AA_SESSION_TTL_SEC = 12 * 60 * 60; // 12 hours
+
+var AA_REQUIRED_ENV = [
+    "ADMIN_USERNAME",
+    "ADMIN_PASSWORD_HASH",
+    "DASHBOARD_SECRET",
+    "DEFAULT_GAME_ID",
+    "APPODEAL_API_KEY",
+    "APPODEAL_USER_ID",
+    "UNITY_KEY_ID",
+    "UNITY_SECRET_KEY",
+    "APPLE_KEY_ID",
+    "APPLE_ISSUER_ID",
+    "APPLE_PRIVATE_KEY",
+    "GOOGLE_MAPS_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "NAKAMA_WEBHOOK_SECRET"
+];
+
+// ─── Helpers ──────────────────────────────────────────────
+
+function aaParse(payload) {
+    try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
+}
+
+function aaOk(data) {
+    var out = { success: true };
+    if (data) { for (var k in data) { if (data.hasOwnProperty(k)) out[k] = data[k]; } }
+    return JSON.stringify(out);
+}
+
+function aaErr(msg, code) {
+    return JSON.stringify({ success: false, error: msg || "error", code: code || 400 });
+}
+
+function aaEnv(ctx, key) {
+    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
+        return String(ctx.env[key]);
+    }
+    return "";
+}
+
+/**
+ * Check admin role by looking up admin_users/profile under the caller's Nakama
+ * UUID. The "admin:" prefix gate is applied to `ctx.username` (which IS the
+ * custom_id "admin:<name>" after admin_login), not `ctx.userId` (Nakama's
+ * internal UUID — never starts with "admin:").
+ */
+function aaIsAdminUser(nk, logger, userId, username) {
+    if (!userId) return false;
+    // Username gate — only accounts provisioned via admin_login (custom_id
+    // prefix "admin:") are eligible. This protects against any other user
+    // whose admin_users/profile doc somehow exists.
+    if (!username || username.indexOf("admin:") !== 0) return false;
+    try {
+        var records = nk.storageRead([{
+            collection: AA_ADMIN_USERS_COLLECTION,
+            key: "profile",
+            userId: userId
+        }]);
+        if (!records || records.length === 0) return false;
+        var rec = records[0].value || {};
+        if (!rec.isAdmin) return false;
+        if (rec.expiresAt && rec.expiresAt < Math.floor(Date.now() / 1000)) return false;
+        return true;
+    } catch (e) {
+        if (logger && logger.warn) logger.warn("[analytics_admin] isAdmin check failed: " + e.message);
+        return false;
+    }
+}
+
+/**
+ * Require that the caller is an authenticated admin.
+ * Returns { ok: bool, reason?: string, bypass?: 'secret' | 'session' }.
+ */
+function aaRequireAdmin(ctx, nk, logger, data) {
+    // Path 1: shared secret for CI / scripts
+    var configuredSecret = aaEnv(ctx, "DASHBOARD_SECRET");
+    if (configuredSecret && data && data.dashboard_secret && data.dashboard_secret === configuredSecret) {
+        return { ok: true, bypass: "secret" };
+    }
+    // Path 2: admin session token minted by admin_login. ctx.username carries
+    // the "admin:<name>" custom_id; ctx.userId is the Nakama UUID.
+    if (ctx.userId && aaIsAdminUser(nk, logger, ctx.userId, ctx.username)) {
+        return { ok: true, bypass: "session" };
+    }
+    return { ok: false, reason: "admin authentication required" };
+}
+
+// ─── RPC: admin_login ─────────────────────────────────────
+
+function rpcAdminLogin(ctx, logger, nk, payload) {
+    var data = aaParse(payload);
+
+    var expectedUser = aaEnv(ctx, "ADMIN_USERNAME");
+    var expectedHash = aaEnv(ctx, "ADMIN_PASSWORD_HASH");
+
+    if (!expectedUser || !expectedHash) {
+        logger.error("[analytics_admin] admin_login: ADMIN_USERNAME/ADMIN_PASSWORD_HASH not set in runtime env");
+        return aaErr("Admin login not configured on server. Set ADMIN_USERNAME and ADMIN_PASSWORD_HASH.", 503);
+    }
+
+    if (!data.username || !data.password) {
+        return aaErr("username and password required", 400);
+    }
+
+    // Constant-ish-time user comparison
+    if (String(data.username) !== expectedUser) {
+        // Run bcrypt anyway to reduce timing difference
+        try { nk.bcryptCompare(expectedHash, "dummy"); } catch (e) { /* ignore */ }
+        return aaErr("Invalid credentials", 401);
+    }
+
+    var passOk = false;
+    try {
+        passOk = nk.bcryptCompare(expectedHash, String(data.password));
+    } catch (e) {
+        logger.error("[analytics_admin] bcryptCompare threw: " + e.message);
+        return aaErr("Password verification failed on server", 500);
+    }
+
+    if (!passOk) {
+        return aaErr("Invalid credentials", 401);
+    }
+
+    // Ensure an admin user exists and authenticate to generate a session token.
+    var customId = "admin:" + expectedUser;
+    var authResult;
+    try {
+        authResult = nk.authenticateCustom(customId, customId, true);
+    } catch (e) {
+        logger.error("[analytics_admin] authenticateCustom failed: " + e.message);
+        return aaErr("Failed to mint admin session: " + e.message, 500);
+    }
+
+    var userId = (authResult && (authResult.userId || authResult.user_id)) || null;
+    if (!userId) {
+        return aaErr("Admin session mint returned no userId", 500);
+    }
+
+    var now = Math.floor(Date.now() / 1000);
+    var expiresAt = now + AA_SESSION_TTL_SEC;
+
+    // Persist admin marker (for aaIsAdminUser on subsequent RPCs).
+    try {
+        nk.storageWrite([{
+            collection: AA_ADMIN_USERS_COLLECTION,
+            key: "profile",
+            userId: userId,
+            value: {
+                username: expectedUser,
+                isAdmin: true,
+                role: "admin",
+                loginAt: now,
+                expiresAt: expiresAt
+            },
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        logger.error("[analytics_admin] failed to write admin profile: " + e.message);
+        return aaErr("Failed to persist admin profile: " + e.message, 500);
+    }
+
+    // Mint a session token bound to the admin user. expiresAt is seconds since epoch.
+    var token;
+    try {
+        var tokenResult = nk.authenticateTokenGenerate(userId, customId, expiresAt, { role: "admin" });
+        token = tokenResult && (tokenResult.token || tokenResult.Token);
+    } catch (e) {
+        logger.error("[analytics_admin] authenticateTokenGenerate failed: " + e.message);
+        return aaErr("Failed to generate admin token: " + e.message, 500);
+    }
+
+    logger.info("[analytics_admin] admin_login ok user=" + expectedUser + " userId=" + userId);
+
+    return aaOk({
+        token: token,
+        userId: userId,
+        username: expectedUser,
+        role: "admin",
+        expiresAt: expiresAt,
+        expiresInSeconds: AA_SESSION_TTL_SEC
+    });
+}
+
+// ─── RPC: admin_diagnose_env ──────────────────────────────
+
+function rpcAdminDiagnoseEnv(ctx, logger, nk, payload) {
+    var data = aaParse(payload);
+    var gate = aaRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return aaErr(gate.reason, 401);
+
+    var present = {};
+    var missing = [];
+    for (var i = 0; i < AA_REQUIRED_ENV.length; i++) {
+        var key = AA_REQUIRED_ENV[i];
+        var v = aaEnv(ctx, key);
+        var isSet = !!(v && v.length > 0);
+        present[key] = isSet;
+        if (!isSet) missing.push(key);
+    }
+
+    // Module presence sanity check (catches "modules not redeployed" scenario).
+    var modulesOk = {};
+    var expectedRpcs = [
+        "analytics_log_event",
+        "analytics_dashboard",
+        "analytics_dashboard_summary",
+        "analytics_session_stats",
+        "analytics_appodeal",
+        "analytics_apple_appstore",
+        "analytics_unity",
+        "admin_login",
+        "admin_diagnose_env",
+        "dashboard_events_timeline",
+        "dashboard_storage_list",
+        // Phase 2
+        "analytics_rollup_run",
+        "analytics_rollup_backfill",
+        "analytics_rollup_status",
+        "external_poll_appodeal",
+        "external_poll_appstore",
+        "external_poll_ugs",
+        "external_poll_all",
+        "external_poll_status",
+        // Phase 3 (retention UI + native metrics)
+        "analytics_retention_curves",
+        "analytics_schema_check",
+        "analytics_backfill_events",
+        "analytics_feature_flags",
+        "analytics_metrics"
+    ];
+
+    // Storage sanity — tell operator if analytics_events is empty (common symptom).
+    var analyticsEventsSample = 0;
+    try {
+        var list = nk.storageList(AA_SYSTEM_USER, "analytics_events", 5, null);
+        analyticsEventsSample = (list && list.objects) ? list.objects.length : 0;
+    } catch (e) { /* ignore */ }
+
+    var analyticsDauSample = 0;
+    try {
+        var list2 = nk.storageList(AA_SYSTEM_USER, "analytics_dau", 5, null);
+        analyticsDauSample = (list2 && list2.objects) ? list2.objects.length : 0;
+    } catch (e) { /* ignore */ }
+
+    // Go plugin health probe — the native Prometheus plugin (Phase 3) writes no
+    // storage docs itself, so we can only detect it indirectly: its side effect
+    // is that `analytics_metrics_counters/counter_<today>` exists once any
+    // events have been logged. A missing-doc + non-empty analytics_events pair
+    // is a strong signal that either the plugin failed to build or the JS
+    // bumpMetricsCounter helper silently crashed.
+    var counterKey = "counter_" + new Date().toISOString().slice(0, 10);
+    var metricsCounterDocPresent = false;
+    try {
+        var cnt = nk.storageRead([{ collection: "analytics_metrics_counters", key: counterKey, userId: AA_SYSTEM_USER }]);
+        metricsCounterDocPresent = !!(cnt && cnt.length > 0);
+    } catch (e) { /* ignore */ }
+
+    var goPluginHint;
+    if (metricsCounterDocPresent) {
+        goPluginHint = "analytics_metrics_counters is live — JS metrics pipeline is writing; if native Prometheus counters are missing at /metrics, rebuild the Go plugin (scripts/build-plugin.ps1 or docker compose build nakama).";
+    } else if (analyticsEventsSample === 0) {
+        goPluginHint = "No events logged yet, so the metrics counter doc hasn't been created. Log an event via the Smoke Test button and re-run diagnose.";
+    } else {
+        goPluginHint = "analytics_events has data but analytics_metrics_counters is empty — JS bumpMetricsCounter may be failing. Check Nakama logs for [bumpMetricsCounter] errors.";
+    }
+
+    return aaOk({
+        envVars: present,
+        missingEnvVars: missing,
+        envAllGreen: missing.length === 0,
+        expectedRpcs: expectedRpcs,
+        storageProbe: {
+            analytics_events_sample_count: analyticsEventsSample,
+            analytics_dau_sample_count: analyticsDauSample,
+            metrics_counter_doc_present: metricsCounterDocPresent,
+            hint: (analyticsEventsSample === 0
+                ? "analytics_events is empty — confirm client is calling analytics_log_event (NOT quizverse_log_event) and that events are reaching the server."
+                : "analytics_events has data — server-side pipeline is live.")
+        },
+        nativeMetrics: {
+            // The Go plugin does not register an RPC; its presence is observed
+            // via /metrics output. This hint tells the operator where to look.
+            scrapeEndpoint: "http://<nakama-host>:9100/",
+            expectedMetrics: [
+                "analytics_events_total",
+                "analytics_rollup_runs_total",
+                "analytics_poller_runs_total",
+                "analytics_pipeline_age_seconds",
+                "analytics_events_today"
+            ],
+            hint: goPluginHint
+        },
+        bypass: gate.bypass,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: dashboard_events_timeline ───────────────────────
+
+/**
+ * Reads the newest N events from analytics_events, optionally filtered by gameId / eventName.
+ * Does NOT require Satori. This is the dashboard-facing replacement for admin_events_timeline.
+ *
+ * Payload: { gameId?: string, eventName?: string, days?: number, limit?: number, cursor?: string }
+ * Returns: { events: [...], count, nextCursor, filteredBy: {...} }
+ */
+function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
+    var data = aaParse(payload);
+    var gate = aaRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return aaErr(gate.reason, 401);
+
+    var limit = Math.max(1, Math.min(500, parseInt(data.limit, 10) || 100));
+    var days = Math.max(1, Math.min(90, parseInt(data.days, 10) || 7));
+    var cutoffSec = Math.floor(Date.now() / 1000) - days * 86400;
+
+    var gameIdFilter = data.gameId || data.game_id || null;
+    if (gameIdFilter === "all") gameIdFilter = null;
+    var eventNameFilter = data.eventName || data.event_name || null;
+
+    var collected = [];
+    var cursor = data.cursor || null;
+    var scanned = 0;
+    var maxScan = 2000; // bound scan to keep request fast
+
+    try {
+        while (collected.length < limit && scanned < maxScan) {
+            var page = nk.storageList(AA_SYSTEM_USER, "analytics_events", 200, cursor);
+            if (!page || !page.objects || page.objects.length === 0) break;
+
+            for (var i = 0; i < page.objects.length; i++) {
+                scanned++;
+                var obj = page.objects[i];
+                var ev = obj.value || {};
+
+                var evUnix = ev.unixTimestamp;
+                if (!evUnix && ev.timestamp) {
+                    evUnix = Math.floor(new Date(ev.timestamp).getTime() / 1000);
+                }
+                if (evUnix && evUnix < cutoffSec) continue;
+
+                if (gameIdFilter && ev.gameId && ev.gameId !== gameIdFilter) continue;
+                if (eventNameFilter && ev.eventName !== eventNameFilter) continue;
+
+                collected.push({
+                    key: obj.key,
+                    user_id: ev.userId || "",
+                    game_id: ev.gameId || "",
+                    name: ev.eventName || "",
+                    event_name: ev.eventName || "",
+                    timestamp: ev.timestamp || null,
+                    unix_timestamp: evUnix || null,
+                    properties: ev.eventData || {}
+                });
+
+                if (collected.length >= limit) break;
+            }
+
+            if (!page.cursor) break;
+            cursor = page.cursor;
+        }
+    } catch (e) {
+        logger.error("[analytics_admin] dashboard_events_timeline scan failed: " + e.message);
+        return aaErr("Scan failed: " + e.message, 500);
+    }
+
+    // Newest first.
+    collected.sort(function (a, b) {
+        return (b.unix_timestamp || 0) - (a.unix_timestamp || 0);
+    });
+
+    return aaOk({
+        events: collected,
+        count: collected.length,
+        scanned: scanned,
+        nextCursor: cursor || null,
+        filteredBy: {
+            gameId: gameIdFilter,
+            eventName: eventNameFilter,
+            days: days,
+            limit: limit
+        }
+    });
+}
+
+// ─── RPC: dashboard_storage_list ──────────────────────────
+
+/**
+ * Lists objects in any storage collection (admin-gated).
+ * Payload: { collection: string, userId?: string, limit?: number, cursor?: string }
+ * Returns: { collection, objects: [...], count, nextCursor }
+ */
+function rpcDashboardStorageList(ctx, logger, nk, payload) {
+    var data = aaParse(payload);
+    var gate = aaRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return aaErr(gate.reason, 401);
+
+    var collection = data.collection;
+    if (!collection) return aaErr("collection required", 400);
+
+    var limit = Math.max(1, Math.min(200, parseInt(data.limit, 10) || 50));
+    var userId = data.userId || AA_SYSTEM_USER;
+    var cursor = data.cursor || null;
+
+    var page;
+    try {
+        page = nk.storageList(userId, collection, limit, cursor);
+    } catch (e) {
+        logger.error("[analytics_admin] dashboard_storage_list failed: " + e.message);
+        return aaErr("Storage list failed: " + e.message, 500);
+    }
+
+    var objects = [];
+    if (page && page.objects) {
+        for (var i = 0; i < page.objects.length; i++) {
+            var obj = page.objects[i];
+            var previewStr = "";
+            try { previewStr = JSON.stringify(obj.value || {}).substring(0, 300); }
+            catch (e) { previewStr = String(obj.value || "").substring(0, 300); }
+
+            objects.push({
+                collection: obj.collection || collection,
+                key: obj.key,
+                user_id: obj.userId || userId,
+                version: obj.version,
+                create_time: obj.createTime || null,
+                update_time: obj.updateTime || null,
+                value_preview: previewStr
+            });
+        }
+    }
+
+    return aaOk({
+        collection: collection,
+        user_id: userId,
+        objects: objects,
+        count: objects.length,
+        nextCursor: (page && page.cursor) ? page.cursor : null
+    });
+}
+
+// ─── Registration ─────────────────────────────────────────
+// postbuild.js scans for registerRpc calls in InitModule and rewires them.
+
+function __ModuleInit_3(ctx, logger, nk, initializer) {
+    __rpc_admin_login = __rpc_admin_login || (rpcAdminLogin);
+    __rpc_admin_diagnose_env = __rpc_admin_diagnose_env || (rpcAdminDiagnoseEnv);
+    __rpc_dashboard_events_timeline = __rpc_dashboard_events_timeline || (rpcDashboardEventsTimeline);
+    __rpc_dashboard_storage_list = __rpc_dashboard_storage_list || (rpcDashboardStorageList);
+    logger.info("[analytics_admin] Module registered: 4 RPCs (admin_login, admin_diagnose_env, dashboard_events_timeline, dashboard_storage_list)");
+}
+
+
+// --- Module: analytics_extended\analytics_extended.js ---
 /**
  * Analytics Extended Module
  * Implements 14 analytics RPCs for the dashboard.
@@ -2100,12 +2956,10 @@ function __ModuleInit_2(ctx, logger, nk, initializer) {
  *   - analytics_home_heatmap
  *   - analytics_top_players
  *   - analytics_error_log
- *   - analytics_player_segments
- *   - analytics_churn_risk
- *   - analytics_conversion_funnel
  */
 
 var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 // ─── Helpers ──────────────────────────────────────────────
 
 function extSafeJsonParse(payload) {
@@ -3149,40 +4003,21 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
             }
         }
         
-        // NOTE: Prior revisions scanned `analytics_dau/dau_<platform>_<date>`
-        // keys here, but `trackDAU` in analytics.js has never written per-
-        // platform DAU keys (it writes `dau_<gameId>_<date>` and
-        // `dau_platform_<date>`). Those reads were always misses and inflated
-        // the read count without contributing data. Fold in the authoritative
-        // `analytics_platform` counts written by `trackPlatform` instead.
-        // Keys are `platform_<gameId>_<date>_<platform>` — they carry their
-        // own date, so one storageList pass covers the full window.
-        try {
-            var pCursor = null;
-            var pPages = 0;
-            var pMaxPages = 10;
-            var windowStart = extDaysAgo(Math.min(days - 1, 6));
-            while (pPages < pMaxPages) {
-                var plist = nk.storageList(SYSTEM_USER_ID, 'analytics_platform', 100, pCursor);
-                if (!plist || !plist.objects || plist.objects.length === 0) break;
-                for (var pi = 0; pi < plist.objects.length; pi++) {
-                    var po = plist.objects[pi];
-                    if (!po.key || po.key.indexOf('platform_') !== 0) continue;
-                    // Key shape: platform_<gameId>_<YYYY-MM-DD>_<platform>
-                    var kp = po.key.split('_');
-                    if (kp.length < 4) continue;
-                    var kPlatform = kp[kp.length - 1];
-                    var kDate = kp[kp.length - 2];
-                    if (kDate < windowStart) continue;
-                    if (gameId && kp[1] !== gameId) continue;
-                    var kCount = (po.value && po.value.count) || 0;
-                    platformCounts[kPlatform] = (platformCounts[kPlatform] || 0) + kCount;
+        // Also check DAU storage for platform breakdown (game-specific if filtered)
+        for (var d = 0; d < Math.min(days, 7); d++) {
+            var dateStr = extDaysAgo(d);
+            var platforms = ['android', 'ios', 'webgl', 'editor'];
+            
+            for (var p = 0; p < platforms.length; p++) {
+                var key = 'dau_' + platforms[p] + '_' + dateStr;
+                var dauRec = extStorageRead(nk, 'analytics_dau', key, SYSTEM_USER_ID);
+                
+                if (dauRec) {
+                    var count = dauRec.count || dauRec.uniqueUsers || (dauRec.users ? dauRec.users.length : 0);
+                    platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + count;
                 }
-                pPages++;
-                if (!plist.cursor) break;
-                pCursor = plist.cursor;
             }
-        } catch (ePlat) { /* best-effort; events scan above still gives a breakdown */ }
+        }
         
         // Build platforms array
         var platforms_arr = [];
@@ -3209,37 +4044,6 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
 
 // ─── RPC: analytics_home_heatmap ──────────────────────────
 
-// Canonical event sets used by the heatmap classifier. The previous
-// implementation used substring matches like indexOf('view') which over-
-// matched unrelated events (e.g. `ad_preview_shown`, `overview_opened`) and
-// misrouted them to the screen-views bucket. Explicit sets avoid that class
-// of bug and keep the taxonomy aligned with IVXAnalyticsEvents on the client.
-var EXT_HEATMAP_CLICK_EVENTS = {
-    'button_clicked': true,
-    'button_tap': true,
-    'ui_click': true,
-    'ui_tap': true,
-    'nav_clicked': true,
-    'cta_clicked': true
-};
-var EXT_HEATMAP_SCREEN_EVENTS = {
-    'screen_viewed': true,
-    'screen_view': true,
-    'screen_opened': true,
-    'screen_closed': true,
-    'home_viewed': true,
-    'shop_viewed': true,
-    'profile_viewed': true
-};
-var EXT_HEATMAP_POPUP_EVENTS = {
-    'popup_shown': true,
-    'popup_closed': true,
-    'modal_shown': true,
-    'modal_closed': true,
-    'dialog_shown': true,
-    'dialog_closed': true
-};
-
 function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
@@ -3252,12 +4056,12 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
         var screenTimeCounts = {};
         var popupShown = {};
         
-        // Scan UI-related events — classify by canonical event names only.
+        // Scan UI-related events (with gameId filter)
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            var evName = val.eventName || '';
-            return !!(EXT_HEATMAP_CLICK_EVENTS[evName] ||
-                      EXT_HEATMAP_SCREEN_EVENTS[evName] ||
-                      EXT_HEATMAP_POPUP_EVENTS[evName]);
+            var evName = (val.eventName || '').toLowerCase();
+            return evName.indexOf('click') !== -1 || evName.indexOf('view') !== -1 || 
+                   evName.indexOf('screen') !== -1 || evName.indexOf('popup') !== -1 ||
+                   evName.indexOf('button') !== -1 || evName.indexOf('tap') !== -1;
         }, gameId);
         
         for (var i = 0; i < events.length; i++) {
@@ -3265,22 +4069,28 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
             var evName = ev.eventName || '';
             var evData = ev.eventData || {};
             
-            if (EXT_HEATMAP_CLICK_EVENTS[evName]) {
-                var button = evData.button || evData.buttonName || evData.button_id || evName;
+            // Button clicks
+            if (evName.toLowerCase().indexOf('click') !== -1 || evName.toLowerCase().indexOf('tap') !== -1) {
+                var button = evData.button || evData.buttonName || evName;
                 buttonClicks[button] = (buttonClicks[button] || 0) + 1;
-            } else if (EXT_HEATMAP_SCREEN_EVENTS[evName]) {
-                var screen = evData.screen || evData.screenName || evData.screen_name || evName;
+            }
+            
+            // Screen views
+            if (evName.toLowerCase().indexOf('screen') !== -1 || evName.toLowerCase().indexOf('view') !== -1) {
+                var screen = evData.screen || evData.screenName || evName;
                 screenViews[screen] = (screenViews[screen] || 0) + 1;
                 
-                var dur = evData.duration || evData.timeSpent || evData.time_spent || 0;
-                if (dur) {
+                if (evData.duration || evData.timeSpent) {
                     if (!screenTime[screen]) screenTime[screen] = 0;
                     if (!screenTimeCounts[screen]) screenTimeCounts[screen] = 0;
-                    screenTime[screen] += dur;
+                    screenTime[screen] += evData.duration || evData.timeSpent || 0;
                     screenTimeCounts[screen]++;
                 }
-            } else if (EXT_HEATMAP_POPUP_EVENTS[evName]) {
-                var popup = evData.popup || evData.popupName || evData.popup_name || evName;
+            }
+            
+            // Popups
+            if (evName.toLowerCase().indexOf('popup') !== -1 || evName.toLowerCase().indexOf('modal') !== -1) {
+                var popup = evData.popup || evData.popupName || evName;
                 popupShown[popup] = (popupShown[popup] || 0) + 1;
             }
         }
@@ -3865,7 +4675,7 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_3(ctx, logger, nk, initializer) {
+function __ModuleInit_4(ctx, logger, nk, initializer) {
     __rpc_analytics_session_stats = __rpc_analytics_session_stats || (rpcAnalyticsSessionStats);
     __rpc_analytics_quiz_performance = __rpc_analytics_quiz_performance || (rpcAnalyticsQuizPerformance);
     __rpc_analytics_funnel = __rpc_analytics_funnel || (rpcAnalyticsFunnel);
@@ -3885,7 +4695,1351 @@ function __ModuleInit_3(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: analytics_v2/analytics_v2.js ---
+// --- Module: analytics_ops\analytics_ops.js ---
+// analytics_ops.js — Phase 2.4 data-quality + ops tooling for analytics.
+//
+// Registered RPCs (all admin-gated):
+//   analytics_schema_check     { days?: number, sample?: number }
+//     → scans the newest events and reports field coverage per event name
+//       so operators can see which parameters are being lost / mistyped.
+//
+//   analytics_backfill_events  { from, to, fix?: boolean, limit?: number }
+//     → re-normalizes legacy-shape events in analytics_events, optionally
+//       rewriting them in place so the rollup can consume them.
+//
+//   analytics_feature_flags    {}
+//     → inspects docker-compose feature flags as seen by the Goja runtime.
+//
+// Auth: DASHBOARD_SECRET or admin session (same contract as other Phase-2 RPCs).
+
+var AO_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+var AO_ADMIN_USERS_COLLECTION = "admin_users";
+var AO_EVENTS_COLLECTION = "analytics_events";
+
+// Canonical required fields per event shape (kept in sync with the Unity
+// IVXAnalyticsEvents taxonomy). Missing fields are reported, not failures.
+var AO_EXPECTED_FIELDS = {
+    __any__:              ["gameId", "eventName", "eventData"],
+    session_start:        ["session_id", "platform"],
+    session_end:          ["session_id", "duration_seconds"],
+    screen_view:          ["screen_name"],
+    quiz_start:           ["quiz_mode", "quiz_id"],
+    quiz_complete:        ["quiz_mode", "quiz_id", "score", "correct_count", "total_questions"],
+    iap_purchased:        ["product_id", "price_usd", "currency"],
+    ad_impression:        ["ad_placement", "ad_network"],
+    ad_clicked:           ["ad_placement", "ad_network"],
+    ai_host_used:         ["prompt_tokens", "response_tokens"],
+    error_logged:         ["error_category", "error_message"]
+};
+
+// ─── Helpers ──────────────────────────────────────────────
+
+function aoParse(payload) { try { return JSON.parse(payload || "{}"); } catch (e) { return {}; } }
+function aoOk(data) { var out = { success: true }; if (data) for (var k in data) if (data.hasOwnProperty(k)) out[k] = data[k]; return JSON.stringify(out); }
+function aoErr(msg, code) { return JSON.stringify({ success: false, error: msg || "error", code: code || 400 }); }
+function aoEnv(ctx, key) { if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) return String(ctx.env[key]); return ""; }
+
+// Mirrors analytics_admin: UUID owns the admin_users/profile doc, while
+// ctx.username carries the "admin:<name>" custom_id we gate on.
+function aoIsAdminUser(nk, userId, username) {
+    if (!userId) return false;
+    if (!username || username.indexOf("admin:") !== 0) return false;
+    try {
+        var records = nk.storageRead([{ collection: AO_ADMIN_USERS_COLLECTION, key: "profile", userId: userId }]);
+        if (!records || records.length === 0) return false;
+        var rec = records[0].value || {};
+        if (!rec.isAdmin) return false;
+        if (rec.expiresAt && rec.expiresAt < Math.floor(Date.now() / 1000)) return false;
+        return true;
+    } catch (e) { return false; }
+}
+
+function aoRequireAdmin(ctx, nk, data) {
+    var secret = aoEnv(ctx, "DASHBOARD_SECRET");
+    if (secret && data && data.dashboard_secret === secret) return { ok: true, bypass: "secret" };
+    if (ctx.userId && aoIsAdminUser(nk, ctx.userId, ctx.username)) return { ok: true, bypass: "session" };
+    return { ok: false, reason: "admin authentication required" };
+}
+
+function aoIsoToday() { return new Date().toISOString().slice(0, 10); }
+
+// ─── RPC: analytics_schema_check ──────────────────────────
+
+/**
+ * Walks the newest N events under SYSTEM_USER (the dashboard-fanout copies
+ * written by analytics.js::persistNormalizedEvent — key prefix "dash_"),
+ * bins them by eventName, and reports which canonical fields are missing.
+ *
+ * Payload: { sample?: number (default 500), days?: number (default 7) }
+ */
+function rpcAnalyticsSchemaCheck(ctx, logger, nk, payload) {
+    var data = aoParse(payload);
+    var gate = aoRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return aoErr(gate.reason, 401);
+
+    var sampleLimit = Math.min(2000, parseInt(data.sample, 10) || 500);
+    var days = Math.min(30, parseInt(data.days, 10) || 7);
+    var cutoffUnix = Math.floor(Date.now() / 1000) - days * 86400;
+
+    var eventNames = {};
+    var missingGameId = 0;
+    var legacyShape = 0;
+    var totalScanned = 0;
+    var totalMatched = 0;
+    var cursor = null;
+
+    for (var page = 0; page < 40 && totalMatched < sampleLimit; page++) {
+        var res;
+        try { res = nk.storageList(AO_SYSTEM_USER, AO_EVENTS_COLLECTION, 200, cursor); }
+        catch (e) { logger.warn("[analytics_ops] schema list: " + e.message); break; }
+        if (!res || !res.objects || res.objects.length === 0) break;
+
+        for (var i = 0; i < res.objects.length; i++) {
+            totalScanned++;
+            var o = res.objects[i];
+            if (!o || !o.value) continue;
+            if (!o.key || o.key.indexOf("dash_") !== 0) continue;
+            var ev = o.value;
+            var unix = ev.unixTimestamp || 0;
+            if (unix > 0 && unix < cutoffUnix) continue;
+
+            totalMatched++;
+            var name = ev.eventName || "__unknown__";
+            if (!eventNames[name]) eventNames[name] = { count: 0, missing: {}, extra_keys: {} };
+            eventNames[name].count++;
+
+            if (!ev.gameId) missingGameId++;
+            if (ev.gameID || ev.event || ev.properties) legacyShape++;
+
+            var required = AO_EXPECTED_FIELDS[name] || [];
+            var all = (AO_EXPECTED_FIELDS.__any__ || []).concat(required);
+            var body = ev.eventData || {};
+            for (var fi = 0; fi < all.length; fi++) {
+                var f = all[fi];
+                var present = (f === "gameId" || f === "eventName" || f === "eventData")
+                    ? !!ev[f]
+                    : body[f] !== undefined && body[f] !== null && body[f] !== "";
+                if (!present) {
+                    eventNames[name].missing[f] = (eventNames[name].missing[f] || 0) + 1;
+                }
+            }
+            // Opportunistic extra-key census: first 20 data keys only, to keep response small.
+            var extraKeys = Object.keys(body).slice(0, 20);
+            for (var xi = 0; xi < extraKeys.length; xi++) {
+                var ek = extraKeys[xi];
+                eventNames[name].extra_keys[ek] = (eventNames[name].extra_keys[ek] || 0) + 1;
+            }
+            if (totalMatched >= sampleLimit) break;
+        }
+
+        if (!res.cursor) break;
+        cursor = res.cursor;
+    }
+
+    var byEvent = [];
+    for (var en in eventNames) {
+        var rec = eventNames[en];
+        var missingList = [];
+        for (var mk in rec.missing) missingList.push({ field: mk, missing_pct: Math.round((rec.missing[mk] / rec.count) * 100), missing_count: rec.missing[mk] });
+        missingList.sort(function (a, b) { return b.missing_pct - a.missing_pct; });
+        byEvent.push({ event_name: en, count: rec.count, missing_fields: missingList.slice(0, 10) });
+    }
+    byEvent.sort(function (a, b) { return b.count - a.count; });
+
+    return aoOk({
+        sampled: totalMatched,
+        scanned: totalScanned,
+        days: days,
+        missing_gameid: missingGameId,
+        legacy_shape_events: legacyShape,
+        event_count: byEvent.length,
+        by_event: byEvent.slice(0, 50),
+        hint: legacyShape > 0
+            ? "Found legacy-shape events (gameID / event / properties). Run analytics_backfill_events to normalize."
+            : "All sampled events match the canonical shape."
+    });
+}
+
+// ─── RPC: analytics_backfill_events ───────────────────────
+
+/**
+ * Re-normalizes events written under legacy keys/casings:
+ *   - ev.event → ev.eventName
+ *   - ev.properties → ev.eventData
+ *   - ev.gameID → ev.gameId
+ * Without { fix: true } this is a DRY RUN and only reports what would change.
+ *
+ * Payload: { limit?: number (default 500, max 5000), fix?: boolean, days?: number (default 30) }
+ */
+function rpcAnalyticsBackfillEvents(ctx, logger, nk, payload) {
+    var data = aoParse(payload);
+    var gate = aoRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return aoErr(gate.reason, 401);
+
+    var limit = Math.min(5000, parseInt(data.limit, 10) || 500);
+    var days = Math.min(90, parseInt(data.days, 10) || 30);
+    var fix = !!data.fix;
+    var cutoffUnix = Math.floor(Date.now() / 1000) - days * 86400;
+
+    var scanned = 0;
+    var wouldFix = 0;
+    var fixed = 0;
+    var fixErrors = 0;
+    var cursor = null;
+    var samples = [];
+
+    for (var page = 0; page < 50 && scanned < limit; page++) {
+        var res;
+        try { res = nk.storageList(AO_SYSTEM_USER, AO_EVENTS_COLLECTION, 200, cursor); }
+        catch (e) { logger.warn("[analytics_ops] backfill list: " + e.message); break; }
+        if (!res || !res.objects || res.objects.length === 0) break;
+
+        for (var i = 0; i < res.objects.length; i++) {
+            if (scanned >= limit) break;
+            scanned++;
+            var o = res.objects[i];
+            if (!o || !o.value || !o.key || o.key.indexOf("dash_") !== 0) continue;
+            var ev = o.value;
+            var unix = ev.unixTimestamp || 0;
+            if (unix > 0 && unix < cutoffUnix) continue;
+
+            var changed = false;
+            if (!ev.eventName && ev.event) { ev.eventName = ev.event; delete ev.event; changed = true; }
+            if (!ev.eventData && ev.properties) { ev.eventData = ev.properties; delete ev.properties; changed = true; }
+            if (!ev.gameId && ev.gameID) { ev.gameId = ev.gameID; delete ev.gameID; changed = true; }
+
+            if (!changed) continue;
+            wouldFix++;
+            if (samples.length < 5) samples.push({ key: o.key, eventName: ev.eventName, gameId: ev.gameId });
+
+            if (fix) {
+                try {
+                    nk.storageWrite([{
+                        collection: AO_EVENTS_COLLECTION,
+                        key: o.key,
+                        userId: AO_SYSTEM_USER,
+                        value: ev,
+                        permissionRead: 2,
+                        permissionWrite: 0
+                    }]);
+                    fixed++;
+                } catch (e) {
+                    fixErrors++;
+                    logger.warn("[analytics_ops] backfill write failed " + o.key + ": " + e.message);
+                }
+            }
+        }
+        if (!res.cursor) break;
+        cursor = res.cursor;
+    }
+
+    return aoOk({
+        dry_run: !fix,
+        scanned: scanned,
+        would_fix: wouldFix,
+        fixed: fixed,
+        fix_errors: fixErrors,
+        samples: samples,
+        hint: fix
+            ? ("Rewrote " + fixed + " events. Re-run analytics_rollup_backfill to regenerate affected dates.")
+            : ("Dry run. Pass { fix: true } to rewrite " + wouldFix + " events in-place.")
+    });
+}
+
+// ─── RPC: analytics_feature_flags ─────────────────────────
+
+function rpcAnalyticsFeatureFlags(ctx, logger, nk, payload) {
+    var data = aoParse(payload);
+    var gate = aoRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return aoErr(gate.reason, 401);
+
+    function flag(key, defaultOn) {
+        var v = aoEnv(ctx, key);
+        if (v === "") return { value: defaultOn ? "true (default)" : "false (default)", enabled: !!defaultOn };
+        var truthy = (v === "true" || v === "1");
+        return { value: v, enabled: truthy };
+    }
+
+    return aoOk({
+        checkedAt: new Date().toISOString(),
+        flags: {
+            ROLLUP_ENABLED:           flag("ROLLUP_ENABLED", true),
+            EXTERNAL_POLLERS_ENABLED: flag("EXTERNAL_POLLERS_ENABLED", true),
+            DASHBOARD_PREFER_ROLLUPS: flag("DASHBOARD_PREFER_ROLLUPS", true)
+        }
+    });
+}
+
+// ─── RPC: analytics_metrics ───────────────────────────────
+//
+// Returns a compact, Prometheus-scrape-friendly snapshot of the analytics
+// pipeline's internal state. Nakama's Goja runtime can't register Prometheus
+// counters directly, so we expose this RPC for blackbox-exporter / curl-cron
+// scraping. Admin-gated (DASHBOARD_SECRET works for service-to-service).
+//
+// Payload: {} (no params)
+// Returns: {
+//   events_today_accepted, events_today_rejected,
+//   last_rollup_date, last_rollup_unix, rollup_events_matched,
+//   poll_last_unix: { appodeal, appstore, ugs },
+//   analytics_events_sample, analytics_dau_sample
+// }
+
+function rpcAnalyticsMetrics(ctx, logger, nk, payload) {
+    var data = aoParse(payload);
+    var gate = aoRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return aoErr(gate.reason, 401);
+
+    var today = new Date().toISOString().slice(0, 10);
+    var todayCounter = null;
+    try {
+        var objs = nk.storageRead([{ collection: "analytics_metrics_counters", key: "counter_" + today, userId: AO_SYSTEM_USER }]);
+        if (objs && objs.length > 0) todayCounter = objs[0].value;
+    } catch (e) { /* ignore */ }
+
+    var rollupMeta = null;
+    try {
+        var rObjs = nk.storageRead([{ collection: "analytics_rollup_meta", key: "last_success", userId: AO_SYSTEM_USER }]);
+        if (rObjs && rObjs.length > 0) rollupMeta = rObjs[0].value;
+    } catch (e) { /* ignore */ }
+
+    var pollerMeta = {};
+    var providers = ["appodeal", "appstore", "ugs"];
+    for (var pi = 0; pi < providers.length; pi++) {
+        try {
+            var p = providers[pi];
+            var pObjs = nk.storageRead([{ collection: "external_analytics_last_poll", key: p, userId: AO_SYSTEM_USER }]);
+            if (pObjs && pObjs.length > 0) pollerMeta[p] = pObjs[0].value;
+            else pollerMeta[p] = null;
+        } catch (e) { /* ignore */ }
+    }
+
+    var analyticsEventsSample = 0;
+    var analyticsDauSample = 0;
+    try {
+        var l1 = nk.storageList(AO_SYSTEM_USER, "analytics_events", 5, null);
+        analyticsEventsSample = (l1 && l1.objects) ? l1.objects.length : 0;
+    } catch (e) { /* ignore */ }
+    try {
+        var l2 = nk.storageList(AO_SYSTEM_USER, "analytics_dau", 5, null);
+        analyticsDauSample = (l2 && l2.objects) ? l2.objects.length : 0;
+    } catch (e) { /* ignore */ }
+
+    return aoOk({
+        checkedAt: new Date().toISOString(),
+        events_today_accepted: (todayCounter && todayCounter.events_accepted) || 0,
+        events_today_rejected: (todayCounter && todayCounter.events_rejected) || 0,
+        log_calls_today: (todayCounter && todayCounter.log_calls) || 0,
+        last_rollup_date: rollupMeta ? rollupMeta.date : null,
+        last_rollup_unix: rollupMeta && rollupMeta.timestamp
+            ? Math.floor(new Date(rollupMeta.timestamp).getTime() / 1000)
+            : 0,
+        rollup_events_matched: rollupMeta ? rollupMeta.eventsMatched : 0,
+        rollup_games_count: rollupMeta && rollupMeta.gameIds ? rollupMeta.gameIds.length : 0,
+        poll_last_unix: {
+            appodeal: pollerMeta.appodeal ? pollerMeta.appodeal.lastPollUnix : 0,
+            appstore: pollerMeta.appstore ? pollerMeta.appstore.lastPollUnix : 0,
+            ugs:      pollerMeta.ugs ? pollerMeta.ugs.lastPollUnix : 0
+        },
+        poll_last_success: {
+            appodeal: !!(pollerMeta.appodeal && pollerMeta.appodeal.success),
+            appstore: !!(pollerMeta.appstore && pollerMeta.appstore.success),
+            ugs:      !!(pollerMeta.ugs && pollerMeta.ugs.success)
+        },
+        analytics_events_sample: analyticsEventsSample,
+        analytics_dau_sample: analyticsDauSample,
+        bypass: gate.bypass
+    });
+}
+
+// ─── Registration ─────────────────────────────────────────
+
+function __ModuleInit_5(ctx, logger, nk, initializer) {
+    __rpc_analytics_schema_check = __rpc_analytics_schema_check || (rpcAnalyticsSchemaCheck);
+    __rpc_analytics_backfill_events = __rpc_analytics_backfill_events || (rpcAnalyticsBackfillEvents);
+    __rpc_analytics_feature_flags = __rpc_analytics_feature_flags || (rpcAnalyticsFeatureFlags);
+    __rpc_analytics_metrics = __rpc_analytics_metrics || (rpcAnalyticsMetrics);
+    logger.info("[analytics_ops] Module registered: 4 RPCs (schema_check, backfill_events, feature_flags, metrics)");
+}
+
+
+// --- Module: analytics_retention_curves\analytics_retention_curves.js ---
+// analytics_retention_curves.js — Reads cohort docs produced by analytics_rollup
+// and returns retention curves & heatmap data shaped for the dashboard.
+//
+// Problem it solves:
+//   analytics_rollup writes `analytics_retention/cohort_<gameId>_<YYYY-MM-DD>`
+//   per cohort with shape { cohortDate, gameId, cohortSize, activeByDay: { "1":n,... } }.
+//   No RPC consumed these until now, so the dashboard's Retention tab was empty.
+//
+// Registered RPCs:
+//   analytics_retention_curves  { gameId?, days? (default 30) }  admin-gated
+//
+// Output shape (stable):
+//   {
+//     success: true,
+//     gameId: "…",
+//     from: "YYYY-MM-DD",
+//     to:   "YYYY-MM-DD",
+//     windows: [1, 3, 7, 14, 30],
+//     summary: { avg_d1_pct: …, avg_d7_pct: …, avg_d30_pct: …, cohorts_considered: n },
+//     cohorts: [
+//       { cohortDate, cohortSize, activeByDay: {1:n,3:n,…}, retentionPctByDay: {1:pct,…} },
+//       …
+//     ],
+//     averageCurve: { 1: pct, 3: pct, 7: pct, 14: pct, 30: pct }  // cohort-size-weighted
+//   }
+//
+// Admin-gated identically to analytics_rollup (bearer session w/ admin role
+// OR shared DASHBOARD_SECRET). This keeps user-level data out of the public
+// http_key path.
+
+var RC_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+var RC_ADMIN_USERS_COLLECTION = "admin_users";
+var RC_RETENTION_COLLECTION = "analytics_retention";
+var RC_WINDOWS = [1, 3, 7, 14, 30];
+
+// ─── Helpers ──────────────────────────────────────────────
+
+function rcParse(payload) {
+    try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
+}
+
+function rcOk(data) {
+    var out = { success: true };
+    for (var k in data) if (data.hasOwnProperty(k)) out[k] = data[k];
+    return JSON.stringify(out);
+}
+
+function rcErr(msg, code) {
+    return JSON.stringify({ success: false, error: msg, code: code || 500 });
+}
+
+function rcEnv(ctx, key) {
+    try { return (ctx && ctx.env && ctx.env[key]) || null; } catch (e) { return null; }
+}
+
+// Must match analytics_admin.aaIsAdminUser:
+//   - admin_users/profile doc is owned by the admin's Nakama UUID
+//   - ctx.username (the "admin:<name>" custom_id) gates eligibility
+// The old implementation read `admin_users/<userId>` under SYSTEM_USER, which
+// never matched anything admin_login had written, so every call 401'd.
+function rcIsAdminUser(nk, logger, userId, username) {
+    if (!userId) return false;
+    if (!username || username.indexOf("admin:") !== 0) return false;
+    try {
+        var records = nk.storageRead([{ collection: RC_ADMIN_USERS_COLLECTION, key: "profile", userId: userId }]);
+        if (!records || records.length === 0) return false;
+        var rec = records[0].value || {};
+        if (!rec.isAdmin) return false;
+        if (rec.expiresAt && rec.expiresAt < Math.floor(Date.now() / 1000)) return false;
+        return true;
+    } catch (e) { return false; }
+}
+
+function rcRequireAdmin(ctx, nk, logger, data) {
+    var secret = rcEnv(ctx, "DASHBOARD_SECRET");
+    if (secret && data && data.dashboard_secret === secret) return { ok: true };
+    if (ctx.userId && rcIsAdminUser(nk, logger, ctx.userId, ctx.username)) return { ok: true };
+    return { ok: false, reason: "admin authentication required" };
+}
+
+function rcIsoDate(d) { return d.toISOString().slice(0, 10); }
+
+function rcTodayISO() { return rcIsoDate(new Date()); }
+
+function rcDateMinusDays(dateStr, days) {
+    var d = new Date(dateStr + "T00:00:00.000Z");
+    d.setUTCDate(d.getUTCDate() - days);
+    return rcIsoDate(d);
+}
+
+function rcReadOne(nk, collection, key) {
+    try {
+        var r = nk.storageRead([{ collection: collection, key: key, userId: RC_SYSTEM_USER }]);
+        if (r && r.length > 0) return r[0].value;
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+// ─── Core: load cohorts for a date range ──────────────────
+
+/**
+ * Reads cohort_<gameId>_<date> docs for the last `days` days for a single gameId.
+ * If `gameId` is "all" we don't scan — the rollup module skips the "all"
+ * cohort to avoid double-counting across games. Returns an array of cohort
+ * objects in date order (oldest first).
+ *
+ * We do point reads (one per date) rather than a storageList scan because:
+ *   • Scans under SYSTEM_USER include retention docs from every gameId,
+ *     burning read quota when we only care about one.
+ *   • For the 30-day default window this is 30 storage reads, well inside
+ *     Nakama's per-RPC budget.
+ */
+function rcLoadCohorts(nk, logger, gameId, days) {
+    if (!gameId || gameId === "all") return [];
+    if (!days || days < 1) days = 30;
+    if (days > 120) days = 120; // hard cap — heatmap UI can't show more than this cleanly.
+
+    var cohorts = [];
+    var today = rcTodayISO();
+
+    for (var offset = days - 1; offset >= 0; offset--) {
+        var dateStr = rcDateMinusDays(today, offset);
+        var key = "cohort_" + gameId + "_" + dateStr;
+        var doc = rcReadOne(nk, RC_RETENTION_COLLECTION, key);
+        if (!doc) continue;
+        if (!doc.cohortSize) continue; // skip placeholder docs with no cohort seeded
+
+        // Compute retention pct per window for convenience on the client.
+        var pctByDay = {};
+        var activeByDay = doc.activeByDay || {};
+        for (var wi = 0; wi < RC_WINDOWS.length; wi++) {
+            var w = RC_WINDOWS[wi];
+            var active = activeByDay[String(w)];
+            if (typeof active === "number" && doc.cohortSize > 0) {
+                pctByDay[w] = Math.round((active / doc.cohortSize) * 1000) / 10; // 1 dp
+            } else {
+                pctByDay[w] = null; // "not yet observed" — UI renders as gap, not zero.
+            }
+        }
+
+        cohorts.push({
+            cohortDate: doc.cohortDate || dateStr,
+            cohortSize: doc.cohortSize,
+            activeByDay: activeByDay,
+            retentionPctByDay: pctByDay,
+            computedAt: doc.computedAt || null
+        });
+    }
+
+    return cohorts;
+}
+
+/**
+ * Computes a cohort-size-weighted average retention curve across the loaded
+ * cohorts. Weighting matters — a 1000-user cohort with 50% d7 and a 10-user
+ * cohort with 100% d7 shouldn't produce a 75% average; it's really ~50.5%.
+ *
+ * Cohorts that are too young to have an observation for a window (e.g. d30
+ * for a cohort seeded 3 days ago) are excluded from that window's average
+ * by design — otherwise the curve sags toward the recent days.
+ */
+function rcAverageCurve(cohorts) {
+    var totals = {};   // window -> { active: n, size: n, cohorts: n }
+    for (var wi = 0; wi < RC_WINDOWS.length; wi++) {
+        totals[RC_WINDOWS[wi]] = { active: 0, size: 0, cohorts: 0 };
+    }
+    for (var i = 0; i < cohorts.length; i++) {
+        var c = cohorts[i];
+        for (var wj = 0; wj < RC_WINDOWS.length; wj++) {
+            var w = RC_WINDOWS[wj];
+            var active = (c.activeByDay || {})[String(w)];
+            if (typeof active !== "number") continue;
+            totals[w].active += active;
+            totals[w].size += c.cohortSize || 0;
+            totals[w].cohorts += 1;
+        }
+    }
+
+    var curve = {};
+    var cohortsConsidered = cohorts.length;
+    for (var wk = 0; wk < RC_WINDOWS.length; wk++) {
+        var ww = RC_WINDOWS[wk];
+        var t = totals[ww];
+        curve[ww] = (t.size > 0) ? Math.round((t.active / t.size) * 1000) / 10 : null;
+    }
+    return { curve: curve, cohortsConsidered: cohortsConsidered, totals: totals };
+}
+
+// ─── RPC: analytics_retention_curves ──────────────────────
+
+function rpcAnalyticsRetentionCurves(ctx, logger, nk, payload) {
+    var data = rcParse(payload);
+    var gate = rcRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return rcErr(gate.reason, 401);
+
+    var gameId = data.gameId || "all";
+    if (gameId === "all") {
+        // Retention is per-game because user identity overlaps across games
+        // shouldn't be smashed together. Surface this explicitly.
+        return rcErr("gameId is required (retention cohorts are per-game).", 400);
+    }
+
+    var days = parseInt(data.days, 10);
+    if (!days || isNaN(days)) days = 30;
+    if (days < 1) days = 1;
+    if (days > 120) days = 120;
+
+    var cohorts = rcLoadCohorts(nk, logger, gameId, days);
+
+    var avg = rcAverageCurve(cohorts);
+
+    // Summary KPIs for the UI header (null if we have no data yet).
+    var summary = {
+        cohorts_considered: cohorts.length,
+        avg_d1_pct:  avg.curve[1],
+        avg_d3_pct:  avg.curve[3],
+        avg_d7_pct:  avg.curve[7],
+        avg_d14_pct: avg.curve[14],
+        avg_d30_pct: avg.curve[30]
+    };
+
+    return rcOk({
+        gameId: gameId,
+        from: cohorts.length > 0 ? cohorts[0].cohortDate : null,
+        to:   cohorts.length > 0 ? cohorts[cohorts.length - 1].cohortDate : null,
+        windows: RC_WINDOWS,
+        summary: summary,
+        averageCurve: avg.curve,
+        cohorts: cohorts
+    });
+}
+
+// ─── Registration ─────────────────────────────────────────
+
+function __ModuleInit_6(ctx, logger, nk, initializer) {
+    __rpc_analytics_retention_curves = __rpc_analytics_retention_curves || (rpcAnalyticsRetentionCurves);
+    logger.info("[analytics_retention_curves] Module registered: 1 RPC");
+}
+
+
+// --- Module: analytics_rollup\analytics_rollup.js ---
+// analytics_rollup.js — Phase 2.1 nightly rollup + backfill.
+//
+// Problem it solves:
+//   analytics_dashboard today does storageRead × N days + full storageList scans
+//   on every request. That's O(users × days) per page view. This module
+//   pre-aggregates once per day into compact rollup docs so the dashboard
+//   becomes a pure reader.
+//
+// Output collections (all keyed under SYSTEM_USER for easy scans):
+//   analytics_rollup_daily   key: rollup_<gameId>_<YYYY-MM-DD>
+//   analytics_rollup_daily   key: rollup_all_<YYYY-MM-DD>            (platform-wide)
+//   analytics_retention      key: cohort_<gameId>_<YYYY-MM-DD>       (daily cohort, d1/d3/d7/d14/d30)
+//   analytics_funnel_daily   key: funnel_<gameId>_<YYYY-MM-DD>
+//   analytics_rollup_meta    key: last_success                       (bookkeeping)
+//
+// Registered RPCs:
+//   analytics_rollup_run       { date?: "YYYY-MM-DD", gameIds?: string[] } admin-gated
+//   analytics_rollup_backfill  { from: "YYYY-MM-DD", to: "YYYY-MM-DD", gameIds?: string[] } admin-gated
+//   analytics_rollup_status    {} admin-gated
+//
+// Admin gating:
+//   Same as analytics_admin: bearer token whose userId is registered as admin,
+//   OR payload.dashboard_secret matching ctx.env.DASHBOARD_SECRET. The cron
+//   sidecar uses the shared secret path so it doesn't need a login flow.
+//
+// Idempotent: re-running for the same date overwrites the rollup doc, no duplicates.
+//
+// Feature flag: ROLLUP_ENABLED="false" disables all RPCs (returns 503). Default: enabled.
+
+var AR_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+var AR_ADMIN_USERS_COLLECTION = "admin_users";
+var AR_ROLLUP_COLLECTION = "analytics_rollup_daily";
+var AR_RETENTION_COLLECTION = "analytics_retention";
+var AR_FUNNEL_COLLECTION = "analytics_funnel_daily";
+var AR_META_COLLECTION = "analytics_rollup_meta";
+var AR_EVENTS_COLLECTION = "analytics_events";
+var AR_FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
+
+// Legacy → canonical event-name aliases. Must match EVENT_ALIASES in
+// analytics.js so events ingested with the old names (before analytics.js
+// began normalizing at write time) still roll up against the canonical
+// names used by AR_FUNNEL_STEPS and monetization/retention KPIs.
+var AR_EVENT_ALIASES = {
+    "quiz_started": "quiz_start",
+    "quiz_completed": "quiz_complete",
+    "purchase_completed": "iap_purchased",
+    "purchase_started": "iap_clicked",
+    "iap_completed": "iap_purchased",
+    "iap_started": "iap_clicked",
+    "login_succeeded": "login_success",
+    "onboarding_completed": "onboarded",
+    "onboarding_complete": "onboarded",
+    "registration_completed": "registration_complete"
+};
+
+// Canonical funnel order (must match IVXAnalyticsEvents in the Unity client).
+var AR_FUNNEL_STEPS = [
+    "app_open",
+    "onboarded",
+    "login_success",
+    "session_start",
+    "quiz_start",
+    "quiz_complete",
+    "iap_clicked",
+    "iap_purchased"
+];
+
+// Retention windows we compute for each cohort (days since first-seen).
+var AR_RETENTION_WINDOWS = [1, 3, 7, 14, 30];
+
+// ─── Helpers ──────────────────────────────────────────────
+
+function arParse(payload) {
+    try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
+}
+
+function arOk(data) {
+    var out = { success: true };
+    if (data) for (var k in data) if (data.hasOwnProperty(k)) out[k] = data[k];
+    return JSON.stringify(out);
+}
+
+function arErr(msg, code) {
+    return JSON.stringify({ success: false, error: msg || "error", code: code || 400 });
+}
+
+function arEnv(ctx, key) {
+    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) return String(ctx.env[key]);
+    return "";
+}
+
+function arFeatureEnabled(ctx) {
+    var v = arEnv(ctx, "ROLLUP_ENABLED");
+    if (v === "" || v === "true" || v === "1") return true;
+    return false;
+}
+
+/**
+ * Admin check mirrors analytics_admin.aaIsAdminUser: the "admin:" prefix
+ * gate runs against ctx.username (the custom_id), and the admin_users/profile
+ * doc is keyed by Nakama's UUID (ctx.userId).
+ */
+function arIsAdminUser(nk, logger, userId, username) {
+    if (!userId) return false;
+    if (!username || username.indexOf("admin:") !== 0) return false;
+    try {
+        var records = nk.storageRead([{ collection: AR_ADMIN_USERS_COLLECTION, key: "profile", userId: userId }]);
+        if (!records || records.length === 0) return false;
+        var rec = records[0].value || {};
+        if (!rec.isAdmin) return false;
+        if (rec.expiresAt && rec.expiresAt < Math.floor(Date.now() / 1000)) return false;
+        return true;
+    } catch (e) { return false; }
+}
+
+function arRequireAdmin(ctx, nk, logger, data) {
+    var secret = arEnv(ctx, "DASHBOARD_SECRET");
+    if (secret && data && data.dashboard_secret === secret) return { ok: true, bypass: "secret" };
+    if (ctx.userId && arIsAdminUser(nk, logger, ctx.userId, ctx.username)) return { ok: true, bypass: "session" };
+    return { ok: false, reason: "admin authentication required" };
+}
+
+function arIsoDate(d) { return d.toISOString().slice(0, 10); }
+
+function arValidDateStr(s) {
+    if (!s || typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    var d = new Date(s + "T00:00:00.000Z");
+    return !isNaN(d.getTime());
+}
+
+function arYesterday() {
+    var d = new Date();
+    d.setUTCDate(d.getUTCDate() - 1);
+    return arIsoDate(d);
+}
+
+function arDateRange(from, to) {
+    var out = [];
+    var start = new Date(from + "T00:00:00.000Z");
+    var end = new Date(to + "T00:00:00.000Z");
+    if (end < start) return out;
+    for (var d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        out.push(arIsoDate(d));
+        if (out.length > 366) break; // hard cap: 1 year at a time
+    }
+    return out;
+}
+
+function arReadOne(nk, collection, key, userId) {
+    try {
+        var r = nk.storageRead([{ collection: collection, key: key, userId: userId || AR_SYSTEM_USER }]);
+        if (r && r.length > 0) return r[0].value;
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+function arWriteOne(nk, collection, key, userId, value) {
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: userId || AR_SYSTEM_USER,
+            value: value,
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (e) { return false; }
+}
+
+// ─── Core: scan events for one day ────────────────────────
+
+/**
+ * Streams analytics_events under SYSTEM_USER and collects records falling on `dateStr`.
+ * Returns { events: [...], scanned, truncated }.
+ *
+ * Note: we rely on the dashboard-fanout copy written by persistNormalizedEvent,
+ * which is keyed as `dash_<YYYY-MM-DD>_<eventName>_...`. Scanning under SYSTEM_USER
+ * avoids cross-user reads and is the cheapest path.
+ */
+function arScanEventsForDate(nk, logger, dateStr) {
+    var events = [];
+    var scanned = 0;
+    var truncated = false;
+    var cursor = null;
+    var maxPages = 50;          // safety cap: 50 pages × 200 = 10k events / day
+    var pageSize = 200;
+    var dayStart = Math.floor(new Date(dateStr + "T00:00:00.000Z").getTime() / 1000);
+    var dayEnd = dayStart + 86400;
+
+    for (var p = 0; p < maxPages; p++) {
+        var page;
+        try {
+            page = nk.storageList(AR_SYSTEM_USER, AR_EVENTS_COLLECTION, pageSize, cursor);
+        } catch (e) {
+            logger.warn("[analytics_rollup] storageList failed: " + e.message);
+            break;
+        }
+        if (!page || !page.objects || page.objects.length === 0) break;
+
+        for (var i = 0; i < page.objects.length; i++) {
+            scanned++;
+            var o = page.objects[i];
+            if (!o || !o.value) continue;
+            // Only consider the dashboard-fanout copies; user-owned event copies are duplicates
+            // and would double-count aggregates. The dash_ prefix is written by
+            // analytics.js::persistNormalizedEvent.
+            if (!o.key || o.key.indexOf("dash_") !== 0) continue;
+
+            var ev = o.value;
+            var unix = ev.unixTimestamp;
+            if (!unix && ev.timestamp) unix = Math.floor(new Date(ev.timestamp).getTime() / 1000);
+            if (!unix) continue;
+            if (unix < dayStart || unix >= dayEnd) continue;
+
+            events.push(ev);
+        }
+
+        if (!page.cursor) break;
+        cursor = page.cursor;
+    }
+
+    if (events.length >= maxPages * pageSize) truncated = true;
+    return { events: events, scanned: scanned, truncated: truncated };
+}
+
+// ─── Core: first-seen upsert for per-day new_users + retention cohorts ──────
+
+/**
+ * For each userId in `userIds`, ensure analytics_user_first_seen/<first_uid_gid>
+ * exists and reflects the earliest date we've seen the user. Returns:
+ *   { newUsers: { uid: true, ... }, firstSeen: { uid: "YYYY-MM-DD", ... } }
+ *
+ * Algorithm:
+ *   - Batch-read existing first-seen docs.
+ *   - If none exists → create with firstSeenDate = dateStr (version:"*"). User
+ *     is "new" today.
+ *   - If existing.firstSeenDate > dateStr → backfill is seeing an earlier
+ *     appearance; update doc (version-checked) and mark user as "new" for
+ *     THIS earlier date. The old cohort doc at the later date stays correct
+ *     because its cohort was based on the old firstSeenDate; retention
+ *     reporting uses first-seen date at query time.
+ *   - If existing.firstSeenDate === dateStr → "new" today.
+ *   - Otherwise the user is returning.
+ */
+function arUpsertFirstSeen(nk, logger, gameId, userIds, dateStr) {
+    var result = { newUsers: {}, firstSeen: {} };
+    if (!gameId || gameId === "all" || !userIds || userIds.length === 0) return result;
+
+    var batchSize = 50;
+    for (var bs = 0; bs < userIds.length; bs += batchSize) {
+        var batch = userIds.slice(bs, bs + batchSize);
+        var reqs = [];
+        for (var i = 0; i < batch.length; i++) {
+            reqs.push({
+                collection: AR_FIRST_SEEN_COLLECTION,
+                key: "first_" + batch[i] + "_" + gameId,
+                userId: AR_SYSTEM_USER
+            });
+        }
+        var recs = [];
+        try { recs = nk.storageRead(reqs) || []; } catch (e) { recs = []; }
+        var existingByUser = {};
+        for (var r = 0; r < recs.length; r++) {
+            var rec = recs[r];
+            if (rec && rec.value && rec.value.userId) {
+                existingByUser[rec.value.userId] = { value: rec.value, version: rec.version };
+            }
+        }
+
+        for (var j = 0; j < batch.length; j++) {
+            var uid = batch[j];
+            var ex = existingByUser[uid];
+            var writeOp = null;
+            if (!ex) {
+                writeOp = {
+                    collection: AR_FIRST_SEEN_COLLECTION,
+                    key: "first_" + uid + "_" + gameId,
+                    userId: AR_SYSTEM_USER,
+                    value: { userId: uid, gameId: gameId, firstSeenDate: dateStr },
+                    permissionRead: 2, permissionWrite: 0,
+                    version: "*"
+                };
+                result.firstSeen[uid] = dateStr;
+                result.newUsers[uid] = true;
+            } else if (ex.value.firstSeenDate > dateStr) {
+                writeOp = {
+                    collection: AR_FIRST_SEEN_COLLECTION,
+                    key: "first_" + uid + "_" + gameId,
+                    userId: AR_SYSTEM_USER,
+                    value: { userId: uid, gameId: gameId, firstSeenDate: dateStr },
+                    permissionRead: 2, permissionWrite: 0,
+                    version: ex.version
+                };
+                result.firstSeen[uid] = dateStr;
+                result.newUsers[uid] = true;
+            } else {
+                result.firstSeen[uid] = ex.value.firstSeenDate;
+                if (ex.value.firstSeenDate === dateStr) result.newUsers[uid] = true;
+            }
+
+            if (writeOp) {
+                try { nk.storageWrite([writeOp]); }
+                catch (e) {
+                    // Race loser — someone else seeded this user first-seen doc
+                    // between our read and write. Re-read to learn the winner's
+                    // date. If their firstSeenDate <= ours, the user is NOT new
+                    // for us; unmark. If > ours (shouldn't happen given sort),
+                    // keep marked as new.
+                    try {
+                        var reread = nk.storageRead([{
+                            collection: AR_FIRST_SEEN_COLLECTION,
+                            key: writeOp.key, userId: AR_SYSTEM_USER
+                        }]);
+                        if (reread && reread.length > 0 && reread[0].value) {
+                            var winnerDate = reread[0].value.firstSeenDate;
+                            result.firstSeen[uid] = winnerDate;
+                            if (winnerDate !== dateStr) delete result.newUsers[uid];
+                        }
+                    } catch (e2) { /* ignore */ }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// ─── Core: compute rollup from events for ONE gameId ──────
+
+function arComputeRollup(events, gameId, dateStr, newUsersSet) {
+    var activeUsers = {};
+    var sessions = {
+        starts: 0,
+        ends: 0,
+        total_duration_seconds: 0
+    };
+    var eventCounts = {};
+    var screenViews = {};
+    var screenTotalTimeMs = {};
+    var platforms = {};
+    var revenueUsd = 0;
+    var iapCount = 0;
+    var adImpressions = 0;
+    var adClicks = 0;
+    var adRevenueUsd = 0;
+    var aiUsage = {};
+    var funnel = {};
+    for (var fi = 0; fi < AR_FUNNEL_STEPS.length; fi++) {
+        funnel[AR_FUNNEL_STEPS[fi]] = { users: {}, count: 0 };
+    }
+    var errorsByCategory = {};
+
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        if (gameId && gameId !== "all" && ev.gameId !== gameId) continue;
+
+        var userId = ev.userId || "";
+        var eventName = ev.eventName || "";
+        var data = ev.eventData || {};
+
+        // Legacy → canonical alias. Clients emit "quiz_started", "purchase_completed",
+        // "iap_started", etc.; we fold them into the canonical names used by
+        // AR_FUNNEL_STEPS and monetization KPIs. Mirrors analytics.js
+        // normalizeInboundEvent so rollup is robust even for events ingested
+        // before the write-time alias was introduced.
+        if (AR_EVENT_ALIASES[eventName]) eventName = AR_EVENT_ALIASES[eventName];
+
+        if (userId) activeUsers[userId] = true;
+        if (eventName) eventCounts[eventName] = (eventCounts[eventName] || 0) + 1;
+
+        if (data.platform) platforms[data.platform] = (platforms[data.platform] || 0) + 1;
+
+        // Funnel
+        if (funnel[eventName]) {
+            if (userId) funnel[eventName].users[userId] = true;
+            funnel[eventName].count++;
+        }
+
+        // Sessions
+        if (eventName === "session_start") {
+            sessions.starts++;
+        } else if (eventName === "session_end") {
+            sessions.ends++;
+            var dur = parseFloat(data.duration_seconds || data.durationSeconds || 0);
+            if (isFinite(dur) && dur > 0 && dur < 86400) {
+                sessions.total_duration_seconds += dur;
+            }
+        }
+
+        // Screens
+        if (eventName === "screen_view" && data.screen_name) {
+            screenViews[data.screen_name] = (screenViews[data.screen_name] || 0) + 1;
+            var t = parseFloat(data.time_on_previous_ms || 0);
+            if (isFinite(t) && t > 0 && t < 1800000) {
+                screenTotalTimeMs[data.screen_name] = (screenTotalTimeMs[data.screen_name] || 0) + t;
+            }
+        }
+
+        // Revenue
+        if (eventName === "iap_purchased") {
+            iapCount++;
+            var price = parseFloat(data.price_usd || data.priceUsd || 0);
+            if (isFinite(price) && price > 0) revenueUsd += price;
+        }
+        if (eventName === "ad_impression") {
+            adImpressions++;
+            var adRev = parseFloat(data.revenue_usd || 0);
+            if (isFinite(adRev) && adRev > 0) adRevenueUsd += adRev;
+        }
+        if (eventName === "ad_clicked") adClicks++;
+
+        // AI
+        if (eventName === "ai_host_used" || eventName === "ai_fortune_teller_used" ||
+            eventName === "ai_hint_used" || eventName === "ai_question_generated") {
+            aiUsage[eventName] = (aiUsage[eventName] || 0) + 1;
+        }
+
+        // Errors
+        if (eventName === "error_logged") {
+            var cat = data.error_category || "unknown";
+            errorsByCategory[cat] = (errorsByCategory[cat] || 0) + 1;
+        }
+    }
+
+    var funnelOut = {};
+    var funnelOrder = [];
+    for (var fj = 0; fj < AR_FUNNEL_STEPS.length; fj++) {
+        var step = AR_FUNNEL_STEPS[fj];
+        var entry = funnel[step] || { users: {}, count: 0 };
+        var uniq = Object.keys(entry.users).length;
+        funnelOut[step] = { users: uniq, total_events: entry.count };
+        funnelOrder.push({ step: step, users: uniq, total_events: entry.count });
+    }
+
+    var avgSessionSeconds = sessions.ends > 0
+        ? Math.round(sessions.total_duration_seconds / sessions.ends)
+        : 0;
+
+    var topEvents = [];
+    for (var en in eventCounts) topEvents.push({ event_name: en, count: eventCounts[en] });
+    topEvents.sort(function (a, b) { return b.count - a.count; });
+    topEvents = topEvents.slice(0, 20);
+
+    var topScreens = [];
+    for (var sn in screenViews) {
+        var views = screenViews[sn];
+        var avgMs = screenTotalTimeMs[sn] ? Math.round(screenTotalTimeMs[sn] / views) : 0;
+        topScreens.push({ screen_name: sn, views: views, avg_time_ms: avgMs });
+    }
+    topScreens.sort(function (a, b) { return b.views - a.views; });
+    topScreens = topScreens.slice(0, 20);
+
+    var platformBreakdown = [];
+    for (var pn in platforms) platformBreakdown.push({ platform: pn, events: platforms[pn] });
+    platformBreakdown.sort(function (a, b) { return b.events - a.events; });
+
+    var newUsersCount = 0;
+    if (newUsersSet) {
+        // Only count new users who actually showed up in this game's events.
+        for (var nu in newUsersSet) {
+            if (newUsersSet.hasOwnProperty(nu) && activeUsers[nu]) newUsersCount++;
+        }
+    }
+
+    return {
+        gameId: gameId || "all",
+        date: dateStr,
+        dau: Object.keys(activeUsers).length,
+        new_users: newUsersCount,
+        sessions: {
+            count: sessions.ends,                          // completed sessions
+            starts: sessions.starts,
+            total_duration_seconds: Math.round(sessions.total_duration_seconds),
+            avg_duration_seconds: avgSessionSeconds
+        },
+        revenue: {
+            usd: Math.round(revenueUsd * 100) / 100,
+            iap_count: iapCount,
+            ad_revenue_usd: Math.round(adRevenueUsd * 100) / 100,
+            ad_impressions: adImpressions,
+            ad_clicks: adClicks
+        },
+        funnel: funnelOut,
+        funnel_order: funnelOrder,
+        ai_usage: aiUsage,
+        top_events: topEvents,
+        top_screens: topScreens,
+        platform_breakdown: platformBreakdown,
+        errors: errorsByCategory,
+        computed_at: new Date().toISOString(),
+        event_count: events.length
+    };
+}
+
+// ─── Core: retention cohort update ────────────────────────
+
+/**
+ * Updates retention cohort for `cohortDate` by checking today which cohort members
+ * are still active. This writes partial data — e.g. on 2026-04-18 we can fill
+ * the d1 window for cohort 2026-04-17, d3 for cohort 2026-04-15, etc.
+ *
+ * Key shape: analytics_retention/cohort_<gameId>_<cohortDate>
+ * Value shape: { cohortDate, gameId, cohortSize: n, activeByDay: { "1": n, "3": n, ... } }
+ */
+function arUpdateRetention(nk, logger, gameId, cohortDateStr, activeUserSet, todayOffset) {
+    if (!gameId || gameId === "all") return;
+    var key = "cohort_" + gameId + "_" + cohortDateStr;
+    var existing = arReadOne(nk, AR_RETENTION_COLLECTION, key, AR_SYSTEM_USER) || {};
+    if (!existing.cohortUserIds) existing.cohortUserIds = null;
+
+    // On the cohort's own day, persist the cohort snapshot.
+    if (todayOffset === 0) {
+        existing.cohortDate = cohortDateStr;
+        existing.gameId = gameId;
+        existing.cohortUserIds = Object.keys(activeUserSet);
+        existing.cohortSize = existing.cohortUserIds.length;
+        existing.activeByDay = existing.activeByDay || {};
+        existing.computedAt = new Date().toISOString();
+        arWriteOne(nk, AR_RETENTION_COLLECTION, key, AR_SYSTEM_USER, existing);
+        return;
+    }
+
+    // Otherwise, count cohort members still active today.
+    if (!existing.cohortUserIds || existing.cohortUserIds.length === 0) return;
+    var matched = 0;
+    for (var i = 0; i < existing.cohortUserIds.length; i++) {
+        if (activeUserSet[existing.cohortUserIds[i]]) matched++;
+    }
+    existing.activeByDay = existing.activeByDay || {};
+    existing.activeByDay[String(todayOffset)] = matched;
+    existing.computedAt = new Date().toISOString();
+    arWriteOne(nk, AR_RETENTION_COLLECTION, key, AR_SYSTEM_USER, existing);
+}
+
+// ─── RPC: analytics_rollup_run ────────────────────────────
+
+function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
+    if (!arFeatureEnabled(ctx)) return arErr("Rollup feature disabled (ROLLUP_ENABLED=false)", 503);
+
+    var data = arParse(payload);
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    var dateStr = data.date || arYesterday();
+    if (!arValidDateStr(dateStr)) return arErr("Invalid date (expected YYYY-MM-DD)", 400);
+
+    logger.info("[analytics_rollup] run date=" + dateStr);
+
+    var scanResult;
+    try {
+        scanResult = arScanEventsForDate(nk, logger, dateStr);
+    } catch (e) {
+        logger.error("[analytics_rollup] scan failed: " + e.message);
+        return arErr("Scan failed: " + e.message, 500);
+    }
+
+    var events = scanResult.events;
+
+    // Build list of gameIds present in this date's events, plus optional explicit list.
+    var gameIdSet = {};
+    for (var i = 0; i < events.length; i++) {
+        if (events[i].gameId) gameIdSet[events[i].gameId] = true;
+    }
+    if (Array.isArray(data.gameIds)) {
+        for (var gi = 0; gi < data.gameIds.length; gi++) {
+            if (data.gameIds[gi]) gameIdSet[data.gameIds[gi]] = true;
+        }
+    }
+    var gameIds = Object.keys(gameIdSet);
+
+    var written = [];
+
+    // Build per-game active-user sets once — used for both first-seen upsert
+    // and retention. This replaces two prior full-events scans per game.
+    var activeByGame = {};
+    for (var ei = 0; ei < events.length; ei++) {
+        var egid = events[ei].gameId;
+        var euid = events[ei].userId;
+        if (!egid || !euid) continue;
+        if (!activeByGame[egid]) activeByGame[egid] = {};
+        activeByGame[egid][euid] = true;
+    }
+
+    // Platform-wide new_users = union of all per-game new users. We compute
+    // it after the per-game loop so we can aggregate.
+    var allNewUsers = {};
+
+    // Per-game rollups
+    for (var gj = 0; gj < gameIds.length; gj++) {
+        var gameId = gameIds[gj];
+        if (!gameId) continue;
+
+        var activeUsersThisGame = activeByGame[gameId] || {};
+        var activeUserIds = Object.keys(activeUsersThisGame);
+
+        // Upsert first-seen docs → set of new-today users for THIS game.
+        var firstSeen = arUpsertFirstSeen(nk, logger, gameId, activeUserIds, dateStr);
+        for (var nuid in firstSeen.newUsers) {
+            if (firstSeen.newUsers.hasOwnProperty(nuid)) allNewUsers[nuid] = true;
+        }
+
+        var roll = arComputeRollup(events, gameId, dateStr, firstSeen.newUsers);
+        arWriteOne(nk, AR_ROLLUP_COLLECTION, "rollup_" + gameId + "_" + dateStr, AR_SYSTEM_USER, roll);
+        arWriteOne(nk, AR_FUNNEL_COLLECTION, "funnel_" + gameId + "_" + dateStr, AR_SYSTEM_USER, {
+            gameId: gameId, date: dateStr, funnel: roll.funnel, funnel_order: roll.funnel_order
+        });
+        written.push({ scope: gameId, date: dateStr, dau: roll.dau, events: roll.event_count, new_users: roll.new_users });
+
+        // Retention seed: cohort = users whose first-seen is THIS date
+        // (real first-time users), not all active users. Previously we
+        // seeded the cohort with DAU which inflated retention curves.
+        arUpdateRetention(nk, logger, gameId, dateStr, firstSeen.newUsers, 0);
+
+        // Back-update older cohorts: on date D, fill window w for cohort
+        // (D - w). Numerator is all users active on D (retention doesn't
+        // care whether today's users are new or returning — it cares
+        // whether they're still alive from the cohort).
+        for (var ri = 0; ri < AR_RETENTION_WINDOWS.length; ri++) {
+            var windowDays = AR_RETENTION_WINDOWS[ri];
+            var cohortDate = new Date(dateStr + "T00:00:00.000Z");
+            cohortDate.setUTCDate(cohortDate.getUTCDate() - windowDays);
+            arUpdateRetention(nk, logger, gameId, arIsoDate(cohortDate), activeUsersThisGame, windowDays);
+        }
+    }
+
+    // Platform-wide rollup — compute AFTER per-game so we can reuse the
+    // aggregated new-users set across games.
+    var allRollup = arComputeRollup(events, "all", dateStr, allNewUsers);
+    arWriteOne(nk, AR_ROLLUP_COLLECTION, "rollup_all_" + dateStr, AR_SYSTEM_USER, allRollup);
+    arWriteOne(nk, AR_FUNNEL_COLLECTION, "funnel_all_" + dateStr, AR_SYSTEM_USER, {
+        gameId: "all", date: dateStr, funnel: allRollup.funnel, funnel_order: allRollup.funnel_order
+    });
+    written.unshift({ scope: "all", date: dateStr, dau: allRollup.dau, events: allRollup.event_count, new_users: allRollup.new_users });
+
+    // Record success marker.
+    arWriteOne(nk, AR_META_COLLECTION, "last_success", AR_SYSTEM_USER, {
+        date: dateStr,
+        gameIds: gameIds,
+        eventsScanned: scanResult.scanned,
+        eventsMatched: events.length,
+        truncated: scanResult.truncated,
+        timestamp: new Date().toISOString(),
+        bypass: gate.bypass
+    });
+
+    logger.info("[analytics_rollup] done date=" + dateStr +
+                " games=" + gameIds.length +
+                " events=" + events.length +
+                " scanned=" + scanResult.scanned);
+
+    return arOk({
+        date: dateStr,
+        games_rolled_up: gameIds.length,
+        events_matched: events.length,
+        events_scanned: scanResult.scanned,
+        truncated: scanResult.truncated,
+        written: written
+    });
+}
+
+// ─── RPC: analytics_rollup_backfill ───────────────────────
+
+function rpcAnalyticsRollupBackfill(ctx, logger, nk, payload) {
+    if (!arFeatureEnabled(ctx)) return arErr("Rollup feature disabled", 503);
+
+    var data = arParse(payload);
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    if (!arValidDateStr(data.from) || !arValidDateStr(data.to)) {
+        return arErr("from/to must be YYYY-MM-DD", 400);
+    }
+    var dates = arDateRange(data.from, data.to);
+    if (dates.length === 0) return arErr("Empty date range", 400);
+    if (dates.length > 90) return arErr("Backfill range too large (max 90 days)", 400);
+
+    var results = [];
+    for (var i = 0; i < dates.length; i++) {
+        var runPayload = { date: dates[i], dashboard_secret: data.dashboard_secret, gameIds: data.gameIds };
+        var raw;
+        try { raw = rpcAnalyticsRollupRun(ctx, logger, nk, JSON.stringify(runPayload)); }
+        catch (e) {
+            results.push({ date: dates[i], success: false, error: e.message });
+            continue;
+        }
+        try {
+            var parsed = JSON.parse(raw);
+            results.push({
+                date: dates[i],
+                success: !!parsed.success,
+                events_matched: parsed.events_matched || 0,
+                games: parsed.games_rolled_up || 0
+            });
+        } catch (e) { results.push({ date: dates[i], success: false, error: "parse" }); }
+    }
+    return arOk({ backfilled: results.length, results: results });
+}
+
+// ─── RPC: analytics_rollup_status ─────────────────────────
+
+function rpcAnalyticsRollupStatus(ctx, logger, nk, payload) {
+    var data = arParse(payload);
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    var meta = arReadOne(nk, AR_META_COLLECTION, "last_success", AR_SYSTEM_USER) || null;
+
+    // Sample the rollup collection to give the operator a count.
+    var rollupSample = 0;
+    try {
+        var list = nk.storageList(AR_SYSTEM_USER, AR_ROLLUP_COLLECTION, 50, null);
+        rollupSample = (list && list.objects) ? list.objects.length : 0;
+    } catch (e) { /* ignore */ }
+
+    return arOk({
+        enabled: arFeatureEnabled(ctx),
+        lastSuccess: meta,
+        rollupSampleCount: rollupSample,
+        hint: meta
+            ? "Last rollup: " + (meta.date || "?") + " at " + (meta.timestamp || "?")
+            : "No successful rollup recorded yet. Trigger via analytics_rollup_run."
+    });
+}
+
+// ─── Registration ─────────────────────────────────────────
+
+function __ModuleInit_7(ctx, logger, nk, initializer) {
+    __rpc_analytics_rollup_run = __rpc_analytics_rollup_run || (rpcAnalyticsRollupRun);
+    __rpc_analytics_rollup_backfill = __rpc_analytics_rollup_backfill || (rpcAnalyticsRollupBackfill);
+    __rpc_analytics_rollup_status = __rpc_analytics_rollup_status || (rpcAnalyticsRollupStatus);
+    logger.info("[analytics_rollup] Module registered: 3 RPCs (run, backfill, status)");
+}
+
+
+// --- Module: analytics_v2\analytics_v2.js ---
 // analytics_v2.js - Advanced Analytics RPCs for Nakama
 // Self-contained, ES5 compatible, no imports/exports
 
@@ -4857,150 +7011,7 @@ function rpcAnalyticsLogError(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: badges/badge_seed_definitions.js ---
-// badge_seed_definitions.js - Seed data for Legendary + Seasonal badges
-// Run once via admin RPC or directly call badges_bulk_create
-// Spec: MRS §12 Legendary (3 Phase-6 remaining) + §13 Seasonal (5)
-
-/**
- * Call this as a Nakama RPC: badges_bulk_create
- * Payload: { game_id: "quizverse", badges: [...] }
- */
-
-var LEGENDARY_AND_SEASONAL_BADGES = {
-    game_id: "quizverse",
-    badges: [
-        // ─── 3 REMAINING LEGENDARY BADGES (Phase 6) ───────────────────────
-        {
-            badge_id: "legend_topic_master",
-            title: "Topic Master",
-            description: "Master all 4 core topics with 90%+ accuracy in each",
-            icon_url: "badges/legendary/topic_master.png",
-            category: "special",
-            rarity: "legendary",
-            type: "tiered",
-            target: 4,
-            hidden: true,
-            points: 500,
-            order: 100,
-            rewards: { coins: 1000, xp: 500, collectables: ["frame_golden_brain"] },
-            unlock_criteria: { event: "topic_mastery", threshold: 4 }
-        },
-        {
-            badge_id: "legend_cross_topic",
-            title: "Cross-Topic Champion",
-            description: "Win 50 quizzes across at least 3 different topics",
-            icon_url: "badges/legendary/cross_topic.png",
-            category: "quiz",
-            rarity: "legendary",
-            type: "achievement",
-            target: 50,
-            hidden: false,
-            points: 400,
-            order: 101,
-            rewards: { coins: 750, xp: 400, collectables: ["title_champion"] },
-            unlock_criteria: { event: "quiz_complete", min_topics: 3 }
-        },
-        {
-            badge_id: "legend_polymath",
-            title: "Polymath",
-            description: "Answer 1000 questions correctly across Health, Love, Career & General",
-            icon_url: "badges/legendary/polymath.png",
-            category: "quiz",
-            rarity: "legendary",
-            type: "achievement",
-            target: 1000,
-            hidden: false,
-            points: 600,
-            order: 102,
-            rewards: { coins: 1500, xp: 750, collectables: ["border_rainbow", "title_polymath"] },
-            unlock_criteria: { event: "correct_answer", all_topics: true }
-        },
-
-        // ─── 5 SEASONAL BADGES ─────────────────────────────────────────────
-        {
-            badge_id: "seasonal_spring",
-            title: "Spring Bloom",
-            description: "Complete 10 quizzes during Spring season (Mar-May)",
-            icon_url: "badges/seasonal/spring.png",
-            category: "seasonal",
-            rarity: "epic",
-            type: "seasonal",
-            target: 10,
-            hidden: false,
-            points: 200,
-            order: 200,
-            rewards: { coins: 300, xp: 150 },
-            unlock_criteria: { event: "quiz_complete", season: "spring" }
-        },
-        {
-            badge_id: "seasonal_summer",
-            title: "Summer Heat",
-            description: "Win 5 multiplayer matches during Summer (Jun-Aug)",
-            icon_url: "badges/seasonal/summer.png",
-            category: "seasonal",
-            rarity: "epic",
-            type: "seasonal",
-            target: 5,
-            hidden: false,
-            points: 200,
-            order: 201,
-            rewards: { coins: 300, xp: 150 },
-            unlock_criteria: { event: "match_win", season: "summer" }
-        },
-        {
-            badge_id: "seasonal_monsoon",
-            title: "Monsoon Scholar",
-            description: "Complete 15 Smart Review sessions during Monsoon (Jul-Sep)",
-            icon_url: "badges/seasonal/monsoon.png",
-            category: "seasonal",
-            rarity: "epic",
-            type: "seasonal",
-            target: 15,
-            hidden: false,
-            points: 250,
-            order: 202,
-            rewards: { coins: 400, xp: 200 },
-            unlock_criteria: { event: "review_session", season: "monsoon" }
-        },
-        {
-            badge_id: "seasonal_autumn",
-            title: "Autumn Harvest",
-            description: "Maintain a 14-day streak during Autumn (Oct-Nov)",
-            icon_url: "badges/seasonal/autumn.png",
-            category: "seasonal",
-            rarity: "legendary",
-            type: "seasonal",
-            target: 14,
-            hidden: false,
-            points: 300,
-            order: 203,
-            rewards: { coins: 500, xp: 250 },
-            unlock_criteria: { event: "daily_login_streak", season: "autumn" }
-        },
-        {
-            badge_id: "seasonal_winter",
-            title: "Winter Warrior",
-            description: "Achieve 3 perfect quiz scores during Winter (Dec-Feb)",
-            icon_url: "badges/seasonal/winter.png",
-            category: "seasonal",
-            rarity: "legendary",
-            type: "seasonal",
-            target: 3,
-            hidden: false,
-            points: 300,
-            order: 204,
-            rewards: { coins: 500, xp: 250, collectables: ["frame_snowflake"] },
-            unlock_criteria: { event: "perfect_quiz", season: "winter" }
-        }
-    ]
-};
-
-// To seed: call badges_bulk_create RPC with the above payload
-// Example: nk.rpc("badges_bulk_create", JSON.stringify(LEGENDARY_AND_SEASONAL_BADGES))
-
-
-// --- Module: badges/badges.js ---
+// --- Module: badges\badges.js ---
 /**
  * Badge & Collectable System for Multi-Game Platform
  * Supports per-game badges and collectables with player tracking
@@ -6338,7 +8349,150 @@ if (typeof module !== 'undefined') {
 }
 
 
-// --- Module: characters/characters.js ---
+// --- Module: badges\badge_seed_definitions.js ---
+// badge_seed_definitions.js - Seed data for Legendary + Seasonal badges
+// Run once via admin RPC or directly call badges_bulk_create
+// Spec: MRS §12 Legendary (3 Phase-6 remaining) + §13 Seasonal (5)
+
+/**
+ * Call this as a Nakama RPC: badges_bulk_create
+ * Payload: { game_id: "quizverse", badges: [...] }
+ */
+
+var LEGENDARY_AND_SEASONAL_BADGES = {
+    game_id: "quizverse",
+    badges: [
+        // ─── 3 REMAINING LEGENDARY BADGES (Phase 6) ───────────────────────
+        {
+            badge_id: "legend_topic_master",
+            title: "Topic Master",
+            description: "Master all 4 core topics with 90%+ accuracy in each",
+            icon_url: "badges/legendary/topic_master.png",
+            category: "special",
+            rarity: "legendary",
+            type: "tiered",
+            target: 4,
+            hidden: true,
+            points: 500,
+            order: 100,
+            rewards: { coins: 1000, xp: 500, collectables: ["frame_golden_brain"] },
+            unlock_criteria: { event: "topic_mastery", threshold: 4 }
+        },
+        {
+            badge_id: "legend_cross_topic",
+            title: "Cross-Topic Champion",
+            description: "Win 50 quizzes across at least 3 different topics",
+            icon_url: "badges/legendary/cross_topic.png",
+            category: "quiz",
+            rarity: "legendary",
+            type: "achievement",
+            target: 50,
+            hidden: false,
+            points: 400,
+            order: 101,
+            rewards: { coins: 750, xp: 400, collectables: ["title_champion"] },
+            unlock_criteria: { event: "quiz_complete", min_topics: 3 }
+        },
+        {
+            badge_id: "legend_polymath",
+            title: "Polymath",
+            description: "Answer 1000 questions correctly across Health, Love, Career & General",
+            icon_url: "badges/legendary/polymath.png",
+            category: "quiz",
+            rarity: "legendary",
+            type: "achievement",
+            target: 1000,
+            hidden: false,
+            points: 600,
+            order: 102,
+            rewards: { coins: 1500, xp: 750, collectables: ["border_rainbow", "title_polymath"] },
+            unlock_criteria: { event: "correct_answer", all_topics: true }
+        },
+
+        // ─── 5 SEASONAL BADGES ─────────────────────────────────────────────
+        {
+            badge_id: "seasonal_spring",
+            title: "Spring Bloom",
+            description: "Complete 10 quizzes during Spring season (Mar-May)",
+            icon_url: "badges/seasonal/spring.png",
+            category: "seasonal",
+            rarity: "epic",
+            type: "seasonal",
+            target: 10,
+            hidden: false,
+            points: 200,
+            order: 200,
+            rewards: { coins: 300, xp: 150 },
+            unlock_criteria: { event: "quiz_complete", season: "spring" }
+        },
+        {
+            badge_id: "seasonal_summer",
+            title: "Summer Heat",
+            description: "Win 5 multiplayer matches during Summer (Jun-Aug)",
+            icon_url: "badges/seasonal/summer.png",
+            category: "seasonal",
+            rarity: "epic",
+            type: "seasonal",
+            target: 5,
+            hidden: false,
+            points: 200,
+            order: 201,
+            rewards: { coins: 300, xp: 150 },
+            unlock_criteria: { event: "match_win", season: "summer" }
+        },
+        {
+            badge_id: "seasonal_monsoon",
+            title: "Monsoon Scholar",
+            description: "Complete 15 Smart Review sessions during Monsoon (Jul-Sep)",
+            icon_url: "badges/seasonal/monsoon.png",
+            category: "seasonal",
+            rarity: "epic",
+            type: "seasonal",
+            target: 15,
+            hidden: false,
+            points: 250,
+            order: 202,
+            rewards: { coins: 400, xp: 200 },
+            unlock_criteria: { event: "review_session", season: "monsoon" }
+        },
+        {
+            badge_id: "seasonal_autumn",
+            title: "Autumn Harvest",
+            description: "Maintain a 14-day streak during Autumn (Oct-Nov)",
+            icon_url: "badges/seasonal/autumn.png",
+            category: "seasonal",
+            rarity: "legendary",
+            type: "seasonal",
+            target: 14,
+            hidden: false,
+            points: 300,
+            order: 203,
+            rewards: { coins: 500, xp: 250 },
+            unlock_criteria: { event: "daily_login_streak", season: "autumn" }
+        },
+        {
+            badge_id: "seasonal_winter",
+            title: "Winter Warrior",
+            description: "Achieve 3 perfect quiz scores during Winter (Dec-Feb)",
+            icon_url: "badges/seasonal/winter.png",
+            category: "seasonal",
+            rarity: "legendary",
+            type: "seasonal",
+            target: 3,
+            hidden: false,
+            points: 300,
+            order: 204,
+            rewards: { coins: 500, xp: 250, collectables: ["frame_snowflake"] },
+            unlock_criteria: { event: "perfect_quiz", season: "winter" }
+        }
+    ]
+};
+
+// To seed: call badges_bulk_create RPC with the above payload
+// Example: nk.rpc("badges_bulk_create", JSON.stringify(LEGENDARY_AND_SEASONAL_BADGES))
+
+
+// --- Module: characters\characters.js ---
 // characters.js - Character System for QuizVerse v3.0
 // RPCs: character_get_state, character_unlock, character_set_active
 
@@ -7209,7 +9363,7 @@ function markDirectMessagesAsRead(nk, logger, userId, conversationId) {
 }
 
 
-// --- Module: chat_moderation/chat_moderation.js ---
+// --- Module: chat_moderation\chat_moderation.js ---
 // chat_moderation.js - Chat Moderation Pipeline
 // Storage collection: chat_reports, chat_filter_config
 // RPCs: chat_report_message, chat_moderation_review, chat_moderation_stats
@@ -7664,7 +9818,7 @@ function rpcChatFilterMessage(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/cognito_wallet_mapper.js ---
+// --- Module: copilot\cognito_wallet_mapper.js ---
 // cognito_wallet_mapper.js - Core RPC functions for Cognito ↔ Wallet mapping
 
 /**
@@ -7896,7 +10050,7 @@ function getWalletRegistry(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/leaderboard_aggregate.js ---
+// --- Module: copilot\leaderboard_aggregate.js ---
 // leaderboard_aggregate.js - Aggregate scores across all game leaderboards
 // ES5 compatible for Nakama goja runtime
 
@@ -8008,7 +10162,7 @@ function rpcSubmitScoreWithAggregate(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/leaderboard_friends.js ---
+// --- Module: copilot\leaderboard_friends.js ---
 // leaderboard_friends.js - Friend-specific leaderboard features
 // ES5 compatible for Nakama goja runtime
 
@@ -8183,7 +10337,7 @@ function rpcGetFriendLeaderboard(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/leaderboard_sync.js ---
+// --- Module: copilot\leaderboard_sync.js ---
 // leaderboard_sync.js - Score synchronization between per-game and global leaderboards
 // ES5 compatible for Nakama goja runtime
 
@@ -8258,7 +10412,7 @@ function rpcSubmitScoreSync(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/social_features.js ---
+// --- Module: copilot\social_features.js ---
 // social_features.js - Social graph and notification features
 // ES5 compatible for Nakama goja runtime
 
@@ -8443,7 +10597,7 @@ function rpcGetNotifications(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/utils.js ---
+// --- Module: copilot\utils.js ---
 // utils.js - Shared helper functions for copilot leaderboard modules
 // ES5 compatible for Nakama goja runtime
 
@@ -8507,7 +10661,7 @@ var utils = {
 };
 
 
-// --- Module: copilot/wallet_registry.js ---
+// --- Module: copilot\wallet_registry.js ---
 // wallet_registry.js - CRUD operations for global wallet registry
 
 /**
@@ -8662,7 +10816,7 @@ function getAllWallets(nk, logger, limit) {
 }
 
 
-// --- Module: copilot/wallet_utils.js ---
+// --- Module: copilot\wallet_utils.js ---
 // wallet_utils.js - Helper utilities for Cognito JWT handling and validation
 
 /**
@@ -8768,7 +10922,7 @@ function handleWalletError(logger, operation, error) {
 
 
 
-// --- Module: cross_game/cross_game.js ---
+// --- Module: cross_game\cross_game.js ---
 // cross_game.js - Cross-game RPCs for multi-game ecosystem features
 // Compatible with Nakama V8 JavaScript runtime (no ES modules)
 
@@ -9249,7 +11403,7 @@ function registerCrossGameRPCs(initializer, logger) {
 }
 
 
-// --- Module: daily_missions/daily_missions.js ---
+// --- Module: daily_missions\daily_missions.js ---
 // daily_missions.js - Daily Missions System (Per gameId UUID)
 
 /**
@@ -9628,219 +11782,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: daily_rewards/daily_reward_calendar.js ---
-// daily_reward_calendar.js - 30-Day Daily Reward Calendar View
-// Extends the daily rewards system with a full calendar preview
-// RPC: daily_reward_get_calendar
-
-var CALENDAR_REWARD_CONFIGS = {
-    "default": [
-        { day: 1,  xp: 50,   tokens: 40,   name: "Welcome Back",         tier: "common",    icon: "coin_stack" },
-        { day: 2,  xp: 75,   tokens: 50,   name: "Steady Start",         tier: "common",    icon: "coin_stack" },
-        { day: 3,  xp: 100,  tokens: 65,   name: "Power-Up Day",         tier: "uncommon",  icon: "lightning" },
-        { day: 4,  xp: 150,  tokens: 80,   name: "Momentum Builder",     tier: "common",    icon: "coin_stack" },
-        { day: 5,  xp: 200,  tokens: 100,  name: "XP Boost",             tier: "uncommon",  icon: "star", multiplier: "2x XP" },
-        { day: 6,  xp: 275,  tokens: 125,  name: "Almost There",         tier: "uncommon",  icon: "fire" },
-        { day: 7,  xp: 400,  tokens: 200,  name: "Weekly Champion",      tier: "rare",      icon: "trophy",   bonus: "weekly_badge" },
-        { day: 8,  xp: 60,   tokens: 45,   name: "Fresh Week",           tier: "common",    icon: "sunrise" },
-        { day: 9,  xp: 90,   tokens: 55,   name: "Keeping It Up",        tier: "common",    icon: "thumbsup" },
-        { day: 10, xp: 150,  tokens: 75,   name: "Double Digits",        tier: "uncommon",  icon: "sparkles" },
-        { day: 11, xp: 175,  tokens: 90,   name: "Committed Player",     tier: "common",    icon: "muscle" },
-        { day: 12, xp: 225,  tokens: 110,  name: "Power Surge",          tier: "uncommon",  icon: "lightning", multiplier: "2x XP" },
-        { day: 13, xp: 300,  tokens: 140,  name: "Lucky 13",             tier: "uncommon",  icon: "clover" },
-        { day: 14, xp: 500,  tokens: 250,  name: "Two-Week Legend",      tier: "rare",      icon: "crown",    bonus: "biweekly_chest" },
-        { day: 15, xp: 75,   tokens: 50,   name: "Halfway Point",        tier: "common",    icon: "flag" },
-        { day: 16, xp: 100,  tokens: 60,   name: "Steady Grinder",       tier: "common",    icon: "pickaxe" },
-        { day: 17, xp: 175,  tokens: 85,   name: "Streak Fire",          tier: "uncommon",  icon: "fire" },
-        { day: 18, xp: 200,  tokens: 100,  name: "Bonus Round",          tier: "uncommon",  icon: "gift" },
-        { day: 19, xp: 250,  tokens: 120,  name: "XP Rush",              tier: "uncommon",  icon: "rocket",   multiplier: "3x XP" },
-        { day: 20, xp: 350,  tokens: 160,  name: "Dedication Reward",    tier: "rare",      icon: "medal" },
-        { day: 21, xp: 600,  tokens: 300,  name: "Three-Week Warrior",   tier: "epic",      icon: "shield",   bonus: "mystery_box" },
-        { day: 22, xp: 100,  tokens: 65,   name: "Final Stretch",        tier: "common",    icon: "runner" },
-        { day: 23, xp: 150,  tokens: 80,   name: "Almost Legendary",     tier: "common",    icon: "hourglass" },
-        { day: 24, xp: 200,  tokens: 100,  name: "Power Player",         tier: "uncommon",  icon: "lightning" },
-        { day: 25, xp: 275,  tokens: 130,  name: "Quarter Century",      tier: "uncommon",  icon: "sparkles" },
-        { day: 26, xp: 350,  tokens: 150,  name: "XP Mega Boost",        tier: "rare",      icon: "rocket",   multiplier: "4x XP" },
-        { day: 27, xp: 400,  tokens: 175,  name: "Penultimate Push",     tier: "rare",      icon: "fire" },
-        { day: 28, xp: 500,  tokens: 200,  name: "Four-Week Hero",       tier: "epic",      icon: "crown",    bonus: "exclusive_avatar" },
-        { day: 29, xp: 600,  tokens: 250,  name: "The Final Countdown",  tier: "epic",      icon: "alarm" },
-        { day: 30, xp: 1000, tokens: 500,  name: "LEGENDARY REWARD",     tier: "legendary", icon: "dragon",   bonus: "legendary_chest", multiplier: "5x XP" }
-    ]
-};
-
-/**
- * Get the full 30-day calendar config for a game, falling back to default.
- */
-function getCalendarConfig(gameId) {
-    return CALENDAR_REWARD_CONFIGS[gameId] || CALENDAR_REWARD_CONFIGS["default"];
-}
-
-/**
- * RPC: daily_reward_get_calendar
- * Returns the full 30-day reward calendar with claimed/unclaimed status per day.
- */
-function rpcDailyRewardGetCalendar(ctx, logger, nk, payload) {
-    logger.info('[DailyRewardCalendar] daily_reward_get_calendar called');
-
-    try {
-        if (!ctx.userId) {
-            return JSON.stringify({ success: false, error: 'Authentication required' });
-        }
-
-        var data = JSON.parse(payload || '{}');
-        var gameId = data.game_id || data.gameId || 'default';
-        var userId = ctx.userId;
-
-        // Get the player's current streak data from the daily_streaks collection
-        var streakData = null;
-        try {
-            var streakKey = gameId + '_user_daily_streak_' + userId;
-            var records = nk.storageRead([{
-                collection: 'daily_streaks',
-                key: streakKey,
-                userId: userId
-            }]);
-            if (records && records.length > 0) {
-                streakData = records[0].value;
-            }
-        } catch (e) {
-            logger.warn('[DailyRewardCalendar] Could not read streak data: ' + e.message);
-        }
-
-        // Also try the alternate key pattern
-        if (!streakData) {
-            try {
-                var altKey = 'user_daily_streak_' + userId + '_' + gameId;
-                var altRecords = nk.storageRead([{
-                    collection: 'daily_streaks',
-                    key: altKey,
-                    userId: userId
-                }]);
-                if (altRecords && altRecords.length > 0) {
-                    streakData = altRecords[0].value;
-                }
-            } catch (e) { /* no streak yet */ }
-        }
-
-        var currentStreak = streakData ? (streakData.currentStreak || 0) : 0;
-        var lastClaimTimestamp = streakData ? (streakData.lastClaimTimestamp || 0) : 0;
-        var totalClaims = streakData ? (streakData.totalClaims || 0) : 0;
-
-        // Check if they can claim today
-        var canClaimToday = true;
-        if (lastClaimTimestamp > 0) {
-            var lastClaimDate = new Date(lastClaimTimestamp * 1000);
-            var today = new Date();
-            lastClaimDate.setHours(0, 0, 0, 0);
-            today.setHours(0, 0, 0, 0);
-            if (lastClaimDate.getTime() === today.getTime()) {
-                canClaimToday = false;
-            }
-            // Check streak break (>48h)
-            var nowUnix = Math.floor(Date.now() / 1000);
-            if ((nowUnix - lastClaimTimestamp) > 48 * 3600) {
-                currentStreak = 0;
-            }
-        }
-
-        // Build 30-day calendar
-        var config = getCalendarConfig(gameId);
-        var calendar = [];
-        var totalTokens = 0;
-        var totalXp = 0;
-
-        for (var day = 1; day <= 30; day++) {
-            var dayConfig = null;
-            for (var c = 0; c < config.length; c++) {
-                if (config[c].day === day) {
-                    dayConfig = config[c];
-                    break;
-                }
-            }
-
-            if (!dayConfig) {
-                // Fallback: cycle week 1 rewards with scaling
-                var weekDay = ((day - 1) % 7);
-                dayConfig = config[weekDay] || config[0];
-                var weekNum = Math.floor((day - 1) / 7) + 1;
-                dayConfig = {
-                    day: day,
-                    xp: Math.round(dayConfig.xp * (1 + (weekNum - 1) * 0.15)),
-                    tokens: Math.round(dayConfig.tokens * (1 + (weekNum - 1) * 0.15)),
-                    name: dayConfig.name,
-                    tier: dayConfig.tier,
-                    icon: dayConfig.icon
-                };
-            }
-
-            totalTokens += dayConfig.tokens || 0;
-            totalXp += dayConfig.xp || 0;
-
-            var status = 'locked';
-            if (day <= currentStreak) {
-                status = 'claimed';
-            } else if (day === currentStreak + 1 && canClaimToday) {
-                status = 'available';
-            } else if (day === currentStreak + 1 && !canClaimToday) {
-                status = 'claimed_today';
-            }
-
-            calendar.push({
-                day: day,
-                name: dayConfig.name,
-                tier: dayConfig.tier || 'common',
-                icon: dayConfig.icon || 'coin_stack',
-                rewards: {
-                    xp: dayConfig.xp || 0,
-                    tokens: dayConfig.tokens || 0,
-                    multiplier: dayConfig.multiplier || null,
-                    bonus: dayConfig.bonus || null
-                },
-                status: status
-            });
-        }
-
-        // Milestones summary
-        var milestones = [];
-        for (var m = 0; m < config.length; m++) {
-            if (config[m].tier === 'rare' || config[m].tier === 'epic' || config[m].tier === 'legendary') {
-                milestones.push({
-                    day: config[m].day,
-                    name: config[m].name,
-                    tier: config[m].tier,
-                    reached: config[m].day <= currentStreak
-                });
-            }
-        }
-
-        return JSON.stringify({
-            success: true,
-            user_id: userId,
-            game_id: gameId,
-            current_streak: currentStreak,
-            total_claims: totalClaims,
-            can_claim_today: canClaimToday,
-            calendar: calendar,
-            milestones: milestones,
-            totals: {
-                total_tokens_30_days: totalTokens,
-                total_xp_30_days: totalXp,
-                claimed_tokens: 0,
-                claimed_xp: 0
-            },
-            streak_status: currentStreak === 0 ? 'new' : (canClaimToday ? 'active' : 'claimed_today'),
-            next_milestone: null
-        });
-
-    } catch (err) {
-        logger.error('[DailyRewardCalendar] Error: ' + err.message);
-        logRpcError(nk, logger, 'daily_reward_get_calendar', err.message, ctx.userId, null);
-        return JSON.stringify({ success: false, error: err.message });
-    }
-}
-
-
-// --- Module: daily_rewards/daily_rewards.js ---
+// --- Module: daily_rewards\daily_rewards.js ---
 // daily_rewards.js - Daily Rewards & Streak System (Per gameId UUID)
 
 /**
@@ -10155,7 +12097,219 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: event_pipeline/event_pipeline.js ---
+// --- Module: daily_rewards\daily_reward_calendar.js ---
+// daily_reward_calendar.js - 30-Day Daily Reward Calendar View
+// Extends the daily rewards system with a full calendar preview
+// RPC: daily_reward_get_calendar
+
+var CALENDAR_REWARD_CONFIGS = {
+    "default": [
+        { day: 1,  xp: 50,   tokens: 40,   name: "Welcome Back",         tier: "common",    icon: "coin_stack" },
+        { day: 2,  xp: 75,   tokens: 50,   name: "Steady Start",         tier: "common",    icon: "coin_stack" },
+        { day: 3,  xp: 100,  tokens: 65,   name: "Power-Up Day",         tier: "uncommon",  icon: "lightning" },
+        { day: 4,  xp: 150,  tokens: 80,   name: "Momentum Builder",     tier: "common",    icon: "coin_stack" },
+        { day: 5,  xp: 200,  tokens: 100,  name: "XP Boost",             tier: "uncommon",  icon: "star", multiplier: "2x XP" },
+        { day: 6,  xp: 275,  tokens: 125,  name: "Almost There",         tier: "uncommon",  icon: "fire" },
+        { day: 7,  xp: 400,  tokens: 200,  name: "Weekly Champion",      tier: "rare",      icon: "trophy",   bonus: "weekly_badge" },
+        { day: 8,  xp: 60,   tokens: 45,   name: "Fresh Week",           tier: "common",    icon: "sunrise" },
+        { day: 9,  xp: 90,   tokens: 55,   name: "Keeping It Up",        tier: "common",    icon: "thumbsup" },
+        { day: 10, xp: 150,  tokens: 75,   name: "Double Digits",        tier: "uncommon",  icon: "sparkles" },
+        { day: 11, xp: 175,  tokens: 90,   name: "Committed Player",     tier: "common",    icon: "muscle" },
+        { day: 12, xp: 225,  tokens: 110,  name: "Power Surge",          tier: "uncommon",  icon: "lightning", multiplier: "2x XP" },
+        { day: 13, xp: 300,  tokens: 140,  name: "Lucky 13",             tier: "uncommon",  icon: "clover" },
+        { day: 14, xp: 500,  tokens: 250,  name: "Two-Week Legend",      tier: "rare",      icon: "crown",    bonus: "biweekly_chest" },
+        { day: 15, xp: 75,   tokens: 50,   name: "Halfway Point",        tier: "common",    icon: "flag" },
+        { day: 16, xp: 100,  tokens: 60,   name: "Steady Grinder",       tier: "common",    icon: "pickaxe" },
+        { day: 17, xp: 175,  tokens: 85,   name: "Streak Fire",          tier: "uncommon",  icon: "fire" },
+        { day: 18, xp: 200,  tokens: 100,  name: "Bonus Round",          tier: "uncommon",  icon: "gift" },
+        { day: 19, xp: 250,  tokens: 120,  name: "XP Rush",              tier: "uncommon",  icon: "rocket",   multiplier: "3x XP" },
+        { day: 20, xp: 350,  tokens: 160,  name: "Dedication Reward",    tier: "rare",      icon: "medal" },
+        { day: 21, xp: 600,  tokens: 300,  name: "Three-Week Warrior",   tier: "epic",      icon: "shield",   bonus: "mystery_box" },
+        { day: 22, xp: 100,  tokens: 65,   name: "Final Stretch",        tier: "common",    icon: "runner" },
+        { day: 23, xp: 150,  tokens: 80,   name: "Almost Legendary",     tier: "common",    icon: "hourglass" },
+        { day: 24, xp: 200,  tokens: 100,  name: "Power Player",         tier: "uncommon",  icon: "lightning" },
+        { day: 25, xp: 275,  tokens: 130,  name: "Quarter Century",      tier: "uncommon",  icon: "sparkles" },
+        { day: 26, xp: 350,  tokens: 150,  name: "XP Mega Boost",        tier: "rare",      icon: "rocket",   multiplier: "4x XP" },
+        { day: 27, xp: 400,  tokens: 175,  name: "Penultimate Push",     tier: "rare",      icon: "fire" },
+        { day: 28, xp: 500,  tokens: 200,  name: "Four-Week Hero",       tier: "epic",      icon: "crown",    bonus: "exclusive_avatar" },
+        { day: 29, xp: 600,  tokens: 250,  name: "The Final Countdown",  tier: "epic",      icon: "alarm" },
+        { day: 30, xp: 1000, tokens: 500,  name: "LEGENDARY REWARD",     tier: "legendary", icon: "dragon",   bonus: "legendary_chest", multiplier: "5x XP" }
+    ]
+};
+
+/**
+ * Get the full 30-day calendar config for a game, falling back to default.
+ */
+function getCalendarConfig(gameId) {
+    return CALENDAR_REWARD_CONFIGS[gameId] || CALENDAR_REWARD_CONFIGS["default"];
+}
+
+/**
+ * RPC: daily_reward_get_calendar
+ * Returns the full 30-day reward calendar with claimed/unclaimed status per day.
+ */
+function rpcDailyRewardGetCalendar(ctx, logger, nk, payload) {
+    logger.info('[DailyRewardCalendar] daily_reward_get_calendar called');
+
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Authentication required' });
+        }
+
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id || data.gameId || 'default';
+        var userId = ctx.userId;
+
+        // Get the player's current streak data from the daily_streaks collection
+        var streakData = null;
+        try {
+            var streakKey = gameId + '_user_daily_streak_' + userId;
+            var records = nk.storageRead([{
+                collection: 'daily_streaks',
+                key: streakKey,
+                userId: userId
+            }]);
+            if (records && records.length > 0) {
+                streakData = records[0].value;
+            }
+        } catch (e) {
+            logger.warn('[DailyRewardCalendar] Could not read streak data: ' + e.message);
+        }
+
+        // Also try the alternate key pattern
+        if (!streakData) {
+            try {
+                var altKey = 'user_daily_streak_' + userId + '_' + gameId;
+                var altRecords = nk.storageRead([{
+                    collection: 'daily_streaks',
+                    key: altKey,
+                    userId: userId
+                }]);
+                if (altRecords && altRecords.length > 0) {
+                    streakData = altRecords[0].value;
+                }
+            } catch (e) { /* no streak yet */ }
+        }
+
+        var currentStreak = streakData ? (streakData.currentStreak || 0) : 0;
+        var lastClaimTimestamp = streakData ? (streakData.lastClaimTimestamp || 0) : 0;
+        var totalClaims = streakData ? (streakData.totalClaims || 0) : 0;
+
+        // Check if they can claim today
+        var canClaimToday = true;
+        if (lastClaimTimestamp > 0) {
+            var lastClaimDate = new Date(lastClaimTimestamp * 1000);
+            var today = new Date();
+            lastClaimDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+            if (lastClaimDate.getTime() === today.getTime()) {
+                canClaimToday = false;
+            }
+            // Check streak break (>48h)
+            var nowUnix = Math.floor(Date.now() / 1000);
+            if ((nowUnix - lastClaimTimestamp) > 48 * 3600) {
+                currentStreak = 0;
+            }
+        }
+
+        // Build 30-day calendar
+        var config = getCalendarConfig(gameId);
+        var calendar = [];
+        var totalTokens = 0;
+        var totalXp = 0;
+
+        for (var day = 1; day <= 30; day++) {
+            var dayConfig = null;
+            for (var c = 0; c < config.length; c++) {
+                if (config[c].day === day) {
+                    dayConfig = config[c];
+                    break;
+                }
+            }
+
+            if (!dayConfig) {
+                // Fallback: cycle week 1 rewards with scaling
+                var weekDay = ((day - 1) % 7);
+                dayConfig = config[weekDay] || config[0];
+                var weekNum = Math.floor((day - 1) / 7) + 1;
+                dayConfig = {
+                    day: day,
+                    xp: Math.round(dayConfig.xp * (1 + (weekNum - 1) * 0.15)),
+                    tokens: Math.round(dayConfig.tokens * (1 + (weekNum - 1) * 0.15)),
+                    name: dayConfig.name,
+                    tier: dayConfig.tier,
+                    icon: dayConfig.icon
+                };
+            }
+
+            totalTokens += dayConfig.tokens || 0;
+            totalXp += dayConfig.xp || 0;
+
+            var status = 'locked';
+            if (day <= currentStreak) {
+                status = 'claimed';
+            } else if (day === currentStreak + 1 && canClaimToday) {
+                status = 'available';
+            } else if (day === currentStreak + 1 && !canClaimToday) {
+                status = 'claimed_today';
+            }
+
+            calendar.push({
+                day: day,
+                name: dayConfig.name,
+                tier: dayConfig.tier || 'common',
+                icon: dayConfig.icon || 'coin_stack',
+                rewards: {
+                    xp: dayConfig.xp || 0,
+                    tokens: dayConfig.tokens || 0,
+                    multiplier: dayConfig.multiplier || null,
+                    bonus: dayConfig.bonus || null
+                },
+                status: status
+            });
+        }
+
+        // Milestones summary
+        var milestones = [];
+        for (var m = 0; m < config.length; m++) {
+            if (config[m].tier === 'rare' || config[m].tier === 'epic' || config[m].tier === 'legendary') {
+                milestones.push({
+                    day: config[m].day,
+                    name: config[m].name,
+                    tier: config[m].tier,
+                    reached: config[m].day <= currentStreak
+                });
+            }
+        }
+
+        return JSON.stringify({
+            success: true,
+            user_id: userId,
+            game_id: gameId,
+            current_streak: currentStreak,
+            total_claims: totalClaims,
+            can_claim_today: canClaimToday,
+            calendar: calendar,
+            milestones: milestones,
+            totals: {
+                total_tokens_30_days: totalTokens,
+                total_xp_30_days: totalXp,
+                claimed_tokens: 0,
+                claimed_xp: 0
+            },
+            streak_status: currentStreak === 0 ? 'new' : (canClaimToday ? 'active' : 'claimed_today'),
+            next_milestone: null
+        });
+
+    } catch (err) {
+        logger.error('[DailyRewardCalendar] Error: ' + err.message);
+        logRpcError(nk, logger, 'daily_reward_get_calendar', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+
+// --- Module: event_pipeline\event_pipeline.js ---
 // event_pipeline.js - Unified event ingestion and reward-pending checks
 // Compatible with Nakama JavaScript runtime (no ES modules)
 
@@ -10553,7 +12707,7 @@ function rpcRewardsPending(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: external_analytics/external_analytics.js ---
+// --- Module: external_analytics\external_analytics.js ---
 /**
  * External Analytics Integration Module
  * Fetches analytics data from Appodeal, Apple App Store Connect, and Unity.
@@ -11029,7 +13183,7 @@ function rpcUnityAnalyticsImport(ctx, logger, nk, payload) {
 // ─── Registration ─────────────────────────────────────────
 // postbuild.js scans for initializer.registerRpc() calls
 
-function __ModuleInit_23(ctx, logger, nk, initializer) {
+function __ModuleInit_27(ctx, logger, nk, initializer) {
     __rpc_analytics_appodeal = __rpc_analytics_appodeal || (rpcAnalyticsAppodeal);
     __rpc_analytics_apple_appstore = __rpc_analytics_apple_appstore || (rpcAnalyticsAppleAppstore);
     __rpc_apple_appstore_import = __rpc_apple_appstore_import || (rpcAppleImport);
@@ -11039,7 +13193,395 @@ function __ModuleInit_23(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: fortune_wheel/fortune_wheel.js ---
+// --- Module: external_pollers\external_pollers.js ---
+// external_pollers.js — Phase 2.2 scheduled external-provider pollers.
+//
+// Solves: Revenue tabs (Appodeal / Apple App Store / Unity Gaming Services)
+// currently do live API fetches on every dashboard request. That's slow,
+// rate-limits easily, and flaky. This module polls each provider once per
+// cadence window and writes canonical docs the dashboard can read cheaply.
+//
+// Output collections:
+//   external_analytics/<provider>/<gameId>/<YYYY-MM-DD>   normalized snapshot
+//   external_analytics_last_poll/<provider>                rate-limit meta
+//
+// Registered RPCs (all admin-gated):
+//   external_poll_appodeal    { gameId?, date?, force?, days? }
+//   external_poll_appstore    { gameId?, date?, force? }
+//   external_poll_ugs         { gameId?, date?, force? }
+//   external_poll_all         { force? }                            -> runs all three
+//   external_poll_status      {}                                    -> last-poll meta
+//
+// Auth:
+//   Admin session OR payload.dashboard_secret === env.DASHBOARD_SECRET.
+//   The cron sidecar uses the shared-secret path.
+//
+// Feature flag: EXTERNAL_POLLERS_ENABLED=false disables all RPCs (503).
+//
+// Rate limiting:
+//   Default min-interval 1h between polls per provider. Can be bypassed
+//   with { force: true } (useful for manual refresh / testing).
+
+var EP_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+var EP_ADMIN_USERS_COLLECTION = "admin_users";
+var EP_COLLECTION = "external_analytics";
+var EP_META_COLLECTION = "external_analytics_last_poll";
+var EP_DEFAULT_GAME_ID_ENV = "DEFAULT_GAME_ID";
+var EP_MIN_POLL_INTERVAL_SECONDS = 3600; // 1 hour
+
+// ─── Helpers ──────────────────────────────────────────────
+
+function epParse(payload) {
+    try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
+}
+
+function epOk(data) {
+    var out = { success: true };
+    if (data) for (var k in data) if (data.hasOwnProperty(k)) out[k] = data[k];
+    return JSON.stringify(out);
+}
+
+function epErr(msg, code) {
+    return JSON.stringify({ success: false, error: msg || "error", code: code || 400 });
+}
+
+function epEnv(ctx, key) {
+    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) return String(ctx.env[key]);
+    return "";
+}
+
+function epFeatureEnabled(ctx) {
+    var v = epEnv(ctx, "EXTERNAL_POLLERS_ENABLED");
+    if (v === "" || v === "true" || v === "1") return true;
+    return false;
+}
+
+// Mirrors analytics_admin: the admin_users/profile doc is keyed by the
+// Nakama UUID (ctx.userId); the "admin:" gate applies to ctx.username.
+function epIsAdminUser(nk, userId, username) {
+    if (!userId) return false;
+    if (!username || username.indexOf("admin:") !== 0) return false;
+    try {
+        var records = nk.storageRead([{ collection: EP_ADMIN_USERS_COLLECTION, key: "profile", userId: userId }]);
+        if (!records || records.length === 0) return false;
+        var rec = records[0].value || {};
+        if (!rec.isAdmin) return false;
+        if (rec.expiresAt && rec.expiresAt < Math.floor(Date.now() / 1000)) return false;
+        return true;
+    } catch (e) { return false; }
+}
+
+function epRequireAdmin(ctx, nk, data) {
+    var secret = epEnv(ctx, "DASHBOARD_SECRET");
+    if (secret && data && data.dashboard_secret === secret) return { ok: true, bypass: "secret" };
+    if (ctx.userId && epIsAdminUser(nk, ctx.userId, ctx.username)) return { ok: true, bypass: "session" };
+    return { ok: false, reason: "admin authentication required" };
+}
+
+function epReadOne(nk, collection, key, userId) {
+    try {
+        var r = nk.storageRead([{ collection: collection, key: key, userId: userId || EP_SYSTEM_USER }]);
+        if (r && r.length > 0) return r[0].value;
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+function epWriteOne(nk, collection, key, value) {
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: key,
+            userId: EP_SYSTEM_USER,
+            value: value,
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (e) { return false; }
+}
+
+function epYesterday() {
+    var d = new Date();
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
+
+function epDefaultGameId(ctx) {
+    var v = epEnv(ctx, EP_DEFAULT_GAME_ID_ENV);
+    return v || "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse fallback
+}
+
+/**
+ * Enforce min-interval between polls per provider. Writes `last_poll`
+ * meta-doc after success so subsequent calls within the window skip.
+ */
+function epCheckRateLimit(nk, provider, force) {
+    if (force) return { allowed: true, reason: "force" };
+    var meta = epReadOne(nk, EP_META_COLLECTION, provider, EP_SYSTEM_USER) || {};
+    if (!meta.lastPollUnix) return { allowed: true, reason: "first-poll" };
+
+    var nowUnix = Math.floor(Date.now() / 1000);
+    var elapsed = nowUnix - meta.lastPollUnix;
+    if (elapsed < EP_MIN_POLL_INTERVAL_SECONDS) {
+        return {
+            allowed: false,
+            reason: "rate-limited",
+            secondsUntilNext: EP_MIN_POLL_INTERVAL_SECONDS - elapsed,
+            lastPoll: meta
+        };
+    }
+    return { allowed: true, reason: "interval-ok", lastPoll: meta };
+}
+
+function epRecordPoll(nk, provider, success, summary) {
+    var nowUnix = Math.floor(Date.now() / 1000);
+    epWriteOne(nk, EP_META_COLLECTION, provider, {
+        provider: provider,
+        lastPollUnix: nowUnix,
+        lastPollAt: new Date().toISOString(),
+        success: !!success,
+        summary: summary || null
+    });
+}
+
+// ─── Internal: dispatch existing RPCs ─────────────────────
+//
+// We reuse the existing analytics_appodeal / _apple_appstore / _unity
+// handlers rather than re-implementing the API clients. Those handlers
+// are exposed via __rpc_<name> globals after postbuild processing.
+// To avoid a hard dependency on that global, we try-catch the lookup
+// and fall back to a clean error if the legacy RPC isn't present.
+
+function epCallInternalRpc(ctx, logger, nk, rpcName, payload) {
+    try {
+        // Postbuild exposes every registered RPC as a top-level __rpc_* global.
+        var fn;
+        try { fn = eval("(typeof __rpc_" + rpcName + " === 'function') ? __rpc_" + rpcName + " : null"); }
+        catch (e) { fn = null; }
+        if (!fn) return { ok: false, reason: "handler_not_found:" + rpcName };
+
+        var rawPayload = typeof payload === "string" ? payload : JSON.stringify(payload || {});
+        var raw = fn(ctx, logger, nk, rawPayload);
+        var parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        return { ok: true, data: parsed };
+    } catch (e) {
+        return { ok: false, reason: "internal_rpc_error: " + e.message };
+    }
+}
+
+// ─── RPC: external_poll_appodeal ──────────────────────────
+
+function rpcExternalPollAppodeal(ctx, logger, nk, payload) {
+    if (!epFeatureEnabled(ctx)) return epErr("External pollers disabled", 503);
+
+    var data = epParse(payload);
+    var gate = epRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return epErr(gate.reason, 401);
+
+    var rate = epCheckRateLimit(nk, "appodeal", data.force);
+    if (!rate.allowed) {
+        return epOk({ skipped: true, reason: rate.reason, seconds_until_next: rate.secondsUntilNext, last_poll: rate.lastPoll });
+    }
+
+    if (!epEnv(ctx, "APPODEAL_API_KEY") || !epEnv(ctx, "APPODEAL_USER_ID")) {
+        epRecordPoll(nk, "appodeal", false, { error: "APPODEAL credentials missing" });
+        return epErr("APPODEAL_API_KEY / APPODEAL_USER_ID not set in runtime env", 503);
+    }
+
+    var gameId = data.gameId || epDefaultGameId(ctx);
+    var dateStr = data.date || epYesterday();
+    var days = parseInt(data.days, 10) || 7;
+
+    // Reuse existing analytics_appodeal handler (admin privilege already checked).
+    var call = epCallInternalRpc(ctx, logger, nk, "analytics_appodeal", {
+        days: days, date_to: dateStr
+    });
+    if (!call.ok) {
+        epRecordPoll(nk, "appodeal", false, { error: call.reason });
+        return epErr("Appodeal poll failed: " + call.reason, 500);
+    }
+    var fetched = call.data || {};
+    if (!fetched.success) {
+        epRecordPoll(nk, "appodeal", false, { error: fetched.error || "unknown" });
+        return epErr("Appodeal returned error: " + (fetched.error || "unknown"), 502);
+    }
+
+    var summary = fetched.summary || {};
+    var snapshot = {
+        provider: "appodeal",
+        gameId: gameId,
+        date: dateStr,
+        fetchedAt: new Date().toISOString(),
+        revenue_usd: summary.total_revenue || 0,
+        android_revenue_usd: summary.android_revenue || 0,
+        ios_revenue_usd: summary.ios_revenue || 0,
+        impressions: summary.total_impressions || 0,
+        clicks: summary.total_clicks || 0,
+        requests: summary.total_requests || 0,
+        avg_ecpm: summary.avg_ecpm || 0,
+        avg_fillrate: summary.avg_fillrate || 0,
+        raw_rows: fetched.data || []
+    };
+    epWriteOne(nk, EP_COLLECTION, "appodeal_" + gameId + "_" + dateStr, snapshot);
+    epRecordPoll(nk, "appodeal", true, {
+        gameId: gameId, date: dateStr, revenue_usd: snapshot.revenue_usd, rows: snapshot.raw_rows.length
+    });
+
+    return epOk({ provider: "appodeal", gameId: gameId, date: dateStr, snapshot_keys: ["appodeal_" + gameId + "_" + dateStr], summary: summary });
+}
+
+// ─── RPC: external_poll_appstore ──────────────────────────
+
+function rpcExternalPollAppstore(ctx, logger, nk, payload) {
+    if (!epFeatureEnabled(ctx)) return epErr("External pollers disabled", 503);
+
+    var data = epParse(payload);
+    var gate = epRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return epErr(gate.reason, 401);
+
+    var rate = epCheckRateLimit(nk, "appstore", data.force);
+    if (!rate.allowed) {
+        return epOk({ skipped: true, reason: rate.reason, seconds_until_next: rate.secondsUntilNext, last_poll: rate.lastPoll });
+    }
+
+    // App Store Connect requires KEY_ID + ISSUER_ID + PRIVATE_KEY.
+    if (!epEnv(ctx, "APPLE_KEY_ID") || !epEnv(ctx, "APPLE_ISSUER_ID") || !epEnv(ctx, "APPLE_PRIVATE_KEY")) {
+        epRecordPoll(nk, "appstore", false, { error: "Apple credentials missing" });
+        return epErr("APPLE_KEY_ID / APPLE_ISSUER_ID / APPLE_PRIVATE_KEY not set", 503);
+    }
+
+    var gameId = data.gameId || epDefaultGameId(ctx);
+    var dateStr = data.date || epYesterday();
+
+    var call = epCallInternalRpc(ctx, logger, nk, "analytics_apple_appstore", { date_to: dateStr });
+    if (!call.ok) {
+        epRecordPoll(nk, "appstore", false, { error: call.reason });
+        return epErr("App Store poll failed: " + call.reason, 500);
+    }
+    var fetched = call.data || {};
+    if (!fetched.success) {
+        epRecordPoll(nk, "appstore", false, { error: fetched.error || "unknown" });
+        return epErr("App Store returned error: " + (fetched.error || "unknown"), 502);
+    }
+
+    var snapshot = {
+        provider: "appstore",
+        gameId: gameId,
+        date: dateStr,
+        fetchedAt: new Date().toISOString(),
+        raw: fetched.data || fetched.summary || fetched
+    };
+    epWriteOne(nk, EP_COLLECTION, "appstore_" + gameId + "_" + dateStr, snapshot);
+    epRecordPoll(nk, "appstore", true, { gameId: gameId, date: dateStr });
+
+    return epOk({ provider: "appstore", gameId: gameId, date: dateStr });
+}
+
+// ─── RPC: external_poll_ugs (Unity Gaming Services) ───────
+
+function rpcExternalPollUgs(ctx, logger, nk, payload) {
+    if (!epFeatureEnabled(ctx)) return epErr("External pollers disabled", 503);
+
+    var data = epParse(payload);
+    var gate = epRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return epErr(gate.reason, 401);
+
+    var rate = epCheckRateLimit(nk, "ugs", data.force);
+    if (!rate.allowed) {
+        return epOk({ skipped: true, reason: rate.reason, seconds_until_next: rate.secondsUntilNext, last_poll: rate.lastPoll });
+    }
+
+    if (!epEnv(ctx, "UNITY_KEY_ID") || !epEnv(ctx, "UNITY_SECRET_KEY")) {
+        epRecordPoll(nk, "ugs", false, { error: "Unity credentials missing" });
+        return epErr("UNITY_KEY_ID / UNITY_SECRET_KEY not set", 503);
+    }
+
+    var gameId = data.gameId || epDefaultGameId(ctx);
+    var dateStr = data.date || epYesterday();
+
+    var call = epCallInternalRpc(ctx, logger, nk, "analytics_unity", { date_to: dateStr });
+    if (!call.ok) {
+        epRecordPoll(nk, "ugs", false, { error: call.reason });
+        return epErr("UGS poll failed: " + call.reason, 500);
+    }
+    var fetched = call.data || {};
+    if (!fetched.success) {
+        epRecordPoll(nk, "ugs", false, { error: fetched.error || "unknown" });
+        return epErr("UGS returned error: " + (fetched.error || "unknown"), 502);
+    }
+
+    var snapshot = {
+        provider: "ugs",
+        gameId: gameId,
+        date: dateStr,
+        fetchedAt: new Date().toISOString(),
+        raw: fetched.data || fetched.summary || fetched
+    };
+    epWriteOne(nk, EP_COLLECTION, "ugs_" + gameId + "_" + dateStr, snapshot);
+    epRecordPoll(nk, "ugs", true, { gameId: gameId, date: dateStr });
+
+    return epOk({ provider: "ugs", gameId: gameId, date: dateStr });
+}
+
+// ─── RPC: external_poll_all ───────────────────────────────
+
+function rpcExternalPollAll(ctx, logger, nk, payload) {
+    if (!epFeatureEnabled(ctx)) return epErr("External pollers disabled", 503);
+
+    var data = epParse(payload);
+    var gate = epRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return epErr(gate.reason, 401);
+
+    var base = { force: !!data.force, dashboard_secret: data.dashboard_secret, gameId: data.gameId };
+    var results = {};
+
+    var rpcs = [
+        { key: "appodeal", handler: rpcExternalPollAppodeal },
+        { key: "appstore", handler: rpcExternalPollAppstore },
+        { key: "ugs",      handler: rpcExternalPollUgs }
+    ];
+
+    for (var i = 0; i < rpcs.length; i++) {
+        var item = rpcs[i];
+        try {
+            var raw = item.handler(ctx, logger, nk, JSON.stringify(base));
+            results[item.key] = JSON.parse(raw);
+        } catch (e) {
+            results[item.key] = { success: false, error: e.message };
+        }
+    }
+    return epOk({ results: results, ranAt: new Date().toISOString() });
+}
+
+// ─── RPC: external_poll_status ────────────────────────────
+
+function rpcExternalPollStatus(ctx, logger, nk, payload) {
+    var data = epParse(payload);
+    var gate = epRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return epErr(gate.reason, 401);
+
+    var providers = ["appodeal", "appstore", "ugs"];
+    var status = {};
+    for (var i = 0; i < providers.length; i++) {
+        var p = providers[i];
+        status[p] = epReadOne(nk, EP_META_COLLECTION, p, EP_SYSTEM_USER) || { provider: p, lastPollUnix: 0 };
+    }
+    return epOk({ enabled: epFeatureEnabled(ctx), providers: status });
+}
+
+// ─── Registration ─────────────────────────────────────────
+
+function __ModuleInit_28(ctx, logger, nk, initializer) {
+    __rpc_external_poll_appodeal = __rpc_external_poll_appodeal || (rpcExternalPollAppodeal);
+    __rpc_external_poll_appstore = __rpc_external_poll_appstore || (rpcExternalPollAppstore);
+    __rpc_external_poll_ugs = __rpc_external_poll_ugs || (rpcExternalPollUgs);
+    __rpc_external_poll_all = __rpc_external_poll_all || (rpcExternalPollAll);
+    __rpc_external_poll_status = __rpc_external_poll_status || (rpcExternalPollStatus);
+    logger.info("[external_pollers] Module registered: 5 RPCs (appodeal/appstore/ugs/all/status)");
+}
+
+
+// --- Module: fortune_wheel\fortune_wheel.js ---
 /**
  * fortune_wheel.js — Fortune Wheel Backend (every 3 days)
  * RPCs: fortune_wheel_get_state, fortune_wheel_spin
@@ -11277,733 +13819,7 @@ function grantReward(nk, userId, rewardType, amount, logger) {
 }
 
 
-// --- Module: friend_quests/friend_quests.js ---
-// friend_quests.js - Friend Quest System for QuizVerse v4.0
-// RPCs: friend_quest_get_state, friend_quest_complete
-// Spec: MRS §31 — 10 quest types, server-authoritative generation
-// v4.0: Server generates quests from user's friends list
-
-/**
- * Friend Quest System — Server-Authoritative
- *
- * 10 quest types generated from user's real friends list.
- * Server is the source of truth — client only renders.
- * Tracks progress, grants rewards (wallet + notification), duplicate protection.
- *
- * Storage: collection="friend_quests", key="quest_state_{userId}"
- */
-
-// ─── CONSTANTS ──────────────────────────────────────────────────────────────
-
-var FQ_COLLECTION = 'friend_quests';
-var FQ_MAX_ACTIVE = 3;
-var FQ_REFRESH_HOURS = 8;
-
-// 10 quest types matching client-side QuestType enum
-var FQ_QUEST_TYPES = [
-    'PlayTogether',
-    'ChallengeFriend',
-    'StudyBuddy',
-    'GroupStreak',
-    'BeatInSpeedQuiz',
-    'DailyQuizDuo',
-    'PerfectRound',
-    'ExploreTogether',
-    'ShareScore',
-    'WinThreeQuizzes'
-];
-
-// Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
-var FQ_TEMPLATES = {
-    PlayTogether: {
-        title: 'Play with {0}',
-        desc: 'Complete a quiz while {0} is online',
-        target: 1, coins: 50, xp: 25
-    },
-    ChallengeFriend: {
-        title: 'Challenge {0}',
-        desc: 'Send a challenge to {0} and have them accept',
-        target: 1, coins: 75, xp: 40
-    },
-    StudyBuddy: {
-        title: 'Study with {0}',
-        desc: 'Both you and {0} complete a review session today',
-        target: 1, coins: 100, xp: 50
-    },
-    GroupStreak: {
-        title: '7-Day Streak with {0}',
-        desc: 'Maintain your friend streak with {0} for 7 days',
-        target: 7, coins: 200, xp: 100
-    },
-    BeatInSpeedQuiz: {
-        title: 'Beat {0} in Speed Quiz',
-        desc: 'Score higher than {0} in a Speed Quiz',
-        target: 1, coins: 75, xp: 40
-    },
-    DailyQuizDuo: {
-        title: 'Daily Quiz Duo with {0}',
-        desc: 'Both you and {0} complete the Daily Quiz today',
-        target: 1, coins: 60, xp: 30
-    },
-    PerfectRound: {
-        title: 'Perfect Round with {0}',
-        desc: 'Both answer 5 questions correctly in same session',
-        target: 5, coins: 100, xp: 50
-    },
-    ExploreTogether: {
-        title: 'Explore Together with {0}',
-        desc: 'Both play GeoExplore mode on the same day',
-        target: 1, coins: 75, xp: 40
-    },
-    ShareScore: {
-        title: 'Share a Score with {0}',
-        desc: 'Share your quiz result with {0}',
-        target: 1, coins: 50, xp: 25
-    },
-    WinThreeQuizzes: {
-        title: 'Win 3 Quizzes with {0}',
-        desc: 'Win 3 quizzes while {0} is online',
-        target: 3, coins: 150, xp: 75
-    }
-};
-
-// ─── HELPERS ────────────────────────────────────────────────────────────────
-
-function fqStorageKey(userId) {
-    return 'quest_state_' + userId;
-}
-
-function fqReadData(nk, logger, userId) {
-    try {
-        var records = nk.storageRead([{
-            collection: FQ_COLLECTION,
-            key: fqStorageKey(userId),
-            userId: userId
-        }]);
-        if (records && records.length > 0 && records[0].value) {
-            return records[0].value;
-        }
-    } catch (err) {
-        logger.warn('[FriendQuests] Storage read failed: ' + err.message);
-    }
-    return null;
-}
-
-function fqWriteData(nk, logger, userId, data) {
-    try {
-        nk.storageWrite([{
-            collection: FQ_COLLECTION,
-            key: fqStorageKey(userId),
-            userId: userId,
-            value: data,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-        return true;
-    } catch (err) {
-        logger.error('[FriendQuests] Storage write failed: ' + err.message);
-        return false;
-    }
-}
-
-function fqInitData() {
-    return {
-        quests: [],
-        completedIds: [],
-        lastRefresh: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
-}
-
-function fqError(msg) {
-    return JSON.stringify({ success: false, error: msg });
-}
-
-function fqGenerateId() {
-    // 8-char hex ID
-    var chars = '0123456789abcdef';
-    var id = '';
-    for (var i = 0; i < 8; i++) {
-        id += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return id;
-}
-
-function fqFormatString(template, friendName) {
-    return template.replace(/\{0\}/g, friendName);
-}
-
-// ─── SERVER-SIDE QUEST GENERATION ───────────────────────────────────────────
-
-/**
- * Generate quests from user's Nakama friends list.
- * Called by friend_quest_get_state when no active quests exist or they've expired.
- */
-function fqGenerateQuests(nk, logger, userId, existingData) {
-    // Get user's friends list
-    var friends = [];
-    try {
-        var friendsResult = nk.friendsList(userId, null, null, null);
-        if (friendsResult && friendsResult.friends) {
-            for (var i = 0; i < friendsResult.friends.length; i++) {
-                var f = friendsResult.friends[i];
-                if (f && f.user && f.user.id) {
-                    var displayName = f.user.displayName || f.user.username || 'Friend';
-                    friends.push({ id: f.user.id, name: displayName });
-                }
-            }
-        }
-    } catch (err) {
-        logger.warn('[FriendQuests] Could not fetch friends list: ' + err.message);
-    }
-
-    if (friends.length === 0) {
-        logger.info('[FriendQuests] No friends found for user ' + userId + ' — no quests generated');
-        return [];
-    }
-
-    // Determine how many quests to generate
-    var activeCount = 0;
-    var now = new Date();
-    if (existingData && existingData.quests) {
-        for (var j = 0; j < existingData.quests.length; j++) {
-            var q = existingData.quests[j];
-            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) {
-                activeCount++;
-            }
-        }
-    }
-
-    var toGenerate = FQ_MAX_ACTIVE - activeCount;
-    if (toGenerate <= 0) return existingData ? existingData.quests : [];
-
-    // Shuffle quest types to get random selection
-    var shuffledTypes = FQ_QUEST_TYPES.slice();
-    for (var s = shuffledTypes.length - 1; s > 0; s--) {
-        var r = Math.floor(Math.random() * (s + 1));
-        var tmp = shuffledTypes[s];
-        shuffledTypes[s] = shuffledTypes[r];
-        shuffledTypes[r] = tmp;
-    }
-
-    var newQuests = [];
-    var expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString();
-    var createdAt = now.toISOString();
-
-    for (var k = 0; k < toGenerate; k++) {
-        var friend = friends[k % friends.length];
-        var questType = shuffledTypes[k % shuffledTypes.length];
-        var template = FQ_TEMPLATES[questType];
-
-        if (!template) continue;
-
-        newQuests.push({
-            questId: fqGenerateId(),
-            type: questType,
-            friendId: friend.id,
-            friendDisplayName: friend.name,
-            title: fqFormatString(template.title, friend.name),
-            description: fqFormatString(template.desc, friend.name),
-            currentProgress: 0,
-            targetProgress: template.target,
-            isCompleted: false,
-            coinReward: template.coins,
-            xpReward: template.xp,
-            createdAt: createdAt,
-            expiresAt: expiresAt
-        });
-    }
-
-    logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests from ' +
-                friends.length + ' friends for user ' + userId);
-    return newQuests;
-}
-
-// ─── RPC: friend_quest_get_state ────────────────────────────────────────────
-
-function rpcFriendQuestGetState(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var data = fqReadData(nk, logger, ctx.userId);
-    if (!data) data = fqInitData();
-
-    // Check if we need to generate new quests
-    var now = new Date();
-    var needsRefresh = false;
-
-    // Filter active non-expired quests
-    var activeQuests = [];
-    var expiredOrCompleted = [];
-    if (data.quests && data.quests.length > 0) {
-        for (var i = 0; i < data.quests.length; i++) {
-            var q = data.quests[i];
-            if (q.isCompleted) {
-                expiredOrCompleted.push(q);
-            } else if (q.expiresAt && new Date(q.expiresAt) <= now) {
-                // Expired — don't include
-                expiredOrCompleted.push(q);
-            } else {
-                activeQuests.push(q);
-            }
-        }
-    }
-
-    // Check refresh timer
-    if (data.lastRefresh) {
-        var lastRefreshDate = new Date(data.lastRefresh);
-        var hoursSince = (now.getTime() - lastRefreshDate.getTime()) / (1000 * 60 * 60);
-        if (hoursSince >= FQ_REFRESH_HOURS) {
-            needsRefresh = true;
-        }
-    } else {
-        needsRefresh = true;
-    }
-
-    // Generate new quests if needed
-    if (activeQuests.length < FQ_MAX_ACTIVE && needsRefresh) {
-        // Keep completed quests for history, replace active with fresh
-        data.quests = activeQuests; // Keep valid active ones
-        var newQuests = fqGenerateQuests(nk, logger, ctx.userId, data);
-
-        // Merge new quests
-        for (var j = 0; j < newQuests.length; j++) {
-            data.quests.push(newQuests[j]);
-        }
-
-        data.lastRefresh = now.toISOString();
-        data.updatedAt = now.toISOString();
-        fqWriteData(nk, logger, ctx.userId, data);
-
-        activeQuests = [];
-        for (var k = 0; k < data.quests.length; k++) {
-            if (!data.quests[k].isCompleted) {
-                activeQuests.push(data.quests[k]);
-            }
-        }
-    }
-
-    return JSON.stringify({
-        success: true,
-        quests: activeQuests,
-        completedIds: data.completedIds || [],
-        lastRefresh: data.lastRefresh || null,
-        timestamp: now.toISOString()
-    });
-}
-
-// ─── RPC: friend_quest_complete ─────────────────────────────────────────────
-
-function rpcFriendQuestComplete(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var input;
-    try { input = JSON.parse(payload); } catch (e) { return fqError('Invalid JSON'); }
-
-    var questId = input.questId;
-    var questType = input.questType;
-    var friendId = input.friendId;
-    var coinReward = input.coinReward || 50;
-    var xpReward = input.xpReward || 25;
-
-    if (!questId || !questType) return fqError('Missing questId or questType');
-
-    var data = fqReadData(nk, logger, ctx.userId) || fqInitData();
-
-    // Duplicate protection
-    if (!data.completedIds) data.completedIds = [];
-    for (var i = 0; i < data.completedIds.length; i++) {
-        if (data.completedIds[i] === questId) {
-            return JSON.stringify({
-                success: false,
-                error: 'Quest already completed',
-                already_completed: true
-            });
-        }
-    }
-
-    // Mark completed
-    data.completedIds.push(questId);
-
-    // Update quest record if exists — use server-stored rewards for authority
-    if (data.quests) {
-        for (var j = 0; j < data.quests.length; j++) {
-            if (data.quests[j].questId === questId) {
-                data.quests[j].isCompleted = true;
-                // Use server-stored reward values (authoritative)
-                if (data.quests[j].coinReward) coinReward = data.quests[j].coinReward;
-                if (data.quests[j].xpReward) xpReward = data.quests[j].xpReward;
-                break;
-            }
-        }
-    }
-
-    // Grant rewards via wallet — coins + XP
-    try {
-        var changeset = {};
-        changeset['coins'] = coinReward;
-        changeset['xp'] = xpReward;
-        nk.walletUpdate(ctx.userId, changeset, {
-            source: 'friend_quest_' + questType
-        }, true);
-    } catch (walletErr) {
-        logger.warn('[FriendQuests] Wallet update failed: ' + walletErr.message);
-    }
-
-    // Save state
-    data.updatedAt = new Date().toISOString();
-    fqWriteData(nk, logger, ctx.userId, data);
-
-    // Notify friend about completion
-    if (friendId) {
-        try {
-            nk.notificationsSend([{
-                userId: friendId,
-                subject: 'Friend Quest Completed!',
-                content: {
-                    type: 'friend_quest_complete',
-                    quest_type: questType,
-                    friend_id: ctx.userId
-                },
-                code: 102,
-                persistent: true
-            }]);
-        } catch (notifErr) {
-            logger.warn('[FriendQuests] Friend notification failed: ' + notifErr.message);
-        }
-    }
-
-    logger.info('[FriendQuests] Quest completed: ' + questId + ' type=' + questType +
-                ' coins=' + coinReward + ' xp=' + xpReward +
-                ' user=' + ctx.userId);
-
-    return JSON.stringify({
-        success: true,
-        questId: questId,
-        coinReward: coinReward,
-        xpReward: xpReward,
-        timestamp: new Date().toISOString()
-    });
-}
-
-
-// --- Module: friend_streaks/friend_streaks.js ---
-// friend_streaks.js - Bilateral Friend Streak System for QuizVerse v3.0
-// RPCs: friend_streak_get_state, friend_streak_record_contribution, friend_streak_send_nudge
-// Spec: MRS §29-§31 — Snapchat-style bilateral daily streaks
-
-/**
- * Friend Streak System — Production-Ready
- *
- * Tracks bilateral daily streaks between friends (both must play each day).
- * Max 5 concurrent streaks per player. Unlocks at Day 14.
- * Nudge system: 3 nudges/day with 4h cooldown per friend.
- *
- * Storage: collection="friend_streaks", key="streaks_{userId}"
- */
-
-// ─── CONSTANTS ──────────────────────────────────────────────────────────────
-
-var FS_COLLECTION = 'friend_streaks';
-var FS_MAX_CONCURRENT = 5;
-var FS_NUDGES_PER_DAY = 3;
-var FS_NUDGE_COOLDOWN_HOURS = 4;
-var FS_STREAK_BREAK_HOURS = 48; // 2 days without bilateral contribution = broken
-
-// ─── HELPERS ────────────────────────────────────────────────────────────────
-
-function fsStorageKey(userId) {
-    return 'streaks_' + userId;
-}
-
-function fsReadData(nk, logger, userId) {
-    try {
-        var records = nk.storageRead([{
-            collection: FS_COLLECTION,
-            key: fsStorageKey(userId),
-            userId: userId
-        }]);
-        if (records && records.length > 0 && records[0].value) {
-            return records[0].value;
-        }
-    } catch (err) {
-        logger.warn('[FriendStreaks] Storage read failed: ' + err.message);
-    }
-    return null;
-}
-
-function fsWriteData(nk, logger, userId, data) {
-    try {
-        nk.storageWrite([{
-            collection: FS_COLLECTION,
-            key: fsStorageKey(userId),
-            userId: userId,
-            value: data,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-        return true;
-    } catch (err) {
-        logger.error('[FriendStreaks] Storage write failed: ' + err.message);
-        return false;
-    }
-}
-
-function fsInitData() {
-    return {
-        streaks: {},
-        nudgesSentToday: 0,
-        nudgeDateKey: '',
-        lastNudgeTimes: {},
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
-}
-
-function fsError(msg) {
-    return JSON.stringify({ success: false, error: msg });
-}
-
-function fsTodayKey() {
-    return new Date().toISOString().slice(0, 10).replace(/-/g, '');
-}
-
-function fsHoursSince(isoDate) {
-    if (!isoDate) return 9999;
-    return (Date.now() - new Date(isoDate).getTime()) / 3600000;
-}
-
-// Clean up broken streaks
-function fsPruneStreaks(data) {
-    var pruned = [];
-    for (var fid in data.streaks) {
-        var s = data.streaks[fid];
-        if (fsHoursSince(s.lastInteractionAt) > FS_STREAK_BREAK_HOURS) {
-            pruned.push({ friendId: fid, days: s.streakDays });
-            delete data.streaks[fid];
-        }
-    }
-    return pruned;
-}
-
-// Reset daily nudge counter if new day
-function fsRefreshNudges(data) {
-    var today = fsTodayKey();
-    if (data.nudgeDateKey !== today) {
-        data.nudgesSentToday = 0;
-        data.nudgeDateKey = today;
-        data.lastNudgeTimes = {};
-    }
-}
-
-// ─── RPC: friend_streak_get_state ───────────────────────────────────────────
-
-function rpcFriendStreakGetState(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fsError('User not authenticated');
-
-    var data = fsReadData(nk, logger, ctx.userId);
-    if (!data) data = fsInitData();
-
-    // Prune broken streaks
-    var broken = fsPruneStreaks(data);
-    fsRefreshNudges(data);
-
-    if (broken.length > 0) {
-        fsWriteData(nk, logger, ctx.userId, data);
-    }
-
-    // Build response
-    var streakList = [];
-    for (var fid in data.streaks) {
-        var s = data.streaks[fid];
-        var hoursLeft = FS_STREAK_BREAK_HOURS - fsHoursSince(s.lastInteractionAt);
-        streakList.push({
-            friendId: fid,
-            friendDisplayName: s.friendDisplayName || '',
-            streakDays: s.streakDays || 0,
-            myContributionToday: s.myContributionToday || false,
-            friendContributionToday: s.friendContributionToday || false,
-            isAtRisk: hoursLeft < 4 && hoursLeft > 0,
-            hoursUntilBreak: Math.max(0, Math.round(hoursLeft)),
-            startedAt: s.startedAt || null
-        });
-    }
-
-    return JSON.stringify({
-        success: true,
-        streaks: streakList,
-        totalActive: streakList.length,
-        maxStreaks: FS_MAX_CONCURRENT,
-        nudgesRemaining: Math.max(0, FS_NUDGES_PER_DAY - (data.nudgesSentToday || 0)),
-        brokenStreaks: broken,
-        timestamp: new Date().toISOString()
-    });
-}
-
-// ─── RPC: friend_streak_record_contribution ─────────────────────────────────
-
-function rpcFriendStreakRecordContribution(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fsError('User not authenticated');
-
-    var input;
-    try { input = JSON.parse(payload); } catch (e) { return fsError('Invalid JSON'); }
-
-    var friendId = input.friendId;
-    if (!friendId) return fsError('Missing friendId');
-
-    // --- My data ---
-    var myData = fsReadData(nk, logger, ctx.userId) || fsInitData();
-    fsPruneStreaks(myData);
-
-    // Auto-create streak if not exists (within limits)
-    if (!myData.streaks[friendId]) {
-        if (Object.keys(myData.streaks).length >= FS_MAX_CONCURRENT) {
-            return fsError('Max concurrent streaks reached (' + FS_MAX_CONCURRENT + ')');
-        }
-        myData.streaks[friendId] = {
-            friendDisplayName: input.friendDisplayName || '',
-            streakDays: 0,
-            myContributionToday: false,
-            friendContributionToday: false,
-            lastInteractionAt: new Date().toISOString(),
-            startedAt: new Date().toISOString()
-        };
-    }
-
-    var myStreak = myData.streaks[friendId];
-    myStreak.myContributionToday = true;
-    myStreak.lastInteractionAt = new Date().toISOString();
-
-    // --- Friend's data (mirror the contribution) ---
-    var friendData = fsReadData(nk, logger, friendId) || fsInitData();
-    fsPruneStreaks(friendData);
-
-    if (!friendData.streaks[ctx.userId]) {
-        if (Object.keys(friendData.streaks).length >= FS_MAX_CONCURRENT) {
-            logger.warn('[FriendStreaks] Friend ' + friendId + ' at max streaks, cannot mirror');
-        } else {
-            friendData.streaks[ctx.userId] = {
-                friendDisplayName: input.myDisplayName || '',
-                streakDays: 0,
-                myContributionToday: false,
-                friendContributionToday: false,
-                lastInteractionAt: new Date().toISOString(),
-                startedAt: new Date().toISOString()
-            };
-        }
-    }
-
-    if (friendData.streaks[ctx.userId]) {
-        friendData.streaks[ctx.userId].friendContributionToday = true;
-        friendData.streaks[ctx.userId].lastInteractionAt = new Date().toISOString();
-
-        // Check bilateral completion on friend side
-        if (friendData.streaks[ctx.userId].myContributionToday &&
-            friendData.streaks[ctx.userId].friendContributionToday) {
-            friendData.streaks[ctx.userId].streakDays =
-                (friendData.streaks[ctx.userId].streakDays || 0) + 1;
-            friendData.streaks[ctx.userId].myContributionToday = false;
-            friendData.streaks[ctx.userId].friendContributionToday = false;
-        }
-        friendData.updatedAt = new Date().toISOString();
-        fsWriteData(nk, logger, friendId, friendData);
-    }
-
-    // Check bilateral completion on my side
-    var advanced = false;
-    if (myStreak.myContributionToday && myStreak.friendContributionToday) {
-        myStreak.streakDays = (myStreak.streakDays || 0) + 1;
-        myStreak.myContributionToday = false;
-        myStreak.friendContributionToday = false;
-        advanced = true;
-    }
-
-    myData.updatedAt = new Date().toISOString();
-    if (!fsWriteData(nk, logger, ctx.userId, myData)) {
-        return fsError('Failed to save streak data');
-    }
-
-    logger.info('[FriendStreaks] ' + ctx.userId + ' contributed to streak with ' +
-                friendId + (advanced ? ' — ADVANCED to day ' + myStreak.streakDays : ''));
-
-    return JSON.stringify({
-        success: true,
-        friendId: friendId,
-        streakDays: myStreak.streakDays,
-        advanced: advanced,
-        myContributionToday: myStreak.myContributionToday,
-        friendContributionToday: myStreak.friendContributionToday,
-        timestamp: new Date().toISOString()
-    });
-}
-
-// ─── RPC: friend_streak_send_nudge ──────────────────────────────────────────
-
-function rpcFriendStreakSendNudge(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fsError('User not authenticated');
-
-    var input;
-    try { input = JSON.parse(payload); } catch (e) { return fsError('Invalid JSON'); }
-
-    var friendId = input.friendId;
-    if (!friendId) return fsError('Missing friendId');
-
-    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
-    fsRefreshNudges(data);
-
-    // Check daily limit
-    if ((data.nudgesSentToday || 0) >= FS_NUDGES_PER_DAY) {
-        return fsError('Daily nudge limit reached (' + FS_NUDGES_PER_DAY + ')');
-    }
-
-    // Check cooldown per friend
-    var lastNudge = data.lastNudgeTimes ? data.lastNudgeTimes[friendId] : null;
-    if (lastNudge && fsHoursSince(lastNudge) < FS_NUDGE_COOLDOWN_HOURS) {
-        var remaining = Math.ceil(FS_NUDGE_COOLDOWN_HOURS - fsHoursSince(lastNudge));
-        return fsError('Nudge cooldown: ' + remaining + 'h remaining');
-    }
-
-    // Send notification to friend
-    try {
-        nk.notificationsSend([{
-            userId: friendId,
-            subject: 'Streak Nudge! 🔥',
-            content: {
-                type: 'friend_streak_nudge',
-                senderId: ctx.userId,
-                senderName: input.myDisplayName || 'A friend'
-            },
-            code: 101, // Custom notification code for streak nudges
-            persistent: true
-        }]);
-    } catch (err) {
-        logger.warn('[FriendStreaks] Failed to send nudge notification: ' + err.message);
-        // Continue anyway — nudge is counted even if notification fails
-    }
-
-    // Update nudge state
-    data.nudgesSentToday = (data.nudgesSentToday || 0) + 1;
-    if (!data.lastNudgeTimes) data.lastNudgeTimes = {};
-    data.lastNudgeTimes[friendId] = new Date().toISOString();
-    data.updatedAt = new Date().toISOString();
-
-    fsWriteData(nk, logger, ctx.userId, data);
-
-    var remaining = FS_NUDGES_PER_DAY - data.nudgesSentToday;
-    logger.info('[FriendStreaks] Nudge sent from ' + ctx.userId + ' to ' + friendId +
-                '. Remaining: ' + remaining);
-
-    return JSON.stringify({
-        success: true,
-        friendId: friendId,
-        nudgesRemaining: remaining,
-        cooldownHours: FS_NUDGE_COOLDOWN_HOURS,
-        timestamp: new Date().toISOString()
-    });
-}
-
-
-// --- Module: friends/friends.js ---
+// --- Module: friends\friends.js ---
 // friends.js - Production-Ready Friend System
 // Hardened: friendship verification, rate limiting, UUID validation, block enforcement
 
@@ -12724,7 +14540,733 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: game_metrics/game_metrics.js ---
+// --- Module: friend_quests\friend_quests.js ---
+// friend_quests.js - Friend Quest System for QuizVerse v4.0
+// RPCs: friend_quest_get_state, friend_quest_complete
+// Spec: MRS §31 — 10 quest types, server-authoritative generation
+// v4.0: Server generates quests from user's friends list
+
+/**
+ * Friend Quest System — Server-Authoritative
+ *
+ * 10 quest types generated from user's real friends list.
+ * Server is the source of truth — client only renders.
+ * Tracks progress, grants rewards (wallet + notification), duplicate protection.
+ *
+ * Storage: collection="friend_quests", key="quest_state_{userId}"
+ */
+
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+
+var FQ_COLLECTION = 'friend_quests';
+var FQ_MAX_ACTIVE = 3;
+var FQ_REFRESH_HOURS = 8;
+
+// 10 quest types matching client-side QuestType enum
+var FQ_QUEST_TYPES = [
+    'PlayTogether',
+    'ChallengeFriend',
+    'StudyBuddy',
+    'GroupStreak',
+    'BeatInSpeedQuiz',
+    'DailyQuizDuo',
+    'PerfectRound',
+    'ExploreTogether',
+    'ShareScore',
+    'WinThreeQuizzes'
+];
+
+// Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
+var FQ_TEMPLATES = {
+    PlayTogether: {
+        title: 'Play with {0}',
+        desc: 'Complete a quiz while {0} is online',
+        target: 1, coins: 50, xp: 25
+    },
+    ChallengeFriend: {
+        title: 'Challenge {0}',
+        desc: 'Send a challenge to {0} and have them accept',
+        target: 1, coins: 75, xp: 40
+    },
+    StudyBuddy: {
+        title: 'Study with {0}',
+        desc: 'Both you and {0} complete a review session today',
+        target: 1, coins: 100, xp: 50
+    },
+    GroupStreak: {
+        title: '7-Day Streak with {0}',
+        desc: 'Maintain your friend streak with {0} for 7 days',
+        target: 7, coins: 200, xp: 100
+    },
+    BeatInSpeedQuiz: {
+        title: 'Beat {0} in Speed Quiz',
+        desc: 'Score higher than {0} in a Speed Quiz',
+        target: 1, coins: 75, xp: 40
+    },
+    DailyQuizDuo: {
+        title: 'Daily Quiz Duo with {0}',
+        desc: 'Both you and {0} complete the Daily Quiz today',
+        target: 1, coins: 60, xp: 30
+    },
+    PerfectRound: {
+        title: 'Perfect Round with {0}',
+        desc: 'Both answer 5 questions correctly in same session',
+        target: 5, coins: 100, xp: 50
+    },
+    ExploreTogether: {
+        title: 'Explore Together with {0}',
+        desc: 'Both play GeoExplore mode on the same day',
+        target: 1, coins: 75, xp: 40
+    },
+    ShareScore: {
+        title: 'Share a Score with {0}',
+        desc: 'Share your quiz result with {0}',
+        target: 1, coins: 50, xp: 25
+    },
+    WinThreeQuizzes: {
+        title: 'Win 3 Quizzes with {0}',
+        desc: 'Win 3 quizzes while {0} is online',
+        target: 3, coins: 150, xp: 75
+    }
+};
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+function fqStorageKey(userId) {
+    return 'quest_state_' + userId;
+}
+
+function fqReadData(nk, logger, userId) {
+    try {
+        var records = nk.storageRead([{
+            collection: FQ_COLLECTION,
+            key: fqStorageKey(userId),
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value;
+        }
+    } catch (err) {
+        logger.warn('[FriendQuests] Storage read failed: ' + err.message);
+    }
+    return null;
+}
+
+function fqWriteData(nk, logger, userId, data) {
+    try {
+        nk.storageWrite([{
+            collection: FQ_COLLECTION,
+            key: fqStorageKey(userId),
+            userId: userId,
+            value: data,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        logger.error('[FriendQuests] Storage write failed: ' + err.message);
+        return false;
+    }
+}
+
+function fqInitData() {
+    return {
+        quests: [],
+        completedIds: [],
+        lastRefresh: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function fqError(msg) {
+    return JSON.stringify({ success: false, error: msg });
+}
+
+function fqGenerateId() {
+    // 8-char hex ID
+    var chars = '0123456789abcdef';
+    var id = '';
+    for (var i = 0; i < 8; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
+}
+
+function fqFormatString(template, friendName) {
+    return template.replace(/\{0\}/g, friendName);
+}
+
+// ─── SERVER-SIDE QUEST GENERATION ───────────────────────────────────────────
+
+/**
+ * Generate quests from user's Nakama friends list.
+ * Called by friend_quest_get_state when no active quests exist or they've expired.
+ */
+function fqGenerateQuests(nk, logger, userId, existingData) {
+    // Get user's friends list
+    var friends = [];
+    try {
+        var friendsResult = nk.friendsList(userId, null, null, null);
+        if (friendsResult && friendsResult.friends) {
+            for (var i = 0; i < friendsResult.friends.length; i++) {
+                var f = friendsResult.friends[i];
+                if (f && f.user && f.user.id) {
+                    var displayName = f.user.displayName || f.user.username || 'Friend';
+                    friends.push({ id: f.user.id, name: displayName });
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn('[FriendQuests] Could not fetch friends list: ' + err.message);
+    }
+
+    if (friends.length === 0) {
+        logger.info('[FriendQuests] No friends found for user ' + userId + ' — no quests generated');
+        return [];
+    }
+
+    // Determine how many quests to generate
+    var activeCount = 0;
+    var now = new Date();
+    if (existingData && existingData.quests) {
+        for (var j = 0; j < existingData.quests.length; j++) {
+            var q = existingData.quests[j];
+            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) {
+                activeCount++;
+            }
+        }
+    }
+
+    var toGenerate = FQ_MAX_ACTIVE - activeCount;
+    if (toGenerate <= 0) return existingData ? existingData.quests : [];
+
+    // Shuffle quest types to get random selection
+    var shuffledTypes = FQ_QUEST_TYPES.slice();
+    for (var s = shuffledTypes.length - 1; s > 0; s--) {
+        var r = Math.floor(Math.random() * (s + 1));
+        var tmp = shuffledTypes[s];
+        shuffledTypes[s] = shuffledTypes[r];
+        shuffledTypes[r] = tmp;
+    }
+
+    var newQuests = [];
+    var expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString();
+    var createdAt = now.toISOString();
+
+    for (var k = 0; k < toGenerate; k++) {
+        var friend = friends[k % friends.length];
+        var questType = shuffledTypes[k % shuffledTypes.length];
+        var template = FQ_TEMPLATES[questType];
+
+        if (!template) continue;
+
+        newQuests.push({
+            questId: fqGenerateId(),
+            type: questType,
+            friendId: friend.id,
+            friendDisplayName: friend.name,
+            title: fqFormatString(template.title, friend.name),
+            description: fqFormatString(template.desc, friend.name),
+            currentProgress: 0,
+            targetProgress: template.target,
+            isCompleted: false,
+            coinReward: template.coins,
+            xpReward: template.xp,
+            createdAt: createdAt,
+            expiresAt: expiresAt
+        });
+    }
+
+    logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests from ' +
+                friends.length + ' friends for user ' + userId);
+    return newQuests;
+}
+
+// ─── RPC: friend_quest_get_state ────────────────────────────────────────────
+
+function rpcFriendQuestGetState(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fqError('User not authenticated');
+
+    var data = fqReadData(nk, logger, ctx.userId);
+    if (!data) data = fqInitData();
+
+    // Check if we need to generate new quests
+    var now = new Date();
+    var needsRefresh = false;
+
+    // Filter active non-expired quests
+    var activeQuests = [];
+    var expiredOrCompleted = [];
+    if (data.quests && data.quests.length > 0) {
+        for (var i = 0; i < data.quests.length; i++) {
+            var q = data.quests[i];
+            if (q.isCompleted) {
+                expiredOrCompleted.push(q);
+            } else if (q.expiresAt && new Date(q.expiresAt) <= now) {
+                // Expired — don't include
+                expiredOrCompleted.push(q);
+            } else {
+                activeQuests.push(q);
+            }
+        }
+    }
+
+    // Check refresh timer
+    if (data.lastRefresh) {
+        var lastRefreshDate = new Date(data.lastRefresh);
+        var hoursSince = (now.getTime() - lastRefreshDate.getTime()) / (1000 * 60 * 60);
+        if (hoursSince >= FQ_REFRESH_HOURS) {
+            needsRefresh = true;
+        }
+    } else {
+        needsRefresh = true;
+    }
+
+    // Generate new quests if needed
+    if (activeQuests.length < FQ_MAX_ACTIVE && needsRefresh) {
+        // Keep completed quests for history, replace active with fresh
+        data.quests = activeQuests; // Keep valid active ones
+        var newQuests = fqGenerateQuests(nk, logger, ctx.userId, data);
+
+        // Merge new quests
+        for (var j = 0; j < newQuests.length; j++) {
+            data.quests.push(newQuests[j]);
+        }
+
+        data.lastRefresh = now.toISOString();
+        data.updatedAt = now.toISOString();
+        fqWriteData(nk, logger, ctx.userId, data);
+
+        activeQuests = [];
+        for (var k = 0; k < data.quests.length; k++) {
+            if (!data.quests[k].isCompleted) {
+                activeQuests.push(data.quests[k]);
+            }
+        }
+    }
+
+    return JSON.stringify({
+        success: true,
+        quests: activeQuests,
+        completedIds: data.completedIds || [],
+        lastRefresh: data.lastRefresh || null,
+        timestamp: now.toISOString()
+    });
+}
+
+// ─── RPC: friend_quest_complete ─────────────────────────────────────────────
+
+function rpcFriendQuestComplete(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fqError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload); } catch (e) { return fqError('Invalid JSON'); }
+
+    var questId = input.questId;
+    var questType = input.questType;
+    var friendId = input.friendId;
+    var coinReward = input.coinReward || 50;
+    var xpReward = input.xpReward || 25;
+
+    if (!questId || !questType) return fqError('Missing questId or questType');
+
+    var data = fqReadData(nk, logger, ctx.userId) || fqInitData();
+
+    // Duplicate protection
+    if (!data.completedIds) data.completedIds = [];
+    for (var i = 0; i < data.completedIds.length; i++) {
+        if (data.completedIds[i] === questId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Quest already completed',
+                already_completed: true
+            });
+        }
+    }
+
+    // Mark completed
+    data.completedIds.push(questId);
+
+    // Update quest record if exists — use server-stored rewards for authority
+    if (data.quests) {
+        for (var j = 0; j < data.quests.length; j++) {
+            if (data.quests[j].questId === questId) {
+                data.quests[j].isCompleted = true;
+                // Use server-stored reward values (authoritative)
+                if (data.quests[j].coinReward) coinReward = data.quests[j].coinReward;
+                if (data.quests[j].xpReward) xpReward = data.quests[j].xpReward;
+                break;
+            }
+        }
+    }
+
+    // Grant rewards via wallet — coins + XP
+    try {
+        var changeset = {};
+        changeset['coins'] = coinReward;
+        changeset['xp'] = xpReward;
+        nk.walletUpdate(ctx.userId, changeset, {
+            source: 'friend_quest_' + questType
+        }, true);
+    } catch (walletErr) {
+        logger.warn('[FriendQuests] Wallet update failed: ' + walletErr.message);
+    }
+
+    // Save state
+    data.updatedAt = new Date().toISOString();
+    fqWriteData(nk, logger, ctx.userId, data);
+
+    // Notify friend about completion
+    if (friendId) {
+        try {
+            nk.notificationsSend([{
+                userId: friendId,
+                subject: 'Friend Quest Completed!',
+                content: {
+                    type: 'friend_quest_complete',
+                    quest_type: questType,
+                    friend_id: ctx.userId
+                },
+                code: 102,
+                persistent: true
+            }]);
+        } catch (notifErr) {
+            logger.warn('[FriendQuests] Friend notification failed: ' + notifErr.message);
+        }
+    }
+
+    logger.info('[FriendQuests] Quest completed: ' + questId + ' type=' + questType +
+                ' coins=' + coinReward + ' xp=' + xpReward +
+                ' user=' + ctx.userId);
+
+    return JSON.stringify({
+        success: true,
+        questId: questId,
+        coinReward: coinReward,
+        xpReward: xpReward,
+        timestamp: new Date().toISOString()
+    });
+}
+
+
+// --- Module: friend_streaks\friend_streaks.js ---
+// friend_streaks.js - Bilateral Friend Streak System for QuizVerse v3.0
+// RPCs: friend_streak_get_state, friend_streak_record_contribution, friend_streak_send_nudge
+// Spec: MRS §29-§31 — Snapchat-style bilateral daily streaks
+
+/**
+ * Friend Streak System — Production-Ready
+ *
+ * Tracks bilateral daily streaks between friends (both must play each day).
+ * Max 5 concurrent streaks per player. Unlocks at Day 14.
+ * Nudge system: 3 nudges/day with 4h cooldown per friend.
+ *
+ * Storage: collection="friend_streaks", key="streaks_{userId}"
+ */
+
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+
+var FS_COLLECTION = 'friend_streaks';
+var FS_MAX_CONCURRENT = 5;
+var FS_NUDGES_PER_DAY = 3;
+var FS_NUDGE_COOLDOWN_HOURS = 4;
+var FS_STREAK_BREAK_HOURS = 48; // 2 days without bilateral contribution = broken
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+function fsStorageKey(userId) {
+    return 'streaks_' + userId;
+}
+
+function fsReadData(nk, logger, userId) {
+    try {
+        var records = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: fsStorageKey(userId),
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value;
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] Storage read failed: ' + err.message);
+    }
+    return null;
+}
+
+function fsWriteData(nk, logger, userId, data) {
+    try {
+        nk.storageWrite([{
+            collection: FS_COLLECTION,
+            key: fsStorageKey(userId),
+            userId: userId,
+            value: data,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        logger.error('[FriendStreaks] Storage write failed: ' + err.message);
+        return false;
+    }
+}
+
+function fsInitData() {
+    return {
+        streaks: {},
+        nudgesSentToday: 0,
+        nudgeDateKey: '',
+        lastNudgeTimes: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function fsError(msg) {
+    return JSON.stringify({ success: false, error: msg });
+}
+
+function fsTodayKey() {
+    return new Date().toISOString().slice(0, 10).replace(/-/g, '');
+}
+
+function fsHoursSince(isoDate) {
+    if (!isoDate) return 9999;
+    return (Date.now() - new Date(isoDate).getTime()) / 3600000;
+}
+
+// Clean up broken streaks
+function fsPruneStreaks(data) {
+    var pruned = [];
+    for (var fid in data.streaks) {
+        var s = data.streaks[fid];
+        if (fsHoursSince(s.lastInteractionAt) > FS_STREAK_BREAK_HOURS) {
+            pruned.push({ friendId: fid, days: s.streakDays });
+            delete data.streaks[fid];
+        }
+    }
+    return pruned;
+}
+
+// Reset daily nudge counter if new day
+function fsRefreshNudges(data) {
+    var today = fsTodayKey();
+    if (data.nudgeDateKey !== today) {
+        data.nudgesSentToday = 0;
+        data.nudgeDateKey = today;
+        data.lastNudgeTimes = {};
+    }
+}
+
+// ─── RPC: friend_streak_get_state ───────────────────────────────────────────
+
+function rpcFriendStreakGetState(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var data = fsReadData(nk, logger, ctx.userId);
+    if (!data) data = fsInitData();
+
+    // Prune broken streaks
+    var broken = fsPruneStreaks(data);
+    fsRefreshNudges(data);
+
+    if (broken.length > 0) {
+        fsWriteData(nk, logger, ctx.userId, data);
+    }
+
+    // Build response
+    var streakList = [];
+    for (var fid in data.streaks) {
+        var s = data.streaks[fid];
+        var hoursLeft = FS_STREAK_BREAK_HOURS - fsHoursSince(s.lastInteractionAt);
+        streakList.push({
+            friendId: fid,
+            friendDisplayName: s.friendDisplayName || '',
+            streakDays: s.streakDays || 0,
+            myContributionToday: s.myContributionToday || false,
+            friendContributionToday: s.friendContributionToday || false,
+            isAtRisk: hoursLeft < 4 && hoursLeft > 0,
+            hoursUntilBreak: Math.max(0, Math.round(hoursLeft)),
+            startedAt: s.startedAt || null
+        });
+    }
+
+    return JSON.stringify({
+        success: true,
+        streaks: streakList,
+        totalActive: streakList.length,
+        maxStreaks: FS_MAX_CONCURRENT,
+        nudgesRemaining: Math.max(0, FS_NUDGES_PER_DAY - (data.nudgesSentToday || 0)),
+        brokenStreaks: broken,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_streak_record_contribution ─────────────────────────────────
+
+function rpcFriendStreakRecordContribution(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload); } catch (e) { return fsError('Invalid JSON'); }
+
+    var friendId = input.friendId;
+    if (!friendId) return fsError('Missing friendId');
+
+    // --- My data ---
+    var myData = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    fsPruneStreaks(myData);
+
+    // Auto-create streak if not exists (within limits)
+    if (!myData.streaks[friendId]) {
+        if (Object.keys(myData.streaks).length >= FS_MAX_CONCURRENT) {
+            return fsError('Max concurrent streaks reached (' + FS_MAX_CONCURRENT + ')');
+        }
+        myData.streaks[friendId] = {
+            friendDisplayName: input.friendDisplayName || '',
+            streakDays: 0,
+            myContributionToday: false,
+            friendContributionToday: false,
+            lastInteractionAt: new Date().toISOString(),
+            startedAt: new Date().toISOString()
+        };
+    }
+
+    var myStreak = myData.streaks[friendId];
+    myStreak.myContributionToday = true;
+    myStreak.lastInteractionAt = new Date().toISOString();
+
+    // --- Friend's data (mirror the contribution) ---
+    var friendData = fsReadData(nk, logger, friendId) || fsInitData();
+    fsPruneStreaks(friendData);
+
+    if (!friendData.streaks[ctx.userId]) {
+        if (Object.keys(friendData.streaks).length >= FS_MAX_CONCURRENT) {
+            logger.warn('[FriendStreaks] Friend ' + friendId + ' at max streaks, cannot mirror');
+        } else {
+            friendData.streaks[ctx.userId] = {
+                friendDisplayName: input.myDisplayName || '',
+                streakDays: 0,
+                myContributionToday: false,
+                friendContributionToday: false,
+                lastInteractionAt: new Date().toISOString(),
+                startedAt: new Date().toISOString()
+            };
+        }
+    }
+
+    if (friendData.streaks[ctx.userId]) {
+        friendData.streaks[ctx.userId].friendContributionToday = true;
+        friendData.streaks[ctx.userId].lastInteractionAt = new Date().toISOString();
+
+        // Check bilateral completion on friend side
+        if (friendData.streaks[ctx.userId].myContributionToday &&
+            friendData.streaks[ctx.userId].friendContributionToday) {
+            friendData.streaks[ctx.userId].streakDays =
+                (friendData.streaks[ctx.userId].streakDays || 0) + 1;
+            friendData.streaks[ctx.userId].myContributionToday = false;
+            friendData.streaks[ctx.userId].friendContributionToday = false;
+        }
+        friendData.updatedAt = new Date().toISOString();
+        fsWriteData(nk, logger, friendId, friendData);
+    }
+
+    // Check bilateral completion on my side
+    var advanced = false;
+    if (myStreak.myContributionToday && myStreak.friendContributionToday) {
+        myStreak.streakDays = (myStreak.streakDays || 0) + 1;
+        myStreak.myContributionToday = false;
+        myStreak.friendContributionToday = false;
+        advanced = true;
+    }
+
+    myData.updatedAt = new Date().toISOString();
+    if (!fsWriteData(nk, logger, ctx.userId, myData)) {
+        return fsError('Failed to save streak data');
+    }
+
+    logger.info('[FriendStreaks] ' + ctx.userId + ' contributed to streak with ' +
+                friendId + (advanced ? ' — ADVANCED to day ' + myStreak.streakDays : ''));
+
+    return JSON.stringify({
+        success: true,
+        friendId: friendId,
+        streakDays: myStreak.streakDays,
+        advanced: advanced,
+        myContributionToday: myStreak.myContributionToday,
+        friendContributionToday: myStreak.friendContributionToday,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_streak_send_nudge ──────────────────────────────────────────
+
+function rpcFriendStreakSendNudge(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload); } catch (e) { return fsError('Invalid JSON'); }
+
+    var friendId = input.friendId;
+    if (!friendId) return fsError('Missing friendId');
+
+    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    fsRefreshNudges(data);
+
+    // Check daily limit
+    if ((data.nudgesSentToday || 0) >= FS_NUDGES_PER_DAY) {
+        return fsError('Daily nudge limit reached (' + FS_NUDGES_PER_DAY + ')');
+    }
+
+    // Check cooldown per friend
+    var lastNudge = data.lastNudgeTimes ? data.lastNudgeTimes[friendId] : null;
+    if (lastNudge && fsHoursSince(lastNudge) < FS_NUDGE_COOLDOWN_HOURS) {
+        var remaining = Math.ceil(FS_NUDGE_COOLDOWN_HOURS - fsHoursSince(lastNudge));
+        return fsError('Nudge cooldown: ' + remaining + 'h remaining');
+    }
+
+    // Send notification to friend
+    try {
+        nk.notificationsSend([{
+            userId: friendId,
+            subject: 'Streak Nudge! 🔥',
+            content: {
+                type: 'friend_streak_nudge',
+                senderId: ctx.userId,
+                senderName: input.myDisplayName || 'A friend'
+            },
+            code: 101, // Custom notification code for streak nudges
+            persistent: true
+        }]);
+    } catch (err) {
+        logger.warn('[FriendStreaks] Failed to send nudge notification: ' + err.message);
+        // Continue anyway — nudge is counted even if notification fails
+    }
+
+    // Update nudge state
+    data.nudgesSentToday = (data.nudgesSentToday || 0) + 1;
+    if (!data.lastNudgeTimes) data.lastNudgeTimes = {};
+    data.lastNudgeTimes[friendId] = new Date().toISOString();
+    data.updatedAt = new Date().toISOString();
+
+    fsWriteData(nk, logger, ctx.userId, data);
+
+    var remaining = FS_NUDGES_PER_DAY - data.nudgesSentToday;
+    logger.info('[FriendStreaks] Nudge sent from ' + ctx.userId + ' to ' + friendId +
+                '. Remaining: ' + remaining);
+
+    return JSON.stringify({
+        success: true,
+        friendId: friendId,
+        nudgesRemaining: remaining,
+        cooldownHours: FS_NUDGE_COOLDOWN_HOURS,
+        timestamp: new Date().toISOString()
+    });
+}
+
+
+// --- Module: game_metrics\game_metrics.js ---
 // game_metrics.js — Universal game metrics capture, query, and aggregation
 //
 // Collections:
@@ -13105,7 +15647,7 @@ function rpcGameMetricsAggregate(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: groups/groups.js ---
+// --- Module: groups\groups.js ---
 // groups.js - Groups/Clans/Guilds system for multi-game backend
 // Provides comprehensive group management with roles, shared wallets, and group challenges
 
@@ -13851,7 +16393,7 @@ function updateNakamaUsername(nk, logger, userId, username) {
 }
 
 
-// --- Module: infrastructure/batch_operations.js ---
+// --- Module: infrastructure\batch_operations.js ---
 /**
  * Batch Operations for Multi-Game Platform
  * Execute multiple RPCs in a single call for improved performance
@@ -14113,7 +16655,7 @@ var rpcBatchAchievementProgress = function(ctx, logger, nk, payload) {
 };
 
 
-// --- Module: infrastructure/caching.js ---
+// --- Module: infrastructure\caching.js ---
 /**
  * Caching Layer for Multi-Game Platform
  * Improve performance for frequently accessed data
@@ -14351,7 +16893,7 @@ var rpcCacheClear = function(ctx, logger, nk, payload) {
 // setInterval(cacheCleanup, 300000);
 
 
-// --- Module: infrastructure/rate_limiting.js ---
+// --- Module: infrastructure\rate_limiting.js ---
 /**
  * Rate Limiting System for Multi-Game Platform
  * Prevent RPC abuse and spam
@@ -14529,7 +17071,7 @@ var withPresetRateLimit = function(rpcFunction, rpcName, preset) {
 // __rpc_submit_score = __rpc_submit_score || (withPresetRateLimit(rpcSubmitScore, "submit_score", "WRITE"));
 
 
-// --- Module: lasttolive_depth/lasttolive_depth.js ---
+// --- Module: lasttolive_depth\lasttolive_depth.js ---
 // lasttolive_depth.js - Deep LastToLive RPCs: Weapon Mastery, Nemesis, Bounties, and more
 // Nakama V8 JavaScript runtime (No ES Modules)
 
@@ -16249,7 +18791,7 @@ function scheduledSyncGameRegistry(ctx, logger, nk) {
 // No ES module exports - Nakama V8 runtime uses global function registration
 
 
-// --- Module: leagues/leagues.js ---
+// --- Module: leagues\leagues.js ---
 // leagues.js - Weekly League System for QuizVerse v3.0
 // Provides tier-based competitive ranking with weekly promotion/demotion
 // RPCs: league_get_state, league_submit_points, league_process_season, league_get_leaderboard
@@ -16872,7 +19414,7 @@ function rpcLeagueGetLeaderboard(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: live_ops/live_ops.js ---
+// --- Module: live_ops\live_ops.js ---
 // Live Ops module for Nakama game server
 // Flash events, mystery boxes, daily spotlights, streaks, comeback rewards, lucky draws, happy hour
 
@@ -17505,7 +20047,7 @@ var rpcHappyHourStatus = function (ctx, logger, nk, payload) {
 };
 
 
-// --- Module: manifest/manifest.js ---
+// --- Module: manifest\manifest.js ---
 // manifest.js - Asset Manifest Version Check for QuizVerse v3.0
 // RPC: manifest_get_version
 
@@ -17617,7 +20159,7 @@ function rpcManifestGetVersion(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: matchmaking/matchmaking.js ---
+// --- Module: matchmaking\matchmaking.js ---
 /**
  * Matchmaking System for Multi-Game Platform
  * Supports skill-based matching, party queues, and game modes
@@ -19308,7 +21850,7 @@ function registerMultiGameRPCs(initializer, logger) {
 }
 
 
-// --- Module: notifications/notification_gate.js ---
+// --- Module: notifications\notification_gate.js ---
 // notification_gate.js - Notification Budget Gate for QuizVerse v3.0
 // RPC: notification_gate_get_state
 
@@ -19468,7 +22010,7 @@ function rpcNotifGateGetState(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: notifications/notification_inbox.js ---
+// --- Module: notifications\notification_inbox.js ---
 // notification_inbox.js - Notification Inbox System for QuizVerse v3.0
 // RPCs: list_notification_inbox, mark_notifications_read
 // Nakama is the source of truth for all notification state.
@@ -19887,7 +22429,7 @@ function rpcMarkNotificationsRead(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: onboarding/onboarding.js ---
+// --- Module: onboarding\onboarding.js ---
 /**
  * Nakama Onboarding Module
  * Handles user onboarding state, preferences, and first-session hooks
@@ -20357,10 +22899,49 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
             });
         }
 
+        // #QVVBS52 FIX: Stored row exists but flagged as incomplete. This is the
+        // #1 source of "onboarding replays for returning users" because the
+        // afterAuthHook writes this row on very first auth with
+        // onboardingComplete=false, and never self-heals once the user has
+        // actually played. Extend the activity-inference used in the "no row"
+        // branch so any user with wallet / leaderboard / quiz / session history
+        // auto-heals their row to complete on next login.
+        var storedState = result[0].value;
+        if (storedState && storedState.onboardingComplete !== true) {
+            try {
+                if (checkUserHasGameActivity(nk, logger, userId)) {
+                    logger.info(`[Onboarding] #QVVBS52: User ${userId} has row with onboardingComplete=false but verified game activity - auto-healing to complete`);
+                    storedState.onboardingComplete = true;
+                    storedState.currentStep = Math.max(storedState.currentStep || 0, (storedState.totalSteps || 9) + 1);
+                    storedState.completedSteps = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+                    storedState.welcomeBonusClaimed = true;
+                    storedState.firstQuizCompleted = true;
+                    storedState.recoveredFromActivity = true;
+                    storedState.lastUpdated = Date.now();
+                    nk.storageWrite([{
+                        collection: COLLECTION_ONBOARDING,
+                        key: KEY_ONBOARDING,
+                        userId: userId,
+                        value: storedState,
+                        permissionRead: 1,
+                        permissionWrite: 0
+                    }]);
+                    return JSON.stringify({
+                        success: true,
+                        isNewUser: false,
+                        wasRecovered: true,
+                        state: storedState
+                    });
+                }
+            } catch (healErr) {
+                logger.warn(`[Onboarding] #QVVBS52: auto-heal activity check failed (non-fatal): ${healErr.message}`);
+            }
+        }
+
         return JSON.stringify({
             success: true,
             isNewUser: false,
-            state: result[0].value
+            state: storedState
         });
     } catch (e) {
         logger.error(`[Onboarding] Get state error: ${e.message}`);
@@ -20604,10 +23185,14 @@ function rpcClaimWelcomeBonus(ctx, logger, nk, payload) {
         var state = result[0].value;
 
         if (state.welcomeBonusClaimed) {
-            return JSON.stringify({ 
-                success: false, 
-                error: "Welcome bonus already claimed",
-                alreadyClaimed: true
+            // #QVVBS52 FIX: Return success=true with coinsAwarded=0 so the client's
+            // "success && coins>0" guard no-ops instead of falling to the
+            // offline-fallback branch and duplicate-granting 50 coins locally.
+            return JSON.stringify({
+                success: true,
+                alreadyClaimed: true,
+                coinsAwarded: 0,
+                message: "Welcome bonus already granted"
             });
         }
 
@@ -20918,7 +23503,7 @@ function updateSessionStats(nk, logger, userId, stats) {
 
 
 
-// --- Module: personalization/personalization.js ---
+// --- Module: personalization\personalization.js ---
 // Personalization module for Nakama game server
 // Smart missions and recommendations based on player behavior
 
@@ -21525,7 +24110,7 @@ var rpcGetSmartRecommendations = function (ctx, logger, nk, payload) {
 };
 
 
-// --- Module: player/player_full_profile.js ---
+// --- Module: player\player_full_profile.js ---
 // player_full_profile.js - Aggregate Player Profile for QuizVerse v3.0
 // RPC: player_get_full_profile
 
@@ -21740,7 +24325,7 @@ function rpcPlayerGetFullProfile(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: player_gifts/player_gifts.js ---
+// --- Module: player_gifts\player_gifts.js ---
 // player_gifts.js - Player-to-Player Gifting System
 // Storage collection: player_gifts
 // RPCs: gift_send, gift_claim, gift_inbox
@@ -22609,7 +25194,7 @@ function rpcGetLeaderboard(ctx, logger, nk, payload) {
 // These will be registered in the main index.js
 
 
-// --- Module: progression/mastery_system.js ---
+// --- Module: progression\mastery_system.js ---
 /**
  * Prestige & Category Mastery System
  * Rewards deep engagement with specific categories and long-term progression
@@ -22945,7 +25530,7 @@ module.exports = {
 
 
 
-// --- Module: progression/progressive_unlocks.js ---
+// --- Module: progression\progressive_unlocks.js ---
 /**
  * Progressive Content Unlocks Module
  * Unlocks game features over the first 7 days to maintain engagement
@@ -23388,7 +25973,7 @@ module.exports = {
 
 
 
-// --- Module: push_notifications/push_notifications.js ---
+// --- Module: push_notifications\push_notifications.js ---
 // push_notifications.js - Push Notification System (AWS SNS + Pinpoint + Lambda)
 // Unity does NOT use AWS SDK - Unity only sends raw push tokens
 // Nakama forwards to AWS Lambda Function URL for endpoint creation
@@ -24838,663 +27423,7 @@ function rpcIntelliDrawsPast(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: quiz_results/quiz_results.js ---
-// quiz_results.js - Quiz Results Tracking & Analytics System
-// Stores ALL quiz results from ALL game modes for analytics, history, and leaderboards
-
-/**
- * Quiz Result Schema
- * Captures comprehensive data about each quiz attempt
- */
-var QUIZ_RESULT_SCHEMA = {
-    // Required fields
-    gameId: "string",           // Game UUID
-    gameMode: "string",         // QuickPlay, DailyChallenge, Championship, etc.
-    
-    // Score data
-    score: "number",            // Final score
-    correctAnswers: "number",   // Number of correct answers
-    totalQuestions: "number",   // Total questions in quiz
-    
-    // Timing
-    timeTakenSeconds: "number", // Total time taken
-    
-    // Win/Loss
-    won: "boolean",             // Did user win?
-    
-    // Optional fields
-    difficulty: "string",       // easy, medium, hard
-    categoryId: "string",       // Category/topic ID
-    categoryName: "string",     // Category/topic name
-    opponentId: "string",       // For multiplayer
-    opponentName: "string",     // Opponent display name
-    tournamentId: "string",     // If part of tournament
-    matchId: "string",          // Match ID for multiplayer
-    hintsUsed: "number",        // Power-ups used
-    skipsUsed: "number",
-    extraTimeUsed: "number",
-    extraLivesUsed: "number",
-    coinsSpent: "number",       // Coins spent on power-ups
-    coinsEarned: "number",      // Coins earned from this quiz
-    xpEarned: "number",         // XP earned
-    streakDay: "number",        // Daily streak day
-    perfectScore: "boolean",    // 100% accuracy
-    metadata: "object"          // Any additional game-specific data
-};
-
-/**
- * Get collection name for quiz results
- */
-function getResultsCollection(gameId) {
-    return "quiz_results_" + gameId;
-}
-
-/**
- * Get user stats collection
- */
-function getUserStatsCollection(gameId) {
-    return "quiz_user_stats_" + gameId;
-}
-
-/**
- * Generate unique result key
- */
-function generateResultKey(userId, timestamp) {
-    return "result_" + userId + "_" + timestamp;
-}
-
-/**
- * Calculate performance metrics
- */
-function calculateMetrics(result) {
-    var accuracy = result.totalQuestions > 0 
-        ? (result.correctAnswers / result.totalQuestions) * 100 
-        : 0;
-    
-    var avgTimePerQuestion = result.totalQuestions > 0 
-        ? result.timeTakenSeconds / result.totalQuestions 
-        : 0;
-    
-    var isPerfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
-    
-    return {
-        accuracy: Math.round(accuracy * 100) / 100,
-        avgTimePerQuestion: Math.round(avgTimePerQuestion * 100) / 100,
-        isPerfect: isPerfect,
-        performanceRating: calculatePerformanceRating(accuracy, avgTimePerQuestion, result.won)
-    };
-}
-
-/**
- * Calculate performance rating (1-5 stars)
- */
-function calculatePerformanceRating(accuracy, avgTime, won) {
-    var rating = 0;
-    
-    // Accuracy contribution (0-2.5 stars)
-    if (accuracy >= 90) rating += 2.5;
-    else if (accuracy >= 70) rating += 2.0;
-    else if (accuracy >= 50) rating += 1.5;
-    else if (accuracy >= 30) rating += 1.0;
-    else rating += 0.5;
-    
-    // Speed contribution (0-1.5 stars)
-    if (avgTime <= 5) rating += 1.5;
-    else if (avgTime <= 10) rating += 1.0;
-    else if (avgTime <= 15) rating += 0.5;
-    
-    // Win bonus (0-1 star)
-    if (won) rating += 1.0;
-    
-    return Math.min(5, Math.round(rating * 10) / 10);
-}
-
-/**
- * Update user's aggregate statistics
- */
-function updateUserStats(nk, logger, userId, gameId, result, metrics) {
-    var collection = getUserStatsCollection(gameId);
-    var key = "stats_" + userId;
-    
-    // Get existing stats
-    var stats = utils.readStorage(nk, logger, collection, key, userId);
-    
-    if (!stats) {
-        stats = {
-            userId: userId,
-            gameId: gameId,
-            totalGames: 0,
-            totalWins: 0,
-            totalScore: 0,
-            totalCorrect: 0,
-            totalQuestions: 0,
-            totalTimePlayed: 0,
-            perfectGames: 0,
-            highestScore: 0,
-            longestStreak: 0,
-            currentStreak: 0,
-            lastPlayedAt: null,
-            modeStats: {},
-            createdAt: utils.getCurrentTimestamp()
-        };
-    }
-    
-    // Update totals
-    stats.totalGames++;
-    stats.totalScore += result.score || 0;
-    stats.totalCorrect += result.correctAnswers || 0;
-    stats.totalQuestions += result.totalQuestions || 0;
-    stats.totalTimePlayed += result.timeTakenSeconds || 0;
-    
-    if (result.won) {
-        stats.totalWins++;
-        stats.currentStreak++;
-        stats.longestStreak = Math.max(stats.longestStreak, stats.currentStreak);
-    } else {
-        stats.currentStreak = 0;
-    }
-    
-    if (metrics.isPerfect) {
-        stats.perfectGames++;
-    }
-    
-    stats.highestScore = Math.max(stats.highestScore, result.score || 0);
-    stats.lastPlayedAt = utils.getCurrentTimestamp();
-    
-    // Update per-mode stats
-    var mode = result.gameMode || "unknown";
-    if (!stats.modeStats[mode]) {
-        stats.modeStats[mode] = {
-            games: 0,
-            wins: 0,
-            totalScore: 0,
-            highestScore: 0
-        };
-    }
-    stats.modeStats[mode].games++;
-    if (result.won) stats.modeStats[mode].wins++;
-    stats.modeStats[mode].totalScore += result.score || 0;
-    stats.modeStats[mode].highestScore = Math.max(
-        stats.modeStats[mode].highestScore, 
-        result.score || 0
-    );
-    
-    stats.updatedAt = utils.getCurrentTimestamp();
-    
-    // Save stats
-    utils.writeStorage(nk, logger, collection, key, userId, stats);
-    
-    return stats;
-}
-
-/**
- * RPC: quiz_submit_result
- * Submit quiz result from any game mode
- * 
- * Required payload:
- * {
- *   gameId: "uuid",
- *   gameMode: "QuickPlay",
- *   score: 850,
- *   correctAnswers: 8,
- *   totalQuestions: 10,
- *   timeTakenSeconds: 120,
- *   won: true
- * }
- * 
- * Optional fields: difficulty, categoryId, categoryName, opponentId,
- *   tournamentId, matchId, hintsUsed, skipsUsed, coinsSpent, coinsEarned, etc.
- */
-function rpcQuizSubmitResult(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC quiz_submit_result called");
-    
-    // Parse payload
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    
-    // Validate required fields
-    var required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
-    var validation = utils.validatePayload(data, required);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    // Validate gameId UUID
-    if (!utils.isValidUUID(data.gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var username = ctx.username || "unknown";
-    var timestamp = utils.getUnixTimestamp();
-    
-    // Build result object
-    var result = {
-        id: generateResultKey(userId, timestamp),
-        userId: userId,
-        username: username,
-        gameId: data.gameId,
-        gameMode: data.gameMode,
-        score: parseInt(data.score) || 0,
-        correctAnswers: parseInt(data.correctAnswers) || 0,
-        totalQuestions: parseInt(data.totalQuestions) || 0,
-        timeTakenSeconds: parseFloat(data.timeTakenSeconds) || 0,
-        won: data.won === true || data.won === "true",
-        
-        // Optional fields
-        difficulty: data.difficulty || "normal",
-        categoryId: data.categoryId || null,
-        categoryName: data.categoryName || null,
-        opponentId: data.opponentId || null,
-        opponentName: data.opponentName || null,
-        tournamentId: data.tournamentId || null,
-        matchId: data.matchId || null,
-        hintsUsed: parseInt(data.hintsUsed) || 0,
-        skipsUsed: parseInt(data.skipsUsed) || 0,
-        extraTimeUsed: parseInt(data.extraTimeUsed) || 0,
-        extraLivesUsed: parseInt(data.extraLivesUsed) || 0,
-        coinsSpent: parseInt(data.coinsSpent) || 0,
-        coinsEarned: parseInt(data.coinsEarned) || 0,
-        xpEarned: parseInt(data.xpEarned) || 0,
-        streakDay: parseInt(data.streakDay) || 0,
-        metadata: data.metadata || {},
-        
-        // Server-generated
-        timestamp: timestamp,
-        submittedAt: utils.getCurrentTimestamp()
-    };
-    
-    // Calculate metrics
-    var metrics = calculateMetrics(result);
-    result.metrics = metrics;
-    result.perfectScore = metrics.isPerfect;
-    
-    try {
-        // 1. Store the result
-        var collection = getResultsCollection(data.gameId);
-        var resultKey = result.id;
-        utils.writeStorage(nk, logger, collection, resultKey, userId, result);
-        utils.logInfo(logger, "Stored quiz result: " + resultKey);
-        
-        // 2. Update user stats
-        var updatedStats = updateUserStats(nk, logger, userId, data.gameId, result, metrics);
-        
-        // 3. Update leaderboard if score > 0
-        if (result.score > 0) {
-            try {
-                var leaderboardId = "leaderboard_" + data.gameId;
-                var leaderboardMetadata = {
-                    gameMode: result.gameMode,
-                    accuracy: metrics.accuracy,
-                    submittedAt: result.submittedAt
-                };
-                
-                nk.leaderboardRecordWrite(
-                    leaderboardId,
-                    userId,
-                    username,
-                    result.score,
-                    0, // subscore
-                    JSON.stringify(leaderboardMetadata),
-                    null // operator - use default (best)
-                );
-                utils.logInfo(logger, "Updated leaderboard: " + leaderboardId);
-            } catch (lbErr) {
-                utils.logWarning(logger, "Leaderboard update failed (non-critical): " + lbErr.message);
-            }
-        }
-        
-        // 4. Store in transaction log for analytics
-        var transactionKey = "quiz_result_" + userId + "_" + timestamp;
-        utils.writeStorage(nk, logger, "transaction_logs", transactionKey, userId, {
-            type: "quiz_result",
-            resultId: result.id,
-            gameMode: result.gameMode,
-            score: result.score,
-            won: result.won,
-            timestamp: result.submittedAt
-        });
-        
-        utils.logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
-        
-        return JSON.stringify({
-            success: true,
-            resultId: result.id,
-            metrics: metrics,
-            stats: {
-                totalGames: updatedStats.totalGames,
-                totalWins: updatedStats.totalWins,
-                currentStreak: updatedStats.currentStreak,
-                highestScore: updatedStats.highestScore
-            }
-        });
-        
-    } catch (err) {
-        utils.logError(logger, "Failed to submit quiz result: " + err.message);
-        return JSON.stringify({
-            success: false,
-            error: "Failed to submit result: " + err.message
-        });
-    }
-}
-
-/**
- * RPC: quiz_get_history
- * Get quiz history for a user
- * 
- * Payload:
- * {
- *   gameId: "uuid",
- *   gameMode: "QuickPlay" (optional, filter by mode),
- *   limit: 20,
- *   cursor: "..." (for pagination)
- * }
- */
-function rpcQuizGetHistory(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC quiz_get_history called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing gameId");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var collection = getResultsCollection(data.gameId);
-    var limit = Math.min(parseInt(data.limit) || 20, 100);
-    
-    try {
-        // List storage objects for this user
-        var objects = nk.storageList(userId, collection, limit, data.cursor || "");
-        
-        var results = [];
-        for (var obj of objects.objects || []) {
-            var result = JSON.parse(obj.value);
-            
-            // Filter by gameMode if specified
-            if (data.gameMode && result.gameMode !== data.gameMode) {
-                continue;
-            }
-            
-            results.push({
-                id: result.id,
-                gameMode: result.gameMode,
-                score: result.score,
-                correctAnswers: result.correctAnswers,
-                totalQuestions: result.totalQuestions,
-                won: result.won,
-                metrics: result.metrics,
-                categoryName: result.categoryName,
-                submittedAt: result.submittedAt
-            });
-        }
-        
-        return JSON.stringify({
-            success: true,
-            results: results,
-            cursor: objects.cursor || null,
-            count: results.length
-        });
-        
-    } catch (err) {
-        utils.logError(logger, "Failed to get quiz history: " + err.message);
-        return JSON.stringify({
-            success: false,
-            error: "Failed to get history: " + err.message
-        });
-    }
-}
-
-/**
- * RPC: quiz_get_stats
- * Get user's aggregate quiz statistics
- */
-function rpcQuizGetStats(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC quiz_get_stats called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing gameId");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var collection = getUserStatsCollection(data.gameId);
-    var key = "stats_" + userId;
-    
-    var stats = utils.readStorage(nk, logger, collection, key, userId);
-    
-    if (!stats) {
-        return JSON.stringify({
-            success: true,
-            stats: {
-                totalGames: 0,
-                totalWins: 0,
-                winRate: 0,
-                totalScore: 0,
-                averageScore: 0,
-                accuracy: 0,
-                highestScore: 0,
-                currentStreak: 0,
-                longestStreak: 0,
-                perfectGames: 0,
-                modeStats: {}
-            }
-        });
-    }
-    
-    // Calculate derived stats
-    var winRate = stats.totalGames > 0 
-        ? Math.round((stats.totalWins / stats.totalGames) * 100) 
-        : 0;
-    
-    var averageScore = stats.totalGames > 0 
-        ? Math.round(stats.totalScore / stats.totalGames) 
-        : 0;
-    
-    var accuracy = stats.totalQuestions > 0 
-        ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100) 
-        : 0;
-    
-    return JSON.stringify({
-        success: true,
-        stats: {
-            totalGames: stats.totalGames,
-            totalWins: stats.totalWins,
-            winRate: winRate,
-            totalScore: stats.totalScore,
-            averageScore: averageScore,
-            accuracy: accuracy,
-            highestScore: stats.highestScore,
-            currentStreak: stats.currentStreak,
-            longestStreak: stats.longestStreak,
-            perfectGames: stats.perfectGames,
-            totalTimePlayed: stats.totalTimePlayed,
-            modeStats: stats.modeStats,
-            lastPlayedAt: stats.lastPlayedAt
-        }
-    });
-}
-
-/**
- * RPC: quiz_check_daily_completion
- * Check if user has completed a quiz for a specific game mode today
- * Based on user UUID - queries across all quiz result collections for the user
- * 
- * Payload:
- * {
- *   gameMode: "DailyChallenge" | "DailyPremiumQuiz"
- *   gameId: "uuid" (optional - if provided, only checks that specific game)
- * }
- * 
- * Returns:
- * {
- *   success: true,
- *   completed: boolean,
- *   gameMode: "DailyChallenge",
- *   date: "2025-01-15" (YYYY-MM-DD format)
- * }
- */
-function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC quiz_check_daily_completion called");
-    
-    // Parse payload
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    
-    // Validate required fields (only gameMode is required now)
-    var validation = utils.validatePayload(data, ['gameMode']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    // Validate gameMode
-    var validModes = ['DailyChallenge', 'DailyPremiumQuiz'];
-    if (validModes.indexOf(data.gameMode) === -1) {
-        return utils.handleError(ctx, null, "Invalid gameMode. Must be 'DailyChallenge' or 'DailyPremiumQuiz'");
-    }
-    
-    // Validate gameId if provided (optional)
-    if (data.gameId && !utils.isValidUUID(data.gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    try {
-        // Get today's start timestamp (00:00:00 UTC)
-        var todayStart = utils.getStartOfDay();
-        var todayEnd = todayStart + 86400; // End of day (24 hours later)
-        
-        // Get current date string for response (YYYY-MM-DD)
-        var today = new Date();
-        var dateString = today.getUTCFullYear() + "-" + 
-                          String(today.getUTCMonth() + 1).padStart(2, '0') + "-" + 
-                          String(today.getUTCDate()).padStart(2, '0');
-        
-        var completed = false;
-        
-        // If gameId is provided, only check that specific collection
-        if (data.gameId) {
-            var collection = getResultsCollection(data.gameId);
-            var limit = 100; // Check last 100 results (should be enough for daily check)
-            
-            var objects = nk.storageList(userId, collection, limit, "");
-            
-            // Check if any result matches gameMode and was submitted today
-            for (var obj of objects.objects || []) {
-                var result = JSON.parse(obj.value);
-                
-                // Check if gameMode matches
-                if (result.gameMode !== data.gameMode) {
-                    continue;
-                }
-                
-                // Check if submitted today
-                // result.timestamp is Unix timestamp in seconds
-                if (result.timestamp >= todayStart && result.timestamp < todayEnd) {
-                    completed = true;
-                    utils.logInfo(logger, `User ${userId} completed ${data.gameMode} today (timestamp: ${result.timestamp})`);
-                    break;
-                }
-            }
-        } else {
-            // No gameId provided - query transaction_logs which stores all quiz results
-            var transactionCollection = "transaction_logs";
-            var limit = 1000; // Higher limit to check more results
-            var transactionObjects = nk.storageList(userId, transactionCollection, limit, "");
-            
-            // Check transaction logs for quiz results submitted today
-            for (var obj of transactionObjects.objects || []) {
-                var transaction = JSON.parse(obj.value);
-                
-                // Check if this is a quiz result transaction
-                if (transaction.type === "quiz_result" && 
-                    transaction.gameMode === data.gameMode) {
-                    
-                    // Parse timestamp from submittedAt (ISO string) or use timestamp if available
-                    var transactionTimestamp = null;
-                    if (transaction.timestamp) {
-                        // If timestamp is a Unix timestamp (seconds)
-                        if (typeof transaction.timestamp === 'number') {
-                            transactionTimestamp = transaction.timestamp;
-                        } else if (typeof transaction.timestamp === 'string') {
-                            // If it's an ISO string, convert to Unix timestamp
-                            var dateObj = new Date(transaction.timestamp);
-                            if (!isNaN(dateObj.getTime())) {
-                                transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
-                            }
-                        }
-                    } else if (transaction.submittedAt) {
-                        // Fallback to submittedAt if timestamp not available
-                        var dateObj = new Date(transaction.submittedAt);
-                        if (!isNaN(dateObj.getTime())) {
-                            transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
-                        }
-                    }
-                    
-                    // Check if submitted today
-                    if (transactionTimestamp && transactionTimestamp >= todayStart && transactionTimestamp < todayEnd) {
-                        completed = true;
-                        utils.logInfo(logger, `User ${userId} completed ${data.gameMode} today (from transaction log, timestamp: ${transactionTimestamp})`);
-                        break;
-                    }
-                }
-            }
-        }
-        
-        return JSON.stringify({
-            success: true,
-            completed: completed,
-            gameMode: data.gameMode,
-            date: dateString
-        });
-        
-    } catch (err) {
-        utils.logError(logger, "Failed to check daily completion: " + err.message);
-        return JSON.stringify({
-            success: false,
-            error: "Failed to check completion: " + err.message,
-            completed: false
-        });
-    }
-}
-
-
-// --- Module: quizverse_depth/quizverse_depth.js ---
+// --- Module: quizverse_depth\quizverse_depth.js ---
 // quizverse_depth.js - Deep QuizVerse RPCs: Knowledge Maps, Streaks, Adaptive Difficulty, and more
 // Nakama V8 JavaScript runtime (No ES Modules)
 
@@ -26380,7 +28309,663 @@ function registerQuizverseDepthRPCs(initializer, logger) {
 }
 
 
-// --- Module: retention/collections.js ---
+// --- Module: quiz_results\quiz_results.js ---
+// quiz_results.js - Quiz Results Tracking & Analytics System
+// Stores ALL quiz results from ALL game modes for analytics, history, and leaderboards
+
+/**
+ * Quiz Result Schema
+ * Captures comprehensive data about each quiz attempt
+ */
+var QUIZ_RESULT_SCHEMA = {
+    // Required fields
+    gameId: "string",           // Game UUID
+    gameMode: "string",         // QuickPlay, DailyChallenge, Championship, etc.
+    
+    // Score data
+    score: "number",            // Final score
+    correctAnswers: "number",   // Number of correct answers
+    totalQuestions: "number",   // Total questions in quiz
+    
+    // Timing
+    timeTakenSeconds: "number", // Total time taken
+    
+    // Win/Loss
+    won: "boolean",             // Did user win?
+    
+    // Optional fields
+    difficulty: "string",       // easy, medium, hard
+    categoryId: "string",       // Category/topic ID
+    categoryName: "string",     // Category/topic name
+    opponentId: "string",       // For multiplayer
+    opponentName: "string",     // Opponent display name
+    tournamentId: "string",     // If part of tournament
+    matchId: "string",          // Match ID for multiplayer
+    hintsUsed: "number",        // Power-ups used
+    skipsUsed: "number",
+    extraTimeUsed: "number",
+    extraLivesUsed: "number",
+    coinsSpent: "number",       // Coins spent on power-ups
+    coinsEarned: "number",      // Coins earned from this quiz
+    xpEarned: "number",         // XP earned
+    streakDay: "number",        // Daily streak day
+    perfectScore: "boolean",    // 100% accuracy
+    metadata: "object"          // Any additional game-specific data
+};
+
+/**
+ * Get collection name for quiz results
+ */
+function getResultsCollection(gameId) {
+    return "quiz_results_" + gameId;
+}
+
+/**
+ * Get user stats collection
+ */
+function getUserStatsCollection(gameId) {
+    return "quiz_user_stats_" + gameId;
+}
+
+/**
+ * Generate unique result key
+ */
+function generateResultKey(userId, timestamp) {
+    return "result_" + userId + "_" + timestamp;
+}
+
+/**
+ * Calculate performance metrics
+ */
+function calculateMetrics(result) {
+    var accuracy = result.totalQuestions > 0 
+        ? (result.correctAnswers / result.totalQuestions) * 100 
+        : 0;
+    
+    var avgTimePerQuestion = result.totalQuestions > 0 
+        ? result.timeTakenSeconds / result.totalQuestions 
+        : 0;
+    
+    var isPerfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
+    
+    return {
+        accuracy: Math.round(accuracy * 100) / 100,
+        avgTimePerQuestion: Math.round(avgTimePerQuestion * 100) / 100,
+        isPerfect: isPerfect,
+        performanceRating: calculatePerformanceRating(accuracy, avgTimePerQuestion, result.won)
+    };
+}
+
+/**
+ * Calculate performance rating (1-5 stars)
+ */
+function calculatePerformanceRating(accuracy, avgTime, won) {
+    var rating = 0;
+    
+    // Accuracy contribution (0-2.5 stars)
+    if (accuracy >= 90) rating += 2.5;
+    else if (accuracy >= 70) rating += 2.0;
+    else if (accuracy >= 50) rating += 1.5;
+    else if (accuracy >= 30) rating += 1.0;
+    else rating += 0.5;
+    
+    // Speed contribution (0-1.5 stars)
+    if (avgTime <= 5) rating += 1.5;
+    else if (avgTime <= 10) rating += 1.0;
+    else if (avgTime <= 15) rating += 0.5;
+    
+    // Win bonus (0-1 star)
+    if (won) rating += 1.0;
+    
+    return Math.min(5, Math.round(rating * 10) / 10);
+}
+
+/**
+ * Update user's aggregate statistics
+ */
+function updateUserStats(nk, logger, userId, gameId, result, metrics) {
+    var collection = getUserStatsCollection(gameId);
+    var key = "stats_" + userId;
+    
+    // Get existing stats
+    var stats = utils.readStorage(nk, logger, collection, key, userId);
+    
+    if (!stats) {
+        stats = {
+            userId: userId,
+            gameId: gameId,
+            totalGames: 0,
+            totalWins: 0,
+            totalScore: 0,
+            totalCorrect: 0,
+            totalQuestions: 0,
+            totalTimePlayed: 0,
+            perfectGames: 0,
+            highestScore: 0,
+            longestStreak: 0,
+            currentStreak: 0,
+            lastPlayedAt: null,
+            modeStats: {},
+            createdAt: utils.getCurrentTimestamp()
+        };
+    }
+    
+    // Update totals
+    stats.totalGames++;
+    stats.totalScore += result.score || 0;
+    stats.totalCorrect += result.correctAnswers || 0;
+    stats.totalQuestions += result.totalQuestions || 0;
+    stats.totalTimePlayed += result.timeTakenSeconds || 0;
+    
+    if (result.won) {
+        stats.totalWins++;
+        stats.currentStreak++;
+        stats.longestStreak = Math.max(stats.longestStreak, stats.currentStreak);
+    } else {
+        stats.currentStreak = 0;
+    }
+    
+    if (metrics.isPerfect) {
+        stats.perfectGames++;
+    }
+    
+    stats.highestScore = Math.max(stats.highestScore, result.score || 0);
+    stats.lastPlayedAt = utils.getCurrentTimestamp();
+    
+    // Update per-mode stats
+    var mode = result.gameMode || "unknown";
+    if (!stats.modeStats[mode]) {
+        stats.modeStats[mode] = {
+            games: 0,
+            wins: 0,
+            totalScore: 0,
+            highestScore: 0
+        };
+    }
+    stats.modeStats[mode].games++;
+    if (result.won) stats.modeStats[mode].wins++;
+    stats.modeStats[mode].totalScore += result.score || 0;
+    stats.modeStats[mode].highestScore = Math.max(
+        stats.modeStats[mode].highestScore, 
+        result.score || 0
+    );
+    
+    stats.updatedAt = utils.getCurrentTimestamp();
+    
+    // Save stats
+    utils.writeStorage(nk, logger, collection, key, userId, stats);
+    
+    return stats;
+}
+
+/**
+ * RPC: quiz_submit_result
+ * Submit quiz result from any game mode
+ * 
+ * Required payload:
+ * {
+ *   gameId: "uuid",
+ *   gameMode: "QuickPlay",
+ *   score: 850,
+ *   correctAnswers: 8,
+ *   totalQuestions: 10,
+ *   timeTakenSeconds: 120,
+ *   won: true
+ * }
+ * 
+ * Optional fields: difficulty, categoryId, categoryName, opponentId,
+ *   tournamentId, matchId, hintsUsed, skipsUsed, coinsSpent, coinsEarned, etc.
+ */
+function rpcQuizSubmitResult(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC quiz_submit_result called");
+    
+    // Parse payload
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    
+    // Validate required fields
+    var required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
+    var validation = utils.validatePayload(data, required);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+    
+    // Validate gameId UUID
+    if (!utils.isValidUUID(data.gameId)) {
+        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+    
+    var username = ctx.username || "unknown";
+    var timestamp = utils.getUnixTimestamp();
+    
+    // Build result object
+    var result = {
+        id: generateResultKey(userId, timestamp),
+        userId: userId,
+        username: username,
+        gameId: data.gameId,
+        gameMode: data.gameMode,
+        score: parseInt(data.score) || 0,
+        correctAnswers: parseInt(data.correctAnswers) || 0,
+        totalQuestions: parseInt(data.totalQuestions) || 0,
+        timeTakenSeconds: parseFloat(data.timeTakenSeconds) || 0,
+        won: data.won === true || data.won === "true",
+        
+        // Optional fields
+        difficulty: data.difficulty || "normal",
+        categoryId: data.categoryId || null,
+        categoryName: data.categoryName || null,
+        opponentId: data.opponentId || null,
+        opponentName: data.opponentName || null,
+        tournamentId: data.tournamentId || null,
+        matchId: data.matchId || null,
+        hintsUsed: parseInt(data.hintsUsed) || 0,
+        skipsUsed: parseInt(data.skipsUsed) || 0,
+        extraTimeUsed: parseInt(data.extraTimeUsed) || 0,
+        extraLivesUsed: parseInt(data.extraLivesUsed) || 0,
+        coinsSpent: parseInt(data.coinsSpent) || 0,
+        coinsEarned: parseInt(data.coinsEarned) || 0,
+        xpEarned: parseInt(data.xpEarned) || 0,
+        streakDay: parseInt(data.streakDay) || 0,
+        metadata: data.metadata || {},
+        
+        // Server-generated
+        timestamp: timestamp,
+        submittedAt: utils.getCurrentTimestamp()
+    };
+    
+    // Calculate metrics
+    var metrics = calculateMetrics(result);
+    result.metrics = metrics;
+    result.perfectScore = metrics.isPerfect;
+    
+    try {
+        // 1. Store the result
+        var collection = getResultsCollection(data.gameId);
+        var resultKey = result.id;
+        utils.writeStorage(nk, logger, collection, resultKey, userId, result);
+        utils.logInfo(logger, "Stored quiz result: " + resultKey);
+        
+        // 2. Update user stats
+        var updatedStats = updateUserStats(nk, logger, userId, data.gameId, result, metrics);
+        
+        // 3. Update leaderboard if score > 0
+        if (result.score > 0) {
+            try {
+                var leaderboardId = "leaderboard_" + data.gameId;
+                var leaderboardMetadata = {
+                    gameMode: result.gameMode,
+                    accuracy: metrics.accuracy,
+                    submittedAt: result.submittedAt
+                };
+                
+                nk.leaderboardRecordWrite(
+                    leaderboardId,
+                    userId,
+                    username,
+                    result.score,
+                    0, // subscore
+                    JSON.stringify(leaderboardMetadata),
+                    null // operator - use default (best)
+                );
+                utils.logInfo(logger, "Updated leaderboard: " + leaderboardId);
+            } catch (lbErr) {
+                utils.logWarning(logger, "Leaderboard update failed (non-critical): " + lbErr.message);
+            }
+        }
+        
+        // 4. Store in transaction log for analytics
+        var transactionKey = "quiz_result_" + userId + "_" + timestamp;
+        utils.writeStorage(nk, logger, "transaction_logs", transactionKey, userId, {
+            type: "quiz_result",
+            resultId: result.id,
+            gameMode: result.gameMode,
+            score: result.score,
+            won: result.won,
+            timestamp: result.submittedAt
+        });
+        
+        utils.logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
+        
+        return JSON.stringify({
+            success: true,
+            resultId: result.id,
+            metrics: metrics,
+            stats: {
+                totalGames: updatedStats.totalGames,
+                totalWins: updatedStats.totalWins,
+                currentStreak: updatedStats.currentStreak,
+                highestScore: updatedStats.highestScore
+            }
+        });
+        
+    } catch (err) {
+        utils.logError(logger, "Failed to submit quiz result: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to submit result: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: quiz_get_history
+ * Get quiz history for a user
+ * 
+ * Payload:
+ * {
+ *   gameId: "uuid",
+ *   gameMode: "QuickPlay" (optional, filter by mode),
+ *   limit: 20,
+ *   cursor: "..." (for pagination)
+ * }
+ */
+function rpcQuizGetHistory(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC quiz_get_history called");
+    
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing gameId");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+    
+    var collection = getResultsCollection(data.gameId);
+    var limit = Math.min(parseInt(data.limit) || 20, 100);
+    
+    try {
+        // List storage objects for this user
+        var objects = nk.storageList(userId, collection, limit, data.cursor || "");
+        
+        var results = [];
+        for (var obj of objects.objects || []) {
+            var result = JSON.parse(obj.value);
+            
+            // Filter by gameMode if specified
+            if (data.gameMode && result.gameMode !== data.gameMode) {
+                continue;
+            }
+            
+            results.push({
+                id: result.id,
+                gameMode: result.gameMode,
+                score: result.score,
+                correctAnswers: result.correctAnswers,
+                totalQuestions: result.totalQuestions,
+                won: result.won,
+                metrics: result.metrics,
+                categoryName: result.categoryName,
+                submittedAt: result.submittedAt
+            });
+        }
+        
+        return JSON.stringify({
+            success: true,
+            results: results,
+            cursor: objects.cursor || null,
+            count: results.length
+        });
+        
+    } catch (err) {
+        utils.logError(logger, "Failed to get quiz history: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to get history: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: quiz_get_stats
+ * Get user's aggregate quiz statistics
+ */
+function rpcQuizGetStats(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC quiz_get_stats called");
+    
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing gameId");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+    
+    var collection = getUserStatsCollection(data.gameId);
+    var key = "stats_" + userId;
+    
+    var stats = utils.readStorage(nk, logger, collection, key, userId);
+    
+    if (!stats) {
+        return JSON.stringify({
+            success: true,
+            stats: {
+                totalGames: 0,
+                totalWins: 0,
+                winRate: 0,
+                totalScore: 0,
+                averageScore: 0,
+                accuracy: 0,
+                highestScore: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                perfectGames: 0,
+                modeStats: {}
+            }
+        });
+    }
+    
+    // Calculate derived stats
+    var winRate = stats.totalGames > 0 
+        ? Math.round((stats.totalWins / stats.totalGames) * 100) 
+        : 0;
+    
+    var averageScore = stats.totalGames > 0 
+        ? Math.round(stats.totalScore / stats.totalGames) 
+        : 0;
+    
+    var accuracy = stats.totalQuestions > 0 
+        ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100) 
+        : 0;
+    
+    return JSON.stringify({
+        success: true,
+        stats: {
+            totalGames: stats.totalGames,
+            totalWins: stats.totalWins,
+            winRate: winRate,
+            totalScore: stats.totalScore,
+            averageScore: averageScore,
+            accuracy: accuracy,
+            highestScore: stats.highestScore,
+            currentStreak: stats.currentStreak,
+            longestStreak: stats.longestStreak,
+            perfectGames: stats.perfectGames,
+            totalTimePlayed: stats.totalTimePlayed,
+            modeStats: stats.modeStats,
+            lastPlayedAt: stats.lastPlayedAt
+        }
+    });
+}
+
+/**
+ * RPC: quiz_check_daily_completion
+ * Check if user has completed a quiz for a specific game mode today
+ * Based on user UUID - queries across all quiz result collections for the user
+ * 
+ * Payload:
+ * {
+ *   gameMode: "DailyChallenge" | "DailyPremiumQuiz"
+ *   gameId: "uuid" (optional - if provided, only checks that specific game)
+ * }
+ * 
+ * Returns:
+ * {
+ *   success: true,
+ *   completed: boolean,
+ *   gameMode: "DailyChallenge",
+ *   date: "2025-01-15" (YYYY-MM-DD format)
+ * }
+ */
+function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC quiz_check_daily_completion called");
+    
+    // Parse payload
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    
+    // Validate required fields (only gameMode is required now)
+    var validation = utils.validatePayload(data, ['gameMode']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+    
+    // Validate gameMode
+    var validModes = ['DailyChallenge', 'DailyPremiumQuiz'];
+    if (validModes.indexOf(data.gameMode) === -1) {
+        return utils.handleError(ctx, null, "Invalid gameMode. Must be 'DailyChallenge' or 'DailyPremiumQuiz'");
+    }
+    
+    // Validate gameId if provided (optional)
+    if (data.gameId && !utils.isValidUUID(data.gameId)) {
+        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+    
+    try {
+        // Get today's start timestamp (00:00:00 UTC)
+        var todayStart = utils.getStartOfDay();
+        var todayEnd = todayStart + 86400; // End of day (24 hours later)
+        
+        // Get current date string for response (YYYY-MM-DD)
+        var today = new Date();
+        var dateString = today.getUTCFullYear() + "-" + 
+                          String(today.getUTCMonth() + 1).padStart(2, '0') + "-" + 
+                          String(today.getUTCDate()).padStart(2, '0');
+        
+        var completed = false;
+        
+        // If gameId is provided, only check that specific collection
+        if (data.gameId) {
+            var collection = getResultsCollection(data.gameId);
+            var limit = 100; // Check last 100 results (should be enough for daily check)
+            
+            var objects = nk.storageList(userId, collection, limit, "");
+            
+            // Check if any result matches gameMode and was submitted today
+            for (var obj of objects.objects || []) {
+                var result = JSON.parse(obj.value);
+                
+                // Check if gameMode matches
+                if (result.gameMode !== data.gameMode) {
+                    continue;
+                }
+                
+                // Check if submitted today
+                // result.timestamp is Unix timestamp in seconds
+                if (result.timestamp >= todayStart && result.timestamp < todayEnd) {
+                    completed = true;
+                    utils.logInfo(logger, `User ${userId} completed ${data.gameMode} today (timestamp: ${result.timestamp})`);
+                    break;
+                }
+            }
+        } else {
+            // No gameId provided - query transaction_logs which stores all quiz results
+            var transactionCollection = "transaction_logs";
+            var limit = 1000; // Higher limit to check more results
+            var transactionObjects = nk.storageList(userId, transactionCollection, limit, "");
+            
+            // Check transaction logs for quiz results submitted today
+            for (var obj of transactionObjects.objects || []) {
+                var transaction = JSON.parse(obj.value);
+                
+                // Check if this is a quiz result transaction
+                if (transaction.type === "quiz_result" && 
+                    transaction.gameMode === data.gameMode) {
+                    
+                    // Parse timestamp from submittedAt (ISO string) or use timestamp if available
+                    var transactionTimestamp = null;
+                    if (transaction.timestamp) {
+                        // If timestamp is a Unix timestamp (seconds)
+                        if (typeof transaction.timestamp === 'number') {
+                            transactionTimestamp = transaction.timestamp;
+                        } else if (typeof transaction.timestamp === 'string') {
+                            // If it's an ISO string, convert to Unix timestamp
+                            var dateObj = new Date(transaction.timestamp);
+                            if (!isNaN(dateObj.getTime())) {
+                                transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
+                            }
+                        }
+                    } else if (transaction.submittedAt) {
+                        // Fallback to submittedAt if timestamp not available
+                        var dateObj = new Date(transaction.submittedAt);
+                        if (!isNaN(dateObj.getTime())) {
+                            transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
+                        }
+                    }
+                    
+                    // Check if submitted today
+                    if (transactionTimestamp && transactionTimestamp >= todayStart && transactionTimestamp < todayEnd) {
+                        completed = true;
+                        utils.logInfo(logger, `User ${userId} completed ${data.gameMode} today (from transaction log, timestamp: ${transactionTimestamp})`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return JSON.stringify({
+            success: true,
+            completed: completed,
+            gameMode: data.gameMode,
+            date: dateString
+        });
+        
+    } catch (err) {
+        utils.logError(logger, "Failed to check daily completion: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to check completion: " + err.message,
+            completed: false
+        });
+    }
+}
+
+
+// --- Module: retention\collections.js ---
 // collections.js - Collection & Prestige System for D30 Retention
 // Provides long-term collectible goals and prestige progression
 
@@ -26894,7 +29479,7 @@ function rpcCollectionsAddMasteryXP(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/monthly_milestones.js ---
+// --- Module: retention\monthly_milestones.js ---
 // monthly_milestones.js - Monthly Milestones System for D30 Retention
 // Provides long-term goals that reset monthly
 
@@ -27342,7 +29927,7 @@ function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/retention_v2.js ---
+// --- Module: retention\retention_v2.js ---
 // retention_v2.js - Streak Repair & Wager System for QuizVerse v3.0
 // Extends existing retention module with 2 new RPCs (does NOT modify existing retention RPCs)
 // RPCs: streak_repair, streak_wager
@@ -27749,7 +30334,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/season_pass.js ---
+// --- Module: retention\season_pass.js ---
 // season_pass.js - Season Pass / Battle Pass System for D7/D30 Retention
 // Provides 30-day season with free and premium tracks
 
@@ -28411,7 +30996,7 @@ function rpcSeasonPassPurchasePremium(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/weekly_goals.js ---
+// --- Module: retention\weekly_goals.js ---
 // weekly_goals.js - Weekly Goals System for D7 Retention
 // Provides progressive daily goals that reset weekly
 
@@ -28950,7 +31535,7 @@ function rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/winback.js ---
+// --- Module: retention\winback.js ---
 // winback.js - Win-back System for Churned Users
 // Re-engages users who haven't played in 7+ days
 
@@ -29511,7 +32096,7 @@ function rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: rewarded_ads/rewarded_ads.js ---
+// --- Module: rewarded_ads\rewarded_ads.js ---
 // rewarded_ads.js - Server-validated Rewarded Ad System
 // Enforces user-triggered rewarded ads via token-based validation
 // Prevents auto-shown rewards, duplicate claims, and replay attacks
@@ -30243,7 +32828,7 @@ var rewardedAdsModule = {
 };
 
 
-// --- Module: smart_review/smart_review.js ---
+// --- Module: smart_review\smart_review.js ---
 // smart_review.js - Spaced Repetition (SM-2) Review System for QuizVerse v3.0
 // RPCs: smart_review_get_cards, smart_review_rate_card
 
@@ -30553,7 +33138,7 @@ function rpcSmartReviewRateCard(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: social_v2/social_v2.js ---
+// --- Module: social_v2\social_v2.js ---
 // social_v2.js - Social features: challenges, rivalries, teams, duos, group quests
 // Compatible with Nakama JavaScript runtime (no ES modules)
 
@@ -31187,7 +33772,7 @@ function rpcGroupActivityFeed(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: tournaments/tournaments.js ---
+// --- Module: tournaments\tournaments.js ---
 /**
  * Tournament System for Multi-Game Platform
  * Supports scheduled tournaments with brackets and prizes
@@ -31740,7 +34325,7 @@ var rpcTournamentClaimRewards = function(ctx, logger, nk, payload) {
 };
 
 
-// --- Module: wallet/wallet.js ---
+// --- Module: wallet\wallet.js ---
 // wallet.js - Enhanced Wallet System (Global + Per-Game Sub-Wallets)
 
 /**
@@ -68252,49 +70837,6 @@ var SatoriCreatorEvents;
         for (var ri2 = 1; ri2 < allRecords.length && ri2 < 4; ri2++) {
             runnersUp.push(rankInfo(allRecords[ri2], ri2 + 1));
         }
-        // Next upcoming event lookup — lets the recap pipeline generate a
-        // "next event Thursday 8PM IST" CTA instead of a hard-coded "tomorrow".
-        // Scan the events index for the nearest scheduledAt > now, preferring
-        // same-region first so regional recaps promote their own region's next.
-        var nextEvent = null;
-        try {
-            var nowTs = Math.floor(Date.now() / 1000);
-            var idx = getEventsIndex(nk);
-            var bestSame = null;
-            var bestAny = null;
-            for (var ei = 0; ei < idx.eventIds.length; ei++) {
-                var eid = idx.eventIds[ei];
-                if (eid === def.id)
-                    continue;
-                var other = getEventDefinition(nk, eid);
-                if (!other)
-                    continue;
-                if (other.status === "cancelled" || other.status === "ended" || other.status === "distributed")
-                    continue;
-                if (!other.scheduledAt || other.scheduledAt <= nowTs)
-                    continue;
-                var candidate = {
-                    eventId: other.id,
-                    title: other.title,
-                    category: other.category,
-                    region: other.region,
-                    scheduledAt: other.scheduledAt,
-                    duration: other.duration,
-                };
-                if (other.region === def.region) {
-                    if (!bestSame || other.scheduledAt < bestSame.scheduledAt)
-                        bestSame = candidate;
-                }
-                else {
-                    if (!bestAny || other.scheduledAt < bestAny.scheduledAt)
-                        bestAny = candidate;
-                }
-            }
-            nextEvent = bestSame || bestAny;
-        }
-        catch (err) {
-            logger.warn("[CreatorEvent] next-event lookup failed: %s", err.message || String(err));
-        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
             eventId: def.id,
             creatorId: def.creatorId,
@@ -68312,7 +70854,6 @@ var SatoriCreatorEvents;
             prizePool: def.prizePool,
             giftCardPrizes: def.giftCardPrizes || null,
             endedAt: def.endedAt,
-            nextEvent: nextEvent,
             idempotencyKey: "event_ended_" + def.id,
         });
         return RpcHelpers.successResponse({
@@ -68321,63 +70862,6 @@ var SatoriCreatorEvents;
             totalParticipants: allRecords.length,
             tierAssignments: tierAssignments,
             winnersPerTier: winnersPerTier,
-        });
-    }
-    /**
-     * Cancel a draft or published event BEFORE it starts running.
-     *
-     * Emits EVENT_CANCELLED so the n8n takedown workflow can unpublish any
-     * already-scheduled promo posts on YouTube/TikTok/Instagram (via Postiz).
-     *
-     * Only draft | funded | published events can be cancelled. Events that
-     * have already ended or been distributed are terminal.
-     */
-    function rpcCancel(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var isAdmin = isAdminCtx(ctx, nk);
-        var data = RpcHelpers.parseRpcPayload(payload);
-        if (!data.eventId)
-            return RpcHelpers.errorResponse("eventId required");
-        var def = getEventDefinition(nk, String(data.eventId));
-        if (!def)
-            return RpcHelpers.errorResponse("Event not found");
-        if (!isAdmin && def.creatorId !== userId) {
-            return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
-        }
-        var current = def.status || "draft";
-        if (current !== "draft" && current !== "funded" && current !== "published") {
-            return RpcHelpers.errorResponse("Event cannot be cancelled once it's " + current);
-        }
-        def.status = "cancelled";
-        var now = Math.floor(Date.now() / 1000);
-        def.cancelledAt = now;
-        def.cancelReason = data.reason ? String(data.reason) : "";
-        saveEventDefinition(nk, def);
-        logger.info("[CreatorEvent] Cancelled by %s: %s (%s) — reason=%s", userId, def.title, def.id, def.cancelReason || "(none)");
-        // Fan out to n8n → Postiz takedown + Content Factory registry cleanup.
-        EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CANCELLED, {
-            eventId: def.id,
-            creatorId: def.creatorId,
-            title: def.title,
-            description: def.description,
-            category: def.category,
-            region: def.region,
-            scheduledAt: def.scheduledAt,
-            cancelledAt: now,
-            cancelledBy: userId,
-            reason: def.cancelReason || "",
-            // Carry the prior idempotency keys so downstream can identify the
-            // exact promo tasks to tear down.
-            priorPromoIdempotencyKeys: [
-                "event_created_" + def.id,
-                "event_published_" + def.id,
-            ],
-            idempotencyKey: "event_cancelled_" + def.id,
-        });
-        return RpcHelpers.successResponse({
-            success: true,
-            eventId: def.id,
-            status: "cancelled",
         });
     }
     function register(initializer) {
@@ -68390,7 +70874,6 @@ var SatoriCreatorEvents;
         __rpc_creator_event_create = rpcCreate;
         __rpc_creator_event_publish = rpcPublish;
         __rpc_creator_event_end = rpcEnd;
-        __rpc_creator_event_cancel = rpcCancel;
         __rpc_creator_event_update_promo = rpcUpdatePromo;
     }
     SatoriCreatorEvents.register = register;
@@ -70377,6 +72860,11 @@ try { __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (rpcLeagueG
 try { __rpc_league_process_season = __rpc_league_process_season || (rpcLeagueProcessSeason); } catch(e) {}
 try { __rpc_analytics_log_event = __rpc_analytics_log_event || (rpcAnalyticsLogEvent); } catch(e) {}
 try { __rpc_analytics_dashboard = __rpc_analytics_dashboard || (rpcAnalyticsDashboard); } catch(e) {}
+try { __rpc_analytics_dashboard_summary = __rpc_analytics_dashboard_summary || (rpcAnalyticsDashboardSummary); } catch(e) {}
+try { __rpc_admin_login = __rpc_admin_login || (rpcAdminLogin); } catch(e) {}
+try { __rpc_admin_diagnose_env = __rpc_admin_diagnose_env || (rpcAdminDiagnoseEnv); } catch(e) {}
+try { __rpc_dashboard_events_timeline = __rpc_dashboard_events_timeline || (rpcDashboardEventsTimeline); } catch(e) {}
+try { __rpc_dashboard_storage_list = __rpc_dashboard_storage_list || (rpcDashboardStorageList); } catch(e) {}
 try { __rpc_analytics_session_stats = __rpc_analytics_session_stats || (rpcAnalyticsSessionStats); } catch(e) {}
 try { __rpc_analytics_quiz_performance = __rpc_analytics_quiz_performance || (rpcAnalyticsQuizPerformance); } catch(e) {}
 try { __rpc_analytics_funnel = __rpc_analytics_funnel || (rpcAnalyticsFunnel); } catch(e) {}
@@ -70391,11 +72879,24 @@ try { __rpc_analytics_error_log = __rpc_analytics_error_log || (rpcAnalyticsErro
 try { __rpc_analytics_player_segments = __rpc_analytics_player_segments || (rpcAnalyticsPlayerSegments); } catch(e) {}
 try { __rpc_analytics_churn_risk = __rpc_analytics_churn_risk || (rpcAnalyticsChurnRisk); } catch(e) {}
 try { __rpc_analytics_conversion_funnel = __rpc_analytics_conversion_funnel || (rpcAnalyticsConversionFunnel); } catch(e) {}
+try { __rpc_analytics_schema_check = __rpc_analytics_schema_check || (rpcAnalyticsSchemaCheck); } catch(e) {}
+try { __rpc_analytics_backfill_events = __rpc_analytics_backfill_events || (rpcAnalyticsBackfillEvents); } catch(e) {}
+try { __rpc_analytics_feature_flags = __rpc_analytics_feature_flags || (rpcAnalyticsFeatureFlags); } catch(e) {}
+try { __rpc_analytics_metrics = __rpc_analytics_metrics || (rpcAnalyticsMetrics); } catch(e) {}
+try { __rpc_analytics_retention_curves = __rpc_analytics_retention_curves || (rpcAnalyticsRetentionCurves); } catch(e) {}
+try { __rpc_analytics_rollup_run = __rpc_analytics_rollup_run || (rpcAnalyticsRollupRun); } catch(e) {}
+try { __rpc_analytics_rollup_backfill = __rpc_analytics_rollup_backfill || (rpcAnalyticsRollupBackfill); } catch(e) {}
+try { __rpc_analytics_rollup_status = __rpc_analytics_rollup_status || (rpcAnalyticsRollupStatus); } catch(e) {}
 try { __rpc_analytics_appodeal = __rpc_analytics_appodeal || (rpcAnalyticsAppodeal); } catch(e) {}
 try { __rpc_analytics_apple_appstore = __rpc_analytics_apple_appstore || (rpcAnalyticsAppleAppstore); } catch(e) {}
 try { __rpc_apple_appstore_import = __rpc_apple_appstore_import || (rpcAppleImport); } catch(e) {}
 try { __rpc_analytics_unity = __rpc_analytics_unity || (rpcAnalyticsUnity); } catch(e) {}
 try { __rpc_unity_analytics_import = __rpc_unity_analytics_import || (rpcUnityAnalyticsImport); } catch(e) {}
+try { __rpc_external_poll_appodeal = __rpc_external_poll_appodeal || (rpcExternalPollAppodeal); } catch(e) {}
+try { __rpc_external_poll_appstore = __rpc_external_poll_appstore || (rpcExternalPollAppstore); } catch(e) {}
+try { __rpc_external_poll_ugs = __rpc_external_poll_ugs || (rpcExternalPollUgs); } catch(e) {}
+try { __rpc_external_poll_all = __rpc_external_poll_all || (rpcExternalPollAll); } catch(e) {}
+try { __rpc_external_poll_status = __rpc_external_poll_status || (rpcExternalPollStatus); } catch(e) {}
 try { __rpc_onboarding_get_state = __rpc_onboarding_get_state || (rpcGetOnboardingState); } catch(e) {}
 try { __rpc_onboarding_update_state = __rpc_onboarding_update_state || (rpcUpdateOnboardingState); } catch(e) {}
 try { __rpc_onboarding_complete_step = __rpc_onboarding_complete_step || (rpcCompleteStep); } catch(e) {}
@@ -70736,7 +73237,6 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("creator_event_create", __rpc_creator_event_create); } catch(e) {}
   try { initializer.registerRpc("creator_event_publish", __rpc_creator_event_publish); } catch(e) {}
   try { initializer.registerRpc("creator_event_end", __rpc_creator_event_end); } catch(e) {}
-  try { initializer.registerRpc("creator_event_cancel", __rpc_creator_event_cancel); } catch(e) {}
   try { initializer.registerRpc("creator_event_update_promo", __rpc_creator_event_update_promo); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_list", __rpc_satori_live_events_list); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_join", __rpc_satori_live_events_join); } catch(e) {}
@@ -70910,6 +73410,11 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("get_clan_leaderboard", __rpc_get_clan_leaderboard); } catch(e) {}
   try { initializer.registerRpc("get_player_stats", __rpc_get_player_stats); } catch(e) {}
   try { initializer.registerRpc("analytics_dashboard", __rpc_analytics_dashboard); } catch(e) {}
+  try { initializer.registerRpc("analytics_dashboard_summary", __rpc_analytics_dashboard_summary); } catch(e) {}
+  try { initializer.registerRpc("admin_login", __rpc_admin_login); } catch(e) {}
+  try { initializer.registerRpc("admin_diagnose_env", __rpc_admin_diagnose_env); } catch(e) {}
+  try { initializer.registerRpc("dashboard_events_timeline", __rpc_dashboard_events_timeline); } catch(e) {}
+  try { initializer.registerRpc("dashboard_storage_list", __rpc_dashboard_storage_list); } catch(e) {}
   try { initializer.registerRpc("analytics_session_stats", __rpc_analytics_session_stats); } catch(e) {}
   try { initializer.registerRpc("analytics_quiz_performance", __rpc_analytics_quiz_performance); } catch(e) {}
   try { initializer.registerRpc("analytics_funnel", __rpc_analytics_funnel); } catch(e) {}
@@ -70924,11 +73429,24 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("analytics_player_segments", __rpc_analytics_player_segments); } catch(e) {}
   try { initializer.registerRpc("analytics_churn_risk", __rpc_analytics_churn_risk); } catch(e) {}
   try { initializer.registerRpc("analytics_conversion_funnel", __rpc_analytics_conversion_funnel); } catch(e) {}
+  try { initializer.registerRpc("analytics_schema_check", __rpc_analytics_schema_check); } catch(e) {}
+  try { initializer.registerRpc("analytics_backfill_events", __rpc_analytics_backfill_events); } catch(e) {}
+  try { initializer.registerRpc("analytics_feature_flags", __rpc_analytics_feature_flags); } catch(e) {}
+  try { initializer.registerRpc("analytics_metrics", __rpc_analytics_metrics); } catch(e) {}
+  try { initializer.registerRpc("analytics_retention_curves", __rpc_analytics_retention_curves); } catch(e) {}
+  try { initializer.registerRpc("analytics_rollup_run", __rpc_analytics_rollup_run); } catch(e) {}
+  try { initializer.registerRpc("analytics_rollup_backfill", __rpc_analytics_rollup_backfill); } catch(e) {}
+  try { initializer.registerRpc("analytics_rollup_status", __rpc_analytics_rollup_status); } catch(e) {}
   try { initializer.registerRpc("analytics_appodeal", __rpc_analytics_appodeal); } catch(e) {}
   try { initializer.registerRpc("analytics_apple_appstore", __rpc_analytics_apple_appstore); } catch(e) {}
   try { initializer.registerRpc("apple_appstore_import", __rpc_apple_appstore_import); } catch(e) {}
   try { initializer.registerRpc("analytics_unity", __rpc_analytics_unity); } catch(e) {}
   try { initializer.registerRpc("unity_analytics_import", __rpc_unity_analytics_import); } catch(e) {}
+  try { initializer.registerRpc("external_poll_appodeal", __rpc_external_poll_appodeal); } catch(e) {}
+  try { initializer.registerRpc("external_poll_appstore", __rpc_external_poll_appstore); } catch(e) {}
+  try { initializer.registerRpc("external_poll_ugs", __rpc_external_poll_ugs); } catch(e) {}
+  try { initializer.registerRpc("external_poll_all", __rpc_external_poll_all); } catch(e) {}
+  try { initializer.registerRpc("external_poll_status", __rpc_external_poll_status); } catch(e) {}
   try { initializer.registerRpc("submit_score", __rpc_submit_score); } catch(e) {}
   try { initializer.registerRpc("onboarding_grant_streak_shield", __rpc_onboarding_grant_streak_shield); } catch(e) {}
   try { initializer.registerRpc("qe_player_full_profile", __rpc_qe_player_full_profile); } catch(e) {}
@@ -70940,5 +73458,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 505 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 522 + " RPCs via AST-compatible wrapper");
 }
