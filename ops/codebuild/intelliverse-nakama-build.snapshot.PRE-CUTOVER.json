@@ -1,0 +1,66 @@
+{
+  "projects": [
+    {
+      "name": "intelliverse-nakama-build",
+      "arn": "arn:aws:codebuild:us-east-1:970547373533:project/intelliverse-nakama-build",
+      "source": {
+        "type": "CODEPIPELINE",
+        "buildspec": "     version: 0.2\n     run-as: root\n     phases:\n        install:\n            runtime-versions:\n                java: corretto21\n        pre_build:\n            commands:\n                - echo ********** Pre_build Phase **********\n                - echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin\n                - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 970547373533.dkr.ecr.us-east-1.amazonaws.com\n                - REPOSITORY_URI=970547373533.dkr.ecr.us-east-1.amazonaws.com/intelliverse-nakama\n\n        build:\n            commands:\n                - echo Build completed on `date`\n                - docker build -t $REPOSITORY_URI:latest . --no-cache\n                - docker push $REPOSITORY_URI:latest\n                \n        post_build:\n            commands:\n                - echo ********** PostBuild Phase **********\n                - echo \"deploy\"\n                - aws eks update-kubeconfig --name ai-cart-auto-cluster --region us-east-1 --kubeconfig /root/.kube/config\n                - export KUBECONFIG=/root/.kube/config\n                - kubectl rollout restart deploy/intelliverse-nakama -n aicart",
+        "insecureSsl": false
+      },
+      "secondarySources": [],
+      "secondarySourceVersions": [],
+      "artifacts": {
+        "type": "CODEPIPELINE",
+        "name": "intelliverse-nakama-build",
+        "packaging": "NONE",
+        "encryptionDisabled": false
+      },
+      "secondaryArtifacts": [],
+      "cache": {
+        "type": "NO_CACHE"
+      },
+      "environment": {
+        "type": "LINUX_CONTAINER",
+        "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
+        "computeType": "BUILD_GENERAL1_MEDIUM",
+        "environmentVariables": [
+          {
+            "name": "DOCKER_PASSWORD",
+            "value": "***REDACTED-SEE-CUTOVER.md***",
+            "type": "PLAINTEXT"
+          },
+          {
+            "name": "DOCKER_USERNAME",
+            "value": "***REDACTED-SEE-CUTOVER.md***",
+            "type": "PLAINTEXT"
+          }
+        ],
+        "privilegedMode": false,
+        "imagePullCredentialsType": "CODEBUILD"
+      },
+      "serviceRole": "arn:aws:iam::970547373533:role/codebuild-role",
+      "timeoutInMinutes": 60,
+      "queuedTimeoutInMinutes": 480,
+      "encryptionKey": "arn:aws:kms:us-east-1:970547373533:alias/aws/s3",
+      "tags": [],
+      "created": "2025-11-04T01:54:54.964000-06:00",
+      "lastModified": "2025-11-04T01:58:01.419000-06:00",
+      "badge": {
+        "badgeEnabled": false
+      },
+      "logsConfig": {
+        "cloudWatchLogs": {
+          "status": "ENABLED"
+        },
+        "s3Logs": {
+          "status": "DISABLED",
+          "encryptionDisabled": false
+        }
+      },
+      "fileSystemLocations": [],
+      "projectVisibility": "PRIVATE"
+    }
+  ],
+  "projectsNotFound": []
+}

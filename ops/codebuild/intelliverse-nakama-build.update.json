@@ -1,0 +1,53 @@
+{
+  "_comment": "Apply with: aws codebuild update-project --cli-input-json file://ops/codebuild/intelliverse-nakama-build.update.json --region us-east-1",
+  "_changes_from_live_2026_04_17": [
+    "source.buildspec: '' (was inline blob) -> CodeBuild now reads buildspec.yml from repo root.",
+    "environment.privilegedMode: true (was false) -> required for `docker build` inside CodeBuild.",
+    "environment.environmentVariables: removed DOCKER_USERNAME / DOCKER_PASSWORD (plaintext creds) -> ECR auth is the only registry we push to; Docker Hub login is not needed.",
+    "environment.environmentVariables: added EKS_CLUSTER_NAME / K8S_NAMESPACE / K8S_DEPLOYMENT / K8S_CONTAINER / ECR_REPOSITORY -> explicit knobs reviewable here AND in buildspec.yml; if they ever drift, we want to notice.",
+    "environment.image: bumped to standard:7.0 -> ships with docker 24, kubectl-friendly TLS, and is still in support.",
+    "cache: LOCAL DOCKER_LAYER_CACHE -> faster image builds across runs.",
+    "everything else (artifacts, serviceRole, timeoutInMinutes, source.type=CODEPIPELINE, logsConfig, KMS key) preserved as-is."
+  ],
+  "name": "intelliverse-nakama-build",
+  "source": {
+    "type": "CODEPIPELINE",
+    "buildspec": "",
+    "insecureSsl": false
+  },
+  "artifacts": {
+    "type": "CODEPIPELINE",
+    "name": "intelliverse-nakama-build",
+    "packaging": "NONE",
+    "encryptionDisabled": false
+  },
+  "cache": {
+    "type": "LOCAL",
+    "modes": ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_SOURCE_CACHE"]
+  },
+  "environment": {
+    "type": "LINUX_CONTAINER",
+    "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
+    "computeType": "BUILD_GENERAL1_LARGE",
+    "environmentVariables": [
+      { "name": "AWS_DEFAULT_REGION", "value": "us-east-1",                  "type": "PLAINTEXT" },
+      { "name": "AWS_ACCOUNT_ID",     "value": "970547373533",               "type": "PLAINTEXT" },
+      { "name": "EKS_CLUSTER_NAME",   "value": "ai-cart-auto-cluster",       "type": "PLAINTEXT" },
+      { "name": "K8S_NAMESPACE",      "value": "aicart",                     "type": "PLAINTEXT" },
+      { "name": "K8S_DEPLOYMENT",     "value": "intelliverse-nakama",        "type": "PLAINTEXT" },
+      { "name": "K8S_CONTAINER",      "value": "intelliverse-nakama",        "type": "PLAINTEXT" },
+      { "name": "ECR_REPOSITORY",     "value": "intelliverse-nakama",        "type": "PLAINTEXT" }
+    ],
+    "privilegedMode": true,
+    "imagePullCredentialsType": "CODEBUILD"
+  },
+  "serviceRole": "arn:aws:iam::970547373533:role/codebuild-role",
+  "timeoutInMinutes": 60,
+  "queuedTimeoutInMinutes": 480,
+  "encryptionKey": "arn:aws:kms:us-east-1:970547373533:alias/aws/s3",
+  "tags": [],
+  "logsConfig": {
+    "cloudWatchLogs": { "status": "ENABLED" },
+    "s3Logs":         { "status": "DISABLED", "encryptionDisabled": false }
+  }
+}

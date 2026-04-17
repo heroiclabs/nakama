@@ -1,0 +1,127 @@
+# syntax=docker/dockerfile:1.7
+#
+# Production Dockerfile for intelliverse-nakama.
+#
+# Why this exists (and why it replaces the alpine-based Dockerfile for prod):
+#   The previous prod image was built with golang:1.25-alpine (musl, CGO_ENABLED=0).
+#   That toolchain is fundamentally incompatible with Go plugins — plugins require
+#   CGO=1 and must link against the same libc and the same Go runtime as the
+#   server that dlopens them. When CI ever shipped an image containing custom
+#   Go plugins built elsewhere, the runtime ABI did not match and the server
+#   CrashLoopBackOff'd with errors like:
+#     "plugin was built with a different version of package
+#      github.com/prometheus/client_model/go"
+#
+# Fix:
+#   1. Use the EXACT same base image as build/pluginbuilder/Dockerfile
+#      (golang:1.25.5-bookworm). go.mod pins `go 1.25.5`, plugin builder uses
+#      1.25.5-bookworm, this Dockerfile uses 1.25.5-bookworm. One toolchain.
+#   2. Build server AND plugins in this single Dockerfile, sharing the same
+#      module cache (`go mod download` happens once in `gomod` stage). That
+#      guarantees plugins and server resolve every dep — including
+#      github.com/prometheus/client_model — to the same version.
+#   3. Final image is debian:bookworm-slim (glibc), not alpine (musl), so the
+#      server can dlopen the plugins built above.
+#   4. The plugin stage auto-detects any directory under data/modules/<name>/
+#      that contains *.go and builds it with -buildmode=plugin. Today no such
+#      directory exists in the repo, so the stage is a safe no-op. The moment
+#      anyone adds a custom Go plugin, it gets built in lockstep automatically.
+#
+# Layer cache note: heavy go-mod download is isolated so source edits don't
+# bust the dep cache.
+
+ARG GO_VERSION=1.25.5
+ARG NODE_VERSION=18
+
+# ---------------------------------------------------------------------------
+# Stage 1: shared go-mod cache (server + plugins both consume from here)
+# ---------------------------------------------------------------------------
+FROM golang:${GO_VERSION}-bookworm AS gomod
+
+ENV CGO_ENABLED=1 \
+    GO111MODULE=on \
+    DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git make \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY vendor ./vendor
+
+# ---------------------------------------------------------------------------
+# Stage 2: build the nakama server binary (CGO=1, glibc, identical toolchain)
+# ---------------------------------------------------------------------------
+FROM gomod AS server
+COPY . .
+RUN go build -trimpath -mod=vendor -ldflags "-s -w" -o /out/nakama .
+
+# ---------------------------------------------------------------------------
+# Stage 3: build any Go plugins under data/modules/<name>/*.go
+#
+# Loop logic:
+#   - For each subdirectory of data/modules/
+#   - If it contains at least one *.go file at the top level
+#   - Build it as a plugin: `go build -buildmode=plugin -o /out/<name>.so .`
+#   - If no plugin source exists, /out/ stays empty — final stage handles this.
+# ---------------------------------------------------------------------------
+FROM gomod AS plugins
+COPY . .
+RUN set -euo pipefail; \
+    mkdir -p /out; \
+    if [ -d data/modules ]; then \
+      for dir in data/modules/*/; do \
+        name=$(basename "$dir"); \
+        # Skip TypeScript build artefacts and node_modules
+        case "$name" in build|node_modules|src) continue ;; esac; \
+        if ls "$dir"*.go >/dev/null 2>&1; then \
+          echo ">>> Building Go plugin: $name"; \
+          ( cd "$dir" && go build -trimpath -mod=vendor -buildmode=plugin -o "/out/${name}.so" . ); \
+        fi; \
+      done; \
+    fi; \
+    echo "Plugins built:"; ls -la /out/ || true
+
+# ---------------------------------------------------------------------------
+# Stage 4: compile TypeScript modules to JavaScript (existing behaviour)
+# ---------------------------------------------------------------------------
+FROM node:${NODE_VERSION}-alpine AS modules
+WORKDIR /build
+COPY data/modules /build/modules
+WORKDIR /build/modules
+RUN if [ -f package.json ]; then \
+      npm ci --no-audit --no-fund || npm install --no-audit --no-fund; \
+      npm run build || true; \
+    fi
+
+# ---------------------------------------------------------------------------
+# Stage 5: final runtime — debian-slim (glibc) so dlopen of .so plugins works
+# ---------------------------------------------------------------------------
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates tzdata curl \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /nakama
+
+COPY --from=server  /out/nakama                /nakama/nakama
+COPY --from=modules /build/modules             /nakama/data/modules
+COPY --from=plugins /out/                      /nakama/data/modules/
+
+# Image metadata so we can inspect what's inside without running it.
+ARG IMAGE_VERSION=dev
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.title="intelliverse-nakama" \
+      org.opencontainers.image.source="https://github.com/heroiclabs/nakama" \
+      org.opencontainers.image.version="${IMAGE_VERSION}" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      ai.cart.go.version="${GO_VERSION}" \
+      ai.cart.plugin.builder.matches="build/pluginbuilder/Dockerfile"
+
+EXPOSE 7349 7350 7351
+
+ENTRYPOINT ["/nakama/nakama"]
