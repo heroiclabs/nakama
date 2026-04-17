@@ -520,6 +520,16 @@ declare namespace HiroProgression {
     };
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace HiroCreatorEventRewards {
+    function createBucketForEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, eventId: string, prizes: {
+        tier: string;
+        percentage: number;
+        maxWinners: number;
+        nftBadgeId?: string;
+    }[], prizePool: number): void;
+    function getTierReward(nk: nkruntime.Nakama, eventId: string, tierName: string): Hiro.Reward | null;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace HiroRewardBucket {
     function addProgress(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, bucketId: string, amount: number, gameId?: string): void;
     function register(initializer: nkruntime.Initializer): void;
@@ -655,6 +665,9 @@ declare namespace SatoriIdentities {
     function getAllProperties(nk: nkruntime.Nakama, userId: string): Satori.IdentityProperties;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriCreatorEvents {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriLiveEvents {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -678,6 +691,9 @@ declare namespace SatoriTaxonomy {
         warnings: string[];
     }
     function validateEvent(nk: nkruntime.Nakama, event: Satori.CapturedEvent): ValidationResult;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SatoriVideoFeed {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriWebhooks {
@@ -758,6 +774,11 @@ declare namespace EventBus {
         GAME_COMPLETED: string;
         SESSION_START: string;
         SESSION_END: string;
+        EVENT_CREATED: string;
+        EVENT_PUBLISHED: string;
+        EVENT_ENDED: string;
+        EVENT_CANCELLED: string;
+        QUIZ_COMPLETED: string;
     };
     export {};
 }

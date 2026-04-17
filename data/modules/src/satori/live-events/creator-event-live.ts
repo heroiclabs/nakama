@@ -18,6 +18,22 @@ namespace SatoriCreatorEvents {
     nftBadgeId?: string;
   }
 
+  interface GiftCardTier {
+    rank: string;       // "1st", "2nd", "3rd", "top_10", "all"
+    prize: string;      // "Amazon India ₹1,000"
+    brand: string;      // "amazon_in", "swiggy", "google_play", "starbucks"
+    value: number;
+    currency: string;   // "INR" | "USD"
+    fulfillment?: string; // "gyftr" | "tremendous" | "manual"
+  }
+
+  interface GiftCardPrizes {
+    region: string;     // "india" | "usa" | "global"
+    tiers: GiftCardTier[];
+    totalValue: number;
+    totalCurrency: string;
+  }
+
   interface CreatorEventDefinition {
     id: string;
     creatorId: string;
@@ -33,14 +49,18 @@ namespace SatoriCreatorEvents {
     entryFee: number;
     prizePool: number;
     prizes: CreatorEventPrizeTier[];
+    giftCardPrizes?: GiftCardPrizes;
     questions: CreatorEventQuestion[];
     clues?: string[];
     answer?: string;
     promoVideoUrl?: string;
+    recapVideoUrl?: string;
     deepLinkUrl?: string;
     status: string;
     participantCount: number;
     publishedAt?: number;
+    endedAt?: number;
+    createdAt?: number;
   }
 
   interface UserAnswer {
@@ -189,7 +209,7 @@ namespace SatoriCreatorEvents {
         return RpcHelpers.errorResponse("Insufficient XUT balance for entry fee");
       }
       WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId, "xut", def.entryFee);
-      EventBus.emit(EventBus.Events.CURRENCY_SPENT, nk, logger, ctx, {
+      EventBus.emit(nk, logger, ctx, EventBus.Events.CURRENCY_SPENT, {
         userId: userId,
         gameId: gameId,
         currencyId: "xut",
@@ -327,7 +347,7 @@ namespace SatoriCreatorEvents {
       logger.warn("[CreatorEvent] Leaderboard write failed: %s", err.message || String(err));
     }
 
-    EventBus.emit(EventBus.Events.SCORE_SUBMITTED, nk, logger, ctx, {
+    EventBus.emit(nk, logger, ctx, EventBus.Events.SCORE_SUBMITTED, {
       userId: userId,
       eventId: data.eventId,
       score: state.score,
@@ -472,7 +492,7 @@ namespace SatoriCreatorEvents {
     state.claimedAt = Math.floor(Date.now() / 1000);
     saveUserStates(nk, userId, userStates);
 
-    EventBus.emit(EventBus.Events.REWARD_GRANTED, nk, logger, ctx, {
+    EventBus.emit(nk, logger, ctx, EventBus.Events.REWARD_GRANTED, {
       userId: userId,
       eventId: data.eventId,
       tier: state.tierEarned,
@@ -487,21 +507,145 @@ namespace SatoriCreatorEvents {
     });
   }
 
-  // ---- Admin RPCs ----
+  // ---- Creator RPCs ----
 
-  function rpcPublish(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    RpcHelpers.requireAdmin(ctx, nk);
+  function isAdminCtx(ctx: nkruntime.Context, nk: nkruntime.Nakama): boolean {
+    try {
+      RpcHelpers.requireAdmin(ctx, nk);
+      return true;
+    } catch (_: any) {
+      return false;
+    }
+  }
+
+  function rpcCreate(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
 
-    if (!data.event) return RpcHelpers.errorResponse("event object required");
-    var event = data.event as CreatorEventDefinition;
-    if (!event.id) return RpcHelpers.errorResponse("event.id required");
+    if (!data.title) return RpcHelpers.errorResponse("title required");
+    if (!data.category) return RpcHelpers.errorResponse("category required");
+    if (!data.scheduledAt) return RpcHelpers.errorResponse("scheduledAt required");
+    if (typeof data.scheduledAt !== "number") return RpcHelpers.errorResponse("scheduledAt must be a unix timestamp (number)");
 
-    if (event.status !== "funded" && event.status !== "draft") {
-      var existing = getEventDefinition(nk, event.id);
-      if (existing && existing.status !== "funded" && existing.status !== "draft") {
-        return RpcHelpers.errorResponse("Event must be in funded or draft status to publish");
+    var event: CreatorEventDefinition = {
+      id: nk.uuidv4(),
+      creatorId: userId,
+      title: String(data.title),
+      description: String(data.description || ""),
+      category: String(data.category),
+      customTopic: data.customTopic ? String(data.customTopic) : "",
+      gameMode: String(data.gameMode || "best_guess"),
+      scheduledAt: data.scheduledAt,
+      duration: typeof data.duration === "number" ? data.duration : 30,
+      region: String(data.region || "global"),
+      timezone: String(data.timezone || "UTC"),
+      entryFee: typeof data.entryFee === "number" ? data.entryFee : 0,
+      prizePool: typeof data.prizePool === "number" ? data.prizePool : 0,
+      prizes: Array.isArray(data.prizes) ? data.prizes : [],
+      giftCardPrizes: data.giftCardPrizes || undefined,
+      questions: Array.isArray(data.questions) ? data.questions : [],
+      clues: Array.isArray(data.clues) ? data.clues : [],
+      answer: data.answer ? String(data.answer) : "",
+      promoVideoUrl: data.promoVideoUrl ? String(data.promoVideoUrl) : "",
+      deepLinkUrl: data.deepLinkUrl ? String(data.deepLinkUrl) : "",
+      status: "draft",
+      participantCount: 0,
+      createdAt: Math.floor(Date.now() / 1000),
+    };
+
+    saveEventDefinition(nk, event);
+    logger.info("[CreatorEvent] Draft created by %s: %s (%s)", userId, event.title, event.id);
+
+    // Emit EVENT_CREATED so Content Factory can begin PRE-GENERATING the promo
+    // video immediately (well before rpcPublish). This gives the pipeline the
+    // maximum runway between creation and scheduledAt.
+    EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CREATED, {
+      eventId: event.id,
+      creatorId: event.creatorId,
+      title: event.title,
+      description: event.description,
+      category: event.category,
+      gameMode: event.gameMode,
+      region: event.region,
+      scheduledAt: event.scheduledAt,
+      duration: event.duration,
+      prizePool: event.prizePool,
+      giftCardPrizes: event.giftCardPrizes || null,
+      deepLinkUrl: event.deepLinkUrl || "",
+      createdAt: event.createdAt,
+      idempotencyKey: "event_created_" + event.id,
+    });
+
+    return RpcHelpers.successResponse({
+      success: true,
+      eventId: event.id,
+      status: event.status,
+    });
+  }
+
+  function broadcastEventPublishedNotification(nk: nkruntime.Nakama, logger: nkruntime.Logger, event: CreatorEventDefinition): void {
+    try {
+      var title = "🎮 New Live Event: " + event.title;
+      var body = event.description || "A new event is live — join now!";
+      if (event.giftCardPrizes && event.giftCardPrizes.totalValue) {
+        body = body + " Prizes up to " + event.giftCardPrizes.totalCurrency + " " + event.giftCardPrizes.totalValue + "!";
+      } else if (event.prizePool) {
+        body = body + " Prize pool: " + event.prizePool + " XUT!";
       }
+      nk.notificationsSend([{
+        userId: "",
+        code: 1001,
+        subject: title,
+        content: {
+          eventId: event.id,
+          title: event.title,
+          scheduledAt: event.scheduledAt,
+          deepLinkUrl: event.deepLinkUrl || "",
+          promoVideoUrl: event.promoVideoUrl || "",
+          type: "creator_event_published",
+          body: body,
+        },
+        persistent: true,
+      }]);
+      logger.info("[CreatorEvent] Broadcast notification for event %s", event.id);
+    } catch (err: any) {
+      logger.warn("[CreatorEvent] Failed to broadcast notification: %s", err.message || String(err));
+    }
+  }
+
+  function rpcPublish(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var isAdmin = isAdminCtx(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+
+    var event: CreatorEventDefinition | null = null;
+
+    // Two modes: full event object (admin path) OR eventId-only (creator path publishing own draft)
+    if (data.event) {
+      event = data.event as CreatorEventDefinition;
+      if (!event.id) return RpcHelpers.errorResponse("event.id required");
+
+      var existingByObject = getEventDefinition(nk, event.id);
+      if (!isAdmin) {
+        if (!existingByObject) return RpcHelpers.errorResponse("Event not found — create it first via creator_event_create");
+        if (existingByObject.creatorId !== userId) return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+        // Preserve creatorId and createdAt on creator self-publish
+        event.creatorId = existingByObject.creatorId;
+        event.createdAt = existingByObject.createdAt;
+      }
+    } else if (data.eventId) {
+      event = getEventDefinition(nk, String(data.eventId));
+      if (!event) return RpcHelpers.errorResponse("Event not found");
+      if (!isAdmin && event.creatorId !== userId) {
+        return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+      }
+    } else {
+      return RpcHelpers.errorResponse("Either event object or eventId required");
+    }
+
+    var currentStatus = event.status || "draft";
+    if (currentStatus !== "funded" && currentStatus !== "draft") {
+      return RpcHelpers.errorResponse("Event must be in funded or draft status to publish (currently: " + currentStatus + ")");
     }
 
     event.status = "published";
@@ -528,22 +672,78 @@ namespace SatoriCreatorEvents {
       logger.warn("[CreatorEvent] Failed to create reward bucket: %s", err.message || String(err));
     }
 
-    logger.info("[CreatorEvent] Published event %s: %s", event.id, event.title);
+    EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_PUBLISHED, {
+      eventId: event.id,
+      creatorId: event.creatorId,
+      title: event.title,
+      description: event.description,
+      category: event.category,
+      gameMode: event.gameMode,
+      region: event.region,
+      scheduledAt: event.scheduledAt,
+      duration: event.duration,
+      prizePool: event.prizePool,
+      giftCardPrizes: event.giftCardPrizes || null,
+      deepLinkUrl: event.deepLinkUrl || "",
+      publishedAt: event.publishedAt,
+      idempotencyKey: "event_published_" + event.id,
+    });
+
+    broadcastEventPublishedNotification(nk, logger, event);
+
+    logger.info("[CreatorEvent] Published event %s by %s: %s", event.id, event.creatorId, event.title);
 
     return RpcHelpers.successResponse({
       success: true,
       eventId: event.id,
       leaderboardId: leaderboardId,
+      status: event.status,
+    });
+  }
+
+  function rpcUpdatePromo(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    // Allow server-to-server calls (no userId) as trusted admin — this RPC is
+    // commonly invoked by Content Factory when a promo/recap video is published.
+    var userId = ctx.userId || "";
+    var isServerCall = !userId;
+    var isAdmin = isServerCall || isAdminCtx(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+
+    var def = getEventDefinition(nk, String(data.eventId));
+    if (!def) return RpcHelpers.errorResponse("Event not found");
+    if (!isAdmin && def.creatorId !== userId) {
+      return RpcHelpers.errorResponse("Not authorized");
+    }
+
+    if (typeof data.promoVideoUrl === "string") def.promoVideoUrl = data.promoVideoUrl;
+    if (typeof data.recapVideoUrl === "string") def.recapVideoUrl = data.recapVideoUrl;
+    if (typeof data.deepLinkUrl === "string") def.deepLinkUrl = data.deepLinkUrl;
+
+    saveEventDefinition(nk, def);
+    logger.info("[CreatorEvent] Updated media URLs for event %s", def.id);
+
+    return RpcHelpers.successResponse({
+      success: true,
+      eventId: def.id,
+      promoVideoUrl: def.promoVideoUrl || "",
+      recapVideoUrl: def.recapVideoUrl || "",
+      deepLinkUrl: def.deepLinkUrl || "",
     });
   }
 
   function rpcEnd(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    RpcHelpers.requireAdmin(ctx, nk);
+    var userId = RpcHelpers.requireUserId(ctx);
+    var isAdmin = isAdminCtx(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
 
     var def = getEventDefinition(nk, data.eventId);
     if (!def) return RpcHelpers.errorResponse("Event not found");
+    if (!isAdmin && def.creatorId !== userId) {
+      return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+    }
 
     if (def.status === "ended" || def.status === "distributed" || def.status === "cancelled") {
       return RpcHelpers.errorResponse("Event already ended/cancelled");
@@ -612,10 +812,101 @@ namespace SatoriCreatorEvents {
     }
 
     def.status = "ended";
+    def.endedAt = Math.floor(Date.now() / 1000);
     saveEventDefinition(nk, def);
 
     logger.info("[CreatorEvent] Ended event %s — %d participants, %d tier assignments",
       def.id, allRecords.length, Object.keys(tierAssignments).length);
+
+    // Resolve usernames for winner + runners-up so downstream recap pipelines
+    // (n8n → Content Factory event-recap) can produce a real highlight video
+    // without having to do their own lookup.
+    var topOwnerIds: string[] = [];
+    for (var oi = 0; oi < allRecords.length && oi < 4; oi++) {
+      topOwnerIds.push(allRecords[oi].ownerId);
+    }
+    var idToUsername: { [uid: string]: string } = {};
+    if (topOwnerIds.length > 0) {
+      try {
+        var accts = nk.accountsGetId(topOwnerIds);
+        for (var ai = 0; ai < accts.length; ai++) {
+          var u: any = accts[ai].user;
+          if (u && u.id) idToUsername[u.id] = u.username || "";
+        }
+      } catch (err: any) {
+        logger.warn("[CreatorEvent] Failed to resolve usernames for recap: %s", err.message || String(err));
+      }
+    }
+    function rankInfo(rec: any, rank: number) {
+      return {
+        userId: rec.ownerId,
+        username: idToUsername[rec.ownerId] || "",
+        rank: rank,
+        score: rec.score || 0,
+      };
+    }
+    var winner = allRecords.length > 0 ? rankInfo(allRecords[0], 1) : null;
+    var runnersUp: any[] = [];
+    for (var ri2 = 1; ri2 < allRecords.length && ri2 < 4; ri2++) {
+      runnersUp.push(rankInfo(allRecords[ri2], ri2 + 1));
+    }
+
+    // Next upcoming event lookup — lets the recap pipeline generate a
+    // "next event Thursday 8PM IST" CTA instead of a hard-coded "tomorrow".
+    // Scan the events index for the nearest scheduledAt > now, preferring
+    // same-region first so regional recaps promote their own region's next.
+    var nextEvent: any = null;
+    try {
+      var nowTs = Math.floor(Date.now() / 1000);
+      var idx = getEventsIndex(nk);
+      var bestSame: any = null;
+      var bestAny: any = null;
+      for (var ei = 0; ei < idx.eventIds.length; ei++) {
+        var eid = idx.eventIds[ei];
+        if (eid === def.id) continue;
+        var other = getEventDefinition(nk, eid);
+        if (!other) continue;
+        if (other.status === "cancelled" || other.status === "ended" || other.status === "distributed") continue;
+        if (!other.scheduledAt || other.scheduledAt <= nowTs) continue;
+        var candidate = {
+          eventId: other.id,
+          title: other.title,
+          category: other.category,
+          region: other.region,
+          scheduledAt: other.scheduledAt,
+          duration: other.duration,
+        };
+        if (other.region === def.region) {
+          if (!bestSame || other.scheduledAt < bestSame.scheduledAt) bestSame = candidate;
+        } else {
+          if (!bestAny || other.scheduledAt < bestAny.scheduledAt) bestAny = candidate;
+        }
+      }
+      nextEvent = bestSame || bestAny;
+    } catch (err: any) {
+      logger.warn("[CreatorEvent] next-event lookup failed: %s", err.message || String(err));
+    }
+
+    EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
+      eventId: def.id,
+      creatorId: def.creatorId,
+      title: def.title,
+      description: def.description,
+      category: def.category,
+      gameMode: def.gameMode,
+      region: def.region,
+      totalParticipants: allRecords.length,
+      tierAssignments: tierAssignments,
+      winnersPerTier: winnersPerTier,
+      winner: winner,
+      runnersUp: runnersUp,
+      answer: def.answer || "",
+      prizePool: def.prizePool,
+      giftCardPrizes: def.giftCardPrizes || null,
+      endedAt: def.endedAt,
+      nextEvent: nextEvent,
+      idempotencyKey: "event_ended_" + def.id,
+    });
 
     return RpcHelpers.successResponse({
       success: true,
@@ -626,6 +917,71 @@ namespace SatoriCreatorEvents {
     });
   }
 
+  /**
+   * Cancel a draft or published event BEFORE it starts running.
+   *
+   * Emits EVENT_CANCELLED so the n8n takedown workflow can unpublish any
+   * already-scheduled promo posts on YouTube/TikTok/Instagram (via Postiz).
+   *
+   * Only draft | funded | published events can be cancelled. Events that
+   * have already ended or been distributed are terminal.
+   */
+  function rpcCancel(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var isAdmin = isAdminCtx(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+
+    var def = getEventDefinition(nk, String(data.eventId));
+    if (!def) return RpcHelpers.errorResponse("Event not found");
+
+    if (!isAdmin && def.creatorId !== userId) {
+      return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+    }
+
+    var current = def.status || "draft";
+    if (current !== "draft" && current !== "funded" && current !== "published") {
+      return RpcHelpers.errorResponse("Event cannot be cancelled once it's " + current);
+    }
+
+    def.status = "cancelled";
+    var now = Math.floor(Date.now() / 1000);
+    (def as any).cancelledAt = now;
+    (def as any).cancelReason = data.reason ? String(data.reason) : "";
+    saveEventDefinition(nk, def);
+
+    logger.info("[CreatorEvent] Cancelled by %s: %s (%s) — reason=%s",
+      userId, def.title, def.id, (def as any).cancelReason || "(none)");
+
+    // Fan out to n8n → Postiz takedown + Content Factory registry cleanup.
+    EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CANCELLED, {
+      eventId: def.id,
+      creatorId: def.creatorId,
+      title: def.title,
+      description: def.description,
+      category: def.category,
+      region: def.region,
+      scheduledAt: def.scheduledAt,
+      cancelledAt: now,
+      cancelledBy: userId,
+      reason: (def as any).cancelReason || "",
+      // Carry the prior idempotency keys so downstream can identify the
+      // exact promo tasks to tear down.
+      priorPromoIdempotencyKeys: [
+        "event_created_" + def.id,
+        "event_published_" + def.id,
+      ],
+      idempotencyKey: "event_cancelled_" + def.id,
+    });
+
+    return RpcHelpers.successResponse({
+      success: true,
+      eventId: def.id,
+      status: "cancelled",
+    });
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("creator_event_list", rpcList);
     initializer.registerRpc("creator_event_join", rpcJoin);
@@ -633,7 +989,10 @@ namespace SatoriCreatorEvents {
     initializer.registerRpc("creator_event_leaderboard", rpcLeaderboard);
     initializer.registerRpc("creator_event_results", rpcResults);
     initializer.registerRpc("creator_event_claim", rpcClaim);
+    initializer.registerRpc("creator_event_create", rpcCreate);
     initializer.registerRpc("creator_event_publish", rpcPublish);
     initializer.registerRpc("creator_event_end", rpcEnd);
+    initializer.registerRpc("creator_event_cancel", rpcCancel);
+    initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
   }
 }

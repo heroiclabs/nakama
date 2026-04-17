@@ -137,7 +137,11 @@ namespace SatoriWebhooks {
       EventBus.Events.ACHIEVEMENT_COMPLETED, EventBus.Events.ACHIEVEMENT_CLAIMED,
       EventBus.Events.LEVEL_UP, EventBus.Events.STORE_PURCHASE,
       EventBus.Events.GAME_STARTED, EventBus.Events.GAME_COMPLETED,
-      EventBus.Events.SESSION_START, EventBus.Events.SESSION_END
+      EventBus.Events.SESSION_START, EventBus.Events.SESSION_END,
+      EventBus.Events.EVENT_CREATED, EventBus.Events.EVENT_PUBLISHED,
+      EventBus.Events.EVENT_ENDED, EventBus.Events.EVENT_CANCELLED,
+      EventBus.Events.QUIZ_COMPLETED, EventBus.Events.SCORE_SUBMITTED,
+      EventBus.Events.REWARD_GRANTED
     ];
 
     for (var i = 0; i < events.length; i++) {
