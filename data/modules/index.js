@@ -3149,21 +3149,40 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
             }
         }
         
-        // Also check DAU storage for platform breakdown (game-specific if filtered)
-        for (var d = 0; d < Math.min(days, 7); d++) {
-            var dateStr = extDaysAgo(d);
-            var platforms = ['android', 'ios', 'webgl', 'editor'];
-            
-            for (var p = 0; p < platforms.length; p++) {
-                var key = 'dau_' + platforms[p] + '_' + dateStr;
-                var dauRec = extStorageRead(nk, 'analytics_dau', key, SYSTEM_USER_ID);
-                
-                if (dauRec) {
-                    var count = dauRec.count || dauRec.uniqueUsers || (dauRec.users ? dauRec.users.length : 0);
-                    platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + count;
+        // NOTE: Prior revisions scanned `analytics_dau/dau_<platform>_<date>`
+        // keys here, but `trackDAU` in analytics.js has never written per-
+        // platform DAU keys (it writes `dau_<gameId>_<date>` and
+        // `dau_platform_<date>`). Those reads were always misses and inflated
+        // the read count without contributing data. Fold in the authoritative
+        // `analytics_platform` counts written by `trackPlatform` instead.
+        // Keys are `platform_<gameId>_<date>_<platform>` — they carry their
+        // own date, so one storageList pass covers the full window.
+        try {
+            var pCursor = null;
+            var pPages = 0;
+            var pMaxPages = 10;
+            var windowStart = extDaysAgo(Math.min(days - 1, 6));
+            while (pPages < pMaxPages) {
+                var plist = nk.storageList(SYSTEM_USER_ID, 'analytics_platform', 100, pCursor);
+                if (!plist || !plist.objects || plist.objects.length === 0) break;
+                for (var pi = 0; pi < plist.objects.length; pi++) {
+                    var po = plist.objects[pi];
+                    if (!po.key || po.key.indexOf('platform_') !== 0) continue;
+                    // Key shape: platform_<gameId>_<YYYY-MM-DD>_<platform>
+                    var kp = po.key.split('_');
+                    if (kp.length < 4) continue;
+                    var kPlatform = kp[kp.length - 1];
+                    var kDate = kp[kp.length - 2];
+                    if (kDate < windowStart) continue;
+                    if (gameId && kp[1] !== gameId) continue;
+                    var kCount = (po.value && po.value.count) || 0;
+                    platformCounts[kPlatform] = (platformCounts[kPlatform] || 0) + kCount;
                 }
+                pPages++;
+                if (!plist.cursor) break;
+                pCursor = plist.cursor;
             }
-        }
+        } catch (ePlat) { /* best-effort; events scan above still gives a breakdown */ }
         
         // Build platforms array
         var platforms_arr = [];
@@ -3190,6 +3209,37 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
 
 // ─── RPC: analytics_home_heatmap ──────────────────────────
 
+// Canonical event sets used by the heatmap classifier. The previous
+// implementation used substring matches like indexOf('view') which over-
+// matched unrelated events (e.g. `ad_preview_shown`, `overview_opened`) and
+// misrouted them to the screen-views bucket. Explicit sets avoid that class
+// of bug and keep the taxonomy aligned with IVXAnalyticsEvents on the client.
+var EXT_HEATMAP_CLICK_EVENTS = {
+    'button_clicked': true,
+    'button_tap': true,
+    'ui_click': true,
+    'ui_tap': true,
+    'nav_clicked': true,
+    'cta_clicked': true
+};
+var EXT_HEATMAP_SCREEN_EVENTS = {
+    'screen_viewed': true,
+    'screen_view': true,
+    'screen_opened': true,
+    'screen_closed': true,
+    'home_viewed': true,
+    'shop_viewed': true,
+    'profile_viewed': true
+};
+var EXT_HEATMAP_POPUP_EVENTS = {
+    'popup_shown': true,
+    'popup_closed': true,
+    'modal_shown': true,
+    'modal_closed': true,
+    'dialog_shown': true,
+    'dialog_closed': true
+};
+
 function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
@@ -3202,12 +3252,12 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
         var screenTimeCounts = {};
         var popupShown = {};
         
-        // Scan UI-related events (with gameId filter)
+        // Scan UI-related events — classify by canonical event names only.
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            var evName = (val.eventName || '').toLowerCase();
-            return evName.indexOf('click') !== -1 || evName.indexOf('view') !== -1 || 
-                   evName.indexOf('screen') !== -1 || evName.indexOf('popup') !== -1 ||
-                   evName.indexOf('button') !== -1 || evName.indexOf('tap') !== -1;
+            var evName = val.eventName || '';
+            return !!(EXT_HEATMAP_CLICK_EVENTS[evName] ||
+                      EXT_HEATMAP_SCREEN_EVENTS[evName] ||
+                      EXT_HEATMAP_POPUP_EVENTS[evName]);
         }, gameId);
         
         for (var i = 0; i < events.length; i++) {
@@ -3215,28 +3265,22 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
             var evName = ev.eventName || '';
             var evData = ev.eventData || {};
             
-            // Button clicks
-            if (evName.toLowerCase().indexOf('click') !== -1 || evName.toLowerCase().indexOf('tap') !== -1) {
-                var button = evData.button || evData.buttonName || evName;
+            if (EXT_HEATMAP_CLICK_EVENTS[evName]) {
+                var button = evData.button || evData.buttonName || evData.button_id || evName;
                 buttonClicks[button] = (buttonClicks[button] || 0) + 1;
-            }
-            
-            // Screen views
-            if (evName.toLowerCase().indexOf('screen') !== -1 || evName.toLowerCase().indexOf('view') !== -1) {
-                var screen = evData.screen || evData.screenName || evName;
+            } else if (EXT_HEATMAP_SCREEN_EVENTS[evName]) {
+                var screen = evData.screen || evData.screenName || evData.screen_name || evName;
                 screenViews[screen] = (screenViews[screen] || 0) + 1;
                 
-                if (evData.duration || evData.timeSpent) {
+                var dur = evData.duration || evData.timeSpent || evData.time_spent || 0;
+                if (dur) {
                     if (!screenTime[screen]) screenTime[screen] = 0;
                     if (!screenTimeCounts[screen]) screenTimeCounts[screen] = 0;
-                    screenTime[screen] += evData.duration || evData.timeSpent || 0;
+                    screenTime[screen] += dur;
                     screenTimeCounts[screen]++;
                 }
-            }
-            
-            // Popups
-            if (evName.toLowerCase().indexOf('popup') !== -1 || evName.toLowerCase().indexOf('modal') !== -1) {
-                var popup = evData.popup || evData.popupName || evName;
+            } else if (EXT_HEATMAP_POPUP_EVENTS[evName]) {
+                var popup = evData.popup || evData.popupName || evData.popup_name || evName;
                 popupShown[popup] = (popupShown[popup] || 0) + 1;
             }
         }
