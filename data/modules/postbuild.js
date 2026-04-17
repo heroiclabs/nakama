@@ -404,6 +404,33 @@ if (renamed !== buildContent) {
 //   a) The AST walker can descend into each try block to find the call
 //   b) A failure in one registration doesn't skip the rest
 
+// ─── RPC alias overrides ─────────────────────────────────────────
+//
+// Some legacy RPC names in src/hiro/base/admin.ts point at handlers that
+// depend on Satori (not configured) or a Hiro-shaped admin context (ours
+// uses analytics_admin.js). Their handlers throw at runtime → the dashboard
+// sees HTTP 500. We can't redeploy the live dashboard HTML (it's served
+// outside this repo), so we alias the legacy RPC ids to the working
+// analytics_admin.js handlers here.
+//
+// These overrides MUST run AFTER __OriginalInitModule — that call
+// re-populates the stubs from buildContent's register() IIFEs, so any
+// global-scope override earlier in the file gets clobbered. Injecting
+// them into the wrapper body between __OriginalInitModule and the
+// registration loop is the only spot where our value survives.
+//
+// Each line uses `typeof X !== "undefined"` so a future rename/removal
+// of the source handler function doesn't break the build — it just falls
+// back to whatever the stub currently holds.
+var RPC_ALIAS_OVERRIDES = [
+  { from: 'admin_events_timeline', to: 'rpcDashboardEventsTimeline' },
+  { from: 'admin_storage_list',    to: 'rpcDashboardStorageList' }
+];
+var aliasOverrideLines = RPC_ALIAS_OVERRIDES.map(function(o) {
+  var stubVar = '__rpc_' + o.from.replace(/[^a-zA-Z0-9_]/g, '_');
+  return '  try { if (typeof ' + o.to + ' !== "undefined") { ' + stubVar + ' = ' + o.to + '; } } catch(e) {}';
+}).join('\n');
+
 var registrationLines = rpcEntries.map(function(e) {
   return '  try { initializer.registerRpc("' + e.id + '", ' + e.varName + '); } catch(e) {}';
 }).join('\n');
@@ -415,8 +442,10 @@ var newInitModule = [
   '// statements in InitModule\'s body. This wrapper satisfies that requirement.',
   'function InitModule(ctx, logger, nk, initializer) {',
   '  __OriginalInitModule(ctx, logger, nk, initializer);',
+  '  // --- RPC alias overrides (post-Hiro, pre-registration) ---',
+  aliasOverrideLines,
   registrationLines,
-  '  logger.info("[Postbuild] Registered " + ' + rpcEntries.length + ' + " RPCs via AST-compatible wrapper");',
+  '  logger.info("[Postbuild] Registered " + ' + rpcEntries.length + ' + " RPCs via AST-compatible wrapper (' + RPC_ALIAS_OVERRIDES.length + ' aliases applied)");',
   '}',
   ''
 ].join('\n');

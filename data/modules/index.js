@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-17T10:03:32.069Z
+// Generated: 2026-04-17T10:41:04.989Z
 // RPC Count: 522
 // ============================================================
 
@@ -72936,6 +72936,9 @@ try { __rpc_intellidraws_past = __rpc_intellidraws_past || (rpcIntelliDrawsPast)
 // statements in InitModule's body. This wrapper satisfies that requirement.
 function InitModule(ctx, logger, nk, initializer) {
   __OriginalInitModule(ctx, logger, nk, initializer);
+  // --- RPC alias overrides (post-Hiro, pre-registration) ---
+  try { if (typeof rpcDashboardEventsTimeline !== "undefined") { __rpc_admin_events_timeline = rpcDashboardEventsTimeline; } } catch(e) {}
+  try { if (typeof rpcDashboardStorageList !== "undefined") { __rpc_admin_storage_list = rpcDashboardStorageList; } } catch(e) {}
   try { initializer.registerRpc("lasttolive_update_user_profile", __rpc_lasttolive_update_user_profile); } catch(e) {}
   try { initializer.registerRpc("lasttolive_grant_currency", __rpc_lasttolive_grant_currency); } catch(e) {}
   try { initializer.registerRpc("lasttolive_spend_currency", __rpc_lasttolive_spend_currency); } catch(e) {}
@@ -73458,5 +73461,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 522 + " RPCs via AST-compatible wrapper");
+  logger.info("[Postbuild] Registered " + 522 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }
