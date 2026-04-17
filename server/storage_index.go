@@ -696,6 +696,10 @@ func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, 
 		return err
 	}
 
+	if key == "*" {
+		key = ""
+	}
+
 	storageIdx := &storageIndex{
 		Name:           name,
 		Collection:     collection,

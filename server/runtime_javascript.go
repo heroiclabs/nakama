@@ -45,6 +45,8 @@ import (
 
 const JsEntrypointFilename = "index.js"
 
+type ctxJsRuntimeKey struct{}
+
 type RuntimeJS struct {
 	logger       *zap.Logger
 	node         string
@@ -206,6 +208,7 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, headers, queryP
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeRPC, headers, queryParams, traceID, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, r)
 	r.SetContext(ctx)
 	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeRPC, id, fn, jsLogger, headers, queryParams, traceID, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
 	r.SetContext(context.Background())
@@ -2366,10 +2369,19 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context,
 }
 
 func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName string, storageWrite *StorageOpWrite) (bool, error) {
-	r, err := rp.Get(ctx)
-	if err != nil {
-		return false, err
+	var r *RuntimeJS
+	var err error
+	if ctxVm := ctx.Value(ctxJsRuntimeKey{}); ctxVm != nil {
+		// Reuse previously checked out runtime if executed in the context of an RPC
+		r = ctxVm.(*RuntimeJS)
+	} else {
+		r, err = rp.Get(ctx)
+		if err != nil {
+			return false, err
+		}
+		defer rp.Put(r)
 	}
+
 	jsFn := r.GetCallback(RuntimeExecutionModeStorageIndexFilter, indexName)
 	if jsFn == "" {
 		rp.Put(r)
@@ -2379,14 +2391,12 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 
 	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
 	if !ok {
-		rp.Put(r)
 		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
 		return false, errors.New("Could not run Storage Index Filter hook.")
 	}
 
 	jsLogger, err := NewJsLogger(ctx, r.vm, r.logger, zap.String("mode", RuntimeExecutionModeStorageIndexFilter.String()))
 	if err != nil {
-		rp.Put(r)
 		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
 		return false, errors.New("Could not run Storage Index Filter hook.")
 	}
@@ -2415,7 +2425,6 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeStorageIndexFilter, "storageIndexFilter", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(objectMap))
 	r.SetContext(context.Background())
-	rp.Put(r)
 	if err != nil {
 		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
 	}
