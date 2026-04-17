@@ -43,6 +43,7 @@ var AR_FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
 var AR_EVENT_ALIASES = {
     "quiz_started": "quiz_start",
     "quiz_completed": "quiz_complete",
+    "quiz_abandon": "quiz_abandoned",
     "purchase_completed": "iap_purchased",
     "purchase_started": "iap_clicked",
     "iap_completed": "iap_purchased",
@@ -50,7 +51,8 @@ var AR_EVENT_ALIASES = {
     "login_succeeded": "login_success",
     "onboarding_completed": "onboarded",
     "onboarding_complete": "onboarded",
-    "registration_completed": "registration_complete"
+    "registration_completed": "registration_complete",
+    "paywall_viewed": "paywall_shown"
 };
 
 // Canonical funnel order (must match IVXAnalyticsEvents in the Unity client).

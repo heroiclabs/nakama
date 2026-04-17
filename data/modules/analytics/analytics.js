@@ -13,6 +13,7 @@ var FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
 var EVENT_ALIASES = {
     "quiz_started": "quiz_start",
     "quiz_completed": "quiz_complete",
+    "quiz_abandon": "quiz_abandoned",
     "purchase_completed": "iap_purchased",
     "purchase_started": "iap_clicked",
     "iap_completed": "iap_purchased",
@@ -20,7 +21,8 @@ var EVENT_ALIASES = {
     "login_succeeded": "login_success",
     "onboarding_completed": "onboarded",
     "onboarding_complete": "onboarded",
-    "registration_completed": "registration_complete"
+    "registration_completed": "registration_complete",
+    "paywall_viewed": "paywall_shown"
 };
 
 /**
@@ -37,6 +39,9 @@ function resolveEventTimestamp(rawEvent) {
     else if (typeof rawEvent.timestamp === "string" && rawEvent.timestamp) {
         var parsedMs = Date.parse(rawEvent.timestamp);
         if (!isNaN(parsedMs)) candidate = Math.floor(parsedMs / 1000);
+    } else if (typeof rawEvent.timestamp === "number" && isFinite(rawEvent.timestamp)) {
+        // JSON numeric epoch seconds (e.g. Unity Newtonsoft serializing long timestamp).
+        candidate = Math.floor(rawEvent.timestamp);
     }
     if (!candidate || !isFinite(candidate)) return serverNow;
     // Guard: reject absurd values (before 2020 or > 48h in future).
