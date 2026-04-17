@@ -2883,20 +2883,32 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
             }
         }
         
-        // Also check DAU storage for platform breakdown
-        for (var d = 0; d < Math.min(days, 7); d++) {
-            var dateStr = extDaysAgo(d);
-            var platforms = ['android', 'ios', 'webgl', 'editor'];
-            
-            for (var p = 0; p < platforms.length; p++) {
-                var key = 'dau_' + platforms[p] + '_' + dateStr;
-                var dauRec = extStorageRead(nk, 'analytics_dau', key, SYSTEM_USER_ID);
-                
-                if (dauRec) {
-                    var count = dauRec.count || dauRec.uniqueUsers || (dauRec.users ? dauRec.users.length : 0);
-                    platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + count;
+        // NOTE: Prior revisions also scanned `analytics_dau/dau_<platform>_<date>`
+        // keys here, but `trackDAU` in analytics.js has never written per-
+        // platform DAU keys (it writes `dau_<gameId>_<date>` and
+        // `dau_platform_<date>`). Those reads were always misses and inflated
+        // the read count without contributing data. The `analytics_platform`
+        // collection already gives us authoritative per-platform counts via
+        // `trackPlatform`; fold those in if present.
+        for (var d2 = 0; d2 < Math.min(days, 7); d2++) {
+            var pDateStr = extDaysAgo(d2);
+            try {
+                var plist = nk.storageList(SYSTEM_USER_ID, 'analytics_platform', 100, null);
+                if (plist && plist.objects) {
+                    for (var pi = 0; pi < plist.objects.length; pi++) {
+                        var po = plist.objects[pi];
+                        if (!po.key || po.key.indexOf('platform_') !== 0) continue;
+                        // Key shape: platform_<gameId>_<date>_<platform>
+                        var keyParts = po.key.split('_');
+                        if (keyParts.length < 4) continue;
+                        if (keyParts[keyParts.length - 2] !== pDateStr) continue;
+                        var platName = keyParts[keyParts.length - 1];
+                        var count2 = (po.value && po.value.count) || 0;
+                        platformCounts[platName] = (platformCounts[platName] || 0) + count2;
+                    }
                 }
-            }
+                break; // one pass covers last 7 days since keys carry their own date
+            } catch (e) { /* ignore */ }
         }
         
         // Build platforms array
@@ -2923,52 +2935,75 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
 
 // ─── RPC: analytics_home_heatmap ──────────────────────────
 
+// Canonical event buckets for the home-heatmap RPC. Replaces the prior
+// substring-match classifier (`indexOf('view')`/`indexOf('screen')`), which
+// double-counted any event whose name happened to contain those substrings
+// (e.g. `profile_viewed`, `interview_tapped`, `home_screen_loaded`) and
+// misclassified events across categories. These sets must match the event
+// names defined in quiz-verse/Scripts/Analytics/Core/AnalyticsConstants.cs
+// and _IntelliVerseXSDK/Analytics/IVXAnalyticsEvents.cs.
+var EXT_HEATMAP_CLICK_EVENTS = {
+    "home_button_tapped": true,
+    "home_live_quiz_tapped": true,
+    "home_gift_tapped": true,
+    "home_no_ads_tapped": true,
+    "home_coins_tapped": true,
+    "home_avatar_tapped": true,
+    "home_notifications_tapped": true,
+    "home_settings_tapped": true,
+    "button_clicked": true,
+    "quiz_mode_card_tapped": true
+};
+var EXT_HEATMAP_SCREEN_EVENTS = {
+    "screen_view": true,
+    "screen_time_spent": true,
+    "home_panel_opened": true
+};
+var EXT_HEATMAP_POPUP_EVENTS = {
+    "popup_shown": true,
+    "popup_dismissed": true,
+    "popup_action_taken": true,
+    "paywall_shown": true
+};
+
 function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        
+
         var buttonClicks = {};
         var screenViews = {};
         var screenTime = {};
         var screenTimeCounts = {};
         var popupShown = {};
-        
-        // Scan UI-related events
+
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            var evName = (val.eventName || '').toLowerCase();
-            return evName.indexOf('click') !== -1 || evName.indexOf('view') !== -1 || 
-                   evName.indexOf('screen') !== -1 || evName.indexOf('popup') !== -1 ||
-                   evName.indexOf('button') !== -1 || evName.indexOf('tap') !== -1;
+            var evName = val.eventName || '';
+            return !!(EXT_HEATMAP_CLICK_EVENTS[evName] ||
+                      EXT_HEATMAP_SCREEN_EVENTS[evName] ||
+                      EXT_HEATMAP_POPUP_EVENTS[evName]);
         });
-        
+
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
             var evName = ev.eventName || '';
             var evData = ev.eventData || {};
-            
-            // Button clicks
-            if (evName.toLowerCase().indexOf('click') !== -1 || evName.toLowerCase().indexOf('tap') !== -1) {
-                var button = evData.button || evData.buttonName || evName;
+
+            if (EXT_HEATMAP_CLICK_EVENTS[evName]) {
+                var button = evData.button_id || evData.button || evData.buttonName || evName;
                 buttonClicks[button] = (buttonClicks[button] || 0) + 1;
-            }
-            
-            // Screen views
-            if (evName.toLowerCase().indexOf('screen') !== -1 || evName.toLowerCase().indexOf('view') !== -1) {
-                var screen = evData.screen || evData.screenName || evName;
+            } else if (EXT_HEATMAP_SCREEN_EVENTS[evName]) {
+                var screen = evData.screen_name || evData.screen || evData.screenName || evName;
                 screenViews[screen] = (screenViews[screen] || 0) + 1;
-                
-                if (evData.duration || evData.timeSpent) {
+                var dur = evData.time_on_screen_ms || evData.duration_ms || evData.duration || evData.timeSpent;
+                if (dur) {
                     if (!screenTime[screen]) screenTime[screen] = 0;
                     if (!screenTimeCounts[screen]) screenTimeCounts[screen] = 0;
-                    screenTime[screen] += evData.duration || evData.timeSpent || 0;
+                    screenTime[screen] += dur;
                     screenTimeCounts[screen]++;
                 }
-            }
-            
-            // Popups
-            if (evName.toLowerCase().indexOf('popup') !== -1 || evName.toLowerCase().indexOf('modal') !== -1) {
-                var popup = evData.popup || evData.popupName || evName;
+            } else if (EXT_HEATMAP_POPUP_EVENTS[evName]) {
+                var popup = evData.popup_name || evData.popup || evData.popupName || evName;
                 popupShown[popup] = (popupShown[popup] || 0) + 1;
             }
         }

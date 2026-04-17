@@ -1280,6 +1280,7 @@
                 <button class="tab" data-tab="errors">🐛 Errors</button>
                 <button class="tab" data-tab="events">📋 Events</button>
                 <button class="tab" data-tab="storage">💾 Storage</button>
+                <button class="tab" data-tab="diagnose">🩺 Diagnose</button>
             </div>
         </nav>
         
@@ -1332,6 +1333,55 @@
             </div>
         </div>
         
+        <!-- Diagnose Tab (admin_diagnose_env + rollup + pollers) -->
+        <div id="diagnose" class="tab-content">
+            <div class="chart-card">
+                <h3>🩺 Runtime Diagnostics
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="loadDiagnose()">↻ Re-run</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Verifies that the Nakama runtime has all required env vars,
+                        that new admin/dashboard RPCs are registered, and that the
+                        <code>analytics_events</code> pipeline is actually persisting events.
+                    </p>
+                    <div id="diagnoseContent">
+                        <div class="loading">Click "Re-run" to diagnose the running server…</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <h3>⚙ Admin Actions
+                    <div class="card-actions">
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Manual controls for the Phase-2 rollup + external poller pipelines.
+                        These normally run on the <code>analytics_cron</code> sidecar.
+                    </p>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+                        <button class="card-btn" style="background:#10b981;color:#0a0a0f;font-weight:600;" onclick="adminRunSmokeTest()">✅ Run Smoke Test (end-to-end)</button>
+                        <button class="card-btn" onclick="adminSampleEvent()">🧪 Sample Event</button>
+                        <button class="card-btn" onclick="adminRunRollup()">📊 Run Rollup</button>
+                        <button class="card-btn" onclick="adminBackfillRollup()">⏪ Backfill Rollup</button>
+                        <button class="card-btn" onclick="adminPollAll()">🔄 Poll All Providers</button>
+                        <button class="card-btn" onclick="adminSchemaCheck()">🔍 Schema Check</button>
+                        <button class="card-btn" onclick="adminBackfillEvents()">🧹 Normalize Events (dry)</button>
+                        <button class="card-btn" onclick="adminMetrics()">📈 Metrics Snapshot</button>
+                        <button class="card-btn" onclick="adminFeatureFlags()">🚩 Feature Flags</button>
+                        <button class="card-btn" onclick="adminRetentionPreview()">👥 Retention Preview</button>
+                    </div>
+                    <div id="adminActionContent" style="color:var(--text-secondary);font-family:monospace;font-size:0.85rem;white-space:pre-wrap;max-height:300px;overflow:auto;background:var(--bg-secondary);border-radius:8px;padding:0.75rem;">Action output will appear here.</div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Revenue Tab -->
         <div id="revenue" class="tab-content">
             <div class="period-selector">
@@ -1370,10 +1420,20 @@
             </div>
             <div class="chart-grid">
                 <div class="chart-card" style="grid-column: span 2;">
-                    <h3>Retention Curve <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('retentionChart','Retention Curve')">⛶</button></div></h3>
+                    <h3>Average Retention Curve (weighted by cohort size) <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('retentionChart','Retention Curve')">⛶</button></div></h3>
                     <div class="card-body"><div class="chart-container">
                         <canvas id="retentionChart"></canvas>
                     </div></div>
+                </div>
+                <div class="chart-card" style="grid-column: span 2;">
+                    <h3>Cohort Heatmap <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body">
+                        <div id="retentionHeatmapNote" style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.5rem;">
+                            Each row is one daily cohort. Cells show % of users from that cohort still active N days later.
+                            Empty cells mean the window hasn't elapsed yet.
+                        </div>
+                        <div id="retentionHeatmap" style="overflow-x:auto;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1672,24 +1732,30 @@
         // ─────────────────────────────────────────────────────────────────────
         
         // Production Nakama Server Configuration
+        //
+        // Admin auth is now SERVER-VALIDATED via the `admin_login` RPC defined in
+        // data/modules/analytics_admin/analytics_admin.js. The old hardcoded
+        // username/password in this file was a security hole and has been removed.
+        // Credentials are checked against bcrypt-hashed ADMIN_PASSWORD_HASH
+        // passed to the runtime via docker-compose -> --runtime.env.
         const CONFIG = {
             serverUrl: 'https://nakama-rest.intelli-verse-x.ai',
             serverKey: 'defaultkey',
-            nakamaConsoleUrl: 'https://nakama-rest.intelli-verse-x.ai', // Back button destination
-            // Admin credentials
-            adminUsername: 'admin',
-            adminPassword: 'password',
+            nakamaConsoleUrl: 'https://nakama-rest.intelli-verse-x.ai',
+            adminTokenStorageKey: 'ivx_admin_token_v2',
             // Known games with their IDs and names
             games: {
                 'all': { name: 'All Games', icon: '🌐' },
                 '126bf539-dae2-4bcf-964d-316c0fa1f92b': { name: 'QuizVerse', icon: '🧠' },
-                'lasttolive': { name: 'Last To Live', icon: '🎮' },
+                'f6f7fe36-03de-43b8-8b5d-1a1892da4eed': { name: 'Last To Live', icon: '🎮' },
                 'cricketvr': { name: 'Cricket VR', icon: '🏏' }
             }
         };
         
         let charts = {};
-        let sessionToken = null;
+        let sessionToken = null;      // Admin session token from admin_login
+        let adminUsername = null;     // For display only
+        let adminExpiresAt = null;    // Unix seconds
         let isAuthenticated = false;
         let selectedGameId = 'all';
         let selectedDays = 30;
@@ -1699,26 +1765,86 @@
         // Admin Authentication
         // ─────────────────────────────────────────────────────────────────────
         
-        function attemptLogin() {
+        // Calls the server-side `admin_login` RPC. On success we get a real
+        // Nakama admin session token, stored in sessionStorage so page refreshes
+        // stay authenticated until token expiry.
+        async function attemptLogin() {
             const username = document.getElementById('adminUsername').value.trim();
             const password = document.getElementById('adminPassword').value;
+            const errEl = document.getElementById('loginError');
             
-            // Check credentials
-            if (username === CONFIG.adminUsername && password === CONFIG.adminPassword) {
-                isAuthenticated = true;
-                sessionStorage.setItem('qv_analytics_auth', 'true');
+            if (!username || !password) {
+                errEl.textContent = 'Enter username and password.';
+                errEl.classList.add('show');
+                return;
+            }
+            
+            errEl.classList.remove('show');
+            try {
+                // admin_login is called anonymously using the public server key
+                // (same "Basic defaultkey:" header Nakama uses for unauth'd endpoints).
+                const resp = await fetch(`${CONFIG.serverUrl}/v2/rpc/admin_login?http_key=${encodeURIComponent(CONFIG.serverKey)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (!resp.ok) {
+                    const text = await resp.text().catch(() => '');
+                    errEl.textContent = resp.status === 401
+                        ? 'Invalid credentials.'
+                        : `Login failed (${resp.status}). ${text.substring(0, 120)}`;
+                    errEl.classList.add('show');
+                    document.getElementById('adminPassword').value = '';
+                    return;
+                }
+                
+                const wrapped = await resp.json();
+                const data = wrapped && wrapped.payload ? JSON.parse(wrapped.payload) : wrapped;
+                
+                if (!data || !data.success || !data.token) {
+                    errEl.textContent = data && data.error ? data.error : 'Login failed.';
+                    errEl.classList.add('show');
+                    document.getElementById('adminPassword').value = '';
+                    return;
+                }
+                
+                sessionToken     = data.token;
+                adminUsername    = data.username || username;
+                adminExpiresAt   = data.expiresAt || null;
+                isAuthenticated  = true;
+                
+                sessionStorage.setItem(CONFIG.adminTokenStorageKey, JSON.stringify({
+                    token: sessionToken,
+                    username: adminUsername,
+                    expiresAt: adminExpiresAt
+                }));
+                
                 document.getElementById('loginOverlay').classList.add('hidden');
-                document.getElementById('loginError').classList.remove('show');
+                document.getElementById('connectionStatus').className = 'status connected';
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                
+                // Optionally display who's logged in
+                const hdr = document.getElementById('adminBadge');
+                if (hdr) hdr.textContent = adminUsername;
+                
                 refreshAll();
-            } else {
-                document.getElementById('loginError').classList.add('show');
-                document.getElementById('adminPassword').value = '';
+                // Run a diagnose immediately so the operator sees env/module health.
+                setTimeout(() => loadDiagnose().catch(() => {}), 400);
+            } catch (e) {
+                console.error('attemptLogin error', e);
+                errEl.textContent = 'Network error: ' + (e.message || e);
+                errEl.classList.add('show');
             }
         }
         
         function logout() {
             isAuthenticated = false;
             sessionToken = null;
+            adminUsername = null;
+            adminExpiresAt = null;
+            sessionStorage.removeItem(CONFIG.adminTokenStorageKey);
+            // Also clean up legacy key from previous builds
             sessionStorage.removeItem('qv_analytics_auth');
             document.getElementById('loginOverlay').classList.remove('hidden');
             document.getElementById('connectionStatus').className = 'status disconnected';
@@ -1726,12 +1852,25 @@
         }
         
         function checkAuth() {
-            if (sessionStorage.getItem('qv_analytics_auth') === 'true') {
+            const raw = sessionStorage.getItem(CONFIG.adminTokenStorageKey);
+            if (!raw) return false;
+            try {
+                const saved = JSON.parse(raw);
+                if (!saved || !saved.token) return false;
+                // Expire proactively one minute before server-side expiry.
+                if (saved.expiresAt && saved.expiresAt < Math.floor(Date.now() / 1000) + 60) {
+                    sessionStorage.removeItem(CONFIG.adminTokenStorageKey);
+                    return false;
+                }
+                sessionToken    = saved.token;
+                adminUsername   = saved.username || 'admin';
+                adminExpiresAt  = saved.expiresAt || null;
                 isAuthenticated = true;
                 document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('connectionStatus').className = 'status connected';
+                document.getElementById('connectionStatus').textContent = 'Connected';
                 return true;
-            }
-            return false;
+            } catch { return false; }
         }
         
         // ─────────────────────────────────────────────────────────────────────
@@ -1742,11 +1881,13 @@
             selectedGameId = document.getElementById('gameSelector').value;
             const game = CONFIG.games[selectedGameId];
             console.log(`Switched to: ${game.icon} ${game.name}`);
+            rpcCacheClear();
             refreshAll();
         }
 
         function onDaysChange() {
             selectedDays = parseInt(document.getElementById('daysSelector').value, 10);
+            rpcCacheClear();
             if (isAuthenticated) refreshAll();
         }
 
@@ -1791,7 +1932,8 @@
             heatmap:   () => loadHeatmap(),
             monet:     () => loadMonetizationDetail(),
             platforms: () => loadPlatforms(),
-            players:   () => loadTopPlayers()
+            players:   () => loadTopPlayers(),
+            diagnose:  () => loadDiagnose()
         };
 
         // Tracks which tabs have been loaded at least once since last refresh
@@ -1835,40 +1977,72 @@
         // Nakama API Client
         // ─────────────────────────────────────────────────────────────────────
         
-        async function authenticate() {
-            try {
-                // Authenticate as device (admin device)
-                const deviceId = 'analytics-dashboard-' + Date.now();
-                const response = await fetch(`${CONFIG.serverUrl}/v2/account/authenticate/device?create=true`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Basic ' + btoa(CONFIG.serverKey + ':'),
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ id: deviceId })
-                });
-                
-                if (!response.ok) throw new Error('Auth failed: ' + response.status);
-                
-                const data = await response.json();
-                sessionToken = data.token;
-                
-                document.getElementById('connectionStatus').className = 'status connected';
-                document.getElementById('connectionStatus').textContent = 'Connected';
-                
-                return true;
-            } catch (e) {
-                console.error('Auth error:', e);
-                document.getElementById('connectionStatus').className = 'status disconnected';
-                document.getElementById('connectionStatus').textContent = 'Error';
-                return false;
-            }
+        // Legacy device-auth removed. Authentication now happens only through
+        // `admin_login` RPC (see attemptLogin above). All dashboard RPCs are
+        // gated server-side by `requireAdmin` which verifies the session carries
+        // a role=admin marker, or that the user is registered in
+        // `admin_users` collection.
+        
+        // sessionStorage response cache: 30-second TTL per (rpcId, payload).
+        // Keeps tab-switching instant without staleness on long-dwell sessions.
+        const RPC_CACHE_TTL_MS = 30 * 1000;
+        const RPC_CACHE_BYPASS = new Set([
+            'analytics_log_event',
+            'analytics_rollup_run',
+            'analytics_rollup_backfill',
+            'external_poll_appodeal',
+            'external_poll_appstore',
+            'external_poll_ugs',
+            'external_poll_all',
+            'admin_login',
+            'admin_diagnose_env'
+        ]);
+        
+        function rpcCacheKey(rpcId, payload) {
+            return 'rpc:' + rpcId + ':' + JSON.stringify(payload || {});
         }
         
-        async function callRpc(rpcId, payload = {}) {
+        function rpcCacheGet(key) {
+            try {
+                const raw = sessionStorage.getItem(key);
+                if (!raw) return null;
+                const entry = JSON.parse(raw);
+                if (!entry || !entry.ts) return null;
+                if (Date.now() - entry.ts > RPC_CACHE_TTL_MS) return null;
+                return entry.data;
+            } catch { return null; }
+        }
+        
+        function rpcCachePut(key, data) {
+            try {
+                sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+            } catch { /* quota exceeded → ignore */ }
+        }
+        
+        function rpcCacheClear() {
+            try {
+                const keys = [];
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const k = sessionStorage.key(i);
+                    if (k && k.startsWith('rpc:')) keys.push(k);
+                }
+                keys.forEach(k => sessionStorage.removeItem(k));
+            } catch { /* ignore */ }
+        }
+        
+        async function callRpc(rpcId, payload = {}, options = {}) {
             if (!sessionToken) {
-                const authed = await authenticate();
-                if (!authed) throw new Error('Not authenticated');
+                // No admin token → force user back to login.
+                logout();
+                throw new Error('Not authenticated. Please sign in.');
+            }
+            
+            // Cache lookup (skipped for mutations + when bypass=true).
+            const cacheable = !options.bypassCache && !RPC_CACHE_BYPASS.has(rpcId);
+            const cacheKey = cacheable ? rpcCacheKey(rpcId, payload) : null;
+            if (cacheable) {
+                const cached = rpcCacheGet(cacheKey);
+                if (cached) return cached;
             }
             
             const response = await fetch(`${CONFIG.serverUrl}/v2/rpc/${rpcId}`, {
@@ -1881,65 +2055,163 @@
             });
             
             if (!response.ok) {
-                if (response.status === 401) {
-                    sessionToken = null;
-                    return callRpc(rpcId, payload); // Retry with new auth
+                if (response.status === 401 || response.status === 403) {
+                    // Token expired or user lost admin rights → force re-login.
+                    logout();
+                    throw new Error('Session expired. Please sign in again.');
                 }
-                throw new Error('RPC failed: ' + response.status);
+                const text = await response.text().catch(() => '');
+                throw new Error(`RPC ${rpcId} failed: ${response.status} ${text.substring(0, 200)}`);
             }
             
             const data = await response.json();
-            return data.payload ? JSON.parse(data.payload) : data;
+            const parsed = data.payload ? JSON.parse(data.payload) : data;
+            if (cacheable) rpcCachePut(cacheKey, parsed);
+            return parsed;
         }
         
         // ─────────────────────────────────────────────────────────────────────
         // Chart Helpers
+        //
+        // Chart virtualization strategy (why this isn't plain Chart.js):
+        //   • Tab switches re-invoke load*() which used to .destroy() the chart
+        //     and new Chart() it every time — expensive on long trends.
+        //   • chartSignature() fingerprints the labels + datasets.data combo so
+        //     we can short-circuit when the inputs are byte-identical. Tab
+        //     switches without filter changes then become no-ops.
+        //   • decimateSeries() caps any single dataset at MAX_CHART_POINTS using
+        //     stride sampling. This keeps the first + last label (so date ranges
+        //     still read correctly) and evens out the middle. Kicks in only for
+        //     >90d trends where Chart.js otherwise re-renders every point.
+        //   • kind-aware cache: we store ._kind so we'll still full-rebuild when
+        //     the caller switches between line / bar / doughnut on the same canvas.
         // ─────────────────────────────────────────────────────────────────────
+
+        const MAX_CHART_POINTS = 120; // any series longer than this is decimated
+
+        // Deep-merge for Chart.js options. A plain `{...a, ...b}` obliterates
+        // nested keys — e.g. passing { scales: { y: { min: 0 } } } via
+        // createLineChart's `options` arg would drop the default x-axis styling
+        // entirely. mergeChartOptions performs a recursive merge on plain
+        // objects only; arrays and primitives are replaced wholesale (Chart.js
+        // doesn't use arrays in options the way it does in data, so that's safe).
+        function isPlainObject(x) {
+            return x !== null && typeof x === 'object' && !Array.isArray(x) && Object.getPrototypeOf(x) === Object.prototype;
+        }
+        function mergeChartOptions(base, override) {
+            if (!isPlainObject(override)) return override === undefined ? base : override;
+            const out = isPlainObject(base) ? { ...base } : {};
+            for (const k of Object.keys(override)) {
+                out[k] = mergeChartOptions(out[k], override[k]);
+            }
+            return out;
+        }
+
+        // Simple stable stringification for our value shapes (labels = string[],
+        // dataset.data = number[] | null[]). Not general-purpose; intentionally
+        // narrow so it's cheap on every call.
+        function chartSignature(kind, labels, datasets) {
+            try {
+                const ds = (datasets || []).map(d => ({
+                    l: d.label || '',
+                    d: Array.isArray(d.data) ? d.data : []
+                }));
+                return kind + '|' + JSON.stringify(labels) + '|' + JSON.stringify(ds);
+            } catch (e) { return kind + '|' + Date.now(); } // force rebuild on stringify failure
+        }
+
+        // Stride-sample a series down to `maxPoints`. Always keeps index 0 and
+        // the last element so the x-axis extremes stay correct even when the
+        // middle is thinned.
+        function decimateSeries(labels, datasets, maxPoints) {
+            if (!labels || labels.length <= maxPoints) return { labels, datasets };
+            const stride = Math.ceil(labels.length / maxPoints);
+            const keepIdx = [];
+            for (let i = 0; i < labels.length; i += stride) keepIdx.push(i);
+            if (keepIdx[keepIdx.length - 1] !== labels.length - 1) keepIdx.push(labels.length - 1);
+            const newLabels = keepIdx.map(i => labels[i]);
+            const newDatasets = datasets.map(ds => ({
+                ...ds,
+                data: keepIdx.map(i => (ds.data && ds.data[i] !== undefined) ? ds.data[i] : null)
+            }));
+            return { labels: newLabels, datasets: newDatasets, decimated: true, originalCount: labels.length };
+        }
         
         function createLineChart(canvasId, labels, datasets, options = {}) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
-            if (charts[canvasId]) charts[canvasId].destroy();
+
+            // Virtualization: skip full rebuild when signature matches existing chart.
+            const dec = decimateSeries(labels, datasets, MAX_CHART_POINTS);
+            const sig = chartSignature('line', dec.labels, dec.datasets);
+            const prior = charts[canvasId];
+            if (prior && prior._kind === 'line' && prior._signature === sig) return prior;
+
+            if (prior) prior.destroy();
             // Enrich each dataset with default styles if not already set
-            const enriched = datasets.map(ds => ({
+            const enriched = dec.datasets.map(ds => ({
                 tension: 0.4,
                 pointRadius: 3,
                 pointHoverRadius: 6,
                 borderWidth: 2,
                 ...ds
             }));
-            charts[canvasId] = new Chart(ctx, {
-                type: 'line',
-                data: { labels, datasets: enriched },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: { labels: { color: '#94a3b8', boxWidth: 12, padding: 14 } },
-                        tooltip: { backgroundColor: '#1a1a24', borderColor: '#2d2d3a', borderWidth: 1, titleColor: '#f8fafc', bodyColor: '#94a3b8' }
-                    },
-                    scales: {
-                        x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(51,65,85,0.4)' } },
-                        y: { ticks: { color: '#94a3b8', callback: v => formatNumber(v) }, grid: { color: 'rgba(51,65,85,0.4)' } }
-                    },
-                    ...options
+            const defaultOpts = {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { labels: { color: '#94a3b8', boxWidth: 12, padding: 14 } },
+                    tooltip: { backgroundColor: '#1a1a24', borderColor: '#2d2d3a', borderWidth: 1, titleColor: '#f8fafc', bodyColor: '#94a3b8' }
+                },
+                scales: {
+                    x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(51,65,85,0.4)' } },
+                    y: { ticks: { color: '#94a3b8', callback: v => formatNumber(v) }, grid: { color: 'rgba(51,65,85,0.4)' } }
                 }
+            };
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: dec.labels, datasets: enriched },
+                options: mergeChartOptions(defaultOpts, options)
             });
+            chart._kind = 'line';
+            chart._signature = sig;
+            chart._decimated = !!dec.decimated;
+            charts[canvasId] = chart;
+            return chart;
         }
         
         function createBarChart(canvasId, labels, data, titleOrOpts = {}) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
-            if (charts[canvasId]) charts[canvasId].destroy();
+
+            // Bar charts use a single dataset. Reuse the shared decimation path
+            // by synthesising a [{data}] dataset so the signature stays stable.
+            const dec = decimateSeries(labels, [{ label: 'bar', data }], MAX_CHART_POINTS);
+            const decLabels = dec.labels;
+            const decData = dec.datasets[0].data;
+            const sig = chartSignature('bar', decLabels, dec.datasets);
+            const prior = charts[canvasId];
+            if (prior && prior._kind === 'bar' && prior._signature === sig) return prior;
+
+            if (prior) prior.destroy();
             // Accept a plain string title OR a Chart.js options object
             const extraOpts = (typeof titleOrOpts === 'string') ? { plugins: { title: { display: !!titleOrOpts, text: titleOrOpts, color: '#94a3b8', font: { size: 12 } } } } : titleOrOpts;
-            charts[canvasId] = new Chart(ctx, {
+            const barDefaults = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + formatNumber(ctx.parsed.y ?? ctx.parsed.x) } } },
+                scales: {
+                    x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(51,65,85,0.5)' } },
+                    y: { ticks: { color: '#94a3b8', callback: v => formatNumber(v) }, grid: { color: 'rgba(51,65,85,0.5)' } }
+                }
+            };
+            const chart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels,
+                    labels: decLabels,
                     datasets: [{
-                        data,
+                        data: decData,
                         backgroundColor: 'rgba(99,102,241,0.65)',
                         borderColor: '#6366f1',
                         borderWidth: 1,
@@ -1947,29 +2219,28 @@
                         hoverBackgroundColor: 'rgba(129,140,248,0.85)'
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + formatNumber(ctx.parsed.y ?? ctx.parsed.x) } } },
-                    scales: {
-                        x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(51,65,85,0.5)' } },
-                        y: { ticks: { color: '#94a3b8', callback: v => formatNumber(v) }, grid: { color: 'rgba(51,65,85,0.5)' } }
-                    },
-                    ...extraOpts
-                }
+                options: mergeChartOptions(barDefaults, extraOpts)
             });
+            chart._kind = 'bar';
+            chart._signature = sig;
+            chart._decimated = !!dec.decimated;
+            charts[canvasId] = chart;
+            return chart;
         }
         
         function createDoughnutChart(canvasId, labels, data, colors) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
-            if (charts[canvasId]) charts[canvasId].destroy();
+            const sig = chartSignature('doughnut', labels, [{ label: 'doughnut', data }]);
+            const prior = charts[canvasId];
+            if (prior && prior._kind === 'doughnut' && prior._signature === sig) return prior;
+            if (prior) prior.destroy();
             const palette = [
                 '#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b',
                 '#ef4444','#3b82f6','#ec4899','#84cc16','#f97316'
             ];
             const bg = colors || labels.map((_, i) => palette[i % palette.length]);
-            charts[canvasId] = new Chart(ctx, {
+            const chart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels,
@@ -1986,6 +2257,10 @@
                     }
                 }
             });
+            chart._kind = 'doughnut';
+            chart._signature = sig;
+            charts[canvasId] = chart;
+            return chart;
         }
         
         function formatNumber(num) {
@@ -2226,55 +2501,124 @@
             }
         }
         
+        // ─── Retention ─────────────────────────────────────────────────────
+        //
+        // Reads analytics_retention_curves (Phase-3 RPC) which aggregates the
+        // cohort_<gameId>_<date> docs written nightly by analytics_rollup.
+        //
+        // Payload contract: retention is strictly per-game (the server refuses
+        // gameId="all") because mashing cohorts across titles produces
+        // meaningless curves. If the current selector is "all", we surface a
+        // helpful prompt instead of calling the RPC.
+        //
+        // Heatmap coloring: we map retention % → hue on a green→amber→red scale
+        // so dead cohorts jump out immediately. Empty cells (window not elapsed)
+        // render as a dim "—" to distinguish "no observation yet" from "0%".
+
+        function retentionCellColor(pct) {
+            if (pct === null || pct === undefined || isNaN(pct)) return 'background:rgba(148,163,184,0.08);color:#64748b;';
+            // Clamp to 0–60. Above 60% → full green. Below that → amber → red.
+            const p = Math.min(Math.max(Number(pct), 0), 60);
+            const hue = Math.round((p / 60) * 120);       // 0 red … 120 green
+            const alpha = 0.25 + (p / 60) * 0.35;         // 0.25 → 0.60
+            return `background:hsla(${hue},70%,45%,${alpha});color:#f8fafc;font-weight:600;`;
+        }
+
+        function renderRetentionHeatmap(cohorts, windows) {
+            if (!cohorts || cohorts.length === 0) {
+                return '<div style="color:#94a3b8;padding:1rem;">No cohort data yet. Run a rollup once you have at least one day of events for this game.</div>';
+            }
+            let head = '<tr><th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Cohort date</th><th style="text-align:right;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Size</th>';
+            for (const w of windows) head += `<th style="text-align:center;padding:0.5rem 0.5rem;color:#94a3b8;font-weight:500;">D${w}</th>`;
+            head += '</tr>';
+
+            let rows = '';
+            // Newest cohorts first so the eye lands on today's state.
+            for (let i = cohorts.length - 1; i >= 0; i--) {
+                const c = cohorts[i];
+                let cells = '';
+                for (const w of windows) {
+                    const pct = c.retentionPctByDay ? c.retentionPctByDay[w] : null;
+                    const label = (pct === null || pct === undefined) ? '—' : `${pct}%`;
+                    cells += `<td style="text-align:center;padding:0.45rem 0.5rem;${retentionCellColor(pct)}" title="${c.activeByDay && c.activeByDay[w] != null ? c.activeByDay[w] + ' / ' + c.cohortSize : 'not yet observed'}">${label}</td>`;
+                }
+                rows += `<tr><td style="padding:0.45rem 0.75rem;color:#f8fafc;">${c.cohortDate}</td><td style="padding:0.45rem 0.75rem;text-align:right;color:#cbd5e1;">${formatNumber(c.cohortSize)}</td>${cells}</tr>`;
+            }
+            return `<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                <thead style="border-bottom:1px solid #2d2d3a;">${head}</thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+        }
+
         async function loadRetention() {
+            const kpis = document.getElementById('retentionKpis');
+            const heatmap = document.getElementById('retentionHeatmap');
             try {
-                document.getElementById('retentionKpis').innerHTML = skKpi(5);
-                const data = await callRpc('analytics_cohort_retention', getGamePayload());
-                
-                if (data.error) {
-                    document.getElementById('retentionKpis').innerHTML = `<div class="error">${data.error}</div>`;
+                const sel = document.getElementById('gameSelect');
+                const gameId = sel ? sel.value : 'all';
+                if (!gameId || gameId === 'all') {
+                    // Per-game constraint is enforced server-side — surface it clearly
+                    // rather than letting the RPC bounce back a 400.
+                    kpis.innerHTML = `<div class="chart-card" style="grid-column: span 4;">
+                        <div class="card-body" style="color:#f59e0b;">
+                            Select a specific game (top-right selector) to view cohort retention.
+                            Retention is computed per-title since cross-game cohorts don't translate.
+                        </div></div>`;
+                    if (heatmap) heatmap.innerHTML = '';
                     return;
                 }
-                
-                document.getElementById('retentionKpis').innerHTML = `
+
+                kpis.innerHTML = skKpi(6);
+                if (heatmap) heatmap.innerHTML = '<div style="color:#94a3b8;padding:1rem;">Loading cohorts…</div>';
+
+                const data = await callRpc('analytics_retention_curves', { gameId, days: 30 });
+
+                if (!data || data.success === false) {
+                    const msg = (data && (data.error || data.message)) || 'Unknown error';
+                    kpis.innerHTML = `<div class="error">${msg}</div>`;
+                    if (heatmap) heatmap.innerHTML = '';
+                    return;
+                }
+
+                const s = data.summary || {};
+                const pct = (v) => (v === null || v === undefined ? '—' : `${v}%`);
+                kpis.innerHTML = `
                     <div class="kpi-card">
-                        <div class="label">Cohort Date</div>
-                        <div class="value">${data.cohort_date}</div>
+                        <div class="label">Cohorts Analyzed</div>
+                        <div class="value">${formatNumber(s.cohorts_considered || 0)}</div>
+                        <div class="sublabel">${data.from || '—'} → ${data.to || '—'}</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="label">Cohort Size</div>
-                        <div class="value">${formatNumber(data.cohort_size)}</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="label">D1 Retention</div>
-                        <div class="value">${data.d1_pct}%</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="label">D7 Retention</div>
-                        <div class="value">${data.d7_pct}%</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="label">D30 Retention</div>
-                        <div class="value">${data.d30_pct}%</div>
-                    </div>
+                    <div class="kpi-card"><div class="label">Avg D1</div><div class="value">${pct(s.avg_d1_pct)}</div></div>
+                    <div class="kpi-card"><div class="label">Avg D3</div><div class="value">${pct(s.avg_d3_pct)}</div></div>
+                    <div class="kpi-card"><div class="label">Avg D7</div><div class="value">${pct(s.avg_d7_pct)}</div></div>
+                    <div class="kpi-card"><div class="label">Avg D14</div><div class="value">${pct(s.avg_d14_pct)}</div></div>
+                    <div class="kpi-card"><div class="label">Avg D30</div><div class="value">${pct(s.avg_d30_pct)}</div></div>
                 `;
-                
-                // Retention curve chart
+
+                const windows = data.windows || [1, 3, 7, 14, 30];
+                const curve = data.averageCurve || {};
+                // Chart.js can't plot a point at null — treat null as NaN so the
+                // line breaks cleanly where no observation exists.
+                const curveData = windows.map(w => (typeof curve[w] === 'number' ? curve[w] : null));
                 createLineChart('retentionChart',
-                    ['D1', 'D3', 'D7', 'D14', 'D30'],
+                    windows.map(w => `D${w}`),
                     [{
-                        label: 'Retention %',
-                        data: [data.d1_pct, data.d3_pct, data.d7_pct, data.d14_pct, data.d30_pct],
+                        label: 'Avg retention %',
+                        data: curveData,
                         borderColor: '#7c3aed',
-                        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                        backgroundColor: 'rgba(124, 58, 237, 0.12)',
                         fill: true,
-                        tension: 0.4
-                    }]
+                        tension: 0.35,
+                        spanGaps: false
+                    }],
+                    { scales: { y: { min: 0, max: 100, ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: 'rgba(51,65,85,0.4)' } } } }
                 );
-                
+
+                if (heatmap) heatmap.innerHTML = renderRetentionHeatmap(data.cohorts || [], windows);
             } catch (e) {
                 console.error('Retention error:', e);
-                document.getElementById('retentionKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+                kpis.innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+                if (heatmap) heatmap.innerHTML = '';
             }
         }
         
@@ -2662,7 +3006,9 @@
         async function loadEvents() {
             try {
                 const payload = { days: 7, limit: 100, ...getGamePayload() };
-                const data = await callRpc('admin_events_timeline', payload);
+                // dashboard_events_timeline reads directly from the analytics_events
+                // collection written by analytics_log_event — no Satori dependency.
+                const data = await callRpc('dashboard_events_timeline', payload);
                 
                 const container = document.getElementById('eventsContent');
                 if (!container) return;
@@ -2730,11 +3076,11 @@
         async function loadStorage() {
             try {
                 const payload = { 
-                    collection: 'analytics',
+                    collection: 'analytics_events',
                     limit: 50,
                     ...getGamePayload() 
                 };
-                const data = await callRpc('admin_storage_list', payload);
+                const data = await callRpc('dashboard_storage_list', payload);
                 
                 const container = document.getElementById('storageContent');
                 if (!container) return;
@@ -2773,14 +3119,19 @@
                 
                 data.objects.forEach(obj => {
                     const updated = obj.update_time ? new Date(obj.update_time).toLocaleString() : '-';
-                    const preview = obj.value ? JSON.stringify(obj.value).substring(0, 80) + '...' : '-';
+                    // dashboard_storage_list returns pre-truncated `value_preview`;
+                    // fall back to JSON-stringifying `value` for back-compat with old RPC.
+                    const preview = obj.value_preview
+                        || (obj.value ? JSON.stringify(obj.value).substring(0, 120) + '...' : '-');
+                    const userIdShort = (obj.user_id || '-').toString();
+                    const userIdDisplay = userIdShort.length > 14 ? userIdShort.substring(0, 12) + '…' : userIdShort;
                     html += `
                         <tr>
                             <td><code>${obj.collection || '-'}</code></td>
                             <td><code>${obj.key || '-'}</code></td>
-                            <td style="font-family: monospace; font-size: 0.8rem;">${(obj.user_id || '-').substring(0, 12)}...</td>
+                            <td style="font-family: monospace; font-size: 0.8rem;" title="${userIdShort}">${userIdDisplay}</td>
                             <td style="white-space: nowrap;">${updated}</td>
-                            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis;">${preview}</td>
+                            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis;"><code style="font-size:0.8rem">${preview.replace(/[<>&]/g,c=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]))}</code></td>
                         </tr>
                     `;
                 });
@@ -2795,6 +3146,417 @@
                     container.innerHTML = `<div class="error">Storage browser not available: ${e.message}</div>`;
                 }
             }
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Runtime Diagnostics (admin_diagnose_env)
+        //
+        // Answers three operator questions in one view:
+        //   1) Did docker-compose actually forward our env vars to the JS runtime?
+        //   2) Are the new admin/dashboard RPCs registered (module redeployed)?
+        //   3) Is the analytics_events pipeline actually receiving events from clients?
+        // ─────────────────────────────────────────────────────────────────────
+        
+        async function loadDiagnose() {
+            const container = document.getElementById('diagnoseContent');
+            if (!container) return;
+            container.innerHTML = '<div class="loading">Running diagnostics…</div>';
+            try {
+                // Fire all three diagnostics concurrently; tolerate individual failures.
+                const [envRes, rollupRes, pollerRes] = await Promise.all([
+                    callRpc('admin_diagnose_env', {}).catch(e => ({ _error: e.message })),
+                    callRpc('analytics_rollup_status', {}).catch(e => ({ _error: e.message })),
+                    callRpc('external_poll_status', {}).catch(e => ({ _error: e.message }))
+                ]);
+                const data = envRes && !envRes._error ? envRes : {};
+                
+                const env = data.envVars || {};
+                const missing = data.missingEnvVars || [];
+                const probe = data.storageProbe || {};
+                const rpcs = data.expectedRpcs || [];
+                
+                // Render rollup status
+                let rollupHtml = '';
+                if (rollupRes && !rollupRes._error) {
+                    const last = rollupRes.lastSuccess;
+                    rollupHtml = `
+                        <div class="kpi-card" style="margin-bottom:0">
+                            <div style="color:var(--text-secondary);font-size:0.85rem;">Nightly Rollup</div>
+                            <div style="font-size:1.4rem;font-weight:700;color:${last ? '#4ade80' : '#fbbf24'}">
+                                ${last ? ('✅ ' + (last.date || '?')) : '⚠ Never run'}
+                            </div>
+                            <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:0.25rem;">
+                                ${last ? ('games=' + (last.gameIds || []).length + ' · events=' + (last.eventsMatched || 0) + ' · at ' + (last.timestamp || '?')) : 'Cron sidecar may not be running. Trigger manually below.'}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    rollupHtml = `<div class="kpi-card" style="margin-bottom:0"><div style="color:var(--text-secondary);font-size:0.85rem;">Nightly Rollup</div><div style="color:#f87171">❌ RPC unavailable</div><div style="color:var(--text-secondary);font-size:0.8rem">${(rollupRes && rollupRes._error) || 'Module not deployed.'}</div></div>`;
+                }
+                
+                // Render poller status
+                let pollerHtml = '';
+                if (pollerRes && !pollerRes._error) {
+                    const providers = pollerRes.providers || {};
+                    const lines = Object.keys(providers).map(p => {
+                        const meta = providers[p] || {};
+                        const when = meta.lastPollAt || (meta.lastPollUnix ? new Date(meta.lastPollUnix * 1000).toLocaleString() : '—');
+                        const ok = meta.success === true ? '✅' : (meta.success === false ? '⚠' : '—');
+                        return `<li><code>${p}</code> ${ok} <span style="color:var(--text-secondary);font-size:0.8rem">${when}</span></li>`;
+                    }).join('');
+                    pollerHtml = `
+                        <div class="kpi-card" style="margin-bottom:0">
+                            <div style="color:var(--text-secondary);font-size:0.85rem;">External Pollers</div>
+                            <ul style="margin:0.5rem 0 0 0;padding-left:1.1rem;">${lines}</ul>
+                        </div>
+                    `;
+                } else {
+                    pollerHtml = `<div class="kpi-card" style="margin-bottom:0"><div style="color:var(--text-secondary);font-size:0.85rem;">External Pollers</div><div style="color:#f87171">❌ RPC unavailable</div><div style="color:var(--text-secondary);font-size:0.8rem">${(pollerRes && pollerRes._error) || 'Module not deployed.'}</div></div>`;
+                }
+                
+                const envRows = Object.keys(env).sort().map(k => `
+                    <tr>
+                        <td><code>${k}</code></td>
+                        <td>${env[k]
+                            ? '<span style="color:#4ade80;font-weight:600">✅ SET</span>'
+                            : '<span style="color:#f87171;font-weight:600">❌ MISSING</span>'}</td>
+                    </tr>
+                `).join('');
+                
+                const rpcList = rpcs.map(r => `<code style="display:inline-block;margin:2px 4px;padding:2px 8px;background:var(--bg-secondary);border-radius:4px;font-size:0.8rem">${r}</code>`).join('');
+                
+                const pipelineOk = (probe.analytics_events_sample_count || 0) > 0;
+
+                // Native Go plugin probe — metrics counter doc is the most
+                // reliable signal since /metrics itself isn't reachable from
+                // the browser (scraped by Prometheus, not CORS-friendly).
+                const nativeMetrics = data.nativeMetrics || {};
+                const metricsProbe = !!probe.metrics_counter_doc_present;
+                const metricsColor = metricsProbe ? '#4ade80' : (pipelineOk ? '#f87171' : '#fbbf24');
+                const metricsLabel = metricsProbe
+                    ? '✅ Counters live'
+                    : (pipelineOk ? '❌ Plugin idle' : '⚠ Waiting for 1st event');
+
+                container.innerHTML = `
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1rem; margin-bottom:1.5rem;">
+                        <div class="kpi-card">
+                            <div style="color:var(--text-secondary);font-size:0.85rem;">Env Vars</div>
+                            <div style="font-size:1.4rem;font-weight:700;color:${data.envAllGreen ? '#4ade80' : '#fbbf24'}">
+                                ${data.envAllGreen ? '✅ All set' : `⚠ ${missing.length} missing`}
+                            </div>
+                            ${missing.length ? `<div style="color:var(--text-secondary);font-size:0.8rem;margin-top:0.25rem;">Missing: ${missing.join(', ')}</div>` : ''}
+                        </div>
+                        <div class="kpi-card">
+                            <div style="color:var(--text-secondary);font-size:0.85rem;">Analytics Pipeline</div>
+                            <div style="font-size:1.4rem;font-weight:700;color:${pipelineOk ? '#4ade80' : '#f87171'}">
+                                ${pipelineOk ? '✅ Events flowing' : '❌ No events yet'}
+                            </div>
+                            <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:0.25rem;">
+                                events: ${probe.analytics_events_sample_count || 0} · DAU: ${probe.analytics_dau_sample_count || 0}
+                            </div>
+                        </div>
+                        <div class="kpi-card">
+                            <div style="color:var(--text-secondary);font-size:0.85rem;">Native Prom Metrics (Go plugin)</div>
+                            <div style="font-size:1.4rem;font-weight:700;color:${metricsColor}">${metricsLabel}</div>
+                            <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:0.25rem;">
+                                Scrape: <code>${nativeMetrics.scrapeEndpoint || ':9100/'}</code>
+                            </div>
+                        </div>
+                        ${rollupHtml}
+                        ${pollerHtml}
+                    </div>
+
+                    ${nativeMetrics.hint ? `<div style="margin-bottom:1rem;padding:0.75rem 1rem;border-radius:8px;background:var(--bg-secondary);font-size:0.85rem;">
+                        <strong>Native metrics:</strong> ${nativeMetrics.hint}
+                    </div>` : ''}
+                    
+                    ${probe.hint ? `<div class="${pipelineOk ? '' : 'error'}" style="margin-bottom:1rem;padding:0.75rem 1rem;border-radius:8px;background:var(--bg-secondary);">
+                        <strong>Hint:</strong> ${probe.hint}
+                    </div>` : ''}
+                    
+                    <h4 style="margin:1rem 0 0.5rem 0;">Expected RPCs (should all be registered after redeploy)</h4>
+                    <div>${rpcList}</div>
+                    
+                    <h4 style="margin:1.5rem 0 0.5rem 0;">Runtime Environment Variables</h4>
+                    <table class="data-table">
+                        <thead><tr><th>Key</th><th>Status</th></tr></thead>
+                        <tbody>${envRows}</tbody>
+                    </table>
+                    
+                    <div style="margin-top:1rem;color:var(--text-secondary);font-size:0.8rem;">
+                        Auth path: <code>${data.bypass || '-'}</code> · Checked at <code>${data.timestamp || '-'}</code>
+                    </div>
+                `;
+            } catch (e) {
+                console.error('Diagnose error:', e);
+                container.innerHTML = `<div class="error">
+                    Diagnose RPC not available: ${e.message}
+                    <div style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary)">
+                        This usually means the server hasn't been redeployed with the new
+                        <code>analytics_admin</code> module yet. Rebuild Nakama and restart the container.
+                    </div>
+                </div>`;
+            }
+        }
+        
+        // ─────────────────────────────────────────────────────────────────────
+        // Admin actions (Diagnose tab) — Phase 2
+        // ─────────────────────────────────────────────────────────────────────
+        
+        function yesterdayISO() {
+            const d = new Date();
+            d.setUTCDate(d.getUTCDate() - 1);
+            return d.toISOString().slice(0, 10);
+        }
+        
+        function appendAdminOutput(title, obj) {
+            const el = document.getElementById('adminActionContent');
+            if (!el) return;
+            const stamp = new Date().toLocaleTimeString();
+            const body = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+            const prefix = `[${stamp}] ${title}\n`;
+            el.textContent = prefix + body + '\n\n' + el.textContent;
+        }
+        
+        async function adminSampleEvent() {
+            appendAdminOutput('Sample Event — sending…', { note: 'Firing synthetic admin_diag event' });
+            try {
+                // analytics_log_event requires a gameId; use selected or QuizVerse default.
+                const gameId = (selectedGameId && selectedGameId !== 'all')
+                    ? selectedGameId
+                    : '126bf539-dae2-4bcf-964d-316c0fa1f92b';
+                const data = await callRpc('analytics_log_event', {
+                    gameId: gameId,
+                    eventName: 'admin_diag',
+                    eventData: {
+                        source: 'dashboard-diagnose',
+                        admin_user: adminUsername || 'unknown',
+                        ts: new Date().toISOString()
+                    }
+                });
+                appendAdminOutput('Sample Event → server response', data);
+                // Re-run diagnose 2 seconds later to confirm the event landed in analytics_events.
+                setTimeout(() => { loadDiagnose().catch(() => {}); }, 2000);
+            } catch (e) {
+                appendAdminOutput('Sample Event FAILED', { error: e.message });
+            }
+        }
+        
+        async function adminRunRollup() {
+            const date = prompt('Rollup date (YYYY-MM-DD):', yesterdayISO());
+            if (!date) return;
+            appendAdminOutput(`Running rollup for ${date}…`, {});
+            try {
+                const data = await callRpc('analytics_rollup_run', { date });
+                appendAdminOutput(`Rollup ${date} →`, data);
+            } catch (e) {
+                appendAdminOutput(`Rollup ${date} FAILED`, { error: e.message });
+            }
+        }
+        
+        async function adminPollAll() {
+            appendAdminOutput('Polling all external providers…', {});
+            try {
+                const data = await callRpc('external_poll_all', { force: true });
+                appendAdminOutput('Poll All →', data);
+            } catch (e) {
+                appendAdminOutput('Poll All FAILED', { error: e.message });
+            }
+        }
+        
+        async function adminRollupStatus() {
+            try {
+                const data = await callRpc('analytics_rollup_status', {});
+                appendAdminOutput('Rollup Status →', data);
+            } catch (e) {
+                appendAdminOutput('Rollup Status FAILED', { error: e.message });
+            }
+        }
+        
+        async function adminPollerStatus() {
+            try {
+                const data = await callRpc('external_poll_status', {});
+                appendAdminOutput('Poller Status →', data);
+            } catch (e) {
+                appendAdminOutput('Poller Status FAILED', { error: e.message });
+            }
+        }
+        
+        async function adminBackfillRollup() {
+            const from = prompt('Backfill FROM (YYYY-MM-DD):', '');
+            if (!from) return;
+            const to = prompt('Backfill TO (YYYY-MM-DD):', yesterdayISO());
+            if (!to) return;
+            appendAdminOutput(`Backfilling rollups ${from} → ${to}…`, {});
+            try {
+                const data = await callRpc('analytics_rollup_backfill', { from, to });
+                appendAdminOutput(`Backfill ${from} → ${to} →`, data);
+            } catch (e) {
+                appendAdminOutput('Backfill FAILED', { error: e.message });
+            }
+        }
+        
+        async function adminSchemaCheck() {
+            appendAdminOutput('Running schema check…', {});
+            try {
+                const data = await callRpc('analytics_schema_check', { sample: 500, days: 7 });
+                appendAdminOutput('Schema Check →', data);
+            } catch (e) {
+                appendAdminOutput('Schema Check FAILED', { error: e.message });
+            }
+        }
+        
+        async function adminBackfillEvents() {
+            const fix = confirm('FIX mode?\n\n"OK" = rewrite legacy-shape events in place.\n"Cancel" = dry run (safe; no writes).');
+            appendAdminOutput(`Normalizing events (fix=${fix})…`, {});
+            try {
+                const data = await callRpc('analytics_backfill_events', { fix, limit: 500, days: 30 });
+                appendAdminOutput(`Normalize Events (fix=${fix}) →`, data);
+            } catch (e) {
+                appendAdminOutput('Normalize Events FAILED', { error: e.message });
+            }
+        }
+        
+        async function adminMetrics() {
+            try {
+                const data = await callRpc('analytics_metrics', {});
+                appendAdminOutput('Metrics Snapshot →', data);
+            } catch (e) {
+                appendAdminOutput('Metrics Snapshot FAILED', { error: e.message });
+            }
+        }
+        
+        async function adminFeatureFlags() {
+            try {
+                const data = await callRpc('analytics_feature_flags', {});
+                appendAdminOutput('Feature Flags →', data);
+            } catch (e) {
+                appendAdminOutput('Feature Flags FAILED', { error: e.message });
+            }
+        }
+
+        async function adminRetentionPreview() {
+            const sel = document.getElementById('gameSelect');
+            const gameId = sel && sel.value !== 'all' ? sel.value : null;
+            if (!gameId) {
+                appendAdminOutput('Retention Preview — select a specific game first', {});
+                return;
+            }
+            try {
+                // bypassCache: retention curves is cacheable in callRpc but a
+                // "preview" button must always reflect live storage state.
+                const data = await callRpc('analytics_retention_curves', { gameId, days: 14 }, { bypassCache: true });
+                appendAdminOutput(`Retention Preview (${gameId}, 14d) →`, data);
+            } catch (e) {
+                appendAdminOutput('Retention Preview FAILED', { error: e.message });
+            }
+        }
+
+        // ─── End-to-end smoke test ──────────────────────────────────────────
+        //
+        // Walks the full analytics pipeline in one click and reports each step
+        // with a pass/fail indicator. Used as the single source of truth for
+        // "is data actually flowing?" — replaces the need to click through
+        // 7 different admin buttons to verify a fresh deploy.
+        //
+        // Steps (fail-fast, but always shows partial progress):
+        //   1. analytics_log_event   → accepted count == 1
+        //   2. (wait 2s for storage write fan-out)
+        //   3. analytics_rollup_run  → success && events_matched >= 1
+        //   4. analytics_dashboard_summary → KPI doc exists for today
+        //   5. analytics_retention_curves → non-error response (cohorts may still be 0 on fresh deploy)
+        //   6. analytics_metrics     → counter snapshot present
+        //   7. analytics_rollup_status + external_poll_status → both responsive
+        //
+        // Each step writes a line to the admin output console. At the end,
+        // a summary banner reports pass count and any red flags.
+        async function adminRunSmokeTest() {
+            const sel = document.getElementById('gameSelect');
+            const gameId = (sel && sel.value !== 'all')
+                ? sel.value
+                : '126bf539-dae2-4bcf-964d-316c0fa1f92b'; // QuizVerse default
+            const todayISO = new Date().toISOString().slice(0, 10);
+            const out = document.getElementById('adminActionContent');
+            if (out) out.textContent = ''; // clear console for a fresh run
+
+            appendAdminOutput('SMOKE TEST — start', {
+                gameId, date: todayISO,
+                steps: [
+                    'log_event → rollup_run → dashboard_summary → retention_curves → metrics → statuses'
+                ]
+            });
+
+            const results = [];
+            const step = async (name, fn) => {
+                try {
+                    const r = await fn();
+                    results.push({ step: name, ok: true, result: r });
+                    appendAdminOutput(`  ✓ ${name}`, r);
+                    return r;
+                } catch (e) {
+                    results.push({ step: name, ok: false, error: e.message });
+                    appendAdminOutput(`  ✗ ${name} FAILED`, { error: e.message });
+                    return null;
+                }
+            };
+
+            // Every read RPC below is cacheable in callRpc. The smoke test MUST
+            // bypass that cache — otherwise a second run within the TTL would
+            // just replay the previous snapshot and report false-positives for
+            // a broken pipeline. Mutating RPCs (log_event / rollup_run) are
+            // already bypassed in RPC_CACHE_BYPASS, so bypassCache is a no-op
+            // for them and harmless.
+            const fresh = { bypassCache: true };
+
+            // 1 — log a smoke-test event
+            const logRes = await step('1/9 log_event', () => callRpc('analytics_log_event', {
+                gameId,
+                eventName: 'admin_smoke_test',
+                eventData: { source: 'smoke-test-button', ts: new Date().toISOString() }
+            }, fresh));
+
+            // 2 — short sleep so storage fan-out has time to land
+            await step('2/9 wait 2s (storage fan-out)', () => new Promise(r => setTimeout(() => r({ waited: '2s' }), 2000)));
+
+            // 3 — rollup today
+            const rollupRes = await step('3/9 rollup_run (today)', () => callRpc('analytics_rollup_run', { date: todayISO }, fresh));
+
+            // 4 — dashboard_summary for today
+            await step('4/9 dashboard_summary', () => callRpc('analytics_dashboard_summary', { gameId, date: todayISO }, fresh));
+
+            // 5 — retention curves (per-game)
+            await step('5/9 retention_curves', () => callRpc('analytics_retention_curves', { gameId, days: 14 }, fresh));
+
+            // 6 — metrics snapshot
+            const metricsRes = await step('6/9 metrics', () => callRpc('analytics_metrics', {}, fresh));
+
+            // 7 & 8 — status checks (renumbered uniquely; the old 7/7 + 7/7
+            // collision made it look like the smoke test only had 7 steps even
+            // though results.length was 9, so the final "9/9 passed" banner
+            // disagreed with the inline numbering).
+            await step('7/9 rollup_status', () => callRpc('analytics_rollup_status', {}, fresh));
+            await step('8/9 external_poll_status', () => callRpc('external_poll_status', {}, fresh));
+
+            // 9 — diagnose env (last because it's the most expensive)
+            await step('9/9 diagnose_env', () => callRpc('admin_diagnose_env', {}, fresh));
+
+            // ── Summary + actionable hints ──
+            const passed = results.filter(r => r.ok).length;
+            const total = results.length;
+            const hints = [];
+            if (logRes && logRes.accepted === 0) hints.push('Event was rejected (check normalizeInboundEvent — missing required field?).');
+            if (rollupRes && rollupRes.events_matched === 0) hints.push('Rollup ran but matched 0 events for today. Log more traffic or widen the date.');
+            // analytics_metrics returns events_today_accepted (not events_today).
+            // Reading the wrong key silently hid a true-positive "no traffic"
+            // signal, so the hint never fired on a truly empty pipeline.
+            if (metricsRes && (metricsRes.events_today_accepted === 0)) hints.push('events_today_accepted=0 — verify the client is actually calling analytics_log_event.');
+
+            const status = passed === total ? '✅ ALL GREEN' : `⚠️ ${passed}/${total} passed`;
+            appendAdminOutput(`SMOKE TEST — ${status}`, {
+                passed, total,
+                failed: results.filter(r => !r.ok).map(r => r.step),
+                hints: hints.length ? hints : ['Pipeline is healthy.']
+            });
         }
         
         // ─────────────────────────────────────────────────────────────────────

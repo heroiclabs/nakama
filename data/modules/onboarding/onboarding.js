@@ -467,10 +467,49 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
             });
         }
 
+        // #QVVBS52 FIX: Stored row exists but flagged as incomplete. This is the
+        // #1 source of "onboarding replays for returning users" because the
+        // afterAuthHook writes this row on very first auth with
+        // onboardingComplete=false, and never self-heals once the user has
+        // actually played. Extend the activity-inference used in the "no row"
+        // branch so any user with wallet / leaderboard / quiz / session history
+        // auto-heals their row to complete on next login.
+        var storedState = result[0].value;
+        if (storedState && storedState.onboardingComplete !== true) {
+            try {
+                if (checkUserHasGameActivity(nk, logger, userId)) {
+                    logger.info(`[Onboarding] #QVVBS52: User ${userId} has row with onboardingComplete=false but verified game activity - auto-healing to complete`);
+                    storedState.onboardingComplete = true;
+                    storedState.currentStep = Math.max(storedState.currentStep || 0, (storedState.totalSteps || 9) + 1);
+                    storedState.completedSteps = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+                    storedState.welcomeBonusClaimed = true;
+                    storedState.firstQuizCompleted = true;
+                    storedState.recoveredFromActivity = true;
+                    storedState.lastUpdated = Date.now();
+                    nk.storageWrite([{
+                        collection: COLLECTION_ONBOARDING,
+                        key: KEY_ONBOARDING,
+                        userId: userId,
+                        value: storedState,
+                        permissionRead: 1,
+                        permissionWrite: 0
+                    }]);
+                    return JSON.stringify({
+                        success: true,
+                        isNewUser: false,
+                        wasRecovered: true,
+                        state: storedState
+                    });
+                }
+            } catch (healErr) {
+                logger.warn(`[Onboarding] #QVVBS52: auto-heal activity check failed (non-fatal): ${healErr.message}`);
+            }
+        }
+
         return JSON.stringify({
             success: true,
             isNewUser: false,
-            state: result[0].value
+            state: storedState
         });
     } catch (e) {
         logger.error(`[Onboarding] Get state error: ${e.message}`);
@@ -714,10 +753,14 @@ function rpcClaimWelcomeBonus(ctx, logger, nk, payload) {
         var state = result[0].value;
 
         if (state.welcomeBonusClaimed) {
-            return JSON.stringify({ 
-                success: false, 
-                error: "Welcome bonus already claimed",
-                alreadyClaimed: true
+            // #QVVBS52 FIX: Return success=true with coinsAwarded=0 so the client's
+            // "success && coins>0" guard no-ops instead of falling to the
+            // offline-fallback branch and duplicate-granting 50 coins locally.
+            return JSON.stringify({
+                success: true,
+                alreadyClaimed: true,
+                coinsAwarded: 0,
+                message: "Welcome bonus already granted"
             });
         }
 

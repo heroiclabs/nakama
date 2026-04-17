@@ -1,0 +1,4 @@
+# Build artifacts produced by scripts/build-plugin.{ps1,sh}.
+# The .so is ABI-locked to the Nakama version, so we rebuild it per-env
+# rather than committing the binary.
+*.so

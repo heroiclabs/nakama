@@ -17,13 +17,54 @@ services:
       timeout: 3s
       retries: 5
   nakama:
-    image: registry.heroiclabs.com/heroiclabs/nakama:3.35.0
+    # Build a custom image that bakes in the analytics_metrics Go plugin.
+    # The plugin registers native Prometheus counters/gauges on :9100 for
+    # the analytics pipeline, which the stock image can't do from JS. See
+    # `Dockerfile` and `go-plugin/main.go`. Dev-mode users can skip image
+    # rebuilds with `scripts/build-plugin.ps1` which drops the .so into
+    # data/modules/ for the volume mount.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ivx/nakama-analytics:3.35.0
+    # NOTE: Nakama's JS runtime only exposes env vars passed via `--runtime.env`.
+    # OS env vars from the `environment:` block below are NOT automatically visible
+    # to RPCs via `ctx.env`. The entrypoint below forwards each whitelisted var
+    # as a `--runtime.env KEY=VALUE` CLI flag, which is what makes them reach
+    # `ctx.env` in analytics.js / external_analytics.js / analytics_admin.js.
     entrypoint:
       - "/bin/sh"
       - "-ecx"
-      - >
-          /nakama/nakama migrate up --database.address root@cockroachdb:26257 &&
-          exec /nakama/nakama --name nakama1 --database.address root@cockroachdb:26257 --logger.level INFO --session.token_expiry_sec 7200 --metrics.prometheus_port 9100 --runtime.path /nakama/data/data/modules
+      - |
+        /nakama/nakama migrate up --database.address root@cockroachdb:26257
+        # Build --runtime.env flags dynamically from the process env.
+        # Any var listed here (and present in `environment:` below) will be
+        # visible to JS RPCs via ctx.env['NAME'].
+        RUNTIME_ENV_KEYS="
+          GOOGLE_MAPS_API_KEY LLM_PROVIDER ANTHROPIC_API_KEY OPENAI_API_KEY XAI_API_KEY
+          QUESTS_ECONOMY_API_URL NAKAMA_WEBHOOK_SECRET DEFAULT_GAME_ID
+          APPODEAL_API_KEY APPODEAL_USER_ID APPODEAL_QUIZVERSE_APP_KEY
+          UNITY_KEY_ID UNITY_SECRET_KEY UNITY_AUTH_HEADER UNITY_QUIZVERSE_PROJECT_ID
+          APPLE_KEY_ID APPLE_ISSUER_ID APPLE_PRIVATE_KEY APPLE_QUIZVERSE_BUNDLE_ID
+          ADMIN_USERNAME ADMIN_PASSWORD_HASH DASHBOARD_SECRET
+          ROLLUP_ENABLED EXTERNAL_POLLERS_ENABLED DASHBOARD_PREFER_ROLLUPS
+        "
+        RUNTIME_ENV_FLAGS=""
+        for k in $$RUNTIME_ENV_KEYS; do
+          v=$$(eval printf '%s' "\"\$$$$k\"")
+          if [ -n "$$v" ]; then
+            RUNTIME_ENV_FLAGS="$$RUNTIME_ENV_FLAGS --runtime.env $$k=$$v"
+          fi
+        done
+        echo "[entrypoint] Forwarding $$(echo $$RUNTIME_ENV_FLAGS | grep -oE 'runtime.env [A-Z_]+' | wc -l) env vars to JS runtime via --runtime.env"
+        exec /nakama/nakama \
+          --name nakama1 \
+          --database.address root@cockroachdb:26257 \
+          --logger.level INFO \
+          --session.token_expiry_sec 7200 \
+          --metrics.prometheus_port 9100 \
+          --runtime.path /nakama/data/data/modules \
+          $$RUNTIME_ENV_FLAGS
     restart: unless-stopped
     links:
       - "cockroachdb:db"
@@ -40,7 +81,10 @@ services:
       - XAI_API_KEY=${XAI_API_KEY:-}
       - QUESTS_ECONOMY_API_URL=${QUESTS_ECONOMY_API_URL:-http://localhost:3001}
       - NAKAMA_WEBHOOK_SECRET=${NAKAMA_WEBHOOK_SECRET:-}
-      - DEFAULT_GAME_ID=${DEFAULT_GAME_ID:-f6f7fe36-03de-43b8-8b5d-1a1892da4eed}
+      # Default game is QuizVerse (matches Unity config in Assets/Resources/IntelliVerseX/QuizVerseConfig.asset).
+      # The prior fallback (f6f7fe36-...) referred to "Last To Live" which is no longer shipping, and
+      # caused revenue/external-polling attribution to silently target the wrong gameId.
+      - DEFAULT_GAME_ID=${DEFAULT_GAME_ID:-126bf539-dae2-4bcf-964d-316c0fa1f92b}
       - APPODEAL_API_KEY=${APPODEAL_API_KEY:-}
       - APPODEAL_USER_ID=${APPODEAL_USER_ID:-}
       - APPODEAL_QUIZVERSE_APP_KEY=${APPODEAL_QUIZVERSE_APP_KEY:-}
@@ -52,6 +96,14 @@ services:
       - APPLE_ISSUER_ID=${APPLE_ISSUER_ID:-}
       - APPLE_PRIVATE_KEY=${APPLE_PRIVATE_KEY:-}
       - APPLE_QUIZVERSE_BUNDLE_ID=${APPLE_QUIZVERSE_BUNDLE_ID:-}
+      # Dashboard / admin auth
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - DASHBOARD_SECRET=${DASHBOARD_SECRET:-}
+      # Phase-2 feature flags (default ON; set to "false" to disable)
+      - ROLLUP_ENABLED=${ROLLUP_ENABLED:-true}
+      - EXTERNAL_POLLERS_ENABLED=${EXTERNAL_POLLERS_ENABLED:-true}
+      - DASHBOARD_PREFER_ROLLUPS=${DASHBOARD_PREFER_ROLLUPS:-true}
     volumes:
       - ./:/nakama/data
     expose:
@@ -92,5 +144,109 @@ services:
       EOF'
     ports:
       - '9090:9090'
+
+  # Phase-2 cron sidecar. Wakes up on an interval and hits two admin RPCs
+  # inside Nakama using DASHBOARD_SECRET (no login flow needed):
+  #   • every 6h → external_poll_all   (Appodeal / App Store / UGS snapshots)
+  #   • daily at ~01:15 UTC → analytics_rollup_run (yesterday's rollup)
+  # Restart policy survives Nakama restarts; the pollers respect their own
+  # rate limiting so double-runs are harmless.
+  analytics_cron:
+    image: curlimages/curl:8.10.1
+    restart: unless-stopped
+    depends_on:
+      nakama:
+        condition: service_healthy
+    environment:
+      - DASHBOARD_SECRET=${DASHBOARD_SECRET:-}
+      - NAKAMA_URL=http://nakama:7350
+      - HTTP_KEY=defaultkey
+      - ROLLUP_HOUR_UTC=1        # daily rollup at this hour UTC
+      - POLL_INTERVAL_SECS=21600 # external pollers every 6 hours
+      # Bootstrap: on first start (or whenever this file is touched), run a
+      # backfill over the last N days so the dashboard + retention UI have
+      # immediate history instead of waiting until tomorrow's 01:00 rollup.
+      # Safe to re-run — analytics_rollup_run is idempotent (overwrites doc).
+      - BOOTSTRAP_BACKFILL_DAYS=${BOOTSTRAP_BACKFILL_DAYS:-7}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if [ -z "$$DASHBOARD_SECRET" ]; then
+          echo "[analytics_cron] DASHBOARD_SECRET is not set. Exiting (cron disabled)."
+          # Sleep forever so restart policy doesn't loop crash.
+          while true; do sleep 3600; done
+        fi
+        echo "[analytics_cron] started — rollup_hour=$$ROLLUP_HOUR_UTC poll_interval=$${POLL_INTERVAL_SECS}s bootstrap=$${BOOTSTRAP_BACKFILL_DAYS}d"
+
+        # ── Bootstrap backfill (run once per container start) ───────────
+        # Fills yesterday-N..yesterday with rollup docs so the Retention tab
+        # and historical dashboard queries have something to read from the
+        # moment the stack boots. If events don't exist for those dates,
+        # empty rollup docs are still written and the dashboard reads zeros
+        # instead of tripping its "no data" branch.
+        #
+        # Date arithmetic: curlimages/curl is Alpine-based, which ships
+        # BusyBox date. BusyBox does NOT support `date -d "N days ago"` or
+        # `date -v-Nd` (those are GNU / BSD). We compute epochs with shell
+        # arithmetic and format via `date -d @EPOCH` which BusyBox, GNU,
+        # and BSD all accept. This keeps the sidecar portable.
+        if [ "$$BOOTSTRAP_BACKFILL_DAYS" -gt 0 ] 2>/dev/null; then
+          NOW_EPOCH_BOOT=$$(date -u +%s)
+          FROM_EPOCH=$$((NOW_EPOCH_BOOT - BOOTSTRAP_BACKFILL_DAYS * 86400))
+          TO_EPOCH=$$((NOW_EPOCH_BOOT - 86400))
+          FROM_DATE=$$(date -u -d @$$FROM_EPOCH +%Y-%m-%d 2>/dev/null || date -u -r $$FROM_EPOCH +%Y-%m-%d)
+          TO_DATE=$$(date -u -d @$$TO_EPOCH +%Y-%m-%d 2>/dev/null || date -u -r $$TO_EPOCH +%Y-%m-%d)
+          echo "[analytics_cron] bootstrap backfill $$FROM_DATE → $$TO_DATE"
+          curl -sS -X POST "$$NAKAMA_URL/v2/rpc/analytics_rollup_backfill?http_key=$$HTTP_KEY" \
+               -H "Content-Type: application/json" \
+               --data-raw "{\"from\":\"$$FROM_DATE\",\"to\":\"$$TO_DATE\",\"dashboard_secret\":\"$$DASHBOARD_SECRET\"}" \
+               -o /tmp/backfill.json -w "[analytics_cron] backfill status=%{http_code}\n" || true
+          head -c 400 /tmp/backfill.json 2>/dev/null || true; echo ""
+          # Also run one external_poll_all so Appodeal/AppStore/UGS snapshots
+          # are warm when operators open the dashboard.
+          curl -sS -X POST "$$NAKAMA_URL/v2/rpc/external_poll_all?http_key=$$HTTP_KEY" \
+               -H "Content-Type: application/json" \
+               --data-raw "{\"dashboard_secret\":\"$$DASHBOARD_SECRET\"}" \
+               -o /tmp/poll.json -w "[analytics_cron] initial poll status=%{http_code}\n" || true
+          head -c 400 /tmp/poll.json 2>/dev/null || true; echo ""
+        fi
+
+        LAST_ROLLUP_DATE=""
+        # Seed LAST_POLL_EPOCH so the regular loop doesn't immediately refire the
+        # initial poll we just ran above.
+        LAST_POLL_EPOCH=$$(date -u +%s)
+        while true; do
+          NOW_EPOCH=$$(date -u +%s)
+          NOW_DATE=$$(date -u +%Y-%m-%d)
+          NOW_HOUR=$$(date -u +%H | sed 's/^0//')
+          # ── Daily rollup: once per day at or after ROLLUP_HOUR_UTC ──
+          if [ "$$NOW_DATE" != "$$LAST_ROLLUP_DATE" ] && [ "$$NOW_HOUR" -ge "$$ROLLUP_HOUR_UTC" ]; then
+            # BusyBox-safe "yesterday" — see bootstrap block comment.
+            YEST_EPOCH=$$((NOW_EPOCH - 86400))
+            YEST=$$(date -u -d @$$YEST_EPOCH +%Y-%m-%d 2>/dev/null || date -u -r $$YEST_EPOCH +%Y-%m-%d)
+            echo "[analytics_cron] $$NOW_DATE $$NOW_HOUR:00Z — running rollup for $$YEST"
+            # POST JSON body; Nakama unwraps the body as the RPC payload string.
+            curl -sS -X POST "$$NAKAMA_URL/v2/rpc/analytics_rollup_run?http_key=$$HTTP_KEY" \
+                 -H "Content-Type: application/json" \
+                 --data-raw "{\"date\":\"$$YEST\",\"dashboard_secret\":\"$$DASHBOARD_SECRET\"}" \
+                 -o /tmp/rollup.json -w "[analytics_cron] rollup status=%{http_code}\n" || true
+            head -c 400 /tmp/rollup.json 2>/dev/null || true; echo ""
+            LAST_ROLLUP_DATE="$$NOW_DATE"
+          fi
+          # ── External pollers: every POLL_INTERVAL_SECS ──
+          if [ $$((NOW_EPOCH - LAST_POLL_EPOCH)) -ge "$$POLL_INTERVAL_SECS" ]; then
+            echo "[analytics_cron] $$NOW_DATE $$NOW_HOUR:00Z — running external_poll_all"
+            curl -sS -X POST "$$NAKAMA_URL/v2/rpc/external_poll_all?http_key=$$HTTP_KEY" \
+                 -H "Content-Type: application/json" \
+                 --data-raw "{\"dashboard_secret\":\"$$DASHBOARD_SECRET\"}" \
+                 -o /tmp/poll.json -w "[analytics_cron] poll status=%{http_code}\n" || true
+            head -c 400 /tmp/poll.json 2>/dev/null || true; echo ""
+            LAST_POLL_EPOCH="$$NOW_EPOCH"
+          fi
+          # Sleep 5 minutes, then re-evaluate. Short enough to catch the rollup window,
+          # long enough to not be noisy in logs.
+          sleep 300
+        done
+
 volumes:
   data:
