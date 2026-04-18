@@ -69,7 +69,9 @@ RUN go build -trimpath -mod=vendor -ldflags "-s -w" -o /out/nakama .
 # ---------------------------------------------------------------------------
 FROM gomod AS plugins
 COPY . .
-RUN set -euo pipefail; \
+# Note: /bin/sh in debian:bookworm is dash, which does not support `pipefail`.
+# Script has no pipes, so `set -eu` is sufficient (fail on error + unset var).
+RUN set -eu; \
     mkdir -p /out; \
     if [ -d data/modules ]; then \
       for dir in data/modules/*/; do \
