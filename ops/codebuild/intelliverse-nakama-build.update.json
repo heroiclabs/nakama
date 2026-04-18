@@ -27,7 +27,7 @@
   },
   "environment": {
     "type": "LINUX_CONTAINER",
-    "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
+    "image": "aws/codebuild/standard:7.0",
     "computeType": "BUILD_GENERAL1_LARGE",
     "environmentVariables": [
       { "name": "AWS_DEFAULT_REGION", "value": "us-east-1",                  "type": "PLAINTEXT" },
