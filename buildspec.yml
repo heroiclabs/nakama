@@ -1,0 +1,115 @@
+version: 0.2
+
+# AWS CodeBuild spec for intelliverse-nakama.
+#
+# Why this file exists:
+#   Until now there was NO source-controlled CI for this project — the build
+#   was configured directly in the AWS CodeBuild console, which made it both
+#   invisible and untraceable. The previous pipeline pushed only `:latest`
+#   with imagePullPolicy: Always on the deployment, so any bad push silently
+#   landed in prod and any rollback required guessing the previous SHA.
+#
+# What this file does:
+#   1. Builds Dockerfile.production (single Go toolchain, plugins + server in
+#      lockstep — see that file's header for the rationale).
+#   2. Tags every push with an IMMUTABLE version
+#         3.0.0-<git-sha7>-build<codebuild-build-number>
+#      so every image in ECR is forever uniquely addressable. We also push
+#      `:latest` so legacy tooling keeps working, but the deployment is rolled
+#      forward using the IMMUTABLE tag — never `:latest`.
+#   3. Updates the live deployment with `kubectl set image`, mirroring the
+#      manual fix used to recover from the last CrashLoopBackOff.
+#
+# Required CodeBuild env vars (set in the project, not here):
+#   AWS_DEFAULT_REGION         e.g. us-east-1
+#   AWS_ACCOUNT_ID             e.g. 970547373533
+#   EKS_CLUSTER_NAME           e.g. ai-cart-auto-cluster
+#   K8S_NAMESPACE              e.g. aicart
+#   K8S_DEPLOYMENT             e.g. intelliverse-nakama
+#   K8S_CONTAINER              e.g. intelliverse-nakama
+#   ECR_REPOSITORY             e.g. intelliverse-nakama
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: us-east-1
+    AWS_ACCOUNT_ID: "970547373533"
+    EKS_CLUSTER_NAME: ai-cart-auto-cluster
+    K8S_NAMESPACE: aicart
+    K8S_DEPLOYMENT: intelliverse-nakama
+    K8S_CONTAINER: intelliverse-nakama
+    ECR_REPOSITORY: intelliverse-nakama
+
+phases:
+  install:
+    runtime-versions:
+      docker: 20
+    commands:
+      - echo "Installing kubectl..."
+      - curl -sLO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+      - chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+      - kubectl version --client=true --output=yaml || true
+
+  pre_build:
+    commands:
+      - echo "=== Computing image tags ==="
+      - COMMIT_HASH=$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c 1-7)
+      - if [ -z "$COMMIT_HASH" ]; then COMMIT_HASH="nogit"; fi
+      - SERVER_VERSION="3.0.0"
+      - IMAGE_VERSION="${SERVER_VERSION}-${COMMIT_HASH}-build${CODEBUILD_BUILD_NUMBER}"
+      - REPOSITORY_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPOSITORY}"
+      - echo "IMAGE_VERSION=$IMAGE_VERSION"
+      - echo "REPOSITORY_URI=$REPOSITORY_URI"
+      - echo "=== Logging into ECR ==="
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+      - echo "=== Configuring kubectl for EKS ==="
+      - aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name "$EKS_CLUSTER_NAME"
+      - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}' || true
+
+  build:
+    commands:
+      - echo "=== Building image ${REPOSITORY_URI}:${IMAGE_VERSION} ==="
+      - >
+        docker build
+        -f Dockerfile.production
+        --build-arg IMAGE_VERSION="$IMAGE_VERSION"
+        --build-arg GIT_SHA="$CODEBUILD_RESOLVED_SOURCE_VERSION"
+        -t "${REPOSITORY_URI}:${IMAGE_VERSION}"
+        -t "${REPOSITORY_URI}:latest"
+        .
+      - echo "=== Built image SHA ==="
+      - docker images --digests "${REPOSITORY_URI}" | head -5
+
+  post_build:
+    commands:
+      - echo "=== Pushing immutable tag ${IMAGE_VERSION} ==="
+      - docker push "${REPOSITORY_URI}:${IMAGE_VERSION}"
+      - echo "=== Pushing :latest (compat only — rollouts use immutable tag) ==="
+      - docker push "${REPOSITORY_URI}:latest"
+      - echo "=== Resolving immutable digest from ECR ==="
+      - >
+        IMAGE_DIGEST=$(aws ecr describe-images
+        --repository-name "$ECR_REPOSITORY"
+        --image-ids imageTag="$IMAGE_VERSION"
+        --query 'imageDetails[0].imageDigest' --output text)
+      - echo "IMAGE_DIGEST=$IMAGE_DIGEST"
+      - echo "=== Rolling deployment to ${IMAGE_VERSION} (digest pinned) ==="
+      - >
+        kubectl set image
+        deployment/"$K8S_DEPLOYMENT"
+        "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}"
+        -n "$K8S_NAMESPACE"
+      - kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=10m
+      - echo "=== Verifying live image ==="
+      - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+      - kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_DEPLOYMENT" -o wide
+      - echo "{\"image\":\"${REPOSITORY_URI}@${IMAGE_DIGEST}\",\"tag\":\"${IMAGE_VERSION}\",\"git\":\"${CODEBUILD_RESOLVED_SOURCE_VERSION}\"}" > image-manifest.json
+
+artifacts:
+  files:
+    - image-manifest.json
+  name: nakama-build-${CODEBUILD_BUILD_NUMBER}
+
+cache:
+  paths:
+    - '/root/.cache/go-build/**/*'
+    - '/go/pkg/mod/**/*'
