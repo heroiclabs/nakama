@@ -22,7 +22,18 @@ var EVENT_ALIASES = {
     "onboarding_completed": "onboarded",
     "onboarding_complete": "onboarded",
     "registration_completed": "registration_complete",
-    "paywall_viewed": "paywall_shown"
+    "paywall_viewed": "paywall_shown",
+    // ── 2026-04 Unity analytics-hardening additions ──
+    // Normalize legacy ad-failure event names emitted by older clients /
+    // adapters so the rollup / monetization dashboards see a single canonical
+    // "ad_load_failed" bucket. Mirror map exists in analytics_rollup.js.
+    "ad_failed": "ad_load_failed",
+    "purchase_failed": "iap_failed",
+    // Ad-network adapters historically emit "ad_started" the moment the SDK
+    // begins playback. From a billing/dashboard perspective that is the same
+    // event as our canonical "ad_shown" impression — fold them together so
+    // we never under-report impressions.
+    "ad_started": "ad_shown"
 };
 
 /**

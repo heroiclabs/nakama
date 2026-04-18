@@ -341,11 +341,17 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
     var gameIdFilter = data.gameId || data.game_id || null;
     if (gameIdFilter === "all") gameIdFilter = null;
     var eventNameFilter = data.eventName || data.event_name || null;
+    // 2026-04 hardening — Player-360 drilldown. Optional userId filter so
+    // dashboards can pull a single player's full event timeline without
+    // post-filtering the whole window client-side. When set, we also raise
+    // the internal scan cap because we need to find their needle in the
+    // haystack.
+    var userIdFilter = data.userId || data.user_id || null;
 
     var collected = [];
     var cursor = data.cursor || null;
     var scanned = 0;
-    var maxScan = 2000; // bound scan to keep request fast
+    var maxScan = userIdFilter ? 10000 : 2000; // larger window when needle-searching one user
 
     try {
         while (collected.length < limit && scanned < maxScan) {
@@ -365,6 +371,7 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
 
                 if (gameIdFilter && ev.gameId && ev.gameId !== gameIdFilter) continue;
                 if (eventNameFilter && ev.eventName !== eventNameFilter) continue;
+                if (userIdFilter && ev.userId !== userIdFilter) continue;
 
                 collected.push({
                     key: obj.key,
@@ -401,6 +408,7 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
         filteredBy: {
             gameId: gameIdFilter,
             eventName: eventNameFilter,
+            userId: userIdFilter,
             days: days,
             limit: limit
         }

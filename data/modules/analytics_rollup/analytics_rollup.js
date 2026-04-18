@@ -52,7 +52,26 @@ var AR_EVENT_ALIASES = {
     "onboarding_completed": "onboarded",
     "onboarding_complete": "onboarded",
     "registration_completed": "registration_complete",
-    "paywall_viewed": "paywall_shown"
+    "paywall_viewed": "paywall_shown",
+    // ── 2026-04 Unity analytics-hardening additions (mirror analytics.js) ──
+    "ad_failed": "ad_load_failed",
+    "purchase_failed": "iap_failed",
+    "ad_started": "ad_shown"
+};
+
+// Canonical error categories that should fold into the rollup's
+// errors_by_category map. The new client (QVAnalyticsService /
+// AnalyticsConstants.cs PRODUCTION HARDENING block) emits these as
+// dedicated events instead of stuffing everything into "error_logged".
+// Each name here is treated as `error_logged` for aggregation purposes
+// and uses the event name itself as the category bucket.
+var AR_ERROR_EVENT_CATEGORIES = {
+    "error_logged":      "uncategorized",
+    "api_failure":       "api_failure",
+    "auth_failure":      "auth_failure",
+    "nakama_rpc_error":  "nakama_rpc_error",
+    "timeout_event":     "timeout",
+    "crash_safe_log":    "crash_safe"
 };
 
 // Canonical funnel order (must match IVXAnalyticsEvents in the Unity client).
@@ -345,6 +364,15 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
     var adImpressions = 0;
     var adClicks = 0;
     var adRevenueUsd = 0;
+    // 2026-04 hardening: track the full ad funnel so dashboards can compute
+    // request → impression → revenue → completion rates instead of only
+    // counting impressions. Populated by the canonical AD_* events emitted
+    // from MonetizationAnalytics + AdsAnalyticsBridge in the new Unity client.
+    var adRequests = 0;       // ad_requested
+    var adLoadFailures = 0;   // ad_load_failed (and legacy "ad_failed" via alias)
+    var adCompletions = 0;    // ad_completed (rewarded watched-to-end)
+    var adSkips = 0;          // ad_skipped (rewarded closed early)
+    var adRevenueByNetwork = {}; // network → usd (ILRD-grade attribution)
     var aiUsage = {};
     var funnel = {};
     for (var fi = 0; fi < AR_FUNNEL_STEPS.length; fi++) {
@@ -404,12 +432,45 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             var price = parseFloat(data.price_usd || data.priceUsd || 0);
             if (isFinite(price) && price > 0) revenueUsd += price;
         }
-        if (eventName === "ad_impression") {
+        // ── Ad funnel (2026-04 hardened taxonomy) ────────────────
+        // The new Unity client emits canonical AD_* events. Both `ad_impression`
+        // (legacy) and `ad_shown` (canonical) are counted as impressions so
+        // dashboards continue to work during the migration window with
+        // no double-counting (a single ad fires either name, not both).
+        // ILRD revenue arrives on a dedicated `ad_revenue` event with
+        // `revenue_usd` — fold those into adRevenueUsd as well.
+        if (eventName === "ad_impression" || eventName === "ad_shown") {
             adImpressions++;
-            var adRev = parseFloat(data.revenue_usd || 0);
-            if (isFinite(adRev) && adRev > 0) adRevenueUsd += adRev;
+            // Inline revenue (some adapters report on the impression event).
+            var adRevInline = parseFloat(data.revenue_usd || 0);
+            if (isFinite(adRevInline) && adRevInline > 0) {
+                adRevenueUsd += adRevInline;
+                if (data.ad_network) {
+                    adRevenueByNetwork[data.ad_network] =
+                        (adRevenueByNetwork[data.ad_network] || 0) + adRevInline;
+                }
+            }
+        } else if (eventName === "ad_revenue") {
+            // Dedicated ILRD revenue event from MonetizationAnalytics.TrackAdRevenue.
+            var adRevDed = parseFloat(data.revenue_usd || data.revenue || 0);
+            if (isFinite(adRevDed) && adRevDed > 0) {
+                adRevenueUsd += adRevDed;
+                if (data.ad_network) {
+                    adRevenueByNetwork[data.ad_network] =
+                        (adRevenueByNetwork[data.ad_network] || 0) + adRevDed;
+                }
+            }
+        } else if (eventName === "ad_clicked") {
+            adClicks++;
+        } else if (eventName === "ad_requested") {
+            adRequests++;
+        } else if (eventName === "ad_load_failed") {
+            adLoadFailures++;
+        } else if (eventName === "ad_completed") {
+            adCompletions++;
+        } else if (eventName === "ad_skipped") {
+            adSkips++;
         }
-        if (eventName === "ad_clicked") adClicks++;
 
         // AI
         if (eventName === "ai_host_used" || eventName === "ai_fortune_teller_used" ||
@@ -417,10 +478,16 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             aiUsage[eventName] = (aiUsage[eventName] || 0) + 1;
         }
 
-        // Errors
-        if (eventName === "error_logged") {
-            var cat = data.error_category || "unknown";
-            errorsByCategory[cat] = (errorsByCategory[cat] || 0) + 1;
+        // Errors — fold the new canonical error events plus the legacy
+        // catch-all `error_logged` into one bucket for the dashboard.
+        // For dedicated event types (api_failure, auth_failure, etc.) we use
+        // the event name itself as the category fallback so operators can
+        // still see the breakdown without depending on data.error_category.
+        if (AR_ERROR_EVENT_CATEGORIES.hasOwnProperty(eventName)) {
+            var errCat = data.error_category ||
+                         AR_ERROR_EVENT_CATEGORIES[eventName] ||
+                         "unknown";
+            errorsByCategory[errCat] = (errorsByCategory[errCat] || 0) + 1;
         }
     }
 
@@ -480,7 +547,22 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             iap_count: iapCount,
             ad_revenue_usd: Math.round(adRevenueUsd * 100) / 100,
             ad_impressions: adImpressions,
-            ad_clicks: adClicks
+            ad_clicks: adClicks,
+            // 2026-04 hardening — full ad funnel (request → impression → completion).
+            ad_requests: adRequests,
+            ad_load_failures: adLoadFailures,
+            ad_completions: adCompletions,
+            ad_skips: adSkips,
+            ad_fill_rate_pct: adRequests > 0
+                ? Math.round((adImpressions / adRequests) * 100)
+                : 0,
+            ad_completion_rate_pct: adImpressions > 0
+                ? Math.round((adCompletions / adImpressions) * 100)
+                : 0,
+            ad_revenue_by_network: adRevenueByNetwork,
+            ad_ecpm_usd: adImpressions > 0
+                ? Math.round((adRevenueUsd / adImpressions) * 100000) / 100  // $/1000 imp
+                : 0
         },
         funnel: funnelOut,
         funnel_order: funnelOrder,

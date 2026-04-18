@@ -31,7 +31,29 @@ var AO_EXPECTED_FIELDS = {
     ad_impression:        ["ad_placement", "ad_network"],
     ad_clicked:           ["ad_placement", "ad_network"],
     ai_host_used:         ["prompt_tokens", "response_tokens"],
-    error_logged:         ["error_category", "error_message"]
+    error_logged:         ["error_category", "error_message"],
+
+    // ── 2026-04 Unity analytics-hardening additions ──
+    // Canonical AD_* taxonomy emitted by MonetizationAnalytics + AdsAnalyticsBridge.
+    // ad_type values: "interstitial" | "rewarded" | "banner".
+    ad_requested:         ["ad_type", "ad_placement"],
+    ad_shown:             ["ad_type", "ad_placement", "ad_network"],
+    ad_completed:         ["ad_type", "ad_placement", "ad_network", "reward_type", "reward_amount"],
+    ad_skipped:           ["ad_type", "ad_placement", "ad_network"],
+    ad_load_failed:       ["ad_type", "ad_placement", "ad_network", "error_code"],
+    ad_revenue:           ["ad_type", "ad_placement", "ad_network", "revenue_usd", "currency"],
+
+    // Retention milestone events fired once per install by RetentionAnalytics.
+    retention_d1:         ["days_since_install"],
+    retention_d7:         ["days_since_install"],
+    retention_d30:        ["days_since_install"],
+
+    // Dedicated error-class events (replace the generic "error_logged" catch-all).
+    api_failure:          ["endpoint", "status_code"],
+    auth_failure:         ["provider", "error_code"],
+    nakama_rpc_error:     ["rpc_id", "error_code"],
+    timeout_event:        ["operation", "timeout_ms"],
+    crash_safe_log:       ["error_category", "error_message"]
 };
 
 // ─── Helpers ──────────────────────────────────────────────

@@ -1787,7 +1787,11 @@ var EVENT_ALIASES = {
     "onboarding_completed": "onboarded",
     "onboarding_complete": "onboarded",
     "registration_completed": "registration_complete",
-    "paywall_viewed": "paywall_shown"
+    "paywall_viewed": "paywall_shown",
+    // 2026-04 Unity analytics-hardening additions (mirror analytics.js).
+    "ad_failed": "ad_load_failed",
+    "purchase_failed": "iap_failed",
+    "ad_started": "ad_shown"
 };
 
 /**
@@ -2810,11 +2814,13 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
     var gameIdFilter = data.gameId || data.game_id || null;
     if (gameIdFilter === "all") gameIdFilter = null;
     var eventNameFilter = data.eventName || data.event_name || null;
+    // 2026-04 hardening — Player-360 drilldown.
+    var userIdFilter = data.userId || data.user_id || null;
 
     var collected = [];
     var cursor = data.cursor || null;
     var scanned = 0;
-    var maxScan = 2000; // bound scan to keep request fast
+    var maxScan = userIdFilter ? 10000 : 2000; // larger window when needle-searching one user
 
     try {
         while (collected.length < limit && scanned < maxScan) {
@@ -2834,6 +2840,7 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
 
                 if (gameIdFilter && ev.gameId && ev.gameId !== gameIdFilter) continue;
                 if (eventNameFilter && ev.eventName !== eventNameFilter) continue;
+                if (userIdFilter && ev.userId !== userIdFilter) continue;
 
                 collected.push({
                     key: obj.key,
@@ -2870,6 +2877,7 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
         filteredBy: {
             gameId: gameIdFilter,
             eventName: eventNameFilter,
+            userId: userIdFilter,
             days: days,
             limit: limit
         }
@@ -3876,7 +3884,13 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         var adTypeCounts = {};
         var dailyAdRevenue = [];
         var productPurchases = {};
-        
+        // 2026-04 hardening — full ad funnel signals (mirror analytics_extended.js)
+        var adRequests = 0;
+        var adLoadFailures = 0;
+        var adSkips = 0;
+        var adClicks = 0;
+        var adRevenueByNetwork = {};
+
         // Read monetization stats (game-specific key if gameId provided)
         for (var d = 0; d < days; d++) {
             var dateStr = extDaysAgo(d);
@@ -3928,27 +3942,73 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             for (var i = 0; i < events.length; i++) {
                 var ev = events[i];
                 var evName = (ev.eventName || '').toLowerCase();
-                
-                if (evName.indexOf('ad_impression') !== -1 || evName.indexOf('adimpression') !== -1) adImpressions++;
-                if (evName.indexOf('ad_completed') !== -1 || evName.indexOf('adcompleted') !== -1 || evName.indexOf('rewarded') !== -1) adCompleted++;
-                if (evName.indexOf('iap') !== -1 || evName.indexOf('purchase_completed') !== -1) iapCompleted++;
-                if (evName.indexOf('paywall_shown') !== -1 || evName.indexOf('paywallshown') !== -1) paywallShown++;
-                if (evName.indexOf('paywall_converted') !== -1) paywallConverted++;
-                if (evName.indexOf('store_open') !== -1 || evName.indexOf('storeopened') !== -1) storeOpens++;
-                
-                if (ev.eventData && ev.eventData.adType) {
-                    adTypeCounts[ev.eventData.adType] = (adTypeCounts[ev.eventData.adType] || 0) + 1;
+                var evData = ev.eventData || {};
+
+                // 2026-04: mirror analytics_extended.js — recognize new
+                // canonical AD_* names + dedicated ad_revenue event.
+                if (evName === 'ad_impression' || evName === 'ad_shown' ||
+                    evName === 'adimpression' || evName === 'adshown') {
+                    adImpressions++;
                 }
-                if (ev.eventData && ev.eventData.revenue) {
-                    adRevenue += ev.eventData.revenue;
+                if (evName === 'ad_completed' || evName === 'adcompleted' ||
+                    evName.indexOf('rewarded') !== -1) {
+                    adCompleted++;
                 }
-                if (ev.eventData && ev.eventData.productId) {
-                    productPurchases[ev.eventData.productId] = (productPurchases[ev.eventData.productId] || 0) + 1;
+
+                var addedRev = 0;
+                if (evName === 'ad_revenue') {
+                    var revDed = parseFloat(evData.revenue_usd || evData.revenue || 0);
+                    if (isFinite(revDed) && revDed > 0) { adRevenue += revDed; addedRev = revDed; }
+                } else if (evName === 'ad_impression' || evName === 'ad_shown') {
+                    var revInline = parseFloat(evData.revenue_usd || 0);
+                    if (isFinite(revInline) && revInline > 0) { adRevenue += revInline; addedRev = revInline; }
+                } else if (evData.revenue) {
+                    var revLegacy = parseFloat(evData.revenue) || 0;
+                    if (revLegacy > 0) { adRevenue += revLegacy; addedRev = revLegacy; }
                 }
+                if (addedRev > 0) {
+                    var net = evData.ad_network || evData.adNetwork || 'unknown';
+                    adRevenueByNetwork[net] = (adRevenueByNetwork[net] || 0) + addedRev;
+                }
+
+                // Full ad funnel (request → impression → completion)
+                if (evName === 'ad_requested') adRequests++;
+                if (evName === 'ad_load_failed' || evName === 'ad_failed') adLoadFailures++;
+                if (evName === 'ad_skipped') adSkips++;
+                if (evName === 'ad_clicked') adClicks++;
+
+                if (evName.indexOf('iap') !== -1 || evName === 'purchase_completed') iapCompleted++;
+                if (evName === 'paywall_shown' || evName === 'paywallshown') paywallShown++;
+                if (evName === 'paywall_converted') paywallConverted++;
+                if (evName === 'store_opened' || evName === 'storeopened' || evName === 'store_open') storeOpens++;
+
+                var adType = evData.adType || evData.ad_type || null;
+                if (adType) adTypeCounts[adType] = (adTypeCounts[adType] || 0) + 1;
+
+                var prodId = evData.productId || evData.product_id || null;
+                if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
             }
         }
         
-        var adFillRate = adImpressions > 0 ? Math.round((adCompleted / adImpressions) * 100) : 0;
+        // True fill rate prefers requests-based formula when we have requests.
+        var adFillRate = adRequests > 0
+            ? Math.round((adImpressions / adRequests) * 100)
+            : (adImpressions > 0 ? Math.round((adCompleted / adImpressions) * 100) : 0);
+        var adCompletionRate = adImpressions > 0
+            ? Math.round((adCompleted / adImpressions) * 100)
+            : 0;
+        var adECPM = adImpressions > 0
+            ? Math.round((adRevenue / adImpressions) * 100000) / 100
+            : 0;
+        var adRevenueNetworkArr = [];
+        for (var nk2 in adRevenueByNetwork) {
+            adRevenueNetworkArr.push({
+                network: nk2,
+                revenue_usd: Math.round(adRevenueByNetwork[nk2] * 100) / 100
+            });
+        }
+        adRevenueNetworkArr.sort(function(a, b) { return b.revenue_usd - a.revenue_usd; });
+
         var paywallConversionRate = paywallShown > 0 ? Math.round((paywallConverted / paywallShown) * 100) : 0;
         
         return JSON.stringify({
@@ -3963,7 +4023,14 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             store_opens: storeOpens,
             ad_types: extTopN(adTypeCounts, 5, 'type', 'count'),
             daily_ad_revenue: dailyAdRevenue,
-            top_products: extTopN(productPurchases, 10, 'product_id', 'purchases')
+            top_products: extTopN(productPurchases, 10, 'product_id', 'purchases'),
+            ad_requests: adRequests,
+            ad_load_failures: adLoadFailures,
+            ad_skips: adSkips,
+            ad_clicks: adClicks,
+            ad_completion_rate_pct: adCompletionRate,
+            ad_ecpm_usd: adECPM,
+            ad_revenue_by_network: adRevenueNetworkArr
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] monetization_detail error: ' + e.message);
@@ -4678,7 +4745,166 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
     }
 }
 
+// ─── RPC: analytics_audience_breakdown (2026-04 hardening) ───
+//
+// Surfaces the user-property dimensions that QVAnalyticsService now pushes
+// once-per-session to every event (device_tier, country, install_source,
+// consent_state, att_status, locale, app_version). Powers the Audience tab.
+
+function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
+    try {
+        var data = extSafeJsonParse(payload);
+        var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null;
+
+        var dims = {
+            country:        { events: {}, users: {} },
+            device_tier:    { events: {}, users: {} },
+            install_source: { events: {}, users: {} },
+            consent_state:  { events: {}, users: {} },
+            att_status:     { events: {}, users: {} },
+            locale:         { events: {}, users: {} },
+            app_version:    { events: {}, users: {} },
+            platform:       { events: {}, users: {} }
+        };
+        var totalUsers = {};
+        var totalEvents = 0;
+
+        var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
+
+        for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var d = ev.eventData || {};
+            totalEvents++;
+            if (ev.userId) totalUsers[ev.userId] = true;
+
+            var fields = [
+                ['country',        d.country],
+                ['device_tier',    d.device_tier],
+                ['install_source', d.install_source],
+                ['consent_state',  d.consent_state],
+                ['att_status',     d.att_status],
+                ['locale',         d.locale],
+                ['app_version',    d.app_version],
+                ['platform',       d.platform || ev.platform]
+            ];
+
+            for (var f = 0; f < fields.length; f++) {
+                var dim = fields[f][0];
+                var val = (fields[f][1] != null && fields[f][1] !== '')
+                    ? String(fields[f][1])
+                    : 'unknown';
+                var slot = dims[dim];
+                slot.events[val] = (slot.events[val] || 0) + 1;
+                if (ev.userId) {
+                    if (!slot.users[val]) slot.users[val] = {};
+                    slot.users[val][ev.userId] = true;
+                }
+            }
+        }
+
+        function materialize(dimName, topN) {
+            var slot = dims[dimName];
+            var arr = [];
+            for (var k in slot.events) {
+                if (!slot.events.hasOwnProperty(k)) continue;
+                arr.push({
+                    value: k,
+                    events: slot.events[k],
+                    unique_users: slot.users[k] ? Object.keys(slot.users[k]).length : 0
+                });
+            }
+            arr.sort(function(a, b) { return b.unique_users - a.unique_users || b.events - a.events; });
+            return arr.slice(0, topN);
+        }
+
+        return JSON.stringify({
+            game_id:        gameId || 'all',
+            days:           days,
+            total_events:   totalEvents,
+            unique_users:   Object.keys(totalUsers).length,
+            country:        materialize('country', 25),
+            device_tier:    materialize('device_tier', 10),
+            install_source: materialize('install_source', 10),
+            consent_state:  materialize('consent_state', 10),
+            att_status:     materialize('att_status', 10),
+            locale:         materialize('locale', 25),
+            app_version:    materialize('app_version', 25),
+            platform:       materialize('platform', 10)
+        });
+    } catch (e) {
+        logger.error('[AnalyticsExtended] audience_breakdown error: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
+
+// ─── RPC: analytics_retention_milestones (2026-04 hardening) ──
+//
+// Counts retention_d1 / retention_d7 / retention_d30 events fired by
+// Trivia.Analytics.Domain.RetentionAnalytics (once per install).
+
+function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
+    try {
+        var data = extSafeJsonParse(payload);
+        var days = parseInt(data.days, 10) || 30;
+        var gameId = data.game_id || data.gameId || null;
+
+        var counts = { retention_d1: 0, retention_d7: 0, retention_d30: 0 };
+        var dailyMap = { retention_d1: {}, retention_d7: {}, retention_d30: {} };
+        var milestoneEvents = {
+            'retention_d1': 1, 'retention_d7': 1, 'retention_d30': 1
+        };
+
+        var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
+            return !!milestoneEvents[(val.eventName || '').toLowerCase()];
+        }, gameId);
+
+        for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var name = (ev.eventName || '').toLowerCase();
+            if (!counts.hasOwnProperty(name)) continue;
+            counts[name]++;
+            var dt = (ev.timestamp || '').substring(0, 10);
+            if (dt) {
+                dailyMap[name][dt] = (dailyMap[name][dt] || 0) + 1;
+            }
+        }
+
+        function dailyArr(name) {
+            var arr = [];
+            for (var k in dailyMap[name]) {
+                if (dailyMap[name].hasOwnProperty(k)) {
+                    arr.push({ date: k, count: dailyMap[name][k] });
+                }
+            }
+            arr.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+            return arr;
+        }
+
+        return JSON.stringify({
+            game_id:    gameId || 'all',
+            days:       days,
+            milestones: {
+                d1:  counts.retention_d1,
+                d7:  counts.retention_d7,
+                d30: counts.retention_d30
+            },
+            daily: {
+                d1:  dailyArr('retention_d1'),
+                d7:  dailyArr('retention_d7'),
+                d30: dailyArr('retention_d30')
+            }
+        });
+    } catch (e) {
+        logger.error('[AnalyticsExtended] retention_milestones error: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
+
 // ─── Registration ─────────────────────────────────────────
+
+var __rpc_analytics_audience_breakdown;
+var __rpc_analytics_retention_milestones;
 
 function __ModuleInit_4(ctx, logger, nk, initializer) {
     __rpc_analytics_session_stats = __rpc_analytics_session_stats || (rpcAnalyticsSessionStats);
@@ -4696,7 +4922,10 @@ function __ModuleInit_4(ctx, logger, nk, initializer) {
     __rpc_analytics_player_segments = __rpc_analytics_player_segments || (rpcAnalyticsPlayerSegments);
     __rpc_analytics_churn_risk = __rpc_analytics_churn_risk || (rpcAnalyticsChurnRisk);
     __rpc_analytics_conversion_funnel = __rpc_analytics_conversion_funnel || (rpcAnalyticsConversionFunnel);
-    logger.info("[AnalyticsExtended] Module registered: 14 RPCs");
+    // 2026-04 hardening: world-class audience + retention dashboards
+    __rpc_analytics_audience_breakdown = __rpc_analytics_audience_breakdown || (rpcAnalyticsAudienceBreakdown);
+    __rpc_analytics_retention_milestones = __rpc_analytics_retention_milestones || (rpcAnalyticsRetentionMilestones);
+    logger.info("[AnalyticsExtended] Module registered: 16 RPCs");
 }
 
 
@@ -5364,7 +5593,11 @@ var AR_EVENT_ALIASES = {
     "onboarding_completed": "onboarded",
     "onboarding_complete": "onboarded",
     "registration_completed": "registration_complete",
-    "paywall_viewed": "paywall_shown"
+    "paywall_viewed": "paywall_shown",
+    // 2026-04 Unity analytics-hardening additions (mirror analytics_rollup.js).
+    "ad_failed": "ad_load_failed",
+    "purchase_failed": "iap_failed",
+    "ad_started": "ad_shown"
 };
 
 // Canonical funnel order (must match IVXAnalyticsEvents in the Unity client).
@@ -5657,12 +5890,29 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
     var adImpressions = 0;
     var adClicks = 0;
     var adRevenueUsd = 0;
+    // 2026-04 hardening — full ad funnel + per-network revenue.
+    var adRequests = 0;
+    var adLoadFailures = 0;
+    var adCompletions = 0;
+    var adSkips = 0;
+    var adRevenueByNetwork = {};
     var aiUsage = {};
     var funnel = {};
     for (var fi = 0; fi < AR_FUNNEL_STEPS.length; fi++) {
         funnel[AR_FUNNEL_STEPS[fi]] = { users: {}, count: 0 };
     }
     var errorsByCategory = {};
+    // 2026-04 hardening — recognize the new dedicated error event types
+    // emitted by QVAnalyticsService (api_failure, auth_failure, …) and fold
+    // them into errors_by_category alongside the legacy "error_logged".
+    var __AR_ERROR_EVENTS_INDEX = {
+        "error_logged":      "uncategorized",
+        "api_failure":       "api_failure",
+        "auth_failure":      "auth_failure",
+        "nakama_rpc_error":  "nakama_rpc_error",
+        "timeout_event":     "timeout",
+        "crash_safe_log":    "crash_safe"
+    };
 
     for (var i = 0; i < events.length; i++) {
         var ev = events[i];
@@ -5716,12 +5966,42 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             var price = parseFloat(data.price_usd || data.priceUsd || 0);
             if (isFinite(price) && price > 0) revenueUsd += price;
         }
-        if (eventName === "ad_impression") {
+        // ── Ad funnel (2026-04 hardened taxonomy) ────────────────
+        // Both `ad_impression` (legacy) and `ad_shown` (canonical, emitted by
+        // MonetizationAnalytics + AdsAnalyticsBridge in the new Unity client)
+        // count as impressions. Dedicated `ad_revenue` events carry ILRD
+        // attribution; older adapters report inline `revenue_usd` on the
+        // impression event. Fold both into adRevenueUsd to avoid silent loss.
+        if (eventName === "ad_impression" || eventName === "ad_shown") {
             adImpressions++;
-            var adRev = parseFloat(data.revenue_usd || 0);
-            if (isFinite(adRev) && adRev > 0) adRevenueUsd += adRev;
+            var adRevInline = parseFloat(data.revenue_usd || 0);
+            if (isFinite(adRevInline) && adRevInline > 0) {
+                adRevenueUsd += adRevInline;
+                if (data.ad_network) {
+                    adRevenueByNetwork[data.ad_network] =
+                        (adRevenueByNetwork[data.ad_network] || 0) + adRevInline;
+                }
+            }
+        } else if (eventName === "ad_revenue") {
+            var adRevDed = parseFloat(data.revenue_usd || data.revenue || 0);
+            if (isFinite(adRevDed) && adRevDed > 0) {
+                adRevenueUsd += adRevDed;
+                if (data.ad_network) {
+                    adRevenueByNetwork[data.ad_network] =
+                        (adRevenueByNetwork[data.ad_network] || 0) + adRevDed;
+                }
+            }
+        } else if (eventName === "ad_clicked") {
+            adClicks++;
+        } else if (eventName === "ad_requested") {
+            adRequests++;
+        } else if (eventName === "ad_load_failed") {
+            adLoadFailures++;
+        } else if (eventName === "ad_completed") {
+            adCompletions++;
+        } else if (eventName === "ad_skipped") {
+            adSkips++;
         }
-        if (eventName === "ad_clicked") adClicks++;
 
         // AI
         if (eventName === "ai_host_used" || eventName === "ai_fortune_teller_used" ||
@@ -5729,9 +6009,12 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             aiUsage[eventName] = (aiUsage[eventName] || 0) + 1;
         }
 
-        // Errors
-        if (eventName === "error_logged") {
-            var cat = data.error_category || "unknown";
+        // Errors — fold dedicated error events into errors_by_category alongside
+        // the legacy generic "error_logged" bucket.
+        if (__AR_ERROR_EVENTS_INDEX.hasOwnProperty(eventName)) {
+            var cat = data.error_category ||
+                      __AR_ERROR_EVENTS_INDEX[eventName] ||
+                      "unknown";
             errorsByCategory[cat] = (errorsByCategory[cat] || 0) + 1;
         }
     }
@@ -5792,7 +6075,22 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             iap_count: iapCount,
             ad_revenue_usd: Math.round(adRevenueUsd * 100) / 100,
             ad_impressions: adImpressions,
-            ad_clicks: adClicks
+            ad_clicks: adClicks,
+            // 2026-04 hardening — full ad funnel + per-network revenue + eCPM.
+            ad_requests: adRequests,
+            ad_load_failures: adLoadFailures,
+            ad_completions: adCompletions,
+            ad_skips: adSkips,
+            ad_fill_rate_pct: adRequests > 0
+                ? Math.round((adImpressions / adRequests) * 100)
+                : 0,
+            ad_completion_rate_pct: adImpressions > 0
+                ? Math.round((adCompletions / adImpressions) * 100)
+                : 0,
+            ad_revenue_by_network: adRevenueByNetwork,
+            ad_ecpm_usd: adImpressions > 0
+                ? Math.round((adRevenueUsd / adImpressions) * 100000) / 100
+                : 0
         },
         funnel: funnelOut,
         funnel_order: funnelOrder,
@@ -6833,9 +7131,48 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
       }
     }
 
+    // 2026-04 hardening — also scan the canonical analytics_events collection
+    // for client-emitted error events (api_failure, auth_failure,
+    // nakama_rpc_error, timeout_event, crash_safe_log, error_logged). The
+    // legacy analytics_error_events collection is server-side only and
+    // misses everything the Unity client reports.
+    var canonicalErrEventNames = {
+      'error_logged': 1, 'api_failure': 1, 'auth_failure': 1,
+      'nakama_rpc_error': 1, 'timeout_event': 1, 'crash_safe_log': 1
+    };
+    try {
+      if (typeof extScanEvents === 'function') {
+        var clientErrors = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
+          var evName = (val.eventName || '').toLowerCase();
+          if (canonicalErrEventNames[evName]) return true;
+          return evName.indexOf('error') !== -1 || evName.indexOf('crash') !== -1 ||
+                 evName.indexOf('exception') !== -1 || evName.indexOf('fail') !== -1 ||
+                 evName.indexOf('timeout') !== -1;
+        }, gameId || null);
+        for (var ci = 0; ci < clientErrors.length; ci++) {
+          var cev = clientErrors[ci];
+          var cdata = cev.eventData || {};
+          // Synthesize an error record matching the analytics_error_events shape.
+          errors.push({
+            rpc_name: cdata.rpcName || cdata.rpc_id || cdata.endpoint ||
+                      cdata.operation || cev.eventName || 'client_error',
+            error_message: cdata.error_message || cdata.error || cdata.message || '',
+            error_category: cdata.error_category ||
+                            ((cev.eventName || '').toLowerCase()),
+            timestamp_iso: cev.timestamp || '',
+            date: (cev.timestamp || '').substring(0, 10),
+            game_id: cev.gameId || ''
+          });
+        }
+      }
+    } catch (eClient) {
+      logger.warn && logger.warn('[rpcAnalyticsErrorLog] client-error scan failed: ' + (eClient.message || eClient));
+    }
+
     // Group by rpc_name
     var rpcMap = {};
     var dailyMap = {};
+    var catMap = {};
     for (var ei = 0; ei < errors.length; ei++) {
       var err = errors[ei];
       var rpcName = err.rpc_name || "unknown";
@@ -6854,6 +7191,11 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         if (!dailyMap[errDate]) dailyMap[errDate] = 0;
         dailyMap[errDate]++;
       }
+
+      // Category bucket — uses error_category if present, else falls back to
+      // the canonical event name, else "uncategorized".
+      var cat = err.error_category || 'uncategorized';
+      catMap[cat] = (catMap[cat] || 0) + 1;
     }
 
     var errorsByRpc = [];
@@ -6881,9 +7223,18 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
     }
     errorTrendDaily.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
 
+    var errorsByCategory = [];
+    for (var ck in catMap) {
+      if (catMap.hasOwnProperty(ck)) {
+        errorsByCategory.push({ category: ck, count: catMap[ck] });
+      }
+    }
+    errorsByCategory.sort(function (a, b) { return b.count - a.count; });
+
     return JSON.stringify({
       total_errors: errors.length,
       errors_by_rpc: errorsByRpc,
+      errors_by_category: errorsByCategory,
       error_trend_daily: errorTrendDaily,
       most_failing_rpc: mostFailing
     });
@@ -24302,6 +24653,47 @@ function rpcPlayerGetFullProfile(ctx, logger, nk, payload) {
         joinedAt: metadata.joinedAt || (account && account.user ? account.user.createTime : null)
     };
 
+    // ─── 9. Unified leaderboard rank/score (QV_Bug_A8) ──────────────────
+    // Populate league.rank from the "quizverse_global" leaderboard (the one Unity
+    // HomeScreen.cs queries). For existing players whose record was lost because
+    // historic submit_score_and_sync never wrote to this leaderboard, silently
+    // backfill from the per-game leaderboard so rank/score recover immediately
+    // without requiring the player to play another quiz. Idempotent: write uses
+    // operator "best" so re-running can only raise the score, never lower it.
+    try {
+        var QV_GAME_UUID = '126bf539-dae2-4bcf-964d-316c0fa1f92b';
+        var unifiedLb = null;
+        try { unifiedLb = nk.leaderboardRecordsList('quizverse_global', [userId], 1, '', 0); } catch (e) { if (logger && logger.warn) logger.warn('[Profile] quizverse_global initial read failed: ' + (e && e.message ? e.message : e)); }
+        var ownerRec = (unifiedLb && unifiedLb.ownerRecords && unifiedLb.ownerRecords.length > 0) ? unifiedLb.ownerRecords[0] : null;
+
+        if (!ownerRec) {
+            try {
+                var gameLb = nk.leaderboardRecordsList('leaderboard_' + QV_GAME_UUID, [userId], 1, '', 0);
+                var gameOwn = (gameLb && gameLb.ownerRecords && gameLb.ownerRecords.length > 0) ? gameLb.ownerRecords[0] : null;
+                var bestScore = gameOwn ? (parseInt(gameOwn.score) || 0) : 0;
+                if (bestScore <= 0 && stats.totalXp > 0) bestScore = stats.totalXp;
+                if (bestScore > 0) {
+                    nk.leaderboardRecordWrite('quizverse_global', userId, username, bestScore, 0, { source: 'profile_backfill', backfilledAt: new Date().toISOString() });
+                    try { unifiedLb = nk.leaderboardRecordsList('quizverse_global', [userId], 1, '', 0); } catch (e) { if (logger && logger.warn) logger.warn('[Profile] quizverse_global re-read after backfill failed: ' + (e && e.message ? e.message : e)); }
+                    ownerRec = (unifiedLb && unifiedLb.ownerRecords && unifiedLb.ownerRecords.length > 0) ? unifiedLb.ownerRecords[0] : null;
+                }
+            } catch (bfErr) {
+                logger.debug('[Profile] quizverse_global backfill skipped: ' + bfErr.message);
+            }
+        }
+
+        if (ownerRec) {
+            var parsedRank = parseInt(ownerRec.rank);
+            if (!isNaN(parsedRank) && parsedRank > 0) league.rank = parsedRank;
+            var parsedScore = parseInt(ownerRec.score);
+            if (!isNaN(parsedScore) && parsedScore > 0 && (!stats.totalXp || stats.totalXp < parsedScore)) {
+                stats.totalXp = parsedScore;
+            }
+        }
+    } catch (rankErr) {
+        logger.debug('[Profile] quizverse_global rank lookup skipped: ' + rankErr.message);
+    }
+
     // ─── ASSEMBLE RESPONSE ──────────────────────────────────────────────
     return JSON.stringify({
         success: true,
@@ -41004,12 +41396,60 @@ function rpcWalletGetAll(ctx, logger, nk, payload) {
     });
 }
 
+// ============================================================================
+// WALLET IDEMPOTENCY HELPERS — see data/modules/HARDENING_NOTES.md §2
+// Backwards-compatible: legacy callers that omit `request_id` skip the cache.
+// ============================================================================
+var WALLET_IDEMPOTENCY_COLLECTION = "wallet_idempotency";
+var WALLET_IDEMPOTENCY_TTL_S = 600; // 10 minutes
+
+function walletIdempotencyKey(requestId) {
+    return "wallet_req_" + String(requestId).replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 96);
+}
+
+function walletIdempotencyLookup(nk, logger, userId, requestId) {
+    if (!requestId || !userId) return null;
+    try {
+        var rec = nk.storageRead([{
+            collection: WALLET_IDEMPOTENCY_COLLECTION,
+            key: walletIdempotencyKey(requestId),
+            userId: userId
+        }]);
+        if (rec && rec.length > 0 && rec[0].value && rec[0].value.response) {
+            var ts = rec[0].value.ts || 0;
+            var nowS = Math.floor(Date.now() / 1000);
+            if (nowS - ts <= WALLET_IDEMPOTENCY_TTL_S) {
+                return String(rec[0].value.response);
+            }
+        }
+    } catch (e) {
+        if (logger && logger.warn) logger.warn("[WalletIdem] read failed: " + (e && e.message ? e.message : e));
+    }
+    return null;
+}
+
+function walletIdempotencyStore(nk, logger, userId, requestId, responseStr) {
+    if (!requestId || !userId || !responseStr) return;
+    try {
+        nk.storageWrite([{
+            collection: WALLET_IDEMPOTENCY_COLLECTION,
+            key: walletIdempotencyKey(requestId),
+            userId: userId,
+            value: { response: responseStr, ts: Math.floor(Date.now() / 1000) },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        if (logger && logger.warn) logger.warn("[WalletIdem] store failed: " + (e && e.message ? e.message : e));
+    }
+}
+
 /**
  * RPC: Update global wallet
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { currency: "xut", amount: 100, operation: "add" }
+ * @param {string} payload - JSON payload with { currency: "xut", amount: 100, operation: "add", request_id?: "uuid" }
  * @returns {string} JSON response
  */
 function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
@@ -41030,6 +41470,11 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
+
+    // Idempotency: if the same request_id was processed recently, replay the cached response.
+    var __reqId = data.request_id || data.requestId;
+    var __cached = walletIdempotencyLookup(nk, logger, userId, __reqId);
+    if (__cached) { logInfo(logger, "RPC wallet_update_global idempotent replay req=" + __reqId); return __cached; }
 
     var currency = data.currency;
     var amount = data.amount;
@@ -41069,13 +41514,15 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
         newBalance: wallet.currencies[currency]
     });
 
-    return JSON.stringify({
+    var __resp_wug = JSON.stringify({
         success: true,
         userId: userId,
         currency: currency,
         newBalance: wallet.currencies[currency],
         timestamp: getCurrentTimestamp()
     });
+    walletIdempotencyStore(nk, logger, userId, __reqId, __resp_wug);
+    return __resp_wug;
 }
 
 /**
@@ -41083,7 +41530,7 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { gameId: "uuid", currency: "tokens", amount: 100, operation: "add" }
+ * @param {string} payload - JSON payload with { gameId: "uuid", currency: "tokens", amount: 100, operation: "add", request_id?: "uuid" }
  * @returns {string} JSON response
  */
 function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
@@ -41109,6 +41556,11 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
+
+    // Idempotency: replay cached success if same request_id was already processed.
+    var __reqId = data.request_id || data.requestId;
+    var __cached = walletIdempotencyLookup(nk, logger, userId, __reqId);
+    if (__cached) { logInfo(logger, "RPC wallet_update_game_wallet idempotent replay req=" + __reqId); return __cached; }
 
     var currency = data.currency;
     var amount = Number(data.amount);
@@ -41172,7 +41624,7 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     logInfo(logger, "Wallet updated successfully.  New balances - game: " +
         wallet.currencies.game + ", tokens: " + wallet.currencies.tokens);
 
-    return JSON.stringify({
+    var __resp_wugw = JSON.stringify({
         success: true,
         userId: userId,
         gameId: gameId,
@@ -41184,6 +41636,8 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
         currencies: wallet.currencies,
         timestamp: getCurrentTimestamp()
     });
+    walletIdempotencyStore(nk, logger, userId, __reqId, __resp_wugw);
+    return __resp_wugw;
 }
 
 /**
@@ -41191,7 +41645,7 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON with { fromGameId: "uuid", toGameId: "uuid", currency: "tokens", amount: 100 }
+ * @param {string} payload - JSON with { fromGameId: "uuid", toGameId: "uuid", currency: "tokens", amount: 100, request_id?: "uuid" }
  * @returns {string} JSON response
  */
 function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
@@ -41219,6 +41673,11 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
+
+    // Idempotency: replay cached success if same request_id was already processed.
+    var __reqId = data.request_id || data.requestId;
+    var __cached = walletIdempotencyLookup(nk, logger, userId, __reqId);
+    if (__cached) { logInfo(logger, "RPC wallet_transfer_between_game_wallets idempotent replay req=" + __reqId); return __cached; }
 
     var currency = data.currency;
     var amount = data.amount;
@@ -41259,7 +41718,7 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
         amount: amount
     });
 
-    return JSON.stringify({
+    var __resp_wxfer = JSON.stringify({
         success: true,
         userId: userId,
         fromGameId: fromGameId,
@@ -41270,6 +41729,8 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
         toBalance: toWallet.currencies[currency],
         timestamp: getCurrentTimestamp()
     });
+    walletIdempotencyStore(nk, logger, userId, __reqId, __resp_wxfer);
+    return __resp_wxfer;
 }
 
 // Export RPC functions (ES Module syntax)
@@ -67012,13 +67473,26 @@ var LegacyLeaderboards;
     function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         var updated = [];
         var metadata = { source: "submit_score_and_sync", gameId: gameId, submittedAt: new Date().toISOString() };
+
+        // QV_Bug_A8: also write to "quizverse_global" — the unified all-time leaderboard
+        // queried directly by Unity HomeScreen.cs (FetchLeaderboardFallbackAsync).
+        // Without this write the Home rank/score card stays blank forever for every player.
+        var unifiedId = "quizverse_global";
+        if (ensureLeaderboardExists(nk, logger, unifiedId, "", { scope: "unified_global" })) {
+            try {
+                nk.leaderboardRecordWrite(unifiedId, userId, username, score, 0, metadata);
+                updated.push(unifiedId);
+            }
+            catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + unifiedId + ": " + err.message); }
+        }
+
         var mainId = "leaderboard_" + gameId;
         if (ensureLeaderboardExists(nk, logger, mainId, "", { scope: "game", gameId: gameId })) {
             try {
                 nk.leaderboardRecordWrite(mainId, userId, username, score, 0, metadata);
                 updated.push(mainId);
             }
-            catch (_) { /* skip */ }
+            catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + mainId + ": " + err.message); }
         }
         for (var i = 0; i < PERIODS.length; i++) {
             var period = PERIODS[i];
@@ -67028,7 +67502,7 @@ var LegacyLeaderboards;
                     nk.leaderboardRecordWrite(periodId, userId, username, score, 0, metadata);
                     updated.push(periodId);
                 }
-                catch (_) { /* skip */ }
+                catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + periodId + ": " + err.message); }
             }
         }
         var globalId = "leaderboard_global";
@@ -67037,7 +67511,7 @@ var LegacyLeaderboards;
                 nk.leaderboardRecordWrite(globalId, userId, username, score, 0, metadata);
                 updated.push(globalId);
             }
-            catch (_) { /* skip */ }
+            catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + globalId + ": " + err.message); }
         }
         for (var k = 0; k < PERIODS.length; k++) {
             var gp = PERIODS[k];
@@ -67047,7 +67521,7 @@ var LegacyLeaderboards;
                     nk.leaderboardRecordWrite(gid, userId, username, score, 0, metadata);
                     updated.push(gid);
                 }
-                catch (_) { /* skip */ }
+                catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + gid + ": " + err.message); }
             }
         }
         var allIds = getAllLeaderboardIds(nk, logger);
@@ -67060,7 +67534,7 @@ var LegacyLeaderboards;
                     nk.leaderboardRecordWrite(lbId, userId, username, score, 0, metadata);
                     updated.push(lbId);
                 }
-                catch (_) { /* skip */ }
+                catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + lbId + ": " + err.message); }
             }
         }
         return updated;
@@ -67279,7 +67753,7 @@ var LegacyLeaderboards;
                     if (users && users.length > 0 && users[0].username)
                         username = users[0].username;
                 }
-                catch (_) { }
+                catch (e) { logger.warn("[LegacyLeaderboards] usersGetId failed for " + userId + ": " + (e && e.message ? e.message : e)); }
             }
             if (!username)
                 username = userId;
@@ -67334,7 +67808,7 @@ var LegacyLeaderboards;
                         if (ur && ur.records && ur.records.length > 0)
                             userRec = ur.records[0];
                     }
-                    catch (_) { }
+                    catch (e) { logger.warn("[LegacyLeaderboards] per-user record fetch failed for " + lbId + ": " + (e && e.message ? e.message : e)); }
                     leaderboards[lbId] = {
                         leaderboard_id: lbId,
                         records: recs.records || [],
@@ -72886,6 +73360,8 @@ try { __rpc_analytics_error_log = __rpc_analytics_error_log || (rpcAnalyticsErro
 try { __rpc_analytics_player_segments = __rpc_analytics_player_segments || (rpcAnalyticsPlayerSegments); } catch(e) {}
 try { __rpc_analytics_churn_risk = __rpc_analytics_churn_risk || (rpcAnalyticsChurnRisk); } catch(e) {}
 try { __rpc_analytics_conversion_funnel = __rpc_analytics_conversion_funnel || (rpcAnalyticsConversionFunnel); } catch(e) {}
+try { __rpc_analytics_audience_breakdown = __rpc_analytics_audience_breakdown || (rpcAnalyticsAudienceBreakdown); } catch(e) {}
+try { __rpc_analytics_retention_milestones = __rpc_analytics_retention_milestones || (rpcAnalyticsRetentionMilestones); } catch(e) {}
 try { __rpc_analytics_schema_check = __rpc_analytics_schema_check || (rpcAnalyticsSchemaCheck); } catch(e) {}
 try { __rpc_analytics_backfill_events = __rpc_analytics_backfill_events || (rpcAnalyticsBackfillEvents); } catch(e) {}
 try { __rpc_analytics_feature_flags = __rpc_analytics_feature_flags || (rpcAnalyticsFeatureFlags); } catch(e) {}
@@ -73439,6 +73915,8 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("analytics_player_segments", __rpc_analytics_player_segments); } catch(e) {}
   try { initializer.registerRpc("analytics_churn_risk", __rpc_analytics_churn_risk); } catch(e) {}
   try { initializer.registerRpc("analytics_conversion_funnel", __rpc_analytics_conversion_funnel); } catch(e) {}
+  try { initializer.registerRpc("analytics_audience_breakdown", __rpc_analytics_audience_breakdown); } catch(e) {}
+  try { initializer.registerRpc("analytics_retention_milestones", __rpc_analytics_retention_milestones); } catch(e) {}
   try { initializer.registerRpc("analytics_schema_check", __rpc_analytics_schema_check); } catch(e) {}
   try { initializer.registerRpc("analytics_backfill_events", __rpc_analytics_backfill_events); } catch(e) {}
   try { initializer.registerRpc("analytics_feature_flags", __rpc_analytics_feature_flags); } catch(e) {}

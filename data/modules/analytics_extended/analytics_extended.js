@@ -929,7 +929,16 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         var adTypeCounts = {};
         var dailyAdRevenue = [];
         var productPurchases = {};
-        
+        // 2026-04 hardening — full ad funnel signals emitted by Unity
+        // (MonetizationAnalytics + AdsAnalyticsBridge). These power the
+        // world-class Monetization tab (request → impression → completion,
+        // per-network ILRD revenue, eCPM, true fill rate).
+        var adRequests = 0;
+        var adLoadFailures = 0;
+        var adSkips = 0;
+        var adClicks = 0;
+        var adRevenueByNetwork = {};
+
         // Read monetization stats (game-specific key if gameId provided)
         for (var d = 0; d < days; d++) {
             var dateStr = extDaysAgo(d);
@@ -981,27 +990,96 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             for (var i = 0; i < events.length; i++) {
                 var ev = events[i];
                 var evName = (ev.eventName || '').toLowerCase();
-                
-                if (evName.indexOf('ad_impression') !== -1 || evName.indexOf('adimpression') !== -1) adImpressions++;
-                if (evName.indexOf('ad_completed') !== -1 || evName.indexOf('adcompleted') !== -1 || evName.indexOf('rewarded') !== -1) adCompleted++;
-                if (evName.indexOf('iap') !== -1 || evName.indexOf('purchase_completed') !== -1) iapCompleted++;
-                if (evName.indexOf('paywall_shown') !== -1 || evName.indexOf('paywallshown') !== -1) paywallShown++;
-                if (evName.indexOf('paywall_converted') !== -1) paywallConverted++;
-                if (evName.indexOf('store_open') !== -1 || evName.indexOf('storeopened') !== -1) storeOpens++;
-                
-                if (ev.eventData && ev.eventData.adType) {
-                    adTypeCounts[ev.eventData.adType] = (adTypeCounts[ev.eventData.adType] || 0) + 1;
+                var evData = ev.eventData || {};
+
+                // ── Ads (2026-04 hardened taxonomy) ──
+                // Count canonical `ad_shown` AND legacy `ad_impression` as
+                // impressions. The new Unity client emits `ad_shown` from
+                // MonetizationAnalytics.TrackAdShown / AdsAnalyticsBridge.
+                // Use exact-match prefix tests (=== or strict prefix) to
+                // avoid false-positives like "ad_revenue" matching "ad_".
+                if (evName === 'ad_impression' || evName === 'ad_shown' ||
+                    evName === 'adimpression' || evName === 'adshown') {
+                    adImpressions++;
                 }
-                if (ev.eventData && ev.eventData.revenue) {
-                    adRevenue += ev.eventData.revenue;
+                if (evName === 'ad_completed' || evName === 'adcompleted' ||
+                    evName.indexOf('rewarded') !== -1) {
+                    adCompleted++;
                 }
-                if (ev.eventData && ev.eventData.productId) {
-                    productPurchases[ev.eventData.productId] = (productPurchases[ev.eventData.productId] || 0) + 1;
+
+                // ── Ad revenue ──
+                // Three sources, in priority order:
+                //   1. dedicated `ad_revenue` event with `revenue_usd` (canonical)
+                //   2. `revenue_usd` on the impression event (some adapters)
+                //   3. legacy `revenue` field (kept for back-compat)
+                var addedRev = 0;
+                if (evName === 'ad_revenue') {
+                    var revDed = parseFloat(evData.revenue_usd || evData.revenue || 0);
+                    if (isFinite(revDed) && revDed > 0) { adRevenue += revDed; addedRev = revDed; }
+                } else if (evName === 'ad_impression' || evName === 'ad_shown') {
+                    var revInline = parseFloat(evData.revenue_usd || 0);
+                    if (isFinite(revInline) && revInline > 0) { adRevenue += revInline; addedRev = revInline; }
+                } else if (evData.revenue) {
+                    var revLegacy = parseFloat(evData.revenue) || 0;
+                    if (revLegacy > 0) { adRevenue += revLegacy; addedRev = revLegacy; }
                 }
+                if (addedRev > 0) {
+                    var net = evData.ad_network || evData.adNetwork || 'unknown';
+                    adRevenueByNetwork[net] = (adRevenueByNetwork[net] || 0) + addedRev;
+                }
+
+                // ── Full ad funnel (2026-04 hardened taxonomy) ──
+                // Powers Monetization tab's request → impression → completion
+                // funnel + true fill-rate (impressions/requests, not the legacy
+                // completed/impressions misnomer).
+                if (evName === 'ad_requested') adRequests++;
+                if (evName === 'ad_load_failed' || evName === 'ad_failed') adLoadFailures++;
+                if (evName === 'ad_skipped') adSkips++;
+                if (evName === 'ad_clicked') adClicks++;
+
+                // ── IAP / paywall / store ──
+                if (evName.indexOf('iap') !== -1 || evName === 'purchase_completed') iapCompleted++;
+                if (evName === 'paywall_shown' || evName === 'paywallshown') paywallShown++;
+                if (evName === 'paywall_converted') paywallConverted++;
+                if (evName === 'store_opened' || evName === 'storeopened' || evName === 'store_open') storeOpens++;
+
+                // Ad-type breakdown — accept both legacy `adType` and the new
+                // canonical `ad_type` field name from AnalyticsParams.AD_TYPE.
+                var adType = evData.adType || evData.ad_type || null;
+                if (adType) adTypeCounts[adType] = (adTypeCounts[adType] || 0) + 1;
+
+                // Product breakdown — accept both `productId` and canonical
+                // `product_id` from AnalyticsParams.PRODUCT_ID.
+                var prodId = evData.productId || evData.product_id || null;
+                if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
             }
         }
         
-        var adFillRate = adImpressions > 0 ? Math.round((adCompleted / adImpressions) * 100) : 0;
+        // ── Computed funnel rates ─────────────────────────────────
+        // True fill-rate = impressions / requests (only meaningful when we
+        // saw at least one ad_requested event). Falls back to the legacy
+        // completed/impressions ratio so existing dashboards keep working
+        // during the migration window.
+        var adFillRate = adRequests > 0
+            ? Math.round((adImpressions / adRequests) * 100)
+            : (adImpressions > 0 ? Math.round((adCompleted / adImpressions) * 100) : 0);
+        var adCompletionRate = adImpressions > 0
+            ? Math.round((adCompleted / adImpressions) * 100)
+            : 0;
+        // eCPM = revenue per 1000 impressions, in USD, two-decimal.
+        var adECPM = adImpressions > 0
+            ? Math.round((adRevenue / adImpressions) * 100000) / 100
+            : 0;
+        // Build per-network breakdown array (sorted desc by revenue).
+        var adRevenueNetworkArr = [];
+        for (var nk2 in adRevenueByNetwork) {
+            adRevenueNetworkArr.push({
+                network: nk2,
+                revenue_usd: Math.round(adRevenueByNetwork[nk2] * 100) / 100
+            });
+        }
+        adRevenueNetworkArr.sort(function(a, b) { return b.revenue_usd - a.revenue_usd; });
+
         var paywallConversionRate = paywallShown > 0 ? Math.round((paywallConverted / paywallShown) * 100) : 0;
         
         return JSON.stringify({
@@ -1016,7 +1094,15 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             store_opens: storeOpens,
             ad_types: extTopN(adTypeCounts, 5, 'type', 'count'),
             daily_ad_revenue: dailyAdRevenue,
-            top_products: extTopN(productPurchases, 10, 'product_id', 'purchases')
+            top_products: extTopN(productPurchases, 10, 'product_id', 'purchases'),
+            // ── New hardened ad-funnel KPIs ────────────────────────
+            ad_requests: adRequests,
+            ad_load_failures: adLoadFailures,
+            ad_skips: adSkips,
+            ad_clicks: adClicks,
+            ad_completion_rate_pct: adCompletionRate,
+            ad_ecpm_usd: adECPM,
+            ad_revenue_by_network: adRevenueNetworkArr
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] monetization_detail error: ' + e.message);
@@ -1293,12 +1379,27 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         
         var totalErrors = 0;
         var errorsByRpc = {};
-        
-        // Scan error events (with gameId filter)
+        // 2026-04 hardening: dedicated category bucket so the dashboard can
+        // render the Unity client's canonical error event taxonomy
+        // (api_failure / auth_failure / nakama_rpc_error / timeout_event / crash_safe_log)
+        // without losing data inside the rpc-name aggregation.
+        var errorsByCategory = {};
+
+        // Scan error events (with gameId filter).
+        // 2026-04: explicitly enumerate the new canonical event names AND keep
+        // the legacy substring matches (error/crash/exception/fail) so older
+        // events are still counted. `timeout` is added to the substring list
+        // so timeout_event from QVAnalyticsService finally shows up.
+        var canonicalErrorEvents = {
+            'error_logged': 1, 'api_failure': 1, 'auth_failure': 1,
+            'nakama_rpc_error': 1, 'timeout_event': 1, 'crash_safe_log': 1
+        };
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
             var evName = (val.eventName || '').toLowerCase();
+            if (canonicalErrorEvents[evName]) return true;
             return evName.indexOf('error') !== -1 || evName.indexOf('crash') !== -1 || 
-                   evName.indexOf('exception') !== -1 || evName.indexOf('fail') !== -1;
+                   evName.indexOf('exception') !== -1 || evName.indexOf('fail') !== -1 ||
+                   evName.indexOf('timeout') !== -1;
         }, gameId);
         
         for (var i = 0; i < events.length; i++) {
@@ -1327,6 +1428,15 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
             if (!errorsByRpc[rpcName].sample_error && ev.eventData && ev.eventData.error) {
                 errorsByRpc[rpcName].sample_error = ev.eventData.error.substring(0, 200);
             }
+
+            // Category bucket — prefer explicit error_category field, fall back
+            // to the canonical event name (which IS the category for the new
+            // dedicated event types), then to "uncategorized".
+            var evNameLow = (ev.eventName || '').toLowerCase();
+            var cat = (ev.eventData && ev.eventData.error_category) ? ev.eventData.error_category :
+                      (canonicalErrorEvents[evNameLow] && evNameLow !== 'error_logged') ? evNameLow :
+                      'uncategorized';
+            errorsByCategory[cat] = (errorsByCategory[cat] || 0) + 1;
         }
         
         // Also check error logs storage
@@ -1374,11 +1484,19 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         
         errorsList.sort(function(a, b) { return b.count - a.count; });
         
+        // Build category breakdown array (sorted desc) for the dashboard.
+        var errorsByCategoryArr = [];
+        for (var cName in errorsByCategory) {
+            errorsByCategoryArr.push({ category: cName, count: errorsByCategory[cName] });
+        }
+        errorsByCategoryArr.sort(function(a, b) { return b.count - a.count; });
+
         return JSON.stringify({
             game_id: gameId || 'all',
             total_errors: totalErrors,
             most_failing_rpc: mostFailing,
-            errors_by_rpc: errorsList.slice(0, 20)
+            errors_by_rpc: errorsList.slice(0, 20),
+            errors_by_category: errorsByCategoryArr
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] error_log error: ' + e.message);
@@ -1731,6 +1849,186 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
     }
 }
 
+// ─── RPC: analytics_audience_breakdown ────────────────────
+//
+// Surfaces the user-property dimensions that QVAnalyticsService now pushes
+// once-per-session to every event (device_tier, country, install_source,
+// consent_state, att_status, locale, app_version). Powers the new world-class
+// "Audience" tab on the dashboard so you can see WHO is playing — high-end vs
+// low-end devices, organic vs paid installs, EU vs US, granted vs denied
+// consent — and make data-driven UA / monetization decisions.
+//
+// Performance: scans up to `days` of analytics_events with a no-op filter
+// (we want every event so distribution is correct), then hash-counts each
+// dimension. O(n) over events, O(k) memory per dimension. For typical
+// 7-day windows on a single game this is well under 1ms / 100k events.
+//
+// Distinct users per dimension (via hash-set of user IDs) so dashboards can
+// say "X unique installs from US" instead of "Y events from US" (events
+// over-weight active power users).
+
+function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
+    try {
+        var data = extSafeJsonParse(payload);
+        var days = parseInt(data.days, 10) || 7;
+        var gameId = data.game_id || data.gameId || null;
+
+        // Per-dimension event-count maps and per-dimension user-set maps.
+        var dims = {
+            country:        { events: {}, users: {} },
+            device_tier:    { events: {}, users: {} },
+            install_source: { events: {}, users: {} },
+            consent_state:  { events: {}, users: {} },
+            att_status:     { events: {}, users: {} },
+            locale:         { events: {}, users: {} },
+            app_version:    { events: {}, users: {} },
+            platform:       { events: {}, users: {} }
+        };
+        var totalUsers = {};
+        var totalEvents = 0;
+
+        // Scan ALL events (not filtered) so the distribution reflects the true
+        // population. The `null` filter avoids the regex cost on the hot path.
+        var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
+
+        for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var d = ev.eventData || {};
+            totalEvents++;
+            if (ev.userId) totalUsers[ev.userId] = true;
+
+            // Each user-property field — fall back to "unknown" so the
+            // dashboard can show what fraction is missing context.
+            var fields = [
+                ['country',        d.country],
+                ['device_tier',    d.device_tier],
+                ['install_source', d.install_source],
+                ['consent_state',  d.consent_state],
+                ['att_status',     d.att_status],
+                ['locale',         d.locale],
+                ['app_version',    d.app_version],
+                ['platform',       d.platform || ev.platform]
+            ];
+
+            for (var f = 0; f < fields.length; f++) {
+                var dim = fields[f][0];
+                var val = (fields[f][1] != null && fields[f][1] !== '')
+                    ? String(fields[f][1])
+                    : 'unknown';
+                var slot = dims[dim];
+                slot.events[val] = (slot.events[val] || 0) + 1;
+                if (ev.userId) {
+                    if (!slot.users[val]) slot.users[val] = {};
+                    slot.users[val][ev.userId] = true;
+                }
+            }
+        }
+
+        // Materialize each dimension as a sorted top-N array.
+        function materialize(dimName, topN) {
+            var slot = dims[dimName];
+            var arr = [];
+            for (var k in slot.events) {
+                if (!slot.events.hasOwnProperty(k)) continue;
+                arr.push({
+                    value: k,
+                    events: slot.events[k],
+                    unique_users: slot.users[k] ? Object.keys(slot.users[k]).length : 0
+                });
+            }
+            arr.sort(function(a, b) { return b.unique_users - a.unique_users || b.events - a.events; });
+            return arr.slice(0, topN);
+        }
+
+        return JSON.stringify({
+            game_id:        gameId || 'all',
+            days:           days,
+            total_events:   totalEvents,
+            unique_users:   Object.keys(totalUsers).length,
+            country:        materialize('country', 25),
+            device_tier:    materialize('device_tier', 10),
+            install_source: materialize('install_source', 10),
+            consent_state:  materialize('consent_state', 10),
+            att_status:     materialize('att_status', 10),
+            locale:         materialize('locale', 25),
+            app_version:    materialize('app_version', 25),
+            platform:       materialize('platform', 10)
+        });
+    } catch (e) {
+        logger.error('[AnalyticsExtended] audience_breakdown error: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
+
+// ─── RPC: analytics_retention_milestones ──────────────────
+//
+// Surfaces the once-per-install retention_d1 / retention_d7 / retention_d30
+// events fired by Trivia.Analytics.Domain.RetentionAnalytics. These are the
+// LTV-critical signals every BI dashboard reads — so we expose them as a
+// dedicated, dashboard-friendly RPC instead of forcing the UI to roll its
+// own from raw events.
+//
+// Returns counts per milestone over the configured window plus a daily series
+// so the dashboard can chart the retention trend visually.
+
+function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
+    try {
+        var data = extSafeJsonParse(payload);
+        var days = parseInt(data.days, 10) || 30;
+        var gameId = data.game_id || data.gameId || null;
+
+        var counts = { retention_d1: 0, retention_d7: 0, retention_d30: 0 };
+        var dailyMap = { retention_d1: {}, retention_d7: {}, retention_d30: {} };
+        var milestoneEvents = {
+            'retention_d1': 1, 'retention_d7': 1, 'retention_d30': 1
+        };
+
+        var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
+            return !!milestoneEvents[(val.eventName || '').toLowerCase()];
+        }, gameId);
+
+        for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var name = (ev.eventName || '').toLowerCase();
+            if (!counts.hasOwnProperty(name)) continue;
+            counts[name]++;
+            var dt = (ev.timestamp || '').substring(0, 10);
+            if (dt) {
+                dailyMap[name][dt] = (dailyMap[name][dt] || 0) + 1;
+            }
+        }
+
+        function dailyArr(name) {
+            var arr = [];
+            for (var k in dailyMap[name]) {
+                if (dailyMap[name].hasOwnProperty(k)) {
+                    arr.push({ date: k, count: dailyMap[name][k] });
+                }
+            }
+            arr.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+            return arr;
+        }
+
+        return JSON.stringify({
+            game_id:    gameId || 'all',
+            days:       days,
+            milestones: {
+                d1:  counts.retention_d1,
+                d7:  counts.retention_d7,
+                d30: counts.retention_d30
+            },
+            daily: {
+                d1:  dailyArr('retention_d1'),
+                d7:  dailyArr('retention_d7'),
+                d30: dailyArr('retention_d30')
+            }
+        });
+    } catch (e) {
+        logger.error('[AnalyticsExtended] retention_milestones error: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
+
 // ─── Registration ─────────────────────────────────────────
 
 function InitModule(ctx, logger, nk, initializer) {
@@ -1749,5 +2047,8 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("analytics_player_segments", rpcAnalyticsPlayerSegments);
     initializer.registerRpc("analytics_churn_risk", rpcAnalyticsChurnRisk);
     initializer.registerRpc("analytics_conversion_funnel", rpcAnalyticsConversionFunnel);
-    logger.info("[AnalyticsExtended] Module registered: 14 RPCs");
+    // 2026-04 hardening: world-class audience + retention dashboards
+    initializer.registerRpc("analytics_audience_breakdown", rpcAnalyticsAudienceBreakdown);
+    initializer.registerRpc("analytics_retention_milestones", rpcAnalyticsRetentionMilestones);
+    logger.info("[AnalyticsExtended] Module registered: 16 RPCs");
 }

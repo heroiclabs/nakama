@@ -1160,6 +1160,182 @@
             width: 100% !important;
             height: 100% !important;
         }
+
+        /* ══════════════════════════════════════════════════════════════
+           PLAYER 360 DRAWER  (right-slide panel for per-user drilldown)
+        ══════════════════════════════════════════════════════════════ */
+        #playerProfileModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.78);
+            z-index: 10001;
+            backdrop-filter: blur(4px);
+        }
+        #playerProfileModal.open { display: block; }
+        #playerProfileModal .pp-drawer {
+            position: absolute;
+            top: 0; right: 0; bottom: 0;
+            width: min(960px, 96vw);
+            background: var(--bg-card);
+            border-left: 1px solid var(--border-light);
+            box-shadow: -8px 0 32px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+            overflow: hidden;
+        }
+        #playerProfileModal.open .pp-drawer { transform: translateX(0); }
+        .pp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, transparent 100%);
+        }
+        .pp-header h2 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .pp-header .pp-uid {
+            font-family: monospace;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            background: #0f172a;
+            padding: 2px 8px;
+            border-radius: 6px;
+            border: 1px solid #1e293b;
+            user-select: all;
+        }
+        .pp-close {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            width: 34px; height: 34px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.18s;
+        }
+        .pp-close:hover { border-color: var(--danger); color: var(--danger); }
+        .pp-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.25rem 2rem;
+        }
+        .pp-section {
+            margin-bottom: 1.25rem;
+        }
+        .pp-section h3 {
+            margin: 0 0 0.5rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid #1e293b;
+        }
+        .pp-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .pp-kpi {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 0.6rem 0.75rem;
+        }
+        .pp-kpi .v {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.1;
+        }
+        .pp-kpi .l {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+        .pp-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.4rem 1rem;
+            font-size: 0.78rem;
+        }
+        .pp-meta-grid .k {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .pp-meta-grid .v {
+            color: var(--text-primary);
+            font-weight: 600;
+            word-break: break-word;
+        }
+        .pp-timeline {
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #0b1220;
+        }
+        .pp-tl-row {
+            display: grid;
+            grid-template-columns: 130px 180px 1fr;
+            gap: 0.75rem;
+            padding: 0.55rem 0.75rem;
+            border-bottom: 1px solid #1e293b;
+            font-size: 0.75rem;
+            align-items: start;
+        }
+        .pp-tl-row:last-child { border-bottom: none; }
+        .pp-tl-row:hover      { background: #0f172a; }
+        .pp-tl-row .ts        { color: #94a3b8; font-family: monospace; font-size: 0.7rem; }
+        .pp-tl-row .ev        {
+            background: #0f172a;
+            color: #7dd3fc;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 0.72rem;
+            justify-self: start;
+        }
+        .pp-tl-row .sm        { color: #cbd5e1; }
+        .pp-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 1.5rem;
+            font-size: 0.85rem;
+        }
+        .pp-loader {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 2rem;
+            font-size: 0.85rem;
+        }
+        .pp-uid-link {
+            color: #7dd3fc;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 0.78rem;
+            text-decoration: none;
+            border-bottom: 1px dashed transparent;
+            transition: border-color 0.15s;
+        }
+        .pp-uid-link:hover { border-bottom-color: #7dd3fc; }
     </style>
 </head>
 <body>
@@ -1237,6 +1413,21 @@
         </div>
     </div>
 
+    <!-- Player 360 drilldown drawer (right-slide). Triggered by clicking a
+         user_id in the Top Players or Events tab. Shows: profile, game stats,
+         monetization summary, current user-properties, and recent timeline. -->
+    <div id="playerProfileModal" onclick="if(event.target===this) closePlayerProfile()">
+        <div class="pp-drawer">
+            <div class="pp-header">
+                <h2>👤 Player 360 <span class="pp-uid" id="ppUidBadge">—</span></h2>
+                <button class="pp-close" onclick="closePlayerProfile()" title="Close (Esc)">✕</button>
+            </div>
+            <div class="pp-body" id="ppBody">
+                <div class="pp-loader">Loading…</div>
+            </div>
+        </div>
+    </div>
+
     <main class="main">
         <!-- Legacy flat tab bar (hidden via CSS) -->
         <div class="tabs">
@@ -1272,6 +1463,7 @@
                 <span class="tab-group-divider"></span>
                 <button class="tab" data-tab="players">👑 Players</button>
                 <button class="tab" data-tab="platforms">📱 Platforms</button>
+                <button class="tab" data-tab="audience">🌍 Audience</button>
                 <button class="tab" data-tab="heatmap">🔥 Heatmap</button>
             </div>
             <div class="tab-group-row">
@@ -1313,13 +1505,71 @@
             </div>
         </div>
         
-        <!-- Events Tab (NEW - Uses admin_events_timeline) -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- Events Tab — world-class per-event drilldown                     -->
+        <!-- Surfaces every user-property (country, device_tier, install_     -->
+        <!-- source, consent, ATT, app_version, platform, locale) inline as  -->
+        <!-- badges, plus a fully filterable/searchable table with expandable -->
+        <!-- raw-JSON rows and a top-events distribution chart.               -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
         <div id="events" class="tab-content">
+            <div class="kpi-grid" id="eventsHeaderKpis">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
             <div class="chart-card">
-                <h3>📋 Events Timeline <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
-                <div class="card-body"><div id="eventsContent">
-                    <div class="loading">Loading events...</div>
-                </div></div>
+                <h3>📊 Top Events <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('eventsTopChart','Top Events')">⛶</button></div></h3>
+                <div class="card-body"><canvas id="eventsTopChart" height="160"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>📋 Events Timeline
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="loadEvents()" title="Refresh">↻ Reload</button>
+                        <button class="card-btn" onclick="exportEventsCsv()" title="Download CSV">⬇ CSV</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <!-- Filter bar -->
+                    <div id="eventsFilterBar" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;align-items:center">
+                        <input id="eventsSearch" type="search" placeholder="🔎 search event / user / country / device / value…"
+                               style="flex:2 1 240px;padding:0.5rem 0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem"
+                               oninput="renderEventsTable()" />
+                        <select id="eventsFilterName" onchange="renderEventsTable()"
+                                style="flex:1 1 160px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                            <option value="">All event names</option>
+                        </select>
+                        <select id="eventsFilterPlatform" onchange="renderEventsTable()"
+                                style="flex:1 1 120px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                            <option value="">All platforms</option>
+                        </select>
+                        <select id="eventsFilterCountry" onchange="renderEventsTable()"
+                                style="flex:1 1 120px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                            <option value="">All countries</option>
+                        </select>
+                        <select id="eventsFilterDeviceTier" onchange="renderEventsTable()"
+                                style="flex:1 1 120px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                            <option value="">All device tiers</option>
+                        </select>
+                        <select id="eventsFilterLimit" onchange="loadEvents()"
+                                style="flex:0 0 110px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                            <option value="100">100 rows</option>
+                            <option value="250" selected>250 rows</option>
+                            <option value="500">500 rows</option>
+                        </select>
+                        <select id="eventsFilterDays" onchange="loadEvents()"
+                                style="flex:0 0 110px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                            <option value="1">Last 1d</option>
+                            <option value="7" selected>Last 7d</option>
+                            <option value="30">Last 30d</option>
+                        </select>
+                    </div>
+                    <div id="eventsContent">
+                        <div class="loading">Loading events...</div>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -1417,6 +1667,22 @@
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
+            <!-- 2026-04 hardening: D1/D7/D30 milestone strip from retention_d* events -->
+            <div class="chart-card">
+                <h3>🔁 Retention Milestones (per-install events) <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body">
+                    <div id="retentionMilestoneKpis" class="kpi-grid" style="margin-bottom:0.75rem">
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                    </div>
+                    <div class="chart-container"><canvas id="retentionMilestoneChart" height="180"></canvas></div>
+                    <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.5rem">
+                        Counts the canonical <code>retention_d1</code> / <code>retention_d7</code> / <code>retention_d30</code> events fired
+                        once per install by <code>RetentionAnalytics.cs</code>. Trend line shows daily milestone fires.
+                    </div>
+                </div>
             </div>
             <div class="chart-grid">
                 <div class="chart-card" style="grid-column: span 2;">
@@ -1657,6 +1923,56 @@
                     <h3>Top Devices <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformDeviceChart','Top Devices')">⛶</button></div></h3>
                     <div class="card-body"><canvas id="platformDeviceChart" height="200"></canvas></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- Audience Tab (2026-04 hardening)                                 -->
+        <!-- Surfaces user-property dimensions (country, device_tier,         -->
+        <!-- install_source, consent, ATT, locale, app_version, platform)    -->
+        <!-- pushed once-per-session by QVAnalyticsService.                   -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div id="audience" class="tab-content">
+            <div class="kpi-grid" id="audienceHeaderKpis">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>🌍 Top Countries <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceCountryChart','Top Countries')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="audienceCountryChart" height="220"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>📱 Device Tier <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceDeviceTierChart','Device Tier')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="audienceDeviceTierChart" height="220"></canvas></div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>🎯 Install Source <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceInstallChart','Install Source')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="audienceInstallChart" height="220"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>📦 App Version <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceAppVersionChart','App Version')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="audienceAppVersionChart" height="220"></canvas></div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>🛡️ Consent State <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body"><canvas id="audienceConsentChart" height="200"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>🍎 iOS ATT Status <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body"><canvas id="audienceAttChart" height="200"></canvas></div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>🗣️ Locale Distribution <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><table class="data-table" id="audienceLocaleTable">
+                    <thead><tr><th>Locale</th><th>Unique Users</th><th>Events</th></tr></thead>
+                    <tbody><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody>
+                </table></div>
             </div>
         </div>
 
@@ -1932,6 +2248,7 @@
             heatmap:   () => loadHeatmap(),
             monet:     () => loadMonetizationDetail(),
             platforms: () => loadPlatforms(),
+            audience:  () => loadAudience(),
             players:   () => loadTopPlayers(),
             diagnose:  () => loadDiagnose()
         };
@@ -2551,6 +2868,10 @@
         }
 
         async function loadRetention() {
+            // Always populate the new D1/D7/D30 milestone strip. It works for
+            // "all games" too (server aggregates), so we fire it before the
+            // per-game cohort gate below.
+            try { loadRetentionMilestones(); } catch (_) { /* non-fatal */ }
             const kpis = document.getElementById('retentionKpis');
             const heatmap = document.getElementById('retentionHeatmap');
             try {
@@ -2804,6 +3125,17 @@
                     return;
                 }
                 const most = data.most_failing_rpc || {};
+                // 2026-04 hardening — show per-category breakdown alongside
+                // the top-level total. Categories come from the canonical
+                // client error event names (api_failure, auth_failure,
+                // nakama_rpc_error, timeout_event, crash_safe_log) that
+                // the new QVAnalyticsService now emits.
+                const cats = data.errors_by_category || [];
+                const catSummary = cats.length
+                    ? cats.slice(0, 4).map(c =>
+                        `<span style="display:inline-block;margin-right:8px"><strong style="color:#fbbf24">${formatNumber(c.count)}</strong> <span style="color:#94a3b8;font-size:0.78rem">${c.category}</span></span>`
+                      ).join('')
+                    : '<span style="color:#94a3b8;font-size:0.78rem">No categorized errors</span>';
                 document.getElementById('errorKpis').innerHTML = `
                     <div class="kpi-card">
                         <div class="icon">🚨</div>
@@ -2815,6 +3147,11 @@
                         <div class="label">Most Failing RPC</div>
                         <div class="value plain" style="font-size:0.9rem;">${most.name || 'None'}</div>
                         <div class="trend">${most.count || 0} errors</div>
+                    </div>
+                    <div class="kpi-card" style="grid-column: span 2;">
+                        <div class="icon">🧩</div>
+                        <div class="label">Errors by Category</div>
+                        <div class="value plain" style="font-size:0.9rem;line-height:1.6;">${catSummary}</div>
                     </div>
                 `;
                 const tbody = document.querySelector('#errorTable tbody');
@@ -2971,15 +3308,31 @@
             try {
                 const data = await callRpc('analytics_monetization_detail', { days: selectedDays, ...getGamePayload() });
                 if (data.error) { document.getElementById('monetKpis').innerHTML = `<p class="empty-state">${data.error}</p>`; return; }
+                // 2026-04 hardening — render the full ad funnel + IAP KPIs.
+                // Server now returns: ad_requests, ad_load_failures, ad_skips,
+                // ad_clicks, ad_completion_rate_pct, ad_ecpm_usd, ad_revenue_by_network.
+                const num = (v) => formatNumber(v || 0);
+                const pct = (v) => (v == null ? '—' : v + '%');
+                const usd = (v) => '$' + (Number(v || 0).toFixed(2));
                 document.getElementById('monetKpis').innerHTML = [
-                    { label: 'Ad Impressions', value: formatNumber(data.ad_impressions) },
-                    { label: 'Ad Completed', value: formatNumber(data.ad_completed) },
-                    { label: 'Fill Rate %', value: data.ad_fill_rate_pct + '%' },
-                    { label: 'Ad Revenue', value: '$' + data.ad_revenue_total },
-                    { label: 'IAP Purchases', value: formatNumber(data.iap_completed) },
-                    { label: 'Paywall Shown', value: formatNumber(data.paywall_shown) },
-                    { label: 'Conversion %', value: data.paywall_conversion_rate_pct + '%' },
-                    { label: 'Store Opens', value: formatNumber(data.store_opens) }
+                    // Ad funnel
+                    { label: 'Ad Requests',       value: num(data.ad_requests),       group: 'ads' },
+                    { label: 'Ad Impressions',    value: num(data.ad_impressions),    group: 'ads' },
+                    { label: 'Ad Completed',      value: num(data.ad_completed),      group: 'ads' },
+                    { label: 'Ad Skipped',        value: num(data.ad_skips),          group: 'ads' },
+                    { label: 'Load Failures',     value: num(data.ad_load_failures),  group: 'ads' },
+                    { label: 'Ad Clicks',         value: num(data.ad_clicks),         group: 'ads' },
+                    // Ad rates
+                    { label: 'Fill Rate %',       value: pct(data.ad_fill_rate_pct),       group: 'rates' },
+                    { label: 'Completion Rate %', value: pct(data.ad_completion_rate_pct), group: 'rates' },
+                    // Revenue
+                    { label: 'Ad Revenue',        value: usd(data.ad_revenue_total), group: 'rev' },
+                    { label: 'eCPM',              value: usd(data.ad_ecpm_usd),      group: 'rev' },
+                    // IAP / Paywall
+                    { label: 'IAP Purchases',     value: num(data.iap_completed),    group: 'iap' },
+                    { label: 'Paywall Shown',     value: num(data.paywall_shown),    group: 'iap' },
+                    { label: 'Conversion %',      value: pct(data.paywall_conversion_rate_pct), group: 'iap' },
+                    { label: 'Store Opens',       value: num(data.store_opens),      group: 'iap' }
                 ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
                 if (data.ad_types && data.ad_types.length > 0) {
                     if (charts.monetAdTypes) charts.monetAdTypes.destroy();
@@ -2995,7 +3348,171 @@
                     if (charts.monetProducts) charts.monetProducts.destroy();
                     charts.monetProducts = createBarChart('monetProductsChart', data.top_products.map(p => p.product_id), data.top_products.map(p => p.purchases), 'Purchases');
                 }
+                // Per-network ad revenue (new) — render into the existing
+                // products chart slot only if no products were returned.
+                // Safer: render into ad-types card by appending a small list
+                // beneath it via DOM injection so both data sets co-exist.
+                const netList = data.ad_revenue_by_network || [];
+                const netHostId = 'monetNetworkList';
+                let netHost = document.getElementById(netHostId);
+                if (!netHost) {
+                    // Lazy-create the list under the Daily Ad Revenue card.
+                    const revCard = document.getElementById('monetRevenueChart');
+                    if (revCard && revCard.parentElement) {
+                        netHost = document.createElement('div');
+                        netHost.id = netHostId;
+                        netHost.style.marginTop = '0.75rem';
+                        netHost.style.fontSize = '0.78rem';
+                        netHost.style.color = '#cbd5e1';
+                        revCard.parentElement.appendChild(netHost);
+                    }
+                }
+                if (netHost) {
+                    if (netList.length === 0) {
+                        netHost.innerHTML = '<div style="color:#94a3b8">No per-network revenue yet (waiting for ILRD events).</div>';
+                    } else {
+                        const total = netList.reduce((s, n) => s + (n.revenue_usd || 0), 0) || 1;
+                        netHost.innerHTML = '<div style="font-weight:600;margin-bottom:0.35rem;color:#10b981">Revenue by network</div>' +
+                            netList.map(n => {
+                                const pctOfTotal = ((n.revenue_usd / total) * 100).toFixed(1);
+                                return `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(51,65,85,0.4);padding:2px 0">
+                                    <span>${n.network}</span>
+                                    <span><strong>$${n.revenue_usd.toFixed(2)}</strong> <span style="color:#94a3b8">(${pctOfTotal}%)</span></span>
+                                </div>`;
+                            }).join('');
+                    }
+                }
             } catch(e) { console.error('Monetization detail error:', e); }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Audience Tab (2026-04 hardening)
+        // Surfaces user-property dimensions pushed once-per-session by
+        // QVAnalyticsService: country, device_tier, install_source,
+        // consent_state, att_status, locale, app_version, platform.
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadAudience() {
+            try {
+                const data = await callRpc('analytics_audience_breakdown', {
+                    days: selectedDays, ...getGamePayload()
+                });
+                if (data.error) {
+                    document.getElementById('audienceHeaderKpis').innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                document.getElementById('audienceHeaderKpis').innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">👥</div>
+                        <div class="label">Unique Users (${data.days || selectedDays}d)</div>
+                        <div class="value">${formatNumber(data.unique_users || 0)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📊</div>
+                        <div class="label">Total Events</div>
+                        <div class="value">${formatNumber(data.total_events || 0)}</div>
+                        <div class="trend">${data.country?.length || 0} countries · ${data.locale?.length || 0} locales</div>
+                    </div>
+                `;
+
+                // Helper: render dimension as bar chart (top-N unique users).
+                const renderBar = (canvasId, dim, color) => {
+                    const slot = (data[dim] || []);
+                    if (!slot.length) return;
+                    const labels = slot.map(s => s.value);
+                    const values = slot.map(s => s.unique_users || s.events);
+                    if (charts[canvasId]) charts[canvasId].destroy();
+                    charts[canvasId] = createBarChart(canvasId, labels, values, 'Unique users');
+                };
+                const renderDoughnut = (canvasId, dim) => {
+                    const slot = (data[dim] || []);
+                    if (!slot.length) return;
+                    if (charts[canvasId]) charts[canvasId].destroy();
+                    charts[canvasId] = createDoughnutChart(canvasId,
+                        slot.map(s => s.value),
+                        slot.map(s => s.unique_users || s.events));
+                };
+
+                renderBar('audienceCountryChart',     'country',        '#3b82f6');
+                renderDoughnut('audienceDeviceTierChart', 'device_tier');
+                renderDoughnut('audienceInstallChart',    'install_source');
+                renderBar('audienceAppVersionChart',  'app_version',    '#8b5cf6');
+                renderDoughnut('audienceConsentChart', 'consent_state');
+                renderDoughnut('audienceAttChart',     'att_status');
+
+                const localeSlot = data.locale || [];
+                const lTbody = document.querySelector('#audienceLocaleTable tbody');
+                if (lTbody) {
+                    lTbody.innerHTML = localeSlot.length
+                        ? localeSlot.map(l => `
+                            <tr>
+                                <td>${l.value}</td>
+                                <td>${formatNumber(l.unique_users || 0)}</td>
+                                <td style="color:#94a3b8">${formatNumber(l.events || 0)}</td>
+                            </tr>`).join('')
+                        : '<tr><td colspan="3" class="empty-state">No locale data yet</td></tr>';
+                }
+            } catch (e) {
+                console.error('Audience error:', e);
+                document.getElementById('audienceHeaderKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Retention milestones (2026-04 hardening)
+        // Loaded as part of loadRetention so the new D1/D7/D30 milestone strip
+        // appears whenever the Retention tab is opened.
+        // ─────────────────────────────────────────────────────────────────────
+        async function loadRetentionMilestones() {
+            const host = document.getElementById('retentionMilestoneKpis');
+            if (!host) return;
+            try {
+                const data = await callRpc('analytics_retention_milestones', {
+                    days: 30, ...getGamePayload()
+                });
+                if (!data || data.error) {
+                    host.innerHTML = `<div class="error">${(data && data.error) || 'No milestone data'}</div>`;
+                    return;
+                }
+                const m = data.milestones || {};
+                host.innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">📅</div>
+                        <div class="label">Day 1 Retention Fires</div>
+                        <div class="value">${formatNumber(m.d1 || 0)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">🗓️</div>
+                        <div class="label">Day 7 Retention Fires</div>
+                        <div class="value">${formatNumber(m.d7 || 0)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📆</div>
+                        <div class="label">Day 30 Retention Fires</div>
+                        <div class="value">${formatNumber(m.d30 || 0)}</div>
+                    </div>
+                `;
+                // Build a unified daily series over the union of all dates.
+                const daily = data.daily || {};
+                const dateSet = new Set();
+                ['d1','d7','d30'].forEach(k => (daily[k] || []).forEach(p => dateSet.add(p.date)));
+                const dates = Array.from(dateSet).sort();
+                const seriesFor = (k) => {
+                    const map = {};
+                    (daily[k] || []).forEach(p => map[p.date] = p.count);
+                    return dates.map(d => map[d] || 0);
+                };
+                if (dates.length > 0) {
+                    if (charts.retentionMilestone) charts.retentionMilestone.destroy();
+                    charts.retentionMilestone = createLineChart('retentionMilestoneChart', dates, [
+                        { label: 'D1',  data: seriesFor('d1'),  borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', fill: false, tension: 0.35 },
+                        { label: 'D7',  data: seriesFor('d7'),  borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: false, tension: 0.35 },
+                        { label: 'D30', data: seriesFor('d30'), borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,0.08)', fill: false, tension: 0.35 }
+                    ]);
+                }
+            } catch (e) {
+                console.error('Retention milestones error:', e);
+                host.innerHTML = `<div class="error">Failed to load milestones: ${e.message}</div>`;
+            }
         }
         
         
@@ -3003,68 +3520,344 @@
         // Events Timeline Viewer (uses admin_events_timeline)
         // ─────────────────────────────────────────────────────────────────────
         
+        // ─────────────────────────────────────────────────────────────────────
+        // Events Tab — world-class per-event drilldown.
+        // We fetch once, cache locally in `_eventsCache`, and re-render purely
+        // on the client whenever any filter input changes. This keeps the
+        // UI snappy and avoids hammering the server for every keystroke.
+        // ─────────────────────────────────────────────────────────────────────
+        let _eventsCache = [];
+
+        // Subset of eventData fields we surface as inline badges. Order matters
+        // (left-to-right). Anything else stays in the expandable JSON drawer.
+        const EVENT_USER_PROP_FIELDS = [
+            'platform', 'country', 'device_tier', 'install_source',
+            'app_version', 'consent_state', 'att_status', 'locale'
+        ];
+
+        // Color map for each badge dimension so the eye can scan quickly.
+        const BADGE_PALETTE = {
+            platform:       { bg: 'rgba(59,130,246,0.15)',  fg: '#60a5fa' },
+            country:        { bg: 'rgba(16,185,129,0.15)',  fg: '#34d399' },
+            device_tier:    { bg: 'rgba(245,158,11,0.15)',  fg: '#fbbf24' },
+            install_source: { bg: 'rgba(168,85,247,0.15)',  fg: '#c084fc' },
+            app_version:    { bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1' },
+            consent_state:  { bg: 'rgba(236,72,153,0.15)',  fg: '#f472b6' },
+            att_status:     { bg: 'rgba(244,114,182,0.15)', fg: '#f9a8d4' },
+            locale:         { bg: 'rgba(20,184,166,0.15)',  fg: '#5eead4' }
+        };
+
+        function escapeHtml(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function badgeHtml(key, val) {
+            const c = BADGE_PALETTE[key] || { bg: 'rgba(100,116,139,0.18)', fg: '#cbd5e1' };
+            return `<span title="${escapeHtml(key)}" style="display:inline-block;padding:2px 7px;margin:0 4px 2px 0;background:${c.bg};color:${c.fg};border-radius:10px;font-size:0.7rem;font-family:monospace">${escapeHtml(val)}</span>`;
+        }
+
+        // Pretty-print an event's eventData minus the user-property fields
+        // (those are already shown as badges).
+        function eventBodyJson(props) {
+            if (!props || typeof props !== 'object') return '{}';
+            const filtered = {};
+            for (const k in props) {
+                if (!props.hasOwnProperty(k)) continue;
+                if (EVENT_USER_PROP_FIELDS.indexOf(k) !== -1) continue;
+                filtered[k] = props[k];
+            }
+            return JSON.stringify(filtered, null, 2);
+        }
+
+        function populateEventFilters(events) {
+            const setOf = (field) => {
+                const set = new Set();
+                events.forEach(e => {
+                    const p = e.properties || {};
+                    const v = field === 'event_name'
+                        ? (e.name || e.event_name)
+                        : (p[field] || (field === 'platform' ? e.platform : null));
+                    if (v) set.add(v);
+                });
+                return Array.from(set).sort();
+            };
+
+            const fillSelect = (id, values) => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                const current = sel.value;
+                // Keep the first <option> (the "All ..." placeholder) and rebuild rest.
+                const placeholder = sel.querySelector('option[value=""]');
+                sel.innerHTML = '';
+                if (placeholder) sel.appendChild(placeholder);
+                values.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v; opt.textContent = v;
+                    sel.appendChild(opt);
+                });
+                if (current && values.indexOf(current) !== -1) sel.value = current;
+            };
+
+            fillSelect('eventsFilterName',        setOf('event_name'));
+            fillSelect('eventsFilterPlatform',    setOf('platform'));
+            fillSelect('eventsFilterCountry',     setOf('country'));
+            fillSelect('eventsFilterDeviceTier',  setOf('device_tier'));
+        }
+
+        function renderEventsTable() {
+            const container = document.getElementById('eventsContent');
+            if (!container) return;
+
+            const events = _eventsCache;
+            if (!events.length) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No Events Found</h3>
+                        <p>No events recorded for the selected window.</p>
+                    </div>`;
+                return;
+            }
+
+            const q          = (document.getElementById('eventsSearch')?.value || '').toLowerCase();
+            const fName      = document.getElementById('eventsFilterName')?.value || '';
+            const fPlatform  = document.getElementById('eventsFilterPlatform')?.value || '';
+            const fCountry   = document.getElementById('eventsFilterCountry')?.value || '';
+            const fTier      = document.getElementById('eventsFilterDeviceTier')?.value || '';
+
+            const filtered = events.filter(ev => {
+                const name = (ev.name || ev.event_name || '').toLowerCase();
+                const props = ev.properties || {};
+                if (fName     && (ev.name || ev.event_name) !== fName) return false;
+                if (fPlatform && (props.platform || ev.platform) !== fPlatform) return false;
+                if (fCountry  && props.country !== fCountry) return false;
+                if (fTier     && props.device_tier !== fTier) return false;
+                if (q) {
+                    // Free-text search across name, user_id, and stringified props.
+                    const hay = name + ' ' + (ev.user_id || '') + ' ' +
+                                JSON.stringify(props).toLowerCase();
+                    if (hay.indexOf(q) === -1) return false;
+                }
+                return true;
+            });
+
+            if (!filtered.length) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding:1.5rem">
+                        <h3>No matches</h3>
+                        <p style="color:#94a3b8">No events match the current filters. Showing 0 of ${events.length}.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `
+                <div style="margin-bottom: 0.75rem; color: var(--text-secondary); font-size:0.85rem">
+                    Showing <strong>${filtered.length}</strong> of <strong>${events.length}</strong> events
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width:1%"></th>
+                            <th>Timestamp</th>
+                            <th>Event</th>
+                            <th>User</th>
+                            <th>Context (badges)</th>
+                            <th>Payload</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            filtered.forEach((ev, idx) => {
+                const ts = ev.timestamp
+                    ? new Date(ev.timestamp).toLocaleString()
+                    : (ev.unix_timestamp ? new Date(ev.unix_timestamp * 1000).toLocaleString() : '-');
+                const evName = ev.name || ev.event_name || '-';
+                const uid    = ev.user_id || '-';
+                const props  = ev.properties || {};
+
+                let badges = '';
+                EVENT_USER_PROP_FIELDS.forEach(f => {
+                    const v = props[f] || (f === 'platform' ? ev.platform : null);
+                    if (v) badges += badgeHtml(f, v);
+                });
+                if (!badges) badges = '<span style="color:#64748b;font-size:0.75rem">no context</span>';
+
+                const inlineSummary = (() => {
+                    // Tiny single-line "what happened" summary using a couple of
+                    // well-known fields per event family. Keeps the table scannable.
+                    const lc = (evName || '').toLowerCase();
+                    const bits = [];
+                    if (lc.indexOf('quiz') === 0) {
+                        if (props.quiz_mode)        bits.push(`mode=${props.quiz_mode}`);
+                        if (props.score != null)    bits.push(`score=${props.score}`);
+                        if (props.correct_count != null) bits.push(`✓${props.correct_count}/${props.total_questions || '?'}`);
+                    } else if (lc.indexOf('ad_') === 0) {
+                        if (props.ad_type)     bits.push(props.ad_type);
+                        if (props.ad_placement)bits.push(`@${props.ad_placement}`);
+                        if (props.ad_network)  bits.push(`via ${props.ad_network}`);
+                        if (props.revenue_usd) bits.push(`$${props.revenue_usd}`);
+                    } else if (lc.indexOf('iap') === 0 || lc.indexOf('purchase') === 0) {
+                        if (props.product_id)  bits.push(props.product_id);
+                        if (props.price_usd)   bits.push(`$${props.price_usd}`);
+                    } else if (lc.indexOf('error') !== -1 || lc.indexOf('failure') !== -1 || lc.indexOf('timeout') !== -1) {
+                        if (props.error_message) bits.push(String(props.error_message).slice(0, 60));
+                        if (props.error_code)    bits.push(`[${props.error_code}]`);
+                        if (props.endpoint)      bits.push(props.endpoint);
+                    } else if (lc.indexOf('session') === 0) {
+                        if (props.session_id)        bits.push(`sid=${String(props.session_id).slice(0, 8)}`);
+                        if (props.duration_seconds)  bits.push(`${Math.round(props.duration_seconds)}s`);
+                    } else if (lc.indexOf('screen') !== -1) {
+                        if (props.screen_name) bits.push(props.screen_name);
+                    } else if (lc.indexOf('retention') !== -1) {
+                        if (props.days_since_install) bits.push(`+${props.days_since_install}d`);
+                    }
+                    return bits.length
+                        ? `<span style="color:#94a3b8;font-size:0.75rem">${escapeHtml(bits.join(' · '))}</span>`
+                        : '<span style="color:#475569;font-size:0.75rem">—</span>';
+                })();
+
+                const detailsId = `ev_details_${idx}`;
+                html += `
+                    <tr>
+                        <td style="vertical-align:top;width:1%;padding-right:0">
+                            <button class="card-btn" style="padding:2px 6px;font-size:0.7rem"
+                                    onclick="document.getElementById('${detailsId}').style.display=document.getElementById('${detailsId}').style.display==='none'?'table-row':'none';this.textContent=this.textContent==='▶'?'▼':'▶'">▶</button>
+                        </td>
+                        <td style="white-space:nowrap;font-size:0.78rem;color:#cbd5e1">${escapeHtml(ts)}</td>
+                        <td><code style="background:#0f172a;padding:2px 6px;border-radius:4px;color:#7dd3fc;font-size:0.78rem">${escapeHtml(evName)}</code></td>
+                        <td>${uid && uid !== '-'
+                            ? `<a class="pp-uid-link" style="font-size:0.72rem" onclick="openPlayerProfile('${escapeHtml(uid)}')" title="${escapeHtml(uid)} — open Player 360">${escapeHtml(uid.substring(0, 12))}…</a>`
+                            : `<span style="font-family:monospace;font-size:0.72rem;color:#94a3b8">—</span>`}</td>
+                        <td>${badges}</td>
+                        <td>${inlineSummary}</td>
+                    </tr>
+                    <tr id="${detailsId}" style="display:none;background:#0b1220">
+                        <td colspan="6" style="padding:0.75rem 1rem">
+                            <pre style="margin:0;padding:0.75rem;background:#0f172a;border:1px solid #1e293b;border-radius:6px;color:#cbd5e1;font-size:0.75rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto">${escapeHtml(eventBodyJson(props))}</pre>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // CSV export of the currently-cached events (post-filter NOT applied —
+        // exports the full raw set; users can re-filter offline in Excel/Sheets).
+        function exportEventsCsv() {
+            if (!_eventsCache.length) {
+                alert('No events loaded yet.');
+                return;
+            }
+            const cols = ['timestamp', 'event_name', 'user_id',
+                          'platform', 'country', 'device_tier', 'install_source',
+                          'app_version', 'consent_state', 'att_status', 'locale',
+                          'payload_json'];
+            const rows = [cols.join(',')];
+            _eventsCache.forEach(ev => {
+                const p = ev.properties || {};
+                const payloadCsv = '"' + JSON.stringify(p).replace(/"/g, '""') + '"';
+                const get = (f) => '"' + String((p[f] != null ? p[f] : (f === 'platform' ? (ev.platform || '') : '')) || '')
+                                            .replace(/"/g, '""') + '"';
+                rows.push([
+                    '"' + (ev.timestamp || '') + '"',
+                    '"' + (ev.name || ev.event_name || '') + '"',
+                    '"' + (ev.user_id || '') + '"',
+                    get('platform'), get('country'), get('device_tier'), get('install_source'),
+                    get('app_version'), get('consent_state'), get('att_status'), get('locale'),
+                    payloadCsv
+                ].join(','));
+            });
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `quizverse_events_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
         async function loadEvents() {
+            const container = document.getElementById('eventsContent');
+            const headerKpis = document.getElementById('eventsHeaderKpis');
             try {
-                const payload = { days: 7, limit: 100, ...getGamePayload() };
+                if (container) container.innerHTML = '<div class="loading">Loading events…</div>';
+                const limit = parseInt(document.getElementById('eventsFilterLimit')?.value || '250', 10);
+                const days  = parseInt(document.getElementById('eventsFilterDays')?.value  || '7', 10);
+                const payload = { days, limit, ...getGamePayload() };
                 // dashboard_events_timeline reads directly from the analytics_events
                 // collection written by analytics_log_event — no Satori dependency.
                 const data = await callRpc('dashboard_events_timeline', payload);
-                
-                const container = document.getElementById('eventsContent');
+
                 if (!container) return;
-                
+
                 if (data.error) {
                     container.innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                
-                if (!data.events || data.events.length === 0) {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <h3>No Events Found</h3>
-                            <p>No events recorded in the last 7 days.</p>
+
+                _eventsCache = data.events || [];
+
+                // ── Header KPIs ─────────────────────────────────────────
+                const uniqueUsers = new Set();
+                const eventCounts = {};
+                const errorCount = { v: 0 };
+                _eventsCache.forEach(ev => {
+                    if (ev.user_id) uniqueUsers.add(ev.user_id);
+                    const n = (ev.name || ev.event_name || '').toLowerCase();
+                    if (n) eventCounts[n] = (eventCounts[n] || 0) + 1;
+                    if (n.indexOf('error') !== -1 || n.indexOf('fail') !== -1 ||
+                        n.indexOf('timeout') !== -1 || n.indexOf('crash') !== -1) errorCount.v++;
+                });
+                const distinctEvents = Object.keys(eventCounts).length;
+
+                if (headerKpis) {
+                    headerKpis.innerHTML = `
+                        <div class="kpi-card">
+                            <div class="icon">📦</div>
+                            <div class="label">Events Loaded</div>
+                            <div class="value">${formatNumber(_eventsCache.length)}</div>
+                            <div class="trend">window: last ${days}d · cap ${limit}</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">👥</div>
+                            <div class="label">Distinct Users</div>
+                            <div class="value">${formatNumber(uniqueUsers.size)}</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">🧬</div>
+                            <div class="label">Distinct Event Types</div>
+                            <div class="value">${formatNumber(distinctEvents)}</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">🚨</div>
+                            <div class="label">Errors / Failures</div>
+                            <div class="value ${errorCount.v > 0 ? 'negative' : 'positive'}">${formatNumber(errorCount.v)}</div>
                         </div>
                     `;
-                    return;
                 }
-                
-                let html = `
-                    <div style="margin-bottom: 1rem; color: var(--text-secondary);">
-                        Found <strong>${data.events.length}</strong> events (last 7 days)
-                    </div>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Event Name</th>
-                                <th>User ID</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-                
-                data.events.forEach(event => {
-                    const timestamp = new Date(event.timestamp).toLocaleString();
-                    const details = event.properties ? JSON.stringify(event.properties).substring(0, 100) : '-';
-                    html += `
-                        <tr>
-                            <td style="white-space: nowrap;">${timestamp}</td>
-                            <td><code>${event.name || event.event_name || '-'}</code></td>
-                            <td style="font-family: monospace; font-size: 0.8rem;">${(event.user_id || '-').substring(0, 12)}...</td>
-                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${details}</td>
-                        </tr>
-                    `;
-                });
-                
-                html += '</tbody></table>';
-                container.innerHTML = html;
-                
+
+                // ── Top-events bar chart (top 12) ───────────────────────
+                const top = Object.entries(eventCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 12);
+                if (top.length > 0) {
+                    if (charts.eventsTop) charts.eventsTop.destroy();
+                    charts.eventsTop = createBarChart('eventsTopChart',
+                        top.map(t => t[0]), top.map(t => t[1]), 'Events');
+                }
+
+                // ── Filters + table ─────────────────────────────────────
+                populateEventFilters(_eventsCache);
+                renderEventsTable();
+
             } catch (e) {
                 console.error('Events error:', e);
-                const container = document.getElementById('eventsContent');
                 if (container) {
-                    container.innerHTML = `<div class="error">Events timeline not available: ${e.message}</div>`;
+                    container.innerHTML = `<div class="error">Events timeline not available: ${escapeHtml(e.message)}</div>`;
                 }
             }
         }
@@ -3773,6 +4566,258 @@
         });
 
         // ─────────────────────────────────────────────────────────────────────
+        // Player 360 drawer — full per-player drilldown
+        // ─────────────────────────────────────────────────────────────────────
+        // Pulls qe_player_full_profile (profile, game_stats, analytics, leaderboard
+        // count) + dashboard_events_timeline (filtered to this user_id) and renders
+        // a rich profile card with: identity, headline KPIs, monetization summary,
+        // device / consent / install context, and a recent event timeline.
+        //
+        // Triggered from any clickable user_id in the dashboard
+        // (Top Players table, Events table). Cheap and safe — both RPCs are
+        // already cached client-side via callRpc.
+        const _ppCache = new Map();   // userId → { profile, events, ts }
+        const _PP_CACHE_MS = 60_000;  // 1 min
+
+        async function openPlayerProfile(userId) {
+            if (!userId) return;
+            const modal = document.getElementById('playerProfileModal');
+            const body  = document.getElementById('ppBody');
+            const badge = document.getElementById('ppUidBadge');
+            badge.textContent = userId;
+            body.innerHTML = '<div class="pp-loader">Loading player profile…</div>';
+            modal.classList.add('open');
+            document.body.style.overflow = 'hidden';
+
+            try {
+                const cached = _ppCache.get(userId);
+                let profile, events;
+                if (cached && Date.now() - cached.ts < _PP_CACHE_MS) {
+                    profile = cached.profile;
+                    events  = cached.events;
+                } else {
+                    const [pRes, eRes] = await Promise.allSettled([
+                        callRpc('qe_player_full_profile', { user_id: userId }),
+                        callRpc('dashboard_events_timeline', {
+                            user_id: userId,
+                            days:    Math.max(30, selectedDays || 30),
+                            limit:   200,
+                            ...getGamePayload()
+                        })
+                    ]);
+                    profile = pRes.status === 'fulfilled' ? pRes.value : { _error: pRes.reason && pRes.reason.message };
+                    events  = eRes.status === 'fulfilled'
+                        ? (eRes.value && eRes.value.events ? eRes.value.events : [])
+                        : [];
+                    _ppCache.set(userId, { profile, events, ts: Date.now() });
+                }
+                renderPlayerProfile(userId, profile, events);
+            } catch (e) {
+                body.innerHTML = '<div class="pp-empty">Failed to load: ' + escapeHtml(e.message || String(e)) + '</div>';
+            }
+        }
+
+        function closePlayerProfile() {
+            const modal = document.getElementById('playerProfileModal');
+            modal.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        function renderPlayerProfile(userId, profile, events) {
+            const body = document.getElementById('ppBody');
+            profile = profile || {};
+            events  = events  || [];
+
+            const user      = profile.user      || {};
+            const gs        = profile.game_stats || {};
+            const an        = profile.analytics  || {};
+            const prof      = profile.profile    || {};
+            const lbCount   = profile.leaderboard_count || 0;
+            const errMsg    = profile._error;
+
+            // Pull the most-recent user-properties from the latest event so we
+            // can show the player's *current* device / country / consent state.
+            // Events arrive newest-first from the server.
+            const ctx = {};
+            const ctxFields = ['platform', 'country', 'device_tier', 'install_source',
+                               'app_version', 'consent_state', 'att_status', 'locale',
+                               'device_model'];
+            for (const ev of events) {
+                const p = ev.properties || {};
+                ctxFields.forEach(f => {
+                    if (ctx[f] == null) {
+                        const v = p[f] || (f === 'platform' ? ev.platform : null);
+                        if (v != null && v !== '') ctx[f] = v;
+                    }
+                });
+                if (ctxFields.every(f => ctx[f] != null)) break;
+            }
+
+            // Roll up a small "lifetime" event-name distribution across the
+            // returned timeline window (capped to 200 events server-side).
+            const evCounts = {};
+            let lastSeenUnix = 0;
+            let firstSeenUnix = Infinity;
+            for (const ev of events) {
+                const n = (ev.name || ev.event_name || '').toLowerCase();
+                if (!n) continue;
+                evCounts[n] = (evCounts[n] || 0) + 1;
+                const t = ev.unix_timestamp || (ev.timestamp ? Math.floor(new Date(ev.timestamp).getTime()/1000) : 0);
+                if (t > lastSeenUnix)  lastSeenUnix  = t;
+                if (t && t < firstSeenUnix) firstSeenUnix = t;
+            }
+            if (firstSeenUnix === Infinity) firstSeenUnix = 0;
+            const topEvents = Object.entries(evCounts)
+                .sort((a,b) => b[1] - a[1])
+                .slice(0, 8);
+
+            const headlineKpis = [
+                { l: 'Events (window)',  v: formatNumber(events.length) },
+                { l: 'Total Events',     v: formatNumber(an.total_events || 0) },
+                { l: 'Quizzes',          v: formatNumber(an.quiz_completed || gs.quizzes_completed || 0) },
+                { l: 'Sessions',         v: formatNumber(an.sessions || gs.sessions || 0) },
+                { l: 'Purchases',        v: formatNumber(an.purchases || 0) },
+                { l: 'Coins',            v: formatNumber(gs.coins || 0) },
+                { l: 'Leaderboards',     v: formatNumber(lbCount) },
+                { l: 'Distinct Events',  v: formatNumber(Object.keys(evCounts).length) }
+            ];
+
+            const meta = [
+                ['Username',     user.username     || prof.username  || '—'],
+                ['Display Name', user.display_name || prof.display_name || '—'],
+                ['Language',     user.lang_tag     || prof.locale    || '—'],
+                ['Location',     user.location     || ctx.country    || '—'],
+                ['Timezone',     user.timezone     || '—'],
+                ['Friends',      user.edge_count   != null ? formatNumber(user.edge_count) : '—'],
+                ['Created',      user.create_time  ? new Date(user.create_time).toLocaleString() : '—'],
+                ['Last Updated', user.update_time  ? new Date(user.update_time).toLocaleString() : '—'],
+                ['First Event',  firstSeenUnix     ? new Date(firstSeenUnix * 1000).toLocaleString() : '—'],
+                ['Last Event',   lastSeenUnix      ? new Date(lastSeenUnix  * 1000).toLocaleString() : '—']
+            ];
+
+            const ctxList = [
+                ['Platform',       ctx.platform        || '—'],
+                ['Country',        ctx.country         || '—'],
+                ['Device Tier',    ctx.device_tier     || '—'],
+                ['Device Model',   ctx.device_model    || '—'],
+                ['App Version',    ctx.app_version     || '—'],
+                ['Locale',         ctx.locale          || '—'],
+                ['Install Source', ctx.install_source  || '—'],
+                ['Consent',        ctx.consent_state   || '—'],
+                ['ATT Status',     ctx.att_status      || '—']
+            ];
+
+            // Wallet (Nakama users.wallet — already a JSON object after server parsing).
+            const walletEntries = user.wallet && typeof user.wallet === 'object'
+                ? Object.entries(user.wallet).slice(0, 8)
+                : [];
+
+            const errBanner = errMsg
+                ? `<div style="background:#7f1d1d;border:1px solid #b91c1c;color:#fecaca;padding:0.6rem 0.8rem;border-radius:8px;margin-bottom:1rem;font-size:0.78rem">⚠ Profile RPC failed: ${escapeHtml(errMsg)} — showing event-derived data only.</div>`
+                : '';
+
+            const tlRows = events.length === 0
+                ? '<div class="pp-empty">No events found in the last ' + Math.max(30, selectedDays || 30) + ' days for this user.</div>'
+                : events.slice(0, 100).map(ev => {
+                    const ts = ev.timestamp
+                        ? new Date(ev.timestamp).toLocaleString()
+                        : (ev.unix_timestamp ? new Date(ev.unix_timestamp * 1000).toLocaleString() : '—');
+                    const name = ev.name || ev.event_name || '—';
+                    const p = ev.properties || {};
+                    const sm = ppEventSummary(name, p);
+                    return `<div class="pp-tl-row">
+                        <div class="ts">${escapeHtml(ts)}</div>
+                        <div><span class="ev">${escapeHtml(name)}</span></div>
+                        <div class="sm">${sm}</div>
+                    </div>`;
+                }).join('');
+
+            const tlMore = events.length > 100
+                ? `<div style="text-align:center;color:var(--text-muted);font-size:0.72rem;padding:0.5rem">+${events.length - 100} more events (limit 100 shown)</div>`
+                : '';
+
+            body.innerHTML = `
+                ${errBanner}
+                <div class="pp-section">
+                    <h3>Headline</h3>
+                    <div class="pp-kpis">
+                        ${headlineKpis.map(k => `<div class="pp-kpi"><div class="v">${k.v}</div><div class="l">${k.l}</div></div>`).join('')}
+                    </div>
+                </div>
+
+                <div class="pp-section">
+                    <h3>Identity</h3>
+                    <div class="pp-meta-grid">
+                        ${meta.map(([k,v]) => `<div><div class="k">${k}</div><div class="v">${escapeHtml(String(v))}</div></div>`).join('')}
+                    </div>
+                </div>
+
+                <div class="pp-section">
+                    <h3>Current Context</h3>
+                    <div class="pp-meta-grid">
+                        ${ctxList.map(([k,v]) => `<div><div class="k">${k}</div><div class="v">${escapeHtml(String(v))}</div></div>`).join('')}
+                    </div>
+                </div>
+
+                ${walletEntries.length ? `
+                <div class="pp-section">
+                    <h3>Wallet</h3>
+                    <div class="pp-meta-grid">
+                        ${walletEntries.map(([k,v]) => `<div><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(String(v))}</div></div>`).join('')}
+                    </div>
+                </div>` : ''}
+
+                ${topEvents.length ? `
+                <div class="pp-section">
+                    <h3>Most-Fired Events (window)</h3>
+                    <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+                        ${topEvents.map(([n,c]) => `<div><div class="k">${escapeHtml(n)}</div><div class="v">${formatNumber(c)}</div></div>`).join('')}
+                    </div>
+                </div>` : ''}
+
+                <div class="pp-section">
+                    <h3>Recent Timeline (${events.length} events, last ${Math.max(30, selectedDays || 30)} days)</h3>
+                    <div class="pp-timeline">
+                        ${tlRows}
+                    </div>
+                    ${tlMore}
+                </div>
+            `;
+        }
+
+        // Tiny per-event one-line summary (mirrors the Events-tab inline summary
+        // logic but kept independent so each can evolve separately).
+        function ppEventSummary(name, p) {
+            const lc   = (name || '').toLowerCase();
+            const bits = [];
+            if (lc.indexOf('quiz') === 0) {
+                if (p.quiz_mode)            bits.push(`mode=${p.quiz_mode}`);
+                if (p.score != null)        bits.push(`score=${p.score}`);
+                if (p.correct_count != null) bits.push(`✓${p.correct_count}/${p.total_questions || '?'}`);
+            } else if (lc.indexOf('ad_') === 0) {
+                if (p.ad_type)      bits.push(p.ad_type);
+                if (p.ad_placement) bits.push(`@${p.ad_placement}`);
+                if (p.ad_network)   bits.push(`via ${p.ad_network}`);
+                if (p.revenue_usd)  bits.push(`$${p.revenue_usd}`);
+            } else if (lc.indexOf('iap') === 0 || lc.indexOf('purchase') === 0) {
+                if (p.product_id)   bits.push(p.product_id);
+                if (p.price_usd)    bits.push(`$${p.price_usd}`);
+            } else if (lc === 'session_start' || lc === 'session_end') {
+                if (p.session_id)         bits.push(`#${String(p.session_id).slice(0,8)}`);
+                if (p.session_duration_sec != null) bits.push(`${p.session_duration_sec}s`);
+            } else if (lc.indexOf('error') !== -1 || lc.indexOf('fail') !== -1 || lc.indexOf('crash') !== -1) {
+                if (p.error_code || p.errorCode)   bits.push(p.error_code || p.errorCode);
+                if (p.endpoint)                    bits.push(p.endpoint);
+                if (p.error_message)               bits.push(String(p.error_message).slice(0, 80));
+            } else if (lc === 'screen_view' || lc === 'home_open') {
+                if (p.screen_name) bits.push(p.screen_name);
+            }
+            return bits.length
+                ? `<span style="color:#94a3b8">${escapeHtml(bits.join(' · '))}</span>`
+                : '<span style="color:#475569">—</span>';
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
         // Health Score Bar  (called from loadOverview with data object)
         // ─────────────────────────────────────────────────────────────────────
 
@@ -3863,7 +4908,7 @@
                 const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
                 return `<tr>
                     <td><span class="rank-badge ${r}">${medal}</span></td>
-                    <td style="font-family:monospace;font-size:0.82rem">${p.user_id}</td>
+                    <td><a class="pp-uid-link" onclick="openPlayerProfile('${escapeHtml(p.user_id)}')" title="Open Player 360">${escapeHtml(p.user_id)}</a></td>
                     <td><strong>${formatNumber(p.total_events)}</strong></td>
                     <td>${formatNumber(p.quiz_completed)}</td>
                     <td>${formatNumber(p.daily_quizzes)}</td>
@@ -3916,6 +4961,7 @@
                 // R → force refresh  |  Escape → close fullscreen modal
                 if (e.key === 'Escape') {
                     closeFullscreen();
+                    closePlayerProfile();
                     document.querySelectorAll('#toast-container .toast').forEach(t => t.remove());
                     return;
                 }
