@@ -30,23 +30,27 @@ FROM heroiclabs/nakama-pluginbuilder:3.35.0 AS builder
 
 WORKDIR /build
 
-# Copy go.mod AND the source files together before running `go mod tidy`.
-#
-# Why not copy go.mod alone first (for layer caching)? `go mod tidy` run in a
-# directory with a go.mod but zero .go files interprets "nothing imports
-# anything" literally and PRUNES every require line out of go.mod — you can
-# see this in the AWS CodeBuild log as: `go: warning: "all" matched no
-# packages`. The later `go build` then fails with
-# `no required module provides package github.com/heroiclabs/nakama-common/runtime`.
-# Local builds masked this because Docker's layer cache kept the old go.mod;
-# `docker build --no-cache` (CI) exposed it.
-#
-# We intentionally don't commit a go.sum — `go mod tidy` regenerates it using
-# the toolchain inside the pluginbuilder image, which guarantees the versions
-# match what the Nakama plugin ABI expects. A committed go.sum would need to
-# be regenerated with every nakama-common bump anyway.
-COPY go-plugin/go.mod ./
-COPY go-plugin/*.go ./
+# Copy the plugin source files. The dev compose stack uses the prebuilt
+# heroiclabs/nakama:3.35.0 server image which is ABI-coupled to
+# nakama-common v1.44.0, so we materialise a one-off go.mod here pinning
+# that exact version (and pull every transitive dep from the proxy via
+# `go mod tidy`). Production uses a different path — the same source
+# files are picked up automatically by Dockerfile.production stage 3
+# (`for dir in data/modules/*/`) and built against the parent module's
+# vendor tree, which guarantees ABI parity with the from-source server.
+COPY data/modules/analytics_metrics/*.go ./
+RUN cat > go.mod <<'EOF'
+module github.com/ivx/nakama-analytics-metrics
+
+// Pinned to v1.44.0 because the dev compose server is heroiclabs/nakama:3.35.0
+// which ships v1.44.0. Bump in lockstep with the pluginbuilder tag above.
+go 1.25
+
+require (
+    github.com/heroiclabs/nakama-common v1.44.0
+    github.com/prometheus/client_golang v1.20.5
+)
+EOF
 RUN go mod tidy
 
 # --trimpath        : reproducible builds, strips local paths
