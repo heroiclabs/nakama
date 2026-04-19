@@ -23805,24 +23805,15 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.error('[GameRegistry] Failed to initialize game registry: ' + err.message);
     }
 
-    // Daily sync is invoked via the `sync_game_registry` RPC (see registration above).
+    // Daily sync is invoked via the `sync_game_registry` RPC (registered above and
+    // overridden by the TypeScript LegacyGameRegistry module with the real impl).
     // For automated scheduling, configure an external cron (e.g. CronJob in K8s) to
     // call that RPC on a schedule — Goja runtime does not support in-process cron and
     // `registerMatch` is for multiplayer authority, not scheduled jobs.
-
-    // Trigger initial sync on startup
-    try {
-        logger.info('[GameRegistry] Triggering initial sync on startup...');
-        var syncResult = rpcSyncGameRegistry({}, logger, nk, "{}");
-        var parsed = JSON.parse(syncResult);
-        if (parsed.success) {
-            logger.info('[GameRegistry] Startup sync completed: ' + parsed.gamesSync + ' games synced');
-        } else {
-            logger.warn('[GameRegistry] Startup sync failed: ' + parsed.error);
-        }
-    } catch (err) {
-        logger.warn('[GameRegistry] Startup sync error: ' + err.message);
-    }
+    //
+    // NOTE: A previous in-process startup sync was removed because it directly called
+    // the hoisted `rpcSyncGameRegistry` stub from this file (which always returns
+    // "not implemented"), producing spurious P2 warnings on every pod start.
 
     // Register Daily Rewards RPCs
     try {
