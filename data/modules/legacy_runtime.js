@@ -23805,27 +23805,10 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.error('[GameRegistry] Failed to initialize game registry: ' + err.message);
     }
 
-    // Schedule daily game registry sync (runs at 2 AM UTC daily)
-    try {
-        logger.info('[GameRegistry] Scheduling daily sync job...');
-        initializer.registerMatch('', {
-            matchInit: emptyMatchInit,
-            matchJoinAttempt: emptyMatchJoinAttempt,
-            matchJoin: emptyMatchJoin,
-            matchLeave: emptyMatchLeave,
-            matchLoop: emptyMatchLoop,
-            matchTerminate: emptyMatchTerminate,
-            matchSignal: emptyMatchSignal
-        });
-        // Register daily cron job for game registry sync
-        // Runs daily at 2 AM UTC: "0 2 * * *"
-        var cronExpr = "0 2 * * *";
-        logger.info('[GameRegistry] Note: To enable daily sync, configure cron in server config');
-        logger.info('[GameRegistry] Cron expression for daily 2 AM UTC: ' + cronExpr);
-        logger.info('[GameRegistry] Call sync_game_registry RPC manually or on deployment');
-    } catch (err) {
-        logger.error('[GameRegistry] Failed to setup scheduled sync: ' + err.message);
-    }
+    // Daily sync is invoked via the `sync_game_registry` RPC (see registration above).
+    // For automated scheduling, configure an external cron (e.g. CronJob in K8s) to
+    // call that RPC on a schedule — Goja runtime does not support in-process cron and
+    // `registerMatch` is for multiplayer authority, not scheduled jobs.
 
     // Trigger initial sync on startup
     try {
