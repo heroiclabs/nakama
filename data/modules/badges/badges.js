@@ -52,7 +52,13 @@ var rpcBadgesGetAll = function(ctx, logger, nk, payload) {
         var data = JSON.parse(payload || '{}');
         
         if (!data.game_id) {
-            throw Error("game_id is required");
+            logger.warn("[Badges] Get all called without game_id (client validation issue)");
+            return JSON.stringify({
+                success: false,
+                error: "game_id is required",
+                badges: [],
+                progress: {}
+            });
         }
         
         var userId = ctx.userId;
