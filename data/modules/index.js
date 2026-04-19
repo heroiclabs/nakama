@@ -7740,7 +7740,12 @@ var rpcBadgesCheckEvent = function(ctx, logger, nk, payload) {
         var data = JSON.parse(payload || '{}');
         
         if (!data.game_id || !data.event_type) {
-            throw Error("game_id and event_type are required");
+            var __callerId = (ctx && ctx.userId) ? ctx.userId : "anonymous";
+            logger.warn("[Badges] Check event missing required fields (caller=" + __callerId + " game_id=" + (data.game_id || "<missing>") + " event_type=" + (data.event_type || "<missing>") + ")");
+            return JSON.stringify({
+                success: false,
+                error: "game_id and event_type are required"
+            });
         }
         
         var userId = ctx.userId;
@@ -56765,7 +56770,12 @@ function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
         var data = JSON.parse(payload || '{}');
 
         if (!data.game_id || !data.event_type) {
-            throw Error("game_id and event_type are required");
+            var __callerId = (ctx && ctx.userId) ? ctx.userId : "anonymous";
+            logger.warn("[Badges] Check event missing required fields (caller=" + __callerId + " game_id=" + (data.game_id || "<missing>") + " event_type=" + (data.event_type || "<missing>") + ")");
+            return JSON.stringify({
+                success: false,
+                error: "game_id and event_type are required"
+            });
         }
 
         var userId = ctx.userId;
