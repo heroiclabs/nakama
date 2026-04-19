@@ -87,6 +87,61 @@ RUN set -eu; \
     echo "Plugins built:"; ls -la /out/ || true
 
 # ---------------------------------------------------------------------------
+# Stage 3b: build the in-tree Go plugin under go-plugin/ (analytics_metrics).
+#
+# Why this stage exists separately from Stage 3:
+#   The go-plugin/ directory is a *separate* Go module (its own go.mod) that
+#   has historically targeted the heroiclabs/nakama-pluginbuilder:3.35.0
+#   image (used by the dev compose stack). For PRODUCTION we cannot reuse
+#   that path because:
+#     (a) The production server binary is built from THIS repo's source with
+#         nakama-common v1.44.3-0.20260302... — NOT the v1.44.0 the plugin's
+#         own go.mod pins. Go plugins are strictly ABI-coupled; if the plugin
+#         is compiled against a different version of any shared package it
+#         fails to dlopen at startup with "plugin was built with a different
+#         version of package …" → CrashLoopBackOff. (Exact failure mode the
+#         repo recovered from on 2026-04-15, see commit 3e71953d.)
+#     (b) The plugin imports prometheus/client_golang/promauto which is NOT
+#         vendored in the parent module, so we cannot just `cd go-plugin &&
+#         go build -mod=vendor` against the parent vendor tree.
+#
+# What this stage does:
+#   1. Reuses the gomod stage (golang:1.25.5-bookworm, CGO=1, glibc) — same
+#      toolchain + libc as the server binary in Stage 2.
+#   2. Forcibly upgrades the plugin's go.mod to use the EXACT nakama-common
+#      and prometheus/client_golang versions the server resolves (read from
+#      the parent go.mod / go.sum — see ARG values below). This is the
+#      single most important step for ABI safety.
+#   3. Runs `go mod tidy` + `go mod download` against the public proxy to
+#      hydrate the new module set (this is independent of vendor/).
+#   4. Builds with `-buildmode=plugin` and emits /out/analytics_metrics.so.
+#   5. The final stage COPYs the .so into /nakama/data/modules/ so Nakama's
+#      runtime path picks it up via plugin auto-discovery.
+#
+# Maintenance: when bumping nakama-common in the parent go.mod, also bump
+# the value below. CI will then build a fresh ABI-aligned plugin.
+# ---------------------------------------------------------------------------
+FROM gomod AS goplugin
+
+# These MUST match what the server (Stage 2) actually links against. They
+# are sourced from the parent go.mod / go.sum at the time of writing.
+ARG NAKAMA_COMMON_VERSION=v1.44.3-0.20260302104831-c0b688e207fb
+ARG PROM_CLIENT_GOLANG_VERSION=v1.23.2
+
+WORKDIR /src/go-plugin
+COPY go-plugin/ ./
+
+# Override the plugin's pinned versions with the server-aligned versions.
+# This is what guarantees `dlopen` succeeds at runtime.
+RUN go mod edit -require=github.com/heroiclabs/nakama-common@${NAKAMA_COMMON_VERSION} \
+ && go mod edit -require=github.com/prometheus/client_golang@${PROM_CLIENT_GOLANG_VERSION} \
+ && GOPROXY=https://proxy.golang.org,direct go mod tidy \
+ && mkdir -p /out \
+ && echo ">>> Building Go plugin: analytics_metrics (ABI-aligned to server)" \
+ && CGO_ENABLED=1 go build -trimpath -buildmode=plugin -o /out/analytics_metrics.so . \
+ && ls -la /out/
+
+# ---------------------------------------------------------------------------
 # Stage 4: compile TypeScript modules to JavaScript (existing behaviour)
 # ---------------------------------------------------------------------------
 FROM node:${NODE_VERSION}-alpine AS modules
@@ -110,9 +165,10 @@ RUN apt-get update \
 
 WORKDIR /nakama
 
-COPY --from=server  /out/nakama                /nakama/nakama
-COPY --from=modules /build/modules             /nakama/data/modules
-COPY --from=plugins /out/                      /nakama/data/modules/
+COPY --from=server   /out/nakama                /nakama/nakama
+COPY --from=modules  /build/modules             /nakama/data/modules
+COPY --from=plugins  /out/                      /nakama/data/modules/
+COPY --from=goplugin /out/analytics_metrics.so  /nakama/data/modules/analytics_metrics.so
 
 # Image metadata so we can inspect what's inside without running it.
 ARG IMAGE_VERSION=dev

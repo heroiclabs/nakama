@@ -159,7 +159,14 @@ func InitModule(ctx context.Context, logger runtime.Logger, _ *sql.DB, nk runtim
 	// derived from storage-side state.
 	go freshnessLoop(ctx, logger, nk)
 
-	logger.Info("[analytics_metrics_go] plugin ready — metrics registered, freshness loop started")
+	// Discord alert scheduler — periodic (default 6h) Quizverse RPC analytics
+	// summary posted to the same Discord channel the IVX backend uses. Lives
+	// in discord_alerts.go and is fully self-contained: it scrapes our own
+	// :9100/metrics, diffs against the prior snapshot, and posts an embed.
+	// Best-effort: any failure is logged but never affects request handling.
+	startDiscordAlertScheduler(ctx, logger)
+
+	logger.Info("[analytics_metrics_go] plugin ready — metrics registered, freshness loop started, discord alerts scheduled")
 	return nil
 }
 
