@@ -311,6 +311,11 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 			return "", "", false, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
+		// If there already is an existing email account, fail. Why was this never added until now?
+		if create {
+			return "", "", false, status.Error(codes.AlreadyExists, "An account already exists with this email address.")
+		}
+
 		// Check if password matches.
 		err = bcrypt.CompareHashAndPassword(dbPassword, []byte(password))
 		if err != nil {
