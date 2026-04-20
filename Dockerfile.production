@@ -35,8 +35,13 @@ ARG NODE_VERSION=18
 
 # ---------------------------------------------------------------------------
 # Stage 1: shared go-mod cache (server + plugins both consume from here)
+#
+# Base images are pulled from AWS ECR Public Gallery (mirrors of Docker Hub
+# official images) instead of registry-1.docker.io to avoid the unauthenticated
+# Docker Hub pull rate limit (HTTP 429 toomanyrequests) that intermittently
+# breaks CodeBuild from shared NAT IPs.
 # ---------------------------------------------------------------------------
-FROM golang:${GO_VERSION}-bookworm AS gomod
+FROM public.ecr.aws/docker/library/golang:${GO_VERSION}-bookworm AS gomod
 
 ENV CGO_ENABLED=1 \
     GO111MODULE=on \
@@ -89,7 +94,7 @@ RUN set -eu; \
 # ---------------------------------------------------------------------------
 # Stage 4: compile TypeScript modules to JavaScript (existing behaviour)
 # ---------------------------------------------------------------------------
-FROM node:${NODE_VERSION}-alpine AS modules
+FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-alpine AS modules
 WORKDIR /build
 COPY data/modules /build/modules
 WORKDIR /build/modules
@@ -101,7 +106,7 @@ RUN if [ -f package.json ]; then \
 # ---------------------------------------------------------------------------
 # Stage 5: final runtime — debian-slim (glibc) so dlopen of .so plugins works
 # ---------------------------------------------------------------------------
-FROM debian:bookworm-slim
+FROM public.ecr.aws/docker/library/debian:bookworm-slim
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates tzdata curl \
