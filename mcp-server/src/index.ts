@@ -23,6 +23,7 @@ import { registerGameMetricsTools } from "./tools/game_metrics.js";
 import { registerGiftingTools } from "./tools/gifting.js";
 import { registerChatModerationTools } from "./tools/chat_moderation.js";
 import { registerAiPlayerTools } from "./tools/ai_player.js";
+import { registerAnalyticsAlertsTools } from "./tools/analytics_alerts.js";
 import { registerResources } from "./resources.js";
 
 const config = loadConfig();
@@ -56,6 +57,7 @@ registerGameMetricsTools(server, consoleClient, apiClient);
 registerGiftingTools(server, consoleClient, apiClient);
 registerChatModerationTools(server, consoleClient, apiClient);
 registerAiPlayerTools(server, consoleClient, apiClient);
+registerAnalyticsAlertsTools(server, apiClient);
 registerResources(server, consoleClient, apiClient);
 
 const transport = new StdioServerTransport();
