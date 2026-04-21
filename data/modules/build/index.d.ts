@@ -427,6 +427,31 @@ declare namespace FantasyTypes {
     }
     function defaultScoringConfig(seasonId: string): ScoringConfig;
 }
+declare namespace IntelliverseFriends {
+    /**
+     * Ensures the Postgres extension and indexes that power tiered+fuzzy
+     * search exist. Safe to call on every server boot — every statement
+     * uses IF NOT EXISTS.
+     *
+     * What it creates:
+     *   1. The `pg_trgm` extension (Postgres bundled contrib module).
+     *   2. A GIN trigram index on `users.username`.
+     *   3. A GIN trigram index on `users.display_name`.
+     *
+     * Failure modes (all degrade gracefully — never crash the runtime):
+     *   - CREATE EXTENSION requires a Postgres superuser. If the runtime DB
+     *     user lacks that, the extension call fails with permission denied.
+     *     We log a one-time WARN and the RPC handler auto-falls-back to
+     *     ILIKE-only search (still indexed once the GIN indexes exist).
+     *   - If pg_trgm is genuinely absent the GIN-index calls will also fail
+     *     because they reference `gin_trgm_ops`. Same degradation path.
+     */
+    function bootstrapDatabase(nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace IntelliverseFriendsList {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace HiroAchievements {
     function getConfig(nk: nkruntime.Nakama): Hiro.AchievementsConfig;
     function addProgress(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, achievementId: string, amount: number, gameId?: string): Hiro.UserAchievementProgress | null;

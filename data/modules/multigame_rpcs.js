@@ -1024,18 +1024,25 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
 
 /**
  * RPC: quizverse_find_friends
- * Production-ready player search with partial matching and relationship enrichment.
  *
- * Features:
- *   1. Case-insensitive partial match on username AND display_name via SQL ILIKE
- *   2. Excludes self, disabled, banned, and blocked accounts
- *   3. Enriches every result with relationshipStatus (friend / blocked / pending_sent / pending_received / none)
- *   4. Returns avatarUrl, online status, createTime
- *   5. SQL-injection safe via parameterised queries
- *   6. Sanitises query input (strips wildcards to prevent rogue LIKE patterns)
+ * ⚠ DEAD CODE — superseded by data/modules/friends/find_friends.js ⚠
  *
- * Payload: { gameID: "quizverse", query: "carlos", limit: 20 }
- * Response: { success: true, data: { results: [...], query: "...", count: N, searcherId: "..." } }
+ * This function was never wired into Nakama: it was registered via the
+ * dynamic loop in registerMultiGameRPCs() (`initializer.registerRpc(rpc.id,
+ * rpc.handler)`), but postbuild.js can only statically detect registerRpc
+ * calls with literal-string RPC ids (see postbuild's `rpcPattern`). So
+ * Nakama's AST walker never saw this registration and the handler was
+ * orphaned from day one.
+ *
+ * The canonical implementation now lives in friends/find_friends.js,
+ * which is auto-discovered by postbuild AND uses literal-string
+ * registerRpc calls so the AST walker actually picks it up.
+ *
+ * The function body is left intact only because the array entry at
+ * `quizverse_find_friends` further below references this symbol — also
+ * dead code, also commented out alongside the new module pointer.
+ *
+ * DO NOT MODIFY — make changes in friends/find_friends.js.
  */
 function quizverseFindFriends(context, logger, nk, payload) {
     try {
@@ -1334,7 +1341,8 @@ function registerMultiGameRPCs(initializer, logger) {
         { id: 'quizverse_get_leaderboard', handler: quizverseGetLeaderboard },
         { id: 'quizverse_join_or_create_match', handler: quizverseJoinOrCreateMatch },
         { id: 'quizverse_claim_daily_reward', handler: quizverseClaimDailyReward },
-        { id: 'quizverse_find_friends', handler: quizverseFindFriends },
+        // DISABLED: superseded by data/modules/friends/find_friends.js
+        // { id: 'quizverse_find_friends', handler: quizverseFindFriends },
         { id: 'quizverse_save_player_data', handler: quizverseSavePlayerData },
         { id: 'quizverse_load_player_data', handler: quizverseLoadPlayerData },
         
@@ -1350,7 +1358,8 @@ function registerMultiGameRPCs(initializer, logger) {
         { id: 'lasttolive_get_leaderboard', handler: lasttoliveGetLeaderboard },
         { id: 'lasttolive_join_or_create_match', handler: lasttoliveJoinOrCreateMatch },
         { id: 'lasttolive_claim_daily_reward', handler: lasttoliveClaimDailyReward },
-        { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
+        // DISABLED: superseded by data/modules/friends/find_friends.js (alias)
+        // { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
         { id: 'lasttolive_save_player_data', handler: lasttolliveSavePlayerData },
         { id: 'lasttolive_load_player_data', handler: lasttoliveLoadPlayerData }
     ];

@@ -99,6 +99,13 @@ namespace LegacyMultiGame {
     return { streak: state.streak, reward: rewardAmount };
   }
 
+  // ⚠ DEAD CODE — superseded by src/friends/find_friends.ts ⚠
+  // The per-game `<game>_find_friends` registration has been removed in
+  // favour of the canonical cross-game `intelliverse_find_friends` RPC.
+  // The function body is kept only so the surrounding namespace continues
+  // to compile (TS6133 unused-warning is OK because this is in an outFile
+  // bundle). It is no longer reachable from any registered RPC.
+  // DO NOT MODIFY. Make changes in src/friends/find_friends.ts.
   function findFriends(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: any, userId: string, gId: string): any {
     var query = (data.query || "").trim();
     if (query.length < 1) throw new Error("Query must be at least 1 character");
@@ -511,7 +518,18 @@ namespace LegacyMultiGame {
     initializer.registerRpc(prefix + "get_leaderboard", gameRpcHandler(gameId, getLeaderboard));
     initializer.registerRpc(prefix + "join_or_create_match", gameRpcHandler(gameId, joinOrCreateMatch));
     initializer.registerRpc(prefix + "claim_daily_reward", gameRpcHandler(gameId, claimDailyReward));
-    initializer.registerRpc(prefix + "find_friends", gameRpcHandler(gameId, findFriends));
+    // ── REMOVED (HARD RENAME) ───────────────────────────────────────────
+    //   The per-game `<game>_find_friends` registration was here. It has
+    //   been replaced by the cross-game `intelliverse_find_friends` RPC,
+    //   registered in main.ts via IntelliverseFriends.register().
+    //   Implementation: src/friends/find_friends.ts
+    //
+    //   The literal registration line has been DELETED (not just commented)
+    //   because postbuild.js performs text-based pattern matching for
+    //   dynamic RPC suffixes — even inside `//` comments — which would
+    //   re-emit `quizverse_find_friends` and `lasttolive_find_friends`
+    //   into the bundle. See git blame for the original line.
+    // ────────────────────────────────────────────────────────────────────
     initializer.registerRpc(prefix + "save_player_data", gameRpcHandler(gameId, savePlayerData));
     initializer.registerRpc(prefix + "load_player_data", gameRpcHandler(gameId, loadPlayerData));
     initializer.registerRpc(prefix + "get_item_catalog", gameRpcHandler(gameId, getItemCatalog));

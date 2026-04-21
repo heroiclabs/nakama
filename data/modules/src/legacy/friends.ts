@@ -1,3 +1,44 @@
+// ============================================================================
+// src/legacy/friends.ts — Legacy friend mutation RPCs (block/unblock/remove)
+// ============================================================================
+// HISTORY
+// -------
+// This namespace used to register six friend RPCs: friends_block, friends_unblock,
+// friends_remove, friends_list, friends_challenge_user, friends_spectate.
+//
+// Phase-3a moved friends_challenge_user + friends_spectate ownership to
+// data/modules/friends/friend_challenges.js (canonical lifecycle module).
+// Their dead handlers were already physically removed from this file in
+// that pass.
+//
+// Phase-4 C1 moves friends_list ownership to src/friends/friends_list.ts
+// (canonical flat-shape module with presence + relationship enrichment).
+// The dead rpcFriendsList handler is removed here too.
+//
+// What remains
+// ------------
+// Three thin wrappers around Nakama's built-in friend-graph mutation APIs.
+// These are intentionally minimal — they just shape the response envelope
+// and merge the `userId`/`username` convenience args with the array forms.
+// We keep them in TypeScript (not in the legacy JS bridge) because:
+//   1) They're small enough that maintenance cost is zero.
+//   2) The TS path wins precedence in postbuild merging, so any JS twin
+//      in data/modules/friends/friends.js is silently shadowed — keeping
+//      them in TS is the cleanest way to make THIS file the source of truth.
+//
+// Notification follow-ups
+// -----------------------
+// Currently these handlers do NOT emit notifications. That is intentional:
+//   - friends_block: silent by product policy (don't tell the blocked user).
+//   - friends_unblock: silent (no user-facing event).
+//   - friends_remove: silent (the removed friend simply no longer sees you
+//     in their list; we deliberately do not notify them — most social apps
+//     follow the same convention).
+// If product wants to change this, add `sendFriendsNotification` calls using
+// `FRIEND_REMOVED` (code 5) / `FRIEND_BLOCKED` (code 6) — both already
+// reserved in friends/notification_codes.js.
+// ============================================================================
+
 namespace LegacyFriends {
 
   function rpcFriendsBlock(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -57,68 +98,14 @@ namespace LegacyFriends {
     }
   }
 
-  function rpcFriendsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    try {
-      var userId = RpcHelpers.requireUserId(ctx);
-      var data = RpcHelpers.parseRpcPayload(payload);
-      var limit = data.limit || 100;
-      var state = data.state;
-      var cursor = data.cursor || "";
-      var result = nk.friendsList(userId, limit, state, cursor);
-      return RpcHelpers.successResponse({
-        friends: result.friends || [],
-        cursor: result.cursor || ""
-      });
-    } catch (e: any) {
-      return RpcHelpers.errorResponse(e.message || "Failed to list friends");
-    }
-  }
-
-  function rpcFriendsChallengeUser(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    try {
-      var userId = RpcHelpers.requireUserId(ctx);
-      var username = ctx.username || "";
-      var data = RpcHelpers.parseRpcPayload(payload);
-      var targetUserId = data.userId || data.targetUserId;
-      if (!targetUserId) return RpcHelpers.errorResponse("userId required");
-      nk.notificationsSend([{
-        userId: targetUserId,
-        subject: "friend_challenge",
-        content: { senderId: userId, senderUsername: username, gameId: data.gameId || "", matchId: data.matchId || "" },
-        code: 1,
-        persistent: false
-      }]);
-      return RpcHelpers.successResponse({ success: true });
-    } catch (e: any) {
-      return RpcHelpers.errorResponse(e.message || "Failed to send challenge");
-    }
-  }
-
-  function rpcFriendsSpectate(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    try {
-      var userId = RpcHelpers.requireUserId(ctx);
-      var data = RpcHelpers.parseRpcPayload(payload);
-      var targetUserId = data.userId || data.targetUserId;
-      if (!targetUserId) return RpcHelpers.errorResponse("userId required");
-      nk.notificationsSend([{
-        userId: targetUserId,
-        subject: "friend_spectate",
-        content: { spectatorId: userId, matchId: data.matchId || "" },
-        code: 2,
-        persistent: false
-      }]);
-      return RpcHelpers.successResponse({ success: true });
-    } catch (e: any) {
-      return RpcHelpers.errorResponse(e.message || "Failed to send spectate request");
-    }
-  }
-
   export function register(initializer: nkruntime.Initializer): void {
-    initializer.registerRpc("friends_block", rpcFriendsBlock);
+    initializer.registerRpc("friends_block",   rpcFriendsBlock);
     initializer.registerRpc("friends_unblock", rpcFriendsUnblock);
-    initializer.registerRpc("friends_remove", rpcFriendsRemove);
-    initializer.registerRpc("friends_list", rpcFriendsList);
-    initializer.registerRpc("friends_challenge_user", rpcFriendsChallengeUser);
-    initializer.registerRpc("friends_spectate", rpcFriendsSpectate);
+    initializer.registerRpc("friends_remove",  rpcFriendsRemove);
+    // Phase-3a: friends_challenge_user + friends_spectate are registered by
+    //   data/modules/friends/friend_challenges.js (canonical lifecycle module).
+    // Phase-4 C1: friends_list is registered by src/friends/friends_list.ts
+    //   (canonical flat-shape module). Lines physically removed (not commented)
+    //   so postbuild's textual regex doesn't pick them up.
   }
 }

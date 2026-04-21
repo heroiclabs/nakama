@@ -3973,6 +3973,34 @@ function rpcGetFriendLeaderboard(ctx, logger, nk, payload) { return getFriendLea
 
 // Import utils
 
+// ════════════════════════════════════════════════════════════════════════════
+// ⚠ DEAD CODE — kept for blame/diff continuity ONLY ⚠
+// ════════════════════════════════════════════════════════════════════════════
+// The send/accept/decline-friend-invite RPCs that historically lived here
+// (and their previously-active registrations a few thousand lines below
+// in the InitModule body) have been REPLACED by the canonical, modular
+// implementation at:
+//
+//     data/modules/friends/friend_invites.js
+//
+// The replacement fixes the "split-brain" friend-graph bug — the legacy
+// sendFriendInvite() below NEVER called nk.friendsAdd(), so Nakama's
+// native user_friends table was permanently out-of-sync with the custom
+// friend_invites storage rows. Every downstream system that read
+// nk.friendsList (friends_list, friend_quests, friend_streaks,
+// friends_challenge_user mutual-friend check, find-friends relationship
+// enrichment) saw the wrong picture as a result.
+//
+// The function bodies below are NO LONGER REGISTERED but are left in
+// place because:
+//   1. They preserve historical context for git blame.
+//   2. Removing ~315 lines of dead code in this monolith risks hidden
+//      reference drift (other half-broken code paths may still call
+//      sendFriendInvite() directly as a JS function).
+//
+// DO NOT MODIFY THESE FUNCTIONS. Make changes in friends/friend_invites.js.
+// ════════════════════════════════════════════════════════════════════════════
+
 /**
  * RPC: send_friend_invite
  * Sends a friend invite to another user
@@ -10579,27 +10607,24 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
         logger.error('âœ— Failed to register get_friend_leaderboard: ' + err.message);
     }
 
-    // Register social_features RPCs
-    try {
-        initializer.registerRpc('send_friend_invite', sendFriendInvite);
-        logger.info('âœ“ Registered RPC: send_friend_invite');
-    } catch (err) {
-        logger.error('âœ— Failed to register send_friend_invite: ' + err.message);
-    }
-
-    try {
-        initializer.registerRpc('accept_friend_invite', acceptFriendInvite);
-        logger.info('âœ“ Registered RPC: accept_friend_invite');
-    } catch (err) {
-        logger.error('âœ— Failed to register accept_friend_invite: ' + err.message);
-    }
-
-    try {
-        initializer.registerRpc('decline_friend_invite', declineFriendInvite);
-        logger.info('âœ“ Registered RPC: decline_friend_invite');
-    } catch (err) {
-        logger.error('âœ— Failed to register decline_friend_invite: ' + err.message);
-    }
+    // ── DISABLED: legacy social_features friend-invite RPC registrations ──
+    // The send / accept / decline friend invite RPCs are now owned by
+    //   data/modules/friends/friend_invites.js
+    // which fixes the "split-brain" friend-graph bug (legacy send never
+    // called nk.friendsAdd, leaving Nakama's user_friends table empty).
+    //
+    // The registerRpc call lines have been physically REMOVED (not merely
+    // line-commented) because postbuild.js performs TEXT-based regex
+    // matching that does not respect // comments — leaving even a
+    // commented copy of `registerRpc("send_friend_invite", ...)` would
+    // get rewritten into a guarded `__rpc_send_friend_invite = ... || (...)`
+    // global-scope replay statement and the legacy handler would silently
+    // re-bind first, defeating the new module.
+    //
+    // The function bodies (sendFriendInvite / acceptFriendInvite /
+    // declineFriendInvite) are still defined ~lines 3980-4293 below as
+    // dead code with their own DEPRECATED header; they are never called.
+    // ─────────────────────────────────────────────────────────────────────
 
     try {
         initializer.registerRpc('get_notifications', getNotifications);
@@ -13082,14 +13107,23 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
 
 /**
  * RPC: quizverse_find_friends
- * Production-ready player search with partial matching and relationship enrichment.
  *
- * Features:
- *   1. Case-insensitive partial match on username AND display_name via SQL ILIKE
- *   2. Excludes self, disabled, banned, and blocked accounts
- *   3. Enriches every result with relationshipStatus
- *   4. Returns avatarUrl, online status, createTime
- *   5. SQL-injection safe via parameterised queries + LIKE wildcard sanitisation
+ * ⚠ DEAD CODE — superseded by data/modules/friends/find_friends.js ⚠
+ *
+ * The function below was the historical "good" implementation, but it
+ * was unreachable because a `var quizverseFindFriends = function(...)`
+ * STUB declared further down in this file silently overwrote this
+ * declaration via JavaScript var-hoisting. The stub returned
+ * { error: "not implemented" } and that is what callers received.
+ *
+ * The canonical implementation now lives in find_friends.js with extra
+ * production hardening: real online status from player_presence,
+ * pagination cursor, stronger input sanitisation, and standardised
+ * error codes. The legacy registerRpc('quizverse_find_friends', ...)
+ * call has been commented out so the new module wins the postbuild
+ * "first-set" race for __rpc_quizverse_find_friends.
+ *
+ * DO NOT MODIFY — make changes in friends/find_friends.js.
  */
 function quizverseFindFriends(context, logger, nk, payload) {
     try {
@@ -23516,11 +23550,18 @@ var quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
     logger.warn('quizverseClaimDailyReward called but not implemented');
     return JSON.stringify({ error: 'quizverseClaimDailyReward not implemented', success: false });
 };
-// Stub: quizverseFindFriends - TODO: implement actual function
-var quizverseFindFriends = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseFindFriends called but not implemented');
-    return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
-};
+// ── DISABLED: legacy quizverseFindFriends stub ──────────────────────────────
+// This `var` assignment was silently OVERWRITING the real function declared
+// at line ~13094 via JavaScript's hoist-then-assign behaviour for `var`,
+// so every call to quizverse_find_friends returned `not implemented`.
+// The canonical implementation now lives in:
+//   data/modules/friends/find_friends.js
+// We keep the lines commented (rather than deleting) for blame/diff clarity.
+// ────────────────────────────────────────────────────────────────────────────
+// var quizverseFindFriends = function(ctx, logger, nk, payload) {
+//     logger.warn('quizverseFindFriends called but not implemented');
+//     return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
+// };
 // Stub: quizverseSavePlayerData - TODO: implement actual function
 var quizverseSavePlayerData = function(ctx, logger, nk, payload) {
     logger.warn('quizverseSavePlayerData called but not implemented');
@@ -23935,11 +23976,12 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[Friends] Registered RPC: friends_remove');
         initializer.registerRpc('friends_list', rpcFriendsList);
         logger.info('[Friends] Registered RPC: friends_list');
-        initializer.registerRpc('friends_challenge_user', rpcFriendsChallengeUser);
-        logger.info('[Friends] Registered RPC: friends_challenge_user');
-        initializer.registerRpc('friends_spectate', rpcFriendsSpectate);
-        logger.info('[Friends] Registered RPC: friends_spectate');
-        logger.info('[Friends] Successfully registered 6 Enhanced Friends RPCs');
+        // ── Phase 3a: friends_challenge_user + friends_spectate are now
+        //    registered by data/modules/friends/friend_challenges.js with
+        //    proper mutual-friend gates, rate limits, lifecycle RPCs and
+        //    canonical notification codes.  Lines physically removed (not
+        //    just commented) so postbuild's regex doesn't pick them up.
+        logger.info('[Friends] Successfully registered 4 Enhanced Friends RPCs (challenge+spectate moved to friend_challenges.js)');
     } catch (err) {
         logger.error('[Friends] Failed to initialize: ' + err.message);
     }
@@ -23984,9 +24026,12 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         try { initializer.registerRpc('create_all_leaderboards_with_friends', createAllLeaderboardsWithFriends); } catch (err) { }
         try { initializer.registerRpc('submit_score_with_friends_sync', submitScoreWithFriendsSync); } catch (err) { }
         try { initializer.registerRpc('get_friend_leaderboard', getFriendLeaderboard); } catch (err) { }
-        try { initializer.registerRpc('send_friend_invite', sendFriendInvite); } catch (err) { }
-        try { initializer.registerRpc('accept_friend_invite', acceptFriendInvite); } catch (err) { }
-        try { initializer.registerRpc('decline_friend_invite', declineFriendInvite); } catch (err) { }
+        // DISABLED: friend-invite RPCs are now owned by
+        //   data/modules/friends/friend_invites.js
+        // (split-brain fix — legacy send never called nk.friendsAdd).
+        // The literal registerRpc call lines have been REMOVED from this
+        // block because postbuild.js does text-based scanning that
+        // re-binds even commented-out registrations.
         try { initializer.registerRpc('get_notifications', getNotifications); } catch (err) { }
 
     } catch (err) {
@@ -24103,7 +24148,8 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             { id: 'quizverse_get_leaderboard', handler: quizverseGetLeaderboard },
             { id: 'quizverse_join_or_create_match', handler: quizverseJoinOrCreateMatch },
             { id: 'quizverse_claim_daily_reward', handler: quizverseClaimDailyReward },
-            { id: 'quizverse_find_friends', handler: quizverseFindFriends },
+            // DISABLED: legacy duplicate — see data/modules/friends/find_friends.js
+            // { id: 'quizverse_find_friends', handler: quizverseFindFriends },
             { id: 'quizverse_save_player_data', handler: quizverseSavePlayerData },
             { id: 'quizverse_load_player_data', handler: quizverseLoadPlayerData },
 
@@ -24143,7 +24189,8 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             { id: 'lasttolive_get_leaderboard', handler: lasttoliveGetLeaderboard },
             { id: 'lasttolive_join_or_create_match', handler: lasttoliveJoinOrCreateMatch },
             { id: 'lasttolive_claim_daily_reward', handler: lasttoliveClaimDailyReward },
-            { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
+            // DISABLED: alias also owned by data/modules/friends/find_friends.js
+            // { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
             { id: 'lasttolive_save_player_data', handler: lasttolliveSavePlayerData },
             { id: 'lasttolive_load_player_data', handler: lasttoliveLoadPlayerData },
 
@@ -24186,7 +24233,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         initializer.registerRpc('quizverse_get_leaderboard', quizverseGetLeaderboard);
         initializer.registerRpc('quizverse_join_or_create_match', quizverseJoinOrCreateMatch);
         initializer.registerRpc('quizverse_claim_daily_reward', quizverseClaimDailyReward);
-        initializer.registerRpc('quizverse_find_friends', quizverseFindFriends);
+        // DISABLED: quizverse_find_friends is now owned by
+        //   data/modules/friends/find_friends.js
+        // The literal registerRpc call has been REMOVED (not commented) —
+        // postbuild.js does text-based matching that re-binds even
+        // commented-out registrations.
         initializer.registerRpc('quizverse_save_player_data', quizverseSavePlayerData);
         initializer.registerRpc('quizverse_load_player_data', quizverseLoadPlayerData);
         initializer.registerRpc('quizverse_get_item_catalog', quizverseGetItemCatalog);
@@ -24214,7 +24265,10 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         initializer.registerRpc('lasttolive_get_leaderboard', lasttoliveGetLeaderboard);
         initializer.registerRpc('lasttolive_join_or_create_match', lasttoliveJoinOrCreateMatch);
         initializer.registerRpc('lasttolive_claim_daily_reward', lasttoliveClaimDailyReward);
-        initializer.registerRpc('lasttolive_find_friends', lasttolliveFindFriends);
+        // DISABLED: lasttolive_find_friends alias is now owned by
+        //   data/modules/friends/find_friends.js
+        // The literal registerRpc call has been REMOVED to prevent
+        // postbuild's text-based scan from re-binding the legacy handler.
         initializer.registerRpc('lasttolive_save_player_data', lasttolliveSavePlayerData);
         initializer.registerRpc('lasttolive_load_player_data', lasttoliveLoadPlayerData);
         initializer.registerRpc('lasttolive_get_item_catalog', lasttoliveGetItemCatalog);

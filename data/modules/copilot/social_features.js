@@ -1,6 +1,69 @@
-// social_features.js - Social graph and notification features
+// ============================================================================
+// social_features.js — Social graph and notification features (DEPRECATED)
+// ============================================================================
 // ES5 compatible for Nakama goja runtime
+//
+// ⚠ THIS FILE IS DEAD CODE — DO NOT EDIT THE FUNCTIONS BELOW ⚠
+//
+// History
+// -------
+// This file once contained an alternative implementation of the friend-
+// invite RPCs (rpcSendFriendInvite / rpcAcceptFriendInvite /
+// rpcDeclineFriendInvite). They were never registered anywhere — neither
+// `index.js` (the bundled entry point produced by postbuild.js) nor
+// `legacy_runtime.js` ever called `initializer.registerRpc(...)` for any
+// of these handlers. So they sat in the source tree for years as
+// orphaned, untestable, and conflicting copies of the legacy_runtime
+// implementations.
+//
+// Why we don't just delete the file
+// ---------------------------------
+// 1. Removing the file would break a developer who happens to grep for
+//    `rpcSendFriendInvite` and expects to land on something authoritative.
+//    The pointer comment below (and the disabled blocks) make the
+//    redirection explicit and survive a quick search.
+// 2. postbuild.js auto-discovers every `*.js` file under data/modules/
+//    (excluding the obvious build artefacts). Deleting the file would
+//    remove ~150 lines from the bundle but is otherwise functionally
+//    indistinguishable from leaving the bodies commented out.
+// 3. Future audits can compare the disabled bodies here with the live
+//    implementations in `friends/friend_invites.js` to verify behaviour
+//    parity.
+//
+// Where the LIVE implementations live now
+// ---------------------------------------
+//   send_friend_invite     →  data/modules/friends/friend_invites.js
+//   accept_friend_invite   →  data/modules/friends/friend_invites.js
+//   decline_friend_invite  →  data/modules/friends/friend_invites.js
+//   cancel_friend_invite          (NEW)  →  friends/friend_invites.js
+//   list_pending_friend_invites   (NEW)  →  friends/friend_invites.js
+//
+// The new module also fixes the "split-brain" friend-graph bug: the
+// legacy send_friend_invite below NEVER called nk.friendsAdd(), leaving
+// Nakama's native user_friends table permanently out-of-sync with the
+// custom `friend_invites` storage rows. The new implementation calls
+// nk.friendsAdd(senderId, [targetUserId]) on send so every downstream
+// system that reads nk.friendsList sees a consistent picture.
+//
+// Notifications now use the canonical constants in
+//   data/modules/friends/notification_codes.js
+// (subject = stable machine id, code = canonical numeric filter,
+//  content.type = backup machine id) instead of ad-hoc subjects like
+// "Friend Request" / "Friend Request Accepted" that the client never
+// matched.
+//
+// IF YOU NEED TO MODIFY FRIEND INVITE BEHAVIOUR — DO IT IN
+//   data/modules/friends/friend_invites.js
+// NOT HERE.
+//
+// rpcGetNotifications below is also dead in this file (never registered
+// from here) but left untouched because it is a generic notification
+// helper, not friends-specific, and may be revived later by a different
+// subsystem. It is harmless: `function` declarations cost nothing at
+// runtime if never called.
+// ============================================================================
 
+/* ─── BEGIN DISABLED CODE — see header above ────────────────────────────────
 function rpcSendFriendInvite(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
@@ -100,13 +163,13 @@ function rpcAcceptFriendInvite(ctx, logger, nk, payload) {
 
         inviteData.status = "accepted";
         inviteData.acceptedAt = new Date().toISOString();
-        try { nk.storageWrite([{ collection: "friend_invites", key: inviteId, userId: userId, value: inviteData, permissionRead: 1, permissionWrite: 0 }]); } catch (err) { /* non-fatal */ }
+        try { nk.storageWrite([{ collection: "friend_invites", key: inviteId, userId: userId, value: inviteData, permissionRead: 1, permissionWrite: 0 }]); } catch (err) { }
 
         try {
             nk.notificationSend(inviteData.fromUserId, "Friend Request Accepted",
                 { type: "friend_invite_accepted", acceptedBy: userId, acceptedByUsername: ctx.username || userId },
                 2, userId, true);
-        } catch (err) { /* non-fatal */ }
+        } catch (err) { }
 
         return JSON.stringify({ success: true, inviteId: inviteId, friendUserId: inviteData.fromUserId, friendUsername: inviteData.fromUsername });
 
@@ -161,7 +224,7 @@ function rpcGetNotifications(ctx, logger, nk, payload) {
         if (!ctx.userId) return copilotHandleError(ctx, null, "Authentication required");
 
         var data = {};
-        if (payload) { try { data = JSON.parse(payload); } catch (err) { /* use defaults */ } }
+        if (payload) { try { data = JSON.parse(payload); } catch (err) { } }
 
         var userId = ctx.userId;
         var limit = data.limit || 100;
@@ -180,3 +243,4 @@ function rpcGetNotifications(ctx, logger, nk, payload) {
         return copilotHandleError(ctx, err, "An error occurred while retrieving notifications");
     }
 }
+─── END DISABLED CODE ──────────────────────────────────────────────────── */

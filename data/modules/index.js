@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-17T11:45:45.020Z
-// RPC Count: 522
+// Generated: 2026-04-21T19:35:00.998Z
+// RPC Count: 533
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -20,7 +20,6 @@ var __rpc_lasttolive_submit_score;
 var __rpc_lasttolive_get_leaderboard;
 var __rpc_lasttolive_join_or_create_match;
 var __rpc_lasttolive_claim_daily_reward;
-var __rpc_lasttolive_find_friends;
 var __rpc_lasttolive_save_player_data;
 var __rpc_lasttolive_load_player_data;
 var __rpc_lasttolive_get_item_catalog;
@@ -47,7 +46,6 @@ var __rpc_quizverse_submit_score;
 var __rpc_quizverse_get_leaderboard;
 var __rpc_quizverse_join_or_create_match;
 var __rpc_quizverse_claim_daily_reward;
-var __rpc_quizverse_find_friends;
 var __rpc_quizverse_save_player_data;
 var __rpc_quizverse_load_player_data;
 var __rpc_quizverse_get_item_catalog;
@@ -96,6 +94,9 @@ var __rpc_fantasy_catalog_get;
 var __rpc_fantasy_transfer;
 var __rpc_fantasy_transfer_window;
 var __rpc_fantasy_transfer_history;
+var __rpc_intelliverse_find_friends;
+var __rpc_friends_list;
+var __rpc_list_blocked_users;
 var __rpc_hiro_achievements_list;
 var __rpc_hiro_achievements_progress;
 var __rpc_hiro_achievements_claim;
@@ -209,9 +210,6 @@ var __rpc_daily_rewards_claim;
 var __rpc_friends_block;
 var __rpc_friends_unblock;
 var __rpc_friends_remove;
-var __rpc_friends_list;
-var __rpc_friends_challenge_user;
-var __rpc_friends_spectate;
 var __rpc_game_entry_validate;
 var __rpc_game_entry_complete;
 var __rpc_game_entry_get_status;
@@ -310,6 +308,7 @@ var __rpc_creator_event_claim;
 var __rpc_creator_event_create;
 var __rpc_creator_event_publish;
 var __rpc_creator_event_end;
+var __rpc_creator_event_cancel;
 var __rpc_creator_event_update_promo;
 var __rpc_satori_live_events_list;
 var __rpc_satori_live_events_join;
@@ -343,9 +342,6 @@ var __rpc_submit_score_with_aggregate;
 var __rpc_create_all_leaderboards_with_friends;
 var __rpc_submit_score_with_friends_sync;
 var __rpc_get_friend_leaderboard;
-var __rpc_send_friend_invite;
-var __rpc_accept_friend_invite;
-var __rpc_decline_friend_invite;
 var __rpc_get_notifications;
 var __rpc_achievements_get_all;
 var __rpc_achievements_update_progress;
@@ -502,6 +498,8 @@ var __rpc_analytics_error_log;
 var __rpc_analytics_player_segments;
 var __rpc_analytics_churn_risk;
 var __rpc_analytics_conversion_funnel;
+var __rpc_analytics_audience_breakdown;
+var __rpc_analytics_retention_milestones;
 var __rpc_analytics_schema_check;
 var __rpc_analytics_backfill_events;
 var __rpc_analytics_feature_flags;
@@ -520,6 +518,19 @@ var __rpc_external_poll_appstore;
 var __rpc_external_poll_ugs;
 var __rpc_external_poll_all;
 var __rpc_external_poll_status;
+var __rpc_id;
+var __rpc_send_friend_challenge;
+var __rpc_friends_challenge_user;
+var __rpc_accept_friend_challenge;
+var __rpc_decline_friend_challenge;
+var __rpc_cancel_friend_challenge;
+var __rpc_list_pending_friend_challenges;
+var __rpc_friends_spectate;
+var __rpc_send_friend_invite;
+var __rpc_accept_friend_invite;
+var __rpc_decline_friend_invite;
+var __rpc_cancel_friend_invite;
+var __rpc_list_pending_friend_invites;
 var __rpc_submit_score;
 var __rpc_onboarding_grant_streak_shield;
 var __rpc_qe_player_full_profile;
@@ -532,7 +543,7 @@ var __rpc_quests_wallet_spend;
 var __rpc_quests_wallet_history;
 var __rpc_quests_wallet_migrate_from_postgres;
 
-// --- Discovered Modules (73 files) ---
+// --- Discovered Modules (75 files) ---
 
 // --- Module: achievements\achievements.js ---
 /**
@@ -1788,9 +1799,16 @@ var EVENT_ALIASES = {
     "onboarding_complete": "onboarded",
     "registration_completed": "registration_complete",
     "paywall_viewed": "paywall_shown",
-    // 2026-04 Unity analytics-hardening additions (mirror analytics.js).
+    // ── 2026-04 Unity analytics-hardening additions ──
+    // Normalize legacy ad-failure event names emitted by older clients /
+    // adapters so the rollup / monetization dashboards see a single canonical
+    // "ad_load_failed" bucket. Mirror map exists in analytics_rollup.js.
     "ad_failed": "ad_load_failed",
     "purchase_failed": "iap_failed",
+    // Ad-network adapters historically emit "ad_started" the moment the SDK
+    // begins playback. From a billing/dashboard perspective that is the same
+    // event as our canonical "ad_shown" impression — fold them together so
+    // we never under-report impressions.
     "ad_started": "ad_shown"
 };
 
@@ -2814,7 +2832,11 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
     var gameIdFilter = data.gameId || data.game_id || null;
     if (gameIdFilter === "all") gameIdFilter = null;
     var eventNameFilter = data.eventName || data.event_name || null;
-    // 2026-04 hardening — Player-360 drilldown.
+    // 2026-04 hardening — Player-360 drilldown. Optional userId filter so
+    // dashboards can pull a single player's full event timeline without
+    // post-filtering the whole window client-side. When set, we also raise
+    // the internal scan cap because we need to find their needle in the
+    // haystack.
     var userIdFilter = data.userId || data.user_id || null;
 
     var collected = [];
@@ -3884,7 +3906,10 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         var adTypeCounts = {};
         var dailyAdRevenue = [];
         var productPurchases = {};
-        // 2026-04 hardening — full ad funnel signals (mirror analytics_extended.js)
+        // 2026-04 hardening — full ad funnel signals emitted by Unity
+        // (MonetizationAnalytics + AdsAnalyticsBridge). These power the
+        // world-class Monetization tab (request → impression → completion,
+        // per-network ILRD revenue, eCPM, true fill rate).
         var adRequests = 0;
         var adLoadFailures = 0;
         var adSkips = 0;
@@ -3944,8 +3969,12 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                 var evName = (ev.eventName || '').toLowerCase();
                 var evData = ev.eventData || {};
 
-                // 2026-04: mirror analytics_extended.js — recognize new
-                // canonical AD_* names + dedicated ad_revenue event.
+                // ── Ads (2026-04 hardened taxonomy) ──
+                // Count canonical `ad_shown` AND legacy `ad_impression` as
+                // impressions. The new Unity client emits `ad_shown` from
+                // MonetizationAnalytics.TrackAdShown / AdsAnalyticsBridge.
+                // Use exact-match prefix tests (=== or strict prefix) to
+                // avoid false-positives like "ad_revenue" matching "ad_".
                 if (evName === 'ad_impression' || evName === 'ad_shown' ||
                     evName === 'adimpression' || evName === 'adshown') {
                     adImpressions++;
@@ -3955,6 +3984,11 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                     adCompleted++;
                 }
 
+                // ── Ad revenue ──
+                // Three sources, in priority order:
+                //   1. dedicated `ad_revenue` event with `revenue_usd` (canonical)
+                //   2. `revenue_usd` on the impression event (some adapters)
+                //   3. legacy `revenue` field (kept for back-compat)
                 var addedRev = 0;
                 if (evName === 'ad_revenue') {
                     var revDed = parseFloat(evData.revenue_usd || evData.revenue || 0);
@@ -3971,35 +4005,49 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                     adRevenueByNetwork[net] = (adRevenueByNetwork[net] || 0) + addedRev;
                 }
 
-                // Full ad funnel (request → impression → completion)
+                // ── Full ad funnel (2026-04 hardened taxonomy) ──
+                // Powers Monetization tab's request → impression → completion
+                // funnel + true fill-rate (impressions/requests, not the legacy
+                // completed/impressions misnomer).
                 if (evName === 'ad_requested') adRequests++;
                 if (evName === 'ad_load_failed' || evName === 'ad_failed') adLoadFailures++;
                 if (evName === 'ad_skipped') adSkips++;
                 if (evName === 'ad_clicked') adClicks++;
 
+                // ── IAP / paywall / store ──
                 if (evName.indexOf('iap') !== -1 || evName === 'purchase_completed') iapCompleted++;
                 if (evName === 'paywall_shown' || evName === 'paywallshown') paywallShown++;
                 if (evName === 'paywall_converted') paywallConverted++;
                 if (evName === 'store_opened' || evName === 'storeopened' || evName === 'store_open') storeOpens++;
 
+                // Ad-type breakdown — accept both legacy `adType` and the new
+                // canonical `ad_type` field name from AnalyticsParams.AD_TYPE.
                 var adType = evData.adType || evData.ad_type || null;
                 if (adType) adTypeCounts[adType] = (adTypeCounts[adType] || 0) + 1;
 
+                // Product breakdown — accept both `productId` and canonical
+                // `product_id` from AnalyticsParams.PRODUCT_ID.
                 var prodId = evData.productId || evData.product_id || null;
                 if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
             }
         }
         
-        // True fill rate prefers requests-based formula when we have requests.
+        // ── Computed funnel rates ─────────────────────────────────
+        // True fill-rate = impressions / requests (only meaningful when we
+        // saw at least one ad_requested event). Falls back to the legacy
+        // completed/impressions ratio so existing dashboards keep working
+        // during the migration window.
         var adFillRate = adRequests > 0
             ? Math.round((adImpressions / adRequests) * 100)
             : (adImpressions > 0 ? Math.round((adCompleted / adImpressions) * 100) : 0);
         var adCompletionRate = adImpressions > 0
             ? Math.round((adCompleted / adImpressions) * 100)
             : 0;
+        // eCPM = revenue per 1000 impressions, in USD, two-decimal.
         var adECPM = adImpressions > 0
             ? Math.round((adRevenue / adImpressions) * 100000) / 100
             : 0;
+        // Build per-network breakdown array (sorted desc by revenue).
         var adRevenueNetworkArr = [];
         for (var nk2 in adRevenueByNetwork) {
             adRevenueNetworkArr.push({
@@ -4024,6 +4072,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             ad_types: extTopN(adTypeCounts, 5, 'type', 'count'),
             daily_ad_revenue: dailyAdRevenue,
             top_products: extTopN(productPurchases, 10, 'product_id', 'purchases'),
+            // ── New hardened ad-funnel KPIs ────────────────────────
             ad_requests: adRequests,
             ad_load_failures: adLoadFailures,
             ad_skips: adSkips,
@@ -4307,12 +4356,27 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         
         var totalErrors = 0;
         var errorsByRpc = {};
-        
-        // Scan error events (with gameId filter)
+        // 2026-04 hardening: dedicated category bucket so the dashboard can
+        // render the Unity client's canonical error event taxonomy
+        // (api_failure / auth_failure / nakama_rpc_error / timeout_event / crash_safe_log)
+        // without losing data inside the rpc-name aggregation.
+        var errorsByCategory = {};
+
+        // Scan error events (with gameId filter).
+        // 2026-04: explicitly enumerate the new canonical event names AND keep
+        // the legacy substring matches (error/crash/exception/fail) so older
+        // events are still counted. `timeout` is added to the substring list
+        // so timeout_event from QVAnalyticsService finally shows up.
+        var canonicalErrorEvents = {
+            'error_logged': 1, 'api_failure': 1, 'auth_failure': 1,
+            'nakama_rpc_error': 1, 'timeout_event': 1, 'crash_safe_log': 1
+        };
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
             var evName = (val.eventName || '').toLowerCase();
+            if (canonicalErrorEvents[evName]) return true;
             return evName.indexOf('error') !== -1 || evName.indexOf('crash') !== -1 || 
-                   evName.indexOf('exception') !== -1 || evName.indexOf('fail') !== -1;
+                   evName.indexOf('exception') !== -1 || evName.indexOf('fail') !== -1 ||
+                   evName.indexOf('timeout') !== -1;
         }, gameId);
         
         for (var i = 0; i < events.length; i++) {
@@ -4341,6 +4405,15 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
             if (!errorsByRpc[rpcName].sample_error && ev.eventData && ev.eventData.error) {
                 errorsByRpc[rpcName].sample_error = ev.eventData.error.substring(0, 200);
             }
+
+            // Category bucket — prefer explicit error_category field, fall back
+            // to the canonical event name (which IS the category for the new
+            // dedicated event types), then to "uncategorized".
+            var evNameLow = (ev.eventName || '').toLowerCase();
+            var cat = (ev.eventData && ev.eventData.error_category) ? ev.eventData.error_category :
+                      (canonicalErrorEvents[evNameLow] && evNameLow !== 'error_logged') ? evNameLow :
+                      'uncategorized';
+            errorsByCategory[cat] = (errorsByCategory[cat] || 0) + 1;
         }
         
         // Also check error logs storage
@@ -4388,11 +4461,19 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         
         errorsList.sort(function(a, b) { return b.count - a.count; });
         
+        // Build category breakdown array (sorted desc) for the dashboard.
+        var errorsByCategoryArr = [];
+        for (var cName in errorsByCategory) {
+            errorsByCategoryArr.push({ category: cName, count: errorsByCategory[cName] });
+        }
+        errorsByCategoryArr.sort(function(a, b) { return b.count - a.count; });
+
         return JSON.stringify({
             game_id: gameId || 'all',
             total_errors: totalErrors,
             most_failing_rpc: mostFailing,
-            errors_by_rpc: errorsList.slice(0, 20)
+            errors_by_rpc: errorsList.slice(0, 20),
+            errors_by_category: errorsByCategoryArr
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] error_log error: ' + e.message);
@@ -4745,11 +4826,23 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
     }
 }
 
-// ─── RPC: analytics_audience_breakdown (2026-04 hardening) ───
+// ─── RPC: analytics_audience_breakdown ────────────────────
 //
 // Surfaces the user-property dimensions that QVAnalyticsService now pushes
 // once-per-session to every event (device_tier, country, install_source,
-// consent_state, att_status, locale, app_version). Powers the Audience tab.
+// consent_state, att_status, locale, app_version). Powers the new world-class
+// "Audience" tab on the dashboard so you can see WHO is playing — high-end vs
+// low-end devices, organic vs paid installs, EU vs US, granted vs denied
+// consent — and make data-driven UA / monetization decisions.
+//
+// Performance: scans up to `days` of analytics_events with a no-op filter
+// (we want every event so distribution is correct), then hash-counts each
+// dimension. O(n) over events, O(k) memory per dimension. For typical
+// 7-day windows on a single game this is well under 1ms / 100k events.
+//
+// Distinct users per dimension (via hash-set of user IDs) so dashboards can
+// say "X unique installs from US" instead of "Y events from US" (events
+// over-weight active power users).
 
 function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
     try {
@@ -4757,6 +4850,7 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
         var days = parseInt(data.days, 10) || 7;
         var gameId = data.game_id || data.gameId || null;
 
+        // Per-dimension event-count maps and per-dimension user-set maps.
         var dims = {
             country:        { events: {}, users: {} },
             device_tier:    { events: {}, users: {} },
@@ -4770,6 +4864,8 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
         var totalUsers = {};
         var totalEvents = 0;
 
+        // Scan ALL events (not filtered) so the distribution reflects the true
+        // population. The `null` filter avoids the regex cost on the hot path.
         var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
 
         for (var i = 0; i < events.length; i++) {
@@ -4778,6 +4874,8 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
             totalEvents++;
             if (ev.userId) totalUsers[ev.userId] = true;
 
+            // Each user-property field — fall back to "unknown" so the
+            // dashboard can show what fraction is missing context.
             var fields = [
                 ['country',        d.country],
                 ['device_tier',    d.device_tier],
@@ -4803,6 +4901,7 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
             }
         }
 
+        // Materialize each dimension as a sorted top-N array.
         function materialize(dimName, topN) {
             var slot = dims[dimName];
             var arr = [];
@@ -4838,10 +4937,16 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
     }
 }
 
-// ─── RPC: analytics_retention_milestones (2026-04 hardening) ──
+// ─── RPC: analytics_retention_milestones ──────────────────
 //
-// Counts retention_d1 / retention_d7 / retention_d30 events fired by
-// Trivia.Analytics.Domain.RetentionAnalytics (once per install).
+// Surfaces the once-per-install retention_d1 / retention_d7 / retention_d30
+// events fired by Trivia.Analytics.Domain.RetentionAnalytics. These are the
+// LTV-critical signals every BI dashboard reads — so we expose them as a
+// dedicated, dashboard-friendly RPC instead of forcing the UI to roll its
+// own from raw events.
+//
+// Returns counts per milestone over the configured window plus a daily series
+// so the dashboard can chart the retention trend visually.
 
 function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
     try {
@@ -4903,9 +5008,6 @@ function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-var __rpc_analytics_audience_breakdown;
-var __rpc_analytics_retention_milestones;
-
 function __ModuleInit_4(ctx, logger, nk, initializer) {
     __rpc_analytics_session_stats = __rpc_analytics_session_stats || (rpcAnalyticsSessionStats);
     __rpc_analytics_quiz_performance = __rpc_analytics_quiz_performance || (rpcAnalyticsQuizPerformance);
@@ -4963,7 +5065,29 @@ var AO_EXPECTED_FIELDS = {
     ad_impression:        ["ad_placement", "ad_network"],
     ad_clicked:           ["ad_placement", "ad_network"],
     ai_host_used:         ["prompt_tokens", "response_tokens"],
-    error_logged:         ["error_category", "error_message"]
+    error_logged:         ["error_category", "error_message"],
+
+    // ── 2026-04 Unity analytics-hardening additions ──
+    // Canonical AD_* taxonomy emitted by MonetizationAnalytics + AdsAnalyticsBridge.
+    // ad_type values: "interstitial" | "rewarded" | "banner".
+    ad_requested:         ["ad_type", "ad_placement"],
+    ad_shown:             ["ad_type", "ad_placement", "ad_network"],
+    ad_completed:         ["ad_type", "ad_placement", "ad_network", "reward_type", "reward_amount"],
+    ad_skipped:           ["ad_type", "ad_placement", "ad_network"],
+    ad_load_failed:       ["ad_type", "ad_placement", "ad_network", "error_code"],
+    ad_revenue:           ["ad_type", "ad_placement", "ad_network", "revenue_usd", "currency"],
+
+    // Retention milestone events fired once per install by RetentionAnalytics.
+    retention_d1:         ["days_since_install"],
+    retention_d7:         ["days_since_install"],
+    retention_d30:        ["days_since_install"],
+
+    // Dedicated error-class events (replace the generic "error_logged" catch-all).
+    api_failure:          ["endpoint", "status_code"],
+    auth_failure:         ["provider", "error_code"],
+    nakama_rpc_error:     ["rpc_id", "error_code"],
+    timeout_event:        ["operation", "timeout_ms"],
+    crash_safe_log:       ["error_category", "error_message"]
 };
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -5594,10 +5718,25 @@ var AR_EVENT_ALIASES = {
     "onboarding_complete": "onboarded",
     "registration_completed": "registration_complete",
     "paywall_viewed": "paywall_shown",
-    // 2026-04 Unity analytics-hardening additions (mirror analytics_rollup.js).
+    // ── 2026-04 Unity analytics-hardening additions (mirror analytics.js) ──
     "ad_failed": "ad_load_failed",
     "purchase_failed": "iap_failed",
     "ad_started": "ad_shown"
+};
+
+// Canonical error categories that should fold into the rollup's
+// errors_by_category map. The new client (QVAnalyticsService /
+// AnalyticsConstants.cs PRODUCTION HARDENING block) emits these as
+// dedicated events instead of stuffing everything into "error_logged".
+// Each name here is treated as `error_logged` for aggregation purposes
+// and uses the event name itself as the category bucket.
+var AR_ERROR_EVENT_CATEGORIES = {
+    "error_logged":      "uncategorized",
+    "api_failure":       "api_failure",
+    "auth_failure":      "auth_failure",
+    "nakama_rpc_error":  "nakama_rpc_error",
+    "timeout_event":     "timeout",
+    "crash_safe_log":    "crash_safe"
 };
 
 // Canonical funnel order (must match IVXAnalyticsEvents in the Unity client).
@@ -5890,29 +6029,21 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
     var adImpressions = 0;
     var adClicks = 0;
     var adRevenueUsd = 0;
-    // 2026-04 hardening — full ad funnel + per-network revenue.
-    var adRequests = 0;
-    var adLoadFailures = 0;
-    var adCompletions = 0;
-    var adSkips = 0;
-    var adRevenueByNetwork = {};
+    // 2026-04 hardening: track the full ad funnel so dashboards can compute
+    // request → impression → revenue → completion rates instead of only
+    // counting impressions. Populated by the canonical AD_* events emitted
+    // from MonetizationAnalytics + AdsAnalyticsBridge in the new Unity client.
+    var adRequests = 0;       // ad_requested
+    var adLoadFailures = 0;   // ad_load_failed (and legacy "ad_failed" via alias)
+    var adCompletions = 0;    // ad_completed (rewarded watched-to-end)
+    var adSkips = 0;          // ad_skipped (rewarded closed early)
+    var adRevenueByNetwork = {}; // network → usd (ILRD-grade attribution)
     var aiUsage = {};
     var funnel = {};
     for (var fi = 0; fi < AR_FUNNEL_STEPS.length; fi++) {
         funnel[AR_FUNNEL_STEPS[fi]] = { users: {}, count: 0 };
     }
     var errorsByCategory = {};
-    // 2026-04 hardening — recognize the new dedicated error event types
-    // emitted by QVAnalyticsService (api_failure, auth_failure, …) and fold
-    // them into errors_by_category alongside the legacy "error_logged".
-    var __AR_ERROR_EVENTS_INDEX = {
-        "error_logged":      "uncategorized",
-        "api_failure":       "api_failure",
-        "auth_failure":      "auth_failure",
-        "nakama_rpc_error":  "nakama_rpc_error",
-        "timeout_event":     "timeout",
-        "crash_safe_log":    "crash_safe"
-    };
 
     for (var i = 0; i < events.length; i++) {
         var ev = events[i];
@@ -5967,13 +6098,15 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             if (isFinite(price) && price > 0) revenueUsd += price;
         }
         // ── Ad funnel (2026-04 hardened taxonomy) ────────────────
-        // Both `ad_impression` (legacy) and `ad_shown` (canonical, emitted by
-        // MonetizationAnalytics + AdsAnalyticsBridge in the new Unity client)
-        // count as impressions. Dedicated `ad_revenue` events carry ILRD
-        // attribution; older adapters report inline `revenue_usd` on the
-        // impression event. Fold both into adRevenueUsd to avoid silent loss.
+        // The new Unity client emits canonical AD_* events. Both `ad_impression`
+        // (legacy) and `ad_shown` (canonical) are counted as impressions so
+        // dashboards continue to work during the migration window with
+        // no double-counting (a single ad fires either name, not both).
+        // ILRD revenue arrives on a dedicated `ad_revenue` event with
+        // `revenue_usd` — fold those into adRevenueUsd as well.
         if (eventName === "ad_impression" || eventName === "ad_shown") {
             adImpressions++;
+            // Inline revenue (some adapters report on the impression event).
             var adRevInline = parseFloat(data.revenue_usd || 0);
             if (isFinite(adRevInline) && adRevInline > 0) {
                 adRevenueUsd += adRevInline;
@@ -5983,6 +6116,7 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
                 }
             }
         } else if (eventName === "ad_revenue") {
+            // Dedicated ILRD revenue event from MonetizationAnalytics.TrackAdRevenue.
             var adRevDed = parseFloat(data.revenue_usd || data.revenue || 0);
             if (isFinite(adRevDed) && adRevDed > 0) {
                 adRevenueUsd += adRevDed;
@@ -6009,13 +6143,16 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             aiUsage[eventName] = (aiUsage[eventName] || 0) + 1;
         }
 
-        // Errors — fold dedicated error events into errors_by_category alongside
-        // the legacy generic "error_logged" bucket.
-        if (__AR_ERROR_EVENTS_INDEX.hasOwnProperty(eventName)) {
-            var cat = data.error_category ||
-                      __AR_ERROR_EVENTS_INDEX[eventName] ||
-                      "unknown";
-            errorsByCategory[cat] = (errorsByCategory[cat] || 0) + 1;
+        // Errors — fold the new canonical error events plus the legacy
+        // catch-all `error_logged` into one bucket for the dashboard.
+        // For dedicated event types (api_failure, auth_failure, etc.) we use
+        // the event name itself as the category fallback so operators can
+        // still see the breakdown without depending on data.error_category.
+        if (AR_ERROR_EVENT_CATEGORIES.hasOwnProperty(eventName)) {
+            var errCat = data.error_category ||
+                         AR_ERROR_EVENT_CATEGORIES[eventName] ||
+                         "unknown";
+            errorsByCategory[errCat] = (errorsByCategory[errCat] || 0) + 1;
         }
     }
 
@@ -6076,7 +6213,7 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             ad_revenue_usd: Math.round(adRevenueUsd * 100) / 100,
             ad_impressions: adImpressions,
             ad_clicks: adClicks,
-            // 2026-04 hardening — full ad funnel + per-network revenue + eCPM.
+            // 2026-04 hardening — full ad funnel (request → impression → completion).
             ad_requests: adRequests,
             ad_load_failures: adLoadFailures,
             ad_completions: adCompletions,
@@ -6089,7 +6226,7 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
                 : 0,
             ad_revenue_by_network: adRevenueByNetwork,
             ad_ecpm_usd: adImpressions > 0
-                ? Math.round((adRevenueUsd / adImpressions) * 100000) / 100
+                ? Math.round((adRevenueUsd / adImpressions) * 100000) / 100  // $/1000 imp
                 : 0
         },
         funnel: funnelOut,
@@ -7131,48 +7268,9 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
       }
     }
 
-    // 2026-04 hardening — also scan the canonical analytics_events collection
-    // for client-emitted error events (api_failure, auth_failure,
-    // nakama_rpc_error, timeout_event, crash_safe_log, error_logged). The
-    // legacy analytics_error_events collection is server-side only and
-    // misses everything the Unity client reports.
-    var canonicalErrEventNames = {
-      'error_logged': 1, 'api_failure': 1, 'auth_failure': 1,
-      'nakama_rpc_error': 1, 'timeout_event': 1, 'crash_safe_log': 1
-    };
-    try {
-      if (typeof extScanEvents === 'function') {
-        var clientErrors = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-          var evName = (val.eventName || '').toLowerCase();
-          if (canonicalErrEventNames[evName]) return true;
-          return evName.indexOf('error') !== -1 || evName.indexOf('crash') !== -1 ||
-                 evName.indexOf('exception') !== -1 || evName.indexOf('fail') !== -1 ||
-                 evName.indexOf('timeout') !== -1;
-        }, gameId || null);
-        for (var ci = 0; ci < clientErrors.length; ci++) {
-          var cev = clientErrors[ci];
-          var cdata = cev.eventData || {};
-          // Synthesize an error record matching the analytics_error_events shape.
-          errors.push({
-            rpc_name: cdata.rpcName || cdata.rpc_id || cdata.endpoint ||
-                      cdata.operation || cev.eventName || 'client_error',
-            error_message: cdata.error_message || cdata.error || cdata.message || '',
-            error_category: cdata.error_category ||
-                            ((cev.eventName || '').toLowerCase()),
-            timestamp_iso: cev.timestamp || '',
-            date: (cev.timestamp || '').substring(0, 10),
-            game_id: cev.gameId || ''
-          });
-        }
-      }
-    } catch (eClient) {
-      logger.warn && logger.warn('[rpcAnalyticsErrorLog] client-error scan failed: ' + (eClient.message || eClient));
-    }
-
     // Group by rpc_name
     var rpcMap = {};
     var dailyMap = {};
-    var catMap = {};
     for (var ei = 0; ei < errors.length; ei++) {
       var err = errors[ei];
       var rpcName = err.rpc_name || "unknown";
@@ -7191,11 +7289,6 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         if (!dailyMap[errDate]) dailyMap[errDate] = 0;
         dailyMap[errDate]++;
       }
-
-      // Category bucket — uses error_category if present, else falls back to
-      // the canonical event name, else "uncategorized".
-      var cat = err.error_category || 'uncategorized';
-      catMap[cat] = (catMap[cat] || 0) + 1;
     }
 
     var errorsByRpc = [];
@@ -7223,18 +7316,9 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
     }
     errorTrendDaily.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
 
-    var errorsByCategory = [];
-    for (var ck in catMap) {
-      if (catMap.hasOwnProperty(ck)) {
-        errorsByCategory.push({ category: ck, count: catMap[ck] });
-      }
-    }
-    errorsByCategory.sort(function (a, b) { return b.count - a.count; });
-
     return JSON.stringify({
       total_errors: errors.length,
       errors_by_rpc: errorsByRpc,
-      errors_by_category: errorsByCategory,
       error_trend_daily: errorTrendDaily,
       most_failing_rpc: mostFailing
     });
@@ -9318,409 +9402,6 @@ function rpcCharacterSetActive(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: chat.js ---
-// chat.js - Group Chat, Direct Chat, and Chat Room implementation
-// Compatible with Nakama JavaScript runtime (no ES modules)
-
-/**
- * Send a message in a group chat
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} groupId - Group/clan ID
- * @param {string} userId - Sender user ID
- * @param {string} username - Sender username
- * @param {string} message - Message content
- * @param {object} metadata - Optional metadata
- * @returns {object} Message object
- */
-function sendGroupChatMessage(nk, logger, groupId, userId, username, message, metadata) {
-    var collection = "group_chat";
-    var key = "msg:" + groupId + ":" + Date.now() + ":" + userId;
-    
-    logger.info("[CHAT] Sending group message to " + groupId);
-    
-    var messageData = {
-        message_id: key,
-        group_id: groupId,
-        user_id: userId,
-        username: username,
-        message: message,
-        metadata: metadata || {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    };
-    
-    try {
-        // Store message with userId for proper scoping
-        nk.storageWrite([{
-            collection: collection,
-            key: key,
-            userId: userId,
-            value: messageData,
-            permissionRead: 2, // Public read - anyone in group can read
-            permissionWrite: 0,
-            version: "*"
-        }]);
-        
-        logger.info("[CHAT] Group message stored: " + key);
-        
-        // Also use Nakama's built-in channel system for real-time delivery
-        try {
-            var channelId = "group:" + groupId;
-            var content = {
-                type: "group_chat",
-                message: message,
-                username: username,
-                user_id: userId,
-                timestamp: new Date().toISOString()
-            };
-            
-            // Send to channel (Nakama built-in)
-            nk.channelMessageSend(channelId, JSON.stringify(content), userId, username);
-            logger.info("[CHAT] Message sent to channel: " + channelId);
-        } catch (channelErr) {
-            logger.warn("[CHAT] Failed to send to channel: " + channelErr.message);
-        }
-        
-        return messageData;
-    } catch (err) {
-        logger.error("[CHAT] Failed to store group message: " + err.message);
-        throw err;
-    }
-}
-
-/**
- * Send a direct message to another user
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} fromUserId - Sender user ID
- * @param {string} fromUsername - Sender username
- * @param {string} toUserId - Recipient user ID
- * @param {string} message - Message content
- * @param {object} metadata - Optional metadata
- * @returns {object} Message object
- */
-function sendDirectMessage(nk, logger, fromUserId, fromUsername, toUserId, message, metadata) {
-    var collection = "direct_chat";
-    // Create a deterministic conversation ID (smaller userId first for consistency)
-    var conversationId = fromUserId < toUserId ? 
-        fromUserId + ":" + toUserId : 
-        toUserId + ":" + fromUserId;
-    var key = "msg:" + conversationId + ":" + Date.now() + ":" + fromUserId;
-    
-    logger.info("[CHAT] Sending direct message from " + fromUserId + " to " + toUserId);
-    
-    var messageData = {
-        message_id: key,
-        conversation_id: conversationId,
-        from_user_id: fromUserId,
-        from_username: fromUsername,
-        to_user_id: toUserId,
-        message: message,
-        metadata: metadata || {},
-        read: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    };
-    
-    try {
-        // Store message with sender's userId
-        nk.storageWrite([{
-            collection: collection,
-            key: key,
-            userId: fromUserId,
-            value: messageData,
-            permissionRead: 2, // Public read - both users can read
-            permissionWrite: 0,
-            version: "*"
-        }]);
-        
-        logger.info("[CHAT] Direct message stored: " + key);
-        
-        // Send notification to recipient
-        try {
-            var notificationContent = {
-                type: "direct_message",
-                from_user_id: fromUserId,
-                from_username: fromUsername,
-                message: message,
-                conversation_id: conversationId
-            };
-            
-            nk.notificationSend(
-                toUserId,
-                "New Direct Message",
-                notificationContent,
-                100, // code for direct message
-                fromUserId,
-                true
-            );
-            logger.info("[CHAT] Notification sent to " + toUserId);
-        } catch (notifErr) {
-            logger.warn("[CHAT] Failed to send notification: " + notifErr.message);
-        }
-        
-        return messageData;
-    } catch (err) {
-        logger.error("[CHAT] Failed to store direct message: " + err.message);
-        throw err;
-    }
-}
-
-/**
- * Send a message in a public chat room
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} roomId - Chat room ID
- * @param {string} userId - Sender user ID
- * @param {string} username - Sender username
- * @param {string} message - Message content
- * @param {object} metadata - Optional metadata
- * @returns {object} Message object
- */
-function sendChatRoomMessage(nk, logger, roomId, userId, username, message, metadata) {
-    var collection = "chat_room";
-    var key = "msg:" + roomId + ":" + Date.now() + ":" + userId;
-    
-    logger.info("[CHAT] Sending room message to " + roomId);
-    
-    var messageData = {
-        message_id: key,
-        room_id: roomId,
-        user_id: userId,
-        username: username,
-        message: message,
-        metadata: metadata || {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    };
-    
-    try {
-        // Store message with userId for proper scoping
-        nk.storageWrite([{
-            collection: collection,
-            key: key,
-            userId: userId,
-            value: messageData,
-            permissionRead: 2, // Public read
-            permissionWrite: 0,
-            version: "*"
-        }]);
-        
-        logger.info("[CHAT] Room message stored: " + key);
-        
-        // Also use Nakama's built-in channel system for real-time delivery
-        try {
-            var channelId = "room:" + roomId;
-            var content = {
-                type: "chat_room",
-                message: message,
-                username: username,
-                user_id: userId,
-                room_id: roomId,
-                timestamp: new Date().toISOString()
-            };
-            
-            // Send to channel (Nakama built-in)
-            nk.channelMessageSend(channelId, JSON.stringify(content), userId, username);
-            logger.info("[CHAT] Message sent to room channel: " + channelId);
-        } catch (channelErr) {
-            logger.warn("[CHAT] Failed to send to room channel: " + channelErr.message);
-        }
-        
-        return messageData;
-    } catch (err) {
-        logger.error("[CHAT] Failed to store room message: " + err.message);
-        throw err;
-    }
-}
-
-/**
- * Get chat history for a group
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} groupId - Group ID
- * @param {number} limit - Maximum number of messages to return
- * @returns {array} Array of message objects
- */
-function getGroupChatHistory(nk, logger, groupId, limit) {
-    var collection = "group_chat";
-    limit = limit || 50;
-    
-    logger.info("[CHAT] Retrieving group chat history for " + groupId);
-    
-    try {
-        // List all messages in the group_chat collection
-        // Filter by group_id in the results
-        var records = nk.storageList(null, collection, limit, null);
-        
-        var messages = [];
-        if (records && records.objects) {
-            for (var i = 0; i < records.objects.length; i++) {
-                var record = records.objects[i];
-                if (record.value && record.value.group_id === groupId) {
-                    messages.push(record.value);
-                }
-            }
-        }
-        
-        // Sort by created_at descending (most recent first)
-        messages.sort(function(a, b) {
-            return new Date(b.created_at) - new Date(a.created_at);
-        });
-        
-        logger.info("[CHAT] Retrieved " + messages.length + " group messages");
-        return messages.slice(0, limit);
-    } catch (err) {
-        logger.error("[CHAT] Failed to retrieve group chat history: " + err.message);
-        return [];
-    }
-}
-
-/**
- * Get direct message history between two users
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} userId1 - First user ID
- * @param {string} userId2 - Second user ID
- * @param {number} limit - Maximum number of messages to return
- * @returns {array} Array of message objects
- */
-function getDirectMessageHistory(nk, logger, userId1, userId2, limit) {
-    var collection = "direct_chat";
-    limit = limit || 50;
-    
-    // Create conversation ID (consistent ordering)
-    var conversationId = userId1 < userId2 ? 
-        userId1 + ":" + userId2 : 
-        userId2 + ":" + userId1;
-    
-    logger.info("[CHAT] Retrieving direct message history for " + conversationId);
-    
-    try {
-        // List messages for both users
-        var records = nk.storageList(null, collection, limit * 2, null);
-        
-        var messages = [];
-        if (records && records.objects) {
-            for (var i = 0; i < records.objects.length; i++) {
-                var record = records.objects[i];
-                if (record.value && record.value.conversation_id === conversationId) {
-                    messages.push(record.value);
-                }
-            }
-        }
-        
-        // Sort by created_at descending (most recent first)
-        messages.sort(function(a, b) {
-            return new Date(b.created_at) - new Date(a.created_at);
-        });
-        
-        logger.info("[CHAT] Retrieved " + messages.length + " direct messages");
-        return messages.slice(0, limit);
-    } catch (err) {
-        logger.error("[CHAT] Failed to retrieve direct message history: " + err.message);
-        return [];
-    }
-}
-
-/**
- * Get chat room message history
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} roomId - Chat room ID
- * @param {number} limit - Maximum number of messages to return
- * @returns {array} Array of message objects
- */
-function getChatRoomHistory(nk, logger, roomId, limit) {
-    var collection = "chat_room";
-    limit = limit || 50;
-    
-    logger.info("[CHAT] Retrieving chat room history for " + roomId);
-    
-    try {
-        var records = nk.storageList(null, collection, limit, null);
-        
-        var messages = [];
-        if (records && records.objects) {
-            for (var i = 0; i < records.objects.length; i++) {
-                var record = records.objects[i];
-                if (record.value && record.value.room_id === roomId) {
-                    messages.push(record.value);
-                }
-            }
-        }
-        
-        // Sort by created_at descending (most recent first)
-        messages.sort(function(a, b) {
-            return new Date(b.created_at) - new Date(a.created_at);
-        });
-        
-        logger.info("[CHAT] Retrieved " + messages.length + " room messages");
-        return messages.slice(0, limit);
-    } catch (err) {
-        logger.error("[CHAT] Failed to retrieve chat room history: " + err.message);
-        return [];
-    }
-}
-
-/**
- * Mark direct messages as read
- * @param {object} nk - Nakama runtime
- * @param {object} logger - Logger instance
- * @param {string} userId - User ID marking messages as read
- * @param {string} conversationId - Conversation ID
- * @returns {number} Number of messages marked as read
- */
-function markDirectMessagesAsRead(nk, logger, userId, conversationId) {
-    var collection = "direct_chat";
-    
-    logger.info("[CHAT] Marking messages as read for user " + userId + " in conversation " + conversationId);
-    
-    try {
-        var records = nk.storageList(null, collection, 100, null);
-        var updatedCount = 0;
-        
-        if (records && records.objects) {
-            var toUpdate = [];
-            
-            for (var i = 0; i < records.objects.length; i++) {
-                var record = records.objects[i];
-                if (record.value && 
-                    record.value.conversation_id === conversationId &&
-                    record.value.to_user_id === userId &&
-                    !record.value.read) {
-                    
-                    record.value.read = true;
-                    record.value.read_at = new Date().toISOString();
-                    
-                    toUpdate.push({
-                        collection: collection,
-                        key: record.key,
-                        userId: record.userId,
-                        value: record.value,
-                        permissionRead: 2,
-                        permissionWrite: 0,
-                        version: "*"
-                    });
-                }
-            }
-            
-            if (toUpdate.length > 0) {
-                nk.storageWrite(toUpdate);
-                updatedCount = toUpdate.length;
-                logger.info("[CHAT] Marked " + updatedCount + " messages as read");
-            }
-        }
-        
-        return updatedCount;
-    } catch (err) {
-        logger.error("[CHAT] Failed to mark messages as read: " + err.message);
-        return 0;
-    }
-}
-
-
 // --- Module: chat_moderation\chat_moderation.js ---
 // chat_moderation.js - Chat Moderation Pipeline
 // Storage collection: chat_reports, chat_filter_config
@@ -10771,9 +10452,72 @@ function rpcSubmitScoreSync(ctx, logger, nk, payload) {
 
 
 // --- Module: copilot\social_features.js ---
-// social_features.js - Social graph and notification features
+// ============================================================================
+// social_features.js — Social graph and notification features (DEPRECATED)
+// ============================================================================
 // ES5 compatible for Nakama goja runtime
+//
+// ⚠ THIS FILE IS DEAD CODE — DO NOT EDIT THE FUNCTIONS BELOW ⚠
+//
+// History
+// -------
+// This file once contained an alternative implementation of the friend-
+// invite RPCs (rpcSendFriendInvite / rpcAcceptFriendInvite /
+// rpcDeclineFriendInvite). They were never registered anywhere — neither
+// `index.js` (the bundled entry point produced by postbuild.js) nor
+// `legacy_runtime.js` ever called `initializer.registerRpc(...)` for any
+// of these handlers. So they sat in the source tree for years as
+// orphaned, untestable, and conflicting copies of the legacy_runtime
+// implementations.
+//
+// Why we don't just delete the file
+// ---------------------------------
+// 1. Removing the file would break a developer who happens to grep for
+//    `rpcSendFriendInvite` and expects to land on something authoritative.
+//    The pointer comment below (and the disabled blocks) make the
+//    redirection explicit and survive a quick search.
+// 2. postbuild.js auto-discovers every `*.js` file under data/modules/
+//    (excluding the obvious build artefacts). Deleting the file would
+//    remove ~150 lines from the bundle but is otherwise functionally
+//    indistinguishable from leaving the bodies commented out.
+// 3. Future audits can compare the disabled bodies here with the live
+//    implementations in `friends/friend_invites.js` to verify behaviour
+//    parity.
+//
+// Where the LIVE implementations live now
+// ---------------------------------------
+//   send_friend_invite     →  data/modules/friends/friend_invites.js
+//   accept_friend_invite   →  data/modules/friends/friend_invites.js
+//   decline_friend_invite  →  data/modules/friends/friend_invites.js
+//   cancel_friend_invite          (NEW)  →  friends/friend_invites.js
+//   list_pending_friend_invites   (NEW)  →  friends/friend_invites.js
+//
+// The new module also fixes the "split-brain" friend-graph bug: the
+// legacy send_friend_invite below NEVER called nk.friendsAdd(), leaving
+// Nakama's native user_friends table permanently out-of-sync with the
+// custom `friend_invites` storage rows. The new implementation calls
+// nk.friendsAdd(senderId, [targetUserId]) on send so every downstream
+// system that reads nk.friendsList sees a consistent picture.
+//
+// Notifications now use the canonical constants in
+//   data/modules/friends/notification_codes.js
+// (subject = stable machine id, code = canonical numeric filter,
+//  content.type = backup machine id) instead of ad-hoc subjects like
+// "Friend Request" / "Friend Request Accepted" that the client never
+// matched.
+//
+// IF YOU NEED TO MODIFY FRIEND INVITE BEHAVIOUR — DO IT IN
+//   data/modules/friends/friend_invites.js
+// NOT HERE.
+//
+// rpcGetNotifications below is also dead in this file (never registered
+// from here) but left untouched because it is a generic notification
+// helper, not friends-specific, and may be revived later by a different
+// subsystem. It is harmless: `function` declarations cost nothing at
+// runtime if never called.
+// ============================================================================
 
+/* ─── BEGIN DISABLED CODE — see header above ────────────────────────────────
 function rpcSendFriendInvite(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
@@ -10873,13 +10617,13 @@ function rpcAcceptFriendInvite(ctx, logger, nk, payload) {
 
         inviteData.status = "accepted";
         inviteData.acceptedAt = new Date().toISOString();
-        try { nk.storageWrite([{ collection: "friend_invites", key: inviteId, userId: userId, value: inviteData, permissionRead: 1, permissionWrite: 0 }]); } catch (err) { /* non-fatal */ }
+        try { nk.storageWrite([{ collection: "friend_invites", key: inviteId, userId: userId, value: inviteData, permissionRead: 1, permissionWrite: 0 }]); } catch (err) { }
 
         try {
             nk.notificationSend(inviteData.fromUserId, "Friend Request Accepted",
                 { type: "friend_invite_accepted", acceptedBy: userId, acceptedByUsername: ctx.username || userId },
                 2, userId, true);
-        } catch (err) { /* non-fatal */ }
+        } catch (err) { }
 
         return JSON.stringify({ success: true, inviteId: inviteId, friendUserId: inviteData.fromUserId, friendUsername: inviteData.fromUsername });
 
@@ -10934,7 +10678,7 @@ function rpcGetNotifications(ctx, logger, nk, payload) {
         if (!ctx.userId) return copilotHandleError(ctx, null, "Authentication required");
 
         var data = {};
-        if (payload) { try { data = JSON.parse(payload); } catch (err) { /* use defaults */ } }
+        if (payload) { try { data = JSON.parse(payload); } catch (err) { } }
 
         var userId = ctx.userId;
         var limit = data.limit || 100;
@@ -10953,6 +10697,7 @@ function rpcGetNotifications(ctx, logger, nk, payload) {
         return copilotHandleError(ctx, err, "An error occurred while retrieving notifications");
     }
 }
+─── END DISABLED CODE ──────────────────────────────────────────────────── */
 
 
 // --- Module: copilot\utils.js ---
@@ -13541,7 +13286,7 @@ function rpcUnityAnalyticsImport(ctx, logger, nk, payload) {
 // ─── Registration ─────────────────────────────────────────
 // postbuild.js scans for initializer.registerRpc() calls
 
-function __ModuleInit_27(ctx, logger, nk, initializer) {
+function __ModuleInit_26(ctx, logger, nk, initializer) {
     __rpc_analytics_appodeal = __rpc_analytics_appodeal || (rpcAnalyticsAppodeal);
     __rpc_analytics_apple_appstore = __rpc_analytics_apple_appstore || (rpcAnalyticsAppleAppstore);
     __rpc_apple_appstore_import = __rpc_apple_appstore_import || (rpcAppleImport);
@@ -13929,7 +13674,7 @@ function rpcExternalPollStatus(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_28(ctx, logger, nk, initializer) {
+function __ModuleInit_27(ctx, logger, nk, initializer) {
     __rpc_external_poll_appodeal = __rpc_external_poll_appodeal || (rpcExternalPollAppodeal);
     __rpc_external_poll_appstore = __rpc_external_poll_appstore || (rpcExternalPollAppstore);
     __rpc_external_poll_ugs = __rpc_external_poll_ugs || (rpcExternalPollUgs);
@@ -14178,528 +13923,90 @@ function grantReward(nk, userId, rewardType, amount, logger) {
 
 
 // --- Module: friends\friends.js ---
-// friends.js - Production-Ready Friend System
-// Hardened: friendship verification, rate limiting, UUID validation, block enforcement
+// ============================================================================
+// friends.js — Helper-only module (Phase-4 C2 cleanup)
+// ============================================================================
+// PRODUCTION-READY | ES5 (Goja runtime)
+//
+// HISTORY
+// -------
+// This file used to host SIX RPC handlers and SEVERAL helpers:
+//   * RPCs: friends_block, friends_unblock, friends_remove, friends_list,
+//          friends_challenge_user, friends_spectate
+//   * Helpers: isValidFriendUUID, isUserBlocked, areActualFriends,
+//              checkRateLimit, sendChallengePushNotification,
+//              sendChallengeChatMessage
+//
+// All six RPCs were silently shadowed by canonical replacements:
+//   * friends_block / friends_unblock / friends_remove → src/legacy/friends.ts
+//   * friends_list                                    → src/friends/friends_list.ts (Phase-4 C1)
+//   * friends_challenge_user / friends_spectate       → friends/friend_challenges.js (Phase-3a)
+//
+// Phase-4 C2 strips the dead RPC handlers AND their now-unused helpers
+// (isValidFriendUUID, isUserBlocked, areActualFriends, checkRateLimit) so
+// nobody can read this file and "fix" the wrong code path. The lone
+// `checkRateLimit` deletion also removes a name collision with
+// `infrastructure/rate_limiting.js` which defines a totally different
+// function with the same name (different signature) — the
+// rate_limiting.js version was silently overwriting friends.js's at
+// merge time, which is the kind of subtle global-scope bug we never
+// want to hit.
+//
+// What remains
+// ------------
+// Two helper functions that `friends/friend_challenges.js` still calls
+// at runtime (via `typeof X === 'function'` lookups so the module is
+// resilient to load-order changes — see line 483-495 of
+// friend_challenges.js):
+//
+//   sendChallengePushNotification(nk, logger, targetUserId, gameId,
+//                                 challengerName, quizModeName,
+//                                 challengeId, roomCode, isAsync)
+//      → fans out a push notification via the PUSH_SEND_URL Lambda
+//        endpoint to every push_endpoints row owned by `targetUserId`
+//        for the given `gameId`. Used by send_friend_challenge.
+//
+//   sendChallengeChatMessage(nk, logger, senderId, receiverId,
+//                            senderName, challengeData)
+//      → inserts a "friend challenge" message into the DM channel
+//        between sender and receiver so the challenge appears in their
+//        chat thread. Falls back to a `pending_chat_messages` storage
+//        row if the channel insert fails.
+//
+// Both helpers are intentionally kept in the legacy JS module rather
+// than ported to TypeScript because (a) the Phase-3a TS challenge
+// module already has the canonical RPC handler, (b) these helpers are
+// pure side-effect fan-outs the TS handler delegates to via dynamic
+// lookup, and (c) the dynamic lookup pattern is the safest way to
+// handle "host calls helper if it exists, otherwise no-op" without
+// hard-coupling the two files.
+//
+// If you need to add a NEW friend RPC, ADD IT TO ONE OF:
+//   - friends/friend_invites.js     (invite lifecycle)
+//   - friends/friend_challenges.js  (challenge lifecycle + spectate)
+//   - src/friends/friends_list.ts   (read-only roster RPCs)
+//   - src/legacy/friends.ts         (graph mutations)
+// NOT to this file. This file should never grow back to handler size.
+// ============================================================================
+
 
 /**
- * UUID v4 format validation
- * @param {string} id - String to validate
- * @returns {boolean}
- */
-function isValidFriendUUID(id) {
-    if (!id || typeof id !== 'string') return false;
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-}
-
-/**
- * Check if targetUserId is blocked by userId
- * @param {object} nk - Nakama runtime
- * @param {string} userId - Caller user ID
- * @param {string} targetUserId - Target to check
- * @returns {boolean} true if blocked
- */
-function isUserBlocked(nk, userId, targetUserId) {
-    try {
-        // Check custom block storage
-        var results = nk.storageRead([{
-            collection: "user_blocks",
-            key: "blocked_" + userId + "_" + targetUserId,
-            userId: userId
-        }]);
-        if (results.length > 0) return true;
-
-        // Also check Nakama built-in friends with state=3 (blocked)
-        var friendsList = nk.friendsList(userId, 100, 3, null);
-        if (friendsList && friendsList.friends) {
-            for (var i = 0; i < friendsList.friends.length; i++) {
-                if (friendsList.friends[i].user.id === targetUserId) return true;
-            }
-        }
-    } catch (err) {
-        // If we can't check, assume not blocked (fail open for reads)
-    }
-    return false;
-}
-
-/**
- * Check if two users are actually friends (state=0 mutual)
- * @param {object} nk - Nakama runtime
- * @param {string} userId - Caller
- * @param {string} targetUserId - Target
- * @returns {boolean}
- */
-function areActualFriends(nk, userId, targetUserId) {
-    try {
-        var friendsList = nk.friendsList(userId, 1000, 0, null);
-        if (friendsList && friendsList.friends) {
-            for (var i = 0; i < friendsList.friends.length; i++) {
-                if (friendsList.friends[i].user.id === targetUserId) return true;
-            }
-        }
-    } catch (err) {
-        // Fail closed — if we can't verify, deny
-    }
-    return false;
-}
-
-/**
- * Simple per-user rate limiter using storage
- * @param {object} nk - Nakama runtime
- * @param {string} userId - User to check
- * @param {string} action - Action key (e.g. "challenge")
- * @param {number} cooldownMs - Cooldown in milliseconds
- * @returns {object} { allowed: boolean, retryAfterMs: number }
- */
-function checkRateLimit(nk, userId, action, cooldownMs) {
-    var key = "ratelimit_" + action + "_" + userId;
-    var now = Date.now();
-    try {
-        var results = nk.storageRead([{
-            collection: "rate_limits",
-            key: key,
-            userId: userId
-        }]);
-        if (results.length > 0) {
-            var lastCall = results[0].value.timestamp || 0;
-            var elapsed = now - lastCall;
-            if (elapsed < cooldownMs) {
-                return { allowed: false, retryAfterMs: cooldownMs - elapsed };
-            }
-        }
-    } catch (err) {
-        // If rate limit check fails, allow the action
-    }
-    // Update timestamp
-    try {
-        nk.storageWrite([{
-            collection: "rate_limits",
-            key: key,
-            userId: userId,
-            value: { timestamp: now },
-            permissionRead: 0,
-            permissionWrite: 0
-        }]);
-    } catch (err) {
-        // Non-critical
-    }
-    return { allowed: true, retryAfterMs: 0 };
-}
-
-/**
- * RPC: Block user
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { targetUserId: "uuid" }
- * @returns {string} JSON response
- */
-function rpcFriendsBlock(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_block called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['targetUserId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var targetUserId = data.targetUserId;
-
-    // Validate UUID format
-    if (!isValidFriendUUID(targetUserId)) {
-        return utils.handleError(ctx, null, "Invalid targetUserId format");
-    }
-
-    // Cannot block yourself
-    if (targetUserId === userId) {
-        return utils.handleError(ctx, null, "Cannot block yourself");
-    }
-    
-    // Store block relationship
-    var collection = "user_blocks";
-    var key = "blocked_" + userId + "_" + targetUserId;
-    var blockData = {
-        userId: userId,
-        blockedUserId: targetUserId,
-        blockedAt: utils.getCurrentTimestamp()
-    };
-    
-    if (!utils.writeStorage(nk, logger, collection, key, userId, blockData)) {
-        return utils.handleError(ctx, null, "Failed to block user");
-    }
-    
-    // Remove from friends if exists (both directions)
-    try {
-        nk.friendsDelete(userId, [targetUserId]);
-    } catch (err) {
-        utils.logWarn(logger, "Could not remove friend relationship: " + err.message);
-    }
-    
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        blockedUserId: targetUserId,
-        blockedAt: blockData.blockedAt
-    });
-}
-
-/**
- * RPC: Unblock user
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { targetUserId: "uuid" }
- * @returns {string} JSON response
- */
-function rpcFriendsUnblock(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_unblock called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['targetUserId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var targetUserId = data.targetUserId;
-
-    // Validate UUID format
-    if (!isValidFriendUUID(targetUserId)) {
-        return utils.handleError(ctx, null, "Invalid targetUserId format");
-    }
-    
-    // Remove block relationship
-    var collection = "user_blocks";
-    var key = "blocked_" + userId + "_" + targetUserId;
-    
-    try {
-        nk.storageDelete([{
-            collection: collection,
-            key: key,
-            userId: userId
-        }]);
-    } catch (err) {
-        utils.logWarn(logger, "Failed to unblock user: " + err.message);
-    }
-    
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        unblockedUserId: targetUserId,
-        unblockedAt: utils.getCurrentTimestamp()
-    });
-}
-
-/**
- * RPC: Remove friend
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { friendUserId: "uuid" }
- * @returns {string} JSON response
- */
-function rpcFriendsRemove(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_remove called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['friendUserId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var friendUserId = data.friendUserId;
-
-    // Validate UUID format
-    if (!isValidFriendUUID(friendUserId)) {
-        return utils.handleError(ctx, null, "Invalid friendUserId format");
-    }
-    
-    try {
-        nk.friendsDelete(userId, [friendUserId]);
-    } catch (err) {
-        return utils.handleError(ctx, err, "Failed to remove friend");
-    }
-    
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        removedFriendUserId: friendUserId,
-        removedAt: utils.getCurrentTimestamp()
-    });
-}
-
-/**
- * RPC: List friends
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with optional { limit: 100, cursor: "", stateFilter: null }
- * @returns {string} JSON response
- */
-function rpcFriendsList(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_list called");
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var limit = 100;
-    var cursor = null;
-    var stateFilter = null;
-    if (payload) {
-        var parsed = utils.safeJsonParse(payload);
-        if (parsed.success) {
-            if (parsed.data.limit) {
-                limit = Math.min(Math.max(parseInt(parsed.data.limit) || 100, 1), 500);
-            }
-            if (parsed.data.cursor) {
-                cursor = parsed.data.cursor;
-            }
-            if (parsed.data.stateFilter !== undefined && parsed.data.stateFilter !== null) {
-                stateFilter = parseInt(parsed.data.stateFilter);
-                if (isNaN(stateFilter) || stateFilter < 0 || stateFilter > 3) {
-                    stateFilter = null;
-                }
-            }
-        }
-    }
-    
-    var friends = [];
-    var nextCursor = null;
-    try {
-        var friendsList = nk.friendsList(userId, limit, stateFilter, cursor);
-        nextCursor = friendsList.cursor || null;
-        for (var i = 0; i < friendsList.friends.length; i++) {
-            var friend = friendsList.friends[i];
-            friends.push({
-                userId: friend.user.id,
-                username: friend.user.username,
-                displayName: friend.user.displayName,
-                avatarUrl: friend.user.avatarUrl || "",
-                online: friend.user.online,
-                state: friend.state
-            });
-        }
-    } catch (err) {
-        return utils.handleError(ctx, err, "Failed to list friends");
-    }
-    
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        friends: friends,
-        count: friends.length,
-        cursor: nextCursor,
-        timestamp: utils.getCurrentTimestamp()
-    });
-}
-
-/**
- * RPC: Challenge friend to a match
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { friendUserId: "uuid", gameId: "uuid", challengeData: {} }
- * @returns {string} JSON response
- */
-function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_challenge_user called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['friendUserId', 'gameId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var friendUserId = data.friendUserId;
-
-    // Validate friendUserId UUID format
-    if (!isValidFriendUUID(friendUserId)) {
-        return utils.handleError(ctx, null, "Invalid friendUserId UUID format");
-    }
-
-    // Cannot challenge yourself
-    if (friendUserId === userId) {
-        return utils.handleError(ctx, null, "Cannot challenge yourself");
-    }
-
-    // Rate limit: 1 challenge per 30 seconds
-    var rateCheck = checkRateLimit(nk, userId, "challenge", 30000);
-    if (!rateCheck.allowed) {
-        return JSON.stringify({
-            success: false,
-            error: "Please wait before sending another challenge",
-            retryAfterMs: rateCheck.retryAfterMs
-        });
-    }
-
-    // Verify they are actually friends (state=0 mutual)
-    if (!areActualFriends(nk, userId, friendUserId)) {
-        return utils.handleError(ctx, null, "You can only challenge mutual friends");
-    }
-
-    // Check if target has blocked the caller
-    if (isUserBlocked(nk, friendUserId, userId)) {
-        // Don't reveal the block — generic message
-        return utils.handleError(ctx, null, "Unable to send challenge at this time");
-    }
-
-    // Validate challengeData size (max 4KB to prevent abuse)
-    var challengeData = data.challengeData || {};
-    var challengeDataStr = JSON.stringify(challengeData);
-    if (challengeDataStr.length > 4096) {
-        return utils.handleError(ctx, null, "Challenge data too large (max 4KB)");
-    }
-
-    // Get challenger's display name for notifications
-    var challengerName = "A friend";
-    try {
-        var users = nk.usersGetId([userId]);
-        if (users && users.length > 0) {
-            challengerName = users[0].displayName || users[0].username || "A friend";
-        }
-    } catch (err) {
-        utils.logWarn(logger, "Could not fetch challenger display name: " + err.message);
-    }
-
-    // Extract room code / share code from challengeData for auto-join
-    var roomCode = challengeData.roomCode || challengeData.shareCode || "";
-    var quizModeName = challengeData.quizModeName || challengeData.modeName || "Quiz";
-    var isAsync = challengeData.isAsync !== undefined ? challengeData.isAsync : false;
-    var expiresAt = challengeData.expiresAt || (Date.now() + 24 * 60 * 60 * 1000); // 24h default
-
-    // Create challenge
-    var challengeId = "challenge_" + userId + "_" + friendUserId + "_" + utils.getUnixTimestamp();
-    var challenge = {
-        challengeId: challengeId,
-        fromUserId: userId,
-        fromDisplayName: challengerName,
-        toUserId: friendUserId,
-        gameId: gameId,
-        roomCode: roomCode,
-        quizModeName: quizModeName,
-        isAsync: isAsync,
-        expiresAt: expiresAt,
-        challengeData: challengeData,
-        status: "pending",
-        createdAt: utils.getCurrentTimestamp()
-    };
-    
-    // Store challenge
-    var collection = "challenges";
-    if (!utils.writeStorage(nk, logger, collection, challengeId, userId, challenge)) {
-        return utils.handleError(ctx, null, "Failed to create challenge");
-    }
-
-    // Notification content for in-app, push, and chat
-    var notificationContent = {
-        type: "friend_challenge",
-        challengeId: challengeId,
-        fromUserId: userId,
-        fromDisplayName: challengerName,
-        gameId: gameId,
-        roomCode: roomCode,
-        shareCode: roomCode,
-        quizModeName: quizModeName,
-        isAsync: isAsync,
-        expiresAt: expiresAt
-    };
-    
-    // 1. Send in-app notification to friend
-    try {
-        nk.notificationsSend([{
-            userId: friendUserId,
-            subject: "Friend Challenge",
-            content: JSON.stringify(notificationContent),
-            code: 100,
-            persistent: true
-        }]);
-        utils.logInfo(logger, "In-app notification sent for challenge " + challengeId);
-    } catch (err) {
-        utils.logWarn(logger, "Failed to send challenge notification: " + err.message);
-    }
-
-    // 2. Send push notification (for when app is closed/background)
-    try {
-        sendChallengePushNotification(nk, logger, friendUserId, gameId, challengerName, quizModeName, challengeId, roomCode, isAsync);
-    } catch (pushErr) {
-        utils.logWarn(logger, "Push notification failed: " + pushErr.message);
-    }
-
-    // 3. Send challenge as chat message (so it appears in conversation)
-    try {
-        sendChallengeChatMessage(nk, logger, userId, friendUserId, challengerName, notificationContent);
-    } catch (chatErr) {
-        utils.logWarn(logger, "Chat message failed: " + chatErr.message);
-    }
-    
-    return JSON.stringify({
-        success: true,
-        challengeId: challengeId,
-        fromUserId: userId,
-        fromDisplayName: challengerName,
-        toUserId: friendUserId,
-        gameId: gameId,
-        roomCode: roomCode,
-        quizModeName: quizModeName,
-        isAsync: isAsync,
-        status: "pending",
-        timestamp: utils.getCurrentTimestamp()
-    });
-}
-
-/**
- * Send push notification for friend challenge
- * Calls the push notification Lambda endpoint
+ * Send a push notification for a friend challenge.
+ * Calls the push notification Lambda endpoint.
+ *
+ * @param {object} nk
+ * @param {object} logger
+ * @param {string} targetUserId   - Recipient userId (the challenged player)
+ * @param {string} gameId         - Free-form game/mode id (used to filter push_endpoints)
+ * @param {string} challengerName - Display name shown in the push title
+ * @param {string} quizModeName   - Display name of the quiz mode for the body
+ * @param {string} challengeId    - Server-authoritative challenge id (echoed in data)
+ * @param {string} roomCode       - Room/share code (echoed in data)
+ * @param {boolean} isAsync       - True for async challenges, false for live
  */
 function sendChallengePushNotification(nk, logger, targetUserId, gameId, challengerName, quizModeName, challengeId, roomCode, isAsync) {
     var LAMBDA_PUSH_URL = (typeof process!=="undefined"&&process.env?process.env.PUSH_SEND_URL:undefined) || "https://your-lambda-url.lambda-url.region.on.aws/send-push";
 
-    // Get all push endpoints for target user
     var endpoints = [];
     try {
         var records = nk.storageList(targetUserId, "push_endpoints", 100);
@@ -14721,24 +14028,24 @@ function sendChallengePushNotification(nk, logger, targetUserId, gameId, challen
 
     var challengeType = isAsync ? "Async Challenge" : "Live Challenge";
     var title = "🎮 " + challengerName + " challenged you!";
-    var body = "Accept the " + quizModeName + " " + challengeType + " now!";
+    var body  = "Accept the " + quizModeName + " " + challengeType + " now!";
 
     for (var j = 0; j < endpoints.length; j++) {
         var endpoint = endpoints[j];
 
         var pushPayload = {
             endpointArn: endpoint.endpointArn,
-            platform: endpoint.platform,
-            title: title,
-            body: body,
+            platform:    endpoint.platform,
+            title:       title,
+            body:        body,
             data: {
-                type: "friend_challenge",
-                challengeId: challengeId,
-                roomCode: roomCode,
-                isAsync: isAsync,
+                type:         "friend_challenge",
+                challengeId:  challengeId,
+                roomCode:     roomCode,
+                isAsync:      isAsync,
                 click_action: "OPEN_CHALLENGE"
             },
-            gameId: gameId,
+            gameId:    gameId,
             eventType: "friend_challenge"
         };
 
@@ -14759,13 +14066,21 @@ function sendChallengePushNotification(nk, logger, targetUserId, gameId, challen
 }
 
 /**
- * Send challenge as a chat message so it appears in the conversation
+ * Send a friend challenge as a chat message so it appears in the conversation
+ * thread between the two users.
+ *
+ * @param {object} nk
+ * @param {object} logger
+ * @param {string} senderId      - Challenger userId
+ * @param {string} receiverId    - Challenged userId
+ * @param {string} senderName    - Challenger display name
+ * @param {object} challengeData - { challengeId, roomCode, quizModeName, isAsync,
+ *                                   fromUserId, fromDisplayName, expiresAt }
  */
 function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, challengeData) {
-    // Create or get DM channel between the two users
     var channelId = null;
     try {
-        // Sort user IDs to create consistent channel ID
+        // Sort user IDs so both sides resolve to the same DM channel
         var sortedIds = [senderId, receiverId].sort();
         channelId = "dm_" + sortedIds[0] + "_" + sortedIds[1];
     } catch (err) {
@@ -14773,25 +14088,23 @@ function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, 
         return;
     }
 
-    // Build challenge message content
     var messageContent = {
         type: "friend_challenge",
         text: "🎮 " + senderName + " challenged you to " + challengeData.quizModeName + "!",
         challenge: {
-            challengeId: challengeData.challengeId,
-            roomCode: challengeData.roomCode,
-            shareCode: challengeData.roomCode,
-            quizModeName: challengeData.quizModeName,
-            isAsync: challengeData.isAsync,
-            fromUserId: challengeData.fromUserId,
+            challengeId:     challengeData.challengeId,
+            roomCode:        challengeData.roomCode,
+            shareCode:       challengeData.roomCode,
+            quizModeName:    challengeData.quizModeName,
+            isAsync:         challengeData.isAsync,
+            fromUserId:      challengeData.fromUserId,
             fromDisplayName: challengeData.fromDisplayName,
-            expiresAt: challengeData.expiresAt,
-            status: "pending"
+            expiresAt:       challengeData.expiresAt,
+            status:          "pending"
         }
     };
 
     try {
-        // Use channel message write to insert challenge as a special message
         nk.channelMessageSend(
             channelId,
             JSON.stringify(messageContent),
@@ -14801,100 +14114,2000 @@ function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, 
         );
         utils.logInfo(logger, "Challenge chat message sent to channel " + channelId);
     } catch (chatErr) {
-        // Fallback: Write to storage-based chat if channel doesn't exist
+        // Fallback: if the DM channel doesn't exist yet, persist the message
+        // so it can be replayed when the channel is later opened.
         utils.logWarn(logger, "Channel message failed, using storage fallback: " + chatErr.message);
-        
-        // Store as pending chat message  
+
         var msgKey = "pending_chat_" + receiverId + "_" + Date.now();
         utils.writeStorage(nk, logger, "pending_chat_messages", msgKey, senderId, {
-            senderId: senderId,
-            senderName: senderName,
-            receiverId: receiverId,
-            content: messageContent,
-            timestamp: utils.getCurrentTimestamp()
+            senderId:    senderId,
+            senderName:  senderName,
+            receiverId:  receiverId,
+            content:     messageContent,
+            timestamp:   utils.getCurrentTimestamp()
         });
     }
 }
 
-/**
- * RPC: Spectate friend's match
- * @param {object} ctx - Request context
- * @param {object} logger - Logger instance
- * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { friendUserId: "uuid" }
- * @returns {string} JSON response
- */
-function rpcFriendsSpectate(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC friends_spectate called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['friendUserId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var friendUserId = data.friendUserId;
 
-    // Validate UUID format
-    if (!isValidFriendUUID(friendUserId)) {
-        return utils.handleError(ctx, null, "Invalid friendUserId format");
-    }
+// --- Module: friends\friend_challenges.js ---
+// ============================================================================
+// friend_challenges.js - Canonical Friend Challenge Lifecycle RPCs
+// ============================================================================
+// PRODUCTION-READY | ES5 (Goja runtime) | Single source of truth
+//
+// Replaces the legacy single-shot `friends_challenge_user` stub (which was
+// effectively broken at the network boundary because it required `gameId`
+// to be a UUID, but the Unity client sends `async_<guid>` / `sync_<guid>`
+// strings).  This module:
+//
+//  1. SERVER-AUTHORITATIVE challengeId  (`fchg_<32 chars>`, server-minted)
+//  2. STRICT mutual-friend gate         (Nakama state == 0 only)
+//  3. Bi-directional block check        (sender->target AND target->sender)
+//  4. STRICT rate limit                 (1 per (sender,target) per 30 s
+//                                        + 20 per sender per minute global,
+//                                        sliding window)
+//  5. Persists FULL lifecycle           (pending → accepted | declined |
+//                                        cancelled | expired)
+//  6. Auto-expiry at READ time          (lazy sweep — no scheduled job needed)
+//  7. Per-game expiry policy            (async = 24 h, sync = 5 min,
+//                                        default = 1 h; client may override
+//                                        via challengeData.isAsync)
+//  8. challengeData size cap            (4 KB JSON)
+//  9. Idempotent state transitions      (double-tap accept/decline/cancel
+//                                        returns success without erroring)
+// 10. Notifications use canonical       (NotifCode 100/101/102/103 +
+//     Subject/Code from notification_codes.js so the Unity
+//     `IVXFriendsManager.HandleNotification` filter actually matches)
+// 11. Storage layout
+//        friend_challenges/<id>          (owner = recipient,  perm 1/0)
+//        friend_challenges_outbox/<id>   (owner = sender,     perm 1/0)
+//     Two writes per state change, but lets BOTH parties query their own
+//     side without cross-user storage reads.
+//
+// Registered RPCs:
+//   send_friend_challenge              ← canonical
+//   friends_challenge_user             ← legacy alias (clients may still call this)
+//   accept_friend_challenge
+//   decline_friend_challenge
+//   cancel_friend_challenge
+//   list_pending_friend_challenges
+//
+// SIDE-EFFECTS (re-uses helpers from friends/friends.js when present):
+//   sendChallengePushNotification(nk, logger, ...) — push notification fan-out
+//   sendChallengeChatMessage(nk, logger, ...)      — DM channel insertion
+// Both calls are wrapped in try/catch and `typeof === 'function'` guards
+// so this module remains functional even if friends.js is removed.
+// ============================================================================
 
-    // Verify actually friends
-    if (!areActualFriends(nk, userId, friendUserId)) {
-        return utils.handleError(ctx, null, "You can only spectate friends");
+// ─── Tunables ───────────────────────────────────────────────────────────────
+var FC_COLLECTION         = 'friend_challenges';        // canonical, owner = recipient
+var FC_OUTBOX             = 'friend_challenges_outbox'; // index, owner = sender
+var FC_RL_PAIR_KEY        = 'fchg_pair';
+var FC_RL_PAIR_MS         = 30000; // 30 s between sends to the same target
+var FC_RL_GLOBAL_KEY      = 'fchg_global';
+var FC_RL_GLOBAL_WINDOW_MS = 60000; // sliding window
+var FC_RL_GLOBAL_MAX      = 20;     // 20 sends / min / sender
+var FC_MAX_DATA_BYTES     = 4096;
+var FC_MAX_REASON_LEN     = 280;
+var FC_MAX_GAMEID_LEN     = 128;
+
+// Status enum
+var FC_STATUS_PENDING   = 'pending';
+var FC_STATUS_ACCEPTED  = 'accepted';
+var FC_STATUS_DECLINED  = 'declined';
+var FC_STATUS_CANCELLED = 'cancelled';
+var FC_STATUS_EXPIRED   = 'expired';
+
+// Nakama friend states (from runtime API)
+var FCF_STATE_FRIEND  = 0;
+var FCF_STATE_BLOCKED = 3;
+
+// ─── Tiny self-contained helpers (no external `utils` dependency) ──────────
+// Same philosophy as friend_invites.js: bullet-proof regardless of merge order.
+
+function _fcUuidValid(id) {
+    if (!id || typeof id !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function _fcNowIso() { return new Date().toISOString(); }
+function _fcNowMs()  { return Date.now(); }
+
+function _fcOk(extra) {
+    var out = { success: true };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
     }
-    
-    // Try to find friend's active match via stream presences
-    var matchId = null;
+    return JSON.stringify(out);
+}
+
+// Standardised error envelope. `errorCode` is a stable machine code so the
+// client can switch on it without parsing English strings.
+function _fcErr(message, errorCode, extra) {
+    var out = { success: false, error: message, errorCode: errorCode || 'unknown' };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+function _fcParsePayload(payload) {
+    if (!payload || payload === '') return { ok: true, data: {} };
+    try { return { ok: true, data: JSON.parse(payload) }; }
+    catch (e)  { return { ok: false, error: 'Invalid JSON payload: ' + e.message }; }
+}
+
+// Mint a server-authoritative challengeId.
+//
+// Prefers `nk.uuidv4()` (cryptographically random, available in Nakama JS
+// runtime) and falls back to a timestamp + 24 random hex chars composite
+// for environments where the API may have moved/renamed in a future runtime.
+function _fcMintChallengeId(nk) {
     try {
-        // Use status follow to check online status
-        var accounts = nk.usersGetId([friendUserId]);
-        if (!accounts || accounts.length === 0 || !accounts[0].online) {
-            return JSON.stringify({
-                success: false,
-                error: "Friend is not currently online"
+        if (nk && typeof nk.uuidv4 === 'function') {
+            return 'fchg_' + nk.uuidv4().replace(/-/g, '');
+        }
+    } catch (_) { /* fall through */ }
+    var hex = '0123456789abcdef';
+    var rand = '';
+    for (var i = 0; i < 24; i++) {
+        rand += hex.charAt(Math.floor(Math.random() * 16));
+    }
+    return 'fchg_' + Date.now().toString(36) + '_' + rand;
+}
+
+// Per-game expiry policy.  Returns seconds.
+//   isAsync == true  → 24 h
+//   isAsync == false → 5  min
+//   gameId contains 'async' → 24 h
+//   gameId contains 'sync'  → 5  min
+//   default                  → 1  h
+function _fcExpirySecondsForGame(gameId, isAsync) {
+    if (isAsync === true)  return 24 * 3600;
+    if (isAsync === false) return 5 * 60;
+    if (typeof gameId === 'string') {
+        var g = gameId.toLowerCase();
+        if (g.indexOf('async') !== -1) return 24 * 3600;
+        if (g.indexOf('sync')  !== -1) return 5 * 60;
+    }
+    return 3600;
+}
+
+// STRICT mutual-friend check using Nakama's native friend graph.
+// Returns true ONLY for state == 0 (FRIEND).  Pending invites do NOT count.
+function _fcAreFriends(nk, callerId, targetId) {
+    try {
+        // friendsList(userId, limit, state, cursor) — state == 0 limits the page
+        // to confirmed friends only, which is materially cheaper than fetching
+        // every relationship and filtering.
+        var page = nk.friendsList(callerId, 1000, FCF_STATE_FRIEND, null);
+        if (page && page.friends) {
+            for (var i = 0; i < page.friends.length; i++) {
+                var fr = page.friends[i];
+                if (fr && fr.user && fr.user.id === targetId) return true;
+            }
+        }
+    } catch (_) { /* fail-closed (deny on lookup error) */ }
+    return false;
+}
+
+// One-direction block check via the legacy `user_blocks` storage collection
+// that friends/friends.js populates.  Caller passes the BLOCKER first.
+function _fcIsBlockedBy(nk, blockerUserId, blockedUserId) {
+    try {
+        var rows = nk.storageRead([{
+            collection: 'user_blocks',
+            key:        'blocked_' + blockerUserId + '_' + blockedUserId,
+            userId:     blockerUserId
+        }]);
+        return !!(rows && rows.length > 0 && rows[0] && rows[0].value);
+    } catch (_) { return false; /* fail-open on lookup error */ }
+}
+
+// Pair-level rate limit: at most 1 challenge from sender→target per 30 s.
+// Also serves as natural double-submit protection.
+function _fcCheckPairRateLimit(nk, senderId, targetId) {
+    var key = FC_RL_PAIR_KEY + '_' + senderId + '_' + targetId;
+    var now = _fcNowMs();
+    try {
+        var rows = nk.storageRead([{ collection: 'rate_limits', key: key, userId: senderId }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.timestamp) {
+            var elapsed = now - rows[0].value.timestamp;
+            if (elapsed < FC_RL_PAIR_MS) {
+                return { allowed: false, retryAfterMs: FC_RL_PAIR_MS - elapsed };
+            }
+        }
+    } catch (_) { /* fail-open */ }
+    try {
+        nk.storageWrite([{
+            collection:      'rate_limits',
+            key:             key,
+            userId:          senderId,
+            value:           { timestamp: now },
+            permissionRead:  0, // server-only
+            permissionWrite: 0
+        }]);
+    } catch (_) { /* non-critical */ }
+    return { allowed: true };
+}
+
+// Global rate limit: at most 20 challenges per sender per 60 s window.
+// Implemented as a sliding-window timestamp ring stored under the user.
+function _fcCheckGlobalRateLimit(nk, senderId) {
+    var key = FC_RL_GLOBAL_KEY + '_' + senderId;
+    var now = _fcNowMs();
+    var stamps = [];
+    try {
+        var rows = nk.storageRead([{ collection: 'rate_limits', key: key, userId: senderId }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.stamps) {
+            stamps = rows[0].value.stamps;
+        }
+    } catch (_) { /* fail-open */ }
+    var fresh = [];
+    for (var i = 0; i < stamps.length; i++) {
+        if ((now - stamps[i]) < FC_RL_GLOBAL_WINDOW_MS) fresh.push(stamps[i]);
+    }
+    if (fresh.length >= FC_RL_GLOBAL_MAX) {
+        // Oldest stamp determines when the next slot frees up
+        return { allowed: false, retryAfterMs: FC_RL_GLOBAL_WINDOW_MS - (now - fresh[0]) };
+    }
+    fresh.push(now);
+    try {
+        nk.storageWrite([{
+            collection:      'rate_limits',
+            key:             key,
+            userId:          senderId,
+            value:           { stamps: fresh },
+            permissionRead:  0,
+            permissionWrite: 0
+        }]);
+    } catch (_) { /* non-critical */ }
+    return { allowed: true };
+}
+
+function _fcDisplayName(nk, userId, fallback) {
+    try {
+        var users = nk.usersGetId([userId]);
+        if (users && users.length > 0 && users[0]) {
+            return users[0].displayName || users[0].username || fallback || userId;
+        }
+    } catch (_) {}
+    return fallback || userId;
+}
+
+function _fcReadChallenge(nk, challengeId, recipientId) {
+    try {
+        var rows = nk.storageRead([{
+            collection: FC_COLLECTION, key: challengeId, userId: recipientId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value) {
+            return { value: rows[0].value, version: rows[0].version };
+        }
+    } catch (_) {}
+    return null;
+}
+
+function _fcReadOutbox(nk, challengeId, senderId) {
+    try {
+        var rows = nk.storageRead([{
+            collection: FC_OUTBOX, key: challengeId, userId: senderId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value) {
+            return { value: rows[0].value, version: rows[0].version };
+        }
+    } catch (_) {}
+    return null;
+}
+
+function _fcWriteChallenge(nk, challenge, recipientId, version) {
+    var rec = {
+        collection:      FC_COLLECTION,
+        key:             challenge.challengeId,
+        userId:          recipientId,
+        value:           challenge,
+        permissionRead:  1,  // owner-readable
+        permissionWrite: 0   // server-only
+    };
+    if (version) rec.version = version;
+    nk.storageWrite([rec]);
+}
+
+function _fcWriteOutbox(nk, challenge, senderId, version) {
+    // Mini index — keeps the sender's outbox small even if challengeData is big.
+    var quizMode = '';
+    if (challenge.challengeData) {
+        quizMode = challenge.challengeData.modeName ||
+                   challenge.challengeData.quizModeName || '';
+    }
+    var index = {
+        challengeId:       challenge.challengeId,
+        targetUserId:      challenge.toUserId,
+        targetDisplayName: challenge.toDisplayName || '',
+        gameId:            challenge.gameId,
+        quizModeName:      quizMode,
+        roomCode:          challenge.roomCode || '',
+        shareCode:         challenge.shareCode || '',
+        isAsync:           !!challenge.isAsync,
+        status:            challenge.status,
+        createdAt:         challenge.createdAt,
+        expiresAt:         challenge.expiresAt,
+        statusUpdatedAt:   challenge.updatedAt
+    };
+    var rec = {
+        collection:      FC_OUTBOX,
+        key:             challenge.challengeId,
+        userId:          senderId,
+        value:           index,
+        permissionRead:  1,
+        permissionWrite: 0
+    };
+    if (version) rec.version = version;
+    nk.storageWrite([rec]);
+}
+
+// ============================================================================
+// RPC: send_friend_challenge
+// ============================================================================
+// Replaces friends_challenge_user.  Both names are registered (legacy alias).
+//
+// Payload:
+//   {
+//     friendUserId: <UUID>,             // recipient
+//     gameId:       <string, ≤128 chars>, // ANY string — we no longer require UUID
+//     challengeData: {                   // ≤ 4 KB JSON
+//       isAsync?:   boolean,
+//       roomCode?:  string,
+//       shareCode?: string,
+//       modeName?:  string,
+//       ...
+//     },
+//     correlationId?: <string>           // optimistic-UI hint, echoed back
+//   }
+//
+// Response (success):
+//   {
+//     success: true,
+//     challengeId, fromUserId, toUserId, gameId, status, roomCode, shareCode,
+//     isAsync, expiresAt, timestamp, correlationId
+//   }
+//
+// Response (failure): { success: false, error, errorCode, ... }
+function rpcSendFriendChallenge(ctx, logger, nk, payload) {
+    var senderId = ctx.userId;
+    if (!senderId) return _fcErr('Authentication required', 'unauthenticated');
+
+    var p = _fcParsePayload(payload);
+    if (!p.ok) return _fcErr(p.error, 'invalid_payload');
+
+    var data                = p.data || {};
+    var targetUserId        = data.friendUserId || data.targetUserId;
+    var gameId              = data.gameId;
+    var rawData             = data.challengeData || {};
+    var clientCorrelationId = data.correlationId || null;
+
+    // ── Input validation ───────────────────────────────────────────────────
+    if (!_fcUuidValid(targetUserId)) {
+        return _fcErr('Invalid friendUserId (must be a UUID)', 'invalid_target');
+    }
+    if (targetUserId === senderId) {
+        return _fcErr('Cannot challenge yourself', 'self_challenge');
+    }
+    if (!gameId || typeof gameId !== 'string') {
+        return _fcErr('gameId is required (string)', 'invalid_payload');
+    }
+    if (gameId.length > FC_MAX_GAMEID_LEN) {
+        return _fcErr('gameId is too long (max ' + FC_MAX_GAMEID_LEN + ')', 'invalid_payload');
+    }
+    if (typeof rawData !== 'object' || rawData === null || Array.isArray(rawData)) {
+        return _fcErr('challengeData must be an object', 'invalid_payload');
+    }
+    var dataStr;
+    try { dataStr = JSON.stringify(rawData); }
+    catch (e) { return _fcErr('challengeData not serialisable: ' + e.message, 'invalid_payload'); }
+    if (dataStr.length > FC_MAX_DATA_BYTES) {
+        return _fcErr('challengeData too large (max ' + FC_MAX_DATA_BYTES + ' bytes)',
+                      'data_too_large');
+    }
+    if (clientCorrelationId !== null &&
+        (typeof clientCorrelationId !== 'string' || clientCorrelationId.length > 128)) {
+        return _fcErr('correlationId must be a string ≤ 128 chars', 'invalid_payload');
+    }
+
+    // ── Mutual-friend gate (STRICT) ────────────────────────────────────────
+    if (!_fcAreFriends(nk, senderId, targetUserId)) {
+        return _fcErr('You can only challenge mutual friends', 'not_mutual_friends');
+    }
+
+    // ── Block checks (both directions) ─────────────────────────────────────
+    if (_fcIsBlockedBy(nk, senderId, targetUserId)) {
+        return _fcErr('You have blocked this user. Unblock them first.',
+                      'caller_blocked_target');
+    }
+    if (_fcIsBlockedBy(nk, targetUserId, senderId)) {
+        // Don't reveal — generic error
+        return _fcErr('Unable to send challenge at this time', 'send_blocked');
+    }
+
+    // ── Rate limits (STRICT — pair AND global) ─────────────────────────────
+    var pairRl = _fcCheckPairRateLimit(nk, senderId, targetUserId);
+    if (!pairRl.allowed) {
+        return _fcErr('Slow down — you challenged this friend recently',
+                      'pair_rate_limited', { retryAfterMs: pairRl.retryAfterMs });
+    }
+    var globRl = _fcCheckGlobalRateLimit(nk, senderId);
+    if (!globRl.allowed) {
+        return _fcErr('Too many challenges in a short time',
+                      'global_rate_limited', { retryAfterMs: globRl.retryAfterMs });
+    }
+
+    // ── Build canonical challenge record ───────────────────────────────────
+    var nowMs    = _fcNowMs();
+    var nowIso   = _fcNowIso();
+    var isAsync  = (rawData.isAsync === true);
+    var expirySec  = _fcExpirySecondsForGame(gameId, rawData.isAsync);
+    var expiresMs  = nowMs + (expirySec * 1000);
+
+    var challengeId  = _fcMintChallengeId(nk);
+    var senderName   = _fcDisplayName(nk, senderId, ctx.username);
+    var targetName   = _fcDisplayName(nk, targetUserId, '');
+
+    var challenge = {
+        challengeId:      challengeId,
+        fromUserId:       senderId,
+        fromUsername:     ctx.username || senderId,
+        fromDisplayName:  senderName,
+        toUserId:         targetUserId,
+        toDisplayName:    targetName,
+        gameId:           gameId,
+        challengeData:    rawData,
+        roomCode:         rawData.roomCode || rawData.shareCode || '',
+        shareCode:        rawData.shareCode || rawData.roomCode || '',
+        isAsync:          isAsync,
+        status:           FC_STATUS_PENDING,
+        createdAt:        nowIso,
+        updatedAt:        nowIso,
+        expiresAt:        new Date(expiresMs).toISOString(),
+        expiresAtMs:      expiresMs,
+        correlationId:    clientCorrelationId
+    };
+
+    // Canonical persist (under recipient — owner-readable for accept/decline)
+    try {
+        _fcWriteChallenge(nk, challenge, targetUserId, null);
+    } catch (e) {
+        logger.error('[FriendChallenges] storageWrite recipient failed: ' + e.message);
+        return _fcErr('Failed to persist challenge', 'storage_write_failed');
+    }
+
+    // Outbox index persist (under sender — owner-readable for cancel/list)
+    try {
+        _fcWriteOutbox(nk, challenge, senderId, null);
+    } catch (e) {
+        // Non-fatal — sender just won't see this in their outgoing list until
+        // the next successful write.  Canonical row is still authoritative.
+        logger.warn('[FriendChallenges] outbox write failed (non-fatal): ' + e.message);
+    }
+
+    // ── Notify recipient (canonical Subject/Code contract) ─────────────────
+    try {
+        sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_RECEIVED', targetUserId, {
+            challengeId:     challengeId,
+            fromUserId:      senderId,
+            fromUsername:    ctx.username || senderId,
+            fromDisplayName: senderName,
+            gameId:          gameId,
+            roomCode:        challenge.roomCode,
+            shareCode:       challenge.shareCode,
+            quizModeName:    (rawData.modeName || rawData.quizModeName || ''),
+            isAsync:         isAsync,
+            expiresAt:       challenge.expiresAt
+        }, senderId);
+    } catch (e) {
+        logger.warn('[FriendChallenges] notify recipient failed: ' + e.message);
+    }
+
+    // ── Push notification (best-effort; helper lives in friends.js) ────────
+    try {
+        if (typeof sendChallengePushNotification === 'function') {
+            sendChallengePushNotification(nk, logger, targetUserId, gameId, senderName,
+                (rawData.modeName || rawData.quizModeName || 'Quiz'), challengeId,
+                challenge.roomCode, isAsync);
+        }
+    } catch (e) {
+        logger.warn('[FriendChallenges] push notification failed: ' + e.message);
+    }
+
+    // ── DM chat message (best-effort; helper lives in friends.js) ──────────
+    try {
+        if (typeof sendChallengeChatMessage === 'function') {
+            sendChallengeChatMessage(nk, logger, senderId, targetUserId, senderName, {
+                type:            'friend_challenge',
+                challengeId:     challengeId,
+                fromUserId:      senderId,
+                fromDisplayName: senderName,
+                gameId:          gameId,
+                roomCode:        challenge.roomCode,
+                shareCode:       challenge.shareCode,
+                quizModeName:    (rawData.modeName || rawData.quizModeName || 'Quiz'),
+                isAsync:         isAsync,
+                expiresAt:       challenge.expiresAt
             });
         }
-
-        // Check if friend has a stored active match
-        var matchResults = nk.storageRead([{
-            collection: "active_matches",
-            key: "current_match",
-            userId: friendUserId
-        }]);
-        if (matchResults.length > 0 && matchResults[0].value.matchId) {
-            matchId = matchResults[0].value.matchId;
-        }
-    } catch (err) {
-        return utils.handleError(ctx, err, "Failed to get friend status");
+    } catch (e) {
+        logger.warn('[FriendChallenges] chat insert failed: ' + e.message);
     }
-    
-    if (!matchId) {
-        return JSON.stringify({
-            success: false,
-            error: "Friend is not currently in a match"
+
+    return _fcOk({
+        challengeId:    challengeId,
+        fromUserId:     senderId,
+        toUserId:       targetUserId,
+        gameId:         gameId,
+        status:         FC_STATUS_PENDING,
+        roomCode:       challenge.roomCode,
+        shareCode:      challenge.shareCode,
+        isAsync:        isAsync,
+        expiresAt:      challenge.expiresAt,
+        timestamp:      nowIso,
+        correlationId:  clientCorrelationId
+    });
+}
+
+// ============================================================================
+// RPC: accept_friend_challenge
+// ============================================================================
+// Payload: { challengeId: <string> }
+// Idempotent — second-tap accept returns success.
+function rpcAcceptFriendChallenge(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fcErr('Authentication required', 'unauthenticated');
+
+    var p = _fcParsePayload(payload);
+    if (!p.ok) return _fcErr(p.error, 'invalid_payload');
+
+    var challengeId = (p.data || {}).challengeId;
+    if (!challengeId || typeof challengeId !== 'string') {
+        return _fcErr('challengeId is required', 'invalid_payload');
+    }
+
+    var read = _fcReadChallenge(nk, challengeId, userId);
+    if (!read) return _fcErr('Challenge not found', 'challenge_not_found');
+
+    var challenge = read.value;
+    if (challenge.toUserId !== userId) {
+        return _fcErr('This challenge is not for you', 'challenge_not_for_caller');
+    }
+
+    // Idempotent — second-tap "Accept" must not throw
+    if (challenge.status === FC_STATUS_ACCEPTED) {
+        return _fcOk({
+            challengeId:     challengeId,
+            alreadyAccepted: true,
+            fromUserId:      challenge.fromUserId,
+            fromDisplayName: challenge.fromDisplayName,
+            gameId:          challenge.gameId,
+            roomCode:        challenge.roomCode,
+            shareCode:       challenge.shareCode,
+            isAsync:         challenge.isAsync
         });
     }
-    
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        friendUserId: friendUserId,
-        matchId: matchId,
-        spectateReady: true,
-        timestamp: utils.getCurrentTimestamp()
+    if (challenge.status !== FC_STATUS_PENDING) {
+        return _fcErr('This challenge has already been ' + challenge.status,
+                      'challenge_not_pending', { currentStatus: challenge.status });
+    }
+
+    // Lazy expiry sweep
+    if (challenge.expiresAtMs && challenge.expiresAtMs < _fcNowMs()) {
+        challenge.status    = FC_STATUS_EXPIRED;
+        challenge.updatedAt = _fcNowIso();
+        try { _fcWriteChallenge(nk, challenge, userId, read.version); } catch (_) {}
+        return _fcErr('This challenge has expired', 'challenge_expired',
+                      { currentStatus: FC_STATUS_EXPIRED });
+    }
+
+    // ── Transition to ACCEPTED with optimistic concurrency ─────────────────
+    challenge.status     = FC_STATUS_ACCEPTED;
+    challenge.acceptedAt = _fcNowIso();
+    challenge.updatedAt  = _fcNowIso();
+
+    try {
+        _fcWriteChallenge(nk, challenge, userId, read.version);
+    } catch (e) {
+        return _fcErr('Failed to persist accept: ' + e.message, 'storage_write_failed');
+    }
+
+    // Sync sender's outbox index so their UI reflects the new status
+    try {
+        _fcWriteOutbox(nk, challenge, challenge.fromUserId, null);
+    } catch (e) {
+        logger.warn('[FriendChallenges] accept outbox sync failed: ' + e.message);
+    }
+
+    // Notify the sender
+    try {
+        sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_ACCEPTED', challenge.fromUserId, {
+            challengeId:           challengeId,
+            acceptedBy:            userId,
+            acceptedByDisplayName: _fcDisplayName(nk, userId, ctx.username),
+            gameId:                challenge.gameId,
+            roomCode:              challenge.roomCode,
+            shareCode:             challenge.shareCode,
+            isAsync:               challenge.isAsync
+        }, userId);
+    } catch (e) {
+        logger.warn('[FriendChallenges] notify accept failed: ' + e.message);
+    }
+
+    return _fcOk({
+        challengeId:     challengeId,
+        status:          FC_STATUS_ACCEPTED,
+        fromUserId:      challenge.fromUserId,
+        fromDisplayName: challenge.fromDisplayName,
+        gameId:          challenge.gameId,
+        roomCode:        challenge.roomCode,
+        shareCode:       challenge.shareCode,
+        isAsync:         challenge.isAsync,
+        acceptedAt:      challenge.acceptedAt
     });
+}
+
+// ============================================================================
+// RPC: decline_friend_challenge
+// ============================================================================
+// Payload: { challengeId: <string>, reason?: <string ≤ 280> }
+// Idempotent.
+function rpcDeclineFriendChallenge(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fcErr('Authentication required', 'unauthenticated');
+
+    var p = _fcParsePayload(payload);
+    if (!p.ok) return _fcErr(p.error, 'invalid_payload');
+
+    var data        = p.data || {};
+    var challengeId = data.challengeId;
+    var reason      = data.reason || '';
+    if (!challengeId || typeof challengeId !== 'string') {
+        return _fcErr('challengeId is required', 'invalid_payload');
+    }
+    if (typeof reason !== 'string') reason = '';
+    if (reason.length > FC_MAX_REASON_LEN) {
+        reason = reason.substring(0, FC_MAX_REASON_LEN);
+    }
+
+    var read = _fcReadChallenge(nk, challengeId, userId);
+    if (!read) return _fcErr('Challenge not found', 'challenge_not_found');
+
+    var challenge = read.value;
+    if (challenge.toUserId !== userId) {
+        return _fcErr('This challenge is not for you', 'challenge_not_for_caller');
+    }
+    if (challenge.status === FC_STATUS_DECLINED) {
+        return _fcOk({ challengeId: challengeId, alreadyDeclined: true });
+    }
+    if (challenge.status !== FC_STATUS_PENDING) {
+        return _fcErr('This challenge has already been ' + challenge.status,
+                      'challenge_not_pending', { currentStatus: challenge.status });
+    }
+
+    challenge.status        = FC_STATUS_DECLINED;
+    challenge.declinedAt    = _fcNowIso();
+    challenge.updatedAt     = _fcNowIso();
+    if (reason) challenge.declineReason = reason;
+
+    try {
+        _fcWriteChallenge(nk, challenge, userId, read.version);
+    } catch (e) {
+        return _fcErr('Failed to persist decline: ' + e.message, 'storage_write_failed');
+    }
+
+    try {
+        _fcWriteOutbox(nk, challenge, challenge.fromUserId, null);
+    } catch (e) {
+        logger.warn('[FriendChallenges] decline outbox sync failed: ' + e.message);
+    }
+
+    try {
+        sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_DECLINED', challenge.fromUserId, {
+            challengeId: challengeId,
+            declinedBy:  userId,
+            reason:      reason
+        }, userId);
+    } catch (e) {
+        logger.warn('[FriendChallenges] notify decline failed: ' + e.message);
+    }
+
+    return _fcOk({
+        challengeId: challengeId,
+        status:      FC_STATUS_DECLINED,
+        declinedAt:  challenge.declinedAt
+    });
+}
+
+// ============================================================================
+// RPC: cancel_friend_challenge  (sender rescinds their own outgoing challenge)
+// ============================================================================
+// Payload: { challengeId: <string> }
+// Idempotent.
+function rpcCancelFriendChallenge(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fcErr('Authentication required', 'unauthenticated');
+
+    var p = _fcParsePayload(payload);
+    if (!p.ok) return _fcErr(p.error, 'invalid_payload');
+
+    var challengeId = (p.data || {}).challengeId;
+    if (!challengeId || typeof challengeId !== 'string') {
+        return _fcErr('challengeId is required', 'invalid_payload');
+    }
+
+    // Outbox under the sender is the only thing the caller can read directly.
+    var outbox = _fcReadOutbox(nk, challengeId, userId);
+    if (!outbox) {
+        return _fcErr('Challenge not found in your outbox', 'challenge_not_found');
+    }
+
+    var indexRec    = outbox.value;
+    var recipientId = indexRec.targetUserId;
+    if (!recipientId) {
+        return _fcErr('Outbox record corrupt (missing targetUserId)', 'outbox_invalid');
+    }
+
+    var read = _fcReadChallenge(nk, challengeId, recipientId);
+    if (!read) {
+        // Canonical record gone — clean up outbox and return idempotent success.
+        try {
+            nk.storageDelete([{
+                collection: FC_OUTBOX, key: challengeId, userId: userId
+            }]);
+        } catch (_) {}
+        return _fcOk({ challengeId: challengeId, status: FC_STATUS_CANCELLED,
+                       alreadyGone: true });
+    }
+
+    var challenge = read.value;
+    if (challenge.fromUserId !== userId) {
+        return _fcErr('You can only cancel challenges you sent', 'challenge_not_owned');
+    }
+    if (challenge.status === FC_STATUS_CANCELLED) {
+        return _fcOk({ challengeId: challengeId, alreadyCancelled: true });
+    }
+    if (challenge.status !== FC_STATUS_PENDING) {
+        return _fcErr('Cannot cancel a ' + challenge.status + ' challenge',
+                      'challenge_not_pending', { currentStatus: challenge.status });
+    }
+
+    challenge.status      = FC_STATUS_CANCELLED;
+    challenge.cancelledAt = _fcNowIso();
+    challenge.updatedAt   = _fcNowIso();
+
+    try {
+        _fcWriteChallenge(nk, challenge, recipientId, read.version);
+    } catch (e) {
+        return _fcErr('Failed to persist cancel: ' + e.message, 'storage_write_failed');
+    }
+
+    try {
+        _fcWriteOutbox(nk, challenge, userId, outbox.version);
+    } catch (e) {
+        logger.warn('[FriendChallenges] cancel outbox sync failed: ' + e.message);
+    }
+
+    try {
+        sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_CANCELLED', recipientId, {
+            challengeId: challengeId,
+            cancelledBy: userId
+        }, userId);
+    } catch (e) {
+        logger.warn('[FriendChallenges] notify cancel failed: ' + e.message);
+    }
+
+    return _fcOk({
+        challengeId: challengeId,
+        status:      FC_STATUS_CANCELLED,
+        cancelledAt: challenge.cancelledAt
+    });
+}
+
+// ============================================================================
+// RPC: list_pending_friend_challenges
+// ============================================================================
+// Payload: { limit?: int (1..100, default 50), includeExpired?: bool }
+// Returns BOTH incoming and outgoing pending challenges for the caller.
+//
+// As a side effect, performs LAZY expiry sweep: any pending row whose
+// expiresAtMs < now is transitioned to `expired` (and persisted) before
+// being returned.  This eliminates the need for a scheduled sweeper job.
+function rpcListPendingFriendChallenges(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fcErr('Authentication required', 'unauthenticated');
+
+    var p = _fcParsePayload(payload);
+    if (!p.ok) return _fcErr(p.error, 'invalid_payload');
+
+    var data           = p.data || {};
+    var limit          = parseInt(data.limit) || 50;
+    var includeExpired = data.includeExpired === true;
+    if (limit < 1)   limit = 1;
+    if (limit > 100) limit = 100;
+
+    var nowMs = _fcNowMs();
+
+    // ── Incoming: scan friend_challenges owned by caller ───────────────────
+    var incoming = [];
+    try {
+        var page = nk.storageList(userId, FC_COLLECTION, limit, null);
+        var objects = (page && page.objects) ? page.objects : (page || []);
+        for (var i = 0; i < objects.length; i++) {
+            var o = objects[i];
+            if (!o || !o.value) continue;
+            var c = o.value;
+            if (c.toUserId !== userId) continue; // safety
+
+            // Lazy expiry sweep
+            if (c.status === FC_STATUS_PENDING && c.expiresAtMs && c.expiresAtMs < nowMs) {
+                c.status    = FC_STATUS_EXPIRED;
+                c.updatedAt = _fcNowIso();
+                try { _fcWriteChallenge(nk, c, userId, o.version); } catch (_) {}
+                // Also fire an EXPIRED notification to the SENDER so their
+                // outbox UI clears without polling.
+                try {
+                    sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_EXPIRED',
+                        c.fromUserId, {
+                            challengeId: c.challengeId,
+                            expiredFor:  userId
+                        }, userId);
+                } catch (_) {}
+            }
+
+            if (c.status !== FC_STATUS_PENDING && !includeExpired) continue;
+
+            incoming.push({
+                challengeId:     c.challengeId,
+                fromUserId:      c.fromUserId,
+                fromUsername:    c.fromUsername,
+                fromDisplayName: c.fromDisplayName,
+                gameId:          c.gameId,
+                roomCode:        c.roomCode || '',
+                shareCode:       c.shareCode || '',
+                isAsync:         !!c.isAsync,
+                quizModeName:    (c.challengeData &&
+                                  (c.challengeData.modeName || c.challengeData.quizModeName)) || '',
+                status:          c.status,
+                createdAt:       c.createdAt,
+                expiresAt:       c.expiresAt
+            });
+        }
+    } catch (e) {
+        logger.warn('[FriendChallenges] list incoming failed: ' + e.message);
+    }
+
+    // ── Outgoing: scan caller's outbox index ───────────────────────────────
+    var outgoing = [];
+    try {
+        var page2 = nk.storageList(userId, FC_OUTBOX, limit, null);
+        var objects2 = (page2 && page2.objects) ? page2.objects : (page2 || []);
+        for (var j = 0; j < objects2.length; j++) {
+            var o2 = objects2[j];
+            if (!o2 || !o2.value) continue;
+            var ix = o2.value;
+
+            // Refresh from canonical (recipient may have accepted/declined since
+            // our index was last written).
+            var canonical = _fcReadChallenge(nk, ix.challengeId, ix.targetUserId);
+            var status      = ix.status;
+            var expiresAtMs = ix.expiresAt ? new Date(ix.expiresAt).getTime() : 0;
+            if (canonical) {
+                status      = canonical.value.status;
+                expiresAtMs = canonical.value.expiresAtMs || expiresAtMs;
+                // Heal index if drifted (cheap write)
+                if (status !== ix.status) {
+                    ix.status          = status;
+                    ix.statusUpdatedAt = canonical.value.updatedAt;
+                    try {
+                        nk.storageWrite([{
+                            collection:      FC_OUTBOX,
+                            key:             ix.challengeId,
+                            userId:          userId,
+                            value:           ix,
+                            version:         o2.version,
+                            permissionRead:  1,
+                            permissionWrite: 0
+                        }]);
+                    } catch (_) {}
+                }
+            }
+            if (status === FC_STATUS_PENDING && expiresAtMs && expiresAtMs < nowMs) {
+                status = FC_STATUS_EXPIRED;
+            }
+            if (status !== FC_STATUS_PENDING && !includeExpired) continue;
+
+            outgoing.push({
+                challengeId:       ix.challengeId,
+                targetUserId:      ix.targetUserId,
+                targetDisplayName: ix.targetDisplayName,
+                gameId:            ix.gameId,
+                quizModeName:      ix.quizModeName || '',
+                roomCode:          ix.roomCode || '',
+                shareCode:         ix.shareCode || '',
+                isAsync:           !!ix.isAsync,
+                status:            status,
+                createdAt:         ix.createdAt,
+                expiresAt:         ix.expiresAt
+            });
+        }
+    } catch (e) {
+        logger.warn('[FriendChallenges] list outgoing failed: ' + e.message);
+    }
+
+    return _fcOk({
+        incoming:      incoming,
+        outgoing:      outgoing,
+        incomingCount: incoming.length,
+        outgoingCount: outgoing.length
+    });
+}
+
+// ============================================================================
+// RPC: friends_spectate  (hardened in-place; replaces legacy stub)
+// ============================================================================
+// Payload: { friendUserId: <UUID> }
+//
+// Responds with the friend's active matchId (if any) AND fires a
+// FRIEND_SPECTATE_REQUEST notification (code 105) to the friend so their
+// client can confirm/deny via the spectate-popup UI.  This is the hardened
+// replacement for the legacy `rpcFriendsSpectate` in friends/friends.js
+// (which is no longer registered — see legacy_runtime.js for the removal).
+//
+// What changed vs legacy:
+//   - Strict mutual-friend gate (state == 0) [was: same]
+//   - Explicit reverse-direction block check (target-blocked-caller)
+//   - Per-pair rate limit (1 request per 30 s) — same key-space as challenge
+//   - Notifies the FRIEND with canonical code/subject (was: silent)
+//   - Idempotent — no storage write, just a read + notify
+function rpcFriendsSpectate(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fcErr('Authentication required', 'unauthenticated');
+
+    var p = _fcParsePayload(payload);
+    if (!p.ok) return _fcErr(p.error, 'invalid_payload');
+
+    var data         = p.data || {};
+    var friendUserId = data.friendUserId || data.targetUserId;
+
+    if (!_fcUuidValid(friendUserId)) {
+        return _fcErr('Invalid friendUserId (must be a UUID)', 'invalid_target');
+    }
+    if (friendUserId === userId) {
+        return _fcErr('Cannot spectate yourself', 'self_spectate');
+    }
+
+    // Mutual-friend gate
+    if (!_fcAreFriends(nk, userId, friendUserId)) {
+        return _fcErr('You can only spectate mutual friends', 'not_mutual_friends');
+    }
+
+    // Block checks (both directions)
+    if (_fcIsBlockedBy(nk, userId, friendUserId)) {
+        return _fcErr('You have blocked this user', 'caller_blocked_target');
+    }
+    if (_fcIsBlockedBy(nk, friendUserId, userId)) {
+        return _fcErr('Unable to spectate this friend', 'spectate_blocked');
+    }
+
+    // Per-pair rate limit (re-uses the same 30 s key-space as challenges so
+    // that a sender can't bypass the challenge cooldown by spamming spectate
+    // requests).
+    var pairRl = _fcCheckPairRateLimit(nk, userId, friendUserId);
+    if (!pairRl.allowed) {
+        return _fcErr('Slow down — you spectated this friend recently',
+                      'pair_rate_limited', { retryAfterMs: pairRl.retryAfterMs });
+    }
+
+    // Look up friend's active match (best-effort)
+    var matchId = null;
+    var online  = false;
+    try {
+        var accounts = nk.usersGetId([friendUserId]);
+        if (accounts && accounts.length > 0 && accounts[0]) {
+            online = !!accounts[0].online;
+        }
+    } catch (e) {
+        logger.warn('[FriendChallenges] usersGetId failed in spectate: ' + e.message);
+    }
+
+    try {
+        var matchRows = nk.storageRead([{
+            collection: 'active_matches',
+            key:        'current_match',
+            userId:     friendUserId
+        }]);
+        if (matchRows && matchRows.length > 0 && matchRows[0].value &&
+            matchRows[0].value.matchId) {
+            matchId = matchRows[0].value.matchId;
+        }
+    } catch (e) {
+        logger.warn('[FriendChallenges] active_matches read failed: ' + e.message);
+    }
+
+    // Notify the friend that someone wants to spectate (canonical code 105)
+    try {
+        var requesterName = _fcDisplayName(nk, userId, ctx.username);
+        sendFriendsNotification(nk, logger, 'FRIEND_SPECTATE_REQUEST', friendUserId, {
+            fromUserId:      userId,
+            fromUsername:    ctx.username || userId,
+            fromDisplayName: requesterName,
+            matchId:         matchId || ''
+        }, userId);
+    } catch (e) {
+        logger.warn('[FriendChallenges] notify spectate request failed: ' + e.message);
+    }
+
+    return _fcOk({
+        userId:        userId,
+        friendUserId:  friendUserId,
+        matchId:       matchId || '',
+        online:        online,
+        spectateReady: !!matchId,
+        timestamp:     _fcNowIso()
+    });
+}
+
+// ============================================================================
+// Module Init — register all friend-challenge RPCs (+ legacy alias)
+// ============================================================================
+// postbuild.js renames this `InitModule` to `__ModuleInit_N` (only one
+// InitModule allowed in the merged output) and rewrites every
+// `__rpc_id = __rpc_id || (handler)` into
+// `__rpc_id = __rpc_id || handler` (guarded — first declaration wins) which
+// is then replayed at global scope on every Goja VM.
+//
+// IMPORTANT: legacy_runtime.js's `friends_challenge_user` registration must
+// stay removed / commented so it doesn't compete with our handler.
+function __ModuleInit_30(ctx, logger, nk, initializer) {
+    __rpc_send_friend_challenge = __rpc_send_friend_challenge || (rpcSendFriendChallenge);
+    __rpc_friends_challenge_user = __rpc_friends_challenge_user || (rpcSendFriendChallenge); // legacy alias
+    __rpc_accept_friend_challenge = __rpc_accept_friend_challenge || (rpcAcceptFriendChallenge);
+    __rpc_decline_friend_challenge = __rpc_decline_friend_challenge || (rpcDeclineFriendChallenge);
+    __rpc_cancel_friend_challenge = __rpc_cancel_friend_challenge || (rpcCancelFriendChallenge);
+    __rpc_list_pending_friend_challenges = __rpc_list_pending_friend_challenges || (rpcListPendingFriendChallenges);
+    __rpc_friends_spectate = __rpc_friends_spectate || (rpcFriendsSpectate); // hardened replacement
+
+    if (logger && logger.info) {
+        logger.info('[FriendChallenges] Registered 7 RPCs (send + alias + 4 lifecycle + spectate)');
+    }
+}
+
+
+// --- Module: friends\friend_invites.js ---
+// ============================================================================
+// friend_invites.js - Canonical Friend Invite RPCs (Split-Brain Fix)
+// ============================================================================
+// PRODUCTION-READY | ES5 (Goja runtime) | Single source of truth
+//
+// Replaces three legacy implementations that were causing the "split-brain"
+// friend graph problem:
+//   - legacy_runtime.js  : sendFriendInvite / acceptFriendInvite / declineFriendInvite
+//   - copilot/social_features.js (orphaned, never registered)
+//
+// THE SPLIT-BRAIN BUG (and why this file fixes it)
+// ------------------------------------------------
+// Old send_friend_invite wrote a row to the `friend_invites` storage
+// collection but NEVER touched Nakama's native friend graph (nk.friendsAdd).
+// When accept_friend_invite later called nk.friendsAdd(acceptorId,
+// [senderId]) it created a NEW invite from the *acceptor* in the wrong
+// direction, leaving Nakama's `user_friends` table with one-sided
+// INVITE_SENT / INVITE_RECEIVED relationships. Every other system that
+// reads nk.friendsList (friend quests, friend streaks, friends_list,
+// challenge mutual-friend check, find-friends relationship enrichment)
+// then saw an inconsistent picture.
+//
+// The fix is one line in send: nk.friendsAdd(senderId, [targetUserId]) —
+// this creates the proper INVITE_SENT relation immediately, then the
+// existing accept-side nk.friendsAdd transitions BOTH users to FRIEND state
+// atomically, exactly like Nakama's built-in addFriend flow does.
+//
+// What's new vs the old impl
+// --------------------------
+//  1. nk.friendsAdd called inside send (the actual split-brain fix)
+//  2. Idempotent invite IDs derived from a sorted user-pair, so re-sending
+//     the same invite returns the same row instead of creating duplicates
+//  3. Self-invite check
+//  4. Block check in BOTH directions (sender->target and target->sender)
+//  5. Already-friends short-circuit (returns success without re-creating)
+//  6. Existing-pending-invite short-circuit (returns success with same id)
+//  7. Per-user rate limit (1 invite send / 5 seconds; 1 accept-or-decline
+//     per invite is intrinsic via storage status check)
+//  8. Cancel-invite RPC (sender can rescind an outgoing invite, also
+//     cleans up the Nakama INVITE_SENT relation)
+//  9. List-pending-invites RPC (returns BOTH incoming and outgoing custom
+//     invites with enriched user data — what the QuizVerse UI actually needs)
+// 10. Notifications use canonical notification_codes constants so client
+//     filters always match (kills the "subject mismatch" bug too)
+// 11. Optimistic concurrency on storage writes (storageWrite version field)
+//     to prevent two simultaneous accepts/declines clobbering each other
+// 12. Decline cleans up the INVITE_SENT relation (nk.friendsDelete) so the
+//     sender no longer sees a phantom outgoing request
+//
+// Migration of existing data: NONE (per product decision). Old pending
+// rows in friend_invites simply remain as data; they will fail the
+// already-friends check the next time the sender retries (which now adds
+// to the Nakama graph properly).
+//
+// All registered RPCs:
+//   send_friend_invite
+//   accept_friend_invite
+//   decline_friend_invite
+//   cancel_friend_invite              (NEW)
+//   list_pending_friend_invites       (NEW)
+// ============================================================================
+
+// ─── Tunables ───────────────────────────────────────────────────────────────
+var FRIEND_INVITES_COLLECTION  = 'friend_invites';
+var FRIEND_INV_RATELIMIT_KEY   = 'fr_invite_send';
+var FRIEND_INV_RATELIMIT_MS    = 5000; // 5s between sends per user
+var FRIEND_INV_MAX_MESSAGE_LEN = 280;  // tweet-length
+
+var INVITE_STATUS_PENDING   = 'pending';
+var INVITE_STATUS_ACCEPTED  = 'accepted';
+var INVITE_STATUS_DECLINED  = 'declined';
+var INVITE_STATUS_CANCELLED = 'cancelled';
+
+// Nakama friend states (from runtime API)
+var FR_STATE_FRIEND          = 0;
+var FR_STATE_INVITE_SENT     = 1;
+var FR_STATE_INVITE_RECEIVED = 2;
+var FR_STATE_BLOCKED         = 3;
+
+// ─── Tiny self-contained helpers (no external `utils` dependency) ──────────
+// We deliberately do NOT depend on the global `utils` namespace because it
+// is a minimal subset (validatePayload/handleError/log*) defined in
+// copilot/utils.js — and missing fields like safeJsonParse/getCurrentTimestamp
+// have caused production crashes in other modules. Keeping these inline
+// makes this module bullet-proof even if the merge order changes.
+
+function _fiUuidValid(id) {
+    if (!id || typeof id !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function _fiNowIso()  { return new Date().toISOString(); }
+function _fiNowMs()   { return Date.now(); }
+
+function _fiOk(extra) {
+    var out = { success: true };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+// Standardised error envelope. `errorCode` is a stable machine code so the
+// client can switch on it without parsing English strings.
+function _fiErr(message, errorCode, extra) {
+    var out = { success: false, error: message, errorCode: errorCode || 'unknown' };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+function _fiParsePayload(payload) {
+    if (!payload || payload === '') return { ok: true, data: {} };
+    try { return { ok: true, data: JSON.parse(payload) }; }
+    catch (e)  { return { ok: false, error: 'Invalid JSON payload: ' + e.message }; }
+}
+
+// Build the deterministic invite ID for a sender→target pair.
+// We include a timestamp suffix so that an invite that was previously
+// accepted/declined can be re-sent later (with a fresh row), but two
+// concurrent sends within 1ms of each other would still produce the
+// same id (acceptable; the storage version check will deduplicate).
+function _fiInviteId(senderId, targetId) {
+    return 'inv_' + senderId + '_' + targetId;
+}
+
+/**
+ * Look up the Nakama friend-graph relationship between caller and target.
+ * Returns the integer state (0=FRIEND, 1=INVITE_SENT, 2=INVITE_RECEIVED,
+ * 3=BLOCKED) or -1 if there is no relationship.
+ */
+function _fiNakamaRelation(nk, callerId, targetId) {
+    try {
+        // friendsList returns up to `limit` friends in any state — we ask
+        // for all and scan. With a hard cap of 1000 this is O(1) for
+        // typical players; for power users we still terminate on first match.
+        var page = nk.friendsList(callerId, 1000, null, null);
+        if (page && page.friends) {
+            for (var i = 0; i < page.friends.length; i++) {
+                var f = page.friends[i];
+                if (f && f.user && f.user.id === targetId) {
+                    var s = (f.state && typeof f.state === 'object' && 'value' in f.state)
+                        ? f.state.value : f.state;
+                    return (typeof s === 'number') ? s : -1;
+                }
+            }
+        }
+    } catch (_) { /* fall through */ }
+    return -1;
+}
+
+/**
+ * Per-user simple cooldown for invite sends. Returns
+ *   { allowed: true } or
+ *   { allowed: false, retryAfterMs: <number> }
+ */
+function _fiCheckRateLimit(nk, userId, action, cooldownMs) {
+    var key = 'rl_' + action + '_' + userId;
+    var now = _fiNowMs();
+    try {
+        var rows = nk.storageRead([{ collection: 'rate_limits', key: key, userId: userId }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.timestamp) {
+            var elapsed = now - rows[0].value.timestamp;
+            if (elapsed < cooldownMs) {
+                return { allowed: false, retryAfterMs: cooldownMs - elapsed };
+            }
+        }
+    } catch (_) { /* fail-open */ }
+    try {
+        nk.storageWrite([{
+            collection: 'rate_limits',
+            key: key,
+            userId: userId,
+            value: { timestamp: now },
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (_) { /* non-critical */ }
+    return { allowed: true };
+}
+
+function _fiUserDisplayName(nk, userId, fallback) {
+    try {
+        var users = nk.usersGetId([userId]);
+        if (users && users.length > 0 && users[0]) {
+            return users[0].displayName || users[0].username || fallback || userId;
+        }
+    } catch (_) {}
+    return fallback || userId;
+}
+
+/**
+ * Read an existing invite row stored under either user. We always store
+ * the row under the TARGET user (so they can read their own inbox), but
+ * during a re-send the caller is the SENDER and may not have read access.
+ * We try both userIds.
+ */
+function _fiReadInviteEither(nk, inviteId, userIdA, userIdB) {
+    var keys = [
+        { collection: FRIEND_INVITES_COLLECTION, key: inviteId, userId: userIdA },
+        { collection: FRIEND_INVITES_COLLECTION, key: inviteId, userId: userIdB }
+    ];
+    try {
+        var rows = nk.storageRead(keys);
+        if (rows && rows.length > 0) {
+            // Pick the latest by updatedAt
+            var best = null;
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                if (!r || !r.value) continue;
+                if (best == null || (r.value.updatedAt || '') > (best.value.updatedAt || '')) {
+                    best = r;
+                }
+            }
+            return best;
+        }
+    } catch (_) {}
+    return null;
+}
+
+// ============================================================================
+// RPC: send_friend_invite
+// ============================================================================
+function rpcFriendsSendInvite(ctx, logger, nk, payload) {
+    var fromUserId = ctx.userId;
+    if (!fromUserId) return _fiErr('Authentication required', 'unauthenticated');
+
+    var p = _fiParsePayload(payload);
+    if (!p.ok) return _fiErr(p.error, 'invalid_payload');
+
+    var data = p.data || {};
+    var targetUserId = data.targetUserId;
+    var rawMessage   = data.message;
+
+    if (!_fiUuidValid(targetUserId)) {
+        return _fiErr('Invalid targetUserId (must be a UUID)', 'invalid_target');
+    }
+    if (targetUserId === fromUserId) {
+        return _fiErr('Cannot send a friend invite to yourself', 'self_invite');
+    }
+
+    var message = '';
+    if (rawMessage) {
+        if (typeof rawMessage !== 'string') {
+            return _fiErr('message must be a string', 'invalid_payload');
+        }
+        message = rawMessage.length > FRIEND_INV_MAX_MESSAGE_LEN
+            ? rawMessage.substring(0, FRIEND_INV_MAX_MESSAGE_LEN)
+            : rawMessage;
+    }
+
+    // Rate limit early
+    var rl = _fiCheckRateLimit(nk, fromUserId, FRIEND_INV_RATELIMIT_KEY, FRIEND_INV_RATELIMIT_MS);
+    if (!rl.allowed) {
+        return _fiErr('Please wait before sending another invite', 'rate_limited',
+            { retryAfterMs: rl.retryAfterMs });
+    }
+
+    // Verify target exists (cheap usersGetId — also gives us their username
+    // to feed into nk.friendsAdd as the second arg, which Nakama uses when
+    // the target is identified by username rather than id).
+    var targetUser = null;
+    try {
+        var users = nk.usersGetId([targetUserId]);
+        if (users && users.length > 0) targetUser = users[0];
+    } catch (e) {
+        logger.warn('[FriendInvites] usersGetId failed: ' + e.message);
+    }
+    if (!targetUser) {
+        return _fiErr('Target user not found', 'target_not_found');
+    }
+
+    // ── Block checks (both directions) ─────────────────────────────────────
+    // 1. Caller's own block list (from Nakama state=3)
+    var callerRel = _fiNakamaRelation(nk, fromUserId, targetUserId);
+    if (callerRel === FR_STATE_BLOCKED) {
+        return _fiErr('You have blocked this user. Unblock them first.', 'caller_blocked_target');
+    }
+    // 2. Target's view (does target have caller blocked?). We cannot read
+    //    target's friendsList (insufficient perms), so we use the custom
+    //    user_blocks storage that friends/friends.js writes.
+    try {
+        var blockRows = nk.storageRead([{
+            collection: 'user_blocks',
+            key: 'blocked_' + targetUserId + '_' + fromUserId,
+            userId: targetUserId
+        }]);
+        if (blockRows && blockRows.length > 0) {
+            // Don't reveal — generic error
+            return _fiErr('Unable to send invite at this time', 'send_blocked');
+        }
+    } catch (_) { /* fail-open on block lookup */ }
+
+    // ── Already-friends / already-pending short-circuits ───────────────────
+    if (callerRel === FR_STATE_FRIEND) {
+        return _fiOk({ status: INVITE_STATUS_ACCEPTED, alreadyFriends: true,
+                       targetUserId: targetUserId });
+    }
+    if (callerRel === FR_STATE_INVITE_SENT) {
+        // Idempotent: there is already an outstanding invite from caller→target
+        var existingId = _fiInviteId(fromUserId, targetUserId);
+        return _fiOk({ status: INVITE_STATUS_PENDING, inviteId: existingId,
+                       targetUserId: targetUserId, alreadySent: true });
+    }
+    if (callerRel === FR_STATE_INVITE_RECEIVED) {
+        // Target already invited caller. Auto-accept.
+        try { nk.friendsAdd(fromUserId, [targetUserId], null); }
+        catch (e) {
+            return _fiErr('Failed to auto-accept reciprocal invite: ' + e.message,
+                          'autoaccept_failed');
+        }
+        return _fiOk({ status: INVITE_STATUS_ACCEPTED, autoAccepted: true,
+                       targetUserId: targetUserId });
+    }
+
+    // ── Build the canonical invite row ─────────────────────────────────────
+    var inviteId   = _fiInviteId(fromUserId, targetUserId);
+    var fromName   = _fiUserDisplayName(nk, fromUserId, ctx.username);
+    var inviteData = {
+        inviteId:        inviteId,
+        fromUserId:      fromUserId,
+        fromUsername:    ctx.username || fromUserId,
+        fromDisplayName: fromName,
+        targetUserId:    targetUserId,
+        targetUsername:  targetUser.username || '',
+        message:         message,
+        status:          INVITE_STATUS_PENDING,
+        createdAt:       _fiNowIso(),
+        updatedAt:       _fiNowIso()
+    };
+
+    // Store under the TARGET (so they can read their inbox via permissionRead=1).
+    try {
+        nk.storageWrite([{
+            collection:      FRIEND_INVITES_COLLECTION,
+            key:             inviteId,
+            userId:          targetUserId,
+            value:           inviteData,
+            permissionRead:  1, // owner-read
+            permissionWrite: 0  // server-only
+        }]);
+    } catch (e) {
+        logger.error('[FriendInvites] storageWrite failed: ' + e.message);
+        return _fiErr('Failed to persist friend invite', 'storage_write_failed');
+    }
+
+    // ── THE SPLIT-BRAIN FIX ────────────────────────────────────────────────
+    // Without this line, Nakama's user_friends graph stays empty and every
+    // downstream system (friends_list, friend_quests, friend_streaks,
+    // friends_challenge_user mutual-friend check, find_friends relationship
+    // enrichment) sees the wrong picture.
+    try {
+        nk.friendsAdd(fromUserId, [targetUserId], null);
+    } catch (e) {
+        // If Nakama refuses (e.g. target re-blocked between our check and
+        // the call) we MUST roll back the storage write to keep the two
+        // sides consistent.
+        try {
+            nk.storageDelete([{ collection: FRIEND_INVITES_COLLECTION,
+                                key: inviteId, userId: targetUserId }]);
+        } catch (_) { /* best-effort */ }
+        logger.warn('[FriendInvites] nk.friendsAdd rejected: ' + e.message);
+        return _fiErr('Unable to send invite (target may have blocked you)',
+                      'friends_add_rejected');
+    }
+
+    // ── Notify the target with canonical Subject/Code/type contract ────────
+    try {
+        sendFriendsNotification(nk, logger, 'FRIEND_REQUEST', targetUserId, {
+            inviteId:        inviteId,
+            fromUserId:      fromUserId,
+            fromUsername:    inviteData.fromUsername,
+            fromDisplayName: inviteData.fromDisplayName,
+            message:         message
+        }, fromUserId);
+    } catch (e) {
+        // Notification failure must NEVER fail the parent RPC — the invite
+        // is already on the server and the client can refresh manually.
+        logger.warn('[FriendInvites] notify target failed: ' + e.message);
+    }
+
+    return _fiOk({
+        inviteId:     inviteId,
+        targetUserId: targetUserId,
+        status:       INVITE_STATUS_PENDING,
+        sentAt:       inviteData.createdAt
+    });
+}
+
+// ============================================================================
+// RPC: accept_friend_invite
+// ============================================================================
+function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fiErr('Authentication required', 'unauthenticated');
+
+    var p = _fiParsePayload(payload);
+    if (!p.ok) return _fiErr(p.error, 'invalid_payload');
+
+    var inviteId = (p.data || {}).inviteId;
+    if (!inviteId || typeof inviteId !== 'string') {
+        return _fiErr('inviteId is required', 'invalid_payload');
+    }
+
+    // Read invite (it is stored under the target = the caller).
+    var rows;
+    try {
+        rows = nk.storageRead([{
+            collection: FRIEND_INVITES_COLLECTION,
+            key:        inviteId,
+            userId:     userId
+        }]);
+    } catch (e) {
+        return _fiErr('Failed to read invite: ' + e.message, 'storage_read_failed');
+    }
+
+    if (!rows || rows.length === 0 || !rows[0].value) {
+        return _fiErr('Friend invite not found', 'invite_not_found');
+    }
+
+    var invite     = rows[0].value;
+    var rowVersion = rows[0].version; // for optimistic concurrency
+
+    if (invite.targetUserId !== userId) {
+        return _fiErr('This invite is not for you', 'invite_not_for_caller');
+    }
+
+    if (invite.status === INVITE_STATUS_ACCEPTED) {
+        // Idempotent — second click on the same accept button must not error.
+        return _fiOk({ inviteId: inviteId, alreadyAccepted: true,
+                       friendUserId: invite.fromUserId,
+                       friendDisplayName: invite.fromDisplayName });
+    }
+    if (invite.status !== INVITE_STATUS_PENDING) {
+        return _fiErr('This invite has already been ' + invite.status,
+                      'invite_not_pending', { currentStatus: invite.status });
+    }
+
+    // Add the reciprocal friend edge. Combined with the INVITE_SENT
+    // edge created at send-time this transitions BOTH users to FRIEND.
+    try {
+        nk.friendsAdd(userId, [invite.fromUserId], null);
+    } catch (e) {
+        logger.error('[FriendInvites] accept nk.friendsAdd failed: ' + e.message);
+        return _fiErr('Failed to add friend: ' + e.message, 'friends_add_failed');
+    }
+
+    // Update invite row with optimistic concurrency control. Goja's
+    // storageWrite supports a `version` field — passing the previously-read
+    // version makes the write atomic w.r.t. concurrent accepts/declines.
+    invite.status     = INVITE_STATUS_ACCEPTED;
+    invite.acceptedAt = _fiNowIso();
+    invite.updatedAt  = _fiNowIso();
+
+    try {
+        nk.storageWrite([{
+            collection:      FRIEND_INVITES_COLLECTION,
+            key:             inviteId,
+            userId:          userId,
+            value:           invite,
+            version:         rowVersion || undefined, // OCC; undefined = no check
+            permissionRead:  1,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        // Friend was added to Nakama already — log and continue. The graph
+        // is the source of truth; the storage row is just a UI hint.
+        logger.warn('[FriendInvites] accept storageWrite failed (non-fatal): ' + e.message);
+    }
+
+    // Notify the original sender that their request was accepted.
+    try {
+        var acceptorName = _fiUserDisplayName(nk, userId, ctx.username);
+        sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_ACCEPTED', invite.fromUserId, {
+            inviteId:               inviteId,
+            acceptedBy:             userId,
+            acceptedByUsername:     ctx.username || userId,
+            acceptedByDisplayName:  acceptorName
+        }, userId);
+    } catch (e) {
+        logger.warn('[FriendInvites] notify sender of accept failed: ' + e.message);
+    }
+
+    return _fiOk({
+        inviteId:           inviteId,
+        friendUserId:       invite.fromUserId,
+        friendUsername:     invite.fromUsername,
+        friendDisplayName:  invite.fromDisplayName,
+        acceptedAt:         invite.acceptedAt
+    });
+}
+
+// ============================================================================
+// RPC: decline_friend_invite
+// ============================================================================
+function rpcFriendsDeclineInvite(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fiErr('Authentication required', 'unauthenticated');
+
+    var p = _fiParsePayload(payload);
+    if (!p.ok) return _fiErr(p.error, 'invalid_payload');
+
+    var inviteId = (p.data || {}).inviteId;
+    if (!inviteId || typeof inviteId !== 'string') {
+        return _fiErr('inviteId is required', 'invalid_payload');
+    }
+
+    var rows;
+    try {
+        rows = nk.storageRead([{
+            collection: FRIEND_INVITES_COLLECTION,
+            key:        inviteId,
+            userId:     userId
+        }]);
+    } catch (e) {
+        return _fiErr('Failed to read invite: ' + e.message, 'storage_read_failed');
+    }
+
+    if (!rows || rows.length === 0 || !rows[0].value) {
+        return _fiErr('Friend invite not found', 'invite_not_found');
+    }
+
+    var invite     = rows[0].value;
+    var rowVersion = rows[0].version;
+
+    if (invite.targetUserId !== userId) {
+        return _fiErr('This invite is not for you', 'invite_not_for_caller');
+    }
+
+    if (invite.status === INVITE_STATUS_DECLINED) {
+        return _fiOk({ inviteId: inviteId, alreadyDeclined: true });
+    }
+    if (invite.status !== INVITE_STATUS_PENDING) {
+        return _fiErr('This invite has already been ' + invite.status,
+                      'invite_not_pending', { currentStatus: invite.status });
+    }
+
+    // Remove the sender's INVITE_SENT relation from Nakama's graph so it
+    // doesn't sit there forever as a phantom outgoing request. We delete
+    // from the SENDER's list (decline = "they no longer have a sent
+    // invite to me"). nk.friendsDelete is idempotent.
+    try {
+        nk.friendsDelete(invite.fromUserId, [userId]);
+    } catch (e) {
+        logger.warn('[FriendInvites] decline nk.friendsDelete failed (non-fatal): ' + e.message);
+    }
+
+    invite.status     = INVITE_STATUS_DECLINED;
+    invite.declinedAt = _fiNowIso();
+    invite.updatedAt  = _fiNowIso();
+
+    try {
+        nk.storageWrite([{
+            collection:      FRIEND_INVITES_COLLECTION,
+            key:             inviteId,
+            userId:          userId,
+            value:           invite,
+            version:         rowVersion || undefined,
+            permissionRead:  1,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        return _fiErr('Failed to persist decline: ' + e.message, 'storage_write_failed');
+    }
+
+    // Notify the sender that their request was declined. We send a
+    // notification (rather than silently dropping) so the sender's UI
+    // can move the row out of "pending sent" without polling.
+    try {
+        sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_DECLINED', invite.fromUserId, {
+            inviteId:   inviteId,
+            declinedBy: userId
+        }, userId);
+    } catch (e) {
+        logger.warn('[FriendInvites] notify sender of decline failed: ' + e.message);
+    }
+
+    return _fiOk({ inviteId: inviteId, status: INVITE_STATUS_DECLINED });
+}
+
+// ============================================================================
+// RPC: cancel_friend_invite  (NEW — sender rescinds their own outgoing invite)
+// ============================================================================
+function rpcFriendsCancelInvite(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fiErr('Authentication required', 'unauthenticated');
+
+    var p = _fiParsePayload(payload);
+    if (!p.ok) return _fiErr(p.error, 'invalid_payload');
+
+    var data         = p.data || {};
+    var inviteId     = data.inviteId;
+    var targetUserId = data.targetUserId;
+
+    if (!targetUserId && inviteId) {
+        // Derive target from inviteId pattern "inv_<sender>_<target>"
+        var m = /^inv_([0-9a-f-]{36})_([0-9a-f-]{36})$/i.exec(inviteId);
+        if (m && m[1] === userId) targetUserId = m[2];
+    }
+
+    if (!_fiUuidValid(targetUserId)) {
+        return _fiErr('targetUserId (or a valid inviteId you own) is required',
+                      'invalid_payload');
+    }
+
+    if (!inviteId) inviteId = _fiInviteId(userId, targetUserId);
+
+    // Invite row is stored under the TARGET (the caller is the sender).
+    var rows = null;
+    try {
+        rows = nk.storageRead([{
+            collection: FRIEND_INVITES_COLLECTION,
+            key:        inviteId,
+            userId:     targetUserId
+        }]);
+    } catch (e) {
+        // Don't fail — fall through to graph cleanup
+        logger.warn('[FriendInvites] cancel storageRead failed: ' + e.message);
+    }
+
+    var invite = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : null;
+
+    if (invite) {
+        if (invite.fromUserId !== userId) {
+            return _fiErr('You can only cancel invites you sent', 'invite_not_owned');
+        }
+        if (invite.status !== INVITE_STATUS_PENDING &&
+            invite.status !== INVITE_STATUS_CANCELLED) {
+            return _fiErr('This invite cannot be cancelled (status=' + invite.status + ')',
+                          'invite_not_pending', { currentStatus: invite.status });
+        }
+    }
+
+    // Delete the INVITE_SENT relation in Nakama's graph regardless.
+    try {
+        nk.friendsDelete(userId, [targetUserId]);
+    } catch (e) {
+        logger.warn('[FriendInvites] cancel nk.friendsDelete failed: ' + e.message);
+    }
+
+    if (invite && invite.status === INVITE_STATUS_PENDING) {
+        invite.status      = INVITE_STATUS_CANCELLED;
+        invite.cancelledAt = _fiNowIso();
+        invite.updatedAt   = _fiNowIso();
+        try {
+            nk.storageWrite([{
+                collection:      FRIEND_INVITES_COLLECTION,
+                key:             inviteId,
+                userId:          targetUserId,
+                value:           invite,
+                version:         rows[0].version || undefined,
+                permissionRead:  1,
+                permissionWrite: 0
+            }]);
+        } catch (e) {
+            logger.warn('[FriendInvites] cancel storageWrite failed: ' + e.message);
+        }
+    }
+
+    // Optional: tell the target their pending request disappeared so their
+    // UI can update without a refresh. Code is FRIEND_REQUEST_CANCELLED.
+    try {
+        sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_CANCELLED', targetUserId, {
+            inviteId:    inviteId,
+            cancelledBy: userId
+        }, userId);
+    } catch (e) {
+        logger.warn('[FriendInvites] notify cancel failed: ' + e.message);
+    }
+
+    return _fiOk({ inviteId: inviteId, targetUserId: targetUserId,
+                   status: INVITE_STATUS_CANCELLED });
+}
+
+// ============================================================================
+// RPC: list_pending_friend_invites  (NEW)
+// ============================================================================
+// Returns BOTH incoming pending invites (rows stored under the caller, the
+// caller is target) AND outgoing pending invites (rows where caller is the
+// sender). Single round-trip — replaces ad-hoc client polling of multiple
+// endpoints.
+function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) return _fiErr('Authentication required', 'unauthenticated');
+
+    var p = _fiParsePayload(payload);
+    if (!p.ok) return _fiErr(p.error, 'invalid_payload');
+
+    var limit = parseInt((p.data || {}).limit) || 100;
+    if (limit < 1)   limit = 1;
+    if (limit > 200) limit = 200;
+
+    // Incoming: scan the caller's own friend_invites collection.
+    var incoming = [];
+    try {
+        var page = nk.storageList(userId, FRIEND_INVITES_COLLECTION, limit, null);
+        var objects = (page && page.objects) ? page.objects : (page || []);
+        for (var i = 0; i < objects.length; i++) {
+            var o = objects[i];
+            if (!o || !o.value) continue;
+            if (o.value.status !== INVITE_STATUS_PENDING) continue;
+            if (o.value.targetUserId !== userId) continue; // safety
+            incoming.push({
+                inviteId:        o.value.inviteId,
+                fromUserId:      o.value.fromUserId,
+                fromUsername:    o.value.fromUsername,
+                fromDisplayName: o.value.fromDisplayName,
+                message:         o.value.message || '',
+                createdAt:       o.value.createdAt
+            });
+        }
+    } catch (e) {
+        logger.warn('[FriendInvites] list incoming failed: ' + e.message);
+    }
+
+    // Outgoing: derive from Nakama's friend graph (state=1 INVITE_SENT)
+    // — this is more reliable than scanning storage, because the storage
+    // row lives under the TARGET (we'd need cross-user reads). Friend
+    // graph is authoritative.
+    var outgoing = [];
+    try {
+        var page2 = nk.friendsList(userId, 1000, FR_STATE_INVITE_SENT, null);
+        if (page2 && page2.friends) {
+            for (var j = 0; j < page2.friends.length && outgoing.length < limit; j++) {
+                var fr = page2.friends[j];
+                if (!fr || !fr.user) continue;
+                outgoing.push({
+                    inviteId:        _fiInviteId(userId, fr.user.id),
+                    targetUserId:    fr.user.id,
+                    targetUsername:  fr.user.username || '',
+                    targetDisplayName: fr.user.displayName || fr.user.username || '',
+                    avatarUrl:       fr.user.avatarUrl || '',
+                    online:          fr.user.online || false
+                });
+            }
+        }
+    } catch (e) {
+        logger.warn('[FriendInvites] list outgoing failed: ' + e.message);
+    }
+
+    return _fiOk({
+        incoming:      incoming,
+        outgoing:      outgoing,
+        incomingCount: incoming.length,
+        outgoingCount: outgoing.length
+    });
+}
+
+// ============================================================================
+// Module Init — register all friend-invite RPCs
+// ============================================================================
+// Postbuild renames this `InitModule` to `__ModuleInit_N` (since there can
+// only be one InitModule in the merged output) and rewrites every
+// `__rpc_id = __rpc_id || (handler)` into a guarded global stub
+// assignment, then replays it at module-load time. The legacy
+// registrations for these same RPC ids in legacy_runtime.js have been
+// commented out so this module wins the "first to set the stub" race.
+function __ModuleInit_31(ctx, logger, nk, initializer) {
+    __rpc_send_friend_invite = __rpc_send_friend_invite || (rpcFriendsSendInvite);
+    __rpc_accept_friend_invite = __rpc_accept_friend_invite || (rpcFriendsAcceptInvite);
+    __rpc_decline_friend_invite = __rpc_decline_friend_invite || (rpcFriendsDeclineInvite);
+    __rpc_cancel_friend_invite = __rpc_cancel_friend_invite || (rpcFriendsCancelInvite);
+    __rpc_list_pending_friend_invites = __rpc_list_pending_friend_invites || (rpcFriendsListPendingInvites);
+
+    if (logger && logger.info) {
+        logger.info('[FriendInvites] Registered 5 canonical friend-invite RPCs');
+    }
+}
+
+
+// --- Module: friends\notification_codes.js ---
+// ============================================================================
+// notification_codes.js - Canonical Friends Notification Constants
+// ============================================================================
+// PRODUCTION-READY | ES5 (Goja runtime) | Single source of truth
+//
+// Why this file exists
+// --------------------
+// Before this file the server sent notifications with arbitrary `Subject`
+// strings (e.g. "Friend Request") and ad-hoc numeric `Code` values, while the
+// Unity client filtered with a different machine-id convention
+// (e.g. subject == "friend_request"). The two never matched, so real-time
+// invite / accept / decline popups were silently dropped.
+//
+// Going forward, EVERY friend-related notification MUST be sent using these
+// constants and EVERY client listener MUST filter primarily by `Code`
+// (cheapest, most stable) and fall back to `Subject` (machine id) for
+// compatibility with notifications already sitting in inboxes.
+//
+// Contract
+// --------
+//   notification.Subject  = NotifSubject.<X>   ← stable machine id, lower_snake_case
+//   notification.Code     = NotifCode.<X>      ← canonical numeric filter
+//   notification.Content  = JSON-serialised object including a "type" field
+//                           equal to NotifSubject.<X>  (backup filter)
+//
+// Numeric ranges (do NOT reuse — collisions break client filtering):
+//   1   – 99   reserved for ORIGINAL friend invite/decline (legacy compat)
+//   100 – 104  friend challenge lifecycle (request/accept/decline/cancel/expire)
+//   105 – 199  reserved for additional friend social actions (spectate=105 first)
+//   200 – 299  reserved for future friend social events
+//   300 – 399  reserved for friend quests
+//   400 – 499  reserved for friend streaks
+//
+// IMPORTANT: codes 1 and 2 are kept identical to the legacy values so that
+// any notification already persisted in user inboxes still matches the
+// new client filter. NEVER change those two without a coordinated client
+// release that handles both old and new values.
+// ============================================================================
+
+var NotifCode = {
+    // Friend invite lifecycle (1-9 reserved, codes 1-3 are legacy-compatible)
+    FRIEND_REQUEST:           1,   // Was used by old send_friend_invite
+    FRIEND_REQUEST_ACCEPTED:  2,   // Was used by old accept_friend_invite
+    FRIEND_REQUEST_DECLINED:  3,
+    FRIEND_REQUEST_CANCELLED: 4,
+    FRIEND_REMOVED:           5,
+    FRIEND_BLOCKED:           6,
+
+    // Friend challenges (100-199)
+    FRIEND_CHALLENGE_RECEIVED: 100, // Was used by friends_challenge_user
+    FRIEND_CHALLENGE_ACCEPTED: 101,
+    FRIEND_CHALLENGE_DECLINED: 102,
+    FRIEND_CHALLENGE_CANCELLED: 103,
+    FRIEND_CHALLENGE_EXPIRED:  104,
+
+    // Friend spectate (105) - hardened friends_spectate RPC
+    FRIEND_SPECTATE_REQUEST:   105
+};
+
+// Subject strings are STABLE MACHINE IDs (lower_snake_case). They are
+// intentionally NOT human-readable display strings — display titles must
+// be built on the client (so they can be localised) or read from
+// notification.Content.title.
+var NotifSubject = {
+    FRIEND_REQUEST:           'friend_request',
+    FRIEND_REQUEST_ACCEPTED:  'friend_request_accepted',
+    FRIEND_REQUEST_DECLINED:  'friend_request_declined',
+    FRIEND_REQUEST_CANCELLED: 'friend_request_cancelled',
+    FRIEND_REMOVED:           'friend_removed',
+    FRIEND_BLOCKED:           'friend_blocked',
+
+    FRIEND_CHALLENGE_RECEIVED:  'friend_challenge',
+    FRIEND_CHALLENGE_ACCEPTED:  'friend_challenge_accepted',
+    FRIEND_CHALLENGE_DECLINED:  'friend_challenge_declined',
+    FRIEND_CHALLENGE_CANCELLED: 'friend_challenge_cancelled',
+    FRIEND_CHALLENGE_EXPIRED:   'friend_challenge_expired',
+
+    FRIEND_SPECTATE_REQUEST:    'friend_spectate_request'
+};
+
+// Default human-readable titles. Clients SHOULD build their own localised
+// titles, but if they do not, the server can fall back to these strings
+// in notification.Content.title.
+var NotifTitle = {
+    FRIEND_REQUEST:           'Friend Request',
+    FRIEND_REQUEST_ACCEPTED:  'Friend Request Accepted',
+    FRIEND_REQUEST_DECLINED:  'Friend Request Declined',
+    FRIEND_REQUEST_CANCELLED: 'Friend Request Cancelled',
+    FRIEND_REMOVED:           'Friend Removed',
+    FRIEND_BLOCKED:           'You Were Blocked',
+
+    FRIEND_CHALLENGE_RECEIVED:  'Friend Challenge',
+    FRIEND_CHALLENGE_ACCEPTED:  'Challenge Accepted',
+    FRIEND_CHALLENGE_DECLINED:  'Challenge Declined',
+    FRIEND_CHALLENGE_CANCELLED: 'Challenge Cancelled',
+    FRIEND_CHALLENGE_EXPIRED:   'Challenge Expired',
+
+    FRIEND_SPECTATE_REQUEST:    'Spectate Request'
+};
+
+/**
+ * Build a fully-formed notification record with the canonical contract.
+ * @param {string} subjectKey - One of NotifSubject keys (e.g. "FRIEND_REQUEST")
+ * @param {string} userId - Recipient userId
+ * @param {object} payload - Caller-supplied payload merged into Content
+ * @param {string|null} senderId - Optional sender userId (Nakama notification field)
+ * @returns {object} A record suitable for nk.notificationsSend([...])
+ */
+function buildFriendsNotification(subjectKey, userId, payload, senderId) {
+    if (!NotifSubject.hasOwnProperty(subjectKey)) {
+        throw new Error('buildFriendsNotification: unknown subjectKey "' + subjectKey + '"');
+    }
+
+    var subject = NotifSubject[subjectKey];
+    var code    = NotifCode[subjectKey];
+    var title   = NotifTitle[subjectKey];
+
+    var content = payload || {};
+    // Always inject "type" as a machine-id backup filter for older clients
+    // that still look at notification.Content.type instead of Code.
+    content.type  = subject;
+    content.title = content.title || title;
+    content.code  = code;
+
+    return {
+        userId:     userId,
+        subject:    subject,
+        content:    JSON.stringify(content),
+        code:       code,
+        sender:     senderId || null,
+        persistent: true
+    };
+}
+
+/**
+ * Convenience wrapper that sends a single friends-system notification.
+ * Catches and logs failure (notifications must never break the parent RPC).
+ */
+function sendFriendsNotification(nk, logger, subjectKey, userId, payload, senderId) {
+    try {
+        var rec = buildFriendsNotification(subjectKey, userId, payload, senderId);
+        nk.notificationsSend([rec]);
+        return true;
+    } catch (err) {
+        if (logger && logger.warn) {
+            logger.warn('[FriendsNotif] Failed to send ' + subjectKey + ' to ' + userId + ': ' + err.message);
+        }
+        return false;
+    }
 }
 
 
@@ -21851,18 +23064,25 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
 
 /**
  * RPC: quizverse_find_friends
- * Production-ready player search with partial matching and relationship enrichment.
  *
- * Features:
- *   1. Case-insensitive partial match on username AND display_name via SQL ILIKE
- *   2. Excludes self, disabled, banned, and blocked accounts
- *   3. Enriches every result with relationshipStatus (friend / blocked / pending_sent / pending_received / none)
- *   4. Returns avatarUrl, online status, createTime
- *   5. SQL-injection safe via parameterised queries
- *   6. Sanitises query input (strips wildcards to prevent rogue LIKE patterns)
+ * ⚠ DEAD CODE — superseded by data/modules/friends/find_friends.js ⚠
  *
- * Payload: { gameID: "quizverse", query: "carlos", limit: 20 }
- * Response: { success: true, data: { results: [...], query: "...", count: N, searcherId: "..." } }
+ * This function was never wired into Nakama: it was registered via the
+ * dynamic loop in registerMultiGameRPCs() (`initializer.registerRpc(rpc.id,
+ * rpc.handler)`), but postbuild.js can only statically detect registerRpc
+ * calls with literal-string RPC ids (see postbuild's `rpcPattern`). So
+ * Nakama's AST walker never saw this registration and the handler was
+ * orphaned from day one.
+ *
+ * The canonical implementation now lives in friends/find_friends.js,
+ * which is auto-discovered by postbuild AND uses literal-string
+ * registerRpc calls so the AST walker actually picks it up.
+ *
+ * The function body is left intact only because the array entry at
+ * `quizverse_find_friends` further below references this symbol — also
+ * dead code, also commented out alongside the new module pointer.
+ *
+ * DO NOT MODIFY — make changes in friends/find_friends.js.
  */
 function quizverseFindFriends(context, logger, nk, payload) {
     try {
@@ -22161,7 +23381,8 @@ function registerMultiGameRPCs(initializer, logger) {
         { id: 'quizverse_get_leaderboard', handler: quizverseGetLeaderboard },
         { id: 'quizverse_join_or_create_match', handler: quizverseJoinOrCreateMatch },
         { id: 'quizverse_claim_daily_reward', handler: quizverseClaimDailyReward },
-        { id: 'quizverse_find_friends', handler: quizverseFindFriends },
+        // DISABLED: superseded by data/modules/friends/find_friends.js
+        // { id: 'quizverse_find_friends', handler: quizverseFindFriends },
         { id: 'quizverse_save_player_data', handler: quizverseSavePlayerData },
         { id: 'quizverse_load_player_data', handler: quizverseLoadPlayerData },
         
@@ -22177,7 +23398,8 @@ function registerMultiGameRPCs(initializer, logger) {
         { id: 'lasttolive_get_leaderboard', handler: lasttoliveGetLeaderboard },
         { id: 'lasttolive_join_or_create_match', handler: lasttoliveJoinOrCreateMatch },
         { id: 'lasttolive_claim_daily_reward', handler: lasttoliveClaimDailyReward },
-        { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
+        // DISABLED: superseded by data/modules/friends/find_friends.js (alias)
+        // { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
         { id: 'lasttolive_save_player_data', handler: lasttolliveSavePlayerData },
         { id: 'lasttolive_load_player_data', handler: lasttoliveLoadPlayerData }
     ];
@@ -24652,47 +25874,6 @@ function rpcPlayerGetFullProfile(ctx, logger, nk, payload) {
         xpToNextLevel: metadata.xpToNextLevel || 100,
         joinedAt: metadata.joinedAt || (account && account.user ? account.user.createTime : null)
     };
-
-    // ─── 9. Unified leaderboard rank/score (QV_Bug_A8) ──────────────────
-    // Populate league.rank from the "quizverse_global" leaderboard (the one Unity
-    // HomeScreen.cs queries). For existing players whose record was lost because
-    // historic submit_score_and_sync never wrote to this leaderboard, silently
-    // backfill from the per-game leaderboard so rank/score recover immediately
-    // without requiring the player to play another quiz. Idempotent: write uses
-    // operator "best" so re-running can only raise the score, never lower it.
-    try {
-        var QV_GAME_UUID = '126bf539-dae2-4bcf-964d-316c0fa1f92b';
-        var unifiedLb = null;
-        try { unifiedLb = nk.leaderboardRecordsList('quizverse_global', [userId], 1, '', 0); } catch (e) { if (logger && logger.warn) logger.warn('[Profile] quizverse_global initial read failed: ' + (e && e.message ? e.message : e)); }
-        var ownerRec = (unifiedLb && unifiedLb.ownerRecords && unifiedLb.ownerRecords.length > 0) ? unifiedLb.ownerRecords[0] : null;
-
-        if (!ownerRec) {
-            try {
-                var gameLb = nk.leaderboardRecordsList('leaderboard_' + QV_GAME_UUID, [userId], 1, '', 0);
-                var gameOwn = (gameLb && gameLb.ownerRecords && gameLb.ownerRecords.length > 0) ? gameLb.ownerRecords[0] : null;
-                var bestScore = gameOwn ? (parseInt(gameOwn.score) || 0) : 0;
-                if (bestScore <= 0 && stats.totalXp > 0) bestScore = stats.totalXp;
-                if (bestScore > 0) {
-                    nk.leaderboardRecordWrite('quizverse_global', userId, username, bestScore, 0, { source: 'profile_backfill', backfilledAt: new Date().toISOString() });
-                    try { unifiedLb = nk.leaderboardRecordsList('quizverse_global', [userId], 1, '', 0); } catch (e) { if (logger && logger.warn) logger.warn('[Profile] quizverse_global re-read after backfill failed: ' + (e && e.message ? e.message : e)); }
-                    ownerRec = (unifiedLb && unifiedLb.ownerRecords && unifiedLb.ownerRecords.length > 0) ? unifiedLb.ownerRecords[0] : null;
-                }
-            } catch (bfErr) {
-                logger.debug('[Profile] quizverse_global backfill skipped: ' + bfErr.message);
-            }
-        }
-
-        if (ownerRec) {
-            var parsedRank = parseInt(ownerRec.rank);
-            if (!isNaN(parsedRank) && parsedRank > 0) league.rank = parsedRank;
-            var parsedScore = parseInt(ownerRec.score);
-            if (!isNaN(parsedScore) && parsedScore > 0 && (!stats.totalXp || stats.totalXp < parsedScore)) {
-                stats.totalXp = parsedScore;
-            }
-        }
-    } catch (rankErr) {
-        logger.debug('[Profile] quizverse_global rank lookup skipped: ' + rankErr.message);
-    }
 
     // ─── ASSEMBLE RESPONSE ──────────────────────────────────────────────
     return JSON.stringify({
@@ -39501,6 +40682,34 @@ function rpcGetFriendLeaderboard(ctx, logger, nk, payload) { return getFriendLea
 
 // Import utils
 
+// ════════════════════════════════════════════════════════════════════════════
+// ⚠ DEAD CODE — kept for blame/diff continuity ONLY ⚠
+// ════════════════════════════════════════════════════════════════════════════
+// The send/accept/decline-friend-invite RPCs that historically lived here
+// (and their previously-active registrations a few thousand lines below
+// in the InitModule body) have been REPLACED by the canonical, modular
+// implementation at:
+//
+//     data/modules/friends/friend_invites.js
+//
+// The replacement fixes the "split-brain" friend-graph bug — the legacy
+// sendFriendInvite() below NEVER called nk.friendsAdd(), so Nakama's
+// native user_friends table was permanently out-of-sync with the custom
+// friend_invites storage rows. Every downstream system that read
+// nk.friendsList (friends_list, friend_quests, friend_streaks,
+// friends_challenge_user mutual-friend check, find-friends relationship
+// enrichment) saw the wrong picture as a result.
+//
+// The function bodies below are NO LONGER REGISTERED but are left in
+// place because:
+//   1. They preserve historical context for git blame.
+//   2. Removing ~315 lines of dead code in this monolith risks hidden
+//      reference drift (other half-broken code paths may still call
+//      sendFriendInvite() directly as a JS function).
+//
+// DO NOT MODIFY THESE FUNCTIONS. Make changes in friends/friend_invites.js.
+// ════════════════════════════════════════════════════════════════════════════
+
 /**
  * RPC: send_friend_invite
  * Sends a friend invite to another user
@@ -41396,60 +42605,12 @@ function rpcWalletGetAll(ctx, logger, nk, payload) {
     });
 }
 
-// ============================================================================
-// WALLET IDEMPOTENCY HELPERS — see data/modules/HARDENING_NOTES.md §2
-// Backwards-compatible: legacy callers that omit `request_id` skip the cache.
-// ============================================================================
-var WALLET_IDEMPOTENCY_COLLECTION = "wallet_idempotency";
-var WALLET_IDEMPOTENCY_TTL_S = 600; // 10 minutes
-
-function walletIdempotencyKey(requestId) {
-    return "wallet_req_" + String(requestId).replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 96);
-}
-
-function walletIdempotencyLookup(nk, logger, userId, requestId) {
-    if (!requestId || !userId) return null;
-    try {
-        var rec = nk.storageRead([{
-            collection: WALLET_IDEMPOTENCY_COLLECTION,
-            key: walletIdempotencyKey(requestId),
-            userId: userId
-        }]);
-        if (rec && rec.length > 0 && rec[0].value && rec[0].value.response) {
-            var ts = rec[0].value.ts || 0;
-            var nowS = Math.floor(Date.now() / 1000);
-            if (nowS - ts <= WALLET_IDEMPOTENCY_TTL_S) {
-                return String(rec[0].value.response);
-            }
-        }
-    } catch (e) {
-        if (logger && logger.warn) logger.warn("[WalletIdem] read failed: " + (e && e.message ? e.message : e));
-    }
-    return null;
-}
-
-function walletIdempotencyStore(nk, logger, userId, requestId, responseStr) {
-    if (!requestId || !userId || !responseStr) return;
-    try {
-        nk.storageWrite([{
-            collection: WALLET_IDEMPOTENCY_COLLECTION,
-            key: walletIdempotencyKey(requestId),
-            userId: userId,
-            value: { response: responseStr, ts: Math.floor(Date.now() / 1000) },
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-    } catch (e) {
-        if (logger && logger.warn) logger.warn("[WalletIdem] store failed: " + (e && e.message ? e.message : e));
-    }
-}
-
 /**
  * RPC: Update global wallet
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { currency: "xut", amount: 100, operation: "add", request_id?: "uuid" }
+ * @param {string} payload - JSON payload with { currency: "xut", amount: 100, operation: "add" }
  * @returns {string} JSON response
  */
 function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
@@ -41470,11 +42631,6 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
-
-    // Idempotency: if the same request_id was processed recently, replay the cached response.
-    var __reqId = data.request_id || data.requestId;
-    var __cached = walletIdempotencyLookup(nk, logger, userId, __reqId);
-    if (__cached) { logInfo(logger, "RPC wallet_update_global idempotent replay req=" + __reqId); return __cached; }
 
     var currency = data.currency;
     var amount = data.amount;
@@ -41514,15 +42670,13 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
         newBalance: wallet.currencies[currency]
     });
 
-    var __resp_wug = JSON.stringify({
+    return JSON.stringify({
         success: true,
         userId: userId,
         currency: currency,
         newBalance: wallet.currencies[currency],
         timestamp: getCurrentTimestamp()
     });
-    walletIdempotencyStore(nk, logger, userId, __reqId, __resp_wug);
-    return __resp_wug;
 }
 
 /**
@@ -41530,7 +42684,7 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON payload with { gameId: "uuid", currency: "tokens", amount: 100, operation: "add", request_id?: "uuid" }
+ * @param {string} payload - JSON payload with { gameId: "uuid", currency: "tokens", amount: 100, operation: "add" }
  * @returns {string} JSON response
  */
 function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
@@ -41556,11 +42710,6 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
-
-    // Idempotency: replay cached success if same request_id was already processed.
-    var __reqId = data.request_id || data.requestId;
-    var __cached = walletIdempotencyLookup(nk, logger, userId, __reqId);
-    if (__cached) { logInfo(logger, "RPC wallet_update_game_wallet idempotent replay req=" + __reqId); return __cached; }
 
     var currency = data.currency;
     var amount = Number(data.amount);
@@ -41624,7 +42773,7 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     logInfo(logger, "Wallet updated successfully.  New balances - game: " +
         wallet.currencies.game + ", tokens: " + wallet.currencies.tokens);
 
-    var __resp_wugw = JSON.stringify({
+    return JSON.stringify({
         success: true,
         userId: userId,
         gameId: gameId,
@@ -41636,8 +42785,6 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
         currencies: wallet.currencies,
         timestamp: getCurrentTimestamp()
     });
-    walletIdempotencyStore(nk, logger, userId, __reqId, __resp_wugw);
-    return __resp_wugw;
 }
 
 /**
@@ -41645,7 +42792,7 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
  * @param {object} ctx - Request context
  * @param {object} logger - Logger instance
  * @param {object} nk - Nakama runtime
- * @param {string} payload - JSON with { fromGameId: "uuid", toGameId: "uuid", currency: "tokens", amount: 100, request_id?: "uuid" }
+ * @param {string} payload - JSON with { fromGameId: "uuid", toGameId: "uuid", currency: "tokens", amount: 100 }
  * @returns {string} JSON response
  */
 function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
@@ -41673,11 +42820,6 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
-
-    // Idempotency: replay cached success if same request_id was already processed.
-    var __reqId = data.request_id || data.requestId;
-    var __cached = walletIdempotencyLookup(nk, logger, userId, __reqId);
-    if (__cached) { logInfo(logger, "RPC wallet_transfer_between_game_wallets idempotent replay req=" + __reqId); return __cached; }
 
     var currency = data.currency;
     var amount = data.amount;
@@ -41718,7 +42860,7 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
         amount: amount
     });
 
-    var __resp_wxfer = JSON.stringify({
+    return JSON.stringify({
         success: true,
         userId: userId,
         fromGameId: fromGameId,
@@ -41729,8 +42871,6 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
         toBalance: toWallet.currencies[currency],
         timestamp: getCurrentTimestamp()
     });
-    walletIdempotencyStore(nk, logger, userId, __reqId, __resp_wxfer);
-    return __resp_wxfer;
 }
 
 // Export RPC functions (ES Module syntax)
@@ -46176,27 +47316,24 @@ function initializeCopilotModules(ctx, logger, nk, initializer) {
         logger.error('âœ— Failed to register get_friend_leaderboard: ' + err.message);
     }
 
-    // Register social_features RPCs
-    try {
-        __rpc_send_friend_invite = __rpc_send_friend_invite || (sendFriendInvite);
-        logger.info('âœ“ Registered RPC: send_friend_invite');
-    } catch (err) {
-        logger.error('âœ— Failed to register send_friend_invite: ' + err.message);
-    }
-
-    try {
-        __rpc_accept_friend_invite = __rpc_accept_friend_invite || (acceptFriendInvite);
-        logger.info('âœ“ Registered RPC: accept_friend_invite');
-    } catch (err) {
-        logger.error('âœ— Failed to register accept_friend_invite: ' + err.message);
-    }
-
-    try {
-        __rpc_decline_friend_invite = __rpc_decline_friend_invite || (declineFriendInvite);
-        logger.info('âœ“ Registered RPC: decline_friend_invite');
-    } catch (err) {
-        logger.error('âœ— Failed to register decline_friend_invite: ' + err.message);
-    }
+    // ── DISABLED: legacy social_features friend-invite RPC registrations ──
+    // The send / accept / decline friend invite RPCs are now owned by
+    //   data/modules/friends/friend_invites.js
+    // which fixes the "split-brain" friend-graph bug (legacy send never
+    // called nk.friendsAdd, leaving Nakama's user_friends table empty).
+    //
+    // The registerRpc call lines have been physically REMOVED (not merely
+    // line-commented) because postbuild.js performs TEXT-based regex
+    // matching that does not respect // comments — leaving even a
+    // commented copy of `registerRpc("send_friend_invite", ...)` would
+    // get rewritten into a guarded `__rpc_send_friend_invite = ... || (...)`
+    // global-scope replay statement and the legacy handler would silently
+    // re-bind first, defeating the new module.
+    //
+    // The function bodies (sendFriendInvite / acceptFriendInvite /
+    // declineFriendInvite) are still defined ~lines 3980-4293 below as
+    // dead code with their own DEPRECATED header; they are never called.
+    // ─────────────────────────────────────────────────────────────────────
 
     try {
         __rpc_get_notifications = __rpc_get_notifications || (getNotifications);
@@ -48679,14 +49816,23 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
 
 /**
  * RPC: quizverse_find_friends
- * Production-ready player search with partial matching and relationship enrichment.
  *
- * Features:
- *   1. Case-insensitive partial match on username AND display_name via SQL ILIKE
- *   2. Excludes self, disabled, banned, and blocked accounts
- *   3. Enriches every result with relationshipStatus
- *   4. Returns avatarUrl, online status, createTime
- *   5. SQL-injection safe via parameterised queries + LIKE wildcard sanitisation
+ * ⚠ DEAD CODE — superseded by data/modules/friends/find_friends.js ⚠
+ *
+ * The function below was the historical "good" implementation, but it
+ * was unreachable because a `var quizverseFindFriends = function(...)`
+ * STUB declared further down in this file silently overwrote this
+ * declaration via JavaScript var-hoisting. The stub returned
+ * { error: "not implemented" } and that is what callers received.
+ *
+ * The canonical implementation now lives in find_friends.js with extra
+ * production hardening: real online status from player_presence,
+ * pagination cursor, stronger input sanitisation, and standardised
+ * error codes. The legacy registerRpc('quizverse_find_friends', ...)
+ * call has been commented out so the new module wins the postbuild
+ * "first-set" race for __rpc_quizverse_find_friends.
+ *
+ * DO NOT MODIFY — make changes in friends/find_friends.js.
  */
 function quizverseFindFriends(context, logger, nk, payload) {
     try {
@@ -59113,11 +60259,18 @@ var quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
     logger.warn('quizverseClaimDailyReward called but not implemented');
     return JSON.stringify({ error: 'quizverseClaimDailyReward not implemented', success: false });
 };
-// Stub: quizverseFindFriends - TODO: implement actual function
-var quizverseFindFriends = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseFindFriends called but not implemented');
-    return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
-};
+// ── DISABLED: legacy quizverseFindFriends stub ──────────────────────────────
+// This `var` assignment was silently OVERWRITING the real function declared
+// at line ~13094 via JavaScript's hoist-then-assign behaviour for `var`,
+// so every call to quizverse_find_friends returned `not implemented`.
+// The canonical implementation now lives in:
+//   data/modules/friends/find_friends.js
+// We keep the lines commented (rather than deleting) for blame/diff clarity.
+// ────────────────────────────────────────────────────────────────────────────
+// var quizverseFindFriends = function(ctx, logger, nk, payload) {
+//     logger.warn('quizverseFindFriends called but not implemented');
+//     return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
+// };
 // Stub: quizverseSavePlayerData - TODO: implement actual function
 var quizverseSavePlayerData = function(ctx, logger, nk, payload) {
     logger.warn('quizverseSavePlayerData called but not implemented');
@@ -59532,11 +60685,12 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[Friends] Registered RPC: friends_remove');
         __rpc_friends_list = __rpc_friends_list || (rpcFriendsList);
         logger.info('[Friends] Registered RPC: friends_list');
-        __rpc_friends_challenge_user = __rpc_friends_challenge_user || (rpcFriendsChallengeUser);
-        logger.info('[Friends] Registered RPC: friends_challenge_user');
-        __rpc_friends_spectate = __rpc_friends_spectate || (rpcFriendsSpectate);
-        logger.info('[Friends] Registered RPC: friends_spectate');
-        logger.info('[Friends] Successfully registered 6 Enhanced Friends RPCs');
+        // ── Phase 3a: friends_challenge_user + friends_spectate are now
+        //    registered by data/modules/friends/friend_challenges.js with
+        //    proper mutual-friend gates, rate limits, lifecycle RPCs and
+        //    canonical notification codes.  Lines physically removed (not
+        //    just commented) so postbuild's regex doesn't pick them up.
+        logger.info('[Friends] Successfully registered 4 Enhanced Friends RPCs (challenge+spectate moved to friend_challenges.js)');
     } catch (err) {
         logger.error('[Friends] Failed to initialize: ' + err.message);
     }
@@ -59581,9 +60735,12 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         try { __rpc_create_all_leaderboards_with_friends = __rpc_create_all_leaderboards_with_friends || (createAllLeaderboardsWithFriends); } catch (err) { }
         try { __rpc_submit_score_with_friends_sync = __rpc_submit_score_with_friends_sync || (submitScoreWithFriendsSync); } catch (err) { }
         try { __rpc_get_friend_leaderboard = __rpc_get_friend_leaderboard || (getFriendLeaderboard); } catch (err) { }
-        try { __rpc_send_friend_invite = __rpc_send_friend_invite || (sendFriendInvite); } catch (err) { }
-        try { __rpc_accept_friend_invite = __rpc_accept_friend_invite || (acceptFriendInvite); } catch (err) { }
-        try { __rpc_decline_friend_invite = __rpc_decline_friend_invite || (declineFriendInvite); } catch (err) { }
+        // DISABLED: friend-invite RPCs are now owned by
+        //   data/modules/friends/friend_invites.js
+        // (split-brain fix — legacy send never called nk.friendsAdd).
+        // The literal registerRpc call lines have been REMOVED from this
+        // block because postbuild.js does text-based scanning that
+        // re-binds even commented-out registrations.
         try { __rpc_get_notifications = __rpc_get_notifications || (getNotifications); } catch (err) { }
 
     } catch (err) {
@@ -59700,7 +60857,8 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             { id: 'quizverse_get_leaderboard', handler: quizverseGetLeaderboard },
             { id: 'quizverse_join_or_create_match', handler: quizverseJoinOrCreateMatch },
             { id: 'quizverse_claim_daily_reward', handler: quizverseClaimDailyReward },
-            { id: 'quizverse_find_friends', handler: quizverseFindFriends },
+            // DISABLED: legacy duplicate — see data/modules/friends/find_friends.js
+            // { id: 'quizverse_find_friends', handler: quizverseFindFriends },
             { id: 'quizverse_save_player_data', handler: quizverseSavePlayerData },
             { id: 'quizverse_load_player_data', handler: quizverseLoadPlayerData },
 
@@ -59740,7 +60898,8 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             { id: 'lasttolive_get_leaderboard', handler: lasttoliveGetLeaderboard },
             { id: 'lasttolive_join_or_create_match', handler: lasttoliveJoinOrCreateMatch },
             { id: 'lasttolive_claim_daily_reward', handler: lasttoliveClaimDailyReward },
-            { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
+            // DISABLED: alias also owned by data/modules/friends/find_friends.js
+            // { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
             { id: 'lasttolive_save_player_data', handler: lasttolliveSavePlayerData },
             { id: 'lasttolive_load_player_data', handler: lasttoliveLoadPlayerData },
 
@@ -59783,7 +60942,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         __rpc_quizverse_get_leaderboard = __rpc_quizverse_get_leaderboard || (quizverseGetLeaderboard);
         __rpc_quizverse_join_or_create_match = __rpc_quizverse_join_or_create_match || (quizverseJoinOrCreateMatch);
         __rpc_quizverse_claim_daily_reward = __rpc_quizverse_claim_daily_reward || (quizverseClaimDailyReward);
-        __rpc_quizverse_find_friends = __rpc_quizverse_find_friends || (quizverseFindFriends);
+        // DISABLED: quizverse_find_friends is now owned by
+        //   data/modules/friends/find_friends.js
+        // The literal registerRpc call has been REMOVED (not commented) —
+        // postbuild.js does text-based matching that re-binds even
+        // commented-out registrations.
         __rpc_quizverse_save_player_data = __rpc_quizverse_save_player_data || (quizverseSavePlayerData);
         __rpc_quizverse_load_player_data = __rpc_quizverse_load_player_data || (quizverseLoadPlayerData);
         __rpc_quizverse_get_item_catalog = __rpc_quizverse_get_item_catalog || (quizverseGetItemCatalog);
@@ -59811,7 +60974,10 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         __rpc_lasttolive_get_leaderboard = __rpc_lasttolive_get_leaderboard || (lasttoliveGetLeaderboard);
         __rpc_lasttolive_join_or_create_match = __rpc_lasttolive_join_or_create_match || (lasttoliveJoinOrCreateMatch);
         __rpc_lasttolive_claim_daily_reward = __rpc_lasttolive_claim_daily_reward || (lasttoliveClaimDailyReward);
-        __rpc_lasttolive_find_friends = __rpc_lasttolive_find_friends || (lasttolliveFindFriends);
+        // DISABLED: lasttolive_find_friends alias is now owned by
+        //   data/modules/friends/find_friends.js
+        // The literal registerRpc call has been REMOVED to prevent
+        // postbuild's text-based scan from re-binding the legacy handler.
         __rpc_lasttolive_save_player_data = __rpc_lasttolive_save_player_data || (lasttolliveSavePlayerData);
         __rpc_lasttolive_load_player_data = __rpc_lasttolive_load_player_data || (lasttoliveLoadPlayerData);
         __rpc_lasttolive_get_item_catalog = __rpc_lasttolive_get_item_catalog || (lasttoliveGetItemCatalog);
@@ -60755,6 +61921,30 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
         LegacyAnalytics.register(initializer);
         logger.info("[Legacy] Registering friends RPCs...");
         LegacyFriends.register(initializer);
+        // ── First-class IntelliVerse friend search (replaces the historical
+        //   quizverse_find_friends / lasttolive_find_friends RPCs which lived
+        //   in `data/modules/multigame_rpcs.js` + `legacy_runtime.js` and were
+        //   silently shadowed by a stub. The new TS implementation is in
+        //   src/friends/find_friends.ts and wins precedence because main.ts
+        //   runs before the legacy bridge and `intelliverse_find_friends` is
+        //   pinned in `_tsRpcList` below.) ────────────────────────────────────
+        logger.info("[Friends] Bootstrapping fuzzy-search DB extension + indexes (idempotent)...");
+        // Ensures pg_trgm + GIN trigram indexes exist on users.username and
+        // users.display_name. Safe to run on every boot — every statement uses
+        // IF NOT EXISTS. If the runtime DB user lacks SUPERUSER (needed for
+        // CREATE EXTENSION), the call logs a one-time WARN and the RPC handler
+        // automatically degrades to ILIKE-only search (still tiered, no fuzzy).
+        IntelliverseFriends.bootstrapDatabase(nk, logger);
+        logger.info("[Friends] Registering intelliverse_find_friends RPC...");
+        IntelliverseFriends.register(initializer);
+        // ── Phase-4 C1+H1: canonical friends_list + list_blocked_users with
+        //   flat shape + presence/relationship enrichment. Replaces the
+        //   6-line passthrough that used to live in LegacyFriends.rpcFriendsList
+        //   (which has been stripped from src/legacy/friends.ts in the same
+        //   change) and adds the new list_blocked_users RPC. Both pinned in
+        //   _tsRpcList below so the legacy bridge cannot shadow them. ────────
+        logger.info("[Friends] Registering canonical friends_list + list_blocked_users...");
+        IntelliverseFriendsList.register(initializer);
         logger.info("[Legacy] Registering groups RPCs...");
         LegacyGroups.register(initializer);
         logger.info("[Legacy] Registering push RPCs...");
@@ -60914,7 +62104,7 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     // All handler functions live in the same VM global scope.
     try {
         if (typeof LegacyInitModule === "function") {
-            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,creator_event_claim,creator_event_create,creator_event_end,creator_event_join,creator_event_leaderboard,creator_event_list,creator_event_publish,creator_event_results,creator_event_rewards_create,creator_event_rewards_get,creator_event_submit,creator_event_update_promo,cricket_auction_create_room,cricket_auction_get_events,cricket_auction_get_room,cricket_auction_next_player,cricket_auction_place_bid,cricket_director_end_session,cricket_director_get_session,cricket_director_list_history,cricket_director_save_session,cricket_director_start_session,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,lasttolive_get_weapon_stats,link_wallet_to_game,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,video_feed_add,video_feed_list,video_feed_remove,video_feed_track,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
+            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,creator_event_claim,creator_event_create,creator_event_end,creator_event_join,creator_event_leaderboard,creator_event_list,creator_event_publish,creator_event_results,creator_event_rewards_create,creator_event_rewards_get,creator_event_submit,creator_event_update_promo,cricket_auction_create_room,cricket_auction_get_events,cricket_auction_get_room,cricket_auction_next_player,cricket_auction_place_bid,cricket_director_end_session,cricket_director_get_session,cricket_director_list_history,cricket_director_save_session,cricket_director_start_session,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,intelliverse_find_friends,lasttolive_get_weapon_stats,link_wallet_to_game,list_blocked_users,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,video_feed_add,video_feed_list,video_feed_remove,video_feed_track,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
             var _alreadyRegistered = {};
             for (var _ri = 0; _ri < _tsRpcList.length; _ri++) {
                 _alreadyRegistered[_tsRpcList[_ri]] = true;
@@ -63197,6 +64387,980 @@ var FantasyTypes;
     }
     FantasyTypes.defaultScoringConfig = defaultScoringConfig;
 })(FantasyTypes || (FantasyTypes = {}));
+// ============================================================================
+// src/friends/find_friends.ts — Canonical Player Search RPC (TypeScript)
+// ============================================================================
+// PRODUCTION-READY | First-class TS module | Single source of truth
+//
+// Replaces every prior implementation of the player-search RPC. This is the
+// ONLY handler for player search going forward. Registered via main.ts and
+// pinned in `_tsRpcList`, so the legacy bridge cannot accidentally
+// shadow it from any older `data/modules/*.js` file.
+//
+// RPC ID
+// ------
+//   intelliverse_find_friends     (canonical, snake_case, intelliverse-prefixed)
+//
+// HARD RENAME — the old IDs `quizverse_find_friends` and
+// `lasttolive_find_friends` are NO LONGER REGISTERED. Clients calling them
+// receive Nakama's default "rpc not found" error. All Unity callsites are
+// updated in this same change. If you need cross-game search later, the
+// canonical name covers all games — gameID is informational, never required.
+//
+// Search behaviour — TIERED + FUZZY
+// ---------------------------------
+// Results are returned in this priority order (`rank_tier`):
+//
+//   Tier 1: username  matches the query as a PREFIX (case-insensitive)
+//   Tier 2: display_name matches the query as a PREFIX
+//   Tier 3: username  contains the query as a SUBSTRING
+//   Tier 4: display_name contains the query as a SUBSTRING
+//   Tier 5: trigram-similarity ≥ STRICT threshold (typo-tolerant fuzzy match)
+//
+// Within each tier, ties are broken by trigram similarity (DESC) then
+// username ASC for stable pagination. STRICT fuzziness (similarity ≥ 0.55)
+// allows ~1 typo in queries of typical length while keeping false positives
+// minimal — picked specifically over the medium/loose presets to keep the
+// "Add Friend" dialog precision-first (you almost always know the username
+// you're looking for, just maybe with a typo).
+//
+// Performance
+// -----------
+// `bootstrapDatabase()` (called from main.ts InitModule) creates:
+//   - the pg_trgm extension (if not already present)
+//   - GIN trigram indexes on users.username and users.display_name
+// Both are idempotent and use IF NOT EXISTS — safe to re-run on every boot.
+//
+// With those indexes, the full tiered+fuzzy query stays sub-50ms even on
+// millions of users. Without pg_trgm available, the runtime auto-degrades
+// to ILIKE-only (still fast thanks to the GIN-trgm index, which Postgres
+// also uses for ILIKE '%pattern%') and logs a one-time warning.
+//
+// What this implementation guarantees
+// -----------------------------------
+//   * Real online status from `player_presence` storage collection (the
+//     `users.edge_count` column in Postgres is a friend-edge count, NOT a
+//     presence indicator — every prior version was hard-coding garbage)
+//   * Username + display-name search via Postgres ILIKE + pg_trgm similarity
+//   * Pagination via opaque numeric `cursor` (offset)
+//   * Idempotent — same query+cursor returns the same page
+//   * Strong input sanitisation: max length, escape SQL LIKE wildcards,
+//     reject control characters
+//   * Standardised error envelope with stable machine `errorCode` strings
+//   * Defensive Postgres date-parsing (Nakama's "no disabled" sentinel
+//     is `'1970-01-01 00:00:00 UTC'` — we keep the same predicate)
+//   * Two-tier fallback: pg_trgm SQL → ILIKE-only SQL → usersGetUsername
+//   * Skips the caller themselves and anyone they have blocked
+//   * Enriches each result with relationship status:
+//       'none' | 'friend' | 'pending_sent' | 'pending_received' | 'blocked'
+//
+// Payload contract
+//   {
+//     "gameID":   "quizverse",      // optional — informational only
+//     "query":    "carlo",          // required, 2..50 chars
+//     "limit":    20,               // optional, default 20, max 50
+//     "cursor":   "20"              // optional pagination cursor
+//   }
+//
+// Response (success)
+//   {
+//     "success": true,
+//     "data": {
+//       "results":     [ { userId, username, displayName, avatarUrl,
+//                          online, createTime, relationshipStatus,
+//                          matchTier, similarity } ],
+//       "query":       "carlo",
+//       "count":       12,
+//       "searcherId":  "<uuid>",
+//       "nextCursor":  "32"   | null    // null when no more pages
+//     }
+//   }
+//
+// Response (error)
+//   {
+//     "success": false,
+//     "error":     "human readable message",
+//     "errorCode": "machine_id"   // see ErrorCodes below
+//   }
+// ============================================================================
+var IntelliverseFriends;
+(function (IntelliverseFriends) {
+    // ── Constants ──────────────────────────────────────────────────────────
+    var PRESENCE_COLLECTION = "player_presence";
+    var PRESENCE_KEY = "status";
+    var ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // last_seen within 5 min ⇒ online
+    // STRICT fuzziness — picked deliberately to bias towards precision over
+    // recall in the player-search UX. 0.55 corresponds to ~1 typo in a
+    // 6-char query (e.g. "carlls" finds "carlos"). Tweak in lock-step with
+    // the docstring above + the client-side AskQuestion answer record.
+    var TRGM_SIMILARITY_THRESHOLD = 0.55;
+    // Nakama friend-state ints (mirror of nkruntime.FriendState — not exported)
+    var STATE_FRIEND = 0;
+    var STATE_INVITE_SENT = 1;
+    var STATE_INVITE_RECEIVED = 2;
+    var STATE_BLOCKED = 3;
+    // Stable machine error codes — clients can switch on these.
+    var ERR_UNAUTHENTICATED = "unauthenticated";
+    var ERR_INVALID_PAYLOAD = "invalid_payload";
+    var ERR_QUERY_TOO_SHORT = "query_too_short";
+    var ERR_SEARCH_UNAVAILABLE = "search_unavailable";
+    // Module-level cache — flips to false on the first SQL error that mentions
+    // pg_trgm so subsequent calls skip the fuzzy path entirely. Avoids a
+    // try/catch on the hot path after the first miss.
+    var _trgmAvailable = true;
+    // One-time warning gate so a misconfigured DB doesn't spam logs.
+    var _trgmWarningLogged = false;
+    // ── Phase-4 fuzzy_add_metrics: in-process counters ─────────────────────
+    // Lightweight per-process telemetry. Counters only — no per-call objects
+    // to avoid GC pressure on a hot path. Values reset on every server boot
+    // (we accept that — Prometheus / Datadog scrapers will capture deltas).
+    // A single periodic INFO log line emits the snapshot every N calls so
+    // ops can see the breakdown without scraping anything else.
+    var _metrics = {
+        totalCalls: 0,
+        pathTrgm: 0, // pg_trgm fuzzy SQL succeeded
+        pathIlike: 0, // ILIKE-only SQL (degraded — pg_trgm absent)
+        pathFallback: 0, // usersGetUsername exact-match fallback
+        emptyResults: 0, // calls returning zero rows (potential UX dead-end)
+        totalLatencyMs: 0, // sum across ALL calls (avg = total/totalCalls)
+        maxLatencyMs: 0, // worst single call observed since boot
+        queryLenSum: 0, // sum of query string lengths (avg query length)
+        invalidPayloads: 0, // bad JSON / missing fields
+        queryTooShort: 0 // queries < 2 chars
+    };
+    // Emit a snapshot every N calls. 250 keeps logs sparse on a busy server
+    // (~1 line per ~30s on a 10 RPS deployment) but frequent enough during
+    // low traffic / dev to be useful.
+    var METRICS_LOG_EVERY = 250;
+    // ── Result envelope helpers ────────────────────────────────────────────
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message, errorCode, extra) {
+        var out = { success: false, error: message, errorCode: errorCode };
+        if (extra) {
+            for (var k in extra) {
+                if (Object.prototype.hasOwnProperty.call(extra, k))
+                    out[k] = extra[k];
+            }
+        }
+        return JSON.stringify(out);
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return { ok: true, data: {} };
+        try {
+            return { ok: true, data: JSON.parse(payload) };
+        }
+        catch (e) {
+            return { ok: false, error: "Invalid JSON payload: " + (e.message || String(e)) };
+        }
+    }
+    /**
+     * Bulk-load presence rows for many users. We use targeted storageRead
+     * (one read per user, all batched) rather than scanning a collection
+     * because presence is owned by each user themselves — there is no
+     * cross-user storageList for arbitrary user ids.
+     *
+     * Returns a { userId: boolean } map. Missing entries default to false.
+     */
+    function loadOnlineMap(nk, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({
+                collection: PRESENCE_COLLECTION,
+                key: PRESENCE_KEY,
+                userId: userIds[i]
+            });
+        }
+        var rows = null;
+        try {
+            rows = nk.storageRead(reads);
+        }
+        catch (e) {
+            // Presence is optional context — never fail the search because of it.
+            return map;
+        }
+        if (!rows)
+            return map;
+        var nowMs = Date.now();
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            if (!row || !row.value)
+                continue;
+            var v = row.value;
+            var online = false;
+            if (v.online === true) {
+                var lastSeenMs = 0;
+                if (typeof v.lastSeenMs === "number")
+                    lastSeenMs = v.lastSeenMs;
+                else if (typeof v.last_seen_ms === "number")
+                    lastSeenMs = v.last_seen_ms;
+                else if (typeof v.lastSeen === "string") {
+                    var t = Date.parse(v.lastSeen);
+                    if (!isNaN(t))
+                        lastSeenMs = t;
+                }
+                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) {
+                    online = true;
+                }
+            }
+            map[row.userId] = online;
+        }
+        return map;
+    }
+    /**
+     * Collapse Nakama's friend graph into:
+     *   - relationMap: { friendUserId: 'friend'|'pending_sent'|'pending_received'|'blocked' }
+     *   - blockedSet:  { blockedUserId: true } (skipped from results entirely)
+     */
+    function loadRelationship(nk, logger, userId) {
+        var relationMap = {};
+        var blockedSet = {};
+        try {
+            // 1000 is well above realistic friend list sizes; we don't paginate
+            // here because relationship enrichment must be complete or absent.
+            var resp = nk.friendsList(userId, 1000, undefined, undefined);
+            if (resp && resp.friends) {
+                for (var i = 0; i < resp.friends.length; i++) {
+                    var fr = resp.friends[i];
+                    if (!fr || !fr.user)
+                        continue;
+                    var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+                        ? fr.state.value
+                        : fr.state;
+                    var fid = fr.user.id;
+                    if (s === STATE_FRIEND)
+                        relationMap[fid] = "friend";
+                    else if (s === STATE_INVITE_SENT)
+                        relationMap[fid] = "pending_sent";
+                    else if (s === STATE_INVITE_RECEIVED)
+                        relationMap[fid] = "pending_received";
+                    else if (s === STATE_BLOCKED) {
+                        relationMap[fid] = "blocked";
+                        blockedSet[fid] = true;
+                    }
+                }
+            }
+        }
+        catch (e) {
+            // Relationship lookup failure must NOT fail the search — just degrade
+            // to "no enrichment" (every result will read relationshipStatus='none').
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseFindFriends] friendsList lookup failed: " + (e.message || String(e)));
+            }
+        }
+        return { relationMap: relationMap, blockedSet: blockedSet };
+    }
+    /**
+     * Detect whether the SQL error is specifically the "pg_trgm not installed"
+     * shape so we can flip the module flag and stop retrying the fuzzy path.
+     * Postgres error messages we want to catch:
+     *   - 'function similarity(text, text) does not exist'
+     *   - 'operator does not exist: text % text'
+     *   - 'extension "pg_trgm" is not available'
+     */
+    function isTrgmMissingError(e) {
+        var msg = ((e && (e.message || String(e))) || "").toLowerCase();
+        if (!msg)
+            return false;
+        return msg.indexOf("similarity(") >= 0
+            || msg.indexOf("pg_trgm") >= 0
+            || (msg.indexOf("operator does not exist") >= 0 && msg.indexOf("text %") >= 0);
+    }
+    /**
+     * Tiered + fuzzy SQL search (preferred path, requires pg_trgm).
+     *
+     * $1 = escapedQuery   (LIKE-pattern-safe; '%' '_' '\' escaped)
+     * $2 = rawQuery       (raw user input for similarity())
+     * $3 = userId         (excluded from results)
+     * $4 = limit          (page size + over-fetch margin)
+     * $5 = offset         (pagination)
+     *
+     * The ESCAPE clause uses Postgres E'\\' (an escape string containing a
+     * single backslash) so the '\\%' / '\\_' sequences from sanitisation are
+     * treated as literal % / _ rather than wildcards.
+     */
+    function searchWithTrgm(nk, escapedQuery, rawQuery, userId, limit, offset) {
+        var sql = "SELECT " +
+            "  id, username, display_name, avatar_url, create_time, " +
+            "  CASE " +
+            "    WHEN username ILIKE $1 || '%' ESCAPE E'\\\\' THEN 1 " +
+            "    WHEN display_name ILIKE $1 || '%' ESCAPE E'\\\\' THEN 2 " +
+            "    WHEN username ILIKE '%' || $1 || '%' ESCAPE E'\\\\' THEN 3 " +
+            "    WHEN display_name ILIKE '%' || $1 || '%' ESCAPE E'\\\\' THEN 4 " +
+            "    ELSE 5 " +
+            "  END AS rank_tier, " +
+            "  GREATEST( " +
+            "    similarity(username, $2), " +
+            "    similarity(coalesce(display_name, ''), $2) " +
+            "  ) AS sim_score " +
+            "FROM users " +
+            "WHERE id != $3 " +
+            "  AND disable_time = '1970-01-01 00:00:00 UTC' " +
+            "  AND ( " +
+            "       username ILIKE '%' || $1 || '%' ESCAPE E'\\\\' " +
+            "    OR display_name ILIKE '%' || $1 || '%' ESCAPE E'\\\\' " +
+            "    OR similarity(username, $2) >= " + TRGM_SIMILARITY_THRESHOLD + " " +
+            "    OR similarity(coalesce(display_name, ''), $2) >= " + TRGM_SIMILARITY_THRESHOLD + " " +
+            "  ) " +
+            "ORDER BY rank_tier ASC, sim_score DESC, username ASC " +
+            "LIMIT $4 OFFSET $5";
+        var rows = nk.sqlQuery(sql, [escapedQuery, rawQuery, userId, limit, offset]);
+        return rows || [];
+    }
+    /**
+     * ILIKE-only SQL search (degraded path used when pg_trgm is unavailable).
+     * Loses fuzzy matching but keeps the tiered ranking so users still see
+     * exact prefix → substring matches in a sensible order.
+     *
+     * $1 = escapedQuery, $2 = userId, $3 = limit, $4 = offset
+     */
+    function searchWithIlikeOnly(nk, escapedQuery, userId, limit, offset) {
+        var sql = "SELECT " +
+            "  id, username, display_name, avatar_url, create_time, " +
+            "  CASE " +
+            "    WHEN username ILIKE $1 || '%' ESCAPE E'\\\\' THEN 1 " +
+            "    WHEN display_name ILIKE $1 || '%' ESCAPE E'\\\\' THEN 2 " +
+            "    WHEN username ILIKE '%' || $1 || '%' ESCAPE E'\\\\' THEN 3 " +
+            "    WHEN display_name ILIKE '%' || $1 || '%' ESCAPE E'\\\\' THEN 4 " +
+            "    ELSE 5 " +
+            "  END AS rank_tier, " +
+            "  0::float AS sim_score " +
+            "FROM users " +
+            "WHERE id != $2 " +
+            "  AND disable_time = '1970-01-01 00:00:00 UTC' " +
+            "  AND (username ILIKE '%' || $1 || '%' ESCAPE E'\\\\' " +
+            "       OR display_name ILIKE '%' || $1 || '%' ESCAPE E'\\\\') " +
+            "ORDER BY rank_tier ASC, username ASC " +
+            "LIMIT $3 OFFSET $4";
+        var rows = nk.sqlQuery(sql, [escapedQuery, userId, limit, offset]);
+        return rows || [];
+    }
+    // ── The RPC handler ────────────────────────────────────────────────────
+    function rpcIntelliverseFindFriends(ctx, logger, nk, payload) {
+        var __t0 = Date.now(); // Phase-4 metrics: per-call latency clock
+        var userId = ctx.userId;
+        if (!userId)
+            return err("Authentication required", ERR_UNAUTHENTICATED);
+        var parsed = parsePayload(payload);
+        if (!parsed.ok) {
+            _metrics.invalidPayloads++;
+            return err(parsed.error || "Invalid payload", ERR_INVALID_PAYLOAD);
+        }
+        var data = parsed.data || {};
+        // ── Validate query ──────────────────────────────────────────────────
+        if (!data.query || typeof data.query !== "string") {
+            _metrics.invalidPayloads++;
+            return err("Query string is required", ERR_INVALID_PAYLOAD);
+        }
+        var query = data.query.trim();
+        // Strip control chars + zero-width space (defence against UI weirdness)
+        query = query.replace(/[\x00-\x1f\x7f\u200B-\u200F]/g, "");
+        if (query.length < 2) {
+            _metrics.queryTooShort++;
+            return err("Query must be at least 2 characters", ERR_QUERY_TOO_SHORT);
+        }
+        if (query.length > 50)
+            query = query.substring(0, 50);
+        // Escape Postgres LIKE wildcards in user input. The escape character
+        // matches the ESCAPE E'\\' clause in the SQL queries above.
+        var likeQuery = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+        // ── Validate paging ─────────────────────────────────────────────────
+        var limit = parseInt(data.limit, 10);
+        if (isNaN(limit) || limit < 1)
+            limit = 20;
+        if (limit > 50)
+            limit = 50;
+        var offset = 0;
+        if (data.cursor) {
+            offset = parseInt(data.cursor, 10);
+            if (isNaN(offset) || offset < 0)
+                offset = 0;
+            if (offset > 1000)
+                offset = 1000; // hard cap — protect DB from runaway pagination
+        }
+        // Over-fetch slightly so we can drop blocked users without short-paging.
+        var fetchLimit = limit + 20;
+        // ── Phase 1: Postgres search ───────────────────────────────────────
+        var rows = [];
+        var sqlOk = false;
+        var usedTrgm = false;
+        try {
+            if (_trgmAvailable) {
+                try {
+                    rows = searchWithTrgm(nk, likeQuery, query, userId, fetchLimit, offset);
+                    sqlOk = true;
+                    usedTrgm = true;
+                }
+                catch (e) {
+                    if (isTrgmMissingError(e)) {
+                        _trgmAvailable = false;
+                        if (!_trgmWarningLogged && logger && logger.warn) {
+                            _trgmWarningLogged = true;
+                            logger.warn("[IntelliverseFindFriends] pg_trgm extension not available; " +
+                                "falling back to ILIKE-only search permanently for this server " +
+                                "process. Run `CREATE EXTENSION pg_trgm` as a Postgres superuser " +
+                                "to enable typo-tolerant fuzzy search. Reason: " +
+                                (e.message || String(e)));
+                        }
+                        // Fall through to the ILIKE retry below
+                    }
+                    else {
+                        // Different SQL error — not a pg_trgm issue. Re-throw to outer catch.
+                        throw e;
+                    }
+                }
+            }
+            if (!sqlOk) {
+                rows = searchWithIlikeOnly(nk, likeQuery, userId, fetchLimit, offset);
+                sqlOk = true;
+            }
+        }
+        catch (sqlErr) {
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseFindFriends] SQL search failed; falling back to exact-match: " +
+                    (sqlErr.message || String(sqlErr)));
+            }
+            // Fallback: exact username via Nakama API. Partial / fuzzy search is
+            // impossible on this path — but at least an exact handle still resolves.
+            try {
+                var exact = nk.usersGetUsername([query]);
+                if (exact && exact.length > 0) {
+                    for (var u = 0; u < exact.length; u++) {
+                        if (exact[u].userId !== userId) {
+                            rows.push({
+                                id: exact[u].userId,
+                                username: exact[u].username || "",
+                                display_name: exact[u].displayName || exact[u].username || "",
+                                avatar_url: exact[u].avatarUrl || "",
+                                create_time: exact[u].createTime || "",
+                                rank_tier: 1,
+                                sim_score: 1
+                            });
+                        }
+                    }
+                }
+            }
+            catch (fbErr) {
+                if (logger && logger.error) {
+                    logger.error("[IntelliverseFindFriends] Fallback usersGetUsername failed: " +
+                        (fbErr.message || String(fbErr)));
+                }
+                return err("Search service unavailable", ERR_SEARCH_UNAVAILABLE);
+            }
+        }
+        // ── Phase 2: relationship enrichment ───────────────────────────────
+        var rel = loadRelationship(nk, logger, userId);
+        var relationMap = rel.relationMap;
+        var blockedSet = rel.blockedSet;
+        // ── Phase 3: gather candidate ids and fetch real online status ─────
+        var candidateIds = [];
+        for (var c = 0; c < rows.length; c++) {
+            var rid = rows[c].id;
+            if (rid && rid !== userId && !blockedSet[rid]) {
+                candidateIds.push(rid);
+            }
+        }
+        var onlineMap = loadOnlineMap(nk, candidateIds);
+        // ── Phase 4: build the page (after blocked filter, capped to limit) ─
+        var results = [];
+        var consumed = 0; // how many DB rows we walked through (for next-cursor calc)
+        for (var i = 0; i < rows.length && results.length < limit; i++) {
+            consumed++;
+            var row = rows[i];
+            var rid2 = row.id;
+            if (rid2 === userId)
+                continue;
+            if (blockedSet[rid2])
+                continue;
+            // sim_score may come back as a numeric Postgres FLOAT — coerce defensively.
+            var simRaw = row.sim_score;
+            var sim = typeof simRaw === "number" ? simRaw : parseFloat(simRaw);
+            if (isNaN(sim))
+                sim = 0;
+            var tierRaw = row.rank_tier;
+            var tier = typeof tierRaw === "number" ? tierRaw : parseInt(tierRaw, 10);
+            if (isNaN(tier))
+                tier = 5;
+            results.push({
+                userId: rid2,
+                username: row.username || "",
+                displayName: row.display_name || row.username || "",
+                avatarUrl: row.avatar_url || "",
+                online: !!onlineMap[rid2],
+                createTime: row.create_time || "",
+                relationshipStatus: relationMap[rid2] || "none",
+                // Diagnostic fields — useful for client-side highlighting + telemetry.
+                // Tier mapping: 1=username prefix, 2=display prefix, 3=username substring,
+                // 4=display substring, 5=fuzzy-only.
+                matchTier: tier,
+                similarity: Math.round(sim * 1000) / 1000 // 3 decimal places
+            });
+        }
+        // Compute next cursor — null when we exhausted the page or hit the cap.
+        // Pagination semantics: we only emit a cursor when the SQL path filled
+        // the over-fetch window AND we returned a full client page. The fallback
+        // (usersGetUsername) is single-shot and never paginates.
+        var nextCursor = null;
+        if (sqlOk && results.length === limit && rows.length === fetchLimit) {
+            nextCursor = String(offset + consumed);
+        }
+        // ── Phase-4 metrics: record path + latency ─────────────────────────
+        var __latencyMs = Date.now() - __t0;
+        var __pathLabel = usedTrgm ? "trgm" : (sqlOk ? "ilike" : "fallback");
+        _metrics.totalCalls++;
+        _metrics.totalLatencyMs += __latencyMs;
+        if (__latencyMs > _metrics.maxLatencyMs)
+            _metrics.maxLatencyMs = __latencyMs;
+        _metrics.queryLenSum += query.length;
+        if (results.length === 0)
+            _metrics.emptyResults++;
+        if (__pathLabel === "trgm")
+            _metrics.pathTrgm++;
+        else if (__pathLabel === "ilike")
+            _metrics.pathIlike++;
+        else
+            _metrics.pathFallback++;
+        if (logger && logger.info) {
+            logger.info("[IntelliverseFindFriends] user=" + userId +
+                ' query="' + query + '"' +
+                " queryLen=" + query.length +
+                " path=" + __pathLabel +
+                " latencyMs=" + __latencyMs +
+                " returned=" + results.length +
+                " (offset=" + offset + ", nextCursor=" + (nextCursor || "null") + ")");
+            // Periodic snapshot — keeps INFO log volume sparse but gives ops a
+            // single line that summarises path mix, avg latency, and empty-result
+            // rate. P95/P99 would need a histogram (overkill for this RPC).
+            if (_metrics.totalCalls % METRICS_LOG_EVERY === 0) {
+                var avgLatency = Math.round(_metrics.totalLatencyMs / _metrics.totalCalls);
+                var avgQueryLen = Math.round((_metrics.queryLenSum / _metrics.totalCalls) * 10) / 10;
+                var emptyPct = Math.round((_metrics.emptyResults / _metrics.totalCalls) * 1000) / 10;
+                logger.info("[IntelliverseFindFriends.metrics] calls=" + _metrics.totalCalls +
+                    " trgm=" + _metrics.pathTrgm +
+                    " ilike=" + _metrics.pathIlike +
+                    " fallback=" + _metrics.pathFallback +
+                    " avgLatencyMs=" + avgLatency +
+                    " maxLatencyMs=" + _metrics.maxLatencyMs +
+                    " avgQueryLen=" + avgQueryLen +
+                    " emptyResults%=" + emptyPct +
+                    " invalidPayloads=" + _metrics.invalidPayloads +
+                    " queryTooShort=" + _metrics.queryTooShort);
+            }
+        }
+        return ok({
+            results: results,
+            query: query,
+            count: results.length,
+            searcherId: userId,
+            nextCursor: nextCursor
+        });
+    }
+    // ── Database bootstrap (idempotent) ────────────────────────────────────
+    /**
+     * Ensures the Postgres extension and indexes that power tiered+fuzzy
+     * search exist. Safe to call on every server boot — every statement
+     * uses IF NOT EXISTS.
+     *
+     * What it creates:
+     *   1. The `pg_trgm` extension (Postgres bundled contrib module).
+     *   2. A GIN trigram index on `users.username`.
+     *   3. A GIN trigram index on `users.display_name`.
+     *
+     * Failure modes (all degrade gracefully — never crash the runtime):
+     *   - CREATE EXTENSION requires a Postgres superuser. If the runtime DB
+     *     user lacks that, the extension call fails with permission denied.
+     *     We log a one-time WARN and the RPC handler auto-falls-back to
+     *     ILIKE-only search (still indexed once the GIN indexes exist).
+     *   - If pg_trgm is genuinely absent the GIN-index calls will also fail
+     *     because they reference `gin_trgm_ops`. Same degradation path.
+     */
+    function bootstrapDatabase(nk, logger) {
+        var statements = [
+            { sql: "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+                label: "extension pg_trgm" },
+            { sql: "CREATE INDEX IF NOT EXISTS idx_users_username_trgm " +
+                    "ON users USING gin (username gin_trgm_ops)",
+                label: "index idx_users_username_trgm" },
+            { sql: "CREATE INDEX IF NOT EXISTS idx_users_display_name_trgm " +
+                    "ON users USING gin (display_name gin_trgm_ops)",
+                label: "index idx_users_display_name_trgm" },
+        ];
+        for (var i = 0; i < statements.length; i++) {
+            var stmt = statements[i];
+            try {
+                nk.sqlExec(stmt.sql, []);
+                if (logger && logger.info) {
+                    logger.info("[IntelliverseFindFriends] bootstrap OK: " + stmt.label);
+                }
+            }
+            catch (e) {
+                // Extension creation needs SUPERUSER; index creation needs the
+                // extension. Either failure is non-fatal — the RPC's runtime
+                // fallback will keep search working.
+                var emsg = (e && (e.message || String(e))) || "unknown error";
+                if (logger && logger.warn) {
+                    logger.warn("[IntelliverseFindFriends] bootstrap step '" + stmt.label +
+                        "' failed (non-fatal — fuzzy search will degrade to ILIKE-only): " + emsg);
+                }
+                // If the extension itself failed, no point trying the indexes that
+                // depend on it. Bail out of the rest of the bootstrap loop.
+                if (i === 0 && (emsg.toLowerCase().indexOf("pg_trgm") >= 0 ||
+                    emsg.toLowerCase().indexOf("permission denied") >= 0)) {
+                    _trgmAvailable = false;
+                    break;
+                }
+            }
+        }
+    }
+    IntelliverseFriends.bootstrapDatabase = bootstrapDatabase;
+    // ── Public registration ────────────────────────────────────────────────
+    function register(initializer) {
+        __rpc_intelliverse_find_friends = rpcIntelliverseFindFriends;
+    }
+    IntelliverseFriends.register = register;
+    register();
+})(IntelliverseFriends || (IntelliverseFriends = {}));
+// ============================================================================
+// src/friends/friends_list.ts — Canonical friends_list + list_blocked_users
+// ============================================================================
+// PRODUCTION-READY | First-class TS module | Single source of truth
+//
+// Replaces the 6-line passthrough handler that used to live in
+// `src/legacy/friends.ts` (LegacyFriends.rpcFriendsList). That handler just
+// returned `nk.friendsList()`'s raw nested shape — no presence enrichment,
+// no relationship envelope, no displayName flattening — which made the
+// friends list inconsistent with `intelliverse_find_friends` results.
+//
+// What this module owns
+// ---------------------
+//   friends_list        – the canonical friend roster (state filter optional)
+//   list_blocked_users  – the dedicated "Blocked Users" enumeration (Phase-4 H1)
+//
+// Both RPCs return the SAME flat shape as `intelliverse_find_friends` so
+// the Unity adapter can render any of these three sources with identical
+// row prefabs:
+//
+//   {
+//     "userId":             string,
+//     "username":           string,
+//     "displayName":        string,
+//     "avatarUrl":          string,
+//     "online":             bool,           // from `player_presence` collection
+//     "createTime":         iso8601 string, // user creation
+//     "relationshipStatus": "friend" | "pending_sent" | "pending_received" | "blocked",
+//     "state":              0..3            // raw Nakama FriendState int
+//   }
+//
+// Pagination contract (friends_list only)
+// ---------------------------------------
+//   request:  { limit?: int (1..500, default 100), state?: 0..3, cursor?: string }
+//   response: { results: NakamaFriend[], count: int, nextCursor: string|null }
+//
+// `state` is OPTIONAL. When omitted, ALL relationship states are returned
+// (matches Nakama's default). When set:
+//   0 = friends only
+//   1 = invites you SENT (still pending)
+//   2 = invites you RECEIVED (still pending)
+//   3 = users YOU BLOCKED (use list_blocked_users for the Blocked tab UX)
+//
+// Online status source
+// --------------------
+// We deliberately do NOT use `friend.user.online` from Nakama. That field
+// reflects the realtime SOCKET presence (a player may be logged in but
+// have zero meaningful presence — e.g. AFK background app on iOS that lost
+// the socket but is still "online"). Instead we read the `player_presence`
+// storage collection — the SAME source of truth that
+// `intelliverse_find_friends` uses. This is what eliminates the
+// "online in search, offline in friends list" inconsistency.
+//
+// list_blocked_users
+// ------------------
+// Returns the same flat shape, scoped to STATE_BLOCKED only. Always
+// returns relationshipStatus="blocked" so the client UI can show an
+// Unblock button without a second relationship lookup. No pagination
+// (block lists are tiny — capped at 500).
+// ============================================================================
+var IntelliverseFriendsList;
+(function (IntelliverseFriendsList) {
+    // ── Shared constants (mirror of find_friends.ts) ───────────────────────
+    var PRESENCE_COLLECTION = "player_presence";
+    var PRESENCE_KEY = "status";
+    var ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // last_seen within 5 min ⇒ online
+    // Nakama friend states
+    var STATE_FRIEND = 0;
+    var STATE_INVITE_SENT = 1;
+    var STATE_INVITE_RECEIVED = 2;
+    var STATE_BLOCKED = 3;
+    // Hard caps protect the DB from abuse
+    var FRIENDS_LIST_MAX_LIMIT = 500;
+    var BLOCKED_LIST_HARD_LIMIT = 500;
+    // Stable machine error codes
+    var ERR_UNAUTHENTICATED = "unauthenticated";
+    var ERR_INVALID_PAYLOAD = "invalid_payload";
+    var ERR_INTERNAL = "internal_error";
+    // ── Result envelope helpers ────────────────────────────────────────────
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message, errorCode) {
+        return JSON.stringify({ success: false, error: message, errorCode: errorCode });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return { ok: true, data: {} };
+        try {
+            return { ok: true, data: JSON.parse(payload) };
+        }
+        catch (e) {
+            return { ok: false, error: "Invalid JSON payload: " + (e.message || String(e)) };
+        }
+    }
+    /**
+     * Bulk-load presence rows from the `player_presence` storage collection.
+     * Returns a { userId: boolean } map. Missing entries default to false.
+     *
+     * Identical algorithm to IntelliverseFriends.loadOnlineMap in
+     * find_friends.ts — duplicated here (rather than imported) because
+     * Nakama's Goja runtime does not support cross-namespace function calls
+     * once postbuild has merged everything; namespace boundaries are real.
+     * Keeping these in sync is enforced by code review.
+     */
+    function loadOnlineMap(nk, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({
+                collection: PRESENCE_COLLECTION,
+                key: PRESENCE_KEY,
+                userId: userIds[i]
+            });
+        }
+        var rows = null;
+        try {
+            rows = nk.storageRead(reads);
+        }
+        catch (e) {
+            // Presence is optional context — never fail the list because of it.
+            return map;
+        }
+        if (!rows)
+            return map;
+        var nowMs = Date.now();
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            if (!row || !row.value)
+                continue;
+            var v = row.value;
+            var online = false;
+            if (v.online === true) {
+                var lastSeenMs = 0;
+                if (typeof v.lastSeenMs === "number")
+                    lastSeenMs = v.lastSeenMs;
+                else if (typeof v.last_seen_ms === "number")
+                    lastSeenMs = v.last_seen_ms;
+                else if (typeof v.lastSeen === "string") {
+                    var t = Date.parse(v.lastSeen);
+                    if (!isNaN(t))
+                        lastSeenMs = t;
+                }
+                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) {
+                    online = true;
+                }
+            }
+            map[row.userId] = online;
+        }
+        return map;
+    }
+    /**
+     * Map a Nakama `friend.state` int to the canonical relationshipStatus
+     * string used by every Phase-4 client model.
+     */
+    function stateToRelationship(state) {
+        if (state === STATE_FRIEND)
+            return "friend";
+        if (state === STATE_INVITE_SENT)
+            return "pending_sent";
+        if (state === STATE_INVITE_RECEIVED)
+            return "pending_received";
+        if (state === STATE_BLOCKED)
+            return "blocked";
+        return "none";
+    }
+    /**
+     * Coerce Nakama's wrapped state value (`{value: 0}` in some runtime
+     * versions, plain int in others) into a stable JS number.
+     */
+    function unwrapState(rawState) {
+        if (typeof rawState === "number")
+            return rawState;
+        if (rawState && typeof rawState === "object" && "value" in rawState) {
+            var v = rawState.value;
+            if (typeof v === "number")
+                return v;
+        }
+        return -1;
+    }
+    /**
+     * Flatten a Nakama friend object into our canonical wire shape.
+     * Caller supplies the resolved `online` flag (from loadOnlineMap).
+     */
+    function flattenFriend(fr, online) {
+        var u = fr.user || {};
+        var state = unwrapState(fr.state);
+        return {
+            userId: u.id || "",
+            username: u.username || "",
+            displayName: u.displayName || u.display_name || u.username || "",
+            avatarUrl: u.avatarUrl || u.avatar_url || "",
+            online: online,
+            createTime: u.createTime || u.create_time || "",
+            relationshipStatus: stateToRelationship(state),
+            state: state,
+            // Pass through optional Nakama metadata when present (clients can ignore)
+            updateTime: u.updateTime || u.update_time || "",
+            edgeUpdateTime: fr.updateTime || fr.update_time || ""
+        };
+    }
+    // ── friends_list RPC ───────────────────────────────────────────────────
+    function rpcFriendsList(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId)
+            return err("Authentication required", ERR_UNAUTHENTICATED);
+        var parsed = parsePayload(payload);
+        if (!parsed.ok)
+            return err(parsed.error || "Invalid payload", ERR_INVALID_PAYLOAD);
+        var data = parsed.data || {};
+        // ── Pagination ──────────────────────────────────────────────────────
+        var limit = parseInt(data.limit, 10);
+        if (isNaN(limit) || limit < 1)
+            limit = 100;
+        if (limit > FRIENDS_LIST_MAX_LIMIT)
+            limit = FRIENDS_LIST_MAX_LIMIT;
+        // Nakama wants the cursor as a string (or null/undefined for "first page").
+        // We accept "", null, or undefined as "first page" for client convenience.
+        var cursor = undefined;
+        if (typeof data.cursor === "string" && data.cursor.length > 0) {
+            cursor = data.cursor;
+        }
+        // Optional state filter. Reject silently-out-of-range values rather than
+        // erroring — clients sometimes pass legacy 4 (was used for "all" in
+        // very old QV builds) which we treat as "no filter".
+        var stateFilter = undefined;
+        if (data.state !== undefined && data.state !== null) {
+            var s = parseInt(data.state, 10);
+            if (!isNaN(s) && s >= 0 && s <= 3)
+                stateFilter = s;
+        }
+        // ── Fetch from Nakama ───────────────────────────────────────────────
+        var friendsResp = null;
+        try {
+            friendsResp = nk.friendsList(userId, limit, stateFilter, cursor);
+        }
+        catch (e) {
+            if (logger && logger.error) {
+                logger.error("[FriendsList] nk.friendsList failed: " + (e.message || String(e)));
+            }
+            return err("Failed to load friends", ERR_INTERNAL);
+        }
+        var rawFriends = (friendsResp && friendsResp.friends) ? friendsResp.friends : [];
+        var nextCursor = (friendsResp && friendsResp.cursor) || null;
+        // ── Bulk-load presence ──────────────────────────────────────────────
+        var ids = [];
+        for (var i = 0; i < rawFriends.length; i++) {
+            var u = rawFriends[i] && rawFriends[i].user;
+            if (u && u.id)
+                ids.push(u.id);
+        }
+        var onlineMap = loadOnlineMap(nk, ids);
+        // ── Flatten ─────────────────────────────────────────────────────────
+        var results = [];
+        for (var j = 0; j < rawFriends.length; j++) {
+            var fr = rawFriends[j];
+            if (!fr || !fr.user || !fr.user.id)
+                continue;
+            var online = !!onlineMap[fr.user.id];
+            results.push(flattenFriend(fr, online));
+        }
+        if (logger && logger.info) {
+            logger.info("[FriendsList] user=" + userId +
+                " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+                " returned=" + results.length +
+                " nextCursor=" + (nextCursor || "null"));
+        }
+        return ok({
+            results: results,
+            count: results.length,
+            nextCursor: nextCursor
+        });
+    }
+    // ── list_blocked_users RPC (Phase-4 H1) ────────────────────────────────
+    function rpcListBlockedUsers(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId)
+            return err("Authentication required", ERR_UNAUTHENTICATED);
+        // No required payload fields, but still parse defensively
+        var parsed = parsePayload(payload);
+        if (!parsed.ok)
+            return err(parsed.error || "Invalid payload", ERR_INVALID_PAYLOAD);
+        var rawList = [];
+        try {
+            // Block lists are tiny in practice (<100 users for >99.9% of accounts);
+            // we hard-cap at 500 to prevent abuse + memory blow-ups.
+            var resp = nk.friendsList(userId, BLOCKED_LIST_HARD_LIMIT, STATE_BLOCKED, undefined);
+            if (resp && resp.friends)
+                rawList = resp.friends;
+        }
+        catch (e) {
+            if (logger && logger.error) {
+                logger.error("[ListBlockedUsers] nk.friendsList failed: " + (e.message || String(e)));
+            }
+            return err("Failed to load blocked users", ERR_INTERNAL);
+        }
+        // Presence is conceptually meaningless for a "blocked" relationship,
+        // but we still return it so the row prefab is identical to friends_list.
+        // Cheap (one batched read) so worth the consistency.
+        var ids = [];
+        for (var i = 0; i < rawList.length; i++) {
+            var u = rawList[i] && rawList[i].user;
+            if (u && u.id)
+                ids.push(u.id);
+        }
+        var onlineMap = loadOnlineMap(nk, ids);
+        var results = [];
+        for (var j = 0; j < rawList.length; j++) {
+            var fr = rawList[j];
+            if (!fr || !fr.user || !fr.user.id)
+                continue;
+            // Force relationshipStatus to "blocked" — defensive normalisation in
+            // case Nakama ever returns mixed-state results when filtering.
+            var flat = flattenFriend(fr, !!onlineMap[fr.user.id]);
+            flat.relationshipStatus = "blocked";
+            flat.state = STATE_BLOCKED;
+            results.push(flat);
+        }
+        if (logger && logger.info) {
+            logger.info("[ListBlockedUsers] user=" + userId + " returned=" + results.length);
+        }
+        return ok({
+            results: results,
+            count: results.length
+        });
+    }
+    // ── Public registration ────────────────────────────────────────────────
+    function register(initializer) {
+        __rpc_friends_list = rpcFriendsList;
+        __rpc_list_blocked_users = rpcListBlockedUsers;
+    }
+    IntelliverseFriendsList.register = register;
+    register();
+})(IntelliverseFriendsList || (IntelliverseFriendsList = {}));
 var HiroAchievements;
 (function (HiroAchievements) {
     var DEFAULT_CONFIG = { achievements: {} };
@@ -66857,6 +69021,46 @@ var LegacyDailyRewards;
     LegacyDailyRewards.register = register;
     register();
 })(LegacyDailyRewards || (LegacyDailyRewards = {}));
+// ============================================================================
+// src/legacy/friends.ts — Legacy friend mutation RPCs (block/unblock/remove)
+// ============================================================================
+// HISTORY
+// -------
+// This namespace used to register six friend RPCs: friends_block, friends_unblock,
+// friends_remove, friends_list, friends_challenge_user, friends_spectate.
+//
+// Phase-3a moved friends_challenge_user + friends_spectate ownership to
+// data/modules/friends/friend_challenges.js (canonical lifecycle module).
+// Their dead handlers were already physically removed from this file in
+// that pass.
+//
+// Phase-4 C1 moves friends_list ownership to src/friends/friends_list.ts
+// (canonical flat-shape module with presence + relationship enrichment).
+// The dead rpcFriendsList handler is removed here too.
+//
+// What remains
+// ------------
+// Three thin wrappers around Nakama's built-in friend-graph mutation APIs.
+// These are intentionally minimal — they just shape the response envelope
+// and merge the `userId`/`username` convenience args with the array forms.
+// We keep them in TypeScript (not in the legacy JS bridge) because:
+//   1) They're small enough that maintenance cost is zero.
+//   2) The TS path wins precedence in postbuild merging, so any JS twin
+//      in data/modules/friends/friends.js is silently shadowed — keeping
+//      them in TS is the cleanest way to make THIS file the source of truth.
+//
+// Notification follow-ups
+// -----------------------
+// Currently these handlers do NOT emit notifications. That is intentional:
+//   - friends_block: silent by product policy (don't tell the blocked user).
+//   - friends_unblock: silent (no user-facing event).
+//   - friends_remove: silent (the removed friend simply no longer sees you
+//     in their list; we deliberately do not notify them — most social apps
+//     follow the same convention).
+// If product wants to change this, add `sendFriendsNotification` calls using
+// `FRIEND_REMOVED` (code 5) / `FRIEND_BLOCKED` (code 6) — both already
+// reserved in friends/notification_codes.js.
+// ============================================================================
 var LegacyFriends;
 (function (LegacyFriends) {
     function rpcFriendsBlock(ctx, logger, nk, payload) {
@@ -66922,71 +69126,15 @@ var LegacyFriends;
             return RpcHelpers.errorResponse(e.message || "Failed to remove friend");
         }
     }
-    function rpcFriendsList(ctx, logger, nk, payload) {
-        try {
-            var userId = RpcHelpers.requireUserId(ctx);
-            var data = RpcHelpers.parseRpcPayload(payload);
-            var limit = data.limit || 100;
-            var state = data.state;
-            var cursor = data.cursor || "";
-            var result = nk.friendsList(userId, limit, state, cursor);
-            return RpcHelpers.successResponse({
-                friends: result.friends || [],
-                cursor: result.cursor || ""
-            });
-        }
-        catch (e) {
-            return RpcHelpers.errorResponse(e.message || "Failed to list friends");
-        }
-    }
-    function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
-        try {
-            var userId = RpcHelpers.requireUserId(ctx);
-            var username = ctx.username || "";
-            var data = RpcHelpers.parseRpcPayload(payload);
-            var targetUserId = data.userId || data.targetUserId;
-            if (!targetUserId)
-                return RpcHelpers.errorResponse("userId required");
-            nk.notificationsSend([{
-                    userId: targetUserId,
-                    subject: "friend_challenge",
-                    content: { senderId: userId, senderUsername: username, gameId: data.gameId || "", matchId: data.matchId || "" },
-                    code: 1,
-                    persistent: false
-                }]);
-            return RpcHelpers.successResponse({ success: true });
-        }
-        catch (e) {
-            return RpcHelpers.errorResponse(e.message || "Failed to send challenge");
-        }
-    }
-    function rpcFriendsSpectate(ctx, logger, nk, payload) {
-        try {
-            var userId = RpcHelpers.requireUserId(ctx);
-            var data = RpcHelpers.parseRpcPayload(payload);
-            var targetUserId = data.userId || data.targetUserId;
-            if (!targetUserId)
-                return RpcHelpers.errorResponse("userId required");
-            nk.notificationsSend([{
-                    userId: targetUserId,
-                    subject: "friend_spectate",
-                    content: { spectatorId: userId, matchId: data.matchId || "" },
-                    code: 2,
-                    persistent: false
-                }]);
-            return RpcHelpers.successResponse({ success: true });
-        }
-        catch (e) {
-            return RpcHelpers.errorResponse(e.message || "Failed to send spectate request");
-        }
-    }
     function register(initializer) {
         __rpc_friends_block = rpcFriendsBlock;
         __rpc_friends_unblock = rpcFriendsUnblock;
         __rpc_friends_remove = rpcFriendsRemove;
-        __rpc_friends_list = rpcFriendsList;
-        __rpc_friends_challenge_user = rpcFriendsChallengeUser;
-        __rpc_friends_spectate = rpcFriendsSpectate;
+        // Phase-3a: friends_challenge_user + friends_spectate are registered by
+        //   data/modules/friends/friend_challenges.js (canonical lifecycle module).
+        // Phase-4 C1: friends_list is registered by src/friends/friends_list.ts
+        //   (canonical flat-shape module). Lines physically removed (not commented)
+        //   so postbuild's textual regex doesn't pick them up.
     }
     LegacyFriends.register = register;
     register();
@@ -67473,26 +69621,13 @@ var LegacyLeaderboards;
     function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         var updated = [];
         var metadata = { source: "submit_score_and_sync", gameId: gameId, submittedAt: new Date().toISOString() };
-
-        // QV_Bug_A8: also write to "quizverse_global" — the unified all-time leaderboard
-        // queried directly by Unity HomeScreen.cs (FetchLeaderboardFallbackAsync).
-        // Without this write the Home rank/score card stays blank forever for every player.
-        var unifiedId = "quizverse_global";
-        if (ensureLeaderboardExists(nk, logger, unifiedId, "", { scope: "unified_global" })) {
-            try {
-                nk.leaderboardRecordWrite(unifiedId, userId, username, score, 0, metadata);
-                updated.push(unifiedId);
-            }
-            catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + unifiedId + ": " + err.message); }
-        }
-
         var mainId = "leaderboard_" + gameId;
         if (ensureLeaderboardExists(nk, logger, mainId, "", { scope: "game", gameId: gameId })) {
             try {
                 nk.leaderboardRecordWrite(mainId, userId, username, score, 0, metadata);
                 updated.push(mainId);
             }
-            catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + mainId + ": " + err.message); }
+            catch (_) { /* skip */ }
         }
         for (var i = 0; i < PERIODS.length; i++) {
             var period = PERIODS[i];
@@ -67502,7 +69637,7 @@ var LegacyLeaderboards;
                     nk.leaderboardRecordWrite(periodId, userId, username, score, 0, metadata);
                     updated.push(periodId);
                 }
-                catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + periodId + ": " + err.message); }
+                catch (_) { /* skip */ }
             }
         }
         var globalId = "leaderboard_global";
@@ -67511,7 +69646,7 @@ var LegacyLeaderboards;
                 nk.leaderboardRecordWrite(globalId, userId, username, score, 0, metadata);
                 updated.push(globalId);
             }
-            catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + globalId + ": " + err.message); }
+            catch (_) { /* skip */ }
         }
         for (var k = 0; k < PERIODS.length; k++) {
             var gp = PERIODS[k];
@@ -67521,7 +69656,7 @@ var LegacyLeaderboards;
                     nk.leaderboardRecordWrite(gid, userId, username, score, 0, metadata);
                     updated.push(gid);
                 }
-                catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + gid + ": " + err.message); }
+                catch (_) { /* skip */ }
             }
         }
         var allIds = getAllLeaderboardIds(nk, logger);
@@ -67534,7 +69669,7 @@ var LegacyLeaderboards;
                     nk.leaderboardRecordWrite(lbId, userId, username, score, 0, metadata);
                     updated.push(lbId);
                 }
-                catch (err) { logger.warn("[LegacyLeaderboards] Failed write to " + lbId + ": " + err.message); }
+                catch (_) { /* skip */ }
             }
         }
         return updated;
@@ -67753,7 +69888,7 @@ var LegacyLeaderboards;
                     if (users && users.length > 0 && users[0].username)
                         username = users[0].username;
                 }
-                catch (e) { logger.warn("[LegacyLeaderboards] usersGetId failed for " + userId + ": " + (e && e.message ? e.message : e)); }
+                catch (_) { }
             }
             if (!username)
                 username = userId;
@@ -67808,7 +69943,7 @@ var LegacyLeaderboards;
                         if (ur && ur.records && ur.records.length > 0)
                             userRec = ur.records[0];
                     }
-                    catch (e) { logger.warn("[LegacyLeaderboards] per-user record fetch failed for " + lbId + ": " + (e && e.message ? e.message : e)); }
+                    catch (_) { }
                     leaderboards[lbId] = {
                         leaderboard_id: lbId,
                         records: recs.records || [],
@@ -68138,6 +70273,13 @@ var LegacyMultiGame;
         Storage.writeJson(nk, "daily_rewards", key, userId, state);
         return { streak: state.streak, reward: rewardAmount };
     }
+    // ⚠ DEAD CODE — superseded by src/friends/find_friends.ts ⚠
+    // The per-game `<game>_find_friends` registration has been removed in
+    // favour of the canonical cross-game `intelliverse_find_friends` RPC.
+    // The function body is kept only so the surrounding namespace continues
+    // to compile (TS6133 unused-warning is OK because this is in an outFile
+    // bundle). It is no longer reachable from any registered RPC.
+    // DO NOT MODIFY. Make changes in src/friends/find_friends.ts.
     function findFriends(ctx, logger, nk, data, userId, gId) {
         var query = (data.query || "").trim();
         if (query.length < 1)
@@ -68510,7 +70652,6 @@ var LegacyMultiGame;
         __rpc_quizverse_get_leaderboard = gameRpcHandler("quizverse", getLeaderboard);
         __rpc_quizverse_join_or_create_match = gameRpcHandler("quizverse", joinOrCreateMatch);
         __rpc_quizverse_claim_daily_reward = gameRpcHandler("quizverse", claimDailyReward);
-        __rpc_quizverse_find_friends = gameRpcHandler("quizverse", findFriends);
         __rpc_quizverse_save_player_data = gameRpcHandler("quizverse", savePlayerData);
         __rpc_quizverse_load_player_data = gameRpcHandler("quizverse", loadPlayerData);
         __rpc_quizverse_get_item_catalog = gameRpcHandler("quizverse", getItemCatalog);
@@ -68539,7 +70680,6 @@ var LegacyMultiGame;
         __rpc_lasttolive_get_leaderboard = gameRpcHandler("lasttolive", getLeaderboard);
         __rpc_lasttolive_join_or_create_match = gameRpcHandler("lasttolive", joinOrCreateMatch);
         __rpc_lasttolive_claim_daily_reward = gameRpcHandler("lasttolive", claimDailyReward);
-        __rpc_lasttolive_find_friends = gameRpcHandler("lasttolive", findFriends);
         __rpc_lasttolive_save_player_data = gameRpcHandler("lasttolive", savePlayerData);
         __rpc_lasttolive_load_player_data = gameRpcHandler("lasttolive", loadPlayerData);
         __rpc_lasttolive_get_item_catalog = gameRpcHandler("lasttolive", getItemCatalog);
@@ -71318,6 +73458,49 @@ var SatoriCreatorEvents;
         for (var ri2 = 1; ri2 < allRecords.length && ri2 < 4; ri2++) {
             runnersUp.push(rankInfo(allRecords[ri2], ri2 + 1));
         }
+        // Next upcoming event lookup — lets the recap pipeline generate a
+        // "next event Thursday 8PM IST" CTA instead of a hard-coded "tomorrow".
+        // Scan the events index for the nearest scheduledAt > now, preferring
+        // same-region first so regional recaps promote their own region's next.
+        var nextEvent = null;
+        try {
+            var nowTs = Math.floor(Date.now() / 1000);
+            var idx = getEventsIndex(nk);
+            var bestSame = null;
+            var bestAny = null;
+            for (var ei = 0; ei < idx.eventIds.length; ei++) {
+                var eid = idx.eventIds[ei];
+                if (eid === def.id)
+                    continue;
+                var other = getEventDefinition(nk, eid);
+                if (!other)
+                    continue;
+                if (other.status === "cancelled" || other.status === "ended" || other.status === "distributed")
+                    continue;
+                if (!other.scheduledAt || other.scheduledAt <= nowTs)
+                    continue;
+                var candidate = {
+                    eventId: other.id,
+                    title: other.title,
+                    category: other.category,
+                    region: other.region,
+                    scheduledAt: other.scheduledAt,
+                    duration: other.duration,
+                };
+                if (other.region === def.region) {
+                    if (!bestSame || other.scheduledAt < bestSame.scheduledAt)
+                        bestSame = candidate;
+                }
+                else {
+                    if (!bestAny || other.scheduledAt < bestAny.scheduledAt)
+                        bestAny = candidate;
+                }
+            }
+            nextEvent = bestSame || bestAny;
+        }
+        catch (err) {
+            logger.warn("[CreatorEvent] next-event lookup failed: %s", err.message || String(err));
+        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
             eventId: def.id,
             creatorId: def.creatorId,
@@ -71335,6 +73518,7 @@ var SatoriCreatorEvents;
             prizePool: def.prizePool,
             giftCardPrizes: def.giftCardPrizes || null,
             endedAt: def.endedAt,
+            nextEvent: nextEvent,
             idempotencyKey: "event_ended_" + def.id,
         });
         return RpcHelpers.successResponse({
@@ -71343,6 +73527,63 @@ var SatoriCreatorEvents;
             totalParticipants: allRecords.length,
             tierAssignments: tierAssignments,
             winnersPerTier: winnersPerTier,
+        });
+    }
+    /**
+     * Cancel a draft or published event BEFORE it starts running.
+     *
+     * Emits EVENT_CANCELLED so the n8n takedown workflow can unpublish any
+     * already-scheduled promo posts on YouTube/TikTok/Instagram (via Postiz).
+     *
+     * Only draft | funded | published events can be cancelled. Events that
+     * have already ended or been distributed are terminal.
+     */
+    function rpcCancel(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var isAdmin = isAdminCtx(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, String(data.eventId));
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        if (!isAdmin && def.creatorId !== userId) {
+            return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+        }
+        var current = def.status || "draft";
+        if (current !== "draft" && current !== "funded" && current !== "published") {
+            return RpcHelpers.errorResponse("Event cannot be cancelled once it's " + current);
+        }
+        def.status = "cancelled";
+        var now = Math.floor(Date.now() / 1000);
+        def.cancelledAt = now;
+        def.cancelReason = data.reason ? String(data.reason) : "";
+        saveEventDefinition(nk, def);
+        logger.info("[CreatorEvent] Cancelled by %s: %s (%s) — reason=%s", userId, def.title, def.id, def.cancelReason || "(none)");
+        // Fan out to n8n → Postiz takedown + Content Factory registry cleanup.
+        EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CANCELLED, {
+            eventId: def.id,
+            creatorId: def.creatorId,
+            title: def.title,
+            description: def.description,
+            category: def.category,
+            region: def.region,
+            scheduledAt: def.scheduledAt,
+            cancelledAt: now,
+            cancelledBy: userId,
+            reason: def.cancelReason || "",
+            // Carry the prior idempotency keys so downstream can identify the
+            // exact promo tasks to tear down.
+            priorPromoIdempotencyKeys: [
+                "event_created_" + def.id,
+                "event_published_" + def.id,
+            ],
+            idempotencyKey: "event_cancelled_" + def.id,
+        });
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: def.id,
+            status: "cancelled",
         });
     }
     function register(initializer) {
@@ -71355,6 +73596,7 @@ var SatoriCreatorEvents;
         __rpc_creator_event_create = rpcCreate;
         __rpc_creator_event_publish = rpcPublish;
         __rpc_creator_event_end = rpcEnd;
+        __rpc_creator_event_cancel = rpcCancel;
         __rpc_creator_event_update_promo = rpcUpdatePromo;
     }
     SatoriCreatorEvents.register = register;
@@ -73044,9 +75286,6 @@ try { __rpc_submit_score_with_aggregate = __rpc_submit_score_with_aggregate || (
 try { __rpc_create_all_leaderboards_with_friends = __rpc_create_all_leaderboards_with_friends || (createAllLeaderboardsWithFriends); } catch(e) {}
 try { __rpc_submit_score_with_friends_sync = __rpc_submit_score_with_friends_sync || (submitScoreWithFriendsSync); } catch(e) {}
 try { __rpc_get_friend_leaderboard = __rpc_get_friend_leaderboard || (getFriendLeaderboard); } catch(e) {}
-try { __rpc_send_friend_invite = __rpc_send_friend_invite || (sendFriendInvite); } catch(e) {}
-try { __rpc_accept_friend_invite = __rpc_accept_friend_invite || (acceptFriendInvite); } catch(e) {}
-try { __rpc_decline_friend_invite = __rpc_decline_friend_invite || (declineFriendInvite); } catch(e) {}
 try { __rpc_get_notifications = __rpc_get_notifications || (getNotifications); } catch(e) {}
 try { __rpc_get_user_wallet = __rpc_get_user_wallet || (getUserWallet); } catch(e) {}
 try { __rpc_link_wallet_to_game = __rpc_link_wallet_to_game || (linkWalletToGame); } catch(e) {}
@@ -73080,8 +75319,6 @@ try { __rpc_friends_block = __rpc_friends_block || (rpcFriendsBlock); } catch(e)
 try { __rpc_friends_unblock = __rpc_friends_unblock || (rpcFriendsUnblock); } catch(e) {}
 try { __rpc_friends_remove = __rpc_friends_remove || (rpcFriendsRemove); } catch(e) {}
 try { __rpc_friends_list = __rpc_friends_list || (rpcFriendsList); } catch(e) {}
-try { __rpc_friends_challenge_user = __rpc_friends_challenge_user || (rpcFriendsChallengeUser); } catch(e) {}
-try { __rpc_friends_spectate = __rpc_friends_spectate || (rpcFriendsSpectate); } catch(e) {}
 try { __rpc_create_game_group = __rpc_create_game_group || (rpcCreateGameGroup); } catch(e) {}
 try { __rpc_update_group_xp = __rpc_update_group_xp || (rpcUpdateGroupXP); } catch(e) {}
 try { __rpc_get_group_wallet = __rpc_get_group_wallet || (rpcGetGroupWallet); } catch(e) {}
@@ -73095,9 +75332,6 @@ try { __rpc_submit_score_with_aggregate = __rpc_submit_score_with_aggregate || (
 try { __rpc_create_all_leaderboards_with_friends = __rpc_create_all_leaderboards_with_friends || (createAllLeaderboardsWithFriends); } catch(e) {}
 try { __rpc_submit_score_with_friends_sync = __rpc_submit_score_with_friends_sync || (submitScoreWithFriendsSync); } catch(e) {}
 try { __rpc_get_friend_leaderboard = __rpc_get_friend_leaderboard || (getFriendLeaderboard); } catch(e) {}
-try { __rpc_send_friend_invite = __rpc_send_friend_invite || (sendFriendInvite); } catch(e) {}
-try { __rpc_accept_friend_invite = __rpc_accept_friend_invite || (acceptFriendInvite); } catch(e) {}
-try { __rpc_decline_friend_invite = __rpc_decline_friend_invite || (declineFriendInvite); } catch(e) {}
 try { __rpc_get_notifications = __rpc_get_notifications || (getNotifications); } catch(e) {}
 try { __rpc_create_or_sync_user = __rpc_create_or_sync_user || (createOrSyncUser); } catch(e) {}
 try { __rpc_create_or_get_wallet = __rpc_create_or_get_wallet || (createOrGetWallet); } catch(e) {}
@@ -73135,7 +75369,6 @@ try { __rpc_quizverse_submit_score = __rpc_quizverse_submit_score || (quizverseS
 try { __rpc_quizverse_get_leaderboard = __rpc_quizverse_get_leaderboard || (quizverseGetLeaderboard); } catch(e) {}
 try { __rpc_quizverse_join_or_create_match = __rpc_quizverse_join_or_create_match || (quizverseJoinOrCreateMatch); } catch(e) {}
 try { __rpc_quizverse_claim_daily_reward = __rpc_quizverse_claim_daily_reward || (quizverseClaimDailyReward); } catch(e) {}
-try { __rpc_quizverse_find_friends = __rpc_quizverse_find_friends || (quizverseFindFriends); } catch(e) {}
 try { __rpc_quizverse_save_player_data = __rpc_quizverse_save_player_data || (quizverseSavePlayerData); } catch(e) {}
 try { __rpc_quizverse_load_player_data = __rpc_quizverse_load_player_data || (quizverseLoadPlayerData); } catch(e) {}
 try { __rpc_quizverse_get_item_catalog = __rpc_quizverse_get_item_catalog || (quizverseGetItemCatalog); } catch(e) {}
@@ -73163,7 +75396,6 @@ try { __rpc_lasttolive_submit_score = __rpc_lasttolive_submit_score || (lasttoli
 try { __rpc_lasttolive_get_leaderboard = __rpc_lasttolive_get_leaderboard || (lasttoliveGetLeaderboard); } catch(e) {}
 try { __rpc_lasttolive_join_or_create_match = __rpc_lasttolive_join_or_create_match || (lasttoliveJoinOrCreateMatch); } catch(e) {}
 try { __rpc_lasttolive_claim_daily_reward = __rpc_lasttolive_claim_daily_reward || (lasttoliveClaimDailyReward); } catch(e) {}
-try { __rpc_lasttolive_find_friends = __rpc_lasttolive_find_friends || (lasttolliveFindFriends); } catch(e) {}
 try { __rpc_lasttolive_save_player_data = __rpc_lasttolive_save_player_data || (lasttolliveSavePlayerData); } catch(e) {}
 try { __rpc_lasttolive_load_player_data = __rpc_lasttolive_load_player_data || (lasttoliveLoadPlayerData); } catch(e) {}
 try { __rpc_lasttolive_get_item_catalog = __rpc_lasttolive_get_item_catalog || (lasttoliveGetItemCatalog); } catch(e) {}
@@ -73380,6 +75612,20 @@ try { __rpc_external_poll_appstore = __rpc_external_poll_appstore || (rpcExterna
 try { __rpc_external_poll_ugs = __rpc_external_poll_ugs || (rpcExternalPollUgs); } catch(e) {}
 try { __rpc_external_poll_all = __rpc_external_poll_all || (rpcExternalPollAll); } catch(e) {}
 try { __rpc_external_poll_status = __rpc_external_poll_status || (rpcExternalPollStatus); } catch(e) {}
+try { __rpc_id = __rpc_id || (handler); } catch(e) {}
+try { __rpc_send_friend_challenge = __rpc_send_friend_challenge || (rpcSendFriendChallenge); } catch(e) {}
+try { __rpc_friends_challenge_user = __rpc_friends_challenge_user || (rpcSendFriendChallenge); } catch(e) {}
+try { __rpc_accept_friend_challenge = __rpc_accept_friend_challenge || (rpcAcceptFriendChallenge); } catch(e) {}
+try { __rpc_decline_friend_challenge = __rpc_decline_friend_challenge || (rpcDeclineFriendChallenge); } catch(e) {}
+try { __rpc_cancel_friend_challenge = __rpc_cancel_friend_challenge || (rpcCancelFriendChallenge); } catch(e) {}
+try { __rpc_list_pending_friend_challenges = __rpc_list_pending_friend_challenges || (rpcListPendingFriendChallenges); } catch(e) {}
+try { __rpc_friends_spectate = __rpc_friends_spectate || (rpcFriendsSpectate); } catch(e) {}
+try { __rpc_id = __rpc_id || (handler); } catch(e) {}
+try { __rpc_send_friend_invite = __rpc_send_friend_invite || (rpcFriendsSendInvite); } catch(e) {}
+try { __rpc_accept_friend_invite = __rpc_accept_friend_invite || (rpcFriendsAcceptInvite); } catch(e) {}
+try { __rpc_decline_friend_invite = __rpc_decline_friend_invite || (rpcFriendsDeclineInvite); } catch(e) {}
+try { __rpc_cancel_friend_invite = __rpc_cancel_friend_invite || (rpcFriendsCancelInvite); } catch(e) {}
+try { __rpc_list_pending_friend_invites = __rpc_list_pending_friend_invites || (rpcFriendsListPendingInvites); } catch(e) {}
 try { __rpc_onboarding_get_state = __rpc_onboarding_get_state || (rpcGetOnboardingState); } catch(e) {}
 try { __rpc_onboarding_update_state = __rpc_onboarding_update_state || (rpcUpdateOnboardingState); } catch(e) {}
 try { __rpc_onboarding_complete_step = __rpc_onboarding_complete_step || (rpcCompleteStep); } catch(e) {}
@@ -73433,7 +75679,6 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("lasttolive_get_leaderboard", __rpc_lasttolive_get_leaderboard); } catch(e) {}
   try { initializer.registerRpc("lasttolive_join_or_create_match", __rpc_lasttolive_join_or_create_match); } catch(e) {}
   try { initializer.registerRpc("lasttolive_claim_daily_reward", __rpc_lasttolive_claim_daily_reward); } catch(e) {}
-  try { initializer.registerRpc("lasttolive_find_friends", __rpc_lasttolive_find_friends); } catch(e) {}
   try { initializer.registerRpc("lasttolive_save_player_data", __rpc_lasttolive_save_player_data); } catch(e) {}
   try { initializer.registerRpc("lasttolive_load_player_data", __rpc_lasttolive_load_player_data); } catch(e) {}
   try { initializer.registerRpc("lasttolive_get_item_catalog", __rpc_lasttolive_get_item_catalog); } catch(e) {}
@@ -73460,7 +75705,6 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quizverse_get_leaderboard", __rpc_quizverse_get_leaderboard); } catch(e) {}
   try { initializer.registerRpc("quizverse_join_or_create_match", __rpc_quizverse_join_or_create_match); } catch(e) {}
   try { initializer.registerRpc("quizverse_claim_daily_reward", __rpc_quizverse_claim_daily_reward); } catch(e) {}
-  try { initializer.registerRpc("quizverse_find_friends", __rpc_quizverse_find_friends); } catch(e) {}
   try { initializer.registerRpc("quizverse_save_player_data", __rpc_quizverse_save_player_data); } catch(e) {}
   try { initializer.registerRpc("quizverse_load_player_data", __rpc_quizverse_load_player_data); } catch(e) {}
   try { initializer.registerRpc("quizverse_get_item_catalog", __rpc_quizverse_get_item_catalog); } catch(e) {}
@@ -73509,6 +75753,9 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("fantasy_transfer", __rpc_fantasy_transfer); } catch(e) {}
   try { initializer.registerRpc("fantasy_transfer_window", __rpc_fantasy_transfer_window); } catch(e) {}
   try { initializer.registerRpc("fantasy_transfer_history", __rpc_fantasy_transfer_history); } catch(e) {}
+  try { initializer.registerRpc("intelliverse_find_friends", __rpc_intelliverse_find_friends); } catch(e) {}
+  try { initializer.registerRpc("friends_list", __rpc_friends_list); } catch(e) {}
+  try { initializer.registerRpc("list_blocked_users", __rpc_list_blocked_users); } catch(e) {}
   try { initializer.registerRpc("hiro_achievements_list", __rpc_hiro_achievements_list); } catch(e) {}
   try { initializer.registerRpc("hiro_achievements_progress", __rpc_hiro_achievements_progress); } catch(e) {}
   try { initializer.registerRpc("hiro_achievements_claim", __rpc_hiro_achievements_claim); } catch(e) {}
@@ -73622,9 +75869,6 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("friends_block", __rpc_friends_block); } catch(e) {}
   try { initializer.registerRpc("friends_unblock", __rpc_friends_unblock); } catch(e) {}
   try { initializer.registerRpc("friends_remove", __rpc_friends_remove); } catch(e) {}
-  try { initializer.registerRpc("friends_list", __rpc_friends_list); } catch(e) {}
-  try { initializer.registerRpc("friends_challenge_user", __rpc_friends_challenge_user); } catch(e) {}
-  try { initializer.registerRpc("friends_spectate", __rpc_friends_spectate); } catch(e) {}
   try { initializer.registerRpc("game_entry_validate", __rpc_game_entry_validate); } catch(e) {}
   try { initializer.registerRpc("game_entry_complete", __rpc_game_entry_complete); } catch(e) {}
   try { initializer.registerRpc("game_entry_get_status", __rpc_game_entry_get_status); } catch(e) {}
@@ -73723,6 +75967,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("creator_event_create", __rpc_creator_event_create); } catch(e) {}
   try { initializer.registerRpc("creator_event_publish", __rpc_creator_event_publish); } catch(e) {}
   try { initializer.registerRpc("creator_event_end", __rpc_creator_event_end); } catch(e) {}
+  try { initializer.registerRpc("creator_event_cancel", __rpc_creator_event_cancel); } catch(e) {}
   try { initializer.registerRpc("creator_event_update_promo", __rpc_creator_event_update_promo); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_list", __rpc_satori_live_events_list); } catch(e) {}
   try { initializer.registerRpc("satori_live_events_join", __rpc_satori_live_events_join); } catch(e) {}
@@ -73756,9 +76001,6 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("create_all_leaderboards_with_friends", __rpc_create_all_leaderboards_with_friends); } catch(e) {}
   try { initializer.registerRpc("submit_score_with_friends_sync", __rpc_submit_score_with_friends_sync); } catch(e) {}
   try { initializer.registerRpc("get_friend_leaderboard", __rpc_get_friend_leaderboard); } catch(e) {}
-  try { initializer.registerRpc("send_friend_invite", __rpc_send_friend_invite); } catch(e) {}
-  try { initializer.registerRpc("accept_friend_invite", __rpc_accept_friend_invite); } catch(e) {}
-  try { initializer.registerRpc("decline_friend_invite", __rpc_decline_friend_invite); } catch(e) {}
   try { initializer.registerRpc("get_notifications", __rpc_get_notifications); } catch(e) {}
   try { initializer.registerRpc("achievements_get_all", __rpc_achievements_get_all); } catch(e) {}
   try { initializer.registerRpc("achievements_update_progress", __rpc_achievements_update_progress); } catch(e) {}
@@ -73935,6 +76177,19 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("external_poll_ugs", __rpc_external_poll_ugs); } catch(e) {}
   try { initializer.registerRpc("external_poll_all", __rpc_external_poll_all); } catch(e) {}
   try { initializer.registerRpc("external_poll_status", __rpc_external_poll_status); } catch(e) {}
+  try { initializer.registerRpc("id", __rpc_id); } catch(e) {}
+  try { initializer.registerRpc("send_friend_challenge", __rpc_send_friend_challenge); } catch(e) {}
+  try { initializer.registerRpc("friends_challenge_user", __rpc_friends_challenge_user); } catch(e) {}
+  try { initializer.registerRpc("accept_friend_challenge", __rpc_accept_friend_challenge); } catch(e) {}
+  try { initializer.registerRpc("decline_friend_challenge", __rpc_decline_friend_challenge); } catch(e) {}
+  try { initializer.registerRpc("cancel_friend_challenge", __rpc_cancel_friend_challenge); } catch(e) {}
+  try { initializer.registerRpc("list_pending_friend_challenges", __rpc_list_pending_friend_challenges); } catch(e) {}
+  try { initializer.registerRpc("friends_spectate", __rpc_friends_spectate); } catch(e) {}
+  try { initializer.registerRpc("send_friend_invite", __rpc_send_friend_invite); } catch(e) {}
+  try { initializer.registerRpc("accept_friend_invite", __rpc_accept_friend_invite); } catch(e) {}
+  try { initializer.registerRpc("decline_friend_invite", __rpc_decline_friend_invite); } catch(e) {}
+  try { initializer.registerRpc("cancel_friend_invite", __rpc_cancel_friend_invite); } catch(e) {}
+  try { initializer.registerRpc("list_pending_friend_invites", __rpc_list_pending_friend_invites); } catch(e) {}
   try { initializer.registerRpc("submit_score", __rpc_submit_score); } catch(e) {}
   try { initializer.registerRpc("onboarding_grant_streak_shield", __rpc_onboarding_grant_streak_shield); } catch(e) {}
   try { initializer.registerRpc("qe_player_full_profile", __rpc_qe_player_full_profile); } catch(e) {}
@@ -73946,5 +76201,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 522 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 533 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }

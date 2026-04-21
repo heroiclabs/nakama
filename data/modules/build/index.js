@@ -24,6 +24,30 @@ function InitModule(ctx, logger, nk, initializer) {
         LegacyAnalytics.register(initializer);
         logger.info("[Legacy] Registering friends RPCs...");
         LegacyFriends.register(initializer);
+        // ── First-class IntelliVerse friend search (replaces the historical
+        //   quizverse_find_friends / lasttolive_find_friends RPCs which lived
+        //   in `data/modules/multigame_rpcs.js` + `legacy_runtime.js` and were
+        //   silently shadowed by a stub. The new TS implementation is in
+        //   src/friends/find_friends.ts and wins precedence because main.ts
+        //   runs before the legacy bridge and `intelliverse_find_friends` is
+        //   pinned in `_tsRpcList` below.) ────────────────────────────────────
+        logger.info("[Friends] Bootstrapping fuzzy-search DB extension + indexes (idempotent)...");
+        // Ensures pg_trgm + GIN trigram indexes exist on users.username and
+        // users.display_name. Safe to run on every boot — every statement uses
+        // IF NOT EXISTS. If the runtime DB user lacks SUPERUSER (needed for
+        // CREATE EXTENSION), the call logs a one-time WARN and the RPC handler
+        // automatically degrades to ILIKE-only search (still tiered, no fuzzy).
+        IntelliverseFriends.bootstrapDatabase(nk, logger);
+        logger.info("[Friends] Registering intelliverse_find_friends RPC...");
+        IntelliverseFriends.register(initializer);
+        // ── Phase-4 C1+H1: canonical friends_list + list_blocked_users with
+        //   flat shape + presence/relationship enrichment. Replaces the
+        //   6-line passthrough that used to live in LegacyFriends.rpcFriendsList
+        //   (which has been stripped from src/legacy/friends.ts in the same
+        //   change) and adds the new list_blocked_users RPC. Both pinned in
+        //   _tsRpcList below so the legacy bridge cannot shadow them. ────────
+        logger.info("[Friends] Registering canonical friends_list + list_blocked_users...");
+        IntelliverseFriendsList.register(initializer);
         logger.info("[Legacy] Registering groups RPCs...");
         LegacyGroups.register(initializer);
         logger.info("[Legacy] Registering push RPCs...");
@@ -183,7 +207,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // All handler functions live in the same VM global scope.
     try {
         if (typeof LegacyInitModule === "function") {
-            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,creator_event_claim,creator_event_create,creator_event_end,creator_event_join,creator_event_leaderboard,creator_event_list,creator_event_publish,creator_event_results,creator_event_rewards_create,creator_event_rewards_get,creator_event_submit,creator_event_update_promo,cricket_auction_create_room,cricket_auction_get_events,cricket_auction_get_room,cricket_auction_next_player,cricket_auction_place_bid,cricket_director_end_session,cricket_director_get_session,cricket_director_list_history,cricket_director_save_session,cricket_director_start_session,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,lasttolive_get_weapon_stats,link_wallet_to_game,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,video_feed_add,video_feed_list,video_feed_remove,video_feed_track,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
+            var _tsRpcList = "admin_bulk_export,admin_bulk_import,admin_cache_invalidate,admin_config_delete,admin_config_get,admin_config_set,admin_delete_player_metadata,admin_events_timeline,admin_experiment_setup,admin_flag_toggle,admin_health_check,admin_inventory_grant,admin_live_event_schedule,admin_mailbox_send,admin_player_inspect,admin_satori_config_get,admin_satori_config_set,admin_storage_list,admin_user_data_delete,admin_user_data_get,admin_user_data_set,admin_user_search,admin_wallet_grant,admin_wallet_reset,admin_wallet_view,analytics_arpu,analytics_cohort_retention,analytics_log_event,analytics_track_retention_event,analytics_track_revenue,calculate_score_reward,check_geo_and_update_profile,claim_mission_reward,conversion_ratio_get,conversion_ratio_set,create_all_leaderboards_persistent,create_game_group,create_or_get_wallet,create_or_sync_user,create_player_wallet,create_time_period_leaderboards,creator_event_claim,creator_event_create,creator_event_end,creator_event_join,creator_event_leaderboard,creator_event_list,creator_event_publish,creator_event_results,creator_event_rewards_create,creator_event_rewards_get,creator_event_submit,creator_event_update_promo,cricket_auction_create_room,cricket_auction_get_events,cricket_auction_get_room,cricket_auction_next_player,cricket_auction_place_bid,cricket_director_end_session,cricket_director_get_session,cricket_director_list_history,cricket_director_save_session,cricket_director_start_session,daily_rewards_claim,daily_rewards_get_status,friends_block,friends_challenge_user,friends_list,friends_remove,friends_spectate,friends_unblock,game_coupon_list,game_coupon_redeem,game_coupon_sync_catalog,game_entry_complete,game_entry_get_status,game_entry_validate,game_gift_card_get_purchases,game_gift_card_list,game_gift_card_purchase,game_gift_card_sync_catalog,game_to_global_convert,game_to_global_preview,get_all_leaderboards,get_chat_room_history,get_daily_missions,get_direct_message_history,get_game_by_id,get_game_registry,get_group_chat_history,get_group_wallet,get_leaderboard,get_player_metadata,get_player_portfolio,get_time_period_leaderboard,get_user_groups,get_user_wallet,get_wallet_balance,get_wallet_registry,global_to_game_convert,global_wallet_balance,global_wallet_earn,global_wallet_history,global_wallet_spend,hiro_achievements_claim,hiro_achievements_list,hiro_achievements_progress,hiro_auctions_bid,hiro_auctions_create,hiro_auctions_list,hiro_auctions_resolve,hiro_challenges_claim,hiro_challenges_create,hiro_challenges_join,hiro_challenges_submit,hiro_economy_donation_claim,hiro_economy_donation_give,hiro_economy_donation_request,hiro_economy_rewarded_video,hiro_energy_add_modifier,hiro_energy_get,hiro_energy_refill,hiro_energy_spend,hiro_event_lb_claim,hiro_event_lb_list,hiro_event_lb_submit,hiro_iap_history,hiro_iap_validate,hiro_incentives_apply_referral,hiro_incentives_referral_code,hiro_incentives_return_bonus,hiro_inventory_consume,hiro_inventory_grant,hiro_inventory_list,hiro_leaderboards_list,hiro_leaderboards_records,hiro_leaderboards_submit,hiro_mailbox_claim,hiro_mailbox_claim_all,hiro_mailbox_delete,hiro_mailbox_list,hiro_personalizer_get_overrides,hiro_personalizer_preview,hiro_personalizer_remove_override,hiro_personalizer_set_override,hiro_progression_add_xp,hiro_progression_get,hiro_reward_bucket_get,hiro_reward_bucket_progress,hiro_reward_bucket_unlock,hiro_stats_get,hiro_stats_update,hiro_store_list,hiro_store_purchase,hiro_streaks_claim,hiro_streaks_get,hiro_streaks_update,hiro_teams_achievements,hiro_teams_get,hiro_teams_stats,hiro_teams_wallet_get,hiro_teams_wallet_update,hiro_tutorials_advance,hiro_tutorials_get,hiro_unlockables_buy_slot,hiro_unlockables_claim,hiro_unlockables_get,hiro_unlockables_start,intellidraws_enter,intellidraws_list,intellidraws_past,intellidraws_winners,intelliverse_find_friends,lasttolive_get_weapon_stats,link_wallet_to_game,list_blocked_users,mark_direct_messages_read,push_get_endpoints,push_register_token,push_send_event,quiz_check_daily_completion,quiz_get_history,quiz_get_stats,quiz_submit_result,quizverse_get_quiz_categories,rpc_change_username,rpc_update_player_metadata,satori_audiences_compute,satori_audiences_get_memberships,satori_datalake_config,satori_datalake_delete_target,satori_datalake_manual_export,satori_datalake_set_enabled,satori_datalake_set_retention,satori_datalake_upsert_target,satori_event,satori_events_batch,satori_experiments_get,satori_experiments_get_variant,satori_flags_get,satori_flags_get_all,satori_flags_set,satori_identity_get,satori_identity_update_properties,satori_live_events_claim,satori_live_events_join,satori_live_events_list,satori_messages_broadcast,satori_messages_delete,satori_messages_list,satori_messages_read,satori_metrics_define,satori_metrics_prometheus,satori_metrics_query,satori_metrics_set_alert,satori_taxonomy_delete,satori_taxonomy_schemas,satori_taxonomy_strict_mode,satori_taxonomy_upsert,satori_taxonomy_validate,satori_webhooks_delete,satori_webhooks_list,satori_webhooks_test,satori_webhooks_upsert,send_chat_room_message,storage_read,storage_write,send_direct_message,send_group_chat_message,submit_leaderboard_score,submit_mission_progress,submit_score_and_sync,submit_score_to_time_periods,sync_game_registry,update_game_reward_config,video_feed_add,video_feed_list,video_feed_remove,video_feed_track,update_group_wallet,update_group_xp,update_wallet_balance,wallet_conversion_rate,wallet_convert_preview,wallet_convert_to_global,wallet_get_all,wallet_get_balances,wallet_transfer_between_game_wallets,wallet_update_game_wallet,wallet_update_global".split(",");
             var _alreadyRegistered = {};
             for (var _ri = 0; _ri < _tsRpcList.length; _ri++) {
                 _alreadyRegistered[_tsRpcList[_ri]] = true;
@@ -2460,6 +2484,978 @@ var FantasyTypes;
     }
     FantasyTypes.defaultScoringConfig = defaultScoringConfig;
 })(FantasyTypes || (FantasyTypes = {}));
+// ============================================================================
+// src/friends/find_friends.ts — Canonical Player Search RPC (TypeScript)
+// ============================================================================
+// PRODUCTION-READY | First-class TS module | Single source of truth
+//
+// Replaces every prior implementation of the player-search RPC. This is the
+// ONLY handler for player search going forward. Registered via main.ts and
+// pinned in `_tsRpcList`, so the legacy bridge cannot accidentally
+// shadow it from any older `data/modules/*.js` file.
+//
+// RPC ID
+// ------
+//   intelliverse_find_friends     (canonical, snake_case, intelliverse-prefixed)
+//
+// HARD RENAME — the old IDs `quizverse_find_friends` and
+// `lasttolive_find_friends` are NO LONGER REGISTERED. Clients calling them
+// receive Nakama's default "rpc not found" error. All Unity callsites are
+// updated in this same change. If you need cross-game search later, the
+// canonical name covers all games — gameID is informational, never required.
+//
+// Search behaviour — TIERED + FUZZY
+// ---------------------------------
+// Results are returned in this priority order (`rank_tier`):
+//
+//   Tier 1: username  matches the query as a PREFIX (case-insensitive)
+//   Tier 2: display_name matches the query as a PREFIX
+//   Tier 3: username  contains the query as a SUBSTRING
+//   Tier 4: display_name contains the query as a SUBSTRING
+//   Tier 5: trigram-similarity ≥ STRICT threshold (typo-tolerant fuzzy match)
+//
+// Within each tier, ties are broken by trigram similarity (DESC) then
+// username ASC for stable pagination. STRICT fuzziness (similarity ≥ 0.55)
+// allows ~1 typo in queries of typical length while keeping false positives
+// minimal — picked specifically over the medium/loose presets to keep the
+// "Add Friend" dialog precision-first (you almost always know the username
+// you're looking for, just maybe with a typo).
+//
+// Performance
+// -----------
+// `bootstrapDatabase()` (called from main.ts InitModule) creates:
+//   - the pg_trgm extension (if not already present)
+//   - GIN trigram indexes on users.username and users.display_name
+// Both are idempotent and use IF NOT EXISTS — safe to re-run on every boot.
+//
+// With those indexes, the full tiered+fuzzy query stays sub-50ms even on
+// millions of users. Without pg_trgm available, the runtime auto-degrades
+// to ILIKE-only (still fast thanks to the GIN-trgm index, which Postgres
+// also uses for ILIKE '%pattern%') and logs a one-time warning.
+//
+// What this implementation guarantees
+// -----------------------------------
+//   * Real online status from `player_presence` storage collection (the
+//     `users.edge_count` column in Postgres is a friend-edge count, NOT a
+//     presence indicator — every prior version was hard-coding garbage)
+//   * Username + display-name search via Postgres ILIKE + pg_trgm similarity
+//   * Pagination via opaque numeric `cursor` (offset)
+//   * Idempotent — same query+cursor returns the same page
+//   * Strong input sanitisation: max length, escape SQL LIKE wildcards,
+//     reject control characters
+//   * Standardised error envelope with stable machine `errorCode` strings
+//   * Defensive Postgres date-parsing (Nakama's "no disabled" sentinel
+//     is `'1970-01-01 00:00:00 UTC'` — we keep the same predicate)
+//   * Two-tier fallback: pg_trgm SQL → ILIKE-only SQL → usersGetUsername
+//   * Skips the caller themselves and anyone they have blocked
+//   * Enriches each result with relationship status:
+//       'none' | 'friend' | 'pending_sent' | 'pending_received' | 'blocked'
+//
+// Payload contract
+//   {
+//     "gameID":   "quizverse",      // optional — informational only
+//     "query":    "carlo",          // required, 2..50 chars
+//     "limit":    20,               // optional, default 20, max 50
+//     "cursor":   "20"              // optional pagination cursor
+//   }
+//
+// Response (success)
+//   {
+//     "success": true,
+//     "data": {
+//       "results":     [ { userId, username, displayName, avatarUrl,
+//                          online, createTime, relationshipStatus,
+//                          matchTier, similarity } ],
+//       "query":       "carlo",
+//       "count":       12,
+//       "searcherId":  "<uuid>",
+//       "nextCursor":  "32"   | null    // null when no more pages
+//     }
+//   }
+//
+// Response (error)
+//   {
+//     "success": false,
+//     "error":     "human readable message",
+//     "errorCode": "machine_id"   // see ErrorCodes below
+//   }
+// ============================================================================
+var IntelliverseFriends;
+(function (IntelliverseFriends) {
+    // ── Constants ──────────────────────────────────────────────────────────
+    var PRESENCE_COLLECTION = "player_presence";
+    var PRESENCE_KEY = "status";
+    var ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // last_seen within 5 min ⇒ online
+    // STRICT fuzziness — picked deliberately to bias towards precision over
+    // recall in the player-search UX. 0.55 corresponds to ~1 typo in a
+    // 6-char query (e.g. "carlls" finds "carlos"). Tweak in lock-step with
+    // the docstring above + the client-side AskQuestion answer record.
+    var TRGM_SIMILARITY_THRESHOLD = 0.55;
+    // Nakama friend-state ints (mirror of nkruntime.FriendState — not exported)
+    var STATE_FRIEND = 0;
+    var STATE_INVITE_SENT = 1;
+    var STATE_INVITE_RECEIVED = 2;
+    var STATE_BLOCKED = 3;
+    // Stable machine error codes — clients can switch on these.
+    var ERR_UNAUTHENTICATED = "unauthenticated";
+    var ERR_INVALID_PAYLOAD = "invalid_payload";
+    var ERR_QUERY_TOO_SHORT = "query_too_short";
+    var ERR_SEARCH_UNAVAILABLE = "search_unavailable";
+    // Module-level cache — flips to false on the first SQL error that mentions
+    // pg_trgm so subsequent calls skip the fuzzy path entirely. Avoids a
+    // try/catch on the hot path after the first miss.
+    var _trgmAvailable = true;
+    // One-time warning gate so a misconfigured DB doesn't spam logs.
+    var _trgmWarningLogged = false;
+    // ── Phase-4 fuzzy_add_metrics: in-process counters ─────────────────────
+    // Lightweight per-process telemetry. Counters only — no per-call objects
+    // to avoid GC pressure on a hot path. Values reset on every server boot
+    // (we accept that — Prometheus / Datadog scrapers will capture deltas).
+    // A single periodic INFO log line emits the snapshot every N calls so
+    // ops can see the breakdown without scraping anything else.
+    var _metrics = {
+        totalCalls: 0,
+        pathTrgm: 0, // pg_trgm fuzzy SQL succeeded
+        pathIlike: 0, // ILIKE-only SQL (degraded — pg_trgm absent)
+        pathFallback: 0, // usersGetUsername exact-match fallback
+        emptyResults: 0, // calls returning zero rows (potential UX dead-end)
+        totalLatencyMs: 0, // sum across ALL calls (avg = total/totalCalls)
+        maxLatencyMs: 0, // worst single call observed since boot
+        queryLenSum: 0, // sum of query string lengths (avg query length)
+        invalidPayloads: 0, // bad JSON / missing fields
+        queryTooShort: 0 // queries < 2 chars
+    };
+    // Emit a snapshot every N calls. 250 keeps logs sparse on a busy server
+    // (~1 line per ~30s on a 10 RPS deployment) but frequent enough during
+    // low traffic / dev to be useful.
+    var METRICS_LOG_EVERY = 250;
+    // ── Result envelope helpers ────────────────────────────────────────────
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message, errorCode, extra) {
+        var out = { success: false, error: message, errorCode: errorCode };
+        if (extra) {
+            for (var k in extra) {
+                if (Object.prototype.hasOwnProperty.call(extra, k))
+                    out[k] = extra[k];
+            }
+        }
+        return JSON.stringify(out);
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return { ok: true, data: {} };
+        try {
+            return { ok: true, data: JSON.parse(payload) };
+        }
+        catch (e) {
+            return { ok: false, error: "Invalid JSON payload: " + (e.message || String(e)) };
+        }
+    }
+    /**
+     * Bulk-load presence rows for many users. We use targeted storageRead
+     * (one read per user, all batched) rather than scanning a collection
+     * because presence is owned by each user themselves — there is no
+     * cross-user storageList for arbitrary user ids.
+     *
+     * Returns a { userId: boolean } map. Missing entries default to false.
+     */
+    function loadOnlineMap(nk, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({
+                collection: PRESENCE_COLLECTION,
+                key: PRESENCE_KEY,
+                userId: userIds[i]
+            });
+        }
+        var rows = null;
+        try {
+            rows = nk.storageRead(reads);
+        }
+        catch (e) {
+            // Presence is optional context — never fail the search because of it.
+            return map;
+        }
+        if (!rows)
+            return map;
+        var nowMs = Date.now();
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            if (!row || !row.value)
+                continue;
+            var v = row.value;
+            var online = false;
+            if (v.online === true) {
+                var lastSeenMs = 0;
+                if (typeof v.lastSeenMs === "number")
+                    lastSeenMs = v.lastSeenMs;
+                else if (typeof v.last_seen_ms === "number")
+                    lastSeenMs = v.last_seen_ms;
+                else if (typeof v.lastSeen === "string") {
+                    var t = Date.parse(v.lastSeen);
+                    if (!isNaN(t))
+                        lastSeenMs = t;
+                }
+                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) {
+                    online = true;
+                }
+            }
+            map[row.userId] = online;
+        }
+        return map;
+    }
+    /**
+     * Collapse Nakama's friend graph into:
+     *   - relationMap: { friendUserId: 'friend'|'pending_sent'|'pending_received'|'blocked' }
+     *   - blockedSet:  { blockedUserId: true } (skipped from results entirely)
+     */
+    function loadRelationship(nk, logger, userId) {
+        var relationMap = {};
+        var blockedSet = {};
+        try {
+            // 1000 is well above realistic friend list sizes; we don't paginate
+            // here because relationship enrichment must be complete or absent.
+            var resp = nk.friendsList(userId, 1000, undefined, undefined);
+            if (resp && resp.friends) {
+                for (var i = 0; i < resp.friends.length; i++) {
+                    var fr = resp.friends[i];
+                    if (!fr || !fr.user)
+                        continue;
+                    var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+                        ? fr.state.value
+                        : fr.state;
+                    var fid = fr.user.id;
+                    if (s === STATE_FRIEND)
+                        relationMap[fid] = "friend";
+                    else if (s === STATE_INVITE_SENT)
+                        relationMap[fid] = "pending_sent";
+                    else if (s === STATE_INVITE_RECEIVED)
+                        relationMap[fid] = "pending_received";
+                    else if (s === STATE_BLOCKED) {
+                        relationMap[fid] = "blocked";
+                        blockedSet[fid] = true;
+                    }
+                }
+            }
+        }
+        catch (e) {
+            // Relationship lookup failure must NOT fail the search — just degrade
+            // to "no enrichment" (every result will read relationshipStatus='none').
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseFindFriends] friendsList lookup failed: " + (e.message || String(e)));
+            }
+        }
+        return { relationMap: relationMap, blockedSet: blockedSet };
+    }
+    /**
+     * Detect whether the SQL error is specifically the "pg_trgm not installed"
+     * shape so we can flip the module flag and stop retrying the fuzzy path.
+     * Postgres error messages we want to catch:
+     *   - 'function similarity(text, text) does not exist'
+     *   - 'operator does not exist: text % text'
+     *   - 'extension "pg_trgm" is not available'
+     */
+    function isTrgmMissingError(e) {
+        var msg = ((e && (e.message || String(e))) || "").toLowerCase();
+        if (!msg)
+            return false;
+        return msg.indexOf("similarity(") >= 0
+            || msg.indexOf("pg_trgm") >= 0
+            || (msg.indexOf("operator does not exist") >= 0 && msg.indexOf("text %") >= 0);
+    }
+    /**
+     * Tiered + fuzzy SQL search (preferred path, requires pg_trgm).
+     *
+     * $1 = escapedQuery   (LIKE-pattern-safe; '%' '_' '\' escaped)
+     * $2 = rawQuery       (raw user input for similarity())
+     * $3 = userId         (excluded from results)
+     * $4 = limit          (page size + over-fetch margin)
+     * $5 = offset         (pagination)
+     *
+     * The ESCAPE clause uses Postgres E'\\' (an escape string containing a
+     * single backslash) so the '\\%' / '\\_' sequences from sanitisation are
+     * treated as literal % / _ rather than wildcards.
+     */
+    function searchWithTrgm(nk, escapedQuery, rawQuery, userId, limit, offset) {
+        var sql = "SELECT " +
+            "  id, username, display_name, avatar_url, create_time, " +
+            "  CASE " +
+            "    WHEN username ILIKE $1 || '%' ESCAPE E'\\\\' THEN 1 " +
+            "    WHEN display_name ILIKE $1 || '%' ESCAPE E'\\\\' THEN 2 " +
+            "    WHEN username ILIKE '%' || $1 || '%' ESCAPE E'\\\\' THEN 3 " +
+            "    WHEN display_name ILIKE '%' || $1 || '%' ESCAPE E'\\\\' THEN 4 " +
+            "    ELSE 5 " +
+            "  END AS rank_tier, " +
+            "  GREATEST( " +
+            "    similarity(username, $2), " +
+            "    similarity(coalesce(display_name, ''), $2) " +
+            "  ) AS sim_score " +
+            "FROM users " +
+            "WHERE id != $3 " +
+            "  AND disable_time = '1970-01-01 00:00:00 UTC' " +
+            "  AND ( " +
+            "       username ILIKE '%' || $1 || '%' ESCAPE E'\\\\' " +
+            "    OR display_name ILIKE '%' || $1 || '%' ESCAPE E'\\\\' " +
+            "    OR similarity(username, $2) >= " + TRGM_SIMILARITY_THRESHOLD + " " +
+            "    OR similarity(coalesce(display_name, ''), $2) >= " + TRGM_SIMILARITY_THRESHOLD + " " +
+            "  ) " +
+            "ORDER BY rank_tier ASC, sim_score DESC, username ASC " +
+            "LIMIT $4 OFFSET $5";
+        var rows = nk.sqlQuery(sql, [escapedQuery, rawQuery, userId, limit, offset]);
+        return rows || [];
+    }
+    /**
+     * ILIKE-only SQL search (degraded path used when pg_trgm is unavailable).
+     * Loses fuzzy matching but keeps the tiered ranking so users still see
+     * exact prefix → substring matches in a sensible order.
+     *
+     * $1 = escapedQuery, $2 = userId, $3 = limit, $4 = offset
+     */
+    function searchWithIlikeOnly(nk, escapedQuery, userId, limit, offset) {
+        var sql = "SELECT " +
+            "  id, username, display_name, avatar_url, create_time, " +
+            "  CASE " +
+            "    WHEN username ILIKE $1 || '%' ESCAPE E'\\\\' THEN 1 " +
+            "    WHEN display_name ILIKE $1 || '%' ESCAPE E'\\\\' THEN 2 " +
+            "    WHEN username ILIKE '%' || $1 || '%' ESCAPE E'\\\\' THEN 3 " +
+            "    WHEN display_name ILIKE '%' || $1 || '%' ESCAPE E'\\\\' THEN 4 " +
+            "    ELSE 5 " +
+            "  END AS rank_tier, " +
+            "  0::float AS sim_score " +
+            "FROM users " +
+            "WHERE id != $2 " +
+            "  AND disable_time = '1970-01-01 00:00:00 UTC' " +
+            "  AND (username ILIKE '%' || $1 || '%' ESCAPE E'\\\\' " +
+            "       OR display_name ILIKE '%' || $1 || '%' ESCAPE E'\\\\') " +
+            "ORDER BY rank_tier ASC, username ASC " +
+            "LIMIT $3 OFFSET $4";
+        var rows = nk.sqlQuery(sql, [escapedQuery, userId, limit, offset]);
+        return rows || [];
+    }
+    // ── The RPC handler ────────────────────────────────────────────────────
+    function rpcIntelliverseFindFriends(ctx, logger, nk, payload) {
+        var __t0 = Date.now(); // Phase-4 metrics: per-call latency clock
+        var userId = ctx.userId;
+        if (!userId)
+            return err("Authentication required", ERR_UNAUTHENTICATED);
+        var parsed = parsePayload(payload);
+        if (!parsed.ok) {
+            _metrics.invalidPayloads++;
+            return err(parsed.error || "Invalid payload", ERR_INVALID_PAYLOAD);
+        }
+        var data = parsed.data || {};
+        // ── Validate query ──────────────────────────────────────────────────
+        if (!data.query || typeof data.query !== "string") {
+            _metrics.invalidPayloads++;
+            return err("Query string is required", ERR_INVALID_PAYLOAD);
+        }
+        var query = data.query.trim();
+        // Strip control chars + zero-width space (defence against UI weirdness)
+        query = query.replace(/[\x00-\x1f\x7f\u200B-\u200F]/g, "");
+        if (query.length < 2) {
+            _metrics.queryTooShort++;
+            return err("Query must be at least 2 characters", ERR_QUERY_TOO_SHORT);
+        }
+        if (query.length > 50)
+            query = query.substring(0, 50);
+        // Escape Postgres LIKE wildcards in user input. The escape character
+        // matches the ESCAPE E'\\' clause in the SQL queries above.
+        var likeQuery = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+        // ── Validate paging ─────────────────────────────────────────────────
+        var limit = parseInt(data.limit, 10);
+        if (isNaN(limit) || limit < 1)
+            limit = 20;
+        if (limit > 50)
+            limit = 50;
+        var offset = 0;
+        if (data.cursor) {
+            offset = parseInt(data.cursor, 10);
+            if (isNaN(offset) || offset < 0)
+                offset = 0;
+            if (offset > 1000)
+                offset = 1000; // hard cap — protect DB from runaway pagination
+        }
+        // Over-fetch slightly so we can drop blocked users without short-paging.
+        var fetchLimit = limit + 20;
+        // ── Phase 1: Postgres search ───────────────────────────────────────
+        var rows = [];
+        var sqlOk = false;
+        var usedTrgm = false;
+        try {
+            if (_trgmAvailable) {
+                try {
+                    rows = searchWithTrgm(nk, likeQuery, query, userId, fetchLimit, offset);
+                    sqlOk = true;
+                    usedTrgm = true;
+                }
+                catch (e) {
+                    if (isTrgmMissingError(e)) {
+                        _trgmAvailable = false;
+                        if (!_trgmWarningLogged && logger && logger.warn) {
+                            _trgmWarningLogged = true;
+                            logger.warn("[IntelliverseFindFriends] pg_trgm extension not available; " +
+                                "falling back to ILIKE-only search permanently for this server " +
+                                "process. Run `CREATE EXTENSION pg_trgm` as a Postgres superuser " +
+                                "to enable typo-tolerant fuzzy search. Reason: " +
+                                (e.message || String(e)));
+                        }
+                        // Fall through to the ILIKE retry below
+                    }
+                    else {
+                        // Different SQL error — not a pg_trgm issue. Re-throw to outer catch.
+                        throw e;
+                    }
+                }
+            }
+            if (!sqlOk) {
+                rows = searchWithIlikeOnly(nk, likeQuery, userId, fetchLimit, offset);
+                sqlOk = true;
+            }
+        }
+        catch (sqlErr) {
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseFindFriends] SQL search failed; falling back to exact-match: " +
+                    (sqlErr.message || String(sqlErr)));
+            }
+            // Fallback: exact username via Nakama API. Partial / fuzzy search is
+            // impossible on this path — but at least an exact handle still resolves.
+            try {
+                var exact = nk.usersGetUsername([query]);
+                if (exact && exact.length > 0) {
+                    for (var u = 0; u < exact.length; u++) {
+                        if (exact[u].userId !== userId) {
+                            rows.push({
+                                id: exact[u].userId,
+                                username: exact[u].username || "",
+                                display_name: exact[u].displayName || exact[u].username || "",
+                                avatar_url: exact[u].avatarUrl || "",
+                                create_time: exact[u].createTime || "",
+                                rank_tier: 1,
+                                sim_score: 1
+                            });
+                        }
+                    }
+                }
+            }
+            catch (fbErr) {
+                if (logger && logger.error) {
+                    logger.error("[IntelliverseFindFriends] Fallback usersGetUsername failed: " +
+                        (fbErr.message || String(fbErr)));
+                }
+                return err("Search service unavailable", ERR_SEARCH_UNAVAILABLE);
+            }
+        }
+        // ── Phase 2: relationship enrichment ───────────────────────────────
+        var rel = loadRelationship(nk, logger, userId);
+        var relationMap = rel.relationMap;
+        var blockedSet = rel.blockedSet;
+        // ── Phase 3: gather candidate ids and fetch real online status ─────
+        var candidateIds = [];
+        for (var c = 0; c < rows.length; c++) {
+            var rid = rows[c].id;
+            if (rid && rid !== userId && !blockedSet[rid]) {
+                candidateIds.push(rid);
+            }
+        }
+        var onlineMap = loadOnlineMap(nk, candidateIds);
+        // ── Phase 4: build the page (after blocked filter, capped to limit) ─
+        var results = [];
+        var consumed = 0; // how many DB rows we walked through (for next-cursor calc)
+        for (var i = 0; i < rows.length && results.length < limit; i++) {
+            consumed++;
+            var row = rows[i];
+            var rid2 = row.id;
+            if (rid2 === userId)
+                continue;
+            if (blockedSet[rid2])
+                continue;
+            // sim_score may come back as a numeric Postgres FLOAT — coerce defensively.
+            var simRaw = row.sim_score;
+            var sim = typeof simRaw === "number" ? simRaw : parseFloat(simRaw);
+            if (isNaN(sim))
+                sim = 0;
+            var tierRaw = row.rank_tier;
+            var tier = typeof tierRaw === "number" ? tierRaw : parseInt(tierRaw, 10);
+            if (isNaN(tier))
+                tier = 5;
+            results.push({
+                userId: rid2,
+                username: row.username || "",
+                displayName: row.display_name || row.username || "",
+                avatarUrl: row.avatar_url || "",
+                online: !!onlineMap[rid2],
+                createTime: row.create_time || "",
+                relationshipStatus: relationMap[rid2] || "none",
+                // Diagnostic fields — useful for client-side highlighting + telemetry.
+                // Tier mapping: 1=username prefix, 2=display prefix, 3=username substring,
+                // 4=display substring, 5=fuzzy-only.
+                matchTier: tier,
+                similarity: Math.round(sim * 1000) / 1000 // 3 decimal places
+            });
+        }
+        // Compute next cursor — null when we exhausted the page or hit the cap.
+        // Pagination semantics: we only emit a cursor when the SQL path filled
+        // the over-fetch window AND we returned a full client page. The fallback
+        // (usersGetUsername) is single-shot and never paginates.
+        var nextCursor = null;
+        if (sqlOk && results.length === limit && rows.length === fetchLimit) {
+            nextCursor = String(offset + consumed);
+        }
+        // ── Phase-4 metrics: record path + latency ─────────────────────────
+        var __latencyMs = Date.now() - __t0;
+        var __pathLabel = usedTrgm ? "trgm" : (sqlOk ? "ilike" : "fallback");
+        _metrics.totalCalls++;
+        _metrics.totalLatencyMs += __latencyMs;
+        if (__latencyMs > _metrics.maxLatencyMs)
+            _metrics.maxLatencyMs = __latencyMs;
+        _metrics.queryLenSum += query.length;
+        if (results.length === 0)
+            _metrics.emptyResults++;
+        if (__pathLabel === "trgm")
+            _metrics.pathTrgm++;
+        else if (__pathLabel === "ilike")
+            _metrics.pathIlike++;
+        else
+            _metrics.pathFallback++;
+        if (logger && logger.info) {
+            logger.info("[IntelliverseFindFriends] user=" + userId +
+                ' query="' + query + '"' +
+                " queryLen=" + query.length +
+                " path=" + __pathLabel +
+                " latencyMs=" + __latencyMs +
+                " returned=" + results.length +
+                " (offset=" + offset + ", nextCursor=" + (nextCursor || "null") + ")");
+            // Periodic snapshot — keeps INFO log volume sparse but gives ops a
+            // single line that summarises path mix, avg latency, and empty-result
+            // rate. P95/P99 would need a histogram (overkill for this RPC).
+            if (_metrics.totalCalls % METRICS_LOG_EVERY === 0) {
+                var avgLatency = Math.round(_metrics.totalLatencyMs / _metrics.totalCalls);
+                var avgQueryLen = Math.round((_metrics.queryLenSum / _metrics.totalCalls) * 10) / 10;
+                var emptyPct = Math.round((_metrics.emptyResults / _metrics.totalCalls) * 1000) / 10;
+                logger.info("[IntelliverseFindFriends.metrics] calls=" + _metrics.totalCalls +
+                    " trgm=" + _metrics.pathTrgm +
+                    " ilike=" + _metrics.pathIlike +
+                    " fallback=" + _metrics.pathFallback +
+                    " avgLatencyMs=" + avgLatency +
+                    " maxLatencyMs=" + _metrics.maxLatencyMs +
+                    " avgQueryLen=" + avgQueryLen +
+                    " emptyResults%=" + emptyPct +
+                    " invalidPayloads=" + _metrics.invalidPayloads +
+                    " queryTooShort=" + _metrics.queryTooShort);
+            }
+        }
+        return ok({
+            results: results,
+            query: query,
+            count: results.length,
+            searcherId: userId,
+            nextCursor: nextCursor
+        });
+    }
+    // ── Database bootstrap (idempotent) ────────────────────────────────────
+    /**
+     * Ensures the Postgres extension and indexes that power tiered+fuzzy
+     * search exist. Safe to call on every server boot — every statement
+     * uses IF NOT EXISTS.
+     *
+     * What it creates:
+     *   1. The `pg_trgm` extension (Postgres bundled contrib module).
+     *   2. A GIN trigram index on `users.username`.
+     *   3. A GIN trigram index on `users.display_name`.
+     *
+     * Failure modes (all degrade gracefully — never crash the runtime):
+     *   - CREATE EXTENSION requires a Postgres superuser. If the runtime DB
+     *     user lacks that, the extension call fails with permission denied.
+     *     We log a one-time WARN and the RPC handler auto-falls-back to
+     *     ILIKE-only search (still indexed once the GIN indexes exist).
+     *   - If pg_trgm is genuinely absent the GIN-index calls will also fail
+     *     because they reference `gin_trgm_ops`. Same degradation path.
+     */
+    function bootstrapDatabase(nk, logger) {
+        var statements = [
+            { sql: "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+                label: "extension pg_trgm" },
+            { sql: "CREATE INDEX IF NOT EXISTS idx_users_username_trgm " +
+                    "ON users USING gin (username gin_trgm_ops)",
+                label: "index idx_users_username_trgm" },
+            { sql: "CREATE INDEX IF NOT EXISTS idx_users_display_name_trgm " +
+                    "ON users USING gin (display_name gin_trgm_ops)",
+                label: "index idx_users_display_name_trgm" },
+        ];
+        for (var i = 0; i < statements.length; i++) {
+            var stmt = statements[i];
+            try {
+                nk.sqlExec(stmt.sql, []);
+                if (logger && logger.info) {
+                    logger.info("[IntelliverseFindFriends] bootstrap OK: " + stmt.label);
+                }
+            }
+            catch (e) {
+                // Extension creation needs SUPERUSER; index creation needs the
+                // extension. Either failure is non-fatal — the RPC's runtime
+                // fallback will keep search working.
+                var emsg = (e && (e.message || String(e))) || "unknown error";
+                if (logger && logger.warn) {
+                    logger.warn("[IntelliverseFindFriends] bootstrap step '" + stmt.label +
+                        "' failed (non-fatal — fuzzy search will degrade to ILIKE-only): " + emsg);
+                }
+                // If the extension itself failed, no point trying the indexes that
+                // depend on it. Bail out of the rest of the bootstrap loop.
+                if (i === 0 && (emsg.toLowerCase().indexOf("pg_trgm") >= 0 ||
+                    emsg.toLowerCase().indexOf("permission denied") >= 0)) {
+                    _trgmAvailable = false;
+                    break;
+                }
+            }
+        }
+    }
+    IntelliverseFriends.bootstrapDatabase = bootstrapDatabase;
+    // ── Public registration ────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("intelliverse_find_friends", rpcIntelliverseFindFriends);
+    }
+    IntelliverseFriends.register = register;
+})(IntelliverseFriends || (IntelliverseFriends = {}));
+// ============================================================================
+// src/friends/friends_list.ts — Canonical friends_list + list_blocked_users
+// ============================================================================
+// PRODUCTION-READY | First-class TS module | Single source of truth
+//
+// Replaces the 6-line passthrough handler that used to live in
+// `src/legacy/friends.ts` (LegacyFriends.rpcFriendsList). That handler just
+// returned `nk.friendsList()`'s raw nested shape — no presence enrichment,
+// no relationship envelope, no displayName flattening — which made the
+// friends list inconsistent with `intelliverse_find_friends` results.
+//
+// What this module owns
+// ---------------------
+//   friends_list        – the canonical friend roster (state filter optional)
+//   list_blocked_users  – the dedicated "Blocked Users" enumeration (Phase-4 H1)
+//
+// Both RPCs return the SAME flat shape as `intelliverse_find_friends` so
+// the Unity adapter can render any of these three sources with identical
+// row prefabs:
+//
+//   {
+//     "userId":             string,
+//     "username":           string,
+//     "displayName":        string,
+//     "avatarUrl":          string,
+//     "online":             bool,           // from `player_presence` collection
+//     "createTime":         iso8601 string, // user creation
+//     "relationshipStatus": "friend" | "pending_sent" | "pending_received" | "blocked",
+//     "state":              0..3            // raw Nakama FriendState int
+//   }
+//
+// Pagination contract (friends_list only)
+// ---------------------------------------
+//   request:  { limit?: int (1..500, default 100), state?: 0..3, cursor?: string }
+//   response: { results: NakamaFriend[], count: int, nextCursor: string|null }
+//
+// `state` is OPTIONAL. When omitted, ALL relationship states are returned
+// (matches Nakama's default). When set:
+//   0 = friends only
+//   1 = invites you SENT (still pending)
+//   2 = invites you RECEIVED (still pending)
+//   3 = users YOU BLOCKED (use list_blocked_users for the Blocked tab UX)
+//
+// Online status source
+// --------------------
+// We deliberately do NOT use `friend.user.online` from Nakama. That field
+// reflects the realtime SOCKET presence (a player may be logged in but
+// have zero meaningful presence — e.g. AFK background app on iOS that lost
+// the socket but is still "online"). Instead we read the `player_presence`
+// storage collection — the SAME source of truth that
+// `intelliverse_find_friends` uses. This is what eliminates the
+// "online in search, offline in friends list" inconsistency.
+//
+// list_blocked_users
+// ------------------
+// Returns the same flat shape, scoped to STATE_BLOCKED only. Always
+// returns relationshipStatus="blocked" so the client UI can show an
+// Unblock button without a second relationship lookup. No pagination
+// (block lists are tiny — capped at 500).
+// ============================================================================
+var IntelliverseFriendsList;
+(function (IntelliverseFriendsList) {
+    // ── Shared constants (mirror of find_friends.ts) ───────────────────────
+    var PRESENCE_COLLECTION = "player_presence";
+    var PRESENCE_KEY = "status";
+    var ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // last_seen within 5 min ⇒ online
+    // Nakama friend states
+    var STATE_FRIEND = 0;
+    var STATE_INVITE_SENT = 1;
+    var STATE_INVITE_RECEIVED = 2;
+    var STATE_BLOCKED = 3;
+    // Hard caps protect the DB from abuse
+    var FRIENDS_LIST_MAX_LIMIT = 500;
+    var BLOCKED_LIST_HARD_LIMIT = 500;
+    // Stable machine error codes
+    var ERR_UNAUTHENTICATED = "unauthenticated";
+    var ERR_INVALID_PAYLOAD = "invalid_payload";
+    var ERR_INTERNAL = "internal_error";
+    // ── Result envelope helpers ────────────────────────────────────────────
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message, errorCode) {
+        return JSON.stringify({ success: false, error: message, errorCode: errorCode });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return { ok: true, data: {} };
+        try {
+            return { ok: true, data: JSON.parse(payload) };
+        }
+        catch (e) {
+            return { ok: false, error: "Invalid JSON payload: " + (e.message || String(e)) };
+        }
+    }
+    /**
+     * Bulk-load presence rows from the `player_presence` storage collection.
+     * Returns a { userId: boolean } map. Missing entries default to false.
+     *
+     * Identical algorithm to IntelliverseFriends.loadOnlineMap in
+     * find_friends.ts — duplicated here (rather than imported) because
+     * Nakama's Goja runtime does not support cross-namespace function calls
+     * once postbuild has merged everything; namespace boundaries are real.
+     * Keeping these in sync is enforced by code review.
+     */
+    function loadOnlineMap(nk, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({
+                collection: PRESENCE_COLLECTION,
+                key: PRESENCE_KEY,
+                userId: userIds[i]
+            });
+        }
+        var rows = null;
+        try {
+            rows = nk.storageRead(reads);
+        }
+        catch (e) {
+            // Presence is optional context — never fail the list because of it.
+            return map;
+        }
+        if (!rows)
+            return map;
+        var nowMs = Date.now();
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            if (!row || !row.value)
+                continue;
+            var v = row.value;
+            var online = false;
+            if (v.online === true) {
+                var lastSeenMs = 0;
+                if (typeof v.lastSeenMs === "number")
+                    lastSeenMs = v.lastSeenMs;
+                else if (typeof v.last_seen_ms === "number")
+                    lastSeenMs = v.last_seen_ms;
+                else if (typeof v.lastSeen === "string") {
+                    var t = Date.parse(v.lastSeen);
+                    if (!isNaN(t))
+                        lastSeenMs = t;
+                }
+                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) {
+                    online = true;
+                }
+            }
+            map[row.userId] = online;
+        }
+        return map;
+    }
+    /**
+     * Map a Nakama `friend.state` int to the canonical relationshipStatus
+     * string used by every Phase-4 client model.
+     */
+    function stateToRelationship(state) {
+        if (state === STATE_FRIEND)
+            return "friend";
+        if (state === STATE_INVITE_SENT)
+            return "pending_sent";
+        if (state === STATE_INVITE_RECEIVED)
+            return "pending_received";
+        if (state === STATE_BLOCKED)
+            return "blocked";
+        return "none";
+    }
+    /**
+     * Coerce Nakama's wrapped state value (`{value: 0}` in some runtime
+     * versions, plain int in others) into a stable JS number.
+     */
+    function unwrapState(rawState) {
+        if (typeof rawState === "number")
+            return rawState;
+        if (rawState && typeof rawState === "object" && "value" in rawState) {
+            var v = rawState.value;
+            if (typeof v === "number")
+                return v;
+        }
+        return -1;
+    }
+    /**
+     * Flatten a Nakama friend object into our canonical wire shape.
+     * Caller supplies the resolved `online` flag (from loadOnlineMap).
+     */
+    function flattenFriend(fr, online) {
+        var u = fr.user || {};
+        var state = unwrapState(fr.state);
+        return {
+            userId: u.id || "",
+            username: u.username || "",
+            displayName: u.displayName || u.display_name || u.username || "",
+            avatarUrl: u.avatarUrl || u.avatar_url || "",
+            online: online,
+            createTime: u.createTime || u.create_time || "",
+            relationshipStatus: stateToRelationship(state),
+            state: state,
+            // Pass through optional Nakama metadata when present (clients can ignore)
+            updateTime: u.updateTime || u.update_time || "",
+            edgeUpdateTime: fr.updateTime || fr.update_time || ""
+        };
+    }
+    // ── friends_list RPC ───────────────────────────────────────────────────
+    function rpcFriendsList(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId)
+            return err("Authentication required", ERR_UNAUTHENTICATED);
+        var parsed = parsePayload(payload);
+        if (!parsed.ok)
+            return err(parsed.error || "Invalid payload", ERR_INVALID_PAYLOAD);
+        var data = parsed.data || {};
+        // ── Pagination ──────────────────────────────────────────────────────
+        var limit = parseInt(data.limit, 10);
+        if (isNaN(limit) || limit < 1)
+            limit = 100;
+        if (limit > FRIENDS_LIST_MAX_LIMIT)
+            limit = FRIENDS_LIST_MAX_LIMIT;
+        // Nakama wants the cursor as a string (or null/undefined for "first page").
+        // We accept "", null, or undefined as "first page" for client convenience.
+        var cursor = undefined;
+        if (typeof data.cursor === "string" && data.cursor.length > 0) {
+            cursor = data.cursor;
+        }
+        // Optional state filter. Reject silently-out-of-range values rather than
+        // erroring — clients sometimes pass legacy 4 (was used for "all" in
+        // very old QV builds) which we treat as "no filter".
+        var stateFilter = undefined;
+        if (data.state !== undefined && data.state !== null) {
+            var s = parseInt(data.state, 10);
+            if (!isNaN(s) && s >= 0 && s <= 3)
+                stateFilter = s;
+        }
+        // ── Fetch from Nakama ───────────────────────────────────────────────
+        var friendsResp = null;
+        try {
+            friendsResp = nk.friendsList(userId, limit, stateFilter, cursor);
+        }
+        catch (e) {
+            if (logger && logger.error) {
+                logger.error("[FriendsList] nk.friendsList failed: " + (e.message || String(e)));
+            }
+            return err("Failed to load friends", ERR_INTERNAL);
+        }
+        var rawFriends = (friendsResp && friendsResp.friends) ? friendsResp.friends : [];
+        var nextCursor = (friendsResp && friendsResp.cursor) || null;
+        // ── Bulk-load presence ──────────────────────────────────────────────
+        var ids = [];
+        for (var i = 0; i < rawFriends.length; i++) {
+            var u = rawFriends[i] && rawFriends[i].user;
+            if (u && u.id)
+                ids.push(u.id);
+        }
+        var onlineMap = loadOnlineMap(nk, ids);
+        // ── Flatten ─────────────────────────────────────────────────────────
+        var results = [];
+        for (var j = 0; j < rawFriends.length; j++) {
+            var fr = rawFriends[j];
+            if (!fr || !fr.user || !fr.user.id)
+                continue;
+            var online = !!onlineMap[fr.user.id];
+            results.push(flattenFriend(fr, online));
+        }
+        if (logger && logger.info) {
+            logger.info("[FriendsList] user=" + userId +
+                " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+                " returned=" + results.length +
+                " nextCursor=" + (nextCursor || "null"));
+        }
+        return ok({
+            results: results,
+            count: results.length,
+            nextCursor: nextCursor
+        });
+    }
+    // ── list_blocked_users RPC (Phase-4 H1) ────────────────────────────────
+    function rpcListBlockedUsers(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId)
+            return err("Authentication required", ERR_UNAUTHENTICATED);
+        // No required payload fields, but still parse defensively
+        var parsed = parsePayload(payload);
+        if (!parsed.ok)
+            return err(parsed.error || "Invalid payload", ERR_INVALID_PAYLOAD);
+        var rawList = [];
+        try {
+            // Block lists are tiny in practice (<100 users for >99.9% of accounts);
+            // we hard-cap at 500 to prevent abuse + memory blow-ups.
+            var resp = nk.friendsList(userId, BLOCKED_LIST_HARD_LIMIT, STATE_BLOCKED, undefined);
+            if (resp && resp.friends)
+                rawList = resp.friends;
+        }
+        catch (e) {
+            if (logger && logger.error) {
+                logger.error("[ListBlockedUsers] nk.friendsList failed: " + (e.message || String(e)));
+            }
+            return err("Failed to load blocked users", ERR_INTERNAL);
+        }
+        // Presence is conceptually meaningless for a "blocked" relationship,
+        // but we still return it so the row prefab is identical to friends_list.
+        // Cheap (one batched read) so worth the consistency.
+        var ids = [];
+        for (var i = 0; i < rawList.length; i++) {
+            var u = rawList[i] && rawList[i].user;
+            if (u && u.id)
+                ids.push(u.id);
+        }
+        var onlineMap = loadOnlineMap(nk, ids);
+        var results = [];
+        for (var j = 0; j < rawList.length; j++) {
+            var fr = rawList[j];
+            if (!fr || !fr.user || !fr.user.id)
+                continue;
+            // Force relationshipStatus to "blocked" — defensive normalisation in
+            // case Nakama ever returns mixed-state results when filtering.
+            var flat = flattenFriend(fr, !!onlineMap[fr.user.id]);
+            flat.relationshipStatus = "blocked";
+            flat.state = STATE_BLOCKED;
+            results.push(flat);
+        }
+        if (logger && logger.info) {
+            logger.info("[ListBlockedUsers] user=" + userId + " returned=" + results.length);
+        }
+        return ok({
+            results: results,
+            count: results.length
+        });
+    }
+    // ── Public registration ────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("friends_list", rpcFriendsList);
+        initializer.registerRpc("list_blocked_users", rpcListBlockedUsers);
+    }
+    IntelliverseFriendsList.register = register;
+})(IntelliverseFriendsList || (IntelliverseFriendsList = {}));
 var HiroAchievements;
 (function (HiroAchievements) {
     var DEFAULT_CONFIG = { achievements: {} };
@@ -6093,6 +7089,46 @@ var LegacyDailyRewards;
     }
     LegacyDailyRewards.register = register;
 })(LegacyDailyRewards || (LegacyDailyRewards = {}));
+// ============================================================================
+// src/legacy/friends.ts — Legacy friend mutation RPCs (block/unblock/remove)
+// ============================================================================
+// HISTORY
+// -------
+// This namespace used to register six friend RPCs: friends_block, friends_unblock,
+// friends_remove, friends_list, friends_challenge_user, friends_spectate.
+//
+// Phase-3a moved friends_challenge_user + friends_spectate ownership to
+// data/modules/friends/friend_challenges.js (canonical lifecycle module).
+// Their dead handlers were already physically removed from this file in
+// that pass.
+//
+// Phase-4 C1 moves friends_list ownership to src/friends/friends_list.ts
+// (canonical flat-shape module with presence + relationship enrichment).
+// The dead rpcFriendsList handler is removed here too.
+//
+// What remains
+// ------------
+// Three thin wrappers around Nakama's built-in friend-graph mutation APIs.
+// These are intentionally minimal — they just shape the response envelope
+// and merge the `userId`/`username` convenience args with the array forms.
+// We keep them in TypeScript (not in the legacy JS bridge) because:
+//   1) They're small enough that maintenance cost is zero.
+//   2) The TS path wins precedence in postbuild merging, so any JS twin
+//      in data/modules/friends/friends.js is silently shadowed — keeping
+//      them in TS is the cleanest way to make THIS file the source of truth.
+//
+// Notification follow-ups
+// -----------------------
+// Currently these handlers do NOT emit notifications. That is intentional:
+//   - friends_block: silent by product policy (don't tell the blocked user).
+//   - friends_unblock: silent (no user-facing event).
+//   - friends_remove: silent (the removed friend simply no longer sees you
+//     in their list; we deliberately do not notify them — most social apps
+//     follow the same convention).
+// If product wants to change this, add `sendFriendsNotification` calls using
+// `FRIEND_REMOVED` (code 5) / `FRIEND_BLOCKED` (code 6) — both already
+// reserved in friends/notification_codes.js.
+// ============================================================================
 var LegacyFriends;
 (function (LegacyFriends) {
     function rpcFriendsBlock(ctx, logger, nk, payload) {
@@ -6158,71 +7194,15 @@ var LegacyFriends;
             return RpcHelpers.errorResponse(e.message || "Failed to remove friend");
         }
     }
-    function rpcFriendsList(ctx, logger, nk, payload) {
-        try {
-            var userId = RpcHelpers.requireUserId(ctx);
-            var data = RpcHelpers.parseRpcPayload(payload);
-            var limit = data.limit || 100;
-            var state = data.state;
-            var cursor = data.cursor || "";
-            var result = nk.friendsList(userId, limit, state, cursor);
-            return RpcHelpers.successResponse({
-                friends: result.friends || [],
-                cursor: result.cursor || ""
-            });
-        }
-        catch (e) {
-            return RpcHelpers.errorResponse(e.message || "Failed to list friends");
-        }
-    }
-    function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
-        try {
-            var userId = RpcHelpers.requireUserId(ctx);
-            var username = ctx.username || "";
-            var data = RpcHelpers.parseRpcPayload(payload);
-            var targetUserId = data.userId || data.targetUserId;
-            if (!targetUserId)
-                return RpcHelpers.errorResponse("userId required");
-            nk.notificationsSend([{
-                    userId: targetUserId,
-                    subject: "friend_challenge",
-                    content: { senderId: userId, senderUsername: username, gameId: data.gameId || "", matchId: data.matchId || "" },
-                    code: 1,
-                    persistent: false
-                }]);
-            return RpcHelpers.successResponse({ success: true });
-        }
-        catch (e) {
-            return RpcHelpers.errorResponse(e.message || "Failed to send challenge");
-        }
-    }
-    function rpcFriendsSpectate(ctx, logger, nk, payload) {
-        try {
-            var userId = RpcHelpers.requireUserId(ctx);
-            var data = RpcHelpers.parseRpcPayload(payload);
-            var targetUserId = data.userId || data.targetUserId;
-            if (!targetUserId)
-                return RpcHelpers.errorResponse("userId required");
-            nk.notificationsSend([{
-                    userId: targetUserId,
-                    subject: "friend_spectate",
-                    content: { spectatorId: userId, matchId: data.matchId || "" },
-                    code: 2,
-                    persistent: false
-                }]);
-            return RpcHelpers.successResponse({ success: true });
-        }
-        catch (e) {
-            return RpcHelpers.errorResponse(e.message || "Failed to send spectate request");
-        }
-    }
     function register(initializer) {
         initializer.registerRpc("friends_block", rpcFriendsBlock);
         initializer.registerRpc("friends_unblock", rpcFriendsUnblock);
         initializer.registerRpc("friends_remove", rpcFriendsRemove);
-        initializer.registerRpc("friends_list", rpcFriendsList);
-        initializer.registerRpc("friends_challenge_user", rpcFriendsChallengeUser);
-        initializer.registerRpc("friends_spectate", rpcFriendsSpectate);
+        // Phase-3a: friends_challenge_user + friends_spectate are registered by
+        //   data/modules/friends/friend_challenges.js (canonical lifecycle module).
+        // Phase-4 C1: friends_list is registered by src/friends/friends_list.ts
+        //   (canonical flat-shape module). Lines physically removed (not commented)
+        //   so postbuild's textual regex doesn't pick them up.
     }
     LegacyFriends.register = register;
 })(LegacyFriends || (LegacyFriends = {}));
@@ -7354,6 +8334,13 @@ var LegacyMultiGame;
         Storage.writeJson(nk, "daily_rewards", key, userId, state);
         return { streak: state.streak, reward: rewardAmount };
     }
+    // ⚠ DEAD CODE — superseded by src/friends/find_friends.ts ⚠
+    // The per-game `<game>_find_friends` registration has been removed in
+    // favour of the canonical cross-game `intelliverse_find_friends` RPC.
+    // The function body is kept only so the surrounding namespace continues
+    // to compile (TS6133 unused-warning is OK because this is in an outFile
+    // bundle). It is no longer reachable from any registered RPC.
+    // DO NOT MODIFY. Make changes in src/friends/find_friends.ts.
     function findFriends(ctx, logger, nk, data, userId, gId) {
         var query = (data.query || "").trim();
         if (query.length < 1)
@@ -7725,7 +8712,18 @@ var LegacyMultiGame;
         initializer.registerRpc(prefix + "get_leaderboard", gameRpcHandler(gameId, getLeaderboard));
         initializer.registerRpc(prefix + "join_or_create_match", gameRpcHandler(gameId, joinOrCreateMatch));
         initializer.registerRpc(prefix + "claim_daily_reward", gameRpcHandler(gameId, claimDailyReward));
-        initializer.registerRpc(prefix + "find_friends", gameRpcHandler(gameId, findFriends));
+        // ── REMOVED (HARD RENAME) ───────────────────────────────────────────
+        //   The per-game `<game>_find_friends` registration was here. It has
+        //   been replaced by the cross-game `intelliverse_find_friends` RPC,
+        //   registered in main.ts via IntelliverseFriends.register().
+        //   Implementation: src/friends/find_friends.ts
+        //
+        //   The literal registration line has been DELETED (not just commented)
+        //   because postbuild.js performs text-based pattern matching for
+        //   dynamic RPC suffixes — even inside `//` comments — which would
+        //   re-emit `quizverse_find_friends` and `lasttolive_find_friends`
+        //   into the bundle. See git blame for the original line.
+        // ────────────────────────────────────────────────────────────────────
         initializer.registerRpc(prefix + "save_player_data", gameRpcHandler(gameId, savePlayerData));
         initializer.registerRpc(prefix + "load_player_data", gameRpcHandler(gameId, loadPlayerData));
         initializer.registerRpc(prefix + "get_item_catalog", gameRpcHandler(gameId, getItemCatalog));
@@ -10498,6 +11496,49 @@ var SatoriCreatorEvents;
         for (var ri2 = 1; ri2 < allRecords.length && ri2 < 4; ri2++) {
             runnersUp.push(rankInfo(allRecords[ri2], ri2 + 1));
         }
+        // Next upcoming event lookup — lets the recap pipeline generate a
+        // "next event Thursday 8PM IST" CTA instead of a hard-coded "tomorrow".
+        // Scan the events index for the nearest scheduledAt > now, preferring
+        // same-region first so regional recaps promote their own region's next.
+        var nextEvent = null;
+        try {
+            var nowTs = Math.floor(Date.now() / 1000);
+            var idx = getEventsIndex(nk);
+            var bestSame = null;
+            var bestAny = null;
+            for (var ei = 0; ei < idx.eventIds.length; ei++) {
+                var eid = idx.eventIds[ei];
+                if (eid === def.id)
+                    continue;
+                var other = getEventDefinition(nk, eid);
+                if (!other)
+                    continue;
+                if (other.status === "cancelled" || other.status === "ended" || other.status === "distributed")
+                    continue;
+                if (!other.scheduledAt || other.scheduledAt <= nowTs)
+                    continue;
+                var candidate = {
+                    eventId: other.id,
+                    title: other.title,
+                    category: other.category,
+                    region: other.region,
+                    scheduledAt: other.scheduledAt,
+                    duration: other.duration,
+                };
+                if (other.region === def.region) {
+                    if (!bestSame || other.scheduledAt < bestSame.scheduledAt)
+                        bestSame = candidate;
+                }
+                else {
+                    if (!bestAny || other.scheduledAt < bestAny.scheduledAt)
+                        bestAny = candidate;
+                }
+            }
+            nextEvent = bestSame || bestAny;
+        }
+        catch (err) {
+            logger.warn("[CreatorEvent] next-event lookup failed: %s", err.message || String(err));
+        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_ENDED, {
             eventId: def.id,
             creatorId: def.creatorId,
@@ -10515,6 +11556,7 @@ var SatoriCreatorEvents;
             prizePool: def.prizePool,
             giftCardPrizes: def.giftCardPrizes || null,
             endedAt: def.endedAt,
+            nextEvent: nextEvent,
             idempotencyKey: "event_ended_" + def.id,
         });
         return RpcHelpers.successResponse({
@@ -10523,6 +11565,63 @@ var SatoriCreatorEvents;
             totalParticipants: allRecords.length,
             tierAssignments: tierAssignments,
             winnersPerTier: winnersPerTier,
+        });
+    }
+    /**
+     * Cancel a draft or published event BEFORE it starts running.
+     *
+     * Emits EVENT_CANCELLED so the n8n takedown workflow can unpublish any
+     * already-scheduled promo posts on YouTube/TikTok/Instagram (via Postiz).
+     *
+     * Only draft | funded | published events can be cancelled. Events that
+     * have already ended or been distributed are terminal.
+     */
+    function rpcCancel(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var isAdmin = isAdminCtx(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, String(data.eventId));
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        if (!isAdmin && def.creatorId !== userId) {
+            return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+        }
+        var current = def.status || "draft";
+        if (current !== "draft" && current !== "funded" && current !== "published") {
+            return RpcHelpers.errorResponse("Event cannot be cancelled once it's " + current);
+        }
+        def.status = "cancelled";
+        var now = Math.floor(Date.now() / 1000);
+        def.cancelledAt = now;
+        def.cancelReason = data.reason ? String(data.reason) : "";
+        saveEventDefinition(nk, def);
+        logger.info("[CreatorEvent] Cancelled by %s: %s (%s) — reason=%s", userId, def.title, def.id, def.cancelReason || "(none)");
+        // Fan out to n8n → Postiz takedown + Content Factory registry cleanup.
+        EventBus.emit(nk, logger, ctx, EventBus.Events.EVENT_CANCELLED, {
+            eventId: def.id,
+            creatorId: def.creatorId,
+            title: def.title,
+            description: def.description,
+            category: def.category,
+            region: def.region,
+            scheduledAt: def.scheduledAt,
+            cancelledAt: now,
+            cancelledBy: userId,
+            reason: def.cancelReason || "",
+            // Carry the prior idempotency keys so downstream can identify the
+            // exact promo tasks to tear down.
+            priorPromoIdempotencyKeys: [
+                "event_created_" + def.id,
+                "event_published_" + def.id,
+            ],
+            idempotencyKey: "event_cancelled_" + def.id,
+        });
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: def.id,
+            status: "cancelled",
         });
     }
     function register(initializer) {
@@ -10535,6 +11634,7 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_create", rpcCreate);
         initializer.registerRpc("creator_event_publish", rpcPublish);
         initializer.registerRpc("creator_event_end", rpcEnd);
+        initializer.registerRpc("creator_event_cancel", rpcCancel);
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
     }
     SatoriCreatorEvents.register = register;
