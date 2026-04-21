@@ -1662,7 +1662,10 @@ func NewPartyConfig() *PartyConfig {
 }
 
 type VerificationConfig struct {
+	Identity string `yaml:"identity" json:"identity" usage:"Identity for sending emails through SMTP. Usually empty."`
 	VerificationEmail string `yaml:"verification_email" json:"verification_email" usage:"Email to send verification key with."`
+	Password string `yaml:"email_password" json:"email_password" usage:"Generated SMTP password from your email provider."`
+	EmailHost string `yaml:"email_host" json:"email_host" usage:"SMTP host site. Default smtp.gmail.com."`
 }
 
 func (cfg *VerificationConfig) Clone() *VerificationConfig {
@@ -1676,6 +1679,9 @@ func (cfg *VerificationConfig) Clone() *VerificationConfig {
 
 func NewVerificationConfig() *VerificationConfig {
 	return &VerificationConfig{
-		VerificationEmail: "set_this_to_your_email"
+		Identity: "",
+		VerificationEmail: "set_this_to_your_email",
+		Password: "your_smtp_password",
+		EmailHost: "smtp.gmail.com",
 	}
 }
