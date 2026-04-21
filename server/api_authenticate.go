@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"math/rand"
+	"crypto/rand"
 	"regexp"
 	"strings"
 	"time"
@@ -34,6 +35,8 @@ var (
 	invalidCharsRegex    = regexp.MustCompilePOSIX("([[:cntrl:]]|[[:space:]])+")
 	emailRegex           = regexp.MustCompile(`^.+@.+\..+$`)
 )
+
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890" // Maybe make this into a config setting
 
 type SessionTokenClaims struct {
 	TokenId   string            `json:"tid,omitempty"`
@@ -804,4 +807,9 @@ func generateUsername() string {
 		b[i] = usernameAlphabet[rand.Intn(len(usernameAlphabet))]
 	}
 	return string(b)
+}
+
+func generateCryptoKey() string {
+	key := rand.Text()
+	return string(key[0:5])
 }
