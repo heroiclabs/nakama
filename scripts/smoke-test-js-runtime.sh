@@ -56,11 +56,20 @@ assert_health_rpc() {
     local URL="$1"
     local KEY="${2:-defaultkey}"
     local BODY
+    # IMPORTANT: Nakama's HTTP RPC API expects the body to be a JSON-encoded
+    # *string* (the RPC's `payload` parameter), not a JSON object. Sending
+    # `{}` returns:
+    #   {"error":"json: cannot unmarshal object into Go value of type string"}
+    # which is what triggered a spurious auto-rollback in CodeBuild #193.
+    # We send `""` (a JSON-encoded empty string) which Nakama unmarshals to
+    # an empty payload string — which our nakama_js_health handler ignores.
     BODY=$(curl -fsS -X POST -H "Content-Type: application/json" \
                 "${URL}/v2/rpc/nakama_js_health?http_key=${KEY}" \
-                -d '{}' 2>&1) || fail "nakama_js_health RPC returned non-200: $BODY"
-    # Nakama wraps RPC return as {"payload":"..."} where payload is our JSON-encoded string.
-    if ! echo "$BODY" | grep -q '"ok":true' && ! echo "$BODY" | grep -q '\\"ok\\":true'; then
+                -d '""' 2>&1) || fail "nakama_js_health RPC returned non-200: $BODY"
+    # Nakama wraps RPC return as {"payload":"<our-json-string-escaped>"}.
+    # Our handler returns JSON-stringified {ok:true,...}, so in the wire
+    # response the `ok:true` text is escaped → `\"ok\":true`. Match either.
+    if ! echo "$BODY" | grep -qE '"ok":true|\\"ok\\":true'; then
         fail "nakama_js_health response missing ok:true — got: $BODY"
     fi
     ok "nakama_js_health RPC returned ok:true"
@@ -76,10 +85,11 @@ assert_known_rpc_registered() {
     #   • 400 Bad Request        → RPC exists but rejected our payload (PASS)
     #   • 200 OK                 → RPC exists and ran (PASS)
     #   • 404 Not Found          → "rpc id not found" — JS bundle didn't register it (FAIL)
+    # Same JSON-string body convention as above.
     local CODE
     CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
                 -H "Content-Type: application/json" \
-                "${URL}/v2/rpc/${RPC_ID}" -d '{}' 2>&1) || true
+                "${URL}/v2/rpc/${RPC_ID}?http_key=${KEY}" -d '""' 2>&1) || true
     case "$CODE" in
         404) fail "$RPC_ID returned 404 — RPC not registered (JS bundle didn't load)" ;;
         200|400|401|403) ok "$RPC_ID is registered (HTTP $CODE)" ;;
@@ -93,25 +103,35 @@ case "$MODE" in
         IMAGE="${2:?Usage: $0 image <docker-image-ref>}"
         echo "[smoke] Booting $IMAGE in throwaway compose stack…"
         STACK_DIR=$(mktemp -d)
+        # Use postgres rather than cockroachdb because:
+        #   (a) cockroachdb/cockroach:latest-v24.1 has no `curl`, so the
+        #       depends_on healthcheck timed out in CodeBuild #193.
+        #   (b) postgres:14-alpine ships pg_isready out of the box and is
+        #       1/8th the size — faster CI.
+        # Nakama supports both transparently; the only change is the
+        # connection string format.
         cat > "$STACK_DIR/docker-compose.yml" <<EOF
 services:
-  cockroachdb:
-    image: cockroachdb/cockroach:latest-v24.1
-    command: start-single-node --insecure --store=type=mem,size=512MiB
+  postgres:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: nakama
+      POSTGRES_PASSWORD: nakama
+      POSTGRES_DB: nakama
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health?ready=1"]
+      test: ["CMD-SHELL", "pg_isready -U nakama -d nakama"]
       interval: 2s
       retries: 30
   nakama:
     image: ${IMAGE}
     depends_on:
-      cockroachdb:
+      postgres:
         condition: service_healthy
     entrypoint: ["/bin/sh","-ecx"]
     command:
       - |
-        /nakama/nakama migrate up --database.address root@cockroachdb:26257
-        exec /nakama/nakama --database.address root@cockroachdb:26257 \
+        /nakama/nakama migrate up --database.address nakama:nakama@postgres:5432/nakama
+        exec /nakama/nakama --database.address nakama:nakama@postgres:5432/nakama \
              --logger.level INFO \
              --runtime.path /nakama/data/modules
     ports:

@@ -64,6 +64,12 @@ phases:
       - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}' || true
 
   build:
+    # CodeBuild's default phase semantics: post_build runs even if build
+    # fails. That meant CodeBuild #193 pushed the image to ECR and rolled
+    # it out even though the pre-push smoke test had failed inside this
+    # phase. `on-failure: ABORT` halts the run before post_build, so a
+    # failure in build/smoke-test/push never reaches the rollout step.
+    on-failure: ABORT
     commands:
       - echo "=== Building image ${REPOSITORY_URI}:${IMAGE_VERSION} ==="
       - >
