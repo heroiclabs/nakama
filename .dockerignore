@@ -1,18 +1,28 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Updated 2026-04-22 alongside Dockerfile.production CB-3/CB-4 fix:
+# the prod modules stage now runs `npm ci && tsc && node postbuild.js` from
+# source instead of trusting the in-tree merged data/modules/index.js. So
+# we MUST allow package.json, package-lock.json, tsconfig.json and src/
+# into the build context, otherwise the COPY in [modules 3/7] fails with
+# "/data/modules/package.json: not found" (build #191 hit this).
+#
+# Items intentionally still excluded:
+#   • data/modules/build/        — tsc output regenerated inside the image
+#   • data/modules/node_modules/ — installed inside the image
+#   • data/modules/*.bak         — local editor backups
+#   • data/modules/*.md          — docs not needed at runtime
+#   • data/modules_test/         — test fixtures
+#   • data/runtime/              — deleted in CB-5; keep ignore in case a
+#                                  branch reintroduces it
+# ──────────────────────────────────────────────────────────────────────────
 data/modules/build/
-# build/index.js is the TypeScript compile output; the Dockerfile jsbuilder
-# stage reads it to regenerate data/modules/index.js via postbuild.js.
-# Without this negation the stage fails with "build/index.js missing". The
-# .lua files in build/ aren't needed inside Docker (they're copies of the
-# root-level .lua files already present in the modules tree) and index.d.ts
-# is type-only, so we only let the one file through.
+# Negation: the dev Dockerfile jsbuilder stage prefers the in-tree
+# build/index.js when present so postbuild can run before tsc finishes
+# in CI. Prod always re-runs tsc itself, but keeping this negation makes
+# the dev / prod paths converge on the same input set.
 !data/modules/build/index.js
-data/modules/src/
 data/modules/node_modules/
 data/modules/*.bak
-data/modules/*.d.ts
-data/modules/tsconfig.json
-data/modules/package.json
-data/modules/package-lock.json
 data/modules/*.md
 data/modules/NAKAMA_MODULE_FIX_VERIFICATION.md
 data/modules_test/
