@@ -138,7 +138,13 @@ services:
         /nakama/nakama migrate up --database.address nakama:nakama@postgres:5432/nakama
         exec /nakama/nakama --database.address nakama:nakama@postgres:5432/nakama \
              --logger.level INFO \
-             --runtime.path /nakama/data/modules
+             --runtime.path /nakama/data/modules \
+             --runtime.http_key defaultkey
+        # ↑ http_key is pinned to "defaultkey" because Nakama's actual
+        # built-in default is "defaulthttpkey" (see Nakama source
+        # server/runtime.go RuntimeConfigDefault). The smoke-test
+        # asserts with KEY="defaultkey", so without this flag every
+        # nakama_js_health POST returns HTTP 401 (CodeBuild #197).
     ports:
       - "57350:7350"
     healthcheck:
@@ -192,11 +198,16 @@ EOF
         [ -n "$HTTP_KEY" ] || HTTP_KEY="defaultkey"
 
         # Exec a curl inside the pod (no Ingress, no port-forward).
+        # NOTE: payload is a JSON-encoded empty string (`""`), not an empty
+        # object (`{}`). Nakama's HTTP RPC handler unmarshals the request body
+        # into a Go *string*; passing `{}` returns HTTP 400
+        # "json: cannot unmarshal object into Go value of type string"
+        # which would trigger a spurious auto-rollback (CodeBuild #193).
         kubectl exec -n "$NS" "$POD" -- /bin/sh -c "
             set -eu
             CODE=\$(curl -s -o /tmp/h.json -w '%{http_code}' -X POST \
                   -H 'Content-Type: application/json' \
-                  'http://127.0.0.1:7350/v2/rpc/nakama_js_health?http_key=${HTTP_KEY}' -d '{}')
+                  'http://127.0.0.1:7350/v2/rpc/nakama_js_health?http_key=${HTTP_KEY}' -d '\"\"')
             if [ \"\$CODE\" != '200' ]; then
                 echo '✗ nakama_js_health returned HTTP '\"\$CODE\"
                 cat /tmp/h.json
