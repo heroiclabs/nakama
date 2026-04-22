@@ -113,7 +113,12 @@ case "$MODE" in
         cat > "$STACK_DIR/docker-compose.yml" <<EOF
 services:
   postgres:
-    image: postgres:14-alpine
+    # Pull from AWS public ECR mirror, not Docker Hub. CodeBuild hits
+    # Docker Hub anonymously and trips the 100-pulls/6h rate limit
+    # (build #195: "toomanyrequests: You have reached your unauthenticated
+    # pull rate limit"). Same reason Dockerfile.production already uses
+    # public.ecr.aws/docker/library/{node,debian,golang}.
+    image: public.ecr.aws/docker/library/postgres:14-alpine
     environment:
       POSTGRES_USER: nakama
       POSTGRES_PASSWORD: nakama
