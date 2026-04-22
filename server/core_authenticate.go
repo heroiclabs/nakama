@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/smtp"
 	"strconv"
 	"strings"
 	"time"
@@ -284,7 +285,7 @@ WHERE NOT EXISTS
 	return userID, username, true, nil
 }
 
-func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, email, password, username string, create bool) (string, string, bool, error) {
+func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, email, password, username string, create bool, verification *VerificationConfig, verifCode string) (string, string, bool, error) {
 	found := true
 
 	// Look for an existing account.
@@ -337,8 +338,8 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 		logger.Error("Error hashing password.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
-	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
-	result, err := db.ExecContext(ctx, query, userID, username, email, hashedPassword)
+	query = "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_codes TEXT, code_expires TIMESTAMPTZ; INSERT INTO users (id, username, email, password, create_time, update_time, verification_code, code_expires) VALUES ($1, $2, $3, $4, now(), now(), $5, $6, $7, now() + interval '15 minutes')"
+	result, err := db.ExecContext(ctx, query, userID, username, email, hashedPassword, verifCode)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
@@ -358,6 +359,10 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	if rowsAffectedCount, _ := result.RowsAffected(); rowsAffectedCount != 1 {
 		logger.Error("Did not insert new user.", zap.Int64("rows_affected", rowsAffectedCount))
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	if verifCode != "" {
+		sendVerificationEmail(logger, verification, email, verifCode)
 	}
 
 	return userID, username, true, nil
@@ -832,6 +837,27 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	return userID, username, steamID, true, nil
 }
 
+func verifyEmailCode(ctx context.Context, logger *zap.Logger, db *sql.DB, email, code string) error {
+	query := "UPDATE users SET verify_time = now(), verification_code = null, code_expires = NULL, update_time = now() WHERE email = $1 AND verification_code = $2 AND code_expires > now() AND verify_time IS NULL"
+	result, err := db.ExecContext(ctx, query, email, code)
+	if err != nil {
+		logger.Error("Error verifying email code.", zap.Error(err), zap.String("email", email))
+		return status.Error(codes.Internal, "Error verifying email code.")
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		logger.Error("Error checking rows affected.", zap.Error(err), zap.String("email", email))
+		return status.Error(codes.Internal, "Error verifying email code.")
+	}
+
+	if rows == 0 {
+		return status.Error(codes.NotFound, "Invalid or expired verification code.")
+	}
+
+	return nil
+}
+
 func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, client *social.Client, userID uuid.UUID, username, publisherKey, steamId string, reset bool) error {
 	logger = logger.With(zap.String("userID", userID.String()))
 
@@ -1126,4 +1152,19 @@ func sendFriendAddedNotification(ctx context.Context, logger *zap.Logger, db *sq
 	}
 	// Any error is already logged before it's returned here.
 	_ = NotificationSend(ctx, logger, db, tracker, messageRouter, notifications)
+}
+
+func sendVerificationEmail(logger *zap.Logger, verification *VerificationConfig, toEmail string, verifCode string) {
+	auth := smtp.PlainAuth(verification.Identity, verification.VerificationEmail, verification.Password, verification.EmailHost)
+
+	to := []string{toEmail}
+	msg := []byte("To: " + toEmail + "\r\n" +
+		"Subject: Verify your account\r\n" +
+		"\r\n" +
+		"Your verification code is: " + verifCode + "\r\n If you did not request this code, you can ignore this email, or report it to support.\r\n")
+
+	err := smtp.SendMail(verification.EmailHost+":"+"587", auth, verification.VerificationEmail, to, msg)
+	if err != nil {
+		logger.Error("Error sending verification email.", zap.Error(err))
+	}
 }

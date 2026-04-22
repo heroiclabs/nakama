@@ -16,8 +16,8 @@ package server
 
 import (
 	"context"
+	crand "crypto/rand"
 	"math/rand"
-	"crypto/rand"
 	"regexp"
 	"strings"
 	"time"
@@ -35,8 +35,6 @@ var (
 	invalidCharsRegex    = regexp.MustCompilePOSIX("([[:cntrl:]]|[[:space:]])+")
 	emailRegex           = regexp.MustCompile(`^.+@.+\..+$`)
 )
-
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890" // Maybe make this into a config setting
 
 type SessionTokenClaims struct {
 	TokenId   string            `json:"tid,omitempty"`
@@ -364,7 +362,9 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 		cleanEmail := strings.ToLower(email.Email)
 		create := in.Create == nil || in.Create.Value
 
-		dbUserID, username, created, err = AuthenticateEmail(ctx, logger, s.db, cleanEmail, email.Password, username, create)
+		verification := s.config.GetVerification()
+
+		dbUserID, username, created, err = AuthenticateEmail(ctx, logger, s.db, cleanEmail, email.Password, username, create, verification, generateCryptoKey())
 	}
 	if err != nil {
 		return nil, err
@@ -810,6 +810,6 @@ func generateUsername() string {
 }
 
 func generateCryptoKey() string {
-	key := rand.Text()
+	key := crand.Text()
 	return string(key[0:5])
 }

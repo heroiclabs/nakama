@@ -233,7 +233,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, pa
 
 	cleanEmail := strings.ToLower(email)
 
-	return AuthenticateEmail(ctx, n.logger, n.db, cleanEmail, password, username, create)
+	return AuthenticateEmail(ctx, n.logger, n.db, cleanEmail, password, username, create, n.config.GetVerification(), "")
 }
 
 // @group authenticate

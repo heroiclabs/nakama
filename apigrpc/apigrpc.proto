@@ -757,4 +757,12 @@ service Nakama {
       }
     };
   }
+
+  // Validate a code sent to a users email.
+  rpc VerifyEmailCode (api.VerifyEmailCode) returns (api.VerifyEmailResponse) {
+    option (google.api.http) = {
+      post: "/v2/authenticate/verify,
+      body: "*"
+    }
+  }
 }

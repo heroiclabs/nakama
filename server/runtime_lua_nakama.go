@@ -1927,7 +1927,7 @@ func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
 	} else {
 		cleanEmail := strings.ToLower(email)
 
-		dbUserID, username, created, err = AuthenticateEmail(l.Context(), n.logger, n.db, cleanEmail, password, username, create)
+		dbUserID, username, created, err = AuthenticateEmail(l.Context(), n.logger, n.db, cleanEmail, password, username, create, n.config.GetVerification(), "")
 	}
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
