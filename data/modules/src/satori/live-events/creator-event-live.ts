@@ -661,7 +661,7 @@ namespace SatoriCreatorEvents {
 
     var leaderboardId = LEADERBOARD_PREFIX + event.id;
     try {
-      nk.leaderboardCreate(leaderboardId, true, 1, 0);
+      nk.leaderboardCreate(leaderboardId, true, nkruntime.SortOrder.DESCENDING, nkruntime.Operator.BEST);
     } catch (err: any) {
       logger.warn("[CreatorEvent] Leaderboard may already exist: %s", err.message || String(err));
     }

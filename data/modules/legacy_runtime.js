@@ -23555,26 +23555,22 @@ var quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
     logger.debug('quizverseClaimDailyReward called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseClaimDailyReward not implemented', success: false });
 };
-<<<<<<< HEAD
 // ── DISABLED: legacy quizverseFindFriends stub ──────────────────────────────
-// This `var` assignment was silently OVERWRITING the real function declared
+// This `var` assignment used to silently OVERWRITE the real function declared
 // at line ~13094 via JavaScript's hoist-then-assign behaviour for `var`,
 // so every call to quizverse_find_friends returned `not implemented`.
 // The canonical implementation now lives in:
 //   data/modules/friends/find_friends.js
+// (registered through IntelliverseFriends.register in src/main.ts and pinned
+//  in _tsRpcList so the legacy bridge never re-shadows it).
 // We keep the lines commented (rather than deleting) for blame/diff clarity.
+// The merge at cbeacf6 reintroduced the stub in a conflict hunk; the stub
+// MUST stay deleted/commented out — see docs/bugs/2026-04-22-merge-conflict-broke-js-runtime.md.
 // ────────────────────────────────────────────────────────────────────────────
 // var quizverseFindFriends = function(ctx, logger, nk, payload) {
 //     logger.warn('quizverseFindFriends called but not implemented');
 //     return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
 // };
-=======
-// Stub: quizverseFindFriends - TODO: implement actual function
-var quizverseFindFriends = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseFindFriends called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
-};
->>>>>>> 22d5863f851367234658e4e3d52db8dcc9f96952
 // Stub: quizverseSavePlayerData - TODO: implement actual function
 var quizverseSavePlayerData = function(ctx, logger, nk, payload) {
     logger.debug('quizverseSavePlayerData called but not implemented (stub)');

@@ -204,6 +204,40 @@ function expandDynamicRpcs(content) {
 var dynamicResult = expandDynamicRpcs(buildContent);
 buildContent = dynamicResult.content;
 
+// ── 0.6. Auto-extract the set of TS-owned RPC IDs ───────────────
+//
+// The TS bridge in src/main.ts needs to know which RPC IDs are registered
+// by the TypeScript code so it can skip those when bridging the legacy
+// master initializer. Until 2026-04-22 this was a hand-maintained string
+// literal that silently rotted whenever a TS RPC was added / renamed /
+// removed (see the `quizverse_find_friends` stub-shadowing bug noted in
+// legacy_runtime.js:23558 — and which the cbeacf6 merge re-introduced as
+// a conflict hunk).
+//
+// We extract the IDs straight from the TypeScript compile output
+// (build/index.js) which is what main.ts actually executes — so the set
+// is by definition exactly what the TS layer registered, with no chance
+// of drift. We also seed in the dynamically-expanded RPCs because those
+// also originate from the TS side (registerGameRpcs in fantasy/*.ts).
+//
+// Emitted later as `var __TS_OWNED_RPCS = { id1: true, id2: true, ... };`
+// at global scope, ahead of the TS runtime block.
+var tsOwnedRpcIds = {};
+(function scanBuildForTsRpcs() {
+  // Require a real RPC id: at least one [a-zA-Z0-9_], no whitespace, and
+  // reject the literal "..." which appears in our own docstring comment.
+  var re = /initializer\.registerRpc\(\s*["']([a-zA-Z0-9_][a-zA-Z0-9_\-]*)["']/g;
+  var m;
+  while ((m = re.exec(buildContent)) !== null) {
+    tsOwnedRpcIds[m[1]] = true;
+  }
+})();
+for (var _di = 0; _di < dynamicResult.rpcs.length; _di++) {
+  tsOwnedRpcIds[dynamicResult.rpcs[_di].id] = true;
+}
+var tsOwnedCount = Object.keys(tsOwnedRpcIds).length;
+console.log('[postbuild] TS-owned RPC IDs auto-extracted: ' + tsOwnedCount + ' (will populate __TS_OWNED_RPCS for the legacy bridge)');
+
 // ── 1. Scan BOTH files for all registerRpc calls ─────────────────
 var rpcPattern = /initializer\.registerRpc\(["']([^"']+)["']/g;
 var rpcEntries = [];
@@ -465,6 +499,13 @@ sections.push('var exports = typeof exports !== "undefined" ? exports : module.e
 sections.push('');
 sections.push('// --- RPC Stub Declarations (global scope) ---');
 sections.push(stubDecls);
+sections.push('');
+
+// --- TS-owned RPC ID set (consumed by src/main.ts's legacy bridge) ---
+// See postbuild.js section 0.6 for rationale. JSON.stringify produces
+// valid JS object-literal syntax for { string: true, ... } maps.
+sections.push('// --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---');
+sections.push('var __TS_OWNED_RPCS = ' + JSON.stringify(tsOwnedRpcIds) + ';');
 sections.push('');
 
 if (modulesContent) {

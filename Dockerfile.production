@@ -92,16 +92,54 @@ RUN set -eu; \
     echo "Plugins built:"; ls -la /out/ || true
 
 # ---------------------------------------------------------------------------
-# Stage 4: compile TypeScript modules to JavaScript (existing behaviour)
+# Stage 4: compile TypeScript modules to JavaScript and re-merge the bundle.
+#
+# Why this layout (CB-3 + CB-4 fix, 2026-04-22):
+#   The previous layout was a single `COPY data/modules` followed by
+#   `npm run build || true`. Two failure modes stacked there:
+#     1. `|| true` swallowed any `tsc` / postbuild failure, so a broken
+#        bundle would silently ship.
+#     2. Because the whole modules dir was one COPY layer, BuildKit either
+#        invalidated the entire stage on any module touch (slow), OR fully
+#        cached the RUN step on a re-build (fast — but skipping `tsc` AND
+#        `postbuild`), so the resulting image just baked in whatever
+#        `data/modules/index.js` the working tree had — including the
+#        unresolved git merge conflict markers from cbeacf6.
+#   New layout:
+#     a) COPY package*.json + tsconfig first → `npm ci` layer is cached
+#        whenever deps don't change (the slow part of the stage).
+#     b) COPY the rest of data/modules → invalidates only on real source
+#        changes.
+#     c) Always run `tsc` and `node postbuild.js` — no `|| true`. Failure
+#        here MUST fail the image build.
+#     d) `node -c index.js` is a hard syntax gate. Mirrors the dev
+#        Dockerfile (which has had this gate since day one).
 # ---------------------------------------------------------------------------
 FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-alpine AS modules
-WORKDIR /build
-COPY data/modules /build/modules
 WORKDIR /build/modules
+
+# (a) Cacheable npm install layer — only invalidated when deps change.
+COPY data/modules/package.json data/modules/package-lock.json* data/modules/tsconfig.json* ./
 RUN if [ -f package.json ]; then \
       npm ci --no-audit --no-fund || npm install --no-audit --no-fund; \
-      npm run build || true; \
     fi
+
+# (b) Source — invalidated only when real source changes.
+COPY data/modules/ ./
+
+# (c) tsc + postbuild MUST succeed. No `|| true`. If `tsc` produces no
+# build/index.js the postbuild step bails with exit 1 itself.
+RUN if [ -f package.json ]; then \
+      npx tsc \
+   && (cp *.lua build/ 2>/dev/null || true) \
+   && node postbuild.js; \
+    fi
+
+# (d) Hard syntax gate — same check the dev Dockerfile has at line 92.
+# If the merged index.js is not parseable JS, fail the image build *here*
+# rather than letting Nakama log "Could not compile JavaScript module" in
+# prod after a roll-out. This is the gate that would have caught cbeacf6.
+RUN node -c index.js || (echo "FATAL: data/modules/index.js failed Node syntax check" && exit 1)
 
 # ---------------------------------------------------------------------------
 # Stage 5: final runtime — debian-slim (glibc) so dlopen of .so plugins works

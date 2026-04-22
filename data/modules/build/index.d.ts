@@ -1,4 +1,7 @@
 declare function LegacyInitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
+declare var __TS_OWNED_RPCS: {
+    [id: string]: boolean;
+} | undefined;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
 /**
  * Cricket Auction — Nakama server module
@@ -841,6 +844,9 @@ declare namespace EventBus {
         QUIZ_COMPLETED: string;
     };
     export {};
+}
+declare namespace JsRuntimeHealth {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HttpClient {
     interface HttpResponse {

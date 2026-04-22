@@ -76,6 +76,14 @@ phases:
         .
       - echo "=== Built image SHA ==="
       - docker images --digests "${REPOSITORY_URI}" | head -5
+      # ─── Pre-push smoke test (EKS-3 + CB-6 gate) ─────────────────────
+      # Boot the just-built image in a throwaway compose stack and assert
+      # the JS runtime actually compiled and the nakama_js_health probe
+      # plus a known production RPC are registered. If this fails, abort
+      # *before* pushing — bad images never reach ECR.
+      - echo "=== Pre-push smoke test (JS runtime health) ==="
+      - chmod +x scripts/smoke-test-js-runtime.sh
+      - ./scripts/smoke-test-js-runtime.sh image "${REPOSITORY_URI}:${IMAGE_VERSION}"
 
   post_build:
     commands:
@@ -90,17 +98,48 @@ phases:
         --image-ids imageTag="$IMAGE_VERSION"
         --query 'imageDetails[0].imageDigest' --output text)
       - echo "IMAGE_DIGEST=$IMAGE_DIGEST"
+      # ─── Capture pre-rollout image so we can auto-rollback (EKS-2) ───
+      - >
+        PREVIOUS_IMAGE=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE"
+        -o jsonpath='{.spec.template.spec.containers[0].image}')
+      - echo "PREVIOUS_IMAGE=$PREVIOUS_IMAGE"
       - echo "=== Rolling deployment to ${IMAGE_VERSION} (digest pinned) ==="
       - >
         kubectl set image
         deployment/"$K8S_DEPLOYMENT"
         "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}"
         -n "$K8S_NAMESPACE"
-      - kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=10m
+      # ─── Post-rollout deploy gate (EKS-3) ─────────────────────────────
+      # Block on rollout AND assert the JS runtime is healthy in the new
+      # pod before we declare the build successful. This is what catches
+      # the cbeacf6-class outage (pods become Ready while every JS RPC is
+      # dead because the bundle didn't compile).
+      - echo "=== Post-rollout JS runtime smoke test ==="
+      - |
+        if ! ./scripts/smoke-test-js-runtime.sh cluster "$K8S_NAMESPACE" "$K8S_DEPLOYMENT"; then
+          echo "✗ Post-rollout smoke test FAILED — auto-rolling back to $PREVIOUS_IMAGE"
+          # ─── Auto-rollback (EKS-2) ───────────────────────────────────
+          # Two-tier strategy:
+          #   1. If we know the previous image, set it explicitly. This is
+          #      deterministic and survives rollout-history pruning.
+          #   2. Fall back to `kubectl rollout undo` which uses the
+          #      deployment's revision history (configured in the
+          #      kube-infra deployment.yaml — should be `revisionHistoryLimit`
+          #      >= 5).
+          if [ -n "$PREVIOUS_IMAGE" ] && [ "$PREVIOUS_IMAGE" != "${REPOSITORY_URI}@${IMAGE_DIGEST}" ]; then
+            kubectl set image deployment/"$K8S_DEPLOYMENT" \
+              "$K8S_CONTAINER=$PREVIOUS_IMAGE" -n "$K8S_NAMESPACE"
+          else
+            kubectl rollout undo deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE"
+          fi
+          kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=5m
+          echo "✓ Rolled back. Build marked FAILED so the pipeline stops here."
+          exit 1
+        fi
       - echo "=== Verifying live image ==="
       - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
       - kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_DEPLOYMENT" -o wide
-      - echo "{\"image\":\"${REPOSITORY_URI}@${IMAGE_DIGEST}\",\"tag\":\"${IMAGE_VERSION}\",\"git\":\"${CODEBUILD_RESOLVED_SOURCE_VERSION}\"}" > image-manifest.json
+      - echo "{\"image\":\"${REPOSITORY_URI}@${IMAGE_DIGEST}\",\"tag\":\"${IMAGE_VERSION}\",\"git\":\"${CODEBUILD_RESOLVED_SOURCE_VERSION}\",\"previous_image\":\"${PREVIOUS_IMAGE}\"}" > image-manifest.json
 
 artifacts:
   files:

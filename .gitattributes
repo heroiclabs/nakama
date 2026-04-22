@@ -1,0 +1,28 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Generated artefact: data/modules/index.js
+#
+# This file is the merged output of `data/modules/postbuild.js` (TypeScript
+# build + legacy_runtime.js + every other top-level *.js module). It is
+# 77 000+ lines long and merging two parents line-by-line is what produced
+# the cbeacf6 outage (Nakama refused to start the JS runtime because the
+# merge committed `<<<<<<< HEAD` markers into the bundle).
+#
+# Two safety nets are wired here:
+#
+#   1. `merge=regen-modules-index`
+#      Custom merge driver — defined in scripts/git-merge-regen-index.sh —
+#      ignores both sides and re-runs `node postbuild.js` so the output
+#      always matches the source files. Activate it once per clone with:
+#        scripts/setup-hooks.sh
+#      (or manually: `git config merge.regen-modules-index.driver
+#       'scripts/git-merge-regen-index.sh %A'`).
+#
+#   2. `linguist-generated=true`
+#      Hides the file from PR diff views on GitHub so reviewers stop
+#      manually 'fixing' a generated file.
+#
+# Same treatment for the TS compile output committed for offline builds.
+# ──────────────────────────────────────────────────────────────────────────
+data/modules/index.js          merge=regen-modules-index linguist-generated=true
+data/modules/build/index.js    merge=regen-modules-index linguist-generated=true
+data/modules/build/index.d.ts  linguist-generated=true
