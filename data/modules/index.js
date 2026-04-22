@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-22T14:52:04.464Z
+// Generated: 2026-04-22T16:39:15.605Z
 // RPC Count: 542
 // ============================================================
 
@@ -64465,14 +64465,16 @@ var FantasyTypes;
 //   Tier 2: display_name matches the query as a PREFIX
 //   Tier 3: username  contains the query as a SUBSTRING
 //   Tier 4: display_name contains the query as a SUBSTRING
-//   Tier 5: trigram-similarity ≥ STRICT threshold (typo-tolerant fuzzy match)
+//   Tier 5: trigram-similarity ≥ PERMISSIVE threshold (typo-tolerant fuzzy match)
 //
 // Within each tier, ties are broken by trigram similarity (DESC) then
-// username ASC for stable pagination. STRICT fuzziness (similarity ≥ 0.55)
-// allows ~1 typo in queries of typical length while keeping false positives
-// minimal — picked specifically over the medium/loose presets to keep the
-// "Add Friend" dialog precision-first (you almost always know the username
-// you're looking for, just maybe with a typo).
+// username ASC for stable pagination. PERMISSIVE fuzziness (similarity ≥ 0.30,
+// Postgres' default pg_trgm threshold) catches realistic typos like "ahmd" →
+// "ahmed" or "carlls" → "carlos". Recall is favoured here because the tiered
+// ORDER BY guarantees exact prefix/substring matches are still returned at
+// the top of the list — the loosened fuzzy tier only fills in below them, so
+// the "as-you-type" suggestion experience stays sharp without dropping legit
+// typo'd queries on the floor.
 //
 // Performance
 // -----------
@@ -64539,11 +64541,15 @@ var IntelliverseFriends;
     var PRESENCE_COLLECTION = "player_presence";
     var PRESENCE_KEY = "status";
     var ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // last_seen within 5 min ⇒ online
-    // STRICT fuzziness — picked deliberately to bias towards precision over
-    // recall in the player-search UX. 0.55 corresponds to ~1 typo in a
-    // 6-char query (e.g. "carlls" finds "carlos"). Tweak in lock-step with
-    // the docstring above + the client-side AskQuestion answer record.
-    var TRGM_SIMILARITY_THRESHOLD = 0.55;
+    // PERMISSIVE fuzziness — biased towards recall so the player-search UX
+    // catches realistic typos. 0.30 is Postgres' default pg_trgm threshold
+    // and reliably matches a single dropped/swapped char in a 4–6 char
+    // query (e.g. "ahmd" finds "ahmed", "carlls" finds "carlos"). The
+    // tiered ORDER BY (rank_tier ASC, sim_score DESC) keeps exact prefix
+    // matches at the top, so loosening recall here doesn't degrade the
+    // primary "as-you-type" suggestion experience. Tweak in lock-step
+    // with the docstring above.
+    var TRGM_SIMILARITY_THRESHOLD = 0.30;
     // Nakama friend-state ints (mirror of nkruntime.FriendState — not exported)
     var STATE_FRIEND = 0;
     var STATE_INVITE_SENT = 1;
