@@ -213,15 +213,33 @@ EOF
                 cat /tmp/h.json
                 exit 1
             fi
-            grep -q 'ok\\\":true' /tmp/h.json || (echo '✗ ok:true missing'; cat /tmp/h.json; exit 1)
+            # Nakama wraps the RPC payload as {\"payload\":\"<json-string>\"},
+            # so the inner JSON's quotes are escaped on the wire — the file
+            # literally contains the bytes:  \\\"ok\\\":true
+            # (backslash, quote, o, k, backslash, quote, colon, t, r, u, e).
+            # Match either the wire-escaped form or the unescaped form
+            # (in case a future Nakama version returns the object directly).
+            # Build #198 failed because the previous pattern only matched the
+            # unescaped form.
+            if ! grep -qE '\\\\\"ok\\\\\":[[:space:]]*true|\"ok\":[[:space:]]*true' /tmp/h.json; then
+                echo '✗ ok:true missing in nakama_js_health response'
+                cat /tmp/h.json
+                exit 1
+            fi
             echo '✓ nakama_js_health ok inside pod'
             cat /tmp/h.json
         " || fail "in-pod nakama_js_health probe failed"
 
         kubectl exec -n "$NS" "$POD" -- /bin/sh -c "
+            # Same JSON-encoded-string body convention as nakama_js_health.
+            # Sending '{}' to wallet_get_all returns HTTP 400 with
+            # 'json: cannot unmarshal object into Go value of type string'
+            # which is technically also fine for this probe (anything but
+            # 404 means the RPC is registered) — but the mixed convention
+            # was confusing in the previous build's logs.
             CODE=\$(curl -s -o /dev/null -w '%{http_code}' -X POST \
                   -H 'Content-Type: application/json' \
-                  'http://127.0.0.1:7350/v2/rpc/wallet_get_all' -d '{}')
+                  'http://127.0.0.1:7350/v2/rpc/wallet_get_all' -d '\"\"')
             case \"\$CODE\" in
                 404) echo '✗ wallet_get_all 404 — bundle not loaded'; exit 1 ;;
                 *) echo '✓ wallet_get_all registered (HTTP '\"\$CODE\"')' ;;
