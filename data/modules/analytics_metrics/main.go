@@ -50,7 +50,6 @@ import (
 
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -69,63 +68,92 @@ const (
 )
 
 // ─── Metrics ──────────────────────────────────────────────
+//
+// We construct the metrics with `prometheus.NewXxx` and register them in
+// init() via the default registry instead of using promauto. This keeps the
+// plugin's dependency surface limited to packages already vendored by the
+// parent nakama module (so building under data/modules/<name>/ with
+// `-mod=vendor` succeeds and — critically — produces a .so whose every
+// shared package is the EXACT same version the server was built against).
+// Using promauto would pull in a version of client_golang outside the
+// vendored set, which causes "plugin was built with a different version of
+// package …" CrashLoopBackOff at startup.
 
 var (
-	eventsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	eventsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "analytics_events_total",
 		Help: "Total analytics events observed by the server since plugin startup, by acceptance status.",
 	}, []string{"status"}) // status = accepted | rejected
 
-	rejectedTotal = promauto.NewCounter(prometheus.CounterOpts{
+	rejectedTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "analytics_events_rejected_total",
 		Help: "Convenience counter — analytics events rejected by normalizeInboundEvent or persist failures.",
 	})
 
-	rollupRunsTotal = promauto.NewCounter(prometheus.CounterOpts{
+	rollupRunsTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "analytics_rollup_runs_total",
 		Help: "Count of analytics_rollup_run successful invocations observed since plugin startup.",
 	})
 
-	rollupLastEvents = promauto.NewGauge(prometheus.GaugeOpts{
+	rollupLastEvents = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "analytics_rollup_last_events_matched",
 		Help: "events_matched from the most recent successful rollup run.",
 	})
 
-	rollupLastGames = promauto.NewGauge(prometheus.GaugeOpts{
+	rollupLastGames = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "analytics_rollup_last_games",
 		Help: "Number of gameIds rolled up in the most recent successful run.",
 	})
 
-	rollupAgeSeconds = promauto.NewGauge(prometheus.GaugeOpts{
+	rollupAgeSeconds = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "analytics_rollup_age_seconds",
 		Help: "Wall time since the most recent successful rollup finished.",
 	})
 
-	pollerRunsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	pollerRunsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "analytics_poller_runs_total",
 		Help: "Count of external_poll_* successful invocations observed since plugin startup, by provider.",
 	}, []string{"provider"})
 
-	pollerAgeSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	pollerAgeSeconds = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "analytics_poller_age_seconds",
 		Help: "Wall time since the provider was last polled successfully.",
 	}, []string{"provider"})
 
-	pipelineAgeSeconds = promauto.NewGauge(prometheus.GaugeOpts{
+	pipelineAgeSeconds = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "analytics_pipeline_age_seconds",
 		Help: "Seconds since the most recent analytics_log_event call succeeded anywhere. High values indicate a broken pipeline.",
 	})
 
-	eventsToday = promauto.NewGauge(prometheus.GaugeOpts{
+	eventsToday = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "analytics_events_today",
 		Help: "Accepted analytics events in the current UTC day (read from analytics_metrics_counters).",
 	})
 
-	rejectedToday = promauto.NewGauge(prometheus.GaugeOpts{
+	rejectedToday = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "analytics_rejected_today",
 		Help: "Rejected analytics events in the current UTC day (read from analytics_metrics_counters).",
 	})
 )
+
+func init() {
+	// Register every collector exactly once with the default registry. This
+	// runs at plugin load (.so dlopen) time, before InitModule, so the
+	// metrics are visible on /metrics from the very first scrape.
+	prometheus.MustRegister(
+		eventsTotal,
+		rejectedTotal,
+		rollupRunsTotal,
+		rollupLastEvents,
+		rollupLastGames,
+		rollupAgeSeconds,
+		pollerRunsTotal,
+		pollerAgeSeconds,
+		pipelineAgeSeconds,
+		eventsToday,
+		rejectedToday,
+	)
+}
 
 // Delta-tracking state for converting JS-side daily counters into Prometheus
 // monotonic counters. Guarded by stateMu because refreshFreshness is always
@@ -146,8 +174,8 @@ var (
 
 // InitModule is the Nakama plugin entrypoint. It's called once by the runtime
 // when the .so is loaded. We do NOT register any RPC hooks here (see package
-// doc comment). We just register metrics (done at package init via promauto)
-// and start the background freshness poller.
+// doc comment). We just register metrics (done at package init() above with
+// the default Prometheus registry) and start the background freshness poller.
 //
 // The db and initializer args are unused but required by the Nakama plugin
 // contract; keeping them named for clarity.
@@ -159,7 +187,14 @@ func InitModule(ctx context.Context, logger runtime.Logger, _ *sql.DB, nk runtim
 	// derived from storage-side state.
 	go freshnessLoop(ctx, logger, nk)
 
-	logger.Info("[analytics_metrics_go] plugin ready — metrics registered, freshness loop started")
+	// Discord alert scheduler — periodic (default 6h) Quizverse RPC analytics
+	// summary posted to the same Discord channel the IVX backend uses. Lives
+	// in discord_alerts.go and is fully self-contained: it scrapes our own
+	// :9100/metrics, diffs against the prior snapshot, and posts an embed.
+	// Best-effort: any failure is logged but never affects request handling.
+	startDiscordAlertScheduler(ctx, logger)
+
+	logger.Info("[analytics_metrics_go] plugin ready — metrics registered, freshness loop started, discord alerts scheduled")
 	return nil
 }
 

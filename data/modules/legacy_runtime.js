@@ -21202,7 +21202,12 @@ function rpcBadgesCheckEvent(ctx, logger, nk, payload) {
         var data = JSON.parse(payload || '{}');
 
         if (!data.game_id || !data.event_type) {
-            throw Error("game_id and event_type are required");
+            var __callerId = (ctx && ctx.userId) ? ctx.userId : "anonymous";
+            logger.warn("[Badges] Check event missing required fields (caller=" + __callerId + " game_id=" + (data.game_id || "<missing>") + " event_type=" + (data.event_type || "<missing>") + ")");
+            return JSON.stringify({
+                success: false,
+                error: "game_id and event_type are required"
+            });
         }
 
         var userId = ctx.userId;
@@ -23422,134 +23427,135 @@ var rpcFriendQuestComplete = function(ctx, logger, nk, payload) {
 };
 // Stub: rpcFriendStreakGetState - TODO: implement actual function
 var rpcFriendStreakGetState = function(ctx, logger, nk, payload) {
-    logger.warn('rpcFriendStreakGetState called but not implemented');
+    logger.debug('rpcFriendStreakGetState called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcFriendStreakGetState not implemented', success: false });
 };
 // Stub: rpcFriendStreakRecordContribution - TODO: implement actual function
 var rpcFriendStreakRecordContribution = function(ctx, logger, nk, payload) {
-    logger.warn('rpcFriendStreakRecordContribution called but not implemented');
+    logger.debug('rpcFriendStreakRecordContribution called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcFriendStreakRecordContribution not implemented', success: false });
 };
 // Stub: rpcFriendStreakSendNudge - TODO: implement actual function
 var rpcFriendStreakSendNudge = function(ctx, logger, nk, payload) {
-    logger.warn('rpcFriendStreakSendNudge called but not implemented');
+    logger.debug('rpcFriendStreakSendNudge called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcFriendStreakSendNudge not implemented', success: false });
 };
 // Stub: rpcGetGameById - TODO: implement actual function
 var rpcGetGameById = function(ctx, logger, nk, payload) {
-    logger.warn('rpcGetGameById called but not implemented');
+    logger.debug('rpcGetGameById called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcGetGameById not implemented', success: false });
 };
 // Stub: rpcGetGameRegistry - TODO: implement actual function
 var rpcGetGameRegistry = function(ctx, logger, nk, payload) {
-    logger.warn('rpcGetGameRegistry called but not implemented');
+    logger.debug('rpcGetGameRegistry called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcGetGameRegistry not implemented', success: false });
 };
 // Stub: rpcListNotificationInbox - TODO: implement actual function
 var rpcListNotificationInbox = function(ctx, logger, nk, payload) {
-    logger.warn('rpcListNotificationInbox called but not implemented');
+    logger.debug('rpcListNotificationInbox called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcListNotificationInbox not implemented', success: false });
 };
 // Stub: rpcManifestGetVersion - TODO: implement actual function
 var rpcManifestGetVersion = function(ctx, logger, nk, payload) {
-    logger.warn('rpcManifestGetVersion called but not implemented');
+    logger.debug('rpcManifestGetVersion called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcManifestGetVersion not implemented', success: false });
 };
 // Stub: rpcMarkNotificationsRead - TODO: implement actual function
 var rpcMarkNotificationsRead = function(ctx, logger, nk, payload) {
-    logger.warn('rpcMarkNotificationsRead called but not implemented');
+    logger.debug('rpcMarkNotificationsRead called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcMarkNotificationsRead not implemented', success: false });
 };
 // Stub: rpcNotifGateGetState - TODO: implement actual function
 var rpcNotifGateGetState = function(ctx, logger, nk, payload) {
-    logger.warn('rpcNotifGateGetState called but not implemented');
+    logger.debug('rpcNotifGateGetState called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcNotifGateGetState not implemented', success: false });
 };
 // Stub: rpcPlayerGetFullProfile - TODO: implement actual function
 var rpcPlayerGetFullProfile = function(ctx, logger, nk, payload) {
-    logger.warn('rpcPlayerGetFullProfile called but not implemented');
+    logger.debug('rpcPlayerGetFullProfile called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcPlayerGetFullProfile not implemented', success: false });
 };
 // Stub: rpcSmartReviewGetCards - TODO: implement actual function
 var rpcSmartReviewGetCards = function(ctx, logger, nk, payload) {
-    logger.warn('rpcSmartReviewGetCards called but not implemented');
+    logger.debug('rpcSmartReviewGetCards called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcSmartReviewGetCards not implemented', success: false });
 };
 // Stub: rpcSmartReviewRateCard - TODO: implement actual function
 var rpcSmartReviewRateCard = function(ctx, logger, nk, payload) {
-    logger.warn('rpcSmartReviewRateCard called but not implemented');
+    logger.debug('rpcSmartReviewRateCard called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcSmartReviewRateCard not implemented', success: false });
 };
 // Stub: rpcStreakRepair - TODO: implement actual function
 var rpcStreakRepair = function(ctx, logger, nk, payload) {
-    logger.warn('rpcStreakRepair called but not implemented');
+    logger.debug('rpcStreakRepair called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcStreakRepair not implemented', success: false });
 };
 // Stub: rpcStreakWager - TODO: implement actual function
 var rpcStreakWager = function(ctx, logger, nk, payload) {
-    logger.warn('rpcStreakWager called but not implemented');
+    logger.debug('rpcStreakWager called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcStreakWager not implemented', success: false });
 };
 // Stub: rpcSyncGameRegistry - TODO: implement actual function
 var rpcSyncGameRegistry = function(ctx, logger, nk, payload) {
-    logger.warn('rpcSyncGameRegistry called but not implemented');
+    logger.debug('rpcSyncGameRegistry called but not implemented (stub)');
     return JSON.stringify({ error: 'rpcSyncGameRegistry not implemented', success: false });
 };
 // Stub: quizverseUpdateUserProfile - TODO: implement actual function
 var quizverseUpdateUserProfile = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseUpdateUserProfile called but not implemented');
+    logger.debug('quizverseUpdateUserProfile called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseUpdateUserProfile not implemented', success: false });
 };
 // Stub: quizverseGrantCurrency - TODO: implement actual function
 var quizverseGrantCurrency = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGrantCurrency called but not implemented');
+    logger.debug('quizverseGrantCurrency called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGrantCurrency not implemented', success: false });
 };
 // Stub: quizverseSpendCurrency - TODO: implement actual function
 var quizverseSpendCurrency = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseSpendCurrency called but not implemented');
+    logger.debug('quizverseSpendCurrency called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseSpendCurrency not implemented', success: false });
 };
 // Stub: quizverseValidatePurchase - TODO: implement actual function
 var quizverseValidatePurchase = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseValidatePurchase called but not implemented');
+    logger.debug('quizverseValidatePurchase called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseValidatePurchase not implemented', success: false });
 };
 // Stub: quizverseListInventory - TODO: implement actual function
 var quizverseListInventory = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseListInventory called but not implemented');
+    logger.debug('quizverseListInventory called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseListInventory not implemented', success: false });
 };
 // Stub: quizverseGrantItem - TODO: implement actual function
 var quizverseGrantItem = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGrantItem called but not implemented');
+    logger.debug('quizverseGrantItem called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGrantItem not implemented', success: false });
 };
 // Stub: quizverseConsumeItem - TODO: implement actual function
 var quizverseConsumeItem = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseConsumeItem called but not implemented');
+    logger.debug('quizverseConsumeItem called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseConsumeItem not implemented', success: false });
 };
 // Stub: quizverseSubmitScore - TODO: implement actual function
 var quizverseSubmitScore = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseSubmitScore called but not implemented');
+    logger.debug('quizverseSubmitScore called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseSubmitScore not implemented', success: false });
 };
 // Stub: quizverseGetLeaderboard - TODO: implement actual function
 var quizverseGetLeaderboard = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGetLeaderboard called but not implemented');
+    logger.debug('quizverseGetLeaderboard called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGetLeaderboard not implemented', success: false });
 };
 // Stub: quizverseJoinOrCreateMatch - TODO: implement actual function
 var quizverseJoinOrCreateMatch = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseJoinOrCreateMatch called but not implemented');
+    logger.debug('quizverseJoinOrCreateMatch called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseJoinOrCreateMatch not implemented', success: false });
 };
 // Stub: quizverseClaimDailyReward - TODO: implement actual function
 var quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseClaimDailyReward called but not implemented');
+    logger.debug('quizverseClaimDailyReward called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseClaimDailyReward not implemented', success: false });
 };
+<<<<<<< HEAD
 // ── DISABLED: legacy quizverseFindFriends stub ──────────────────────────────
 // This `var` assignment was silently OVERWRITING the real function declared
 // at line ~13094 via JavaScript's hoist-then-assign behaviour for `var`,
@@ -23562,224 +23568,231 @@ var quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
 //     logger.warn('quizverseFindFriends called but not implemented');
 //     return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
 // };
+=======
+// Stub: quizverseFindFriends - TODO: implement actual function
+var quizverseFindFriends = function(ctx, logger, nk, payload) {
+    logger.debug('quizverseFindFriends called but not implemented (stub)');
+    return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
+};
+>>>>>>> 22d5863f851367234658e4e3d52db8dcc9f96952
 // Stub: quizverseSavePlayerData - TODO: implement actual function
 var quizverseSavePlayerData = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseSavePlayerData called but not implemented');
+    logger.debug('quizverseSavePlayerData called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseSavePlayerData not implemented', success: false });
 };
 // Stub: quizverseLoadPlayerData - TODO: implement actual function
 var quizverseLoadPlayerData = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseLoadPlayerData called but not implemented');
+    logger.debug('quizverseLoadPlayerData called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseLoadPlayerData not implemented', success: false });
 };
 // Stub: quizverseGetItemCatalog - TODO: implement actual function
 var quizverseGetItemCatalog = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGetItemCatalog called but not implemented');
+    logger.debug('quizverseGetItemCatalog called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGetItemCatalog not implemented', success: false });
 };
 // Stub: quizverseSearchItems - TODO: implement actual function
 var quizverseSearchItems = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseSearchItems called but not implemented');
+    logger.debug('quizverseSearchItems called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseSearchItems not implemented', success: false });
 };
 // Stub: quizverseGetQuizCategories - TODO: implement actual function
 var quizverseGetQuizCategories = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGetQuizCategories called but not implemented');
+    logger.debug('quizverseGetQuizCategories called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGetQuizCategories not implemented', success: false });
 };
 // Stub: quizverseRefreshServerCache - TODO: implement actual function
 var quizverseRefreshServerCache = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseRefreshServerCache called but not implemented');
+    logger.debug('quizverseRefreshServerCache called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseRefreshServerCache not implemented', success: false });
 };
 // Stub: quizverseGuildCreate - TODO: implement actual function
 var quizverseGuildCreate = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGuildCreate called but not implemented');
+    logger.debug('quizverseGuildCreate called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGuildCreate not implemented', success: false });
 };
 // Stub: quizverseGuildJoin - TODO: implement actual function
 var quizverseGuildJoin = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGuildJoin called but not implemented');
+    logger.debug('quizverseGuildJoin called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGuildJoin not implemented', success: false });
 };
 // Stub: quizverseGuildLeave - TODO: implement actual function
 var quizverseGuildLeave = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGuildLeave called but not implemented');
+    logger.debug('quizverseGuildLeave called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGuildLeave not implemented', success: false });
 };
 // Stub: quizverseGuildList - TODO: implement actual function
 var quizverseGuildList = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGuildList called but not implemented');
+    logger.debug('quizverseGuildList called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGuildList not implemented', success: false });
 };
 // Stub: quizverseSendChannelMessage - TODO: implement actual function
 var quizverseSendChannelMessage = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseSendChannelMessage called but not implemented');
+    logger.debug('quizverseSendChannelMessage called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseSendChannelMessage not implemented', success: false });
 };
 // Stub: quizverseLogEvent - TODO: implement actual function
 var quizverseLogEvent = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseLogEvent called but not implemented');
+    logger.debug('quizverseLogEvent called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseLogEvent not implemented', success: false });
 };
 // Stub: quizverseTrackSessionStart - TODO: implement actual function
 var quizverseTrackSessionStart = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseTrackSessionStart called but not implemented');
+    logger.debug('quizverseTrackSessionStart called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseTrackSessionStart not implemented', success: false });
 };
 // Stub: quizverseTrackSessionEnd - TODO: implement actual function
 var quizverseTrackSessionEnd = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseTrackSessionEnd called but not implemented');
+    logger.debug('quizverseTrackSessionEnd called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseTrackSessionEnd not implemented', success: false });
 };
 // Stub: quizverseGetServerConfig - TODO: implement actual function
 var quizverseGetServerConfig = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseGetServerConfig called but not implemented');
+    logger.debug('quizverseGetServerConfig called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseGetServerConfig not implemented', success: false });
 };
 // Stub: quizverseAdminGrantItem - TODO: implement actual function
 var quizverseAdminGrantItem = function(ctx, logger, nk, payload) {
-    logger.warn('quizverseAdminGrantItem called but not implemented');
+    logger.debug('quizverseAdminGrantItem called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseAdminGrantItem not implemented', success: false });
 };
 // Stub: lasttoliveUpdateUserProfile - TODO: implement actual function
 var lasttoliveUpdateUserProfile = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveUpdateUserProfile called but not implemented');
+    logger.debug('lasttoliveUpdateUserProfile called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveUpdateUserProfile not implemented', success: false });
 };
 // Stub: lasttoliveGrantCurrency - TODO: implement actual function
 var lasttoliveGrantCurrency = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGrantCurrency called but not implemented');
+    logger.debug('lasttoliveGrantCurrency called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGrantCurrency not implemented', success: false });
 };
 // Stub: lasttoliveSpendCurrency - TODO: implement actual function
 var lasttoliveSpendCurrency = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveSpendCurrency called but not implemented');
+    logger.debug('lasttoliveSpendCurrency called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveSpendCurrency not implemented', success: false });
 };
 // Stub: lasttoliveValidatePurchase - TODO: implement actual function
 var lasttoliveValidatePurchase = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveValidatePurchase called but not implemented');
+    logger.debug('lasttoliveValidatePurchase called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveValidatePurchase not implemented', success: false });
 };
 // Stub: lasttoliveListInventory - TODO: implement actual function
 var lasttoliveListInventory = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveListInventory called but not implemented');
+    logger.debug('lasttoliveListInventory called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveListInventory not implemented', success: false });
 };
 // Stub: lasttoliveGrantItem - TODO: implement actual function
 var lasttoliveGrantItem = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGrantItem called but not implemented');
+    logger.debug('lasttoliveGrantItem called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGrantItem not implemented', success: false });
 };
 // Stub: lasttoliveConsumeItem - TODO: implement actual function
 var lasttoliveConsumeItem = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveConsumeItem called but not implemented');
+    logger.debug('lasttoliveConsumeItem called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveConsumeItem not implemented', success: false });
 };
 // Stub: lasttoliveSubmitScore - TODO: implement actual function
 var lasttoliveSubmitScore = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveSubmitScore called but not implemented');
+    logger.debug('lasttoliveSubmitScore called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveSubmitScore not implemented', success: false });
 };
 // Stub: lasttoliveGetLeaderboard - TODO: implement actual function
 var lasttoliveGetLeaderboard = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGetLeaderboard called but not implemented');
+    logger.debug('lasttoliveGetLeaderboard called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGetLeaderboard not implemented', success: false });
 };
 // Stub: lasttoliveJoinOrCreateMatch - TODO: implement actual function
 var lasttoliveJoinOrCreateMatch = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveJoinOrCreateMatch called but not implemented');
+    logger.debug('lasttoliveJoinOrCreateMatch called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveJoinOrCreateMatch not implemented', success: false });
 };
 // Stub: lasttoliveClaimDailyReward - TODO: implement actual function
 var lasttoliveClaimDailyReward = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveClaimDailyReward called but not implemented');
+    logger.debug('lasttoliveClaimDailyReward called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveClaimDailyReward not implemented', success: false });
 };
 // Stub: lasttolliveFindFriends - TODO: implement actual function
 var lasttolliveFindFriends = function(ctx, logger, nk, payload) {
-    logger.warn('lasttolliveFindFriends called but not implemented');
+    logger.debug('lasttolliveFindFriends called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttolliveFindFriends not implemented', success: false });
 };
 // Stub: lasttolliveSavePlayerData - TODO: implement actual function
 var lasttolliveSavePlayerData = function(ctx, logger, nk, payload) {
-    logger.warn('lasttolliveSavePlayerData called but not implemented');
+    logger.debug('lasttolliveSavePlayerData called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttolliveSavePlayerData not implemented', success: false });
 };
 // Stub: lasttoliveLoadPlayerData - TODO: implement actual function
 var lasttoliveLoadPlayerData = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveLoadPlayerData called but not implemented');
+    logger.debug('lasttoliveLoadPlayerData called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveLoadPlayerData not implemented', success: false });
 };
 // Stub: lasttoliveGetItemCatalog - TODO: implement actual function
 var lasttoliveGetItemCatalog = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGetItemCatalog called but not implemented');
+    logger.debug('lasttoliveGetItemCatalog called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGetItemCatalog not implemented', success: false });
 };
 // Stub: lasttoliveSearchItems - TODO: implement actual function
 var lasttoliveSearchItems = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveSearchItems called but not implemented');
+    logger.debug('lasttoliveSearchItems called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveSearchItems not implemented', success: false });
 };
 // Stub: lasttoliveGetWeaponStats - TODO: implement actual function
 var lasttoliveGetWeaponStats = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGetWeaponStats called but not implemented');
+    logger.debug('lasttoliveGetWeaponStats called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGetWeaponStats not implemented', success: false });
 };
 // Stub: lasttoliveRefreshServerCache - TODO: implement actual function
 var lasttoliveRefreshServerCache = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveRefreshServerCache called but not implemented');
+    logger.debug('lasttoliveRefreshServerCache called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveRefreshServerCache not implemented', success: false });
 };
 // Stub: lasttoliveGuildCreate - TODO: implement actual function
 var lasttoliveGuildCreate = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGuildCreate called but not implemented');
+    logger.debug('lasttoliveGuildCreate called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGuildCreate not implemented', success: false });
 };
 // Stub: lasttoliveGuildJoin - TODO: implement actual function
 var lasttoliveGuildJoin = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGuildJoin called but not implemented');
+    logger.debug('lasttoliveGuildJoin called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGuildJoin not implemented', success: false });
 };
 // Stub: lasttoliveGuildLeave - TODO: implement actual function
 var lasttoliveGuildLeave = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGuildLeave called but not implemented');
+    logger.debug('lasttoliveGuildLeave called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGuildLeave not implemented', success: false });
 };
 // Stub: lasttoliveGuildList - TODO: implement actual function
 var lasttoliveGuildList = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGuildList called but not implemented');
+    logger.debug('lasttoliveGuildList called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGuildList not implemented', success: false });
 };
 // Stub: lasttolliveSendChannelMessage - TODO: implement actual function
 var lasttolliveSendChannelMessage = function(ctx, logger, nk, payload) {
-    logger.warn('lasttolliveSendChannelMessage called but not implemented');
+    logger.debug('lasttolliveSendChannelMessage called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttolliveSendChannelMessage not implemented', success: false });
 };
 // Stub: lasttoliveLogEvent - TODO: implement actual function
 var lasttoliveLogEvent = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveLogEvent called but not implemented');
+    logger.debug('lasttoliveLogEvent called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveLogEvent not implemented', success: false });
 };
 // Stub: lasttoliveTrackSessionStart - TODO: implement actual function
 var lasttoliveTrackSessionStart = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveTrackSessionStart called but not implemented');
+    logger.debug('lasttoliveTrackSessionStart called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveTrackSessionStart not implemented', success: false });
 };
 // Stub: lasttoliveTrackSessionEnd - TODO: implement actual function
 var lasttoliveTrackSessionEnd = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveTrackSessionEnd called but not implemented');
+    logger.debug('lasttoliveTrackSessionEnd called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveTrackSessionEnd not implemented', success: false });
 };
 // Stub: lasttoliveGetServerConfig - TODO: implement actual function
 var lasttoliveGetServerConfig = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveGetServerConfig called but not implemented');
+    logger.debug('lasttoliveGetServerConfig called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveGetServerConfig not implemented', success: false });
 };
 // Stub: lasttoliveAdminGrantItem - TODO: implement actual function
 var lasttoliveAdminGrantItem = function(ctx, logger, nk, payload) {
-    logger.warn('lasttoliveAdminGrantItem called but not implemented');
+    logger.debug('lasttoliveAdminGrantItem called but not implemented (stub)');
     return JSON.stringify({ error: 'lasttoliveAdminGrantItem not implemented', success: false });
 };
 
@@ -23841,41 +23854,15 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.error('[GameRegistry] Failed to initialize game registry: ' + err.message);
     }
 
-    // Schedule daily game registry sync (runs at 2 AM UTC daily)
-    try {
-        logger.info('[GameRegistry] Scheduling daily sync job...');
-        initializer.registerMatch('', {
-            matchInit: emptyMatchInit,
-            matchJoinAttempt: emptyMatchJoinAttempt,
-            matchJoin: emptyMatchJoin,
-            matchLeave: emptyMatchLeave,
-            matchLoop: emptyMatchLoop,
-            matchTerminate: emptyMatchTerminate,
-            matchSignal: emptyMatchSignal
-        });
-        // Register daily cron job for game registry sync
-        // Runs daily at 2 AM UTC: "0 2 * * *"
-        var cronExpr = "0 2 * * *";
-        logger.info('[GameRegistry] Note: To enable daily sync, configure cron in server config');
-        logger.info('[GameRegistry] Cron expression for daily 2 AM UTC: ' + cronExpr);
-        logger.info('[GameRegistry] Call sync_game_registry RPC manually or on deployment');
-    } catch (err) {
-        logger.error('[GameRegistry] Failed to setup scheduled sync: ' + err.message);
-    }
-
-    // Trigger initial sync on startup
-    try {
-        logger.info('[GameRegistry] Triggering initial sync on startup...');
-        var syncResult = rpcSyncGameRegistry({}, logger, nk, "{}");
-        var parsed = JSON.parse(syncResult);
-        if (parsed.success) {
-            logger.info('[GameRegistry] Startup sync completed: ' + parsed.gamesSync + ' games synced');
-        } else {
-            logger.warn('[GameRegistry] Startup sync failed: ' + parsed.error);
-        }
-    } catch (err) {
-        logger.warn('[GameRegistry] Startup sync error: ' + err.message);
-    }
+    // Daily sync is invoked via the `sync_game_registry` RPC (registered above and
+    // overridden by the TypeScript LegacyGameRegistry module with the real impl).
+    // For automated scheduling, configure an external cron (e.g. CronJob in K8s) to
+    // call that RPC on a schedule — Goja runtime does not support in-process cron and
+    // `registerMatch` is for multiplayer authority, not scheduled jobs.
+    //
+    // NOTE: A previous in-process startup sync was removed because it directly called
+    // the hoisted `rpcSyncGameRegistry` stub from this file (which always returns
+    // "not implemented"), producing spurious P2 warnings on every pod start.
 
     // Register Daily Rewards RPCs
     try {

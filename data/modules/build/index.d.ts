@@ -662,6 +662,41 @@ declare namespace LegacyWallet {
     function rpcUpdateGameRewardConfig(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace AnalyticsAlerts {
+    interface RpcSample {
+        ts: number;
+        rpc: string;
+        group: string;
+        durMs: number;
+        ok: boolean;
+        err?: string;
+        userId?: string;
+    }
+    function init(ctx: nkruntime.Context, logger: nkruntime.Logger): void;
+    function groupForRpc(rpcId: string): string;
+    function recordSample(nk: nkruntime.Nakama, logger: nkruntime.Logger, rpc: string, durMs: number, ok: boolean, err?: string, userId?: string): void;
+    function getSamplesInWindow(nk: nkruntime.Nakama, startMs: number, endMs: number, maxRecords?: number): RpcSample[];
+    function cleanupOldSamples(nk: nkruntime.Nakama, logger: nkruntime.Logger): number;
+    function tryAcquireSlotLock(nk: nkruntime.Nakama, slotIso: string): boolean;
+    function lastClosedSlotStart(intervalMs: number, nowMs: number): number;
+    function percentile(sortedAsc: number[], p: number): number;
+    function latencyStats(samples: RpcSample[]): {
+        count: number;
+        avg: number;
+        p50: number;
+        p90: number;
+        p99: number;
+        max: number;
+    };
+    function postSummaryForSlot(nk: nkruntime.Nakama, logger: nkruntime.Logger, slotStartMs: number): boolean;
+    function runSchedulerTick(nk: nkruntime.Nakama, logger: nkruntime.Logger): {
+        posted: boolean;
+        reason: string;
+        slotIso?: string;
+    };
+    function instrumentInitializer(initializer: nkruntime.Initializer, logger: nkruntime.Logger): nkruntime.Initializer;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriAudiences {
     function isInAudience(nk: nkruntime.Nakama, userId: string, audienceId: string): boolean;
     function register(initializer: nkruntime.Initializer): void;

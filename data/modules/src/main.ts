@@ -6,6 +6,20 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   logger.info("Hiro + Satori Custom Build");
   logger.info("========================================");
 
+  // ---- Analytics Alerts: init + instrument initializer BEFORE any module registers RPCs ----
+  // Every subsequent initializer.registerRpc() call is auto-wrapped with timing/error capture.
+  // The analytics RPCs themselves are registered on the ORIGINAL initializer to avoid
+  // sampling-the-sampler recursion via the opportunistic scheduler tick.
+  var originalInitializer = initializer;
+  try {
+    AnalyticsAlerts.init(ctx, logger);
+    AnalyticsAlerts.register(originalInitializer);
+    initializer = AnalyticsAlerts.instrumentInitializer(originalInitializer, logger);
+    logger.info("[AnalyticsAlerts] hooks installed; all subsequent RPCs will be sampled");
+  } catch (err: any) {
+    logger.error("[AnalyticsAlerts] failed to install: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Legacy System Registration (backward-compatible RPCs) ----
   try {
     logger.info("[Legacy] Registering wallet RPCs...");
