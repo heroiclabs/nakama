@@ -80,7 +80,33 @@ This document summarizes the comprehensive analysis and enhancement of the Nakam
 
 ---
 
-### 4. **SERVER_GAPS_ANALYSIS.md**
+### 4. **QUIZVERSE_QR_ANALYTICS.md**
+**Location**: `/nakama/docs/QUIZVERSE_QR_ANALYTICS.md`
+
+**Contents**:
+- End-to-end runbook for the QR Studio → Nakama Satori analytics pipeline
+  anchored on the **quizverse** game (`gameId="quizverse"`)
+- Single-picture pipeline diagram (phone → smartlink → Postgres + S3 +
+  Nakama RPC → dashboards)
+- The five flavours of QR analytics and where each one is persisted
+- Satori event taxonomy (`qr.scan`, `qr.landing_view`, `qr.landing_action`)
+  and how `metadata.game_id` ties events back to the Nakama Console
+  quizverse view
+- The `satori_event_external` RPC wire shape (double-JSON-encoded body,
+  `http_key` query param) and a copy-paste on-call probe
+- Geo enrichment (geoip-lite) — why ALB-fronted scans now have country
+  AND city without Cloudflare
+- Monthly warehouse-export CronJob and the backfill recipe
+- Symptom → root cause → fix table for the 9 most common breakages
+- Quick links to every code file, manifest, and dashboard URL involved
+- Closed-gaps log (post-2026-04-22 review)
+
+**Use Case**: On-call triage for QR scan analytics; the single point of
+truth for "is the quizverse QR pipeline healthy?"
+
+---
+
+### 5. **SERVER_GAPS_ANALYSIS.md**
 **Location**: `/nakama/docs/SERVER_GAPS_ANALYSIS.md`
 
 **Contents**:
