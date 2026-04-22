@@ -362,6 +362,20 @@ var grantAchievementRewards = function(nk, logger, userId, gameId, rewards) {
  */
 var rpcAchievementsCreateDefinition = function(ctx, logger, nk, payload) {
     try {
+        if (typeof RpcHelpers !== 'undefined' && RpcHelpers && RpcHelpers.requireAdmin) {
+            RpcHelpers.requireAdmin(ctx, nk);
+        } else {
+            if (ctx.userId) {
+                var _accts = nk.accountsGetId([ctx.userId]);
+                var _isAdmin = false;
+                if (_accts && _accts.length > 0) {
+                    var _meta = _accts[0].user.metadata;
+                    if (_meta && _meta.admin === true) _isAdmin = true;
+                }
+                if (!_isAdmin) throw Error("Admin access required");
+            }
+        }
+
         var data = JSON.parse(payload || '{}');
         
         if (!data.game_id || !data.achievement_id || !data.title) {
@@ -447,6 +461,20 @@ var rpcAchievementsCreateDefinition = function(ctx, logger, nk, payload) {
  */
 var rpcAchievementsBulkCreate = function(ctx, logger, nk, payload) {
     try {
+        if (typeof RpcHelpers !== 'undefined' && RpcHelpers && RpcHelpers.requireAdmin) {
+            RpcHelpers.requireAdmin(ctx, nk);
+        } else {
+            if (ctx.userId) {
+                var _accts = nk.accountsGetId([ctx.userId]);
+                var _isAdmin = false;
+                if (_accts && _accts.length > 0) {
+                    var _meta = _accts[0].user.metadata;
+                    if (_meta && _meta.admin === true) _isAdmin = true;
+                }
+                if (!_isAdmin) throw Error("Admin access required");
+            }
+        }
+
         var data = JSON.parse(payload || '{}');
         
         if (!data.game_id || !data.achievements || !Array.isArray(data.achievements)) {
