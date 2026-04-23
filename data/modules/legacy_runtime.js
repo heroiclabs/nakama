@@ -19089,32 +19089,29 @@ function asyncChallengeProcessCompletion(nk, logger, session) {
 }
 
 /**
- * Generate a unique 8-character share code from session ID
- * Uses multiple hash rounds + UUID bytes for collision resistance.
- * ~2.8 trillion possible codes (36^8), vastly better than the previous 6-char/32-bit approach.
- * @param {string} sessionId - UUID session identifier
- * @returns {string} 8-character uppercase alphanumeric code
+ * Generate a unique 6-digit numeric share code (100000–999999).
+ * Numeric-only so the 6-box join-code input field on the client (Phantom Arena)
+ * can capture every character without an alphabetic keyboard. Collisions are
+ * checked against the active code mapping in storage; on the rare event of 10
+ * back-to-back collisions we fall back to a time-seeded 6-digit value.
+ * @param {object} nk - Nakama runtime (for storageRead collision check)
+ * @returns {string} 6-digit numeric share code
  */
-function asyncChallengeGenerateShareCode(sessionId) {
-    // Use the raw UUID hex bytes directly for better distribution
-    var cleanId = sessionId.replace(/-/g, '');
-    // Two independent hash rounds to get 64 bits of entropy
-    var hash1 = 0;
-    var hash2 = 5381; // djb2 seed
-    for (var i = 0; i < cleanId.length; i++) {
-        var c = cleanId.charCodeAt(i);
-        hash1 = ((hash1 << 5) - hash1 + c) | 0;
-        hash2 = ((hash2 << 5) + hash2 + c) | 0;
+function asyncChallengeGenerateShareCode(nk) {
+    for (var attempt = 0; attempt < 10; attempt++) {
+        var code = String(100000 + Math.floor(Math.random() * 900000));
+        try {
+            var existing = nk.storageRead([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key:        'code_' + code,
+                userId:     ASYNC_CHALLENGE_SYSTEM_USER
+            }]);
+            if (!existing || existing.length === 0) return code;
+        } catch (_) {
+            return code;
+        }
     }
-    // Combine both hashes into an 8-char base36 code
-    var part1 = Math.abs(hash1).toString(36).toUpperCase();
-    var part2 = Math.abs(hash2).toString(36).toUpperCase();
-    var code = (part1 + part2).substring(0, 8);
-    // Pad if needed (extremely rare)
-    while (code.length < 8) {
-        code = code + 'A';
-    }
-    return code;
+    return String(100000 + (Date.now() % 900000));
 }
 
 /**
@@ -19361,7 +19358,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
 
         // Generate session ID and share code
         var sessionId = nk.uuidv4();
-        var shareCode = asyncChallengeGenerateShareCode(sessionId);
+        var shareCode = asyncChallengeGenerateShareCode(nk);
         var now = Date.now();
         var expiresAt = now + (ASYNC_CHALLENGE_EXPIRY_HOURS * 60 * 60 * 1000);
 
@@ -20544,7 +20541,7 @@ function rpcAsyncChallengeRematch(ctx, logger, nk, payload) {
 
         // Generate new session
         var newSessionId = nk.uuidv4();
-        var shareCode = asyncChallengeGenerateShareCode(newSessionId);
+        var shareCode = asyncChallengeGenerateShareCode(nk);
         var now = Date.now();
         var expiresAt = now + (ASYNC_CHALLENGE_EXPIRY_HOURS * 60 * 60 * 1000);
 
@@ -22546,13 +22543,10 @@ function rpcGetPlayerStats(ctx, logger, nk, payload) {
 }
 
 // Helper function for generating share codes (must be before functions that use it)
+// 6-digit numeric (100000–999999) — unified room-code format across QuizVerse so
+// the 6-box numeric input field on the join-code page accepts every char.
 function generateShareCode() {
-    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    var code = '';
-    for (var i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
+    return String(100000 + Math.floor(Math.random() * 900000));
 }
 
 // Compatibility Quiz RPCs - v3.0
@@ -24501,13 +24495,9 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     // v3.1 NEW RPCs - Compatibility Quiz System (5 RPCs)
     // ============================================================================
+    // 6-digit numeric (100000–999999) — unified room-code format across QuizVerse.
     function generateShareCode() {
-        var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        var code = '';
-        for (var i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return code;
+        return String(100000 + Math.floor(Math.random() * 900000));
     }
 
     try {

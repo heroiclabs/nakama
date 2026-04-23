@@ -53,12 +53,9 @@ function safeWrite(nk, collection, key, userId, value) {
 }
 
 function generateJoinCode() {
-    var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    var code = "";
-    for (var i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
+    // 6-digit numeric (100000–999999) — unified room-code format across QuizVerse
+    // so the 6-box numeric input field on the join-code page accepts every char.
+    return String(100000 + Math.floor(Math.random() * 900000));
 }
 
 // ---------------------------------------------------------------------------
