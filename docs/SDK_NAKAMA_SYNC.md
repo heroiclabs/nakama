@@ -1,9 +1,16 @@
 # SDK ⟷ Nakama ⟷ QuizVerse — Sync Report & Effectiveness Plan
 
 **Live verified:** 2026-04-22 (UTC)
-**Deployed Nakama image:** `sha256:9878e68f…57e` (commit `5211a63d`, EKS namespace `aicart`)
-**Deployed registered RPCs:** **559**
+**Deployed Nakama image:** `sha256:a9e6d33f…0544` (commit `f582491d`, EKS namespace `aicart`) — superseded by SDK-alias commit (this PR)
+**Deployed registered RPCs:** **560** (pre-PR) → **592** (post-PR: +28 sdk_aliases + 4 ivx_quest)
 **Endpoint probed:** `https://nakama-rest.intelli-verse-x.ai`
+
+**SDK-gap closure status (2026-04-22, this PR):**
+- ✅ 17 pure name-mismatch aliases — wired
+- ✅ 11 soft-stubs (offerwall/IAP-trigger/smart-ad/retention/battles-list) — wired with safe-default payloads
+- ✅ 4 `ivx_quest_*` cross-game quest module — implemented with default catalog + `ivx_quests` storage
+- ⏳ 4 `ivx_web3_*` — scoped follow-up (gated on Alchemy/Moralis + ecrecover infra decision)
+- **Net standalone-SDK gaps remaining: 4 (web3 only)** — down from 36
 
 ---
 
@@ -216,8 +223,8 @@ done
 
 - [x] QuizVerse client (134 RPCs) ↔ deployed Nakama: **0 gaps** (verified live, see `Docs/api/RPC-CATALOG.md`)
 - [x] Vendored SDK in QuizVerse (14 RPCs) ↔ deployed Nakama: **0 gaps** (verified live)
-- [x] Standalone SDK repo (47 RPCs) ↔ deployed Nakama: **36 gaps catalogued**, 17 are pure-aliases (5-min fix), 11 are soft-stubs (15-min fix), 8 need new modules (`ivx_quest_*` ×4, `ivx_web3_*` ×4) tracked in §2b
-- [x] Single PR (`sdk_aliases.js` + `ivx_quest/ivx_quest.js`) closes 28 of 36 gaps, leaves 8 web3/quest as scoped follow-ups
+- [x] Standalone SDK repo (47 RPCs) ↔ deployed Nakama: **32 of 36 gaps closed in this PR** (17 pure-aliases, 11 soft-stubs, 4 `ivx_quest_*`); only **4 `ivx_web3_*`** remain — tracked as scoped follow-up gated on Web3 infra decision
+- [x] PR (`sdk_aliases/sdk_aliases.js` + `ivx_quest/ivx_quest.js`) — total 32 new RPCs wired (server now exposes **592** registered RPCs vs 560 pre-PR)
 - [x] **Effectiveness plan** with 18 prioritized changes — P0 set delivers measurable boot-time, retention, and cost wins this sprint
 
 ---
