@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-23T01:38:39.806Z
+// Generated: 2026-04-23T02:06:27.707Z
 // RPC Count: 593
 // ============================================================
 
@@ -5579,6 +5579,10 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
         var lifetimeEvents = 0;
         var lifetimeSessions = 0;
         var lastEventUtc = 0;
+        var modeCounts = {};
+        var totalQuizPlays = 0;
+        var favoriteMode = "";
+        var favoriteModeCount = 0;
         try {
             var rollup = nk.storageRead([{
                 collection: EVENT_INDEX_COLLECTION,
@@ -5589,6 +5593,20 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
                 lifetimeEvents = rollup[0].value.eventCount || 0;
                 lifetimeSessions = rollup[0].value.sessionCount || 0;
                 lastEventUtc = rollup[0].value.lastEventUtc || 0;
+                if (rollup[0].value.modeCounts && typeof rollup[0].value.modeCounts === "object") {
+                    modeCounts = rollup[0].value.modeCounts;
+                    // Derive total + favorite mode for cheap dashboard usage
+                    for (var k in modeCounts) {
+                        if (Object.prototype.hasOwnProperty.call(modeCounts, k)) {
+                            var v = parseInt(modeCounts[k], 10) || 0;
+                            totalQuizPlays += v;
+                            if (v > favoriteModeCount) {
+                                favoriteModeCount = v;
+                                favoriteMode = k;
+                            }
+                        }
+                    }
+                }
             }
         } catch (e) { /* no rollup yet — return zero counts */ }
 
@@ -5605,6 +5623,10 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
                 lifetime_event_count: lifetimeEvents,
                 lifetime_session_count: lifetimeSessions,
                 last_event_utc: lastEventUtc,
+                mode_counts: modeCounts,
+                lifetime_quiz_plays: totalQuizPlays,
+                favorite_mode: favoriteMode,
+                favorite_mode_count: favoriteModeCount,
                 tier_signals: {
                     country: country,
                     platform: platform
@@ -5651,6 +5673,12 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
 var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 var MAX_EVENTS_PER_FLUSH   = 10000;
 var MAX_SESSIONS_PER_FLUSH = 50;
+// Per-mode counts are an *absolute* snapshot (not a delta); cap each entry
+// to the same daily ceiling as events to bound storage/abuse. Cap mode-key
+// length so a malicious client can't pump huge keys into our storage row.
+var MAX_MODE_COUNT         = 1000000;
+var MAX_MODE_KEY_LEN       = 64;
+var MAX_MODE_ENTRIES       = 64;
 
 function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
     try {
@@ -5683,7 +5711,8 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
             sessionCount: 0,
             lastEventUtc: 0,
             lastIdempotencyKey: "",
-            updatedUtc: 0
+            updatedUtc: 0,
+            modeCounts: {}
         };
         try {
             var prev = nk.storageRead([{
@@ -5697,8 +5726,37 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
                 existing.lastEventUtc = parseInt(prev[0].value.lastEventUtc || 0, 10) || 0;
                 existing.lastIdempotencyKey = (prev[0].value.lastIdempotencyKey || "").toString();
                 existing.updatedUtc = parseInt(prev[0].value.updatedUtc || 0, 10) || 0;
+                if (prev[0].value.modeCounts && typeof prev[0].value.modeCounts === "object") {
+                    existing.modeCounts = prev[0].value.modeCounts;
+                }
             }
         } catch (e) { /* no prior rollup — start fresh */ }
+
+        // Sanitize incoming mode_counts. Treated as an *absolute* snapshot
+        // of lifetime per-mode plays; we max-merge with the prior snapshot
+        // so a temporarily-cleared client cache can never decrement totals.
+        var incomingMode = (data.mode_counts || data.modeCounts) || null;
+        var mergedModeCounts = {};
+        // Seed with prior values
+        for (var pk in existing.modeCounts) {
+            if (Object.prototype.hasOwnProperty.call(existing.modeCounts, pk)) {
+                mergedModeCounts[pk] = parseInt(existing.modeCounts[pk], 10) || 0;
+            }
+        }
+        if (incomingMode && typeof incomingMode === "object") {
+            var entries = 0;
+            for (var ik in incomingMode) {
+                if (!Object.prototype.hasOwnProperty.call(incomingMode, ik)) continue;
+                if (entries >= MAX_MODE_ENTRIES) break;
+                var key = ("" + ik).substring(0, MAX_MODE_KEY_LEN);
+                var iv = parseInt(incomingMode[ik], 10) || 0;
+                if (iv < 0) iv = 0;
+                if (iv > MAX_MODE_COUNT) iv = MAX_MODE_COUNT;
+                var prevV = mergedModeCounts[key] || 0;
+                mergedModeCounts[key] = (iv > prevV) ? iv : prevV;
+                entries++;
+            }
+        }
 
         // Idempotency: replay of the same key returns current totals
         // unchanged. Client should pick a key like "YYYY-MM-DD" so retries
@@ -5730,7 +5788,8 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
                 lastEventUtc: newLastEventUtc,
                 lastIdempotencyKey: idempotencyKey,
                 updatedUtc: nowUtc,
-                gameId: gameId
+                gameId: gameId,
+                modeCounts: mergedModeCounts
             },
             permissionRead: 1,
             permissionWrite: 0
@@ -5742,6 +5801,7 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
                 event_count: newEventCount,
                 session_count: newSessionCount,
                 last_event_utc: newLastEventUtc,
+                mode_counts: mergedModeCounts,
                 accepted: true,
                 replayed: false
             }
