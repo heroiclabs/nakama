@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-23T01:30:33.655Z
-// RPC Count: 592
+// Generated: 2026-04-23T01:38:39.806Z
+// RPC Count: 593
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -516,6 +516,7 @@ var __rpc_analytics_backfill_events;
 var __rpc_analytics_feature_flags;
 var __rpc_analytics_metrics;
 var __rpc_analytics_get_player_profile;
+var __rpc_analytics_record_user_rollup;
 var __rpc_analytics_retention_curves;
 var __rpc_analytics_rollup_run;
 var __rpc_analytics_rollup_backfill;
@@ -5616,9 +5617,145 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// analytics_record_user_rollup
+// ─────────────────────────────────────────────────────────────────────
+// Daily client-side counter flush. Client tracks event/session counts in
+// PlayerPrefs and calls this RPC at most once per 24h (idempotency-key
+// guarded). Server reads the existing rollup, adds the day's deltas, and
+// writes back. This is what makes analytics_get_player_profile's
+// lifetime_event_count + lifetime_session_count fields actually accurate.
+//
+// PAYLOAD:
+//   {
+//     "gameId":         "quizverse",   // optional
+//     "events_delta":   42,            // events fired since last flush
+//     "sessions_delta": 1,             // sessions started since last flush
+//     "last_event_utc": 1700000000,    // optional, defaults to now
+//     "idempotency_key": "2026-04-22"  // typically a date string; replays
+//                                       // within 36h are silent no-ops
+//   }
+//
+// RESPONSE:
+//   { success:true, data:{ event_count, session_count, last_event_utc,
+//                          accepted, replayed } }
+//
+// SAFETY:
+//   * Caps single-call deltas at 10k events / 50 sessions (anti-abuse).
+//   * Idempotency: the last accepted key is persisted alongside counters;
+//     re-sends with the same key return the current totals with
+//     replayed:true and DO NOT double-count.
+//   * On any error returns { success:false } — client should treat as
+//     "try again next session" and not retry hard.
+
+var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+var MAX_EVENTS_PER_FLUSH   = 10000;
+var MAX_SESSIONS_PER_FLUSH = 50;
+
+function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
+    try {
+        var data = {};
+        try { data = JSON.parse(payload || '{}'); } catch (_) { /* ignore */ }
+
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "no_session" });
+        }
+
+        var gameId = data.gameId || data.game_id || DEFAULT_GAME_ID;
+        var idempotencyKey = (data.idempotency_key || data.idempotencyKey || "").toString();
+
+        var eventsDelta = parseInt(data.events_delta || data.eventsDelta || 0, 10) || 0;
+        var sessionsDelta = parseInt(data.sessions_delta || data.sessionsDelta || 0, 10) || 0;
+        if (eventsDelta < 0) eventsDelta = 0;
+        if (sessionsDelta < 0) sessionsDelta = 0;
+        if (eventsDelta > MAX_EVENTS_PER_FLUSH) eventsDelta = MAX_EVENTS_PER_FLUSH;
+        if (sessionsDelta > MAX_SESSIONS_PER_FLUSH) sessionsDelta = MAX_SESSIONS_PER_FLUSH;
+
+        var nowUtc = Math.floor(Date.now() / 1000);
+        var lastEventUtc = parseInt(data.last_event_utc || data.lastEventUtc || nowUtc, 10) || nowUtc;
+        if (lastEventUtc > nowUtc + 300) lastEventUtc = nowUtc; // clamp clock-skew
+
+        var storageKey = gameId + "_" + userId;
+
+        var existing = {
+            eventCount: 0,
+            sessionCount: 0,
+            lastEventUtc: 0,
+            lastIdempotencyKey: "",
+            updatedUtc: 0
+        };
+        try {
+            var prev = nk.storageRead([{
+                collection: EVENT_INDEX_COLLECTION,
+                key: storageKey,
+                userId: SYSTEM_USER_ID
+            }]);
+            if (prev && prev.length > 0 && prev[0].value) {
+                existing.eventCount = parseInt(prev[0].value.eventCount || 0, 10) || 0;
+                existing.sessionCount = parseInt(prev[0].value.sessionCount || 0, 10) || 0;
+                existing.lastEventUtc = parseInt(prev[0].value.lastEventUtc || 0, 10) || 0;
+                existing.lastIdempotencyKey = (prev[0].value.lastIdempotencyKey || "").toString();
+                existing.updatedUtc = parseInt(prev[0].value.updatedUtc || 0, 10) || 0;
+            }
+        } catch (e) { /* no prior rollup — start fresh */ }
+
+        // Idempotency: replay of the same key returns current totals
+        // unchanged. Client should pick a key like "YYYY-MM-DD" so retries
+        // within the same day are silent no-ops.
+        if (idempotencyKey && existing.lastIdempotencyKey === idempotencyKey) {
+            return JSON.stringify({
+                success: true,
+                data: {
+                    event_count: existing.eventCount,
+                    session_count: existing.sessionCount,
+                    last_event_utc: existing.lastEventUtc,
+                    accepted: false,
+                    replayed: true
+                }
+            });
+        }
+
+        var newEventCount   = existing.eventCount + eventsDelta;
+        var newSessionCount = existing.sessionCount + sessionsDelta;
+        var newLastEventUtc = Math.max(existing.lastEventUtc, lastEventUtc);
+
+        nk.storageWrite([{
+            collection: EVENT_INDEX_COLLECTION,
+            key: storageKey,
+            userId: SYSTEM_USER_ID,
+            value: {
+                eventCount: newEventCount,
+                sessionCount: newSessionCount,
+                lastEventUtc: newLastEventUtc,
+                lastIdempotencyKey: idempotencyKey,
+                updatedUtc: nowUtc,
+                gameId: gameId
+            },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+
+        return JSON.stringify({
+            success: true,
+            data: {
+                event_count: newEventCount,
+                session_count: newSessionCount,
+                last_event_utc: newLastEventUtc,
+                accepted: true,
+                replayed: false
+            }
+        });
+    } catch (err) {
+        logger.warn("[analytics_record_user_rollup] error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message || "unknown_error" });
+    }
+}
+
 function __ModuleInit_6(ctx, logger, nk, initializer) {
     __rpc_analytics_get_player_profile = __rpc_analytics_get_player_profile || (rpcAnalyticsGetPlayerProfile);
-    logger.info("[analytics_player_profile] Module registered: 1 RPC");
+    __rpc_analytics_record_user_rollup = __rpc_analytics_record_user_rollup || (rpcAnalyticsRecordUserRollup);
+    logger.info("[analytics_player_profile] Module registered: 2 RPCs");
 }
 
 
@@ -78746,6 +78883,7 @@ try { __rpc_analytics_backfill_events = __rpc_analytics_backfill_events || (rpcA
 try { __rpc_analytics_feature_flags = __rpc_analytics_feature_flags || (rpcAnalyticsFeatureFlags); } catch(e) {}
 try { __rpc_analytics_metrics = __rpc_analytics_metrics || (rpcAnalyticsMetrics); } catch(e) {}
 try { __rpc_analytics_get_player_profile = __rpc_analytics_get_player_profile || (rpcAnalyticsGetPlayerProfile); } catch(e) {}
+try { __rpc_analytics_record_user_rollup = __rpc_analytics_record_user_rollup || (rpcAnalyticsRecordUserRollup); } catch(e) {}
 try { __rpc_analytics_retention_curves = __rpc_analytics_retention_curves || (rpcAnalyticsRetentionCurves); } catch(e) {}
 try { __rpc_analytics_rollup_run = __rpc_analytics_rollup_run || (rpcAnalyticsRollupRun); } catch(e) {}
 try { __rpc_analytics_rollup_backfill = __rpc_analytics_rollup_backfill || (rpcAnalyticsRollupBackfill); } catch(e) {}
@@ -79378,6 +79516,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("analytics_feature_flags", __rpc_analytics_feature_flags); } catch(e) {}
   try { initializer.registerRpc("analytics_metrics", __rpc_analytics_metrics); } catch(e) {}
   try { initializer.registerRpc("analytics_get_player_profile", __rpc_analytics_get_player_profile); } catch(e) {}
+  try { initializer.registerRpc("analytics_record_user_rollup", __rpc_analytics_record_user_rollup); } catch(e) {}
   try { initializer.registerRpc("analytics_retention_curves", __rpc_analytics_retention_curves); } catch(e) {}
   try { initializer.registerRpc("analytics_rollup_run", __rpc_analytics_rollup_run); } catch(e) {}
   try { initializer.registerRpc("analytics_rollup_backfill", __rpc_analytics_rollup_backfill); } catch(e) {}
@@ -79463,5 +79602,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 592 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 593 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }
