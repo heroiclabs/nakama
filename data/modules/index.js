@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-23T01:24:47.437Z
+// Generated: 2026-04-23T01:30:33.655Z
 // RPC Count: 592
 // ============================================================
 
@@ -20112,6 +20112,20 @@ function rpcIvxQuestClaim(ctx, logger, nk, payload) {
         if (!quest) return JSON.stringify({ success: false, error: "unknown_quest_id" });
 
         var state = _readUserState(nk, ctx.userId);
+
+        // Idempotency FIRST — if already claimed, return success:true so
+        // SDK clients that retry on transient network errors don't see
+        // false-negatives. Must run before the active-entry check because
+        // a successful claim removes the quest from state.active.
+        for (var i = 0; i < state.completed.length; i++) {
+            if (state.completed[i].qid === questId && state.completed[i].claimed) {
+                return JSON.stringify({
+                    success: true,
+                    data: { alreadyClaimed: true, rewards: state.completed[i].rewards || quest.rewards }
+                });
+            }
+        }
+
         var entry = state.active[questId];
         if (!entry) return JSON.stringify({ success: false, error: "quest_not_active" });
         if (entry.progress < entry.target) {
@@ -20121,16 +20135,6 @@ function rpcIvxQuestClaim(ctx, logger, nk, payload) {
                 progress: entry.progress,
                 target: entry.target
             });
-        }
-
-        // Idempotency — if already in completed[] AND claimed, no-op.
-        for (var i = 0; i < state.completed.length; i++) {
-            if (state.completed[i].qid === questId && state.completed[i].claimed) {
-                return JSON.stringify({
-                    success: true,
-                    data: { alreadyClaimed: true, rewards: quest.rewards }
-                });
-            }
         }
 
         var nowSec = Math.floor(Date.now() / 1000);
