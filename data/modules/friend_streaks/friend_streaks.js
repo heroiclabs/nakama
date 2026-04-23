@@ -83,13 +83,60 @@ function fsHoursSince(isoDate) {
     return (Date.now() - new Date(isoDate).getTime()) / 3600000;
 }
 
-// Clean up broken streaks
+// Clean up broken streaks. When a streak is broken we also persist a
+// rolling "broken log" entry under collection=friend_streaks key=broken_log_{userId}
+// so the player's UI can later surface "you lost a 30-day streak with X" even
+// if they weren't online when the prune happened (V23 in PLAN-07).
+var FS_BROKEN_LOG_MAX = 50;
+
+function fsAppendBrokenLog(nk, logger, userId, brokenList) {
+    if (!brokenList || brokenList.length === 0) return;
+    try {
+        var existing = [];
+        try {
+            var rows = nk.storageRead([{
+                collection: FS_COLLECTION,
+                key: 'broken_log_' + userId,
+                userId: userId
+            }]);
+            if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+                existing = rows[0].value.entries;
+            }
+        } catch (_) {}
+
+        var now = new Date().toISOString();
+        for (var i = 0; i < brokenList.length; i++) {
+            var b = brokenList[i];
+            existing.unshift({
+                friendId:  b.friendId,
+                streakDays: b.days || 0,
+                brokenAt:  now,
+                repaired:  false
+            });
+        }
+        if (existing.length > FS_BROKEN_LOG_MAX) {
+            existing = existing.slice(0, FS_BROKEN_LOG_MAX);
+        }
+
+        nk.storageWrite([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + userId,
+            userId: userId,
+            value: { entries: existing, updatedAt: now },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        if (logger && logger.warn) logger.warn('[FriendStreaks] broken-log persist failed: ' + err.message);
+    }
+}
+
 function fsPruneStreaks(data) {
     var pruned = [];
     for (var fid in data.streaks) {
         var s = data.streaks[fid];
         if (fsHoursSince(s.lastInteractionAt) > FS_STREAK_BREAK_HOURS) {
-            pruned.push({ friendId: fid, days: s.streakDays });
+            pruned.push({ friendId: fid, days: s.streakDays, friendDisplayName: s.friendDisplayName || '' });
             delete data.streaks[fid];
         }
     }
@@ -120,6 +167,7 @@ function rpcFriendStreakGetState(ctx, logger, nk, payload) {
 
     if (broken.length > 0) {
         fsWriteData(nk, logger, ctx.userId, data);
+        fsAppendBrokenLog(nk, logger, ctx.userId, broken);
     }
 
     // Build response
@@ -310,4 +358,255 @@ function rpcFriendStreakSendNudge(ctx, logger, nk, payload) {
         cooldownHours: FS_NUDGE_COOLDOWN_HOURS,
         timestamp: new Date().toISOString()
     });
+}
+
+// ─── RPC: friend_streak_get_broken_log ──────────────────────────────────────
+//
+// Returns the rolling log of streaks that broke while the player was offline,
+// so the client can show a "you lost a 30-day streak with X" banner. Also
+// runs a fresh prune so the log is always up to date at read time.
+
+function rpcFriendStreakGetBrokenLog(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input = {};
+    if (payload && payload !== '') {
+        try { input = JSON.parse(payload); } catch (e) { /* ignore — empty filter */ }
+    }
+    var limit = parseInt(input.limit) || 20;
+    if (limit < 1)  limit = 1;
+    if (limit > FS_BROKEN_LOG_MAX) limit = FS_BROKEN_LOG_MAX;
+    var includeRepaired = input.includeRepaired === true;
+
+    // Fresh prune so the log is always current at read time
+    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    var fresh = fsPruneStreaks(data);
+    if (fresh.length > 0) {
+        fsWriteData(nk, logger, ctx.userId, data);
+        fsAppendBrokenLog(nk, logger, ctx.userId, fresh);
+    }
+
+    var entries = [];
+    try {
+        var rows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + ctx.userId,
+            userId: ctx.userId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+            entries = rows[0].value.entries;
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] broken-log read failed: ' + err.message);
+    }
+
+    if (!includeRepaired) {
+        var filtered = [];
+        for (var i = 0; i < entries.length; i++) {
+            if (!entries[i].repaired) filtered.push(entries[i]);
+        }
+        entries = filtered;
+    }
+    if (entries.length > limit) entries = entries.slice(0, limit);
+
+    return JSON.stringify({
+        success: true,
+        entries: entries,
+        totalEntries: entries.length,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_streak_repair ──────────────────────────────────────────────
+//
+// Spend a "Streak Saver" (gem cost) to restore a broken bilateral streak.
+// Server-authoritative: validates the broken-log entry exists, debits the
+// wallet, restores the streak with its previous day count, marks the entry
+// repaired, and notifies the friend so their state can mirror.
+//
+// Schema: { friendId: <UUID>, idempotencyKey?: <string> }
+
+var FS_REPAIR_GEM_COST = 50;
+
+function rpcFriendStreakRepair(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload || '{}'); } catch (e) { return fsError('Invalid JSON'); }
+
+    var friendId = input.friendId;
+    if (!friendId) return fsError('Missing friendId');
+    var idempotencyKey = input.idempotencyKey || ('fs_repair_' + friendId + '_' + Date.now());
+
+    // Idempotency check — refuse double-spend on the same key
+    try {
+        var idemRows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'repair_idem_' + ctx.userId + '_' + idempotencyKey,
+            userId: ctx.userId
+        }]);
+        if (idemRows && idemRows.length > 0 && idemRows[0].value) {
+            return JSON.stringify({
+                success: true,
+                idempotent: true,
+                friendId: friendId,
+                streakDays: idemRows[0].value.restoredDays || 0,
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (_) { /* fall-through */ }
+
+    // Find the broken-log entry for this friend (most recent unrepaired)
+    var brokenEntry = null;
+    var brokenLog = null;
+    try {
+        var rows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + ctx.userId,
+            userId: ctx.userId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+            brokenLog = rows[0].value;
+            for (var i = 0; i < brokenLog.entries.length; i++) {
+                if (brokenLog.entries[i].friendId === friendId && !brokenLog.entries[i].repaired) {
+                    brokenEntry = brokenLog.entries[i];
+                    break;
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair read broken-log failed: ' + err.message);
+    }
+
+    if (!brokenEntry) {
+        return fsError('No broken streak found for friend ' + friendId);
+    }
+
+    // Repair window: only repair if the streak broke within last 7 days
+    var brokenAtMs = new Date(brokenEntry.brokenAt).getTime();
+    if ((Date.now() - brokenAtMs) > (7 * 86400000)) {
+        return fsError('Streak broken more than 7 days ago — too late to repair');
+    }
+
+    // Debit gems
+    try {
+        nk.walletUpdate(ctx.userId, { gems: -FS_REPAIR_GEM_COST }, {
+            source: 'friend_streak_repair',
+            friendId: friendId,
+            idempotencyKey: idempotencyKey
+        }, true);
+    } catch (walletErr) {
+        return fsError('Insufficient gems: ' + walletErr.message);
+    }
+
+    // Restore the streak on caller's side
+    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    if (Object.keys(data.streaks).length >= FS_MAX_CONCURRENT) {
+        // Refund gems
+        try {
+            nk.walletUpdate(ctx.userId, { gems: FS_REPAIR_GEM_COST }, {
+                source: 'friend_streak_repair_refund',
+                friendId: friendId
+            }, true);
+        } catch (_) {}
+        return fsError('Max concurrent streaks reached — cannot restore');
+    }
+    data.streaks[friendId] = {
+        friendDisplayName: brokenEntry.friendDisplayName || '',
+        streakDays: brokenEntry.streakDays || 0,
+        myContributionToday: false,
+        friendContributionToday: false,
+        lastInteractionAt: new Date().toISOString(),
+        startedAt: new Date().toISOString(),
+        repairedAt: new Date().toISOString()
+    };
+    data.updatedAt = new Date().toISOString();
+    fsWriteData(nk, logger, ctx.userId, data);
+
+    // Mark broken-log entry as repaired
+    try {
+        if (brokenLog && brokenLog.entries) {
+            for (var j = 0; j < brokenLog.entries.length; j++) {
+                if (brokenLog.entries[j] === brokenEntry) {
+                    brokenLog.entries[j].repaired = true;
+                    brokenLog.entries[j].repairedAt = new Date().toISOString();
+                    break;
+                }
+            }
+            nk.storageWrite([{
+                collection: FS_COLLECTION,
+                key: 'broken_log_' + ctx.userId,
+                userId: ctx.userId,
+                value: brokenLog,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair mark-log failed: ' + err.message);
+    }
+
+    // Persist idempotency record (24h TTL via Nakama isn't supported in JS
+    // runtime, so we just persist forever — keys are scoped per-user and small)
+    try {
+        nk.storageWrite([{
+            collection: FS_COLLECTION,
+            key: 'repair_idem_' + ctx.userId + '_' + idempotencyKey,
+            userId: ctx.userId,
+            value: {
+                friendId: friendId,
+                restoredDays: brokenEntry.streakDays || 0,
+                gemCost: FS_REPAIR_GEM_COST,
+                repairedAt: new Date().toISOString()
+            },
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (_) {}
+
+    // Notify the friend
+    try {
+        nk.notificationsSend([{
+            userId: friendId,
+            subject: 'Streak Restored! 🔥',
+            content: {
+                type: 'friend_streak_repaired',
+                fromUserId: ctx.userId,
+                streakDays: brokenEntry.streakDays || 0
+            },
+            code: 102,
+            persistent: true
+        }]);
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair notify failed: ' + err.message);
+    }
+
+    logger.info('[FriendStreaks] Repaired streak ' + ctx.userId + ' ↔ ' + friendId +
+                ' restoredDays=' + (brokenEntry.streakDays || 0) + ' gemCost=' + FS_REPAIR_GEM_COST);
+
+    return JSON.stringify({
+        success: true,
+        friendId: friendId,
+        streakDays: brokenEntry.streakDays || 0,
+        gemCost: FS_REPAIR_GEM_COST,
+        idempotencyKey: idempotencyKey,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ============================================================================
+// Module Init — register Friend Streak RPCs
+// ============================================================================
+// Registers all 5 friend-streak RPCs. Existing 3 (get_state, record_contribution,
+// send_nudge) are also registered by legacy_runtime.js; postbuild's `||` guard
+// + module-first concat order means our handler wins.
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc('friend_streak_get_state',           rpcFriendStreakGetState);
+    initializer.registerRpc('friend_streak_record_contribution', rpcFriendStreakRecordContribution);
+    initializer.registerRpc('friend_streak_send_nudge',          rpcFriendStreakSendNudge);
+    initializer.registerRpc('friend_streak_get_broken_log',      rpcFriendStreakGetBrokenLog);
+    initializer.registerRpc('friend_streak_repair',              rpcFriendStreakRepair);
+    if (logger && logger.info) {
+        logger.info('[FriendStreaks] Registered 5 RPCs (get_state, record_contribution, send_nudge, get_broken_log, repair)');
+    }
 }

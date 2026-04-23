@@ -405,3 +405,155 @@ function rpcFriendQuestComplete(ctx, logger, nk, payload) {
         timestamp: new Date().toISOString()
     });
 }
+
+// ─── RPC: friend_quest_record_progress ──────────────────────────────────────
+//
+// Server-authoritative progress increment. Closes the
+// "client-trusted friend_quest_complete" exploit (PLAN-07 §V4) by making the
+// server the owner of `quest.currentProgress`. Client only reports the
+// interaction event; server validates type ↔ event compatibility and bumps.
+//
+// Payload: {
+//   questId: <string>,
+//   eventType: 'quiz_win' | 'quiz_complete' | 'review_session' | 'speed_quiz_win' |
+//              'daily_quiz_complete' | 'perfect_round' | 'geo_explore_play' |
+//              'share_score' | 'challenge_accepted' | 'play_with_friend',
+//   amount?: <number, default 1>
+// }
+//
+// Returns the updated quest record (or completion notification if it just
+// crossed the targetProgress threshold). NEVER auto-grants rewards — caller
+// must follow up with friend_quest_complete (which now also re-validates).
+//
+// Validation rules: each questType has an allow-list of compatible eventTypes;
+// foreign event types are silently ignored (return success:true, applied:0).
+var FQ_EVENT_RULES = {
+    PlayTogether:    { events: ['quiz_complete','play_with_friend'] },
+    ChallengeFriend: { events: ['challenge_accepted'] },
+    StudyBuddy:      { events: ['review_session'] },
+    GroupStreak:     { events: ['streak_advanced'] },
+    BeatInSpeedQuiz: { events: ['speed_quiz_win'] },
+    DailyQuizDuo:    { events: ['daily_quiz_complete'] },
+    PerfectRound:    { events: ['perfect_round','quiz_complete'] },
+    ExploreTogether: { events: ['geo_explore_play'] },
+    ShareScore:      { events: ['share_score'] },
+    WinThreeQuizzes: { events: ['quiz_win'] }
+};
+
+function rpcFriendQuestRecordProgress(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fqError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload || '{}'); } catch (e) { return fqError('Invalid JSON'); }
+
+    var questId   = input.questId;
+    var eventType = input.eventType;
+    var amount    = parseInt(input.amount) || 1;
+    if (!questId || !eventType) return fqError('Missing questId or eventType');
+    if (amount < 1 || amount > 100) return fqError('Invalid amount (1..100)');
+
+    var data = fqReadData(nk, logger, ctx.userId);
+    if (!data || !data.quests) return fqError('No quest state — call friend_quest_get_state first');
+
+    var found = null;
+    for (var i = 0; i < data.quests.length; i++) {
+        if (data.quests[i].questId === questId) { found = data.quests[i]; break; }
+    }
+    if (!found) return fqError('Quest not found: ' + questId);
+
+    // Refuse to mutate completed/expired quests
+    if (found.isCompleted) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Quest already completed',
+            timestamp: new Date().toISOString()
+        });
+    }
+    if (found.expiresAt && new Date(found.expiresAt) <= new Date()) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Quest expired',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Event-type ↔ quest-type compatibility check
+    var rule = FQ_EVENT_RULES[found.type];
+    if (!rule) return fqError('Unknown quest type: ' + found.type);
+    var allowed = false;
+    for (var e = 0; e < rule.events.length; e++) {
+        if (rule.events[e] === eventType) { allowed = true; break; }
+    }
+    if (!allowed) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Event type ' + eventType + ' not applicable to quest type ' + found.type,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Apply progress (clamped at target)
+    var prevProgress = found.currentProgress || 0;
+    var target       = found.targetProgress || 1;
+    var newProgress  = Math.min(target, prevProgress + amount);
+    var applied      = newProgress - prevProgress;
+    found.currentProgress = newProgress;
+
+    // Auto-complete server-side when threshold reached
+    var justCompleted = false;
+    if (newProgress >= target && !found.isCompleted) {
+        found.isCompleted = true;
+        justCompleted = true;
+        if (!data.completedIds) data.completedIds = [];
+        // De-dup completedIds
+        var alreadyCompleted = false;
+        for (var c = 0; c < data.completedIds.length; c++) {
+            if (data.completedIds[c] === questId) { alreadyCompleted = true; break; }
+        }
+        if (!alreadyCompleted) data.completedIds.push(questId);
+    }
+
+    data.updatedAt = new Date().toISOString();
+    if (!fqWriteData(nk, logger, ctx.userId, data)) {
+        return fqError('Failed to save quest progress');
+    }
+
+    logger.info('[FriendQuests] record_progress questId=' + questId +
+                ' type=' + found.type + ' eventType=' + eventType +
+                ' applied=' + applied + ' newProgress=' + newProgress + '/' + target +
+                (justCompleted ? ' COMPLETED' : ''));
+
+    return JSON.stringify({
+        success: true,
+        questId: questId,
+        applied: applied,
+        currentProgress: newProgress,
+        targetProgress: target,
+        isCompleted: found.isCompleted,
+        justCompleted: justCompleted,
+        // When justCompleted, the client should call friend_quest_complete to
+        // claim the reward — but server already marks isCompleted so the
+        // claim is purely a wallet transaction at that point.
+        coinReward: justCompleted ? (found.coinReward || 0) : undefined,
+        xpReward:   justCompleted ? (found.xpReward || 0)   : undefined,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ============================================================================
+// Module Init — register Friend Quest RPCs
+// ============================================================================
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc('friend_quest_get_state',       rpcFriendQuestGetState);
+    initializer.registerRpc('friend_quest_complete',        rpcFriendQuestComplete);
+    initializer.registerRpc('friend_quest_record_progress', rpcFriendQuestRecordProgress);
+    if (logger && logger.info) {
+        logger.info('[FriendQuests] Registered 3 RPCs (get_state, complete, record_progress)');
+    }
+}

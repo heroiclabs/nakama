@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-22T20:27:07.423Z
-// RPC Count: 544
+// Generated: 2026-04-23T00:03:04.058Z
+// RPC Count: 559
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -529,6 +529,9 @@ var __rpc_external_poll_appstore;
 var __rpc_external_poll_ugs;
 var __rpc_external_poll_all;
 var __rpc_external_poll_status;
+var __rpc_friend_quest_record_progress;
+var __rpc_friend_streak_get_broken_log;
+var __rpc_friend_streak_repair;
 var __rpc_id;
 var __rpc_send_friend_challenge;
 var __rpc_friends_challenge_user;
@@ -542,6 +545,10 @@ var __rpc_accept_friend_invite;
 var __rpc_decline_friend_invite;
 var __rpc_cancel_friend_invite;
 var __rpc_list_pending_friend_invites;
+var __rpc_friends_get_online_count;
+var __rpc_social_pressure_get_today_summary;
+var __rpc_friend_battle_create;
+var __rpc_friend_invite_with_reward;
 var __rpc_submit_score;
 var __rpc_onboarding_grant_streak_shield;
 var __rpc_qe_player_full_profile;
@@ -553,11 +560,19 @@ var __rpc_quests_wallet_earn;
 var __rpc_quests_wallet_spend;
 var __rpc_quests_wallet_history;
 var __rpc_quests_wallet_migrate_from_postgres;
+var __rpc_smart_review_add_card;
+var __rpc_smart_review_bulk_rate;
+var __rpc_smart_review_get_state;
+var __rpc_smart_review_get_weakness_map;
+var __rpc_smart_review_get_forecast;
+var __rpc_visual_path_get_state;
+var __rpc_visual_path_get_schedule;
+var __rpc_visual_path_skip_day_with_ad;
 
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
 var __TS_OWNED_RPCS = {"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_events_timeline":true,"admin_storage_list":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
-// --- Discovered Modules (75 files) ---
+// --- Discovered Modules (77 files) ---
 
 // --- Module: achievements/achievements.js ---
 /**
@@ -14384,6 +14399,158 @@ function rpcFriendQuestComplete(ctx, logger, nk, payload) {
     });
 }
 
+// ─── RPC: friend_quest_record_progress ──────────────────────────────────────
+//
+// Server-authoritative progress increment. Closes the
+// "client-trusted friend_quest_complete" exploit (PLAN-07 §V4) by making the
+// server the owner of `quest.currentProgress`. Client only reports the
+// interaction event; server validates type ↔ event compatibility and bumps.
+//
+// Payload: {
+//   questId: <string>,
+//   eventType: 'quiz_win' | 'quiz_complete' | 'review_session' | 'speed_quiz_win' |
+//              'daily_quiz_complete' | 'perfect_round' | 'geo_explore_play' |
+//              'share_score' | 'challenge_accepted' | 'play_with_friend',
+//   amount?: <number, default 1>
+// }
+//
+// Returns the updated quest record (or completion notification if it just
+// crossed the targetProgress threshold). NEVER auto-grants rewards — caller
+// must follow up with friend_quest_complete (which now also re-validates).
+//
+// Validation rules: each questType has an allow-list of compatible eventTypes;
+// foreign event types are silently ignored (return success:true, applied:0).
+var FQ_EVENT_RULES = {
+    PlayTogether:    { events: ['quiz_complete','play_with_friend'] },
+    ChallengeFriend: { events: ['challenge_accepted'] },
+    StudyBuddy:      { events: ['review_session'] },
+    GroupStreak:     { events: ['streak_advanced'] },
+    BeatInSpeedQuiz: { events: ['speed_quiz_win'] },
+    DailyQuizDuo:    { events: ['daily_quiz_complete'] },
+    PerfectRound:    { events: ['perfect_round','quiz_complete'] },
+    ExploreTogether: { events: ['geo_explore_play'] },
+    ShareScore:      { events: ['share_score'] },
+    WinThreeQuizzes: { events: ['quiz_win'] }
+};
+
+function rpcFriendQuestRecordProgress(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fqError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload || '{}'); } catch (e) { return fqError('Invalid JSON'); }
+
+    var questId   = input.questId;
+    var eventType = input.eventType;
+    var amount    = parseInt(input.amount) || 1;
+    if (!questId || !eventType) return fqError('Missing questId or eventType');
+    if (amount < 1 || amount > 100) return fqError('Invalid amount (1..100)');
+
+    var data = fqReadData(nk, logger, ctx.userId);
+    if (!data || !data.quests) return fqError('No quest state — call friend_quest_get_state first');
+
+    var found = null;
+    for (var i = 0; i < data.quests.length; i++) {
+        if (data.quests[i].questId === questId) { found = data.quests[i]; break; }
+    }
+    if (!found) return fqError('Quest not found: ' + questId);
+
+    // Refuse to mutate completed/expired quests
+    if (found.isCompleted) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Quest already completed',
+            timestamp: new Date().toISOString()
+        });
+    }
+    if (found.expiresAt && new Date(found.expiresAt) <= new Date()) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Quest expired',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Event-type ↔ quest-type compatibility check
+    var rule = FQ_EVENT_RULES[found.type];
+    if (!rule) return fqError('Unknown quest type: ' + found.type);
+    var allowed = false;
+    for (var e = 0; e < rule.events.length; e++) {
+        if (rule.events[e] === eventType) { allowed = true; break; }
+    }
+    if (!allowed) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Event type ' + eventType + ' not applicable to quest type ' + found.type,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Apply progress (clamped at target)
+    var prevProgress = found.currentProgress || 0;
+    var target       = found.targetProgress || 1;
+    var newProgress  = Math.min(target, prevProgress + amount);
+    var applied      = newProgress - prevProgress;
+    found.currentProgress = newProgress;
+
+    // Auto-complete server-side when threshold reached
+    var justCompleted = false;
+    if (newProgress >= target && !found.isCompleted) {
+        found.isCompleted = true;
+        justCompleted = true;
+        if (!data.completedIds) data.completedIds = [];
+        // De-dup completedIds
+        var alreadyCompleted = false;
+        for (var c = 0; c < data.completedIds.length; c++) {
+            if (data.completedIds[c] === questId) { alreadyCompleted = true; break; }
+        }
+        if (!alreadyCompleted) data.completedIds.push(questId);
+    }
+
+    data.updatedAt = new Date().toISOString();
+    if (!fqWriteData(nk, logger, ctx.userId, data)) {
+        return fqError('Failed to save quest progress');
+    }
+
+    logger.info('[FriendQuests] record_progress questId=' + questId +
+                ' type=' + found.type + ' eventType=' + eventType +
+                ' applied=' + applied + ' newProgress=' + newProgress + '/' + target +
+                (justCompleted ? ' COMPLETED' : ''));
+
+    return JSON.stringify({
+        success: true,
+        questId: questId,
+        applied: applied,
+        currentProgress: newProgress,
+        targetProgress: target,
+        isCompleted: found.isCompleted,
+        justCompleted: justCompleted,
+        // When justCompleted, the client should call friend_quest_complete to
+        // claim the reward — but server already marks isCompleted so the
+        // claim is purely a wallet transaction at that point.
+        coinReward: justCompleted ? (found.coinReward || 0) : undefined,
+        xpReward:   justCompleted ? (found.xpReward || 0)   : undefined,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ============================================================================
+// Module Init — register Friend Quest RPCs
+// ============================================================================
+function __ModuleInit_29(ctx, logger, nk, initializer) {
+    __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState);
+    __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete);
+    __rpc_friend_quest_record_progress = __rpc_friend_quest_record_progress || (rpcFriendQuestRecordProgress);
+    if (logger && logger.info) {
+        logger.info('[FriendQuests] Registered 3 RPCs (get_state, complete, record_progress)');
+    }
+}
+
 
 // --- Module: friend_streaks/friend_streaks.js ---
 // friend_streaks.js - Bilateral Friend Streak System for QuizVerse v3.0
@@ -14471,13 +14638,60 @@ function fsHoursSince(isoDate) {
     return (Date.now() - new Date(isoDate).getTime()) / 3600000;
 }
 
-// Clean up broken streaks
+// Clean up broken streaks. When a streak is broken we also persist a
+// rolling "broken log" entry under collection=friend_streaks key=broken_log_{userId}
+// so the player's UI can later surface "you lost a 30-day streak with X" even
+// if they weren't online when the prune happened (V23 in PLAN-07).
+var FS_BROKEN_LOG_MAX = 50;
+
+function fsAppendBrokenLog(nk, logger, userId, brokenList) {
+    if (!brokenList || brokenList.length === 0) return;
+    try {
+        var existing = [];
+        try {
+            var rows = nk.storageRead([{
+                collection: FS_COLLECTION,
+                key: 'broken_log_' + userId,
+                userId: userId
+            }]);
+            if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+                existing = rows[0].value.entries;
+            }
+        } catch (_) {}
+
+        var now = new Date().toISOString();
+        for (var i = 0; i < brokenList.length; i++) {
+            var b = brokenList[i];
+            existing.unshift({
+                friendId:  b.friendId,
+                streakDays: b.days || 0,
+                brokenAt:  now,
+                repaired:  false
+            });
+        }
+        if (existing.length > FS_BROKEN_LOG_MAX) {
+            existing = existing.slice(0, FS_BROKEN_LOG_MAX);
+        }
+
+        nk.storageWrite([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + userId,
+            userId: userId,
+            value: { entries: existing, updatedAt: now },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        if (logger && logger.warn) logger.warn('[FriendStreaks] broken-log persist failed: ' + err.message);
+    }
+}
+
 function fsPruneStreaks(data) {
     var pruned = [];
     for (var fid in data.streaks) {
         var s = data.streaks[fid];
         if (fsHoursSince(s.lastInteractionAt) > FS_STREAK_BREAK_HOURS) {
-            pruned.push({ friendId: fid, days: s.streakDays });
+            pruned.push({ friendId: fid, days: s.streakDays, friendDisplayName: s.friendDisplayName || '' });
             delete data.streaks[fid];
         }
     }
@@ -14508,6 +14722,7 @@ function rpcFriendStreakGetState(ctx, logger, nk, payload) {
 
     if (broken.length > 0) {
         fsWriteData(nk, logger, ctx.userId, data);
+        fsAppendBrokenLog(nk, logger, ctx.userId, broken);
     }
 
     // Build response
@@ -14698,6 +14913,257 @@ function rpcFriendStreakSendNudge(ctx, logger, nk, payload) {
         cooldownHours: FS_NUDGE_COOLDOWN_HOURS,
         timestamp: new Date().toISOString()
     });
+}
+
+// ─── RPC: friend_streak_get_broken_log ──────────────────────────────────────
+//
+// Returns the rolling log of streaks that broke while the player was offline,
+// so the client can show a "you lost a 30-day streak with X" banner. Also
+// runs a fresh prune so the log is always up to date at read time.
+
+function rpcFriendStreakGetBrokenLog(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input = {};
+    if (payload && payload !== '') {
+        try { input = JSON.parse(payload); } catch (e) { /* ignore — empty filter */ }
+    }
+    var limit = parseInt(input.limit) || 20;
+    if (limit < 1)  limit = 1;
+    if (limit > FS_BROKEN_LOG_MAX) limit = FS_BROKEN_LOG_MAX;
+    var includeRepaired = input.includeRepaired === true;
+
+    // Fresh prune so the log is always current at read time
+    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    var fresh = fsPruneStreaks(data);
+    if (fresh.length > 0) {
+        fsWriteData(nk, logger, ctx.userId, data);
+        fsAppendBrokenLog(nk, logger, ctx.userId, fresh);
+    }
+
+    var entries = [];
+    try {
+        var rows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + ctx.userId,
+            userId: ctx.userId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+            entries = rows[0].value.entries;
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] broken-log read failed: ' + err.message);
+    }
+
+    if (!includeRepaired) {
+        var filtered = [];
+        for (var i = 0; i < entries.length; i++) {
+            if (!entries[i].repaired) filtered.push(entries[i]);
+        }
+        entries = filtered;
+    }
+    if (entries.length > limit) entries = entries.slice(0, limit);
+
+    return JSON.stringify({
+        success: true,
+        entries: entries,
+        totalEntries: entries.length,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_streak_repair ──────────────────────────────────────────────
+//
+// Spend a "Streak Saver" (gem cost) to restore a broken bilateral streak.
+// Server-authoritative: validates the broken-log entry exists, debits the
+// wallet, restores the streak with its previous day count, marks the entry
+// repaired, and notifies the friend so their state can mirror.
+//
+// Schema: { friendId: <UUID>, idempotencyKey?: <string> }
+
+var FS_REPAIR_GEM_COST = 50;
+
+function rpcFriendStreakRepair(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload || '{}'); } catch (e) { return fsError('Invalid JSON'); }
+
+    var friendId = input.friendId;
+    if (!friendId) return fsError('Missing friendId');
+    var idempotencyKey = input.idempotencyKey || ('fs_repair_' + friendId + '_' + Date.now());
+
+    // Idempotency check — refuse double-spend on the same key
+    try {
+        var idemRows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'repair_idem_' + ctx.userId + '_' + idempotencyKey,
+            userId: ctx.userId
+        }]);
+        if (idemRows && idemRows.length > 0 && idemRows[0].value) {
+            return JSON.stringify({
+                success: true,
+                idempotent: true,
+                friendId: friendId,
+                streakDays: idemRows[0].value.restoredDays || 0,
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (_) { /* fall-through */ }
+
+    // Find the broken-log entry for this friend (most recent unrepaired)
+    var brokenEntry = null;
+    var brokenLog = null;
+    try {
+        var rows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + ctx.userId,
+            userId: ctx.userId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+            brokenLog = rows[0].value;
+            for (var i = 0; i < brokenLog.entries.length; i++) {
+                if (brokenLog.entries[i].friendId === friendId && !brokenLog.entries[i].repaired) {
+                    brokenEntry = brokenLog.entries[i];
+                    break;
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair read broken-log failed: ' + err.message);
+    }
+
+    if (!brokenEntry) {
+        return fsError('No broken streak found for friend ' + friendId);
+    }
+
+    // Repair window: only repair if the streak broke within last 7 days
+    var brokenAtMs = new Date(brokenEntry.brokenAt).getTime();
+    if ((Date.now() - brokenAtMs) > (7 * 86400000)) {
+        return fsError('Streak broken more than 7 days ago — too late to repair');
+    }
+
+    // Debit gems
+    try {
+        nk.walletUpdate(ctx.userId, { gems: -FS_REPAIR_GEM_COST }, {
+            source: 'friend_streak_repair',
+            friendId: friendId,
+            idempotencyKey: idempotencyKey
+        }, true);
+    } catch (walletErr) {
+        return fsError('Insufficient gems: ' + walletErr.message);
+    }
+
+    // Restore the streak on caller's side
+    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    if (Object.keys(data.streaks).length >= FS_MAX_CONCURRENT) {
+        // Refund gems
+        try {
+            nk.walletUpdate(ctx.userId, { gems: FS_REPAIR_GEM_COST }, {
+                source: 'friend_streak_repair_refund',
+                friendId: friendId
+            }, true);
+        } catch (_) {}
+        return fsError('Max concurrent streaks reached — cannot restore');
+    }
+    data.streaks[friendId] = {
+        friendDisplayName: brokenEntry.friendDisplayName || '',
+        streakDays: brokenEntry.streakDays || 0,
+        myContributionToday: false,
+        friendContributionToday: false,
+        lastInteractionAt: new Date().toISOString(),
+        startedAt: new Date().toISOString(),
+        repairedAt: new Date().toISOString()
+    };
+    data.updatedAt = new Date().toISOString();
+    fsWriteData(nk, logger, ctx.userId, data);
+
+    // Mark broken-log entry as repaired
+    try {
+        if (brokenLog && brokenLog.entries) {
+            for (var j = 0; j < brokenLog.entries.length; j++) {
+                if (brokenLog.entries[j] === brokenEntry) {
+                    brokenLog.entries[j].repaired = true;
+                    brokenLog.entries[j].repairedAt = new Date().toISOString();
+                    break;
+                }
+            }
+            nk.storageWrite([{
+                collection: FS_COLLECTION,
+                key: 'broken_log_' + ctx.userId,
+                userId: ctx.userId,
+                value: brokenLog,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair mark-log failed: ' + err.message);
+    }
+
+    // Persist idempotency record (24h TTL via Nakama isn't supported in JS
+    // runtime, so we just persist forever — keys are scoped per-user and small)
+    try {
+        nk.storageWrite([{
+            collection: FS_COLLECTION,
+            key: 'repair_idem_' + ctx.userId + '_' + idempotencyKey,
+            userId: ctx.userId,
+            value: {
+                friendId: friendId,
+                restoredDays: brokenEntry.streakDays || 0,
+                gemCost: FS_REPAIR_GEM_COST,
+                repairedAt: new Date().toISOString()
+            },
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (_) {}
+
+    // Notify the friend
+    try {
+        nk.notificationsSend([{
+            userId: friendId,
+            subject: 'Streak Restored! 🔥',
+            content: {
+                type: 'friend_streak_repaired',
+                fromUserId: ctx.userId,
+                streakDays: brokenEntry.streakDays || 0
+            },
+            code: 102,
+            persistent: true
+        }]);
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair notify failed: ' + err.message);
+    }
+
+    logger.info('[FriendStreaks] Repaired streak ' + ctx.userId + ' ↔ ' + friendId +
+                ' restoredDays=' + (brokenEntry.streakDays || 0) + ' gemCost=' + FS_REPAIR_GEM_COST);
+
+    return JSON.stringify({
+        success: true,
+        friendId: friendId,
+        streakDays: brokenEntry.streakDays || 0,
+        gemCost: FS_REPAIR_GEM_COST,
+        idempotencyKey: idempotencyKey,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ============================================================================
+// Module Init — register Friend Streak RPCs
+// ============================================================================
+// Registers all 5 friend-streak RPCs. Existing 3 (get_state, record_contribution,
+// send_nudge) are also registered by legacy_runtime.js; postbuild's `||` guard
+// + module-first concat order means our handler wins.
+function __ModuleInit_30(ctx, logger, nk, initializer) {
+    __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState);
+    __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution);
+    __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge);
+    __rpc_friend_streak_get_broken_log = __rpc_friend_streak_get_broken_log || (rpcFriendStreakGetBrokenLog);
+    __rpc_friend_streak_repair = __rpc_friend_streak_repair || (rpcFriendStreakRepair);
+    if (logger && logger.info) {
+        logger.info('[FriendStreaks] Registered 5 RPCs (get_state, record_contribution, send_nudge, get_broken_log, repair)');
+    }
 }
 
 
@@ -16733,6 +17199,563 @@ function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, 
             content:     messageContent,
             timestamp:   utils.getCurrentTimestamp()
         });
+    }
+}
+
+
+// --- Module: friends/friends_extras.js ---
+// ============================================================================
+// friends_extras.js — Social Pressure / Online Count / Battle / Invite-Reward
+// ============================================================================
+// PRODUCTION-READY | ES5 (Goja runtime)
+//
+// Houses 4 RPCs that PLAN-ENGAGEMENT_SYSTEM_07_FRIENDS_SOCIAL.md (V11/V17/V20)
+// requires the server to expose:
+//
+//   friends_get_online_count
+//       -> count of caller's mutual friends currently online (Nakama presence)
+//
+//   social_pressure_get_today_summary
+//       -> aggregates "friends played today / friends ahead of me / streak at
+//          risk" data into a single response so the client doesn't need to
+//          stitch 4 separate reads.
+//
+//   friend_battle_create
+//       -> server-mints a battleId/roomCode, persists the lobby record under
+//          friend_battles/<battleId>, fans out invitations + push notifications
+//          to each invited friend. Atomic: if any non-friend is invited the
+//          whole call fails before any side-effect.
+//
+//   friend_invite_with_reward
+//       -> sends a friend invite (Nakama friendsAdd) AND tags it with a
+//          reward bundle that's claimable when the recipient accepts. The
+//          claim happens in send_friend_invite/accept_friend_invite already;
+//          this RPC is a thin wrapper that records the reward intent so the
+//          accept-handler can grant it.
+//
+// SECURITY: every RPC requires an authenticated caller (ctx.userId set), and
+// every "target" is verified as a confirmed mutual friend (Nakama state == 0)
+// before any side-effect.
+// ============================================================================
+
+var FX_BATTLE_COLLECTION = 'friend_battles';
+var FX_INVITE_REWARD_COL = 'friend_invite_rewards';
+var FX_BATTLE_MAX_INVITES = 8;
+var FX_BATTLE_MAX_DATA_BYTES = 4096;
+
+// ─── Tiny self-contained helpers ────────────────────────────────────────────
+// Same defensive pattern as friend_challenges.js — no `utils` dependency so
+// load-order can't break this module.
+
+function _fxUuidValid(id) {
+    if (!id || typeof id !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function _fxNowIso() { return new Date().toISOString(); }
+
+function _fxOk(extra) {
+    var out = { success: true };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+function _fxErr(message, errorCode, extra) {
+    var out = { success: false, error: message, errorCode: errorCode || 'unknown' };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+function _fxParse(payload) {
+    if (!payload || payload === '') return { ok: true, data: {} };
+    try { return { ok: true, data: JSON.parse(payload) }; }
+    catch (e)  { return { ok: false, error: 'Invalid JSON payload: ' + e.message }; }
+}
+
+function _fxMintBattleId(nk) {
+    try {
+        if (nk && typeof nk.uuidv4 === 'function') {
+            return 'fbat_' + nk.uuidv4().replace(/-/g, '');
+        }
+    } catch (_) {}
+    var hex = '0123456789abcdef';
+    var rand = '';
+    for (var i = 0; i < 24; i++) rand += hex.charAt(Math.floor(Math.random() * 16));
+    return 'fbat_' + Date.now().toString(36) + '_' + rand;
+}
+
+// Returns array of confirmed-friend objects: [{ id, displayName, online }]
+function _fxLoadFriends(nk) {
+    var out = [];
+    try {
+        var page = nk.friendsList(null, 1000, 0, null); // state=0 (FRIEND)
+        if (page && page.friends) {
+            for (var i = 0; i < page.friends.length; i++) {
+                var fr = page.friends[i];
+                if (fr && fr.user && fr.user.id) {
+                    out.push({
+                        id:          fr.user.id,
+                        displayName: fr.user.displayName || fr.user.username || 'Friend',
+                        online:      !!fr.user.online
+                    });
+                }
+            }
+        }
+    } catch (_) {}
+    return out;
+}
+
+// ============================================================================
+// RPC: friends_get_online_count
+// ============================================================================
+//
+// Payload: {}  (no inputs)
+// Response: {
+//   success: true,
+//   onlineCount: <int>,
+//   totalFriends: <int>,
+//   onlineFriendIds: [<UUID>...],   // capped at 50 for response-size sanity
+//   timestamp: <iso>
+// }
+//
+// Reads via nk.friendsList(state=0) which already includes the `online` flag
+// from Nakama presence — no extra round-trip needed.
+function rpcFriendsGetOnlineCount(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
+
+    var friends = [];
+    try {
+        var page = nk.friendsList(ctx.userId, 1000, 0, null);
+        if (page && page.friends) friends = page.friends;
+    } catch (e) {
+        logger.warn('[FriendsExtras] friendsList failed: ' + e.message);
+        return _fxErr('Failed to load friends list', 'friends_list_failed');
+    }
+
+    var onlineIds = [];
+    for (var i = 0; i < friends.length; i++) {
+        var fr = friends[i];
+        if (fr && fr.user && fr.user.id && fr.user.online === true) {
+            if (onlineIds.length < 50) onlineIds.push(fr.user.id);
+        }
+    }
+
+    return _fxOk({
+        onlineCount:     onlineIds.length,
+        totalFriends:    friends.length,
+        onlineFriendIds: onlineIds,
+        timestamp:       _fxNowIso()
+    });
+}
+
+// ============================================================================
+// RPC: social_pressure_get_today_summary
+// ============================================================================
+//
+// Single-shot aggregator for the "Social Pressure" home-screen card. Returns:
+//   {
+//     friendsPlayedToday:      <int>,    // friends with quiz_complete today
+//     friendsPassedMe:         <int>,    // friends whose XP > my XP today
+//     friendsAboveMeInLeague:  [{ id, displayName, points, tier }],
+//     friendsStreakAtRisk:     [{ id, displayName, streakDays, hoursLeft }],
+//     timestamp: <iso>
+//   }
+//
+// Read-only — never mutates state. Best-effort: any sub-source that fails is
+// returned as 0 / [] rather than failing the whole call.
+function rpcSocialPressureGetTodaySummary(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
+
+    var friends = _fxLoadFriends(nk);
+    var todayKey = _fxNowIso().slice(0, 10).replace(/-/g, '');
+
+    // ── friendsPlayedToday + friendsPassedMe ──────────────────────────────
+    // Reads friend's `daily_play_log/{userId}_{YYYYMMDD}` if present (set by
+    // the existing daily_missions / quiz pipeline). Best-effort.
+    var playedToday = 0;
+    var passedMe = 0;
+    var myXpToday = 0;
+
+    try {
+        var myLog = nk.storageRead([{
+            collection: 'daily_play_log',
+            key: ctx.userId + '_' + todayKey,
+            userId: ctx.userId
+        }]);
+        if (myLog && myLog.length > 0 && myLog[0].value) {
+            myXpToday = myLog[0].value.xpToday || 0;
+        }
+    } catch (_) {}
+
+    for (var i = 0; i < friends.length; i++) {
+        var fid = friends[i].id;
+        try {
+            var rows = nk.storageRead([{
+                collection: 'daily_play_log',
+                key: fid + '_' + todayKey,
+                userId: fid
+            }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                playedToday++;
+                var fxp = rows[0].value.xpToday || 0;
+                if (fxp > myXpToday) passedMe++;
+            }
+        } catch (_) { /* friend may have permission 0 — skip silently */ }
+    }
+
+    // ── friendsAboveMeInLeague ────────────────────────────────────────────
+    // Reads friend's league record from the legacy leagues collection.
+    var aboveInLeague = [];
+    var myLeague = null;
+    try {
+        var myL = nk.storageRead([{
+            collection: 'leagues_named',
+            key: 'state_quizverse',
+            userId: ctx.userId
+        }]);
+        if (myL && myL.length > 0 && myL[0].value) myLeague = myL[0].value;
+    } catch (_) {}
+
+    if (myLeague) {
+        for (var j = 0; j < friends.length; j++) {
+            var fr = friends[j];
+            try {
+                var fL = nk.storageRead([{
+                    collection: 'leagues_named',
+                    key: 'state_quizverse',
+                    userId: fr.id
+                }]);
+                if (fL && fL.length > 0 && fL[0].value) {
+                    var lv = fL[0].value;
+                    if (lv.tier === myLeague.tier && (lv.points || 0) > (myLeague.points || 0)) {
+                        aboveInLeague.push({
+                            id:          fr.id,
+                            displayName: fr.displayName,
+                            points:      lv.points || 0,
+                            tier:        lv.tier
+                        });
+                    }
+                }
+            } catch (_) {}
+        }
+        aboveInLeague.sort(function(a, b) { return b.points - a.points; });
+        if (aboveInLeague.length > 10) aboveInLeague = aboveInLeague.slice(0, 10);
+    }
+
+    // ── friendsStreakAtRisk ───────────────────────────────────────────────
+    // Reads MY friend_streaks record (where I am one party of the streak).
+    // "At risk" = bilateral streak with <8 hours until break.
+    var atRisk = [];
+    try {
+        var myStreaks = nk.storageRead([{
+            collection: 'friend_streaks',
+            key: 'streaks_' + ctx.userId,
+            userId: ctx.userId
+        }]);
+        if (myStreaks && myStreaks.length > 0 && myStreaks[0].value &&
+            myStreaks[0].value.streaks) {
+            var streaks = myStreaks[0].value.streaks;
+            var nowMs = Date.now();
+            for (var fid2 in streaks) {
+                if (!Object.prototype.hasOwnProperty.call(streaks, fid2)) continue;
+                var s = streaks[fid2];
+                if (!s || !s.lastInteractionAt) continue;
+                var hoursSince = (nowMs - new Date(s.lastInteractionAt).getTime()) / 3600000;
+                var hoursLeft = 48 - hoursSince;
+                if (hoursLeft > 0 && hoursLeft < 8) {
+                    atRisk.push({
+                        id:          fid2,
+                        displayName: s.friendDisplayName || '',
+                        streakDays:  s.streakDays || 0,
+                        hoursLeft:   Math.max(0, Math.round(hoursLeft))
+                    });
+                }
+            }
+            atRisk.sort(function(a, b) { return a.hoursLeft - b.hoursLeft; });
+        }
+    } catch (e) {
+        logger.warn('[FriendsExtras] streak read failed: ' + e.message);
+    }
+
+    return _fxOk({
+        friendsPlayedToday:     playedToday,
+        friendsPassedMe:        passedMe,
+        friendsAboveMeInLeague: aboveInLeague,
+        friendsStreakAtRisk:    atRisk,
+        totalFriends:           friends.length,
+        timestamp:              _fxNowIso()
+    });
+}
+
+// ============================================================================
+// RPC: friend_battle_create
+// ============================================================================
+//
+// Server-mints a friend battle / lobby and atomically:
+//   1) verifies every invited friend is a confirmed mutual friend
+//   2) persists the lobby record (friend_battles/<battleId>)
+//   3) sends a Nakama notification to each invitee (code 110)
+//
+// Photon room creation is owned by the client; this RPC just guarantees the
+// invite fan-out is consistent (nobody gets a notification for a battle that
+// failed validation).
+//
+// Payload: {
+//   mode:           <string, e.g. 'speed_quiz' | 'classic'>,
+//   roomCode:       <string ≤ 64>,
+//   invitedFriendIds: [<UUID>...],   // 1..FX_BATTLE_MAX_INVITES
+//   metadata?:      <object ≤ 4 KB>
+// }
+function rpcFriendBattleCreate(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
+
+    var p = _fxParse(payload);
+    if (!p.ok) return _fxErr(p.error, 'invalid_payload');
+
+    var data = p.data || {};
+    var mode = data.mode;
+    var roomCode = data.roomCode;
+    var invited = data.invitedFriendIds || [];
+    var meta = data.metadata || {};
+
+    if (!mode || typeof mode !== 'string' || mode.length > 64) {
+        return _fxErr('mode is required (string ≤ 64)', 'invalid_payload');
+    }
+    if (!roomCode || typeof roomCode !== 'string' || roomCode.length > 64) {
+        return _fxErr('roomCode is required (string ≤ 64)', 'invalid_payload');
+    }
+    if (!Array.isArray(invited) || invited.length === 0) {
+        return _fxErr('invitedFriendIds must be non-empty array', 'invalid_payload');
+    }
+    if (invited.length > FX_BATTLE_MAX_INVITES) {
+        return _fxErr('Too many invites (max ' + FX_BATTLE_MAX_INVITES + ')', 'too_many_invites');
+    }
+    var metaStr;
+    try { metaStr = JSON.stringify(meta); }
+    catch (e) { return _fxErr('metadata not serialisable: ' + e.message, 'invalid_payload'); }
+    if (metaStr.length > FX_BATTLE_MAX_DATA_BYTES) {
+        return _fxErr('metadata too large', 'data_too_large');
+    }
+
+    // Validate every invitee is a mutual friend BEFORE any side-effect
+    var mutualFriends = {};
+    var friends = _fxLoadFriends(nk);
+    for (var i = 0; i < friends.length; i++) mutualFriends[friends[i].id] = friends[i];
+
+    var rejected = [];
+    for (var j = 0; j < invited.length; j++) {
+        var inv = invited[j];
+        if (!_fxUuidValid(inv)) {
+            rejected.push({ id: inv, reason: 'invalid_uuid' });
+        } else if (inv === ctx.userId) {
+            rejected.push({ id: inv, reason: 'self_invite' });
+        } else if (!mutualFriends[inv]) {
+            rejected.push({ id: inv, reason: 'not_mutual_friend' });
+        }
+    }
+    if (rejected.length > 0) {
+        return _fxErr('Some invitees are not mutual friends', 'invitees_not_mutual',
+                      { rejected: rejected });
+    }
+
+    var battleId = _fxMintBattleId(nk);
+    var nowIso = _fxNowIso();
+    var senderName = ctx.username || ctx.userId;
+
+    var battleRecord = {
+        battleId:     battleId,
+        creatorId:    ctx.userId,
+        creatorName:  senderName,
+        mode:         mode,
+        roomCode:     roomCode,
+        status:       'pending',
+        invitedIds:   invited,
+        acceptedIds:  [],
+        declinedIds:  [],
+        metadata:     meta,
+        createdAt:    nowIso,
+        expiresAt:    new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 min
+    };
+
+    // Persist lobby (owner = creator, owner-readable)
+    try {
+        nk.storageWrite([{
+            collection:      FX_BATTLE_COLLECTION,
+            key:             battleId,
+            userId:          ctx.userId,
+            value:           battleRecord,
+            permissionRead:  1,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        logger.error('[FriendsExtras] battle persist failed: ' + e.message);
+        return _fxErr('Failed to persist battle', 'storage_write_failed');
+    }
+
+    // Fan out notifications (best-effort — but battle record exists already)
+    var notifs = [];
+    for (var k = 0; k < invited.length; k++) {
+        notifs.push({
+            userId:     invited[k],
+            subject:    senderName + ' invited you to a battle!',
+            content: {
+                type:        'friend_battle_invite',
+                battleId:    battleId,
+                fromUserId:  ctx.userId,
+                fromName:    senderName,
+                mode:        mode,
+                roomCode:    roomCode,
+                expiresAt:   battleRecord.expiresAt
+            },
+            code:       110,
+            persistent: true,
+            senderId:   ctx.userId
+        });
+    }
+    try {
+        if (notifs.length > 0) nk.notificationsSend(notifs);
+    } catch (e) {
+        logger.warn('[FriendsExtras] battle notify failed: ' + e.message);
+    }
+
+    return _fxOk({
+        battleId:        battleId,
+        roomCode:        roomCode,
+        mode:            mode,
+        invitedIds:      invited,
+        invitedCount:    invited.length,
+        expiresAt:       battleRecord.expiresAt,
+        timestamp:       nowIso
+    });
+}
+
+// ============================================================================
+// RPC: friend_invite_with_reward
+// ============================================================================
+//
+// Sends a friend invite (Nakama friendsAdd) AND records a reward bundle that
+// will be granted to BOTH parties on accept. The actual grant happens in
+// the existing accept_friend_invite handler — this RPC just stores the intent.
+//
+// Payload: {
+//   targetUserId: <UUID>,
+//   rewardBundle?: { coins?: int, gems?: int, xp?: int }   // capped server-side
+// }
+//
+// Caps: coins ≤ 200, gems ≤ 10, xp ≤ 100 per invite (anti-griefing).
+var FX_REWARD_CAP = { coins: 200, gems: 10, xp: 100 };
+
+function rpcFriendInviteWithReward(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
+
+    var p = _fxParse(payload);
+    if (!p.ok) return _fxErr(p.error, 'invalid_payload');
+
+    var data = p.data || {};
+    var target = data.targetUserId;
+    if (!_fxUuidValid(target)) {
+        return _fxErr('Invalid targetUserId (UUID required)', 'invalid_target');
+    }
+    if (target === ctx.userId) {
+        return _fxErr('Cannot invite yourself', 'self_invite');
+    }
+
+    var raw = data.rewardBundle || {};
+    var bundle = {
+        coins: Math.min(FX_REWARD_CAP.coins, Math.max(0, parseInt(raw.coins) || 0)),
+        gems:  Math.min(FX_REWARD_CAP.gems,  Math.max(0, parseInt(raw.gems)  || 0)),
+        xp:    Math.min(FX_REWARD_CAP.xp,    Math.max(0, parseInt(raw.xp)    || 0))
+    };
+
+    // Send the friend request via Nakama's native graph
+    try {
+        nk.friendsAdd(ctx.userId, ctx.username || '', [target], null);
+    } catch (e) {
+        return _fxErr('friendsAdd failed: ' + e.message, 'friends_add_failed');
+    }
+
+    // Persist the reward intent under both parties so accept_friend_invite
+    // (in src/legacy/friends.ts) can find and grant it.
+    var nowIso = _fxNowIso();
+    var rewardKey = 'invite_reward_' + ctx.userId + '_' + target;
+    var rewardRecord = {
+        senderId:       ctx.userId,
+        recipientId:    target,
+        rewardBundle:   bundle,
+        status:         'pending',
+        createdAt:      nowIso,
+        expiresAt:      new Date(Date.now() + 7 * 86400000).toISOString() // 7 days
+    };
+    try {
+        nk.storageWrite([
+            {
+                collection:      FX_INVITE_REWARD_COL,
+                key:             rewardKey,
+                userId:          ctx.userId,
+                value:           rewardRecord,
+                permissionRead:  0,
+                permissionWrite: 0
+            },
+            {
+                collection:      FX_INVITE_REWARD_COL,
+                key:             rewardKey,
+                userId:          target,
+                value:           rewardRecord,
+                permissionRead:  0,
+                permissionWrite: 0
+            }
+        ]);
+    } catch (e) {
+        logger.warn('[FriendsExtras] invite-reward persist failed: ' + e.message);
+        // Non-fatal — friend invite already went out
+    }
+
+    // Notify the recipient
+    try {
+        nk.notificationsSend([{
+            userId:     target,
+            subject:    'Friend Invite + Reward',
+            content: {
+                type:         'friend_invite_with_reward',
+                fromUserId:   ctx.userId,
+                fromName:     ctx.username || ctx.userId,
+                rewardBundle: bundle
+            },
+            code:       111,
+            persistent: true,
+            senderId:   ctx.userId
+        }]);
+    } catch (e) {
+        logger.warn('[FriendsExtras] invite notify failed: ' + e.message);
+    }
+
+    return _fxOk({
+        targetUserId:   target,
+        rewardBundle:   bundle,
+        rewardKey:      rewardKey,
+        expiresAt:      rewardRecord.expiresAt,
+        timestamp:      nowIso
+    });
+}
+
+// ============================================================================
+// Module Init — register Friends Extras RPCs
+// ============================================================================
+function __ModuleInit_34(ctx, logger, nk, initializer) {
+    __rpc_friends_get_online_count = __rpc_friends_get_online_count || (rpcFriendsGetOnlineCount);
+    __rpc_social_pressure_get_today_summary = __rpc_social_pressure_get_today_summary || (rpcSocialPressureGetTodaySummary);
+    __rpc_friend_battle_create = __rpc_friend_battle_create || (rpcFriendBattleCreate);
+    __rpc_friend_invite_with_reward = __rpc_friend_invite_with_reward || (rpcFriendInviteWithReward);
+    if (logger && logger.info) {
+        logger.info('[FriendsExtras] Registered 4 RPCs (online_count, social_pressure, battle_create, invite_with_reward)');
     }
 }
 
@@ -34770,6 +35793,489 @@ function rpcSmartReviewRateCard(ctx, logger, nk, payload) {
     });
 }
 
+// ─── RPC: smart_review_add_card ─────────────────────────────────────────────
+//
+// Schema: {
+//   gameId?, questionId, question, correctAnswer, userAnswer?,
+//   distractors?: string[], category?, topic?, subtopic?, sourceQuizId?
+// }
+// Idempotent on questionId — re-adding an existing card is a no-op (returns
+// existing SM-2 state). When the deck would exceed SR_MAX_STORED_CARDS we LRU-
+// evict the lowest-priority cards (mastered first → oldest lastReviewedAt next).
+
+function rpcSmartReviewAddCard(ctx, logger, nk, payload) {
+    if (!ctx.userId) return srErrorResponse('User not authenticated');
+
+    var data = srValidatePayload(payload);
+    if (data === null) return srErrorResponse('Invalid JSON payload');
+
+    var gameId = data.gameId || 'quizverse';
+    var questionId = data.questionId;
+    if (!questionId || typeof questionId !== 'string') {
+        return srErrorResponse('Missing required field: questionId');
+    }
+    if (!data.question || !data.correctAnswer) {
+        return srErrorResponse('Missing required fields: question, correctAnswer');
+    }
+
+    var reviewData = readSmartReviewData(nk, logger, ctx.userId, gameId) || initSmartReviewData();
+    if (!reviewData.cards) reviewData.cards = {};
+
+    var nowIso = new Date().toISOString();
+
+    // Idempotent re-add: if the card already exists, just refresh metadata
+    // (question text / distractors may have been corrected).
+    if (reviewData.cards[questionId]) {
+        var existing = reviewData.cards[questionId];
+        existing.question      = data.question;
+        existing.correctAnswer = data.correctAnswer;
+        if (data.userAnswer)   existing.userAnswer  = data.userAnswer;
+        if (data.distractors)  existing.distractors = data.distractors;
+        if (data.category)     existing.category    = data.category;
+        if (data.topic)        existing.topic       = data.topic;
+        if (data.subtopic)     existing.subtopic    = data.subtopic;
+        existing.attempts      = (existing.attempts || 1) + 1;
+        existing.lastAttemptAt = nowIso;
+        reviewData.updatedAt   = nowIso;
+        writeSmartReviewData(nk, logger, ctx.userId, gameId, reviewData);
+        return JSON.stringify({
+            success: true,
+            questionId: questionId,
+            alreadyExisted: true,
+            attempts: existing.attempts,
+            totalCards: Object.keys(reviewData.cards).length,
+            timestamp: nowIso
+        });
+    }
+
+    // ── LRU eviction when at cap ──────────────────────────────────────────
+    var cardIds = Object.keys(reviewData.cards);
+    if (cardIds.length >= SR_MAX_STORED_CARDS) {
+        var entries = [];
+        for (var ei = 0; ei < cardIds.length; ei++) {
+            var id = cardIds[ei];
+            var c = reviewData.cards[id];
+            // Mastered cards (rep>=5, ease>=2.5) get lowest priority; then
+            // ascending lastReviewedAt (oldest first).
+            var mastered = (c.repetitions >= 5 && c.easeFactor >= 2.5) ? 1 : 0;
+            var ts = c.lastReviewedAt ? new Date(c.lastReviewedAt).getTime() : 0;
+            entries.push({ id: id, mastered: mastered, ts: ts });
+        }
+        entries.sort(function(a, b) {
+            if (b.mastered !== a.mastered) return b.mastered - a.mastered; // mastered first
+            return a.ts - b.ts; // oldest first
+        });
+        // Evict enough to make room for one new card
+        var toEvict = (cardIds.length - SR_MAX_STORED_CARDS) + 1;
+        for (var ev = 0; ev < toEvict; ev++) {
+            delete reviewData.cards[entries[ev].id];
+        }
+    }
+
+    // ── Create card with SM-2 defaults ─────────────────────────────────────
+    reviewData.cards[questionId] = {
+        question:       data.question,
+        correctAnswer:  data.correctAnswer,
+        userAnswer:     data.userAnswer || '',
+        distractors:    data.distractors || [],
+        category:       data.category || '',
+        topic:          data.topic || '',
+        subtopic:       data.subtopic || '',
+        sourceQuizId:   data.sourceQuizId || '',
+        attempts:       1,
+        easeFactor:     SR_DEFAULT_EASE,
+        interval:       1,
+        repetitions:    0,
+        reviewCount:    0,
+        lastAttemptAt:  nowIso,
+        lastReviewedAt: null,
+        nextReviewAt:   nowIso, // immediately due
+        addedAt:        nowIso
+    };
+
+    reviewData.totalCardsAdded = (reviewData.totalCardsAdded || 0) + 1;
+    reviewData.updatedAt = nowIso;
+    if (!writeSmartReviewData(nk, logger, ctx.userId, gameId, reviewData)) {
+        return srErrorResponse('Failed to save review data');
+    }
+
+    return JSON.stringify({
+        success: true,
+        questionId: questionId,
+        alreadyExisted: false,
+        totalCards: Object.keys(reviewData.cards).length,
+        totalCardsAdded: reviewData.totalCardsAdded,
+        timestamp: nowIso
+    });
+}
+
+// ─── RPC: smart_review_bulk_rate ────────────────────────────────────────────
+//
+// Schema: { gameId?, ratings: [{ questionId, rating (0..5), reviewedAt? }] }
+// Atomic: all SM-2 updates are applied in one storage write. Skips any
+// rating that targets an unknown card and reports it back in `skipped`.
+
+function rpcSmartReviewBulkRate(ctx, logger, nk, payload) {
+    if (!ctx.userId) return srErrorResponse('User not authenticated');
+
+    var data = srValidatePayload(payload);
+    if (data === null) return srErrorResponse('Invalid JSON payload');
+
+    var gameId = data.gameId || 'quizverse';
+    var ratings = data.ratings;
+    if (!ratings || !Array.isArray(ratings) || ratings.length === 0) {
+        return srErrorResponse('ratings must be a non-empty array');
+    }
+    if (ratings.length > 100) {
+        return srErrorResponse('Cannot rate more than 100 cards per call');
+    }
+
+    var reviewData = readSmartReviewData(nk, logger, ctx.userId, gameId);
+    if (!reviewData || !reviewData.cards) {
+        return srErrorResponse('No review data found');
+    }
+
+    var nowIso = new Date().toISOString();
+    var applied = [];
+    var skipped = [];
+
+    for (var i = 0; i < ratings.length; i++) {
+        var r = ratings[i];
+        var qId = r.questionId;
+        var rating = parseInt(r.rating);
+        if (!qId || isNaN(rating) || rating < 0 || rating > 5) {
+            skipped.push({ questionId: qId || null, reason: 'invalid_rating' });
+            continue;
+        }
+        var card = reviewData.cards[qId];
+        if (!card) {
+            skipped.push({ questionId: qId, reason: 'card_not_found' });
+            continue;
+        }
+
+        var sm2Result = sm2Calculate(card, rating);
+        card.interval       = sm2Result.interval;
+        card.easeFactor     = sm2Result.easeFactor;
+        card.repetitions    = sm2Result.repetitions;
+        card.lastReviewedAt = r.reviewedAt || nowIso;
+        var nextReview = new Date();
+        nextReview.setDate(nextReview.getDate() + sm2Result.interval);
+        card.nextReviewAt = nextReview.toISOString();
+        card.reviewCount  = (card.reviewCount || 0) + 1;
+
+        reviewData.totalReviews = (reviewData.totalReviews || 0) + 1;
+        if (rating >= 3) reviewData.totalCorrect = (reviewData.totalCorrect || 0) + 1;
+
+        applied.push({
+            questionId:    qId,
+            rating:        rating,
+            newInterval:   sm2Result.interval,
+            newEaseFactor: sm2Result.easeFactor,
+            nextReviewAt:  card.nextReviewAt
+        });
+    }
+
+    reviewData.lastReviewAt = nowIso;
+    reviewData.updatedAt    = nowIso;
+
+    if (!writeSmartReviewData(nk, logger, ctx.userId, gameId, reviewData)) {
+        return srErrorResponse('Failed to save review data');
+    }
+
+    return JSON.stringify({
+        success: true,
+        appliedCount: applied.length,
+        skippedCount: skipped.length,
+        applied:      applied,
+        skipped:      skipped,
+        reviewStats: {
+            totalReviews: reviewData.totalReviews,
+            totalCorrect: reviewData.totalCorrect,
+            accuracy: reviewData.totalReviews > 0 ?
+                Math.round((reviewData.totalCorrect / reviewData.totalReviews) * 100) : 0
+        },
+        timestamp: nowIso
+    });
+}
+
+// ─── RPC: smart_review_get_state ────────────────────────────────────────────
+//
+// Returns the entire deck snapshot (for client hydration / cross-device sync).
+// `get_cards` only returns the due-or-recent slice. This is the heavyweight
+// read — clients should call sparingly (cache locally + invalidate by version).
+
+function rpcSmartReviewGetState(ctx, logger, nk, payload) {
+    if (!ctx.userId) return srErrorResponse('User not authenticated');
+
+    var data = srValidatePayload(payload);
+    if (data === null) return srErrorResponse('Invalid JSON payload');
+
+    var gameId = data.gameId || 'quizverse';
+    var reviewData = readSmartReviewData(nk, logger, ctx.userId, gameId);
+    if (!reviewData || !reviewData.cards) {
+        return JSON.stringify({
+            success: true,
+            cards: [],
+            totalCards: 0,
+            totalDue: 0,
+            totalMastered: 0,
+            stats: { totalReviews: 0, totalCorrect: 0, accuracy: 0 },
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    var nowMs = Date.now();
+    var allCards = [];
+    var due = 0, mastered = 0;
+    for (var qId in reviewData.cards) {
+        if (!Object.prototype.hasOwnProperty.call(reviewData.cards, qId)) continue;
+        var c = reviewData.cards[qId];
+        var nextMs = c.nextReviewAt ? new Date(c.nextReviewAt).getTime() : 0;
+        var isDue = nextMs <= nowMs;
+        var isMastered = (c.repetitions || 0) >= 5 && (c.easeFactor || 0) >= 2.5;
+        if (isDue) due++;
+        if (isMastered) mastered++;
+        allCards.push({
+            questionId:     qId,
+            question:       c.question || '',
+            correctAnswer:  c.correctAnswer || '',
+            userAnswer:     c.userAnswer || '',
+            distractors:    c.distractors || [],
+            category:       c.category || '',
+            topic:          c.topic || '',
+            subtopic:       c.subtopic || '',
+            attempts:       c.attempts || 1,
+            reviewCount:    c.reviewCount || 0,
+            lastAttemptAt:  c.lastAttemptAt || null,
+            lastReviewedAt: c.lastReviewedAt || null,
+            nextReviewAt:   c.nextReviewAt || null,
+            addedAt:        c.addedAt || null,
+            isDue:          isDue,
+            isMastered:     isMastered,
+            sm2: {
+                interval:    c.interval || 1,
+                easeFactor:  c.easeFactor || SR_DEFAULT_EASE,
+                repetitions: c.repetitions || 0
+            }
+        });
+    }
+
+    return JSON.stringify({
+        success: true,
+        cards: allCards,
+        totalCards:    allCards.length,
+        totalDue:      due,
+        totalMastered: mastered,
+        totalCardsAdded: reviewData.totalCardsAdded || allCards.length,
+        stats: {
+            totalReviews: reviewData.totalReviews || 0,
+            totalCorrect: reviewData.totalCorrect || 0,
+            accuracy: reviewData.totalReviews > 0 ?
+                Math.round((reviewData.totalCorrect / reviewData.totalReviews) * 100) : 0,
+            lastReviewAt: reviewData.lastReviewAt || null
+        },
+        version: reviewData.updatedAt || reviewData.createdAt || null,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: smart_review_get_weakness_map ─────────────────────────────────────
+//
+// Aggregates SM-2 stats by category/topic so the client can render a heatmap
+// of "where the player is weakest". Higher attemptsPerCard / lower easeFactor
+// → weaker. Returns a list sorted by weakness descending.
+
+function rpcSmartReviewGetWeaknessMap(ctx, logger, nk, payload) {
+    if (!ctx.userId) return srErrorResponse('User not authenticated');
+
+    var data = srValidatePayload(payload);
+    if (data === null) return srErrorResponse('Invalid JSON payload');
+
+    var gameId = data.gameId || 'quizverse';
+    var reviewData = readSmartReviewData(nk, logger, ctx.userId, gameId);
+    if (!reviewData || !reviewData.cards) {
+        return JSON.stringify({
+            success: true,
+            weakness: [],
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    var byCategory = {};
+    var byTopic = {};
+    for (var qId in reviewData.cards) {
+        if (!Object.prototype.hasOwnProperty.call(reviewData.cards, qId)) continue;
+        var c = reviewData.cards[qId];
+        var cat = c.category || 'Uncategorized';
+        var top = c.topic || 'General';
+
+        if (!byCategory[cat]) byCategory[cat] = { cardCount: 0, totalAttempts: 0, totalEase: 0, totalReps: 0, mastered: 0 };
+        byCategory[cat].cardCount++;
+        byCategory[cat].totalAttempts += (c.attempts || 1);
+        byCategory[cat].totalEase     += (c.easeFactor || SR_DEFAULT_EASE);
+        byCategory[cat].totalReps     += (c.repetitions || 0);
+        if ((c.repetitions || 0) >= 5 && (c.easeFactor || 0) >= 2.5) byCategory[cat].mastered++;
+
+        var topKey = cat + '::' + top;
+        if (!byTopic[topKey]) byTopic[topKey] = { category: cat, topic: top, cardCount: 0, totalAttempts: 0, totalEase: 0, mastered: 0 };
+        byTopic[topKey].cardCount++;
+        byTopic[topKey].totalAttempts += (c.attempts || 1);
+        byTopic[topKey].totalEase     += (c.easeFactor || SR_DEFAULT_EASE);
+        if ((c.repetitions || 0) >= 5 && (c.easeFactor || 0) >= 2.5) byTopic[topKey].mastered++;
+    }
+
+    var categories = [];
+    for (var cKey in byCategory) {
+        if (!Object.prototype.hasOwnProperty.call(byCategory, cKey)) continue;
+        var cv = byCategory[cKey];
+        var avgEase = cv.cardCount > 0 ? (cv.totalEase / cv.cardCount) : SR_DEFAULT_EASE;
+        var attemptsPerCard = cv.cardCount > 0 ? (cv.totalAttempts / cv.cardCount) : 0;
+        // Weakness: 0..1 — higher = weaker. (3.0 - easeFactor) / 1.7 normalizes to roughly [0,1]
+        var weakness = Math.max(0, Math.min(1, (3.0 - avgEase) / 1.7));
+        categories.push({
+            category:        cKey,
+            cardCount:       cv.cardCount,
+            mastered:        cv.mastered,
+            attemptsPerCard: Math.round(attemptsPerCard * 100) / 100,
+            avgEaseFactor:   Math.round(avgEase * 100) / 100,
+            weaknessScore:   Math.round(weakness * 100) / 100
+        });
+    }
+    categories.sort(function(a, b) { return b.weaknessScore - a.weaknessScore; });
+
+    var topics = [];
+    for (var tKey in byTopic) {
+        if (!Object.prototype.hasOwnProperty.call(byTopic, tKey)) continue;
+        var tv = byTopic[tKey];
+        var avgEase2 = tv.cardCount > 0 ? (tv.totalEase / tv.cardCount) : SR_DEFAULT_EASE;
+        var attemptsPerCard2 = tv.cardCount > 0 ? (tv.totalAttempts / tv.cardCount) : 0;
+        var weakness2 = Math.max(0, Math.min(1, (3.0 - avgEase2) / 1.7));
+        topics.push({
+            category:        tv.category,
+            topic:           tv.topic,
+            cardCount:       tv.cardCount,
+            mastered:        tv.mastered,
+            attemptsPerCard: Math.round(attemptsPerCard2 * 100) / 100,
+            avgEaseFactor:   Math.round(avgEase2 * 100) / 100,
+            weaknessScore:   Math.round(weakness2 * 100) / 100
+        });
+    }
+    topics.sort(function(a, b) { return b.weaknessScore - a.weaknessScore; });
+
+    return JSON.stringify({
+        success: true,
+        categories: categories,
+        topics:     topics,
+        timestamp:  new Date().toISOString()
+    });
+}
+
+// ─── RPC: smart_review_get_forecast ─────────────────────────────────────────
+//
+// Returns "cards due per day" for the next N days (default 7, max 30) so the
+// client can render a workload calendar / "you'll review X cards tomorrow"
+// preview. Counts cards by their nextReviewAt bucket.
+
+function rpcSmartReviewGetForecast(ctx, logger, nk, payload) {
+    if (!ctx.userId) return srErrorResponse('User not authenticated');
+
+    var data = srValidatePayload(payload);
+    if (data === null) return srErrorResponse('Invalid JSON payload');
+
+    var gameId = data.gameId || 'quizverse';
+    var days = parseInt(data.days) || 7;
+    if (days < 1)  days = 1;
+    if (days > 30) days = 30;
+
+    var reviewData = readSmartReviewData(nk, logger, ctx.userId, gameId);
+    if (!reviewData || !reviewData.cards) {
+        var emptyForecast = [];
+        var startMidnight = new Date(); startMidnight.setHours(0,0,0,0);
+        for (var ed = 0; ed < days; ed++) {
+            var ed2 = new Date(startMidnight.getTime() + ed * 86400000);
+            emptyForecast.push({ date: ed2.toISOString().slice(0,10), cardsDue: 0 });
+        }
+        return JSON.stringify({
+            success: true,
+            forecast: emptyForecast,
+            totalCards: 0,
+            overdueCount: 0,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    var now = new Date();
+    var todayMidnight = new Date(now); todayMidnight.setHours(0,0,0,0);
+    var horizonMs = todayMidnight.getTime() + days * 86400000;
+
+    var buckets = {};
+    for (var d = 0; d < days; d++) {
+        var dDate = new Date(todayMidnight.getTime() + d * 86400000);
+        buckets[dDate.toISOString().slice(0,10)] = 0;
+    }
+
+    var overdueCount = 0;
+    var totalCards = 0;
+    for (var qId in reviewData.cards) {
+        if (!Object.prototype.hasOwnProperty.call(reviewData.cards, qId)) continue;
+        totalCards++;
+        var c = reviewData.cards[qId];
+        var nextMs = c.nextReviewAt ? new Date(c.nextReviewAt).getTime() : 0;
+
+        if (nextMs <= now.getTime()) {
+            overdueCount++;
+            // Overdue cards are counted in today's bucket
+            var todayKey = todayMidnight.toISOString().slice(0,10);
+            buckets[todayKey] = (buckets[todayKey] || 0) + 1;
+        } else if (nextMs < horizonMs) {
+            var b = new Date(nextMs); b.setHours(0,0,0,0);
+            var bk = b.toISOString().slice(0,10);
+            if (Object.prototype.hasOwnProperty.call(buckets, bk)) {
+                buckets[bk]++;
+            }
+        }
+    }
+
+    var forecast = [];
+    for (var d2 = 0; d2 < days; d2++) {
+        var dd = new Date(todayMidnight.getTime() + d2 * 86400000);
+        var key = dd.toISOString().slice(0,10);
+        forecast.push({ date: key, cardsDue: buckets[key] || 0 });
+    }
+
+    return JSON.stringify({
+        success: true,
+        forecast: forecast,
+        totalCards: totalCards,
+        overdueCount: overdueCount,
+        days: days,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ============================================================================
+// Module Init — register Smart Review RPCs
+// ============================================================================
+// postbuild.js renames `InitModule` to `__ModuleInit_N` and rewrites every
+// `__rpc_id = __rpc_id || (handler)` into a guarded
+// `__rpc_id = __rpc_id || handler` assignment that gets replayed at global
+// scope on every Goja VM. Because the modules section is concatenated BEFORE
+// legacy_runtime.js, the module-level handler wins — even if legacy still
+// has its own registration for `smart_review_get_cards` /
+// `smart_review_rate_card`, our handler is what actually fires.
+function __ModuleInit_71(ctx, logger, nk, initializer) {
+    __rpc_smart_review_get_cards = __rpc_smart_review_get_cards || (rpcSmartReviewGetCards);
+    __rpc_smart_review_rate_card = __rpc_smart_review_rate_card || (rpcSmartReviewRateCard);
+    __rpc_smart_review_add_card = __rpc_smart_review_add_card || (rpcSmartReviewAddCard);
+    __rpc_smart_review_bulk_rate = __rpc_smart_review_bulk_rate || (rpcSmartReviewBulkRate);
+    __rpc_smart_review_get_state = __rpc_smart_review_get_state || (rpcSmartReviewGetState);
+    __rpc_smart_review_get_weakness_map = __rpc_smart_review_get_weakness_map || (rpcSmartReviewGetWeaknessMap);
+    __rpc_smart_review_get_forecast = __rpc_smart_review_get_forecast || (rpcSmartReviewGetForecast);
+    if (logger && logger.info) {
+        logger.info('[SmartReview] Registered 7 RPCs (get_cards, rate_card, add_card, bulk_rate, get_state, get_weakness_map, get_forecast)');
+    }
+}
+
 
 // --- Module: social_v2/social_v2.js ---
 // social_v2.js - Social features: challenges, rivalries, teams, duos, group quests
@@ -35956,6 +37462,357 @@ var rpcTournamentClaimRewards = function(ctx, logger, nk, payload) {
         });
     }
 };
+
+
+// --- Module: visual_path/visual_path.js ---
+// ============================================================================
+// visual_path.js — Visual Path / Milestone System
+// ============================================================================
+// PRODUCTION-READY | ES5 (Goja runtime)
+//
+// Implements the server side of PLAN-ENGAGEMENT_SYSTEM_02_VISUAL_PATH:
+//
+//   visual_path_get_state
+//       -> per-user progress: currentDay, currentMilestoneId, completedMilestoneIds,
+//          lastVisitDay, totalPlayDays
+//
+//   visual_path_get_schedule
+//       -> the milestone catalog. Reads from system storage
+//          (collection=visual_path_config, key=schedule_v1, userId=00000…).
+//          If no record exists yet, returns the seeded default schedule so
+//          the client never sees an empty list. Includes a `version` field
+//          for client cache invalidation.
+//
+//   visual_path_skip_day_with_ad
+//       -> rewarded-ad path: caller spends a watched ad (client claims they
+//          watched; trust boundary = SDK-level ad token, validated upstream)
+//          to advance currentDay by 1. Rate-limited: max 1 per day, max 5
+//          per 30-day window.
+//
+// Storage:
+//   visual_path/state_<userId>            — per-user state (perm 1/0)
+//   visual_path_config/schedule_v1        — system-level schedule (perm 2/0)
+//   visual_path/skip_log_<userId>         — rate-limit ledger (perm 0/0)
+//
+// SECURITY: every mutation is authenticated. The schedule write path is NOT
+// exposed as an RPC — admin must seed the row directly via the Nakama
+// console / a separate admin-guarded endpoint.
+// ============================================================================
+
+var VP_STATE_COLLECTION  = 'visual_path';
+var VP_CONFIG_COLLECTION = 'visual_path_config';
+var VP_CONFIG_KEY        = 'schedule_v1';
+var VP_SYSTEM_USER_ID    = '00000000-0000-0000-0000-000000000000';
+var VP_SKIP_LOG_KEY_PFX  = 'skip_log_';
+var VP_SKIPS_PER_30D     = 5;
+
+// Default schedule — used when no admin-seeded row exists yet so the client
+// always has a milestone list to render. Mirrors the client-side hardcoded
+// list (PLAN-02 §V1) but lets us roll new milestones server-side without a
+// client deploy.
+var VP_DEFAULT_SCHEDULE = {
+    version: '1.0.0',
+    milestones: [
+        { id: 'first_steps',    name: 'First Steps',     description: 'Complete your first quiz',                          dayRequired: 1,  iconCdnPath: 'milestones/first_steps.png' },
+        { id: 'three_day',      name: '3-Day Streak',    description: 'Play 3 days in a row',                              dayRequired: 3,  iconCdnPath: 'milestones/three_day.png' },
+        { id: 'week_warrior',   name: 'Week Warrior',    description: 'Play 7 days in a row',                              dayRequired: 7,  iconCdnPath: 'milestones/week_warrior.png' },
+        { id: 'two_weeks',      name: 'Two Weeks Strong',description: 'Play 14 days in a row',                             dayRequired: 14, iconCdnPath: 'milestones/two_weeks.png' },
+        { id: 'monthly',        name: 'Monthly Master',  description: 'Play 30 days in a row',
+          dayRequired: 30, iconCdnPath: 'milestones/monthly.png' },
+        { id: 'sixty_days',     name: 'Two Months',      description: 'Play 60 days in a row',                             dayRequired: 60, iconCdnPath: 'milestones/sixty_days.png' },
+        { id: 'hundred_days',   name: 'Centurion',       description: 'Play 100 days in a row',                            dayRequired: 100,iconCdnPath: 'milestones/hundred_days.png' },
+        { id: 'half_year',      name: 'Half Year Hero',  description: 'Play 180 days in a row',                            dayRequired: 180,iconCdnPath: 'milestones/half_year.png' },
+        { id: 'year',           name: 'Year-Long Legend',description: 'Play 365 days in a row',                            dayRequired: 365,iconCdnPath: 'milestones/year.png' }
+    ]
+};
+
+// ─── Tiny helpers ───────────────────────────────────────────────────────────
+
+function _vpNowIso() { return new Date().toISOString(); }
+function _vpTodayKey() { return _vpNowIso().slice(0, 10); }
+
+function _vpOk(extra) {
+    var out = { success: true };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+function _vpErr(message, errorCode) {
+    return JSON.stringify({
+        success: false,
+        error: message,
+        errorCode: errorCode || 'unknown'
+    });
+}
+
+function _vpParse(payload) {
+    if (!payload || payload === '') return { ok: true, data: {} };
+    try { return { ok: true, data: JSON.parse(payload) }; }
+    catch (e) { return { ok: false, error: 'Invalid JSON: ' + e.message }; }
+}
+
+function _vpReadState(nk, logger, userId) {
+    try {
+        var rows = nk.storageRead([{
+            collection: VP_STATE_COLLECTION,
+            key: 'state_' + userId,
+            userId: userId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value) return rows[0].value;
+    } catch (err) {
+        if (logger && logger.warn) logger.warn('[VisualPath] state read failed: ' + err.message);
+    }
+    return null;
+}
+
+function _vpWriteState(nk, logger, userId, state) {
+    try {
+        nk.storageWrite([{
+            collection: VP_STATE_COLLECTION,
+            key: 'state_' + userId,
+            userId: userId,
+            value: state,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        if (logger && logger.error) logger.error('[VisualPath] state write failed: ' + err.message);
+        return false;
+    }
+}
+
+function _vpInitState() {
+    var now = _vpNowIso();
+    return {
+        currentDay:            1,
+        totalPlayDays:         1,
+        lastVisitDay:          _vpTodayKey(),
+        currentMilestoneId:    'first_steps',
+        completedMilestoneIds: [],
+        skipsUsed:             [],
+        createdAt:             now,
+        updatedAt:             now
+    };
+}
+
+function _vpReadSchedule(nk, logger) {
+    try {
+        var rows = nk.storageRead([{
+            collection: VP_CONFIG_COLLECTION,
+            key:        VP_CONFIG_KEY,
+            userId:     VP_SYSTEM_USER_ID
+        }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.milestones) {
+            return rows[0].value;
+        }
+    } catch (err) {
+        if (logger && logger.warn) logger.warn('[VisualPath] schedule read failed: ' + err.message);
+    }
+    return VP_DEFAULT_SCHEDULE;
+}
+
+// Given currentDay + schedule, recomputes currentMilestoneId and the list of
+// completedMilestoneIds. Pure function — no side-effects.
+function _vpRecomputeMilestone(state, schedule) {
+    var done = [];
+    var current = null;
+    for (var i = 0; i < schedule.milestones.length; i++) {
+        var m = schedule.milestones[i];
+        if ((state.currentDay || 1) >= (m.dayRequired || 1)) {
+            done.push(m.id);
+            current = m.id;
+        } else {
+            if (!current) current = m.id; // first not-yet-reached
+            break;
+        }
+    }
+    state.completedMilestoneIds = done;
+    state.currentMilestoneId    = current || (schedule.milestones.length > 0 ? schedule.milestones[0].id : null);
+    return state;
+}
+
+// ============================================================================
+// RPC: visual_path_get_state
+// ============================================================================
+function rpcVisualPathGetState(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _vpErr('Authentication required', 'unauthenticated');
+
+    var schedule = _vpReadSchedule(nk, logger);
+    var state    = _vpReadState(nk, logger, ctx.userId);
+    var isNew    = false;
+
+    if (!state) {
+        state = _vpInitState();
+        isNew = true;
+    } else {
+        // Increment day-counter when a new calendar day is detected
+        var today = _vpTodayKey();
+        if (state.lastVisitDay !== today) {
+            // If the visit was yesterday, advance currentDay by 1 (streak continues).
+            // If the gap is >1 day, currentDay still advances by 1 — calendar-day
+            // count, not "consecutive" — to align with client semantics in
+            // PLAN-02 §V1 which uses totalPlayDays as the milestone driver.
+            state.currentDay   = (state.currentDay || 1) + 1;
+            state.totalPlayDays = (state.totalPlayDays || 1) + 1;
+            state.lastVisitDay = today;
+        }
+    }
+
+    state = _vpRecomputeMilestone(state, schedule);
+    state.updatedAt = _vpNowIso();
+    _vpWriteState(nk, logger, ctx.userId, state);
+
+    // Find the next-milestone object for the client to render the "X days
+    // until next milestone" UI.
+    var nextMilestone = null;
+    for (var i = 0; i < schedule.milestones.length; i++) {
+        var m = schedule.milestones[i];
+        if ((m.dayRequired || 1) > (state.currentDay || 1)) { nextMilestone = m; break; }
+    }
+
+    return _vpOk({
+        currentDay:            state.currentDay,
+        totalPlayDays:         state.totalPlayDays,
+        lastVisitDay:          state.lastVisitDay,
+        currentMilestoneId:    state.currentMilestoneId,
+        completedMilestoneIds: state.completedMilestoneIds,
+        nextMilestone:         nextMilestone,
+        scheduleVersion:       schedule.version || '1.0.0',
+        isNewUser:             isNew,
+        timestamp:             _vpNowIso()
+    });
+}
+
+// ============================================================================
+// RPC: visual_path_get_schedule
+// ============================================================================
+//
+// Payload: { knownVersion?: <string> }
+//
+// If `knownVersion` matches the server schedule version, returns
+// `{ success: true, unchanged: true, version }` so the client can skip the
+// full milestone list (cheap cache-validation round-trip).
+function rpcVisualPathGetSchedule(ctx, logger, nk, payload) {
+    var p = _vpParse(payload);
+    if (!p.ok) return _vpErr(p.error, 'invalid_payload');
+    var knownVersion = (p.data || {}).knownVersion;
+
+    var schedule = _vpReadSchedule(nk, logger);
+
+    if (knownVersion && schedule.version && knownVersion === schedule.version) {
+        return _vpOk({
+            unchanged: true,
+            version:   schedule.version,
+            timestamp: _vpNowIso()
+        });
+    }
+
+    return _vpOk({
+        version:    schedule.version || '1.0.0',
+        milestones: schedule.milestones || [],
+        unchanged:  false,
+        timestamp:  _vpNowIso()
+    });
+}
+
+// ============================================================================
+// RPC: visual_path_skip_day_with_ad
+// ============================================================================
+//
+// Lets a player advance currentDay by 1 in exchange for a watched rewarded
+// ad. Rate-limited:
+//   - max 1 skip per calendar day
+//   - max VP_SKIPS_PER_30D (5) skips in any rolling 30-day window
+//
+// Payload: { adImpressionId?: <string> }   // SDK-level token; logged for audit
+//
+// We trust the client's "ad watched" claim because the upstream ad-SDK uses
+// signed callbacks; storing the impressionId lets us correlate with the
+// ad-network reconciliation pipeline if abuse is suspected later.
+function rpcVisualPathSkipDayWithAd(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _vpErr('Authentication required', 'unauthenticated');
+
+    var p = _vpParse(payload);
+    if (!p.ok) return _vpErr(p.error, 'invalid_payload');
+    var data = p.data || {};
+    var impressionId = data.adImpressionId || '';
+
+    var schedule = _vpReadSchedule(nk, logger);
+    var state    = _vpReadState(nk, logger, ctx.userId) || _vpInitState();
+    var today    = _vpTodayKey();
+
+    if (!state.skipsUsed) state.skipsUsed = [];
+
+    // Daily cap: refuse if already skipped today
+    for (var i = 0; i < state.skipsUsed.length; i++) {
+        if (state.skipsUsed[i].day === today) {
+            return _vpErr('Already used your daily skip', 'daily_skip_used',
+                          { skippedAt: state.skipsUsed[i].at });
+        }
+    }
+
+    // 30-day cap: count skips in trailing 30 days
+    var nowMs = Date.now();
+    var freshSkips = [];
+    for (var j = 0; j < state.skipsUsed.length; j++) {
+        var sk = state.skipsUsed[j];
+        var ms = new Date(sk.at).getTime();
+        if ((nowMs - ms) < (30 * 86400000)) freshSkips.push(sk);
+    }
+    if (freshSkips.length >= VP_SKIPS_PER_30D) {
+        return _vpErr('30-day skip limit reached (' + VP_SKIPS_PER_30D + ')',
+                      'monthly_skip_limit', { freshSkipsCount: freshSkips.length });
+    }
+
+    // Apply skip
+    state.currentDay    = (state.currentDay || 1) + 1;
+    state.totalPlayDays = (state.totalPlayDays || 1) + 1;
+    state.lastVisitDay  = today;
+    state.skipsUsed     = freshSkips.concat([{
+        day: today,
+        at: _vpNowIso(),
+        impressionId: impressionId
+    }]);
+
+    state = _vpRecomputeMilestone(state, schedule);
+    state.updatedAt = _vpNowIso();
+    if (!_vpWriteState(nk, logger, ctx.userId, state)) {
+        return _vpErr('Failed to persist skip', 'storage_write_failed');
+    }
+
+    if (logger && logger.info) {
+        logger.info('[VisualPath] skip_day_with_ad user=' + ctx.userId +
+                    ' day=' + state.currentDay +
+                    ' impressionId=' + impressionId);
+    }
+
+    return _vpOk({
+        currentDay:            state.currentDay,
+        totalPlayDays:         state.totalPlayDays,
+        currentMilestoneId:    state.currentMilestoneId,
+        completedMilestoneIds: state.completedMilestoneIds,
+        skipsUsedThisMonth:    state.skipsUsed.length,
+        skipsRemainingThisMonth: Math.max(0, VP_SKIPS_PER_30D - state.skipsUsed.length),
+        timestamp:             _vpNowIso()
+    });
+}
+
+// ============================================================================
+// Module Init — register Visual Path RPCs
+// ============================================================================
+function __ModuleInit_74(ctx, logger, nk, initializer) {
+    __rpc_visual_path_get_state = __rpc_visual_path_get_state || (rpcVisualPathGetState);
+    __rpc_visual_path_get_schedule = __rpc_visual_path_get_schedule || (rpcVisualPathGetSchedule);
+    __rpc_visual_path_skip_day_with_ad = __rpc_visual_path_skip_day_with_ad || (rpcVisualPathSkipDayWithAd);
+    if (logger && logger.info) {
+        logger.info('[VisualPath] Registered 3 RPCs (get_state, get_schedule, skip_day_with_ad)');
+    }
+}
 
 
 // --- Module: wallet/wallet.js ---
@@ -59793,475 +61650,6 @@ function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
 // Storage: collection="friend_quests", key="quest_state_{userId}"
 // ============================================================================
 
-var FQ_COLLECTION = 'friend_quests';
-var FQ_MAX_ACTIVE = 3;
-var FQ_REFRESH_HOURS = 8;
-
-// 10 quest types matching client-side QuestType enum
-var FQ_QUEST_TYPES = [
-    'PlayTogether', 'ChallengeFriend', 'StudyBuddy', 'GroupStreak',
-    'BeatInSpeedQuiz', 'DailyQuizDuo', 'PerfectRound', 'ExploreTogether',
-    'ShareScore', 'WinThreeQuizzes'
-];
-
-// Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
-var FQ_TEMPLATES = {
-    PlayTogether: { title: 'Play with {0}', desc: 'Complete a quiz while {0} is online', target: 1, coins: 50, xp: 25 },
-    ChallengeFriend: { title: 'Challenge {0}', desc: 'Send a challenge to {0} and have them accept', target: 1, coins: 75, xp: 40 },
-    StudyBuddy: { title: 'Study with {0}', desc: 'Both you and {0} complete a review session today', target: 1, coins: 100, xp: 50 },
-    GroupStreak: { title: '7-Day Streak with {0}', desc: 'Maintain your friend streak with {0} for 7 days', target: 7, coins: 200, xp: 100 },
-    BeatInSpeedQuiz: { title: 'Beat {0} in Speed Quiz', desc: 'Score higher than {0} in a Speed Quiz', target: 1, coins: 75, xp: 40 },
-    DailyQuizDuo: { title: 'Daily Quiz Duo with {0}', desc: 'Both you and {0} complete the Daily Quiz today', target: 1, coins: 60, xp: 30 },
-    PerfectRound: { title: 'Perfect Round with {0}', desc: 'Both answer 5 questions correctly in same session', target: 5, coins: 100, xp: 50 },
-    ExploreTogether: { title: 'Explore Together with {0}', desc: 'Both play GeoExplore mode on the same day', target: 1, coins: 75, xp: 40 },
-    ShareScore: { title: 'Share a Score with {0}', desc: 'Share your quiz result with {0}', target: 1, coins: 50, xp: 25 },
-    WinThreeQuizzes: { title: 'Win 3 Quizzes with {0}', desc: 'Win 3 quizzes while {0} is online', target: 3, coins: 150, xp: 75 }
-};
-
-function fqStorageKey(userId) { return 'quest_state_' + userId; }
-function fqError(msg) { return JSON.stringify({ success: false, error: msg }); }
-function fqFormatString(template, friendName) { return template.replace(/\{0\}/g, friendName); }
-function fqGenerateId() {
-    var chars = '0123456789abcdef', id = '';
-    for (var i = 0; i < 8; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
-    return id;
-}
-
-function fqReadData(nk, logger, userId) {
-    try {
-        var records = nk.storageRead([{ collection: FQ_COLLECTION, key: fqStorageKey(userId), userId: userId }]);
-        if (records && records.length > 0 && records[0].value) return records[0].value;
-    } catch (err) { logger.warn('[FriendQuests] Storage read failed: ' + err.message); }
-    return null;
-}
-
-function fqWriteData(nk, logger, userId, data) {
-    try {
-        nk.storageWrite([{ collection: FQ_COLLECTION, key: fqStorageKey(userId), userId: userId, value: data, permissionRead: 1, permissionWrite: 0 }]);
-        return true;
-    } catch (err) { logger.error('[FriendQuests] Storage write failed: ' + err.message); return false; }
-}
-
-function fqInitData() {
-    return { quests: [], completedIds: [], lastRefresh: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-}
-
-function fqGenerateQuests(nk, logger, userId, existingData) {
-    var friends = [];
-    try {
-        var friendsResult = nk.friendsList(userId, null, null, null);
-        if (friendsResult && friendsResult.friends) {
-            for (var i = 0; i < friendsResult.friends.length; i++) {
-                var f = friendsResult.friends[i];
-                if (f && f.user && f.user.id) {
-                    friends.push({ id: f.user.id, name: f.user.displayName || f.user.username || 'Friend' });
-                }
-            }
-        }
-    } catch (err) { logger.warn('[FriendQuests] Could not fetch friends list: ' + err.message); }
-
-    if (friends.length === 0) {
-        logger.info('[FriendQuests] No friends found for user ' + userId);
-        return [];
-    }
-
-    var activeCount = 0, now = new Date();
-    if (existingData && existingData.quests) {
-        for (var j = 0; j < existingData.quests.length; j++) {
-            var q = existingData.quests[j];
-            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) activeCount++;
-        }
-    }
-
-    var toGenerate = FQ_MAX_ACTIVE - activeCount;
-    if (toGenerate <= 0) return existingData ? existingData.quests : [];
-
-    // Shuffle quest types
-    var shuffledTypes = FQ_QUEST_TYPES.slice();
-    for (var s = shuffledTypes.length - 1; s > 0; s--) {
-        var r = Math.floor(Math.random() * (s + 1));
-        var tmp = shuffledTypes[s]; shuffledTypes[s] = shuffledTypes[r]; shuffledTypes[r] = tmp;
-    }
-
-    var newQuests = [], expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString(), createdAt = now.toISOString();
-    for (var k = 0; k < toGenerate; k++) {
-        var friend = friends[k % friends.length];
-        var questType = shuffledTypes[k % shuffledTypes.length];
-        var template = FQ_TEMPLATES[questType];
-        if (!template) continue;
-        newQuests.push({
-            questId: fqGenerateId(), type: questType, friendId: friend.id, friendDisplayName: friend.name,
-            title: fqFormatString(template.title, friend.name), description: fqFormatString(template.desc, friend.name),
-            currentProgress: 0, targetProgress: template.target, isCompleted: false,
-            coinReward: template.coins, xpReward: template.xp, createdAt: createdAt, expiresAt: expiresAt
-        });
-    }
-    logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests for user ' + userId);
-    return newQuests;
-}
-
-// RPC: friend_quest_get_state — returns active quests, generates new if needed
-var rpcFriendQuestGetState = function(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var data = fqReadData(nk, logger, ctx.userId) || fqInitData();
-    var now = new Date(), needsRefresh = false;
-
-    // Filter active non-expired quests
-    var activeQuests = [];
-    if (data.quests && data.quests.length > 0) {
-        for (var i = 0; i < data.quests.length; i++) {
-            var q = data.quests[i];
-            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) activeQuests.push(q);
-        }
-    }
-
-    // Check refresh timer
-    if (data.lastRefresh) {
-        var hoursSince = (now.getTime() - new Date(data.lastRefresh).getTime()) / (1000 * 60 * 60);
-        if (hoursSince >= FQ_REFRESH_HOURS) needsRefresh = true;
-    } else { needsRefresh = true; }
-
-    // Generate new quests if needed
-    if (activeQuests.length < FQ_MAX_ACTIVE && needsRefresh) {
-        data.quests = activeQuests;
-        var newQuests = fqGenerateQuests(nk, logger, ctx.userId, data);
-        for (var j = 0; j < newQuests.length; j++) data.quests.push(newQuests[j]);
-        data.lastRefresh = now.toISOString();
-        data.updatedAt = now.toISOString();
-        fqWriteData(nk, logger, ctx.userId, data);
-        activeQuests = data.quests.filter(function(q) { return !q.isCompleted; });
-    }
-
-    return JSON.stringify({
-        success: true, quests: activeQuests, completedIds: data.completedIds || [],
-        lastRefresh: data.lastRefresh || null, timestamp: now.toISOString()
-    });
-};
-
-// RPC: friend_quest_complete — marks quest done, grants rewards, notifies friend
-var rpcFriendQuestComplete = function(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var input; try { input = JSON.parse(payload); } catch (e) { return fqError('Invalid JSON'); }
-    var questId = input.questId, questType = input.questType, friendId = input.friendId;
-    var coinReward = input.coinReward || 50, xpReward = input.xpReward || 25;
-
-    if (!questId || !questType) return fqError('Missing questId or questType');
-
-    var data = fqReadData(nk, logger, ctx.userId) || fqInitData();
-
-    // Duplicate protection
-    if (!data.completedIds) data.completedIds = [];
-    for (var i = 0; i < data.completedIds.length; i++) {
-        if (data.completedIds[i] === questId) {
-            return JSON.stringify({ success: false, error: 'Quest already completed', already_completed: true });
-        }
-    }
-    data.completedIds.push(questId);
-
-    // Update quest record — use server-stored rewards for authority
-    if (data.quests) {
-        for (var j = 0; j < data.quests.length; j++) {
-            if (data.quests[j].questId === questId) {
-                data.quests[j].isCompleted = true;
-                if (data.quests[j].coinReward) coinReward = data.quests[j].coinReward;
-                if (data.quests[j].xpReward) xpReward = data.quests[j].xpReward;
-                break;
-            }
-        }
-    }
-
-    // Grant rewards via wallet
-    try {
-        nk.walletUpdate(ctx.userId, { coins: coinReward, xp: xpReward }, { source: 'friend_quest_' + questType }, true);
-    } catch (walletErr) { logger.warn('[FriendQuests] Wallet update failed: ' + walletErr.message); }
-
-    // Save state
-    data.updatedAt = new Date().toISOString();
-    fqWriteData(nk, logger, ctx.userId, data);
-
-    // Notify friend about completion
-    if (friendId) {
-        try {
-            nk.notificationsSend([{
-                userId: friendId, subject: 'Friend Quest Completed!',
-                content: { type: 'friend_quest_complete', quest_type: questType, friend_id: ctx.userId },
-                code: 102, persistent: true
-            }]);
-        } catch (notifErr) { logger.warn('[FriendQuests] Friend notification failed: ' + notifErr.message); }
-    }
-
-    logger.info('[FriendQuests] Quest completed: ' + questId + ' type=' + questType + ' coins=' + coinReward + ' xp=' + xpReward);
-    return JSON.stringify({ success: true, questId: questId, coinReward: coinReward, xpReward: xpReward, timestamp: new Date().toISOString() });
-}
-
-// Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
-var FQ_TEMPLATES = {
-    PlayTogether: { title: 'Play with {0}', desc: 'Complete a quiz while {0} is online', target: 1, coins: 50, xp: 25 },
-    ChallengeFriend: { title: 'Challenge {0}', desc: 'Send a challenge to {0} and have them accept', target: 1, coins: 75, xp: 40 },
-    StudyBuddy: { title: 'Study with {0}', desc: 'Both you and {0} complete a review session today', target: 1, coins: 100, xp: 50 },
-    GroupStreak: { title: '7-Day Streak with {0}', desc: 'Maintain your friend streak with {0} for 7 days', target: 7, coins: 200, xp: 100 },
-    BeatInSpeedQuiz: { title: 'Beat {0} in Speed Quiz', desc: 'Score higher than {0} in a Speed Quiz', target: 1, coins: 75, xp: 40 },
-    DailyQuizDuo: { title: 'Daily Quiz Duo with {0}', desc: 'Both you and {0} complete the Daily Quiz today', target: 1, coins: 60, xp: 30 },
-    PerfectRound: { title: 'Perfect Round with {0}', desc: 'Both answer 5 questions correctly in same session', target: 5, coins: 100, xp: 50 },
-    ExploreTogether: { title: 'Explore Together with {0}', desc: 'Both play GeoExplore mode on the same day', target: 1, coins: 75, xp: 40 },
-    ShareScore: { title: 'Share a Score with {0}', desc: 'Share your quiz result with {0}', target: 1, coins: 50, xp: 25 },
-    WinThreeQuizzes: { title: 'Win 3 Quizzes with {0}', desc: 'Win 3 quizzes while {0} is online', target: 3, coins: 150, xp: 75 }
-};
-
-function fqStorageKey(userId) { return 'quest_state_' + userId; }
-function fqError(msg) { return JSON.stringify({ success: false, error: msg }); }
-function fqFormatString(template, friendName) { return template.replace(/\{0\}/g, friendName); }
-function fqGenerateId() {
-    var chars = '0123456789abcdef', id = '';
-    for (var i = 0; i < 8; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
-    return id;
-}
-
-function fqReadData(nk, logger, userId) {
-    try {
-        var records = nk.storageRead([{ collection: FQ_COLLECTION, key: fqStorageKey(userId), userId: userId }]);
-        if (records && records.length > 0 && records[0].value) return records[0].value;
-    } catch (err) { logger.warn('[FriendQuests] Storage read failed: ' + err.message); }
-    return null;
-}
-
-function fqWriteData(nk, logger, userId, data) {
-    try {
-        nk.storageWrite([{ collection: FQ_COLLECTION, key: fqStorageKey(userId), userId: userId, value: data, permissionRead: 1, permissionWrite: 0 }]);
-        return true;
-    } catch (err) { logger.error('[FriendQuests] Storage write failed: ' + err.message); return false; }
-}
-
-function fqInitData() {
-    return { quests: [], completedIds: [], lastRefresh: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-}
-
-function fqGenerateQuests(nk, logger, userId, existingData) {
-    var friends = [];
-    try {
-        var friendsResult = nk.friendsList(userId, null, null, null);
-        if (friendsResult && friendsResult.friends) {
-            for (var i = 0; i < friendsResult.friends.length; i++) {
-                var f = friendsResult.friends[i];
-                if (f && f.user && f.user.id) {
-                    friends.push({ id: f.user.id, name: f.user.displayName || f.user.username || 'Friend' });
-                }
-            }
-        }
-    } catch (err) { logger.warn('[FriendQuests] Could not fetch friends list: ' + err.message); }
-
-    if (friends.length === 0) {
-        logger.info('[FriendQuests] No friends found for user ' + userId);
-        return [];
-    }
-
-    var activeCount = 0, now = new Date();
-    if (existingData && existingData.quests) {
-        for (var j = 0; j < existingData.quests.length; j++) {
-            var q = existingData.quests[j];
-            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) activeCount++;
-        }
-    }
-
-    var toGenerate = FQ_MAX_ACTIVE - activeCount;
-    if (toGenerate <= 0) return existingData ? existingData.quests : [];
-
-    // Shuffle quest types
-    var shuffledTypes = FQ_QUEST_TYPES.slice();
-    for (var s = shuffledTypes.length - 1; s > 0; s--) {
-        var r = Math.floor(Math.random() * (s + 1));
-        var tmp = shuffledTypes[s]; shuffledTypes[s] = shuffledTypes[r]; shuffledTypes[r] = tmp;
-    }
-
-    var newQuests = [], expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString(), createdAt = now.toISOString();
-    for (var k = 0; k < toGenerate; k++) {
-        var friend = friends[k % friends.length];
-        var questType = shuffledTypes[k % shuffledTypes.length];
-        var template = FQ_TEMPLATES[questType];
-        if (!template) continue;
-        newQuests.push({
-            questId: fqGenerateId(), type: questType, friendId: friend.id, friendDisplayName: friend.name,
-            title: fqFormatString(template.title, friend.name), description: fqFormatString(template.desc, friend.name),
-            currentProgress: 0, targetProgress: template.target, isCompleted: false,
-            coinReward: template.coins, xpReward: template.xp, createdAt: createdAt, expiresAt: expiresAt
-        });
-    }
-    logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests for user ' + userId);
-    return newQuests;
-}
-
-// RPC: friend_quest_get_state — returns active quests, generates new if needed
-var rpcFriendQuestGetState = function(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var data = fqReadData(nk, logger, ctx.userId) || fqInitData();
-    var now = new Date(), needsRefresh = false;
-
-    // Filter active non-expired quests
-    var activeQuests = [];
-    if (data.quests && data.quests.length > 0) {
-        for (var i = 0; i < data.quests.length; i++) {
-            var q = data.quests[i];
-            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) activeQuests.push(q);
-        }
-    }
-
-    // Check refresh timer
-    if (data.lastRefresh) {
-        var hoursSince = (now.getTime() - new Date(data.lastRefresh).getTime()) / (1000 * 60 * 60);
-        if (hoursSince >= FQ_REFRESH_HOURS) needsRefresh = true;
-    } else { needsRefresh = true; }
-
-    // Generate new quests if needed
-    if (activeQuests.length < FQ_MAX_ACTIVE && needsRefresh) {
-        data.quests = activeQuests;
-        var newQuests = fqGenerateQuests(nk, logger, ctx.userId, data);
-        for (var j = 0; j < newQuests.length; j++) data.quests.push(newQuests[j]);
-        data.lastRefresh = now.toISOString();
-        data.updatedAt = now.toISOString();
-        fqWriteData(nk, logger, ctx.userId, data);
-        activeQuests = data.quests.filter(function(q) { return !q.isCompleted; });
-    }
-
-    return JSON.stringify({
-        success: true, quests: activeQuests, completedIds: data.completedIds || [],
-        lastRefresh: data.lastRefresh || null, timestamp: now.toISOString()
-    });
-};
-
-// RPC: friend_quest_complete — marks quest done, grants rewards, notifies friend
-var rpcFriendQuestComplete = function(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var input; try { input = JSON.parse(payload); } catch (e) { return fqError('Invalid JSON'); }
-    var questId = input.questId, questType = input.questType, friendId = input.friendId;
-    var coinReward = input.coinReward || 50, xpReward = input.xpReward || 25;
-
-    if (!questId || !questType) return fqError('Missing questId or questType');
-
-    var data = fqReadData(nk, logger, ctx.userId) || fqInitData();
-
-    // Duplicate protection
-    if (!data.completedIds) data.completedIds = [];
-    for (var i = 0; i < data.completedIds.length; i++) {
-        if (data.completedIds[i] === questId) {
-            return JSON.stringify({ success: false, error: 'Quest already completed', already_completed: true });
-        }
-    }
-    data.completedIds.push(questId);
-
-    // Update quest record — use server-stored rewards for authority
-    if (data.quests) {
-        for (var j = 0; j < data.quests.length; j++) {
-            if (data.quests[j].questId === questId) {
-                data.quests[j].isCompleted = true;
-                if (data.quests[j].coinReward) coinReward = data.quests[j].coinReward;
-                if (data.quests[j].xpReward) xpReward = data.quests[j].xpReward;
-                break;
-            }
-        }
-    }
-
-    // Grant rewards via wallet
-    try {
-        nk.walletUpdate(ctx.userId, { coins: coinReward, xp: xpReward }, { source: 'friend_quest_' + questType }, true);
-    } catch (walletErr) { logger.warn('[FriendQuests] Wallet update failed: ' + walletErr.message); }
-
-    // Save state
-    data.updatedAt = new Date().toISOString();
-    fqWriteData(nk, logger, ctx.userId, data);
-
-    // Notify friend about completion
-    if (friendId) {
-        try {
-            nk.notificationsSend([{
-                userId: friendId, subject: 'Friend Quest Completed!',
-                content: { type: 'friend_quest_complete', quest_type: questType, friend_id: ctx.userId },
-                code: 102, persistent: true
-            }]);
-        } catch (notifErr) { logger.warn('[FriendQuests] Friend notification failed: ' + notifErr.message); }
-    }
-
-    logger.info('[FriendQuests] Quest completed: ' + questId + ' type=' + questType + ' coins=' + coinReward + ' xp=' + xpReward);
-    return JSON.stringify({ success: true, questId: questId, coinReward: coinReward, xpReward: xpReward, timestamp: new Date().toISOString() });
-};
-// Stub: rpcFriendStreakGetState - TODO: implement actual function
-var rpcFriendStreakGetState = function(ctx, logger, nk, payload) {
-    logger.debug('rpcFriendStreakGetState called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcFriendStreakGetState not implemented', success: false });
-};
-// Stub: rpcFriendStreakRecordContribution - TODO: implement actual function
-var rpcFriendStreakRecordContribution = function(ctx, logger, nk, payload) {
-    logger.debug('rpcFriendStreakRecordContribution called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcFriendStreakRecordContribution not implemented', success: false });
-};
-// Stub: rpcFriendStreakSendNudge - TODO: implement actual function
-var rpcFriendStreakSendNudge = function(ctx, logger, nk, payload) {
-    logger.debug('rpcFriendStreakSendNudge called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcFriendStreakSendNudge not implemented', success: false });
-};
-// Stub: rpcGetGameById - TODO: implement actual function
-var rpcGetGameById = function(ctx, logger, nk, payload) {
-    logger.debug('rpcGetGameById called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcGetGameById not implemented', success: false });
-};
-// Stub: rpcGetGameRegistry - TODO: implement actual function
-var rpcGetGameRegistry = function(ctx, logger, nk, payload) {
-    logger.debug('rpcGetGameRegistry called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcGetGameRegistry not implemented', success: false });
-};
-// Stub: rpcListNotificationInbox - TODO: implement actual function
-var rpcListNotificationInbox = function(ctx, logger, nk, payload) {
-    logger.debug('rpcListNotificationInbox called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcListNotificationInbox not implemented', success: false });
-};
-// Stub: rpcManifestGetVersion - TODO: implement actual function
-var rpcManifestGetVersion = function(ctx, logger, nk, payload) {
-    logger.debug('rpcManifestGetVersion called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcManifestGetVersion not implemented', success: false });
-};
-// Stub: rpcMarkNotificationsRead - TODO: implement actual function
-var rpcMarkNotificationsRead = function(ctx, logger, nk, payload) {
-    logger.debug('rpcMarkNotificationsRead called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcMarkNotificationsRead not implemented', success: false });
-};
-// Stub: rpcNotifGateGetState - TODO: implement actual function
-var rpcNotifGateGetState = function(ctx, logger, nk, payload) {
-    logger.debug('rpcNotifGateGetState called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcNotifGateGetState not implemented', success: false });
-};
-// Stub: rpcPlayerGetFullProfile - TODO: implement actual function
-var rpcPlayerGetFullProfile = function(ctx, logger, nk, payload) {
-    logger.debug('rpcPlayerGetFullProfile called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcPlayerGetFullProfile not implemented', success: false });
-};
-// Stub: rpcSmartReviewGetCards - TODO: implement actual function
-var rpcSmartReviewGetCards = function(ctx, logger, nk, payload) {
-    logger.debug('rpcSmartReviewGetCards called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcSmartReviewGetCards not implemented', success: false });
-};
-// Stub: rpcSmartReviewRateCard - TODO: implement actual function
-var rpcSmartReviewRateCard = function(ctx, logger, nk, payload) {
-    logger.debug('rpcSmartReviewRateCard called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcSmartReviewRateCard not implemented', success: false });
-};
-// Stub: rpcStreakRepair - TODO: implement actual function
-var rpcStreakRepair = function(ctx, logger, nk, payload) {
-    logger.debug('rpcStreakRepair called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcStreakRepair not implemented', success: false });
-};
-// Stub: rpcStreakWager - TODO: implement actual function
-var rpcStreakWager = function(ctx, logger, nk, payload) {
-    logger.debug('rpcStreakWager called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcStreakWager not implemented', success: false });
-};
-// Stub: rpcSyncGameRegistry - TODO: implement actual function
-var rpcSyncGameRegistry = function(ctx, logger, nk, payload) {
-    logger.debug('rpcSyncGameRegistry called but not implemented (stub)');
-    return JSON.stringify({ error: 'rpcSyncGameRegistry not implemented', success: false });
-};
 // Stub: quizverseUpdateUserProfile - TODO: implement actual function
 var quizverseUpdateUserProfile = function(ctx, logger, nk, payload) {
     logger.debug('quizverseUpdateUserProfile called but not implemented (stub)');
@@ -76790,6 +78178,14 @@ try { __rpc_external_poll_appstore = __rpc_external_poll_appstore || (rpcExterna
 try { __rpc_external_poll_ugs = __rpc_external_poll_ugs || (rpcExternalPollUgs); } catch(e) {}
 try { __rpc_external_poll_all = __rpc_external_poll_all || (rpcExternalPollAll); } catch(e) {}
 try { __rpc_external_poll_status = __rpc_external_poll_status || (rpcExternalPollStatus); } catch(e) {}
+try { __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState); } catch(e) {}
+try { __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete); } catch(e) {}
+try { __rpc_friend_quest_record_progress = __rpc_friend_quest_record_progress || (rpcFriendQuestRecordProgress); } catch(e) {}
+try { __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState); } catch(e) {}
+try { __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution); } catch(e) {}
+try { __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge); } catch(e) {}
+try { __rpc_friend_streak_get_broken_log = __rpc_friend_streak_get_broken_log || (rpcFriendStreakGetBrokenLog); } catch(e) {}
+try { __rpc_friend_streak_repair = __rpc_friend_streak_repair || (rpcFriendStreakRepair); } catch(e) {}
 try { __rpc_id = __rpc_id || (handler); } catch(e) {}
 try { __rpc_send_friend_challenge = __rpc_send_friend_challenge || (rpcSendFriendChallenge); } catch(e) {}
 try { __rpc_friends_challenge_user = __rpc_friends_challenge_user || (rpcSendFriendChallenge); } catch(e) {}
@@ -76804,6 +78200,10 @@ try { __rpc_accept_friend_invite = __rpc_accept_friend_invite || (rpcFriendsAcce
 try { __rpc_decline_friend_invite = __rpc_decline_friend_invite || (rpcFriendsDeclineInvite); } catch(e) {}
 try { __rpc_cancel_friend_invite = __rpc_cancel_friend_invite || (rpcFriendsCancelInvite); } catch(e) {}
 try { __rpc_list_pending_friend_invites = __rpc_list_pending_friend_invites || (rpcFriendsListPendingInvites); } catch(e) {}
+try { __rpc_friends_get_online_count = __rpc_friends_get_online_count || (rpcFriendsGetOnlineCount); } catch(e) {}
+try { __rpc_social_pressure_get_today_summary = __rpc_social_pressure_get_today_summary || (rpcSocialPressureGetTodaySummary); } catch(e) {}
+try { __rpc_friend_battle_create = __rpc_friend_battle_create || (rpcFriendBattleCreate); } catch(e) {}
+try { __rpc_friend_invite_with_reward = __rpc_friend_invite_with_reward || (rpcFriendInviteWithReward); } catch(e) {}
 try { __rpc_onboarding_get_state = __rpc_onboarding_get_state || (rpcGetOnboardingState); } catch(e) {}
 try { __rpc_onboarding_update_state = __rpc_onboarding_update_state || (rpcUpdateOnboardingState); } catch(e) {}
 try { __rpc_onboarding_complete_step = __rpc_onboarding_complete_step || (rpcCompleteStep); } catch(e) {}
@@ -76836,6 +78236,17 @@ try { __rpc_intellidraws_list = __rpc_intellidraws_list || (rpcIntelliDrawsList)
 try { __rpc_intellidraws_winners = __rpc_intellidraws_winners || (rpcIntelliDrawsWinners); } catch(e) {}
 try { __rpc_intellidraws_enter = __rpc_intellidraws_enter || (rpcIntelliDrawsEnter); } catch(e) {}
 try { __rpc_intellidraws_past = __rpc_intellidraws_past || (rpcIntelliDrawsPast); } catch(e) {}
+try { __rpc_id = __rpc_id || (handler); } catch(e) {}
+try { __rpc_smart_review_get_cards = __rpc_smart_review_get_cards || (rpcSmartReviewGetCards); } catch(e) {}
+try { __rpc_smart_review_rate_card = __rpc_smart_review_rate_card || (rpcSmartReviewRateCard); } catch(e) {}
+try { __rpc_smart_review_add_card = __rpc_smart_review_add_card || (rpcSmartReviewAddCard); } catch(e) {}
+try { __rpc_smart_review_bulk_rate = __rpc_smart_review_bulk_rate || (rpcSmartReviewBulkRate); } catch(e) {}
+try { __rpc_smart_review_get_state = __rpc_smart_review_get_state || (rpcSmartReviewGetState); } catch(e) {}
+try { __rpc_smart_review_get_weakness_map = __rpc_smart_review_get_weakness_map || (rpcSmartReviewGetWeaknessMap); } catch(e) {}
+try { __rpc_smart_review_get_forecast = __rpc_smart_review_get_forecast || (rpcSmartReviewGetForecast); } catch(e) {}
+try { __rpc_visual_path_get_state = __rpc_visual_path_get_state || (rpcVisualPathGetState); } catch(e) {}
+try { __rpc_visual_path_get_schedule = __rpc_visual_path_get_schedule || (rpcVisualPathGetSchedule); } catch(e) {}
+try { __rpc_visual_path_skip_day_with_ad = __rpc_visual_path_skip_day_with_ad || (rpcVisualPathSkipDayWithAd); } catch(e) {}
 
 
 // --- RPC Registration Bridge (Goja AST Compatible) ---
@@ -77366,6 +78777,9 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("external_poll_ugs", __rpc_external_poll_ugs); } catch(e) {}
   try { initializer.registerRpc("external_poll_all", __rpc_external_poll_all); } catch(e) {}
   try { initializer.registerRpc("external_poll_status", __rpc_external_poll_status); } catch(e) {}
+  try { initializer.registerRpc("friend_quest_record_progress", __rpc_friend_quest_record_progress); } catch(e) {}
+  try { initializer.registerRpc("friend_streak_get_broken_log", __rpc_friend_streak_get_broken_log); } catch(e) {}
+  try { initializer.registerRpc("friend_streak_repair", __rpc_friend_streak_repair); } catch(e) {}
   try { initializer.registerRpc("id", __rpc_id); } catch(e) {}
   try { initializer.registerRpc("send_friend_challenge", __rpc_send_friend_challenge); } catch(e) {}
   try { initializer.registerRpc("friends_challenge_user", __rpc_friends_challenge_user); } catch(e) {}
@@ -77379,6 +78793,10 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("decline_friend_invite", __rpc_decline_friend_invite); } catch(e) {}
   try { initializer.registerRpc("cancel_friend_invite", __rpc_cancel_friend_invite); } catch(e) {}
   try { initializer.registerRpc("list_pending_friend_invites", __rpc_list_pending_friend_invites); } catch(e) {}
+  try { initializer.registerRpc("friends_get_online_count", __rpc_friends_get_online_count); } catch(e) {}
+  try { initializer.registerRpc("social_pressure_get_today_summary", __rpc_social_pressure_get_today_summary); } catch(e) {}
+  try { initializer.registerRpc("friend_battle_create", __rpc_friend_battle_create); } catch(e) {}
+  try { initializer.registerRpc("friend_invite_with_reward", __rpc_friend_invite_with_reward); } catch(e) {}
   try { initializer.registerRpc("submit_score", __rpc_submit_score); } catch(e) {}
   try { initializer.registerRpc("onboarding_grant_streak_shield", __rpc_onboarding_grant_streak_shield); } catch(e) {}
   try { initializer.registerRpc("qe_player_full_profile", __rpc_qe_player_full_profile); } catch(e) {}
@@ -77390,5 +78808,13 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 544 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  try { initializer.registerRpc("smart_review_add_card", __rpc_smart_review_add_card); } catch(e) {}
+  try { initializer.registerRpc("smart_review_bulk_rate", __rpc_smart_review_bulk_rate); } catch(e) {}
+  try { initializer.registerRpc("smart_review_get_state", __rpc_smart_review_get_state); } catch(e) {}
+  try { initializer.registerRpc("smart_review_get_weakness_map", __rpc_smart_review_get_weakness_map); } catch(e) {}
+  try { initializer.registerRpc("smart_review_get_forecast", __rpc_smart_review_get_forecast); } catch(e) {}
+  try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
+  try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
+  try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
+  logger.info("[Postbuild] Registered " + 559 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }
