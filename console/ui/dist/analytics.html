@@ -1194,7 +1194,7 @@
                 <label>Game:</label>
                 <select id="gameSelector" onchange="onGameChange()">
                     <option value="all">🌐 All Games</option>
-                    <option value="126bf539-dae2-4bcf-964d-316c0fa1f92b" data-name="QuizVerse">🧠 QuizVerse</option>
+                    <option value="126bf539-dae2-4bcf-964d-316c0fa1f92b" data-name="QuizVerse" selected>🧠 QuizVerse</option>
                     <option value="lasttolive" data-name="Last To Live">🎮 Last To Live</option>
                     <option value="cricketvr" data-name="Cricket VR">🏏 Cricket VR</option>
                 </select>
@@ -1272,6 +1272,7 @@
                 <span class="tab-group-divider"></span>
                 <button class="tab" data-tab="players">👑 Players</button>
                 <button class="tab" data-tab="platforms">📱 Platforms</button>
+                <button class="tab" data-tab="audience">🌍 Audience</button>
                 <button class="tab" data-tab="heatmap">🔥 Heatmap</button>
             </div>
             <div class="tab-group-row">
@@ -1380,11 +1381,22 @@
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
             </div>
+            <div class="kpi-grid" id="retentionMilestoneKpis" style="margin-top:.6rem">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
             <div class="chart-grid">
                 <div class="chart-card" style="grid-column: span 2;">
                     <h3>Retention Curve <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('retentionChart','Retention Curve')">⛶</button></div></h3>
                     <div class="card-body"><div class="chart-container">
                         <canvas id="retentionChart"></canvas>
+                    </div></div>
+                </div>
+                <div class="chart-card" style="grid-column: span 2;">
+                    <h3>D1 / D7 / D30 Retention Trend <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('retentionMilestoneChart','D1 / D7 / D30 Retention Trend')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
+                        <canvas id="retentionMilestoneChart"></canvas>
                     </div></div>
                 </div>
             </div>
@@ -1416,11 +1428,71 @@
         
         <!-- Funnel Tab -->
         <div id="funnel" class="tab-content">
-            <div class="chart-card">
+            <div class="kpi-grid" id="funnelKpis">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
+            <div class="chart-card" style="margin-top:.6rem">
+                <h3>⚠️ Biggest Drop-off <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body">
+                    <div id="worstDropOff" style="font-size:1.1rem;color:var(--accent-red,#ff6b6b);font-weight:600">Loading…</div>
+                    <div id="dropOffHint" class="muted" style="margin-top:.4rem;font-size:.9rem">Step where the largest share of players abandons the funnel.</div>
+                </div>
+            </div>
+            <div class="chart-card" style="margin-top:.6rem">
                 <h3>Conversion Funnel <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
                 <div class="card-body"><div id="funnelSteps">
                     <div class="skeleton" style="height:240px;border-radius:8px"></div>
                 </div></div>
+            </div>
+        </div>
+
+        <!-- Audience Tab -->
+        <div id="audience" class="tab-content">
+            <div class="kpi-grid" id="audienceKpis">
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>🌍 Country Breakdown <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceCountryChart','Country Breakdown')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
+                        <canvas id="audienceCountryChart"></canvas>
+                    </div></div>
+                </div>
+                <div class="chart-card">
+                    <h3>📱 Device Tier <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceTierChart','Device Tier')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
+                        <canvas id="audienceTierChart"></canvas>
+                    </div></div>
+                </div>
+                <div class="chart-card">
+                    <h3>🌐 Locale <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceLocaleChart','Locale')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
+                        <canvas id="audienceLocaleChart"></canvas>
+                    </div></div>
+                </div>
+                <div class="chart-card">
+                    <h3>🛒 Install Source <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceInstallChart','Install Source')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
+                        <canvas id="audienceInstallChart"></canvas>
+                    </div></div>
+                </div>
+                <div class="chart-card">
+                    <h3>📦 App Version <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceAppVerChart','App Version')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
+                        <canvas id="audienceAppVerChart"></canvas>
+                    </div></div>
+                </div>
+                <div class="chart-card">
+                    <h3>🔐 Consent State <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audienceConsentChart','Consent State')">⛶</button></div></h3>
+                    <div class="card-body"><div class="chart-container">
+                        <canvas id="audienceConsentChart"></canvas>
+                    </div></div>
+                </div>
             </div>
         </div>
         
@@ -1783,7 +1855,7 @@
         let charts = {};
         let sessionToken = null;
         let isAuthenticated = false;
-        let selectedGameId = 'all';
+        let selectedGameId = '126bf539-dae2-4bcf-964d-316c0fa1f92b';
         let selectedDays = 30;
         let autoRefreshTimer = null;
         
@@ -1883,6 +1955,7 @@
             heatmap:   () => loadHeatmap(),
             monet:     () => loadMonetizationDetail(),
             platforms: () => loadPlatforms(),
+            audience:  () => loadAudience(),
             players:   () => loadTopPlayers(),
             appodeal:  () => loadAppodeal(),
             apple:     () => loadApple(),
@@ -2399,10 +2472,70 @@
                         tension: 0.4
                     }]
                 );
-                
+
+                // Milestone counts (D1/D7/D30 events scanned over the selected window)
+                loadRetentionMilestones().catch(err => console.error('Milestone load error:', err));
+
             } catch (e) {
                 console.error('Retention error:', e);
                 document.getElementById('retentionKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
+        }
+
+        async function loadRetentionMilestones() {
+            const kpiEl = document.getElementById('retentionMilestoneKpis');
+            try {
+                if (kpiEl) kpiEl.innerHTML = skKpi(3);
+                const payload = { days: selectedDays, ...getGamePayload() };
+                const data = await callRpc('analytics_retention_milestones', payload);
+                if (data.error) {
+                    if (kpiEl) kpiEl.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                const m = data.milestones || {};
+                if (kpiEl) {
+                    kpiEl.innerHTML = `
+                        <div class="kpi-card">
+                            <div class="icon">🎯</div>
+                            <div class="label">D1 Returns (${data.days || selectedDays}d)</div>
+                            <div class="value">${formatNumber(m.d1 || 0)}</div>
+                            <div class="trend">retention_d1 events</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">📅</div>
+                            <div class="label">D7 Returns (${data.days || selectedDays}d)</div>
+                            <div class="value">${formatNumber(m.d7 || 0)}</div>
+                            <div class="trend">retention_d7 events</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">💎</div>
+                            <div class="label">D30 Returns (${data.days || selectedDays}d)</div>
+                            <div class="value">${formatNumber(m.d30 || 0)}</div>
+                            <div class="trend">retention_d30 events</div>
+                        </div>
+                    `;
+                }
+
+                // Build a unified date axis across D1/D7/D30 daily series
+                const daily = data.daily || {};
+                const dateSet = {};
+                ['d1','d7','d30'].forEach(k => (daily[k] || []).forEach(p => { dateSet[p.date] = true; }));
+                const dates = Object.keys(dateSet).sort();
+                const seriesFor = (k) => {
+                    const map = {};
+                    (daily[k] || []).forEach(p => { map[p.date] = p.count; });
+                    return dates.map(d => map[d] || 0);
+                };
+                if (dates.length > 0) {
+                    createLineChart('retentionMilestoneChart', dates, [
+                        { label: 'D1', data: seriesFor('d1'), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: false },
+                        { label: 'D7', data: seriesFor('d7'), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', fill: false },
+                        { label: 'D30', data: seriesFor('d30'), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: false }
+                    ]);
+                }
+            } catch (e) {
+                console.error('Retention milestones error:', e);
+                if (kpiEl) kpiEl.innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
             }
         }
         
@@ -2487,13 +2620,51 @@
         
         async function loadFunnel() {
             try {
+                const kpiEl = document.getElementById('funnelKpis');
+                if (kpiEl) kpiEl.innerHTML = skKpi(4);
                 const payload = { days: selectedDays, ...getGamePayload() };
                 const data = await callRpc('analytics_funnel', payload);
                 if (data.error) {
                     document.getElementById('funnelSteps').innerHTML = `<div class="error">${data.error}</div>`;
+                    if (kpiEl) kpiEl.innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
                 const steps = data.steps || [];
+
+                // Top-line KPIs derived from funnel
+                if (kpiEl) {
+                    const entered = steps.length > 0 ? steps[0].count : 0;
+                    const completed = steps.length > 0 ? steps[steps.length - 1].count : 0;
+                    const overallConv = entered > 0 ? Math.round((completed / entered) * 100) : 0;
+                    const worst = data.worst_drop_off || { step: '-', drop_pct: 0 };
+                    kpiEl.innerHTML = `
+                        <div class="kpi-card">
+                            <div class="icon">🚪</div>
+                            <div class="label">Entered Funnel</div>
+                            <div class="value">${formatNumber(entered)}</div>
+                            <div class="trend">${steps.length > 0 ? steps[0].name : '-'}</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">🏁</div>
+                            <div class="label">Completed Funnel</div>
+                            <div class="value">${formatNumber(completed)}</div>
+                            <div class="trend">${steps.length > 0 ? steps[steps.length - 1].name : '-'}</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">📈</div>
+                            <div class="label">Overall Conversion</div>
+                            <div class="value">${overallConv}%</div>
+                            <div class="trend">first → last step</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">⚠️</div>
+                            <div class="label">Biggest Drop</div>
+                            <div class="value">${worst.drop_pct || 0}%</div>
+                            <div class="trend">${(worst.step || '-').replace(/_/g,' ')}</div>
+                        </div>
+                    `;
+                }
+
                 document.getElementById('funnelSteps').innerHTML = steps.map(step => `
                     <div class="funnel-step" style="border-left-color: ${step.drop_off_pct > 50 ? 'var(--danger)' : step.drop_off_pct > 25 ? 'var(--warning)' : 'var(--success)'};">  
                         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -3005,6 +3176,78 @@
                     createBarChart('platformDeviceChart', data.top_devices.map(d => d.model), data.top_devices.map(d => d.count), 'Count');
                 }
             } catch(e) { console.error('Platforms error:', e); }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Audience Breakdown (Country / Tier / Device / Locale / Install / App / Consent)
+        // ─────────────────────────────────────────────────────────────────────
+
+        async function loadAudience() {
+            try {
+                const kpiEl = document.getElementById('audienceKpis');
+                if (kpiEl) kpiEl.innerHTML = skKpi(4);
+                const data = await callRpc('analytics_audience_breakdown', { days: selectedDays, ...getGamePayload() });
+                if (data.error) {
+                    if (kpiEl) kpiEl.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+
+                // Top KPIs: total events, unique users, top country, top device tier
+                const topCountry = (data.country && data.country[0]) || { value: '-', unique_users: 0 };
+                const topTier    = (data.device_tier && data.device_tier[0]) || { value: '-', unique_users: 0 };
+                if (kpiEl) {
+                    kpiEl.innerHTML = `
+                        <div class="kpi-card">
+                            <div class="icon">📊</div>
+                            <div class="label">Total Events</div>
+                            <div class="value">${formatNumber(data.total_events || 0)}</div>
+                            <div class="trend">${data.days || selectedDays}-day window</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">👥</div>
+                            <div class="label">Unique Users</div>
+                            <div class="value">${formatNumber(data.unique_users || 0)}</div>
+                            <div class="trend">distinct profiles</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">🌍</div>
+                            <div class="label">Top Country</div>
+                            <div class="value">${topCountry.value}</div>
+                            <div class="trend">${formatNumber(topCountry.unique_users)} users</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="icon">📱</div>
+                            <div class="label">Top Device Tier</div>
+                            <div class="value">${topTier.value}</div>
+                            <div class="trend">${formatNumber(topTier.unique_users)} users</div>
+                        </div>
+                    `;
+                }
+
+                // Helper: render a top-N bar/doughnut chart from a dimension array
+                function renderDim(canvasId, items, label, kind) {
+                    if (!items || items.length === 0) return;
+                    const labels = items.slice(0, 12).map(i => i.value);
+                    const values = items.slice(0, 12).map(i => i.unique_users || i.events || 0);
+                    if (charts[canvasId]) { try { charts[canvasId].destroy(); } catch(_){} }
+                    if (kind === 'doughnut') {
+                        charts[canvasId] = createDoughnutChart(canvasId, labels, values);
+                    } else {
+                        charts[canvasId] = createBarChart(canvasId, labels, values, label);
+                    }
+                }
+
+                renderDim('audienceCountryChart', data.country,        'Unique Users', 'bar');
+                renderDim('audienceTierChart',    data.device_tier,    'Unique Users', 'doughnut');
+                renderDim('audienceLocaleChart',  data.locale,         'Unique Users', 'bar');
+                renderDim('audienceInstallChart', data.install_source, 'Unique Users', 'doughnut');
+                renderDim('audienceAppVerChart',  data.app_version,    'Unique Users', 'bar');
+                renderDim('audienceConsentChart', data.consent_state,  'Unique Users', 'doughnut');
+            } catch(e) {
+                console.error('Audience error:', e);
+                const kpiEl = document.getElementById('audienceKpis');
+                if (kpiEl) kpiEl.innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────
