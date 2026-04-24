@@ -50,12 +50,31 @@ function copilotLogError(logger, msg) {
     logger.error("[Copilot] " + msg);
 }
 
-// Global utils object for sub-modules that previously imported via ES modules
+// Global utils object for sub-modules that previously imported via ES modules.
+// Analytics, friends, wallet, quiz_results, push_notifications, daily_missions,
+// daily_rewards modules call utils.<fn>() and expect the legacy_runtime.js
+// helpers (safeJsonParse, isValidUUID, getUnixTimestamp, etc.) to be available
+// here. Those helpers are function declarations in legacy_runtime.js and are
+// hoisted globally, so referencing them at this point in the bundle is safe.
 var utils = {
-    validatePayload: copilotValidatePayload,
-    readRegistry: copilotReadRegistry,
-    handleError: copilotHandleError,
-    logInfo: copilotLogInfo,
-    logWarn: copilotLogWarn,
-    logError: copilotLogError
+    // Copilot helpers (kept for leaderboard sub-modules)
+    validatePayload: typeof copilotValidatePayload === 'function' ? copilotValidatePayload : null,
+    readRegistry: typeof copilotReadRegistry === 'function' ? copilotReadRegistry : null,
+
+    // Logging helpers — prefer legacy_runtime versions if present, otherwise copilot fallbacks
+    handleError: typeof handleError === 'function' ? handleError : copilotHandleError,
+    logInfo: typeof logInfo === 'function' ? logInfo : copilotLogInfo,
+    logWarn: typeof logWarn === 'function' ? logWarn : copilotLogWarn,
+    logWarning: typeof logWarn === 'function' ? logWarn : copilotLogWarn,
+    logError: typeof logError === 'function' ? logError : copilotLogError,
+
+    // Analytics / shared helpers from legacy_runtime.js (hoisted function decls)
+    safeJsonParse: typeof safeJsonParse === 'function' ? safeJsonParse : null,
+    isValidUUID: typeof isValidUUID === 'function' ? isValidUUID : null,
+    getUnixTimestamp: typeof getUnixTimestamp === 'function' ? getUnixTimestamp : null,
+    getCurrentTimestamp: typeof getCurrentTimestamp === 'function' ? getCurrentTimestamp : null,
+    getStartOfDay: typeof getStartOfDay === 'function' ? getStartOfDay : null,
+    makeGameStorageKey: typeof makeGameStorageKey === 'function' ? makeGameStorageKey : null,
+    readStorage: typeof readStorage === 'function' ? readStorage : null,
+    writeStorage: typeof writeStorage === 'function' ? writeStorage : null
 };
