@@ -1,0 +1,48 @@
+# Kustomize bundle for the standalone Nakama analytics dashboard.
+#
+# What this ships:
+#   - ConfigMap `nakama-admin-dashboard-html`  ← web/analytics-dashboard/index.html
+#   - ConfigMap `nakama-admin-dashboard-nginx` ← nginx.conf
+#   - Deployment `nakama-admin-dashboard` (2x nginx-unprivileged)
+#   - Service    `nakama-admin-dashboard` (ClusterIP :80)
+#
+# The Ingress is patched separately by deploy/admin-dashboard/apply.sh
+# using a JSON patch (see ingress-patch.yaml for the rationale).
+#
+# Apply with:
+#   bash deploy/admin-dashboard/apply.sh
+#
+# Or, manually (skips the index-safety check):
+#   kubectl apply -k deploy/admin-dashboard/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: aicart
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/name: nakama-admin-dashboard
+      app.kubernetes.io/component: analytics-ui
+      app.kubernetes.io/part-of: nakama
+      app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+# Generate ConfigMaps from real files. Kustomize appends a content hash to
+# each ConfigMap name, and rewrites the volume references in the Deployment
+# to match — so any change to index.html or nginx.conf triggers a rolling
+# update automatically.
+configMapGenerator:
+  - name: nakama-admin-dashboard-html
+    files:
+      - index.html=../../web/analytics-dashboard/index.html
+  - name: nakama-admin-dashboard-nginx
+    files:
+      - default.conf=nginx.conf
+
+generatorOptions:
+  disableNameSuffixHash: false

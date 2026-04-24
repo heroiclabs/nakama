@@ -1,0 +1,27 @@
+# JSON Patch (RFC 6902) applied to the existing
+# `intelliverse-user-frontend` ingress in the `aicart` namespace.
+#
+# Why JSON patch (not strategic merge):
+#   `Ingress.spec.rules` is `+listType=atomic` in the Kubernetes API,
+#   which means a strategic-merge patch on `rules` would REPLACE the
+#   entire list of hosts. We have 11 hosts on this ingress; replacing
+#   the list would take down 10 unrelated services.
+#
+#   JSON Patch lets us surgically `add` one path to the existing
+#   nakama-rest.intelli-verse-x.ai rule without touching anything else.
+#
+# Index 3 = nakama-rest.intelli-verse-x.ai (verified at deploy time
+# by deploy/admin-dashboard/apply.sh before the patch is applied).
+#
+# Apply with:
+#   bash deploy/admin-dashboard/apply.sh
+- op: add
+  path: /spec/rules/3/http/paths/0
+  value:
+    path: /admin-dashboard
+    pathType: Prefix
+    backend:
+      service:
+        name: nakama-admin-dashboard
+        port:
+          number: 80

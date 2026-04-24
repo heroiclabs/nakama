@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nakama-admin-dashboard
+  namespace: aicart
+  labels:
+    app: nakama-admin-dashboard
+    component: analytics-ui
+spec:
+  type: ClusterIP
+  selector:
+    app: nakama-admin-dashboard
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
