@@ -131,5 +131,6 @@ namespace HiroInventory {
     initializer.registerRpc("hiro_inventory_list", rpcList);
     initializer.registerRpc("hiro_inventory_grant", rpcGrant);
     initializer.registerRpc("hiro_inventory_consume", rpcConsume);
+    initializer.registerRpc("hiro_inventory_update", rpcGrant);
   }
 }

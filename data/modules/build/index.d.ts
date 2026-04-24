@@ -499,6 +499,7 @@ declare namespace HiroEconomy {
     function rpcDonationGive(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcDonationClaim(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcRewardedVideoComplete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSpend(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HiroEnergy {
@@ -806,7 +807,8 @@ declare namespace Constants {
     const MISSIONS_COLLECTION = "missions";
     const QUIZ_RESULTS_COLLECTION = "quiz_results";
     const GAME_REGISTRY_COLLECTION = "game_registry";
-    const ANALYTICS_COLLECTION = "analytics_error_events";
+    const ANALYTICS_COLLECTION = "analytics_events";
+    const ANALYTICS_ERRORS_COLLECTION = "analytics_error_events";
     const PLAYER_METADATA_COLLECTION = "player_metadata";
     const PUSH_TOKENS_COLLECTION = "push_tokens";
 }

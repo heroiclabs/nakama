@@ -204,6 +204,7 @@ namespace SatoriMetrics {
     initializer.registerRpc("satori_metrics_define", rpcDefine);
     initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
     initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
+    initializer.registerRpc("satori_metrics_get", rpcQuery);
   }
 
   export function registerEventHandlers(): void {

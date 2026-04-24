@@ -43,7 +43,13 @@ namespace RpcHelpers {
       var now = new Date();
       var key = "err_" + rpcName + "_" + (userId || "system") + "_" + Date.now();
       nk.storageWrite([{
-        collection: Constants.ANALYTICS_COLLECTION,
+        // Errors go into the dedicated error collection. Prior to 2026-04
+        // this used Constants.ANALYTICS_COLLECTION, which happened to point
+        // at "analytics_error_events" too — but only because the constant
+        // was misconfigured. Now that ANALYTICS_COLLECTION correctly points
+        // at "analytics_events", error logging must use the dedicated
+        // ANALYTICS_ERRORS_COLLECTION constant explicitly.
+        collection: Constants.ANALYTICS_ERRORS_COLLECTION,
         key: key,
         userId: Constants.SYSTEM_USER_ID,
         value: {

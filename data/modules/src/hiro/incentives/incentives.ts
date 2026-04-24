@@ -85,9 +85,25 @@ namespace HiroIncentives {
     return RpcHelpers.successResponse({ eligible: eligible });
   }
 
+  function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var config = getConfig(nk);
+    return RpcHelpers.successResponse({
+      referralReward: config.referralReward || null,
+      referrerReward: config.referrerReward || null,
+      returnBonus: config.returnBonus || null,
+      returnBonusDays: config.returnBonusDays || 0
+    });
+  }
+
+  function rpcClaim(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    return rpcCheckReturnBonus(ctx, logger, nk, payload);
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("hiro_incentives_referral_code", rpcGetReferralCode);
     initializer.registerRpc("hiro_incentives_apply_referral", rpcApplyReferral);
     initializer.registerRpc("hiro_incentives_return_bonus", rpcCheckReturnBonus);
+    initializer.registerRpc("hiro_incentives_list", rpcList);
+    initializer.registerRpc("hiro_incentives_claim", rpcClaim);
   }
 }

@@ -183,10 +183,27 @@ namespace HiroEconomy {
     return RpcHelpers.successResponse({ state: state });
   }
 
+  export function rpcSpend(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var currencyId = data.currencyId as string;
+    var amount = data.amount as number;
+    if (!currencyId || !amount || amount <= 0) {
+      return RpcHelpers.errorResponse("currencyId and positive amount required");
+    }
+    try {
+      WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", currencyId, amount);
+      return RpcHelpers.successResponse({ success: true, currencyId: currencyId, amount: amount });
+    } catch (e) {
+      return RpcHelpers.errorResponse("Spend failed: " + (e as Error).message);
+    }
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("hiro_economy_donation_request", rpcDonationRequest);
     initializer.registerRpc("hiro_economy_donation_give", rpcDonationGive);
     initializer.registerRpc("hiro_economy_donation_claim", rpcDonationClaim);
     initializer.registerRpc("hiro_economy_rewarded_video", rpcRewardedVideoComplete);
+    initializer.registerRpc("hiro_economy_spend", rpcSpend);
   }
 }

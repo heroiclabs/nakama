@@ -151,10 +151,21 @@ namespace HiroChallenges {
     return RpcHelpers.successResponse({ rank: rank, reward: null });
   }
 
+  function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var config = getConfig(nk);
+    var defs = config.challenges || {};
+    var list: any[] = [];
+    for (var id in defs) {
+      list.push({ id: id, definition: defs[id] });
+    }
+    return RpcHelpers.successResponse({ challenges: list });
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("hiro_challenges_create", rpcCreate);
     initializer.registerRpc("hiro_challenges_join", rpcJoin);
     initializer.registerRpc("hiro_challenges_submit", rpcSubmit);
     initializer.registerRpc("hiro_challenges_claim", rpcClaim);
+    initializer.registerRpc("hiro_challenges_list", rpcList);
   }
 }

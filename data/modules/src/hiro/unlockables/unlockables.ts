@@ -125,5 +125,6 @@ namespace HiroUnlockables {
     initializer.registerRpc("hiro_unlockables_start", rpcStart);
     initializer.registerRpc("hiro_unlockables_claim", rpcClaim);
     initializer.registerRpc("hiro_unlockables_buy_slot", rpcBuySlot);
+    initializer.registerRpc("hiro_unlockables_list", rpcGet);
   }
 }

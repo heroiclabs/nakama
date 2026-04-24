@@ -187,5 +187,8 @@ namespace SatoriMessages {
     initializer.registerRpc("satori_messages_read", rpcRead);
     initializer.registerRpc("satori_messages_delete", rpcDelete);
     initializer.registerRpc("satori_messages_broadcast", rpcBroadcast);
+    // 2026-04 backward-compat alias: shared admin SDK calls singular
+    // "satori_message_broadcast". Map it to the same broadcast handler.
+    initializer.registerRpc("satori_message_broadcast", rpcBroadcast);
   }
 }

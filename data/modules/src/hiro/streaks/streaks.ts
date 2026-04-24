@@ -121,5 +121,6 @@ namespace HiroStreaks {
     initializer.registerRpc("hiro_streaks_get", rpcGet);
     initializer.registerRpc("hiro_streaks_update", rpcUpdate);
     initializer.registerRpc("hiro_streaks_claim", rpcClaim);
+    initializer.registerRpc("hiro_streaks_list", rpcGet);
   }
 }

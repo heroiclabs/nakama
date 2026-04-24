@@ -1452,32 +1452,65 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
                    evName.indexOf('timeout') !== -1;
         }, gameId);
         
+        // 2026-04 hardening — when none of rpcName / function / eventName are
+        // populated, prod was bucketing 100s of errors into a single "unknown"
+        // row that gave operators no actionable signal. We now widen the
+        // fallback chain (api / endpoint / url / source / category / Unity
+        // exception type) AND capture a small redacted sample of each
+        // mystery event so the dashboard can render a "why is this unknown?"
+        // hint that points at the real upstream gap (typically: client
+        // logger forgot to stamp rpcName).
+        function deriveBucketName(ed, ev) {
+            if (!ed) ed = {};
+            return ed.rpcName || ed.rpc || ed.function || ed.endpoint ||
+                   ed.api || ed.url || ed.source || ed.error_category ||
+                   ed.exceptionType || ed.errorType ||
+                   ev.eventName || 'unknown';
+        }
+        function captureSample(bucket, ev, ed) {
+            if (!bucket.samples) bucket.samples = [];
+            if (bucket.samples.length >= 3) return;
+            bucket.samples.push({
+                eventName: ev.eventName || null,
+                keys: ed ? Object.keys(ed).slice(0, 12) : [],
+                userId: ev.userId ? String(ev.userId).slice(0, 8) + '…' : null,
+                gameId: ev.gameId || null,
+                ts: ev.timestamp || null
+            });
+        }
+
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
             totalErrors++;
-            
-            var rpcName = (ev.eventData && ev.eventData.rpcName) ? ev.eventData.rpcName : 
-                          (ev.eventData && ev.eventData.function) ? ev.eventData.function :
-                          ev.eventName || 'unknown';
-            
+
+            var ed = ev.eventData || {};
+            var rpcName = deriveBucketName(ed, ev);
+
             if (!errorsByRpc[rpcName]) {
                 errorsByRpc[rpcName] = {
                     rpc_name: rpcName,
                     count: 0,
                     last_occurred: '',
-                    sample_error: ''
+                    sample_error: '',
+                    samples: []
                 };
             }
-            
+
             errorsByRpc[rpcName].count++;
-            
+
             if (ev.timestamp && ev.timestamp > errorsByRpc[rpcName].last_occurred) {
                 errorsByRpc[rpcName].last_occurred = ev.timestamp;
             }
-            
-            if (!errorsByRpc[rpcName].sample_error && ev.eventData && ev.eventData.error) {
-                errorsByRpc[rpcName].sample_error = ev.eventData.error.substring(0, 200);
+
+            if (!errorsByRpc[rpcName].sample_error && ed.error) {
+                errorsByRpc[rpcName].sample_error = String(ed.error).substring(0, 200);
+            } else if (!errorsByRpc[rpcName].sample_error && ed.message) {
+                errorsByRpc[rpcName].sample_error = String(ed.message).substring(0, 200);
             }
+
+            // Always capture sample shape for the unknown bucket so the
+            // dashboard can render a "fix this upstream" diagnostic.
+            if (rpcName === 'unknown') captureSample(errorsByRpc[rpcName], ev, ed);
 
             // Category bucket — prefer explicit error_category field, fall back
             // to the canonical event name (which IS the category for the new
@@ -1495,27 +1528,46 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         for (var j = 0; j < errorLogs.length; j++) {
             var errObj = errorLogs[j];
             var errVal = errObj.value || {};
-            
+
             totalErrors++;
-            var errRpc = errVal.rpc || errVal.function || errObj.key || 'unknown';
-            
+            // Same widened fallback chain as the event path. Storage key is
+            // last because it's typically a non-actionable opaque ID.
+            var errRpc = errVal.rpc || errVal.function || errVal.endpoint ||
+                         errVal.api || errVal.url || errVal.source ||
+                         errVal.error_category || errVal.exceptionType ||
+                         errVal.errorType || errObj.key || 'unknown';
+
             if (!errorsByRpc[errRpc]) {
                 errorsByRpc[errRpc] = {
                     rpc_name: errRpc,
                     count: 0,
                     last_occurred: '',
-                    sample_error: ''
+                    sample_error: '',
+                    samples: []
                 };
             }
-            
+
             errorsByRpc[errRpc].count++;
-            
+
             if (errVal.timestamp && errVal.timestamp > errorsByRpc[errRpc].last_occurred) {
                 errorsByRpc[errRpc].last_occurred = errVal.timestamp;
             }
-            
+
             if (!errorsByRpc[errRpc].sample_error && errVal.message) {
-                errorsByRpc[errRpc].sample_error = errVal.message.substring(0, 200);
+                errorsByRpc[errRpc].sample_error = String(errVal.message).substring(0, 200);
+            } else if (!errorsByRpc[errRpc].sample_error && errVal.error) {
+                errorsByRpc[errRpc].sample_error = String(errVal.error).substring(0, 200);
+            }
+
+            if (errRpc === 'unknown') {
+                if (!errorsByRpc[errRpc].samples) errorsByRpc[errRpc].samples = [];
+                if (errorsByRpc[errRpc].samples.length < 3) {
+                    errorsByRpc[errRpc].samples.push({
+                        storage_key: errObj.key || null,
+                        keys: Object.keys(errVal).slice(0, 12),
+                        ts: errVal.timestamp || null
+                    });
+                }
             }
         }
         

@@ -464,15 +464,20 @@ namespace AdminConsole {
   function rpcEventsTimeline(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
-    if (!data.userId) return RpcHelpers.errorResponse("userId required");
+    // 2026-04 backward-compat: legacy clients (and the old "satori_events_timeline"
+    // RPC name) sent the target user as `user_id` (snake_case). New admin UI sends
+    // `userId` (camelCase). Accept either so we don't break older builds while we
+    // roll out the rename.
+    var userId = data.userId || data.user_id;
+    if (!userId) return RpcHelpers.errorResponse("userId required");
 
-    var events = Storage.readJson<any>(nk, Constants.SATORI_EVENTS_COLLECTION, "history", data.userId) || { events: [] };
+    var events = Storage.readJson<any>(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId) || { events: [] };
     var list = events.events || [];
     var limit = data.limit || 50;
     var recent = list.slice(Math.max(0, list.length - limit));
 
     return RpcHelpers.successResponse({
-      userId: data.userId,
+      userId: userId,
       count: recent.length,
       totalEvents: list.length,
       events: recent
@@ -543,6 +548,21 @@ namespace AdminConsole {
     initializer.registerRpc("admin_live_event_schedule", rpcLiveEventSchedule);
     initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
     initializer.registerRpc("admin_events_timeline", rpcEventsTimeline);
+
+    // 2026-04 backward-compat aliases: the admin UI / shared SDK call these
+    // RPC IDs directly (without the "admin_" prefix). Register the legacy
+    // names as aliases pointing at the same handlers so existing clients keep
+    // working without requiring a coordinated client rollout.
+    initializer.registerRpc("satori_events_timeline", rpcEventsTimeline);
+    initializer.registerRpc("satori_config_get", rpcSatoriConfigGet);
+    initializer.registerRpc("satori_config_set", rpcSatoriConfigSet);
+    initializer.registerRpc("satori_flags_toggle", rpcFlagToggle);
+    initializer.registerRpc("satori_live_event_schedule", rpcLiveEventSchedule);
+    initializer.registerRpc("satori_experiment_setup", rpcExperimentSetup);
+    // NOTE: satori_message_broadcast (singular) is aliased in
+    // data/modules/src/satori/messages/messages.ts → rpcBroadcast, since that
+    // handler has the correct audience-broadcast semantics. Do NOT alias it
+    // to rpcMailboxSend here (rpcMailboxSend writes to a single user's inbox).
 
     // Storage browser
     initializer.registerRpc("admin_storage_list", rpcStorageList);

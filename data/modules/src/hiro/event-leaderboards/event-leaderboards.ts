@@ -203,5 +203,9 @@ namespace HiroEventLeaderboards {
     initializer.registerRpc("hiro_event_lb_submit", rpcSubmit);
     initializer.registerRpc("hiro_event_lb_claim", rpcClaim);
     initializer.registerRpc("hiro_event_lb_get", rpcGetRankings);
+    initializer.registerRpc("hiro_event_leaderboards_list", rpcList);
+    initializer.registerRpc("hiro_event_leaderboards_submit", rpcSubmit);
+    initializer.registerRpc("hiro_event_leaderboards_claim", rpcClaim);
+    initializer.registerRpc("hiro_event_leaderboards_get", rpcGetRankings);
   }
 }

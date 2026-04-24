@@ -797,12 +797,25 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
       }
     }
 
-    // Group by rpc_name
+    // Group by rpc_name.
+    // 2026-04 hardening — widen the bucket-name fallback so we don't
+    // dump every "unstamped" client error into one giant "unknown" row.
+    // For events that still end up in the unknown bucket, attach a small
+    // redacted sample of the row so operators can see WHICH client/event
+    // family is missing the rpc_name field upstream (almost always the
+    // QuizVerse Unity client's QVAnalyticsService).
+    function pickBucketName(err) {
+      return err.rpc_name || err.rpcName || err.function || err.endpoint ||
+             err.api || err.url || err.source || err.error_category ||
+             err.exceptionType || err.errorType || err.eventName ||
+             "unknown";
+    }
     var rpcMap = {};
     var dailyMap = {};
+    var unknownSamples = [];
     for (var ei = 0; ei < errors.length; ei++) {
       var err = errors[ei];
-      var rpcName = err.rpc_name || "unknown";
+      var rpcName = pickBucketName(err);
       if (!rpcMap[rpcName]) {
         rpcMap[rpcName] = { count: 0, last_occurred: "", sample_error: "" };
       }
@@ -810,7 +823,18 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
       var errTime = err.timestamp_iso || "";
       if (errTime > rpcMap[rpcName].last_occurred) {
         rpcMap[rpcName].last_occurred = errTime;
-        rpcMap[rpcName].sample_error = err.error_message || "";
+        rpcMap[rpcName].sample_error = err.error_message || err.message || err.error || "";
+      }
+
+      if (rpcName === "unknown" && unknownSamples.length < 3) {
+        var sampleKeys = [];
+        for (var sk in err) { if (err.hasOwnProperty(sk)) sampleKeys.push(sk); }
+        unknownSamples.push({
+          eventName: err.eventName || null,
+          keys: sampleKeys.slice(0, 12),
+          gameId: err.game_id || err.gameId || null,
+          ts: err.timestamp_iso || err.timestamp || null
+        });
       }
 
       var errDate = err.date || "";
@@ -824,12 +848,14 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
     var mostFailing = { name: "", count: 0 };
     for (var rk in rpcMap) {
       if (rpcMap.hasOwnProperty(rk)) {
-        errorsByRpc.push({
+        var bucket = {
           rpc_name: rk,
           count: rpcMap[rk].count,
           last_occurred: rpcMap[rk].last_occurred,
           sample_error: rpcMap[rk].sample_error
-        });
+        };
+        if (rk === "unknown" && unknownSamples.length) bucket.samples = unknownSamples;
+        errorsByRpc.push(bucket);
         if (rpcMap[rk].count > mostFailing.count) {
           mostFailing = { name: rk, count: rpcMap[rk].count };
         }

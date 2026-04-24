@@ -147,5 +147,6 @@ namespace SatoriExperiments {
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("satori_experiments_get", rpcGet);
     initializer.registerRpc("satori_experiments_get_variant", rpcGetVariant);
+    initializer.registerRpc("satori_experiments_get_all", rpcGet);
   }
 }

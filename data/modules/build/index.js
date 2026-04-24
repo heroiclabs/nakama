@@ -4222,14 +4222,19 @@ var AdminConsole;
     function rpcEventsTimeline(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
-        if (!data.userId)
+        // 2026-04 backward-compat: legacy clients (and the old "satori_events_timeline"
+        // RPC name) sent the target user as `user_id` (snake_case). New admin UI sends
+        // `userId` (camelCase). Accept either so we don't break older builds while we
+        // roll out the rename.
+        var userId = data.userId || data.user_id;
+        if (!userId)
             return RpcHelpers.errorResponse("userId required");
-        var events = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", data.userId) || { events: [] };
+        var events = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId) || { events: [] };
         var list = events.events || [];
         var limit = data.limit || 50;
         var recent = list.slice(Math.max(0, list.length - limit));
         return RpcHelpers.successResponse({
-            userId: data.userId,
+            userId: userId,
             count: recent.length,
             totalEvents: list.length,
             events: recent
@@ -4291,6 +4296,20 @@ var AdminConsole;
         initializer.registerRpc("admin_live_event_schedule", rpcLiveEventSchedule);
         initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
         initializer.registerRpc("admin_events_timeline", rpcEventsTimeline);
+        // 2026-04 backward-compat aliases: the admin UI / shared SDK call these
+        // RPC IDs directly (without the "admin_" prefix). Register the legacy
+        // names as aliases pointing at the same handlers so existing clients keep
+        // working without requiring a coordinated client rollout.
+        initializer.registerRpc("satori_events_timeline", rpcEventsTimeline);
+        initializer.registerRpc("satori_config_get", rpcSatoriConfigGet);
+        initializer.registerRpc("satori_config_set", rpcSatoriConfigSet);
+        initializer.registerRpc("satori_flags_toggle", rpcFlagToggle);
+        initializer.registerRpc("satori_live_event_schedule", rpcLiveEventSchedule);
+        initializer.registerRpc("satori_experiment_setup", rpcExperimentSetup);
+        // NOTE: satori_message_broadcast (singular) is aliased in
+        // data/modules/src/satori/messages/messages.ts → rpcBroadcast, since that
+        // handler has the correct audience-broadcast semantics. Do NOT alias it
+        // to rpcMailboxSend here (rpcMailboxSend writes to a single user's inbox).
         // Storage browser
         initializer.registerRpc("admin_storage_list", rpcStorageList);
         // Gift claims
@@ -4586,11 +4605,21 @@ var HiroChallenges;
         saveChallengeInstance(nk, instance);
         return RpcHelpers.successResponse({ rank: rank, reward: null });
     }
+    function rpcList(ctx, logger, nk, payload) {
+        var config = getConfig(nk);
+        var defs = config.challenges || {};
+        var list = [];
+        for (var id in defs) {
+            list.push({ id: id, definition: defs[id] });
+        }
+        return RpcHelpers.successResponse({ challenges: list });
+    }
     function register(initializer) {
         initializer.registerRpc("hiro_challenges_create", rpcCreate);
         initializer.registerRpc("hiro_challenges_join", rpcJoin);
         initializer.registerRpc("hiro_challenges_submit", rpcSubmit);
         initializer.registerRpc("hiro_challenges_claim", rpcClaim);
+        initializer.registerRpc("hiro_challenges_list", rpcList);
     }
     HiroChallenges.register = register;
 })(HiroChallenges || (HiroChallenges = {}));
@@ -4734,11 +4763,29 @@ var HiroEconomy;
         return RpcHelpers.successResponse({ state: state });
     }
     HiroEconomy.rpcRewardedVideoComplete = rpcRewardedVideoComplete;
+    function rpcSpend(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var currencyId = data.currencyId;
+        var amount = data.amount;
+        if (!currencyId || !amount || amount <= 0) {
+            return RpcHelpers.errorResponse("currencyId and positive amount required");
+        }
+        try {
+            WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", currencyId, amount);
+            return RpcHelpers.successResponse({ success: true, currencyId: currencyId, amount: amount });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("Spend failed: " + e.message);
+        }
+    }
+    HiroEconomy.rpcSpend = rpcSpend;
     function register(initializer) {
         initializer.registerRpc("hiro_economy_donation_request", rpcDonationRequest);
         initializer.registerRpc("hiro_economy_donation_give", rpcDonationGive);
         initializer.registerRpc("hiro_economy_donation_claim", rpcDonationClaim);
         initializer.registerRpc("hiro_economy_rewarded_video", rpcRewardedVideoComplete);
+        initializer.registerRpc("hiro_economy_spend", rpcSpend);
     }
     HiroEconomy.register = register;
 })(HiroEconomy || (HiroEconomy = {}));
@@ -5099,6 +5146,10 @@ var HiroEventLeaderboards;
         initializer.registerRpc("hiro_event_lb_submit", rpcSubmit);
         initializer.registerRpc("hiro_event_lb_claim", rpcClaim);
         initializer.registerRpc("hiro_event_lb_get", rpcGetRankings);
+        initializer.registerRpc("hiro_event_leaderboards_list", rpcList);
+        initializer.registerRpc("hiro_event_leaderboards_submit", rpcSubmit);
+        initializer.registerRpc("hiro_event_leaderboards_claim", rpcClaim);
+        initializer.registerRpc("hiro_event_leaderboards_get", rpcGetRankings);
     }
     HiroEventLeaderboards.register = register;
 })(HiroEventLeaderboards || (HiroEventLeaderboards = {}));
@@ -5168,10 +5219,24 @@ var HiroIncentives;
         }
         return RpcHelpers.successResponse({ eligible: eligible });
     }
+    function rpcList(ctx, logger, nk, payload) {
+        var config = getConfig(nk);
+        return RpcHelpers.successResponse({
+            referralReward: config.referralReward || null,
+            referrerReward: config.referrerReward || null,
+            returnBonus: config.returnBonus || null,
+            returnBonusDays: config.returnBonusDays || 0
+        });
+    }
+    function rpcClaim(ctx, logger, nk, payload) {
+        return rpcCheckReturnBonus(ctx, logger, nk, payload);
+    }
     function register(initializer) {
         initializer.registerRpc("hiro_incentives_referral_code", rpcGetReferralCode);
         initializer.registerRpc("hiro_incentives_apply_referral", rpcApplyReferral);
         initializer.registerRpc("hiro_incentives_return_bonus", rpcCheckReturnBonus);
+        initializer.registerRpc("hiro_incentives_list", rpcList);
+        initializer.registerRpc("hiro_incentives_claim", rpcClaim);
     }
     HiroIncentives.register = register;
 })(HiroIncentives || (HiroIncentives = {}));
@@ -5293,6 +5358,7 @@ var HiroInventory;
         initializer.registerRpc("hiro_inventory_list", rpcList);
         initializer.registerRpc("hiro_inventory_grant", rpcGrant);
         initializer.registerRpc("hiro_inventory_consume", rpcConsume);
+        initializer.registerRpc("hiro_inventory_update", rpcGrant);
     }
     HiroInventory.register = register;
 })(HiroInventory || (HiroInventory = {}));
@@ -6295,6 +6361,7 @@ var HiroStreaks;
         initializer.registerRpc("hiro_streaks_get", rpcGet);
         initializer.registerRpc("hiro_streaks_update", rpcUpdate);
         initializer.registerRpc("hiro_streaks_claim", rpcClaim);
+        initializer.registerRpc("hiro_streaks_list", rpcGet);
     }
     HiroStreaks.register = register;
 })(HiroStreaks || (HiroStreaks = {}));
@@ -6543,6 +6610,7 @@ var HiroUnlockables;
         initializer.registerRpc("hiro_unlockables_start", rpcStart);
         initializer.registerRpc("hiro_unlockables_claim", rpcClaim);
         initializer.registerRpc("hiro_unlockables_buy_slot", rpcBuySlot);
+        initializer.registerRpc("hiro_unlockables_list", rpcGet);
     }
     HiroUnlockables.register = register;
 })(HiroUnlockables || (HiroUnlockables = {}));
@@ -11091,9 +11159,18 @@ var SatoriAudiences;
         }
         return RpcHelpers.successResponse({ userId: targetUserId, audiences: memberships });
     }
+    function rpcList(ctx, logger, nk, payload) {
+        var audiences = getAudienceDefinitions(nk);
+        var list = [];
+        for (var id in audiences) {
+            list.push(audiences[id]);
+        }
+        return RpcHelpers.successResponse({ audiences: list });
+    }
     function register(initializer) {
         initializer.registerRpc("satori_audiences_get_memberships", rpcGetMemberships);
         initializer.registerRpc("satori_audiences_compute", rpcCompute);
+        initializer.registerRpc("satori_audiences_list", rpcList);
     }
     SatoriAudiences.register = register;
 })(SatoriAudiences || (SatoriAudiences = {}));
@@ -11698,6 +11775,7 @@ var SatoriExperiments;
     function register(initializer) {
         initializer.registerRpc("satori_experiments_get", rpcGet);
         initializer.registerRpc("satori_experiments_get_variant", rpcGetVariant);
+        initializer.registerRpc("satori_experiments_get_all", rpcGet);
     }
     SatoriExperiments.register = register;
 })(SatoriExperiments || (SatoriExperiments = {}));
@@ -13103,6 +13181,9 @@ var SatoriMessages;
         initializer.registerRpc("satori_messages_read", rpcRead);
         initializer.registerRpc("satori_messages_delete", rpcDelete);
         initializer.registerRpc("satori_messages_broadcast", rpcBroadcast);
+        // 2026-04 backward-compat alias: shared admin SDK calls singular
+        // "satori_message_broadcast". Map it to the same broadcast handler.
+        initializer.registerRpc("satori_message_broadcast", rpcBroadcast);
     }
     SatoriMessages.register = register;
 })(SatoriMessages || (SatoriMessages = {}));
@@ -13293,6 +13374,7 @@ var SatoriMetrics;
         initializer.registerRpc("satori_metrics_define", rpcDefine);
         initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
         initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
+        initializer.registerRpc("satori_metrics_get", rpcQuery);
     }
     SatoriMetrics.register = register;
     function registerEventHandlers() {
@@ -13839,7 +13921,15 @@ var Constants;
     Constants.MISSIONS_COLLECTION = "missions";
     Constants.QUIZ_RESULTS_COLLECTION = "quiz_results";
     Constants.GAME_REGISTRY_COLLECTION = "game_registry";
-    Constants.ANALYTICS_COLLECTION = "analytics_error_events";
+    // 2026-04 fix — ANALYTICS_COLLECTION used to wrongly point at
+    // "analytics_error_events", which caused every legacy event written via
+    // LegacyAnalytics.rpcAnalyticsLogEvent and the multi-game backward-compat
+    // write to land in the dedicated error collection. The dashboard then
+    // counted those rows as failures (the "unknown / 100 errors" we saw on
+    // the prod Errors tab). Split the constant in two so events and errors
+    // route to their correct collections.
+    Constants.ANALYTICS_COLLECTION = "analytics_events";
+    Constants.ANALYTICS_ERRORS_COLLECTION = "analytics_error_events";
     Constants.PLAYER_METADATA_COLLECTION = "player_metadata";
     Constants.PUSH_TOKENS_COLLECTION = "push_tokens";
 })(Constants || (Constants = {}));
@@ -14240,7 +14330,13 @@ var RpcHelpers;
             var now = new Date();
             var key = "err_" + rpcName + "_" + (userId || "system") + "_" + Date.now();
             nk.storageWrite([{
-                    collection: Constants.ANALYTICS_COLLECTION,
+                    // Errors go into the dedicated error collection. Prior to 2026-04
+                    // this used Constants.ANALYTICS_COLLECTION, which happened to point
+                    // at "analytics_error_events" too — but only because the constant
+                    // was misconfigured. Now that ANALYTICS_COLLECTION correctly points
+                    // at "analytics_events", error logging must use the dedicated
+                    // ANALYTICS_ERRORS_COLLECTION constant explicitly.
+                    collection: Constants.ANALYTICS_ERRORS_COLLECTION,
                     key: key,
                     userId: Constants.SYSTEM_USER_ID,
                     value: {

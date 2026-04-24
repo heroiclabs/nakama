@@ -168,8 +168,18 @@ namespace SatoriAudiences {
     return RpcHelpers.successResponse({ userId: targetUserId, audiences: memberships });
   }
 
+  function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var audiences = getAudienceDefinitions(nk);
+    var list: Satori.AudienceDefinition[] = [];
+    for (var id in audiences) {
+      list.push(audiences[id]);
+    }
+    return RpcHelpers.successResponse({ audiences: list });
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("satori_audiences_get_memberships", rpcGetMemberships);
     initializer.registerRpc("satori_audiences_compute", rpcCompute);
+    initializer.registerRpc("satori_audiences_list", rpcList);
   }
 }

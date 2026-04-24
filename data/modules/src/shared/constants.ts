@@ -50,7 +50,15 @@ namespace Constants {
   export const MISSIONS_COLLECTION = "missions";
   export const QUIZ_RESULTS_COLLECTION = "quiz_results";
   export const GAME_REGISTRY_COLLECTION = "game_registry";
-  export const ANALYTICS_COLLECTION = "analytics_error_events";
+  // 2026-04 fix — ANALYTICS_COLLECTION used to wrongly point at
+  // "analytics_error_events", which caused every legacy event written via
+  // LegacyAnalytics.rpcAnalyticsLogEvent and the multi-game backward-compat
+  // write to land in the dedicated error collection. The dashboard then
+  // counted those rows as failures (the "unknown / 100 errors" we saw on
+  // the prod Errors tab). Split the constant in two so events and errors
+  // route to their correct collections.
+  export const ANALYTICS_COLLECTION = "analytics_events";
+  export const ANALYTICS_ERRORS_COLLECTION = "analytics_error_events";
   export const PLAYER_METADATA_COLLECTION = "player_metadata";
   export const PUSH_TOKENS_COLLECTION = "push_tokens";
 }
