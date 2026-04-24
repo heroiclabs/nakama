@@ -390,7 +390,7 @@ func (m *LocalMatchmaker) Process() {
 		if oldestTicketCreatedAt != 0 {
 			stats.OldestTicketCreateTime = timestamppb.New(time.Unix(0, oldestTicketCreatedAt))
 		}
-		m.statsSnapshot.Store(stats)
+		m.SetStats(stats)
 		if m.statsUpdateFn != nil {
 			m.statsUpdateFn(stats)
 		}

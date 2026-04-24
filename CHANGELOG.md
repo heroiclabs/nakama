@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add new runtime function to update storage objects with retries.
 
 ### Fixed
 - Ignore negative custom runtime counter deltas to avoid panics during metrics collection.

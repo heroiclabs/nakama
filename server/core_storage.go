@@ -22,8 +22,10 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"sort"
 	"time"
 
@@ -36,6 +38,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type storageCursor struct {
@@ -677,6 +680,75 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 	}
 
 	return sortedOps, acks, nil
+}
+
+func StorageWriteWithRetries(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, storageIndex StorageIndex, objectIDs []*api.ReadStorageObjectId, updateFn func(objects []*api.StorageObject) ([]*runtime.StorageWrite, error), maxRetries int) (*api.StorageObjectAcks, error) {
+	for retryCount := 0; retryCount <= maxRetries; retryCount++ {
+		objs, err := StorageReadObjects(ctx, logger, db, uuid.Nil, objectIDs)
+		if err != nil {
+			return nil, err
+		}
+
+		writes, err := updateFn(objs.Objects)
+		if err != nil {
+			return nil, err
+		}
+
+		ops := make(StorageOpWrites, 0, len(writes))
+		for _, write := range writes {
+			if write.Collection == "" {
+				return nil, errors.New("write error: expects collection to be a non-empty string")
+			}
+			if write.Key == "" {
+				return nil, errors.New("write error: expects key to be a non-empty string")
+			}
+			if write.UserID != "" {
+				if _, err := uuid.FromString(write.UserID); err != nil {
+					return nil, errors.New("write error: expects an empty or valid user id")
+				}
+			}
+			if maybeJSON := []byte(write.Value); !json.Valid(maybeJSON) || bytes.TrimSpace(maybeJSON)[0] != byteBracket {
+				return nil, errors.New("write error: value must be a JSON-encoded object")
+			}
+
+			op := &StorageOpWrite{
+				Object: &api.WriteStorageObject{
+					Collection:      write.Collection,
+					Key:             write.Key,
+					Value:           write.Value,
+					Version:         write.Version,
+					PermissionRead:  &wrapperspb.Int32Value{Value: int32(write.PermissionRead)},
+					PermissionWrite: &wrapperspb.Int32Value{Value: int32(write.PermissionWrite)},
+				},
+			}
+			if write.UserID == "" {
+				op.OwnerID = uuid.Nil.String()
+			} else {
+				op.OwnerID = write.UserID
+			}
+
+			ops = append(ops, op)
+		}
+
+		acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, storageIndex, true, ops)
+		if err != nil {
+			if errors.Is(err, runtime.ErrStorageRejectedVersion) {
+				backoff := min(int64(2<<retryCount)*int64(time.Millisecond), int64(20*time.Millisecond))
+				delay := time.Duration(backoff) + time.Duration(rand.Int64N(10))*time.Millisecond
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(delay):
+				}
+				continue
+			}
+			return nil, err
+		}
+
+		return acks, nil
+	}
+
+	return nil, runtime.ErrStorageWriteExhaustedRetries
 }
 
 func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWrite) {

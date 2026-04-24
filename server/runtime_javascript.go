@@ -569,7 +569,7 @@ func (r *RuntimeJS) invokeFunction(execMode RuntimeExecutionMode, id string, fn 
 	retVal, err := fn(goja.Null(), args...)
 	if err != nil {
 		logger, _ := LoggerWithTraceId(r.nakamaModule.ctx, r.logger)
-		if exErr, ok := err.(*goja.Exception); ok {
+		if exErr, ok := errors.AsType[*goja.Exception](err); ok {
 			errMsg := exErr.Error()
 			errCode := codes.Internal
 			custom := false
