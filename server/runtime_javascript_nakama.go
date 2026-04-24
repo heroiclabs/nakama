@@ -245,6 +245,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"storageList":                          n.storageList(r),
 		"storageRead":                          n.storageRead(r),
 		"storageWrite":                         n.storageWrite(r),
+		"storageWriteRetry":                    n.storageWriteRetry(r),
 		"storageDelete":                        n.storageDelete(r),
 		"multiUpdate":                          n.multiUpdate(r),
 		"leaderboardCreate":                    n.leaderboardCreate(r),
@@ -4869,7 +4870,7 @@ func (n *RuntimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 	return func(f goja.FunctionCall) goja.Value {
 		objectIDs := f.Argument(0)
 		if objectIDs == goja.Undefined() || objectIDs == goja.Null() {
-			panic(r.NewTypeError("expects an array ok keys"))
+			panic(r.NewTypeError("expects an array of keys"))
 		}
 
 		keysSlice, err := exportToSlice[[]map[string]any](objectIDs)
@@ -5003,6 +5004,257 @@ func (n *RuntimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 	}
 }
 
+// @group storage
+// @summary Write a set storage object changes with retries.
+// @param objectIDs(type=[]*nkruntime.StorageRead) An array of object identifiers to be fetched.
+// @param updateFn(type=function) A function that applies changes to the read storage objects.
+// @param maxRetries(type=int) Maximum number of retries to attempt if a version conflict is detected. Must be a value between 0 and 10.
+// @return acks(nkruntime.StorageWriteAck[]) A list of acks with the version of the written objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) storageWriteRetry(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		objectIDs := f.Argument(0)
+		if objectIDs == goja.Undefined() || objectIDs == goja.Null() {
+			panic(r.NewTypeError("expects an array of keys"))
+		}
+
+		keysSlice, err := exportToSlice[[]map[string]any](objectIDs)
+		if err != nil {
+			panic(r.NewTypeError("expects an array of keys"))
+		}
+
+		if len(keysSlice) == 0 {
+			return r.ToValue([]any{})
+		}
+
+		objectIDsMap := make([]*api.ReadStorageObjectId, 0, len(keysSlice))
+		for _, objMap := range keysSlice {
+			objectID := &api.ReadStorageObjectId{}
+
+			if collectionIn, ok := objMap["collection"]; ok {
+				collection, ok := collectionIn.(string)
+				if !ok {
+					panic(r.NewTypeError("expects 'collection' value to be a string"))
+				}
+				if collectionIn == "" {
+					panic(r.NewTypeError("expects 'collection' value to be a non empty string"))
+				}
+				objectID.Collection = collection
+			}
+
+			if keyIn, ok := objMap["key"]; ok {
+				key, ok := keyIn.(string)
+				if !ok {
+					panic(r.NewTypeError("expects 'key' value to be a string"))
+				}
+				objectID.Key = key
+			}
+
+			if userID, ok := objMap["userId"]; ok {
+				userIDStr, ok := userID.(string)
+				if !ok {
+					panic(r.NewTypeError("expects 'userId' value to be a string"))
+				}
+				_, err := uuid.FromString(userIDStr)
+				if err != nil {
+					panic(r.NewTypeError("expects 'userId' value to be a valid id"))
+				}
+				objectID.UserId = userIDStr
+			}
+
+			if objectID.UserId == "" {
+				// Default to server-owned data if no owner is supplied.
+				objectID.UserId = uuid.Nil.String()
+			}
+
+			objectIDsMap = append(objectIDsMap, objectID)
+		}
+
+		updateFnJs := f.Argument(1)
+		fn, ok := goja.AssertFunction(updateFnJs)
+		if !ok {
+			panic(r.NewTypeError("expects a valid update function"))
+		}
+
+		updateFn := func(objects []*api.StorageObject) ([]*runtime.StorageWrite, error) {
+			results := make([]interface{}, 0, len(objects))
+			for _, o := range objects {
+				oMap := make(map[string]interface{})
+
+				oMap["key"] = o.Key
+				oMap["collection"] = o.Collection
+				if o.UserId != "" {
+					oMap["userId"] = o.UserId
+				} else {
+					oMap["userId"] = nil
+				}
+				oMap["version"] = o.Version
+				oMap["permissionRead"] = o.PermissionRead
+				oMap["permissionWrite"] = o.PermissionWrite
+				oMap["createTime"] = o.CreateTime.Seconds
+				oMap["updateTime"] = o.UpdateTime.Seconds
+
+				valueMap := make(map[string]interface{})
+				err = json.Unmarshal([]byte(o.Value), &valueMap)
+				if err != nil {
+					panic(r.NewGoError(fmt.Errorf("failed to convert value to json: %s", err.Error())))
+				}
+				pointerizeSlices(valueMap)
+				oMap["value"] = valueMap
+
+				results = append(results, oMap)
+			}
+
+			retVal, err := fn(goja.Undefined(), r.ToValue(results))
+			if err != nil {
+				if exErr, ok := errors.AsType[*goja.Exception](err); ok {
+					err = exErr
+				}
+				panic(r.NewGoError(fmt.Errorf("failed to update storage objects: %s", err.Error())))
+			}
+
+			objectIDs := retVal
+			if objectIDs == goja.Undefined() || objectIDs == goja.Null() {
+				panic(r.NewTypeError("expects a valid array of data"))
+			}
+
+			dataSlice, err := exportToSlice[[]map[string]any](objectIDs)
+			if err != nil {
+				panic(r.NewTypeError("expects an array of storage write objects"))
+			}
+
+			ops, err := jsArrayToStorageWrites(dataSlice)
+			if err != nil {
+				panic(r.NewTypeError(err.Error()))
+			}
+
+			if len(ops) == 0 {
+				return []*runtime.StorageWrite{}, nil
+			}
+
+			return ops, nil
+		}
+
+		maxRetries := int(getJsInt(r, f.Argument(2)))
+		if maxRetries < 0 || maxRetries > 10 {
+			panic(r.NewTypeError("max retries must be a value between 0 and 10"))
+		}
+
+		acks, err := StorageWriteWithRetries(n.ctx, n.logger, n.db, n.metrics, n.storageIndex, objectIDsMap, updateFn, maxRetries)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to write storage objects with retry: %s", err.Error())))
+		}
+
+		results := make([]interface{}, 0, len(acks.Acks))
+		for _, ack := range acks.Acks {
+			result := make(map[string]interface{}, 4)
+			result["key"] = ack.Key
+			result["collection"] = ack.Collection
+			result["userId"] = ack.UserId
+			result["version"] = ack.Version
+
+			results = append(results, result)
+		}
+
+		return r.ToValue(results)
+	}
+}
+
+func jsArrayToStorageWrites(dataSlice []map[string]any) ([]*runtime.StorageWrite, error) {
+	writes := make([]*runtime.StorageWrite, 0, len(dataSlice))
+	for _, dataMap := range dataSlice {
+		writeOp := &runtime.StorageWrite{}
+		if collectionIn, ok := dataMap["collection"]; ok {
+			collection, ok := collectionIn.(string)
+			if !ok {
+				return nil, errors.New("expects 'collection' value to be a string")
+			}
+			if collection == "" {
+				return nil, errors.New("expects 'collection' value to be non-empty")
+			}
+			writeOp.Collection = collection
+		}
+
+		keyIn := dataMap["key"]
+		key, ok := keyIn.(string)
+		if !ok {
+			return nil, errors.New("expects 'key' value to be a string")
+		}
+		if key == "" {
+			return nil, errors.New("expects 'key' value to be non-empty")
+		}
+		writeOp.Key = key
+
+		userIDIn := dataMap["userId"]
+		if userIDIn != nil {
+			userIDStr, ok := userIDIn.(string)
+			if !ok {
+				return nil, errors.New("expects 'userId' value to be a string")
+			}
+			var err error
+			userID, err := uuid.FromString(userIDStr)
+			if err != nil {
+				return nil, errors.New("expects 'userId' value to be a valid id")
+			}
+			writeOp.UserID = userID.String()
+		}
+
+		valueIn := dataMap["value"]
+		valueMap, ok := valueIn.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("expects 'value' value to be an object")
+		}
+		valueBytes, err := json.Marshal(valueMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert value: %s", err.Error())
+		}
+		writeOp.Value = string(valueBytes)
+
+		if versionIn := dataMap["version"]; versionIn != nil {
+			version, ok := versionIn.(string)
+			if !ok {
+				return nil, errors.New("expects 'version' value to be a string")
+			}
+			if version == "" {
+				return nil, errors.New("expects 'version' value to be a non-empty string")
+			}
+			writeOp.Version = version
+		}
+
+		if permissionReadIn, ok := dataMap["permissionRead"]; ok {
+			permissionRead, ok := permissionReadIn.(int64)
+			if !ok {
+				return nil, errors.New("expects 'permissionRead' value to be a number")
+			}
+			writeOp.PermissionRead = int(permissionRead)
+		} else {
+			writeOp.PermissionRead = 1
+		}
+
+		if permissionWriteIn, ok := dataMap["permissionWrite"]; ok {
+			permissionWrite, ok := permissionWriteIn.(int64)
+			if !ok {
+				return nil, errors.New("expects 'permissionWrite' value to be a number")
+			}
+			writeOp.PermissionWrite = int(permissionWrite)
+		} else {
+			writeOp.PermissionWrite = 1
+		}
+
+		if writeOp.Collection == "" {
+			return nil, errors.New("expects collection to be supplied")
+		} else if writeOp.Key == "" {
+			return nil, errors.New("expects key to be supplied")
+		} else if writeOp.Value == "" {
+			return nil, errors.New("expects value to be supplied")
+		}
+
+		writes = append(writes, writeOp)
+	}
+
+	return writes, nil
+}
+
 func jsArrayToStorageOpWrites(dataSlice []map[string]any) (StorageOpWrites, error) {
 	ops := make(StorageOpWrites, 0, len(dataSlice))
 	for _, dataMap := range dataSlice {
@@ -5112,7 +5364,7 @@ func (n *RuntimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 	return func(f goja.FunctionCall) goja.Value {
 		objectIDs := f.Argument(0)
 		if objectIDs == goja.Undefined() {
-			panic(r.NewTypeError("expects an array ok keys"))
+			panic(r.NewTypeError("expects an array of keys"))
 		}
 		keysSlice, err := exportToSlice[[]map[string]any](objectIDs)
 		if err != nil {
