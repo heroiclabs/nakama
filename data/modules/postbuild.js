@@ -129,6 +129,68 @@ for (var mi = 0; mi < moduleFiles.length; mi++) {
 console.log('[postbuild] Loaded ' + moduleCount + ' separate module files (' + modulesContent.length + ' bytes)');
 moduleFiles.forEach(function(mf) { console.log('[postbuild]   -> ' + mf.rel); });
 
+// ── 0.4. Resolve top-level function-name collisions ──────────────
+//
+// JavaScript hoists function declarations to the top of the enclosing
+// scope. In our concatenated index.js, both modulesContent (e.g.
+// analytics/analytics.js) and legacyContent (legacy_runtime.js) have
+// historically declared the SAME top-level functions — most notably
+// rpcAnalyticsLogEvent. Whichever script appears LATER wins via hoisting
+// (legacy wins in our current order), regardless of which copy contains
+// the modern, dimensional-aware implementation. The guarded stub
+// assignments don't help because the bare identifier `rpcAnalyticsLogEvent`
+// resolves to the hoisted (legacy) definition by the time the right-hand
+// side of the assignment is evaluated.
+//
+// Symptom in production: analytics_log_event stored events with `evt_`
+// keys under SYSTEM_USER without gameId / dimensions, so every breakdown
+// RPC returned total_events=0 with "unknown" dimensions.
+//
+// Fix: rename every top-level function declaration in legacyContent that
+// also exists in modulesContent. The modules version keeps the original
+// name (and wins at global scope); the legacy copy becomes
+// `__legacy_<name>` and remains internally consistent because we rewrite
+// every \b<name>\b occurrence inside legacyContent (declarations + call
+// sites + registerRpc handler args).
+function findTopLevelFunctionNames(content) {
+  var names = new Set();
+  // Anchor at column 0 to catch only true top-level declarations
+  // (functions inside IIFEs / namespaces start indented after Babel/TS
+  // transpiles, so they don't pollute the global scope and don't need
+  // renaming).
+  var re = /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
+  var m;
+  while ((m = re.exec(content)) !== null) {
+    names.add(m[1]);
+  }
+  return names;
+}
+
+if (modulesContent && legacyContent) {
+  var moduleFns = findTopLevelFunctionNames(modulesContent);
+  var legacyFns = findTopLevelFunctionNames(legacyContent);
+  var collisions = [];
+  legacyFns.forEach(function(name) {
+    if (moduleFns.has(name)) collisions.push(name);
+  });
+  if (collisions.length > 0) {
+    console.log('[postbuild] Detected ' + collisions.length +
+      ' top-level function-name collision(s) between modules and legacy:');
+    for (var ci = 0; ci < collisions.length; ci++) {
+      var collName = collisions[ci];
+      var newName = '__legacy_' + collName;
+      var pattern = new RegExp('\\b' + collName + '\\b', 'g');
+      var before = legacyContent.length;
+      legacyContent = legacyContent.replace(pattern, newName);
+      console.log('[postbuild]   renamed in legacy: ' + collName +
+        ' -> ' + newName + ' (legacy size delta: ' +
+        (legacyContent.length - before) + ' bytes)');
+    }
+  } else {
+    console.log('[postbuild] No top-level function name collisions detected between modules and legacy');
+  }
+}
+
 buildContent = buildContent.replace(/^"use strict";\r?\n?/, '');
 
 // ── 0.5. Expand dynamic RPC registrations ────────────────────────
@@ -529,16 +591,22 @@ sections.push('');
 // EVERY Goja VM, not only inside InitModule (which only runs once on
 // the first VM). This fixes "JavaScript runtime function invalid"
 // errors caused by VM pooling.
-var allStubAssignments = legacyStubAssignments.concat(moduleStubAssignments);
+// Module assignments MUST come before legacy assignments. The guarded
+// pattern `__rpc_X = __rpc_X || handler` short-circuits once the variable
+// is truthy, so whichever assignment runs first wins. Modules are the
+// modern, aliased, dimension-enriched implementations and must take
+// precedence over legacy_runtime.js fallbacks.
+var allStubAssignments = moduleStubAssignments.concat(legacyStubAssignments);
 if (allStubAssignments.length > 0) {
   var replayLines = ['', '// --- Global-scope __rpc_ assignments (VM-pool fix) ---'];
+  replayLines.push('// Order: modules first (modern handlers win), then legacy fallbacks');
   for (var li = 0; li < allStubAssignments.length; li++) {
     var la = allStubAssignments[li];
     replayLines.push('try { ' + la.stubVar + ' = ' + la.stubVar + ' || (' + la.handlerFn + '); } catch(e) {}');
   }
   replayLines.push('');
   sections.push(replayLines.join('\n'));
-  console.log('[postbuild] Injected ' + allStubAssignments.length + ' global-scope __rpc_ replay assignments (' + legacyStubAssignments.length + ' legacy + ' + moduleStubAssignments.length + ' module)');
+  console.log('[postbuild] Injected ' + allStubAssignments.length + ' global-scope __rpc_ replay assignments (' + moduleStubAssignments.length + ' module + ' + legacyStubAssignments.length + ' legacy, modules-first ordering)');
 }
 
 sections.push(newInitModule);

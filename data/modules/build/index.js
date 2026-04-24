@@ -6728,7 +6728,18 @@ var LegacyAnalytics;
         }
     }
     function register(initializer) {
-        initializer.registerRpc("analytics_log_event", rpcAnalyticsLogEvent);
+        // NOTE: analytics_log_event is intentionally NOT registered here.
+        // The modern handler in data/modules/analytics/analytics.js owns this RPC ID.
+        // It performs gameId slug<->UUID aliasing, dimension extraction (Tier/Country/
+        // Device/etc.), and writes both dashboardKey (SYSTEM_USER) and userKey
+        // (per-user) records that the breakdown / retention / timeline RPCs scan.
+        //
+        // Re-enabling the line below will overwrite the modern handler at postbuild
+        // time (TS build assignments are unguarded) and cause filtered breakdowns
+        // to return total_events=0 with all dimensions = "unknown".
+        //
+        // initializer.registerRpc("analytics_log_event", rpcAnalyticsLogEvent);
+        void rpcAnalyticsLogEvent;
     }
     LegacyAnalytics.register = register;
 })(LegacyAnalytics || (LegacyAnalytics = {}));

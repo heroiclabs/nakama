@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-24T01:32:33.219Z
+// Generated: 2026-04-24T02:58:08.228Z
 // RPC Count: 593
 // ============================================================
 
@@ -39626,7 +39626,7 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, amountToAdd, user
  * @param {string[]} fields - Array of required field names
  * @returns {object} { valid: boolean, missing: string[] }
  */
-function validatePayload(payload, fields) {
+function __legacy_validatePayload(payload, fields) {
     const missing = [];
     for (let i = 0; i < fields.length; i++) {
         if (!payload.hasOwnProperty(fields[i]) || payload[fields[i]] === null || payload[fields[i]] === undefined) {
@@ -39797,7 +39797,7 @@ function isWithinHours(timestamp1, timestamp2, hours) {
  * @param {Date} [date] - Optional date, defaults to now
  * @returns {number} Unix timestamp at start of day
  */
-function getStartOfDay(date) {
+function __legacy_getStartOfDay(date) {
     const d = date || new Date();
     d.setHours(0, 0, 0, 0);
     return Math.floor(d.getTime() / 1000);
@@ -41893,7 +41893,7 @@ function NewrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
     }
 
     var userId = ctx.userId;
-    var requestId = generateUUID(). substring(0, 8);
+    var requestId = __legacy_generateUUID(). substring(0, 8);
     var meta;
 
     logger.info("[PlayerMetadata:" + requestId + "] Processing metadata update for user " + userId);
@@ -42464,7 +42464,7 @@ function writeStorage(nk, logger, collection, key, userId, value, permissionRead
  * @param {string} token - JWT token string
  * @returns {object} Decoded token payload
  */
-function decodeJWT(token) {
+function __legacy_decodeJWT(token) {
     try {
         // JWT structure: header.payload.signature
         const parts = token.split('.');
@@ -42492,8 +42492,8 @@ function decodeJWT(token) {
  * @param {string} token - Cognito JWT token
  * @returns {object} User info with sub and email
  */
-function extractUserInfo(token) {
-    const decoded = decodeJWT(token);
+function __legacy_extractUserInfo(token) {
+    const decoded = __legacy_decodeJWT(token);
 
     // Validate required fields
     if (!decoded.sub) {
@@ -42512,7 +42512,7 @@ function extractUserInfo(token) {
  * @param {string} token - JWT token to validate
  * @returns {boolean} True if valid structure
  */
-function validateJWTStructure(token) {
+function __legacy_validateJWTStructure(token) {
     if (!token || typeof token !== 'string') {
         return false;
     }
@@ -42526,7 +42526,7 @@ function validateJWTStructure(token) {
  * @param {string} cognitoSub - Cognito user sub (UUID)
  * @returns {string} Wallet ID (same as sub for one-to-one mapping)
  */
-function generateWalletId(cognitoSub) {
+function __legacy_generateWalletId(cognitoSub) {
     // Wallet ID is the same as Cognito sub for one-to-one mapping
     return cognitoSub;
 }
@@ -42537,7 +42537,7 @@ function generateWalletId(cognitoSub) {
  * @param {string} operation - Operation name
  * @param {object} details - Additional details to log
  */
-function logWalletOperation(logger, operation, details) {
+function __legacy_logWalletOperation(logger, operation, details) {
     logger.info('[Wallet] ' + operation + ': ' + JSON.stringify(details));
 }
 
@@ -42548,7 +42548,7 @@ function logWalletOperation(logger, operation, details) {
  * @param {Error} error - Error object
  * @returns {object} Standardized error response
  */
-function handleWalletError(logger, operation, error) {
+function __legacy_handleWalletError(logger, operation, error) {
     const errorMsg = error.message || String(error);
     logger.error('[Wallet Error] ' + operation + ': ' + errorMsg);
 
@@ -42584,7 +42584,7 @@ var SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
  * @param {string} userId - User ID (Cognito sub)
  * @returns {object|null} Wallet record or null if not found
  */
-function getWalletByUserId(nk, logger, userId) {
+function __legacy_getWalletByUserId(nk, logger, userId) {
     try {
         var records = nk.storageRead([{
             collection: WALLET_COLLECTION,
@@ -42613,7 +42613,7 @@ function getWalletByUserId(nk, logger, userId) {
  * @param {string} username - User's username or email
  * @returns {object} Created wallet record
  */
-function createWalletRecord(nk, logger, userId, username) {
+function __legacy_createWalletRecord(nk, logger, userId, username) {
     try {
         var walletRecord = {
             walletId: userId,
@@ -42649,10 +42649,10 @@ function createWalletRecord(nk, logger, userId, username) {
  * @param {string} gameId - Game ID to add
  * @returns {object} Updated wallet record
  */
-function updateWalletGames(nk, logger, walletId, gameId) {
+function __legacy_updateWalletGames(nk, logger, walletId, gameId) {
     try {
         // Read existing wallet
-        var wallet = getWalletByUserId(nk, logger, walletId);
+        var wallet = __legacy_getWalletByUserId(nk, logger, walletId);
         if (!wallet) {
             throw new Error('Wallet not found: ' + walletId);
         }
@@ -42695,7 +42695,7 @@ function updateWalletGames(nk, logger, walletId, gameId) {
  * @param {number} limit - Max records to return
  * @returns {array} Array of wallet records
  */
-function getAllWallets(nk, logger, limit) {
+function __legacy_getAllWallets(nk, logger, limit) {
     try {
         limit = limit || 100;
 
@@ -42737,9 +42737,9 @@ function getAllWallets(nk, logger, limit) {
  * @param {string} payload - JSON string with { "token": "<cognito_jwt>" }
  * @returns {string} JSON response with wallet info
  */
-function getUserWallet(ctx, logger, nk, payload) {
+function __legacy_getUserWallet(ctx, logger, nk, payload) {
     try {
-        logWalletOperation(logger, 'get_user_wallet', { payload: payload });
+        __legacy_logWalletOperation(logger, 'get_user_wallet', { payload: payload });
 
         // Parse input
         var input = {};
@@ -42762,7 +42762,7 @@ function getUserWallet(ctx, logger, nk, payload) {
 
         if (token) {
             // Validate JWT structure
-            if (!validateJWTStructure(token)) {
+            if (!__legacy_validateJWTStructure(token)) {
                 return JSON.stringify({
                     success: false,
                     error: 'Invalid JWT token format'
@@ -42770,11 +42770,11 @@ function getUserWallet(ctx, logger, nk, payload) {
             }
 
             // Extract user info from Cognito JWT
-            var userInfo = extractUserInfo(token);
+            var userInfo = __legacy_extractUserInfo(token);
             userId = userInfo.sub;
             username = userInfo.username;
 
-            logWalletOperation(logger, 'extracted_user_info', {
+            __legacy_logWalletOperation(logger, 'extracted_user_info', {
                 userId: userId,
                 username: username
             });
@@ -42783,7 +42783,7 @@ function getUserWallet(ctx, logger, nk, payload) {
             userId = ctx.userId;
             username = ctx.username || userId;
 
-            logWalletOperation(logger, 'using_context_user', {
+            __legacy_logWalletOperation(logger, 'using_context_user', {
                 userId: userId,
                 username: username
             });
@@ -42795,16 +42795,16 @@ function getUserWallet(ctx, logger, nk, payload) {
         }
 
         // Query wallet registry
-        var wallet = getWalletByUserId(nk, logger, userId);
+        var wallet = __legacy_getWalletByUserId(nk, logger, userId);
 
         // Create wallet if not found
         if (!wallet) {
-            wallet = createWalletRecord(nk, logger, userId, username);
-            logWalletOperation(logger, 'wallet_created', {
+            wallet = __legacy_createWalletRecord(nk, logger, userId, username);
+            __legacy_logWalletOperation(logger, 'wallet_created', {
                 walletId: wallet.walletId
             });
         } else {
-            logWalletOperation(logger, 'wallet_found', {
+            __legacy_logWalletOperation(logger, 'wallet_found', {
                 walletId: wallet.walletId,
                 gamesLinked: wallet.gamesLinked
             });
@@ -42821,7 +42821,7 @@ function getUserWallet(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        return JSON.stringify(handleWalletError(logger, 'get_user_wallet', err));
+        return JSON.stringify(__legacy_handleWalletError(logger, 'get_user_wallet', err));
     }
 }
 
@@ -42835,9 +42835,9 @@ function getUserWallet(ctx, logger, nk, payload) {
  * @param {string} payload - JSON string with { "token": "<cognito_jwt>", "gameId": "<game_id>" }
  * @returns {string} JSON response with updated wallet info
  */
-function linkWalletToGame(ctx, logger, nk, payload) {
+function __legacy_linkWalletToGame(ctx, logger, nk, payload) {
     try {
-        logWalletOperation(logger, 'link_wallet_to_game', { payload: payload });
+        __legacy_logWalletOperation(logger, 'link_wallet_to_game', { payload: payload });
 
         // Parse input
         var input = {};
@@ -42867,14 +42867,14 @@ function linkWalletToGame(ctx, logger, nk, payload) {
         var username;
 
         if (token) {
-            if (!validateJWTStructure(token)) {
+            if (!__legacy_validateJWTStructure(token)) {
                 return JSON.stringify({
                     success: false,
                     error: 'Invalid JWT token format'
                 });
             }
 
-            var userInfo = extractUserInfo(token);
+            var userInfo = __legacy_extractUserInfo(token);
             userId = userInfo.sub;
             username = userInfo.username;
         } else if (ctx.userId) {
@@ -42888,15 +42888,15 @@ function linkWalletToGame(ctx, logger, nk, payload) {
         }
 
         // Ensure wallet exists
-        var wallet = getWalletByUserId(nk, logger, userId);
+        var wallet = __legacy_getWalletByUserId(nk, logger, userId);
         if (!wallet) {
-            wallet = createWalletRecord(nk, logger, userId, username);
+            wallet = __legacy_createWalletRecord(nk, logger, userId, username);
         }
 
         // Link game to wallet
-        wallet = updateWalletGames(nk, logger, wallet.walletId, gameId);
+        wallet = __legacy_updateWalletGames(nk, logger, wallet.walletId, gameId);
 
-        logWalletOperation(logger, 'game_linked', {
+        __legacy_logWalletOperation(logger, 'game_linked', {
             walletId: wallet.walletId,
             gameId: gameId,
             totalGames: wallet.gamesLinked.length
@@ -42911,7 +42911,7 @@ function linkWalletToGame(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        return JSON.stringify(handleWalletError(logger, 'link_wallet_to_game', err));
+        return JSON.stringify(__legacy_handleWalletError(logger, 'link_wallet_to_game', err));
     }
 }
 
@@ -42925,9 +42925,9 @@ function linkWalletToGame(ctx, logger, nk, payload) {
  * @param {string} payload - JSON string with optional { "limit": 100 }
  * @returns {string} JSON response with wallet array
  */
-function getWalletRegistry(ctx, logger, nk, payload) {
+function __legacy_getWalletRegistry(ctx, logger, nk, payload) {
     try {
-        logWalletOperation(logger, 'get_wallet_registry', { userId: ctx.userId });
+        __legacy_logWalletOperation(logger, 'get_wallet_registry', { userId: ctx.userId });
 
         // Parse input
         var input = {};
@@ -42942,7 +42942,7 @@ function getWalletRegistry(ctx, logger, nk, payload) {
         var limit = input.limit || 100;
 
         // Get all wallets
-        var wallets = getAllWallets(nk, logger, limit);
+        var wallets = __legacy_getAllWallets(nk, logger, limit);
 
         return JSON.stringify({
             success: true,
@@ -42951,7 +42951,7 @@ function getWalletRegistry(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        return JSON.stringify(handleWalletError(logger, 'get_wallet_registry', err));
+        return JSON.stringify(__legacy_handleWalletError(logger, 'get_wallet_registry', err));
     }
 }
 
@@ -42973,7 +42973,7 @@ function getWalletRegistry(ctx, logger, nk, payload) {
  *   "userId": "uuid"
  * }
  */
-function rpcWalletGetBalances(ctx, logger, nk, payload) {
+function __legacy_rpcWalletGetBalances(ctx, logger, nk, payload) {
     logInfo(logger, "RPC wallet_get_balances called");
 
     var parsed = safeJsonParse(payload);
@@ -42982,7 +42982,7 @@ function rpcWalletGetBalances(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId']);
+    var validation = __legacy_validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -42998,11 +42998,11 @@ function rpcWalletGetBalances(ctx, logger, nk, payload) {
     }
 
     // Get game wallet
-    var wallet = getGameWallet(nk, logger, userId, gameId);
+    var wallet = __legacy_getGameWallet(nk, logger, userId, gameId);
     var currencies = wallet.currencies || {};
 
     // Get global wallet too for global_balance
-    var globalWallet = getGlobalWallet(nk, logger, userId);
+    var globalWallet = __legacy_getGlobalWallet(nk, logger, userId);
     var globalCurrencies = globalWallet.currencies || {};
 
     // Return BOTH key formats for maximum compatibility
@@ -43054,7 +43054,7 @@ function submitScoreSync(ctx, logger, nk, payload) {
             return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['gameId', 'score']);
+        const validation = __legacy_validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
             return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
@@ -43130,7 +43130,7 @@ function submitScoreSync(ctx, logger, nk, payload) {
 
 
 // Register RPC in InitModule context if available
-function rpcSubmitScoreSync(ctx, logger, nk, payload) { return submitScoreSync(ctx, logger, nk, payload); }
+function __legacy_rpcSubmitScoreSync(ctx, logger, nk, payload) { return submitScoreSync(ctx, logger, nk, payload); }
 
 // Export for module systems (ES Module syntax)
 
@@ -43161,7 +43161,7 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
             return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['gameId', 'score']);
+        const validation = __legacy_validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
             return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
@@ -43276,7 +43276,7 @@ function submitScoreWithAggregate(ctx, logger, nk, payload) {
 }
 
 // Register RPC in InitModule context if available
-function rpcSubmitScoreWithAggregate(ctx, logger, nk, payload) { return submitScoreWithAggregate(ctx, logger, nk, payload); }
+function __legacy_rpcSubmitScoreWithAggregate(ctx, logger, nk, payload) { return submitScoreWithAggregate(ctx, logger, nk, payload); }
 
 // Export for module systems (ES Module syntax)
 
@@ -43371,7 +43371,7 @@ function createAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
  * Submits score to both regular and friend-specific leaderboards
  */
 function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
-    var validatePayload = utils ? utils.validatePayload : function (p, f) {
+    var __legacy_validatePayload = utils ? utils.__legacy_validatePayload : function (p, f) {
         var m = [];
         for (var i = 0; i < f.length; i++) {
             if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
@@ -43396,7 +43396,7 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
             return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['gameId', 'score']);
+        const validation = __legacy_validatePayload(data, ['gameId', 'score']);
         if (!validation.valid) {
             return handleError(ctx, null, "Missing required fields: " + validation.missing.join(', '));
         }
@@ -43486,7 +43486,7 @@ function submitScoreWithFriendsSync(ctx, logger, nk, payload) {
  * Retrieves leaderboard filtered by friends
  */
 function getFriendLeaderboard(ctx, logger, nk, payload) {
-    var validatePayload = utils ? utils.validatePayload : function (p, f) {
+    var __legacy_validatePayload = utils ? utils.__legacy_validatePayload : function (p, f) {
         var m = [];
         for (var i = 0; i < f.length; i++) {
             if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
@@ -43511,7 +43511,7 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
             return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['leaderboardId']);
+        const validation = __legacy_validatePayload(data, ['leaderboardId']);
         if (!validation.valid) {
             return handleError(ctx, null, "Missing required field: leaderboardId");
         }
@@ -43570,9 +43570,9 @@ function getFriendLeaderboard(ctx, logger, nk, payload) {
 }
 
 // Register RPCs in InitModule context if available
-function rpcCreateAllLeaderboardsWithFriends(ctx, logger, nk, payload) { return createAllLeaderboardsWithFriends(ctx, logger, nk, payload); }
-function rpcSubmitScoreWithFriendsSync(ctx, logger, nk, payload) { return submitScoreWithFriendsSync(ctx, logger, nk, payload); }
-function rpcGetFriendLeaderboard(ctx, logger, nk, payload) { return getFriendLeaderboard(ctx, logger, nk, payload); }
+function __legacy_rpcCreateAllLeaderboardsWithFriends(ctx, logger, nk, payload) { return createAllLeaderboardsWithFriends(ctx, logger, nk, payload); }
+function __legacy_rpcSubmitScoreWithFriendsSync(ctx, logger, nk, payload) { return submitScoreWithFriendsSync(ctx, logger, nk, payload); }
+function __legacy_rpcGetFriendLeaderboard(ctx, logger, nk, payload) { return getFriendLeaderboard(ctx, logger, nk, payload); }
 
 // Export for module systems (ES Module syntax)
 
@@ -43629,7 +43629,7 @@ function sendFriendInvite(ctx, logger, nk, payload) {
             return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['targetUserId']);
+        const validation = __legacy_validatePayload(data, ['targetUserId']);
         if (!validation.valid) {
             return handleError(ctx, null, "Missing required field: targetUserId");
         }
@@ -43710,7 +43710,7 @@ function sendFriendInvite(ctx, logger, nk, payload) {
  * Accepts a friend invite
  */
 function acceptFriendInvite(ctx, logger, nk, payload) {
-    var validatePayload = utils ? utils.validatePayload : function (p, f) {
+    var __legacy_validatePayload = utils ? utils.__legacy_validatePayload : function (p, f) {
         var m = [];
         for (var i = 0; i < f.length; i++) {
             if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
@@ -43735,7 +43735,7 @@ function acceptFriendInvite(ctx, logger, nk, payload) {
             return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['inviteId']);
+        const validation = __legacy_validatePayload(data, ['inviteId']);
         if (!validation.valid) {
             return handleError(ctx, null, "Missing required field: inviteId");
         }
@@ -43837,7 +43837,7 @@ function acceptFriendInvite(ctx, logger, nk, payload) {
  * Declines a friend invite
  */
 function declineFriendInvite(ctx, logger, nk, payload) {
-    var validatePayload = utils ? utils.validatePayload : function (p, f) {
+    var __legacy_validatePayload = utils ? utils.__legacy_validatePayload : function (p, f) {
         var m = [];
         for (var i = 0; i < f.length; i++) {
             if (!p.hasOwnProperty(f[i]) || p[f[i]] === null || p[f[i]] === undefined) m.push(f[i]);
@@ -43862,7 +43862,7 @@ function declineFriendInvite(ctx, logger, nk, payload) {
             return handleError(ctx, err, "Invalid JSON payload");
         }
 
-        const validation = validatePayload(data, ['inviteId']);
+        const validation = __legacy_validatePayload(data, ['inviteId']);
         if (!validation.valid) {
             return handleError(ctx, null, "Missing required field: inviteId");
         }
@@ -44026,7 +44026,7 @@ var REWARD_CONFIGS = {
  * @param {string} gameId - Game ID (UUID)
  * @returns {object} Streak data
  */
-function getStreakData(nk, logger, userId, gameId) {
+function __legacy_getStreakData(nk, logger, userId, gameId) {
     var collection = "daily_streaks";
     var key = makeGameStorageKey("user_daily_streak", userId, gameId);
 
@@ -44056,7 +44056,7 @@ function getStreakData(nk, logger, userId, gameId) {
  * @param {object} data - Streak data to save
  * @returns {boolean} Success status
  */
-function saveStreakData(nk, logger, userId, gameId, data) {
+function __legacy_saveStreakData(nk, logger, userId, gameId, data) {
     var collection = "daily_streaks";
     var key = makeGameStorageKey("user_daily_streak", userId, gameId);
     return writeStorage(nk, logger, collection, key, userId, data);
@@ -44067,7 +44067,7 @@ function saveStreakData(nk, logger, userId, gameId, data) {
  * @param {object} streakData - Current streak data
  * @returns {object} { canClaim: boolean, reason: string }
  */
-function canClaimToday(streakData) {
+function __legacy_canClaimToday(streakData) {
     var now = getUnixTimestamp();
     var lastClaim = streakData.lastClaimTimestamp;
 
@@ -44076,8 +44076,8 @@ function canClaimToday(streakData) {
         return { canClaim: true, reason: "first_claim" };
     }
 
-    var lastClaimStartOfDay = getStartOfDay(new Date(lastClaim * 1000));
-    var todayStartOfDay = getStartOfDay();
+    var lastClaimStartOfDay = __legacy_getStartOfDay(new Date(lastClaim * 1000));
+    var todayStartOfDay = __legacy_getStartOfDay();
 
     // Already claimed today
     if (lastClaimStartOfDay === todayStartOfDay) {
@@ -44093,7 +44093,7 @@ function canClaimToday(streakData) {
  * @param {object} streakData - Current streak data
  * @returns {object} Updated streak data
  */
-function updateStreakStatus(streakData) {
+function __legacy_updateStreakStatus(streakData) {
     var now = getUnixTimestamp();
     var lastClaim = streakData.lastClaimTimestamp;
 
@@ -44116,7 +44116,7 @@ function updateStreakStatus(streakData) {
  * @param {number} day - Streak day (1-7)
  * @returns {object} Reward configuration
  */
-function getRewardForDay(gameId, day) {
+function __legacy_getRewardForDay(gameId, day) {
     var config = REWARD_CONFIGS[gameId] || REWARD_CONFIGS["default"];
     var rewardDay = ((day - 1) % 7) + 1; // Cycle through 1-7
 
@@ -44138,7 +44138,7 @@ function getRewardForDay(gameId, day) {
  * @param {string} payload - JSON payload with { gameId: "uuid" }
  * @returns {string} JSON response
  */
-function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
+function __legacy_rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
     logInfo(logger, "RPC daily_rewards_get_status called");
 
     var parsed = safeJsonParse(payload);
@@ -44147,7 +44147,7 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId']);
+    var validation = __legacy_validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -44163,15 +44163,15 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
     }
 
     // Get current streak data
-    var streakData = getStreakData(nk, logger, userId, gameId);
-    streakData = updateStreakStatus(streakData);
+    var streakData = __legacy_getStreakData(nk, logger, userId, gameId);
+    streakData = __legacy_updateStreakStatus(streakData);
 
     // Check if can claim
-    var claimCheck = canClaimToday(streakData);
+    var claimCheck = __legacy_canClaimToday(streakData);
 
     // Get next reward info
     var nextDay = streakData.currentStreak + 1;
-    var nextReward = getRewardForDay(gameId, nextDay);
+    var nextReward = __legacy_getRewardForDay(gameId, nextDay);
 
     return JSON.stringify({
         success: true,
@@ -44180,7 +44180,7 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
         currentStreak: streakData.currentStreak,
         totalClaims: streakData.totalClaims,
         lastClaimTimestamp: streakData.lastClaimTimestamp,
-        canClaimToday: claimCheck.canClaim,
+        __legacy_canClaimToday: claimCheck.canClaim,
         claimReason: claimCheck.reason,
         nextReward: nextReward,
         timestamp: getCurrentTimestamp()
@@ -44195,7 +44195,7 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { gameId: "uuid" }
  * @returns {string} JSON response
  */
-function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
+function __legacy_rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     logInfo(logger, "RPC daily_rewards_claim called");
 
     var parsed = safeJsonParse(payload);
@@ -44204,7 +44204,7 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId']);
+    var validation = __legacy_validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -44220,16 +44220,16 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     }
 
     // Get current streak data
-    var streakData = getStreakData(nk, logger, userId, gameId);
-    streakData = updateStreakStatus(streakData);
+    var streakData = __legacy_getStreakData(nk, logger, userId, gameId);
+    streakData = __legacy_updateStreakStatus(streakData);
 
     // Check if can claim
-    var claimCheck = canClaimToday(streakData);
+    var claimCheck = __legacy_canClaimToday(streakData);
     if (!claimCheck.canClaim) {
         return JSON.stringify({
             success: false,
             error: "Cannot claim reward: " + claimCheck.reason,
-            canClaimToday: false
+            __legacy_canClaimToday: false
         });
     }
 
@@ -44240,10 +44240,10 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     streakData.updatedAt = getCurrentTimestamp();
 
     // Get reward for current day
-    var reward = getRewardForDay(gameId, streakData.currentStreak);
+    var reward = __legacy_getRewardForDay(gameId, streakData.currentStreak);
 
     // Save updated streak
-    if (!saveStreakData(nk, logger, userId, gameId, streakData)) {
+    if (!__legacy_saveStreakData(nk, logger, userId, gameId, streakData)) {
         return handleError(ctx, null, "Failed to save streak data");
     }
 
@@ -44455,7 +44455,7 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
  *   masteredConcepts: ["Arithmetic"]
  * }
  */
-function rpcQuizSubmitResult(ctx, logger, nk, payload) {
+function __legacy_rpcQuizSubmitResult(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_submit_result called");
 
     var parsed = safeJsonParse(payload);
@@ -44467,7 +44467,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
 
     // Validate required fields
     var required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
-    var validation = validatePayload(data, required);
+    var validation = __legacy_validatePayload(data, required);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -44648,7 +44648,7 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
  * RPC: quiz_get_history
  * Get quiz history for a user
  */
-function rpcQuizGetHistory(ctx, logger, nk, payload) {
+function __legacy_rpcQuizGetHistory(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_get_history called");
 
     var parsed = safeJsonParse(payload);
@@ -44657,7 +44657,7 @@ function rpcQuizGetHistory(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId']);
+    var validation = __legacy_validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing gameId");
     }
@@ -44715,7 +44715,7 @@ function rpcQuizGetHistory(ctx, logger, nk, payload) {
  * RPC: quiz_get_stats
  * Get user's aggregate quiz statistics
  */
-function rpcQuizGetStats(ctx, logger, nk, payload) {
+function __legacy_rpcQuizGetStats(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_get_stats called");
 
     var parsed = safeJsonParse(payload);
@@ -44724,7 +44724,7 @@ function rpcQuizGetStats(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId']);
+    var validation = __legacy_validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing gameId");
     }
@@ -44809,7 +44809,7 @@ function rpcQuizGetStats(ctx, logger, nk, payload) {
  *   date: "2025-01-15" (YYYY-MM-DD format)
  * }
  */
-function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
+function __legacy_rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
     logInfo(logger, "RPC quiz_check_daily_completion called");
 
     var parsed = safeJsonParse(payload);
@@ -44820,7 +44820,7 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
     var data = parsed.data;
 
     // Validate required fields (only gameMode is required now)
-    var validation = validatePayload(data, ['gameMode']);
+    var validation = __legacy_validatePayload(data, ['gameMode']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -44843,7 +44843,7 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
 
     try {
         // Get today's start timestamp (00:00:00 UTC)
-        var todayStart = getStartOfDay();
+        var todayStart = __legacy_getStartOfDay();
         var todayEnd = todayStart + 86400; // End of day (24 hours later)
 
         // Get current date string for response (YYYY-MM-DD)
@@ -45006,7 +45006,7 @@ var MISSION_CONFIGS = {
  * @param {string} gameId - Game ID (UUID)
  * @returns {Array} Mission configurations
  */
-function getMissionConfig(gameId) {
+function __legacy_getMissionConfig(gameId) {
     return MISSION_CONFIGS[gameId] || MISSION_CONFIGS["default"];
 }
 
@@ -45018,15 +45018,15 @@ function getMissionConfig(gameId) {
  * @param {string} gameId - Game ID (UUID)
  * @returns {object} Mission progress data
  */
-function getMissionProgress(nk, logger, userId, gameId) {
+function __legacy_getMissionProgress(nk, logger, userId, gameId) {
     var collection = "daily_missions";
     var key = makeGameStorageKey("mission_progress", userId, gameId);
 
     var data = readStorage(nk, logger, collection, key, userId);
 
-    if (!data || !isToday(data.resetDate)) {
+    if (!data || !__legacy_isToday(data.resetDate)) {
         // Initialize new daily missions
-        var missions = getMissionConfig(gameId);
+        var missions = __legacy_getMissionConfig(gameId);
         var progress = {};
 
         for (var i = 0; i < missions.length; i++) {
@@ -45041,7 +45041,7 @@ function getMissionProgress(nk, logger, userId, gameId) {
         data = {
             userId: userId,
             gameId: gameId,
-            resetDate: getStartOfDay(),
+            resetDate: __legacy_getStartOfDay(),
             progress: progress,
             updatedAt: getCurrentTimestamp()
         };
@@ -45055,9 +45055,9 @@ function getMissionProgress(nk, logger, userId, gameId) {
  * @param {number} timestamp - Unix timestamp (seconds)
  * @returns {boolean} True if timestamp is from today
  */
-function isToday(timestamp) {
+function __legacy_isToday(timestamp) {
     if (!timestamp) return false;
-    var todayStart = getStartOfDay();
+    var todayStart = __legacy_getStartOfDay();
     var tomorrowStart = todayStart + 86400; // +24 hours
     return timestamp >= todayStart && timestamp < tomorrowStart;
 }
@@ -45071,7 +45071,7 @@ function isToday(timestamp) {
  * @param {object} data - Mission progress data
  * @returns {boolean} Success status
  */
-function saveMissionProgress(nk, logger, userId, gameId, data) {
+function __legacy_saveMissionProgress(nk, logger, userId, gameId, data) {
     var collection = "daily_missions";
     var key = makeGameStorageKey("mission_progress", userId, gameId);
     data.updatedAt = getCurrentTimestamp();
@@ -45086,7 +45086,7 @@ function saveMissionProgress(nk, logger, userId, gameId, data) {
  * @param {string} payload - JSON payload with { gameId: "uuid" }
  * @returns {string} JSON response
  */
-function rpcGetDailyMissions(ctx, logger, nk, payload) {
+function __legacy_rpcGetDailyMissions(ctx, logger, nk, payload) {
     logInfo(logger, "RPC get_daily_missions called");
 
     var parsed = safeJsonParse(payload);
@@ -45095,7 +45095,7 @@ function rpcGetDailyMissions(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId']);
+    var validation = __legacy_validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -45111,10 +45111,10 @@ function rpcGetDailyMissions(ctx, logger, nk, payload) {
     }
 
     // Get mission progress
-    var progressData = getMissionProgress(nk, logger, userId, gameId);
+    var progressData = __legacy_getMissionProgress(nk, logger, userId, gameId);
 
     // Get mission configs
-    var missions = getMissionConfig(gameId);
+    var missions = __legacy_getMissionConfig(gameId);
 
     // Build response with mission details and progress
     var missionsList = [];
@@ -45158,7 +45158,7 @@ function rpcGetDailyMissions(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { gameId: "uuid", missionId: "string", value: number }
  * @returns {string} JSON response
  */
-function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
+function __legacy_rpcSubmitMissionProgress(ctx, logger, nk, payload) {
     logInfo(logger, "RPC submit_mission_progress called");
 
     var parsed = safeJsonParse(payload);
@@ -45167,7 +45167,7 @@ function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId', 'missionId', 'value']);
+    var validation = __legacy_validatePayload(data, ['gameId', 'missionId', 'value']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -45186,7 +45186,7 @@ function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
     var value = data.value;
 
     // Get current progress
-    var progressData = getMissionProgress(nk, logger, userId, gameId);
+    var progressData = __legacy_getMissionProgress(nk, logger, userId, gameId);
 
     // Check if mission exists
     if (!progressData.progress[missionId]) {
@@ -45205,7 +45205,7 @@ function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
     }
 
     // Save progress
-    if (!saveMissionProgress(nk, logger, userId, gameId, progressData)) {
+    if (!__legacy_saveMissionProgress(nk, logger, userId, gameId, progressData)) {
         return handleError(ctx, null, "Failed to save mission progress");
     }
 
@@ -45230,7 +45230,7 @@ function rpcSubmitMissionProgress(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { gameId: "uuid", missionId: "string" }
  * @returns {string} JSON response
  */
-function rpcClaimMissionReward(ctx, logger, nk, payload) {
+function __legacy_rpcClaimMissionReward(ctx, logger, nk, payload) {
     logInfo(logger, "RPC claim_mission_reward called");
 
     var parsed = safeJsonParse(payload);
@@ -45239,7 +45239,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId', 'missionId']);
+    var validation = __legacy_validatePayload(data, ['gameId', 'missionId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -45257,7 +45257,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
     var missionId = data.missionId;
 
     // Get current progress
-    var progressData = getMissionProgress(nk, logger, userId, gameId);
+    var progressData = __legacy_getMissionProgress(nk, logger, userId, gameId);
 
     // Check if mission exists
     if (!progressData.progress[missionId]) {
@@ -45286,7 +45286,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
     missionProgress.claimed = true;
 
     // Get mission config to retrieve rewards
-    var missions = getMissionConfig(gameId);
+    var missions = __legacy_getMissionConfig(gameId);
     var missionConfig = null;
     for (var i = 0; i < missions.length; i++) {
         if (missions[i].id === missionId) {
@@ -45300,7 +45300,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
     }
 
     // Save progress
-    if (!saveMissionProgress(nk, logger, userId, gameId, progressData)) {
+    if (!__legacy_saveMissionProgress(nk, logger, userId, gameId, progressData)) {
         return handleError(ctx, null, "Failed to save mission progress");
     }
 
@@ -45344,7 +45344,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
  * @param {string} userId - User ID
  * @returns {object} Global wallet data
  */
-function getGlobalWallet(nk, logger, userId) {
+function __legacy_getGlobalWallet(nk, logger, userId) {
     var collection = "wallets";
     var key = makeGlobalStorageKey("global_wallet", userId);
 
@@ -45386,7 +45386,7 @@ function getGlobalWallet(nk, logger, userId) {
  * @param {string} gameId - Game ID (UUID)
  * @returns {object} Game wallet data
  */
-function getGameWallet(nk, logger, userId, gameId) {
+function __legacy_getGameWallet(nk, logger, userId, gameId) {
     var collection = "wallets";
     var key = makeGameStorageKey("wallet", userId, gameId);
 
@@ -45430,7 +45430,7 @@ function getGameWallet(nk, logger, userId, gameId) {
  * @param {object} wallet - Wallet data
  * @returns {boolean} Success status
  */
-function saveGlobalWallet(nk, logger, userId, wallet) {
+function __legacy_saveGlobalWallet(nk, logger, userId, wallet) {
     var collection = "wallets";
     var key = makeGlobalStorageKey("global_wallet", userId);
     wallet.updatedAt = getCurrentTimestamp();
@@ -45446,7 +45446,7 @@ function saveGlobalWallet(nk, logger, userId, wallet) {
  * @param {object} wallet - Wallet data
  * @returns {boolean} Success status
  */
-function saveGameWallet(nk, logger, userId, gameId, wallet) {
+function __legacy_saveGameWallet(nk, logger, userId, gameId, wallet) {
     var collection = "wallets";
     var key = makeGameStorageKey("wallet", userId, gameId);
     wallet.updatedAt = getCurrentTimestamp();
@@ -45460,7 +45460,7 @@ function saveGameWallet(nk, logger, userId, gameId, wallet) {
  * @param {string} userId - User ID
  * @param {object} transaction - Transaction data
  */
-function logTransaction(nk, logger, userId, transaction) {
+function __legacy_logTransaction(nk, logger, userId, transaction) {
     var key = "transaction_log_" + userId + "_" + getUnixTimestamp();
     transaction.timestamp = getCurrentTimestamp();
     writeStorage(nk, logger, "transaction_logs", key, userId, transaction);
@@ -45474,7 +45474,7 @@ function logTransaction(nk, logger, userId, transaction) {
  * @param {string} payload - JSON payload (empty)
  * @returns {string} JSON response
  */
-function rpcWalletGetAll(ctx, logger, nk, payload) {
+function __legacy_rpcWalletGetAll(ctx, logger, nk, payload) {
     logInfo(logger, "RPC wallet_get_all called");
 
     var userId = ctx.userId;
@@ -45483,7 +45483,7 @@ function rpcWalletGetAll(ctx, logger, nk, payload) {
     }
 
     // Get global wallet
-    var globalWallet = getGlobalWallet(nk, logger, userId);
+    var globalWallet = __legacy_getGlobalWallet(nk, logger, userId);
 
     // Get all game wallets
     var gameWallets = [];
@@ -45515,7 +45515,7 @@ function rpcWalletGetAll(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { currency: "xut", amount: 100, operation: "add" }
  * @returns {string} JSON response
  */
-function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
+function __legacy_rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     logInfo(logger, "RPC wallet_update_global called");
 
     var parsed = safeJsonParse(payload);
@@ -45524,7 +45524,7 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['currency', 'amount', 'operation']);
+    var validation = __legacy_validatePayload(data, ['currency', 'amount', 'operation']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -45539,7 +45539,7 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     var operation = data.operation; // "add" or "subtract"
 
     // Get global wallet
-    var wallet = getGlobalWallet(nk, logger, userId);
+    var wallet = __legacy_getGlobalWallet(nk, logger, userId);
 
     // Initialize currency if not exists
     if (!wallet.currencies[currency]) {
@@ -45559,12 +45559,12 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
     }
 
     // Save wallet
-    if (!saveGlobalWallet(nk, logger, userId, wallet)) {
+    if (!__legacy_saveGlobalWallet(nk, logger, userId, wallet)) {
         return handleError(ctx, null, "Failed to save global wallet");
     }
 
     // Log transaction
-    logTransaction(nk, logger, userId, {
+    __legacy_logTransaction(nk, logger, userId, {
         type: "global_wallet_update",
         currency: currency,
         amount: amount,
@@ -45589,7 +45589,7 @@ function rpcWalletUpdateGlobal(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { gameId: "uuid", currency: "tokens", amount: 100, operation: "add" }
  * @returns {string} JSON response
  */
-function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
+function __legacy_rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     logInfo(logger, "RPC wallet_update_game_wallet called");
 
     var parsed = safeJsonParse(payload);
@@ -45598,7 +45598,7 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId', 'currency', 'amount', 'operation']);
+    var validation = __legacy_validatePayload(data, ['gameId', 'currency', 'amount', 'operation']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -45622,7 +45622,7 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     }
 
     // Get game wallet
-    var wallet = getGameWallet(nk, logger, userId, gameId);
+    var wallet = __legacy_getGameWallet(nk, logger, userId, gameId);
 
     // NORMALIZE: Map client currency keys to storage keys
     // "game" -> updates both "game" and "tokens"
@@ -45658,12 +45658,12 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
     }
 
     // Save wallet
-    if (!saveGameWallet(nk, logger, userId, gameId, wallet)) {
+    if (!__legacy_saveGameWallet(nk, logger, userId, gameId, wallet)) {
         return handleError(ctx, null, "Failed to save game wallet");
     }
 
     // Log transaction
-    logTransaction(nk, logger, userId, {
+    __legacy_logTransaction(nk, logger, userId, {
         type: "game_wallet_update",
         gameId: gameId,
         currency: currency,
@@ -45697,7 +45697,7 @@ function rpcWalletUpdateGameWallet(ctx, logger, nk, payload) {
  * @param {string} payload - JSON with { fromGameId: "uuid", toGameId: "uuid", currency: "tokens", amount: 100 }
  * @returns {string} JSON response
  */
-function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
+function __legacy_rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     logInfo(logger, "RPC wallet_transfer_between_game_wallets called");
 
     var parsed = safeJsonParse(payload);
@@ -45706,7 +45706,7 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['fromGameId', 'toGameId', 'currency', 'amount']);
+    var validation = __legacy_validatePayload(data, ['fromGameId', 'toGameId', 'currency', 'amount']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -45727,8 +45727,8 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     var amount = data.amount;
 
     // Get both wallets
-    var fromWallet = getGameWallet(nk, logger, userId, fromGameId);
-    var toWallet = getGameWallet(nk, logger, userId, toGameId);
+    var fromWallet = __legacy_getGameWallet(nk, logger, userId, fromGameId);
+    var toWallet = __legacy_getGameWallet(nk, logger, userId, toGameId);
 
     // Check if source wallet has enough
     if (!fromWallet.currencies[currency] || fromWallet.currencies[currency] < amount) {
@@ -45746,15 +45746,15 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
     toWallet.currencies[currency] += amount;
 
     // Save both wallets
-    if (!saveGameWallet(nk, logger, userId, fromGameId, fromWallet)) {
+    if (!__legacy_saveGameWallet(nk, logger, userId, fromGameId, fromWallet)) {
         return handleError(ctx, null, "Failed to save source wallet");
     }
-    if (!saveGameWallet(nk, logger, userId, toGameId, toWallet)) {
+    if (!__legacy_saveGameWallet(nk, logger, userId, toGameId, toWallet)) {
         return handleError(ctx, null, "Failed to save destination wallet");
     }
 
     // Log transaction
-    logTransaction(nk, logger, userId, {
+    __legacy_logTransaction(nk, logger, userId, {
         type: "wallet_transfer",
         fromGameId: fromGameId,
         toGameId: toGameId,
@@ -45792,7 +45792,7 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { gameId: "uuid", eventName: "string", eventData: {} }
  * @returns {string} JSON response
  */
-function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
+function __legacy_rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     logInfo(logger, "RPC analytics_log_event called");
 
     var parsed = safeJsonParse(payload);
@@ -45801,7 +45801,7 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId', 'eventName']);
+    var validation = __legacy_validatePayload(data, ['gameId', 'eventName']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -45838,11 +45838,11 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     }
 
     // Track DAU (Daily Active Users)
-    trackDAU(nk, logger, userId, gameId);
+    __legacy_trackDAU(nk, logger, userId, gameId);
 
     // Track session if session event
     if (eventName === "session_start" || eventName === "session_end") {
-        trackSession(nk, logger, userId, gameId, eventName, eventData);
+        __legacy_trackSession(nk, logger, userId, gameId, eventName, eventData);
     }
 
     logInfo(logger, "Event logged: " + eventName + " for user " + userId + " in game " + gameId);
@@ -45863,8 +45863,8 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
  * @param {string} userId - User ID
  * @param {string} gameId - Game ID (UUID)
  */
-function trackDAU(nk, logger, userId, gameId) {
-    var today = getStartOfDay();
+function __legacy_trackDAU(nk, logger, userId, gameId) {
+    var today = __legacy_getStartOfDay();
     var collection = "analytics_dau";
     var key = "dau_" + gameId + "_" + today;
 
@@ -45899,7 +45899,7 @@ function trackDAU(nk, logger, userId, gameId) {
  * @param {string} eventName - Event name (session_start or session_end)
  * @param {object} eventData - Event data
  */
-function trackSession(nk, logger, userId, gameId, eventName, eventData) {
+function __legacy_trackSession(nk, logger, userId, gameId, eventName, eventData) {
     var collection = "analytics_sessions";
     var key = makeGameStorageKey("analytics_session", userId, gameId);
 
@@ -45958,7 +45958,7 @@ function rpcFriendsBlock(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['targetUserId']);
+    var validation = __legacy_validatePayload(data, ['targetUserId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -46015,7 +46015,7 @@ function rpcFriendsUnblock(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['targetUserId']);
+    var validation = __legacy_validatePayload(data, ['targetUserId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -46066,7 +46066,7 @@ function rpcFriendsRemove(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['friendUserId']);
+    var validation = __legacy_validatePayload(data, ['friendUserId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -46159,7 +46159,7 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['friendUserId', 'gameId']);
+    var validation = __legacy_validatePayload(data, ['friendUserId', 'gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -46295,7 +46295,7 @@ function rpcFriendsChallengeUser(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { friendUserId: "uuid" }
  * @returns {string} JSON response
  */
-function rpcFriendsSpectate(ctx, logger, nk, payload) {
+function __legacy_rpcFriendsSpectate(ctx, logger, nk, payload) {
     logInfo(logger, "RPC friends_spectate called");
 
     var parsed = safeJsonParse(payload);
@@ -46304,7 +46304,7 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['friendUserId']);
+    var validation = __legacy_validatePayload(data, ['friendUserId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -46381,7 +46381,7 @@ var GROUP_ROLES = {
 };
 
 // Group metadata structure
-function createGroupMetadata(gameId, groupType, customData) {
+function __legacy_createGroupMetadata(gameId, groupType, customData) {
     return {
         gameId: gameId,
         groupType: groupType || "guild",
@@ -46397,7 +46397,7 @@ function createGroupMetadata(gameId, groupType, customData) {
  * RPC: create_game_group
  * Create a group/clan/guild for a specific game
  */
-function rpcCreateGameGroup(ctx, logger, nk, payload) {
+function __legacy_rpcCreateGameGroup(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
             return JSON.stringify({
@@ -46434,7 +46434,7 @@ function rpcCreateGameGroup(ctx, logger, nk, payload) {
         var groupType = data.groupType || "guild";
 
         // Create group metadata
-        var metadata = createGroupMetadata(gameId, groupType, data.customData);
+        var metadata = __legacy_createGroupMetadata(gameId, groupType, data.customData);
 
         // Create group using Nakama's built-in Groups API
         var group;
@@ -46502,7 +46502,7 @@ function rpcCreateGameGroup(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("[Groups] Unexpected error in rpcCreateGameGroup: " + err.message);
+        logger.error("[Groups] Unexpected error in __legacy_rpcCreateGameGroup: " + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred"
@@ -46514,7 +46514,7 @@ function rpcCreateGameGroup(ctx, logger, nk, payload) {
  * RPC: update_group_xp
  * Update group XP (for challenges/quests)
  */
-function rpcUpdateGroupXP(ctx, logger, nk, payload) {
+function __legacy_rpcUpdateGroupXP(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
             return JSON.stringify({
@@ -46606,7 +46606,7 @@ function rpcUpdateGroupXP(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("[Groups] Unexpected error in rpcUpdateGroupXP: " + err.message);
+        logger.error("[Groups] Unexpected error in __legacy_rpcUpdateGroupXP: " + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred"
@@ -46618,7 +46618,7 @@ function rpcUpdateGroupXP(ctx, logger, nk, payload) {
  * RPC: get_group_wallet
  * Get group's shared wallet
  */
-function rpcGetGroupWallet(ctx, logger, nk, payload) {
+function __legacy_rpcGetGroupWallet(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
             return JSON.stringify({
@@ -46701,7 +46701,7 @@ function rpcGetGroupWallet(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("[Groups] Unexpected error in rpcGetGroupWallet: " + err.message);
+        logger.error("[Groups] Unexpected error in __legacy_rpcGetGroupWallet: " + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred"
@@ -46713,7 +46713,7 @@ function rpcGetGroupWallet(ctx, logger, nk, payload) {
  * RPC: update_group_wallet
  * Update group's shared wallet (admins only)
  */
-function rpcUpdateGroupWallet(ctx, logger, nk, payload) {
+function __legacy_rpcUpdateGroupWallet(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
             return JSON.stringify({
@@ -46849,7 +46849,7 @@ function rpcUpdateGroupWallet(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("[Groups] Unexpected error in rpcUpdateGroupWallet: " + err.message);
+        logger.error("[Groups] Unexpected error in __legacy_rpcUpdateGroupWallet: " + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred"
@@ -46861,7 +46861,7 @@ function rpcUpdateGroupWallet(ctx, logger, nk, payload) {
  * RPC: get_user_groups
  * Get all groups for a user (filtered by gameId if provided)
  */
-function rpcGetUserGroups(ctx, logger, nk, payload) {
+function __legacy_rpcGetUserGroups(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
             return JSON.stringify({
@@ -46918,7 +46918,7 @@ function rpcGetUserGroups(ctx, logger, nk, payload) {
                     updateTime: group.updateTime,
                     metadata: metadata,
                     userRole: ug.state,
-                    userRoleName: getRoleName(ug.state)
+                    userRoleName: __legacy_getRoleName(ug.state)
                 });
             }
         }
@@ -46933,7 +46933,7 @@ function rpcGetUserGroups(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("[Groups] Unexpected error in rpcGetUserGroups: " + err.message);
+        logger.error("[Groups] Unexpected error in __legacy_rpcGetUserGroups: " + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred"
@@ -46941,7 +46941,7 @@ function rpcGetUserGroups(ctx, logger, nk, payload) {
     }
 }
 
-function getRoleName(state) {
+function __legacy_getRoleName(state) {
     if (state === GROUP_ROLES.OWNER) return "Owner";
     if (state === GROUP_ROLES.ADMIN) return "Admin";
     if (state === GROUP_ROLES.MEMBER) return "Member";
@@ -46990,7 +46990,7 @@ var PLATFORM_TYPES = {
  * @param {string} endpointArn - SNS endpoint ARN
  * @returns {boolean} Success status
  */
-function storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn) {
+function __legacy_storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn) {
     var collection = "push_endpoints";
     var key = "push_endpoint_" + userId + "_" + gameId + "_" + platform;
 
@@ -47015,7 +47015,7 @@ function storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn) {
  * @param {string} platform - Platform type
  * @returns {object|null} Endpoint data or null
  */
-function getEndpointArn(nk, logger, userId, gameId, platform) {
+function __legacy_getEndpointArn(nk, logger, userId, gameId, platform) {
     var collection = "push_endpoints";
     var key = "push_endpoint_" + userId + "_" + gameId + "_" + platform;
     return readStorage(nk, logger, collection, key, userId);
@@ -47029,7 +47029,7 @@ function getEndpointArn(nk, logger, userId, gameId, platform) {
  * @param {string} gameId - Game ID (UUID)
  * @returns {Array} List of endpoint data
  */
-function getAllEndpointArns(nk, logger, userId, gameId) {
+function __legacy_getAllEndpointArns(nk, logger, userId, gameId) {
     var collection = "push_endpoints";
     var endpoints = [];
 
@@ -47064,7 +47064,7 @@ function getAllEndpointArns(nk, logger, userId, gameId) {
  *   }
  * @returns {string} JSON response
  */
-function rpcPushRegisterToken(ctx, logger, nk, payload) {
+function __legacy_rpcPushRegisterToken(ctx, logger, nk, payload) {
     logInfo(logger, "RPC push_register_token called");
 
     var parsed = safeJsonParse(payload);
@@ -47073,7 +47073,7 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId', 'platform', 'token']);
+    var validation = __legacy_validatePayload(data, ['gameId', 'platform', 'token']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -47142,7 +47142,7 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
     var endpointArn = lambdaData.snsEndpointArn;
 
     // Store endpoint ARN
-    if (!storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn)) {
+    if (!__legacy_storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn)) {
         return handleError(ctx, null, "Failed to store endpoint ARN");
     }
 
@@ -47176,7 +47176,7 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
  *   }
  * @returns {string} JSON response
  */
-function rpcPushSendEvent(ctx, logger, nk, payload) {
+function __legacy_rpcPushSendEvent(ctx, logger, nk, payload) {
     logInfo(logger, "RPC push_send_event called");
 
     var parsed = safeJsonParse(payload);
@@ -47185,7 +47185,7 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['targetUserId', 'gameId', 'eventType', 'title', 'body']);
+    var validation = __legacy_validatePayload(data, ['targetUserId', 'gameId', 'eventType', 'title', 'body']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -47204,7 +47204,7 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
     logInfo(logger, "Sending push notification to user " + targetUserId + " for event " + eventType);
 
     // Get all endpoints for target user
-    var endpoints = getAllEndpointArns(nk, logger, targetUserId, gameId);
+    var endpoints = __legacy_getAllEndpointArns(nk, logger, targetUserId, gameId);
 
     if (endpoints.length === 0) {
         return JSON.stringify({
@@ -47294,7 +47294,7 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { gameId: "uuid" }
  * @returns {string} JSON response
  */
-function rpcPushGetEndpoints(ctx, logger, nk, payload) {
+function __legacy_rpcPushGetEndpoints(ctx, logger, nk, payload) {
     logInfo(logger, "RPC push_get_endpoints called");
 
     var parsed = safeJsonParse(payload);
@@ -47303,7 +47303,7 @@ function rpcPushGetEndpoints(ctx, logger, nk, payload) {
     }
 
     var data = parsed.data;
-    var validation = validatePayload(data, ['gameId']);
+    var validation = __legacy_validatePayload(data, ['gameId']);
     if (!validation.valid) {
         return handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
     }
@@ -47318,7 +47318,7 @@ function rpcPushGetEndpoints(ctx, logger, nk, payload) {
         return handleError(ctx, null, "User not authenticated");
     }
 
-    var endpoints = getAllEndpointArns(nk, logger, userId, gameId);
+    var endpoints = __legacy_getAllEndpointArns(nk, logger, userId, gameId);
 
     return JSON.stringify({
         success: true,
@@ -47370,7 +47370,7 @@ var LEADERBOARD_CONFIG = {
  * @param {string} gameTitle - Game title for metadata
  * @returns {object} Result with created leaderboards
  */
-function createGameLeaderboards(nk, logger, gameId, gameTitle) {
+function __legacy_createGameLeaderboards(nk, logger, gameId, gameTitle) {
     var created = [];
     var skipped = [];
     var errors = [];
@@ -47453,7 +47453,7 @@ function createGameLeaderboards(nk, logger, gameId, gameTitle) {
  * @param {*} logger - Logger instance
  * @returns {object} Result with created leaderboards
  */
-function createGlobalLeaderboards(nk, logger) {
+function __legacy_createGlobalLeaderboards(nk, logger) {
     var created = [];
     var skipped = [];
     var errors = [];
@@ -47530,7 +47530,7 @@ function createGlobalLeaderboards(nk, logger) {
  * RPC: create_time_period_leaderboards
  * Creates daily, weekly, monthly, and all-time leaderboards for all games
  */
-function rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload) {
+function __legacy_rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload) {
     try {
         logger.info("[Leaderboards] Creating time-period leaderboards for all games...");
 
@@ -47621,7 +47621,7 @@ function rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload) {
         logger.info("[Leaderboards] Found " + games.length + " games");
 
         // Step 3: Create global leaderboards
-        var globalResult = createGlobalLeaderboards(nk, logger);
+        var globalResult = __legacy_createGlobalLeaderboards(nk, logger);
 
         // Step 4: Create per-game leaderboards
         var gameResults = [];
@@ -47636,7 +47636,7 @@ function rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload) {
                 continue;
             }
 
-            var gameResult = createGameLeaderboards(
+            var gameResult = __legacy_createGameLeaderboards(
                 nk,
                 logger,
                 game.id,
@@ -47707,7 +47707,7 @@ function rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("[Leaderboards] Unexpected error in rpcCreateTimePeriodLeaderboards: " + err.message);
+        logger.error("[Leaderboards] Unexpected error in __legacy_rpcCreateTimePeriodLeaderboards: " + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred: " + err.message
@@ -47719,7 +47719,7 @@ function rpcCreateTimePeriodLeaderboards(ctx, logger, nk, payload) {
  * RPC: submit_score_to_time_periods
  * Submit a score to all time-period leaderboards for a specific game
  */
-function rpcSubmitScoreToTimePeriods(ctx, logger, nk, payload) {
+function __legacy_rpcSubmitScoreToTimePeriods(ctx, logger, nk, payload) {
     try {
         // Validate authentication
         if (!ctx.userId) {
@@ -47855,7 +47855,7 @@ function rpcSubmitScoreToTimePeriods(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("[Leaderboards] Unexpected error in rpcSubmitScoreToTimePeriods: " + err.message);
+        logger.error("[Leaderboards] Unexpected error in __legacy_rpcSubmitScoreToTimePeriods: " + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred: " + err.message
@@ -47867,7 +47867,7 @@ function rpcSubmitScoreToTimePeriods(ctx, logger, nk, payload) {
  * RPC: get_time_period_leaderboard
  * Get leaderboard records for a specific time period
  */
-function rpcGetTimePeriodLeaderboard(ctx, logger, nk, payload) {
+function __legacy_rpcGetTimePeriodLeaderboard(ctx, logger, nk, payload) {
     try {
         // Parse payload
         var data;
@@ -47941,7 +47941,7 @@ function rpcGetTimePeriodLeaderboard(ctx, logger, nk, payload) {
         }
 
     } catch (err) {
-        logger.error("[Leaderboards] Unexpected error in rpcGetTimePeriodLeaderboard: " + err.message);
+        logger.error("[Leaderboards] Unexpected error in __legacy_rpcGetTimePeriodLeaderboard: " + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred: " + err.message
@@ -48149,7 +48149,7 @@ function createAllLeaderboardsPersistent(ctx, logger, nk, payload) {
  * @param {string} username - Username to assign
  * @returns {object} Identity object with wallet_id and global_wallet_id
  */
-function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
+function __legacy_getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
     var collection = "quizverse";
     var key = "identity:" + deviceId + ":" + gameId;
 
@@ -48181,7 +48181,7 @@ function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
     logger.info("[NAKAMA] Creating new identity for device " + deviceId + " game " + gameId);
 
     // Generate wallet IDs
-    var walletId = generateUUID();
+    var walletId = __legacy_generateUUID();
     var globalWalletId = "global:" + deviceId;
 
     var identity = {
@@ -48221,7 +48221,7 @@ function getOrCreateIdentity(nk, logger, deviceId, gameId, username) {
  * Simple UUID v4 generator
  * @returns {string} UUID
  */
-function generateUUID() {
+function __legacy_generateUUID() {
     var d = new Date().getTime();
     var d2 = (typeof performance !== 'undefined' && performance.now && (performance.now() * 1000)) || 0;
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -48244,7 +48244,7 @@ function generateUUID() {
  * @param {string} userId - User ID
  * @param {string} username - New username
  */
-function updateNakamaUsername(nk, logger, userId, username) {
+function __legacy_updateNakamaUsername(nk, logger, userId, username) {
     try {
         nk.accountUpdateId(userId, username, null, null, null, null, null);
         logger.info("[NAKAMA] Updated username to " + username + " for user " + userId);
@@ -48266,7 +48266,7 @@ function updateNakamaUsername(nk, logger, userId, username) {
  * @param {string} walletId - Wallet ID from identity
  * @returns {object} Wallet object
  */
-function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId) {
+function __legacy_getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId) {
     var collection = "quizverse";
     var key = "wallet:" + deviceId + ":" + gameId;
 
@@ -48329,7 +48329,7 @@ function getOrCreateGameWallet(nk, logger, deviceId, gameId, walletId) {
  * @param {string} globalWalletId - Global wallet ID
  * @returns {object} Global wallet object
  */
-function getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
+function __legacy_getOrCreateGlobalWallet(nk, logger, deviceId, globalWalletId) {
     var collection = "quizverse";
     var key = "wallet:" + deviceId + ":global";
 
@@ -48661,7 +48661,7 @@ function rpcUpdateGameRewardConfig(ctx, logger, nk, payload) {
  * @param {number} scoreToAdd - Score to add to current balance
  * @returns {object} Updated wallet
  */
-function updateGameWalletBalance(nk, logger, deviceId, gameId, scoreToAdd) {
+function __legacy_updateGameWalletBalance(nk, logger, deviceId, gameId, scoreToAdd) {
     var collection = "quizverse";
     var key = "wallet:" + deviceId + ":" + gameId;
     var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
@@ -48681,7 +48681,7 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, scoreToAdd) {
         } else {
             logger.warn("[NAKAMA] Wallet not found, auto-creating for device " + deviceId);
             wallet = {
-                wallet_id: generateUUID(),
+                wallet_id: __legacy_generateUUID(),
                 device_id: deviceId,
                 game_id: gameId,
                 balance: 0,
@@ -48756,7 +48756,7 @@ function updateGameWalletBalance(nk, logger, deviceId, gameId, scoreToAdd) {
  * @param {string} userId - User ID
  * @returns {array} Array of friend user IDs
  */
-function getUserFriends(nk, logger, userId) {
+function __legacy_getUserFriends(nk, logger, userId) {
     var friends = [];
 
     try {
@@ -48783,7 +48783,7 @@ function getUserFriends(nk, logger, userId) {
  * @param {object} logger - Logger instance
  * @returns {array} Array of leaderboard IDs
  */
-function getAllLeaderboardIds(nk, logger) {
+function __legacy_getAllLeaderboardIds(nk, logger) {
     var leaderboardIds = [];
 
     // Read from leaderboards_registry
@@ -48842,7 +48842,7 @@ function getAllLeaderboardIds(nk, logger) {
  * @param {object} metadata - Optional metadata
  * @returns {boolean} true if leaderboard exists or was created
  */
-function ensureLeaderboardExists(nk, logger, leaderboardId, resetSchedule, metadata) {
+function __legacy_ensureLeaderboardExists(nk, logger, leaderboardId, resetSchedule, metadata) {
     try {
         // Check if leaderboard already exists
         try {
@@ -48891,7 +48891,7 @@ function ensureLeaderboardExists(nk, logger, leaderboardId, resetSchedule, metad
  * @param {number} score - Score value
  * @returns {array} Array of leaderboards updated
  */
-function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
+function __legacy_writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     var leaderboardsUpdated = [];
     var metadata = {
         source: "submit_score_and_sync",
@@ -48901,7 +48901,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
 
     // 1. Write to main game leaderboard
     var gameLeaderboardId = "leaderboard_" + gameId;
-    var created = ensureLeaderboardExists(nk, logger, gameLeaderboardId, "", { scope: "game", gameId: gameId, description: "Main leaderboard for game " + gameId });
+    var created = __legacy_ensureLeaderboardExists(nk, logger, gameLeaderboardId, "", { scope: "game", gameId: gameId, description: "Main leaderboard for game " + gameId });
     if (created) {
         try {
             nk.leaderboardRecordWrite(gameLeaderboardId, userId, username, score, 0, metadata);
@@ -48920,7 +48920,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         var period = timePeriods[i];
         var periodLeaderboardId = "leaderboard_" + gameId + "_" + period;
         var resetSchedule = RESET_SCHEDULES[period];
-        var created = ensureLeaderboardExists(nk, logger, periodLeaderboardId, resetSchedule, {
+        var created = __legacy_ensureLeaderboardExists(nk, logger, periodLeaderboardId, resetSchedule, {
             scope: "game",
             gameId: gameId,
             timePeriod: period,
@@ -48941,7 +48941,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
 
     // 3. Write to global leaderboards
     var globalLeaderboardId = "leaderboard_global";
-    var created = ensureLeaderboardExists(nk, logger, globalLeaderboardId, "", { scope: "global", description: "Global all-time leaderboard" });
+    var created = __legacy_ensureLeaderboardExists(nk, logger, globalLeaderboardId, "", { scope: "global", description: "Global all-time leaderboard" });
     if (created) {
         try {
             nk.leaderboardRecordWrite(globalLeaderboardId, userId, username, score, 0, metadata);
@@ -48959,7 +48959,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
         var period = timePeriods[i];
         var globalPeriodId = "leaderboard_global_" + period;
         var resetSchedule = RESET_SCHEDULES[period];
-        var created = ensureLeaderboardExists(nk, logger, globalPeriodId, resetSchedule, {
+        var created = __legacy_ensureLeaderboardExists(nk, logger, globalPeriodId, resetSchedule, {
             scope: "global",
             timePeriod: period,
             description: period.charAt(0).toUpperCase() + period.slice(1) + " global leaderboard"
@@ -48977,7 +48977,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
 
     // 5. Write to friends leaderboards
     var friendsGameId = "leaderboard_friends_" + gameId;
-    var created = ensureLeaderboardExists(nk, logger, friendsGameId, "", { scope: "friends_game", gameId: gameId, description: "Friends leaderboard for game " + gameId });
+    var created = __legacy_ensureLeaderboardExists(nk, logger, friendsGameId, "", { scope: "friends_game", gameId: gameId, description: "Friends leaderboard for game " + gameId });
     if (created) {
         try {
             nk.leaderboardRecordWrite(friendsGameId, userId, username, score, 0, metadata);
@@ -48989,7 +48989,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     }
 
     var friendsGlobalId = "leaderboard_friends_global";
-    var created = ensureLeaderboardExists(nk, logger, friendsGlobalId, "", { scope: "friends_global", description: "Global friends leaderboard" });
+    var created = __legacy_ensureLeaderboardExists(nk, logger, friendsGlobalId, "", { scope: "friends_global", description: "Global friends leaderboard" });
     if (created) {
         try {
             nk.leaderboardRecordWrite(friendsGlobalId, userId, username, score, 0, metadata);
@@ -49001,7 +49001,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
     }
 
     // 6. Write to all other existing leaderboards found in registry
-    var allLeaderboards = getAllLeaderboardIds(nk, logger);
+    var allLeaderboards = __legacy_getAllLeaderboardIds(nk, logger);
     for (var i = 0; i < allLeaderboards.length; i++) {
         var lbId = allLeaderboards[i];
         // Skip if already written
@@ -49042,7 +49042,7 @@ function writeToAllLeaderboards(nk, logger, userId, username, gameId, score) {
  */
 function createOrSyncUser(ctx, logger, nk, payload) {
     var startTime = Date.now();
-    var requestId = generateUUID().substring(0, 8); // Short request ID for tracing
+    var requestId = __legacy_generateUUID().substring(0, 8); // Short request ID for tracing
 
     logger.info("[NAKAMA:" + requestId + "] RPC create_or_sync_user called");
 
@@ -49123,7 +49123,7 @@ function createOrSyncUser(ctx, logger, nk, payload) {
         var created;
 
         try {
-            identityResult = getOrCreateIdentity(nk, logger, deviceId, gameId, username);
+            identityResult = __legacy_getOrCreateIdentity(nk, logger, deviceId, gameId, username);
             identity = identityResult.identity;
             created = !identityResult.exists;
 
@@ -49142,7 +49142,7 @@ function createOrSyncUser(ctx, logger, nk, payload) {
         // Step 3: Ensure per-game wallet exists
         var gameWallet;
         try {
-            gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id);
+            gameWallet = __legacy_getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id);
             logger.info("[NAKAMA:" + requestId + "] Game wallet ready: balance=" + gameWallet.balance);
         } catch (walletErr) {
             logger.error("[NAKAMA:" + requestId + "] Game wallet creation failed: " + walletErr.message);
@@ -49153,7 +49153,7 @@ function createOrSyncUser(ctx, logger, nk, payload) {
         // Step 4: Ensure global wallet exists
         var globalWallet;
         try {
-            globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id);
+            globalWallet = __legacy_getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id);
             logger.info("[NAKAMA:" + requestId + "] Global wallet ready: balance=" + globalWallet.balance);
         } catch (globalWalletErr) {
             logger.error("[NAKAMA:" + requestId + "] Global wallet creation failed: " + globalWalletErr.message);
@@ -49164,7 +49164,7 @@ function createOrSyncUser(ctx, logger, nk, payload) {
         // Step 5: Update Nakama username for new identities
         if (created && userId) {
             try {
-                updateNakamaUsername(nk, logger, userId, username);
+                __legacy_updateNakamaUsername(nk, logger, userId, username);
                 logger.info("[NAKAMA:" + requestId + "] Updated Nakama username to: " + username);
             } catch (usernameErr) {
                 logger.warn("[NAKAMA:" + requestId + "] Failed to update Nakama username: " + usernameErr.message);
@@ -49627,8 +49627,8 @@ function createOrGetWallet(ctx, logger, nk, payload) {
         var identity = records[0].value;
 
         // Ensure wallets exist - pass userId from context
-        var gameWallet = getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id, ctx.userId);
-        var globalWallet = getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id, ctx.userId);
+        var gameWallet = __legacy_getOrCreateGameWallet(nk, logger, deviceId, gameId, identity.wallet_id, ctx.userId);
+        var globalWallet = __legacy_getOrCreateGlobalWallet(nk, logger, deviceId, identity.global_wallet_id, ctx.userId);
 
         return JSON.stringify({
             success: true,
@@ -49740,10 +49740,10 @@ function submitScoreAndSync(ctx, logger, nk, payload) {
         }
 
         // Write score to all leaderboards
-        var leaderboardsUpdated = writeToAllLeaderboards(nk, logger, userId, username, gameId, score);
+        var leaderboardsUpdated = __legacy_writeToAllLeaderboards(nk, logger, userId, username, gameId, score);
 
         // Update game wallet balance with CALCULATED REWARD (not raw score)
-        var updatedWallet = updateGameWalletBalance(nk, logger, deviceId, gameId, rewardCalc.reward);
+        var updatedWallet = __legacy_updateGameWalletBalance(nk, logger, deviceId, gameId, rewardCalc.reward);
 
         return JSON.stringify({
             success: true,
@@ -49845,7 +49845,7 @@ function getAllLeaderboards(ctx, logger, nk, payload) {
         leaderboardIds.push("leaderboard_friends_global");
 
         // 5. Get all registry leaderboards and filter relevant ones
-        var allRegistryIds = getAllLeaderboardIds(nk, logger);
+        var allRegistryIds = __legacy_getAllLeaderboardIds(nk, logger);
         for (var i = 0; i < allRegistryIds.length; i++) {
             var lbId = allRegistryIds[i];
             if (leaderboardIds.indexOf(lbId) === -1) {
@@ -50560,7 +50560,7 @@ function OldrpcUpdatePlayerMetadata(ctx, logger, nk, payload) {
  * RPC: create_player_wallet
  * Creates both game-specific and global wallets for a player
  */
-function rpcCreatePlayerWallet(ctx, logger, nk, payload) {
+function __legacy_rpcCreatePlayerWallet(ctx, logger, nk, payload) {
     logger.info('[RPC] create_player_wallet called');
 
     try {
@@ -50634,7 +50634,7 @@ function rpcCreatePlayerWallet(ctx, logger, nk, payload) {
  * RPC: update_wallet_balance
  * Updates a player's wallet balance
  */
-function rpcUpdateWalletBalance(ctx, logger, nk, payload) {
+function __legacy_rpcUpdateWalletBalance(ctx, logger, nk, payload) {
     logger.info('[RPC] update_wallet_balance called');
 
     try {
@@ -50675,9 +50675,9 @@ function rpcUpdateWalletBalance(ctx, logger, nk, payload) {
 
         var resultStr;
         if (walletType === 'global') {
-            resultStr = rpcWalletUpdateGlobal(ctx, logger, nk, updatePayload);
+            resultStr = __legacy_rpcWalletUpdateGlobal(ctx, logger, nk, updatePayload);
         } else {
-            resultStr = rpcWalletUpdateGameWallet(ctx, logger, nk, updatePayload);
+            resultStr = __legacy_rpcWalletUpdateGameWallet(ctx, logger, nk, updatePayload);
         }
 
         var wallet = JSON.parse(resultStr);
@@ -50711,7 +50711,7 @@ function rpcUpdateWalletBalance(ctx, logger, nk, payload) {
  * RPC: get_wallet_balance
  * Gets a player's wallet balance
  */
-function rpcGetWalletBalance(ctx, logger, nk, payload) {
+function __legacy_rpcGetWalletBalance(ctx, logger, nk, payload) {
     logger.info('[RPC] get_wallet_balance called');
 
     try {
@@ -50766,7 +50766,7 @@ function rpcGetWalletBalance(ctx, logger, nk, payload) {
  * RPC: submit_leaderboard_score
  * Submits a score to leaderboards
  */
-function rpcSubmitLeaderboardScore(ctx, logger, nk, payload) {
+function __legacy_rpcSubmitLeaderboardScore(ctx, logger, nk, payload) {
     logger.info('[RPC] submit_leaderboard_score called');
 
     try {
@@ -50838,7 +50838,7 @@ function rpcSubmitLeaderboardScore(ctx, logger, nk, payload) {
  * RPC: get_leaderboard
  * Gets leaderboard records
  */
-function rpcGetLeaderboard(ctx, logger, nk, payload) {
+function __legacy_rpcGetLeaderboard(ctx, logger, nk, payload) {
     logger.info('[RPC] get_leaderboard called');
 
     try {
@@ -50872,7 +50872,7 @@ function rpcGetLeaderboard(ctx, logger, nk, payload) {
             cursor: cursor
         });
 
-        var resultStr = rpcGetTimePeriodLeaderboard(ctx, logger, nk, leaderboardPayload);
+        var resultStr = __legacy_rpcGetTimePeriodLeaderboard(ctx, logger, nk, leaderboardPayload);
         var leaderboard = JSON.parse(resultStr);
 
         if (!leaderboard.success) {
@@ -51728,7 +51728,7 @@ function rpcMarkDirectMessagesRead(ctx, logger, nk, payload) {
 /**
  * Parse and validate payload with gameID
  */
-function parseAndValidateGamePayload(payload, requiredFields) {
+function __legacy_parseAndValidateGamePayload(payload, requiredFields) {
     var data = {};
     try {
         data = JSON.parse(payload || "{}");
@@ -51755,21 +51755,21 @@ function parseAndValidateGamePayload(payload, requiredFields) {
 /**
  * Get user ID from data or context
  */
-function getUserId(data, ctx) {
+function __legacy_getUserId(data, ctx) {
     return data.userID || ctx.userId;
 }
 
 /**
  * Create namespaced collection name
  */
-function getCollection(gameID, type) {
+function __legacy_getCollection(gameID, type) {
     return gameID + "_" + type;
 }
 
 /**
  * Get leaderboard ID for game
  */
-function getLeaderboardId(gameID, type) {
+function __legacy_getLeaderboardId(gameID, type) {
     if (type === "weekly" || !type) {
         return gameID + "_weekly";
     }
@@ -51784,12 +51784,12 @@ function getLeaderboardId(gameID, type) {
  * RPC: quizverse_update_user_profile
  * Updates user profile for QuizVerse
  */
-function quizverseUpdateUserProfile(context, logger, nk, payload) {
+function __legacy_quizverseUpdateUserProfile(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
+        var userId = __legacy_getUserId(data, context);
 
-        var collection = getCollection(data.gameID, "profiles");
+        var collection = __legacy_getCollection(data.gameID, "profiles");
         var key = "profile_" + userId;
 
         // Read existing profile or create new
@@ -51849,9 +51849,9 @@ function quizverseUpdateUserProfile(context, logger, nk, payload) {
  * RPC: lasttolive_update_user_profile
  * Updates user profile for LastToLive
  */
-function lasttoliveUpdateUserProfile(context, logger, nk, payload) {
+function __legacy_lasttoliveUpdateUserProfile(context, logger, nk, payload) {
     // Reuse the same logic as QuizVerse
-    return quizverseUpdateUserProfile(context, logger, nk, payload);
+    return __legacy_quizverseUpdateUserProfile(context, logger, nk, payload);
 }
 
 // ============================================================================
@@ -51862,17 +51862,17 @@ function lasttoliveUpdateUserProfile(context, logger, nk, payload) {
  * RPC: quizverse_grant_currency
  * Grant currency to user wallet
  */
-function quizverseGrantCurrency(context, logger, nk, payload) {
+function __legacy_quizverseGrantCurrency(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "amount"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "amount"]);
+        var userId = __legacy_getUserId(data, context);
         var amount = parseInt(data.amount);
 
         if (isNaN(amount) || amount <= 0) {
             throw Error("Amount must be a positive number");
         }
 
-        var collection = getCollection(data.gameID, "wallets");
+        var collection = __legacy_getCollection(data.gameID, "wallets");
         var key = "wallet_" + userId;
 
         // Read existing wallet
@@ -51926,25 +51926,25 @@ function quizverseGrantCurrency(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_grant_currency
  */
-function lasttoliveGrantCurrency(context, logger, nk, payload) {
-    return quizverseGrantCurrency(context, logger, nk, payload);
+function __legacy_lasttoliveGrantCurrency(context, logger, nk, payload) {
+    return __legacy_quizverseGrantCurrency(context, logger, nk, payload);
 }
 
 /**
  * RPC: quizverse_spend_currency
  * Spend currency from user wallet
  */
-function quizverseSpendCurrency(context, logger, nk, payload) {
+function __legacy_quizverseSpendCurrency(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "amount"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "amount"]);
+        var userId = __legacy_getUserId(data, context);
         var amount = parseInt(data.amount);
 
         if (isNaN(amount) || amount <= 0) {
             throw Error("Amount must be a positive number");
         }
 
-        var collection = getCollection(data.gameID, "wallets");
+        var collection = __legacy_getCollection(data.gameID, "wallets");
         var key = "wallet_" + userId;
 
         // Read existing wallet
@@ -52002,25 +52002,25 @@ function quizverseSpendCurrency(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_spend_currency
  */
-function lasttoliveSpendCurrency(context, logger, nk, payload) {
-    return quizverseSpendCurrency(context, logger, nk, payload);
+function __legacy_lasttoliveSpendCurrency(context, logger, nk, payload) {
+    return __legacy_quizverseSpendCurrency(context, logger, nk, payload);
 }
 
 /**
  * RPC: quizverse_validate_purchase
  * Validate and process purchase
  */
-function quizverseValidatePurchase(context, logger, nk, payload) {
+function __legacy_quizverseValidatePurchase(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "itemId", "price"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "itemId", "price"]);
+        var userId = __legacy_getUserId(data, context);
         var price = parseInt(data.price);
 
         if (isNaN(price) || price < 0) {
             throw Error("Invalid price");
         }
 
-        var collection = getCollection(data.gameID, "wallets");
+        var collection = __legacy_getCollection(data.gameID, "wallets");
         var key = "wallet_" + userId;
 
         // Read wallet
@@ -52068,8 +52068,8 @@ function quizverseValidatePurchase(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_validate_purchase
  */
-function lasttoliveValidatePurchase(context, logger, nk, payload) {
-    return quizverseValidatePurchase(context, logger, nk, payload);
+function __legacy_lasttoliveValidatePurchase(context, logger, nk, payload) {
+    return __legacy_quizverseValidatePurchase(context, logger, nk, payload);
 }
 
 // ============================================================================
@@ -52080,12 +52080,12 @@ function lasttoliveValidatePurchase(context, logger, nk, payload) {
  * RPC: quizverse_list_inventory
  * List user inventory items
  */
-function quizverseListInventory(context, logger, nk, payload) {
+function __legacy_quizverseListInventory(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
+        var userId = __legacy_getUserId(data, context);
 
-        var collection = getCollection(data.gameID, "inventory");
+        var collection = __legacy_getCollection(data.gameID, "inventory");
         var key = "inv_" + userId;
 
         // Read inventory
@@ -52122,25 +52122,25 @@ function quizverseListInventory(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_list_inventory
  */
-function lasttoliveListInventory(context, logger, nk, payload) {
-    return quizverseListInventory(context, logger, nk, payload);
+function __legacy_lasttoliveListInventory(context, logger, nk, payload) {
+    return __legacy_quizverseListInventory(context, logger, nk, payload);
 }
 
 /**
  * RPC: quizverse_grant_item
  * Grant item to user inventory
  */
-function quizverseGrantItem(context, logger, nk, payload) {
+function __legacy_quizverseGrantItem(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "itemId", "quantity"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "itemId", "quantity"]);
+        var userId = __legacy_getUserId(data, context);
         var quantity = parseInt(data.quantity);
 
         if (isNaN(quantity) || quantity <= 0) {
             throw Error("Quantity must be a positive number");
         }
 
-        var collection = getCollection(data.gameID, "inventory");
+        var collection = __legacy_getCollection(data.gameID, "inventory");
         var key = "inv_" + userId;
 
         // Read inventory
@@ -52213,25 +52213,25 @@ function quizverseGrantItem(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_grant_item
  */
-function lasttoliveGrantItem(context, logger, nk, payload) {
-    return quizverseGrantItem(context, logger, nk, payload);
+function __legacy_lasttoliveGrantItem(context, logger, nk, payload) {
+    return __legacy_quizverseGrantItem(context, logger, nk, payload);
 }
 
 /**
  * RPC: quizverse_consume_item
  * Consume item from user inventory
  */
-function quizverseConsumeItem(context, logger, nk, payload) {
+function __legacy_quizverseConsumeItem(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "itemId", "quantity"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "itemId", "quantity"]);
+        var userId = __legacy_getUserId(data, context);
         var quantity = parseInt(data.quantity);
 
         if (isNaN(quantity) || quantity <= 0) {
             throw Error("Quantity must be a positive number");
         }
 
-        var collection = getCollection(data.gameID, "inventory");
+        var collection = __legacy_getCollection(data.gameID, "inventory");
         var key = "inv_" + userId;
 
         // Read inventory
@@ -52310,8 +52310,8 @@ function quizverseConsumeItem(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_consume_item
  */
-function lasttoliveConsumeItem(context, logger, nk, payload) {
-    return quizverseConsumeItem(context, logger, nk, payload);
+function __legacy_lasttoliveConsumeItem(context, logger, nk, payload) {
+    return __legacy_quizverseConsumeItem(context, logger, nk, payload);
 }
 
 // ============================================================================
@@ -52322,10 +52322,10 @@ function lasttoliveConsumeItem(context, logger, nk, payload) {
  * RPC: quizverse_submit_score
  * Submit score with QuizVerse-specific validations
  */
-function quizverseSubmitScore(context, logger, nk, payload) {
+function __legacy_quizverseSubmitScore(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "score"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "score"]);
+        var userId = __legacy_getUserId(data, context);
         var score = parseInt(data.score);
 
         if (isNaN(score) || score < 0) {
@@ -52357,7 +52357,7 @@ function quizverseSubmitScore(context, logger, nk, payload) {
             }
         }
 
-        var leaderboardId = getLeaderboardId(data.gameID, "weekly");
+        var leaderboardId = __legacy_getLeaderboardId(data.gameID, "weekly");
         var username = context.username || userId;
 
         var metadata = {
@@ -52400,16 +52400,16 @@ function quizverseSubmitScore(context, logger, nk, payload) {
  * RPC: quizverse_get_leaderboard
  * Get leaderboard for QuizVerse
  */
-function quizverseGetLeaderboard(context, logger, nk, payload) {
+function __legacy_quizverseGetLeaderboard(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
         var limit = data.limit || 10;
 
         if (limit < 1 || limit > 100) {
             throw Error("Limit must be between 1 and 100");
         }
 
-        var leaderboardId = getLeaderboardId(data.gameID, "weekly");
+        var leaderboardId = __legacy_getLeaderboardId(data.gameID, "weekly");
 
         // Get leaderboard records
         var records = nk.leaderboardRecordsList(leaderboardId, null, limit, null, 0);
@@ -52439,10 +52439,10 @@ function quizverseGetLeaderboard(context, logger, nk, payload) {
  * RPC: lasttolive_submit_score
  * Submit score with LastToLive-specific survival validations
  */
-function lasttoliveSubmitScore(context, logger, nk, payload) {
+function __legacy_lasttoliveSubmitScore(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
+        var userId = __legacy_getUserId(data, context);
 
         // LastToLive-specific validation
         var kills = parseInt(data.kills || 0);
@@ -52489,7 +52489,7 @@ function lasttoliveSubmitScore(context, logger, nk, payload) {
 
         if (score < 0) score = 0;
 
-        var leaderboardId = getLeaderboardId(data.gameID, "survivor_rank");
+        var leaderboardId = __legacy_getLeaderboardId(data.gameID, "survivor_rank");
         var username = context.username || userId;
 
         var metadata = {
@@ -52542,16 +52542,16 @@ function lasttoliveSubmitScore(context, logger, nk, payload) {
  * RPC: lasttolive_get_leaderboard
  * Get leaderboard for LastToLive
  */
-function lasttoliveGetLeaderboard(context, logger, nk, payload) {
+function __legacy_lasttoliveGetLeaderboard(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
         var limit = data.limit || 10;
 
         if (limit < 1 || limit > 100) {
             throw Error("Limit must be between 1 and 100");
         }
 
-        var leaderboardId = getLeaderboardId(data.gameID, "survivor_rank");
+        var leaderboardId = __legacy_getLeaderboardId(data.gameID, "survivor_rank");
 
         // Get leaderboard records
         var records = nk.leaderboardRecordsList(leaderboardId, null, limit, null, 0);
@@ -52581,10 +52581,10 @@ function lasttoliveGetLeaderboard(context, logger, nk, payload) {
  * RPC: quizverse_join_or_create_match
  * Join or create a multiplayer match
  */
-function quizverseJoinOrCreateMatch(context, logger, nk, payload) {
+function __legacy_quizverseJoinOrCreateMatch(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
+        var userId = __legacy_getUserId(data, context);
 
         // For now, return a placeholder match ID
         // In a full implementation, this would use Nakama's matchmaker
@@ -52612,8 +52612,8 @@ function quizverseJoinOrCreateMatch(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_join_or_create_match
  */
-function lasttoliveJoinOrCreateMatch(context, logger, nk, payload) {
-    return quizverseJoinOrCreateMatch(context, logger, nk, payload);
+function __legacy_lasttoliveJoinOrCreateMatch(context, logger, nk, payload) {
+    return __legacy_quizverseJoinOrCreateMatch(context, logger, nk, payload);
 }
 
 // ============================================================================
@@ -52624,12 +52624,12 @@ function lasttoliveJoinOrCreateMatch(context, logger, nk, payload) {
  * RPC: quizverse_claim_daily_reward
  * Claim daily reward
  */
-function quizverseClaimDailyReward(context, logger, nk, payload) {
+function __legacy_quizverseClaimDailyReward(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
+        var userId = __legacy_getUserId(data, context);
 
-        var collection = getCollection(data.gameID, "daily_rewards");
+        var collection = __legacy_getCollection(data.gameID, "daily_rewards");
         var key = "daily_" + userId;
 
         var now = new Date();
@@ -52708,8 +52708,8 @@ function quizverseClaimDailyReward(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_claim_daily_reward
  */
-function lasttoliveClaimDailyReward(context, logger, nk, payload) {
-    return quizverseClaimDailyReward(context, logger, nk, payload);
+function __legacy_lasttoliveClaimDailyReward(context, logger, nk, payload) {
+    return __legacy_quizverseClaimDailyReward(context, logger, nk, payload);
 }
 
 // ============================================================================
@@ -52722,7 +52722,7 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
  * ⚠ DEAD CODE — superseded by data/modules/friends/find_friends.js ⚠
  *
  * The function below was the historical "good" implementation, but it
- * was unreachable because a `var quizverseFindFriends = function(...)`
+ * was unreachable because a `var __legacy_quizverseFindFriends = function(...)`
  * STUB declared further down in this file silently overwrote this
  * declaration via JavaScript var-hoisting. The stub returned
  * { error: "not implemented" } and that is what callers received.
@@ -52736,7 +52736,7 @@ function lasttoliveClaimDailyReward(context, logger, nk, payload) {
  *
  * DO NOT MODIFY — make changes in friends/find_friends.js.
  */
-function quizverseFindFriends(context, logger, nk, payload) {
+function __legacy_quizverseFindFriends(context, logger, nk, payload) {
     try {
         var data = payload ? JSON.parse(payload) : {};
 
@@ -52879,8 +52879,8 @@ function quizverseFindFriends(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_find_friends
  */
-function lasttolliveFindFriends(context, logger, nk, payload) {
-    return quizverseFindFriends(context, logger, nk, payload);
+function __legacy_lasttolliveFindFriends(context, logger, nk, payload) {
+    return __legacy_quizverseFindFriends(context, logger, nk, payload);
 }
 
 // ============================================================================
@@ -52891,12 +52891,12 @@ function lasttolliveFindFriends(context, logger, nk, payload) {
  * RPC: quizverse_save_player_data
  * Save player data to storage
  */
-function quizverseSavePlayerData(context, logger, nk, payload) {
+function __legacy_quizverseSavePlayerData(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "key", "value"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "key", "value"]);
+        var userId = __legacy_getUserId(data, context);
 
-        var collection = getCollection(data.gameID, "player_data");
+        var collection = __legacy_getCollection(data.gameID, "player_data");
         var storageKey = data.key;
 
         var playerData = {
@@ -52936,20 +52936,20 @@ function quizverseSavePlayerData(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_save_player_data
  */
-function lasttolliveSavePlayerData(context, logger, nk, payload) {
-    return quizverseSavePlayerData(context, logger, nk, payload);
+function __legacy_lasttolliveSavePlayerData(context, logger, nk, payload) {
+    return __legacy_quizverseSavePlayerData(context, logger, nk, payload);
 }
 
 /**
  * RPC: quizverse_load_player_data
  * Load player data from storage
  */
-function quizverseLoadPlayerData(context, logger, nk, payload) {
+function __legacy_quizverseLoadPlayerData(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "key"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "key"]);
+        var userId = __legacy_getUserId(data, context);
 
-        var collection = getCollection(data.gameID, "player_data");
+        var collection = __legacy_getCollection(data.gameID, "player_data");
         var storageKey = data.key;
 
         // Read player data
@@ -52995,8 +52995,8 @@ function quizverseLoadPlayerData(context, logger, nk, payload) {
 /**
  * RPC: lasttolive_load_player_data
  */
-function lasttoliveLoadPlayerData(context, logger, nk, payload) {
-    return quizverseLoadPlayerData(context, logger, nk, payload);
+function __legacy_lasttoliveLoadPlayerData(context, logger, nk, payload) {
+    return __legacy_quizverseLoadPlayerData(context, logger, nk, payload);
 }
 
 // ============================================================================
@@ -53013,9 +53013,9 @@ function lasttoliveLoadPlayerData(context, logger, nk, payload) {
  */
 function quizverseGetItemCatalog(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
 
-        var collection = getCollection(data.gameID, "catalog");
+        var collection = __legacy_getCollection(data.gameID, "catalog");
         var limit = data.limit || 100;
 
         // Read catalog items
@@ -53058,9 +53058,9 @@ function lasttoliveGetItemCatalog(context, logger, nk, payload) {
  */
 function quizverseSearchItems(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "query"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "query"]);
 
-        var collection = getCollection(data.gameID, "catalog");
+        var collection = __legacy_getCollection(data.gameID, "catalog");
         var query = data.query.toLowerCase();
 
         // Read all catalog items
@@ -53106,9 +53106,9 @@ function lasttoliveSearchItems(context, logger, nk, payload) {
  */
 function quizverseGetQuizCategories(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
 
-        var collection = getCollection(data.gameID, "categories");
+        var collection = __legacy_getCollection(data.gameID, "categories");
 
         // Read categories
         var records = nk.storageList("00000000-0000-0000-0000-000000000000", collection, 50, null);
@@ -53143,9 +53143,9 @@ function quizverseGetQuizCategories(context, logger, nk, payload) {
  */
 function lasttoliveGetWeaponStats(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
 
-        var collection = getCollection(data.gameID, "weapon_stats");
+        var collection = __legacy_getCollection(data.gameID, "weapon_stats");
 
         // Read weapon stats
         var records = nk.storageList("00000000-0000-0000-0000-000000000000", collection, 100, null);
@@ -53180,7 +53180,7 @@ function lasttoliveGetWeaponStats(context, logger, nk, payload) {
  */
 function quizverseRefreshServerCache(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
 
         logger.info("[" + data.gameID + "] Server cache refresh requested");
 
@@ -53222,8 +53222,8 @@ function lasttoliveRefreshServerCache(context, logger, nk, payload) {
  */
 function quizverseGuildCreate(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "name"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "name"]);
+        var userId = __legacy_getUserId(data, context);
 
         var guildName = data.name;
         var description = data.description || "";
@@ -53277,8 +53277,8 @@ function lasttoliveGuildCreate(context, logger, nk, payload) {
  */
 function quizverseGuildJoin(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "guildId"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "guildId"]);
+        var userId = __legacy_getUserId(data, context);
 
         // Join group
         nk.groupUserJoin(data.guildId, userId, context.username || userId);
@@ -53316,8 +53316,8 @@ function lasttoliveGuildJoin(context, logger, nk, payload) {
  */
 function quizverseGuildLeave(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "guildId"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "guildId"]);
+        var userId = __legacy_getUserId(data, context);
 
         // Leave group
         nk.groupUserLeave(data.guildId, userId);
@@ -53355,7 +53355,7 @@ function lasttoliveGuildLeave(context, logger, nk, payload) {
  */
 function quizverseGuildList(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
         var limit = data.limit || 20;
 
         // List groups
@@ -53415,8 +53415,8 @@ function lasttoliveGuildList(context, logger, nk, payload) {
  */
 function quizverseSendChannelMessage(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "channelId", "content"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "channelId", "content"]);
+        var userId = __legacy_getUserId(data, context);
 
         // Send channel message
         var ack = nk.channelMessageSend(
@@ -53469,8 +53469,8 @@ function lasttolliveSendChannelMessage(context, logger, nk, payload) {
  */
 function quizverseLogEvent(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "eventName"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "eventName"]);
+        var userId = __legacy_getUserId(data, context);
 
         var eventData = {
             eventName: data.eventName,
@@ -53481,7 +53481,7 @@ function quizverseLogEvent(context, logger, nk, payload) {
         };
 
         // Store event
-        var collection = getCollection(data.gameID, "analytics");
+        var collection = __legacy_getCollection(data.gameID, "analytics");
         var key = "event_" + userId + "_" + Date.now();
 
         nk.storageWrite([{
@@ -53523,8 +53523,8 @@ function lasttoliveLogEvent(context, logger, nk, payload) {
  */
 function quizverseTrackSessionStart(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
+        var userId = __legacy_getUserId(data, context);
 
         var sessionData = {
             userId: userId,
@@ -53533,7 +53533,7 @@ function quizverseTrackSessionStart(context, logger, nk, payload) {
             deviceInfo: data.deviceInfo || {}
         };
 
-        var collection = getCollection(data.gameID, "sessions");
+        var collection = __legacy_getCollection(data.gameID, "sessions");
         var key = "session_" + userId + "_" + Date.now();
 
         nk.storageWrite([{
@@ -53575,10 +53575,10 @@ function lasttoliveTrackSessionStart(context, logger, nk, payload) {
  */
 function quizverseTrackSessionEnd(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "sessionKey"]);
-        var userId = getUserId(data, context);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "sessionKey"]);
+        var userId = __legacy_getUserId(data, context);
 
-        var collection = getCollection(data.gameID, "sessions");
+        var collection = __legacy_getCollection(data.gameID, "sessions");
 
         // Read session
         var sessionData = null;
@@ -53643,9 +53643,9 @@ function lasttoliveTrackSessionEnd(context, logger, nk, payload) {
  */
 function quizverseGetServerConfig(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID"]);
 
-        var collection = getCollection(data.gameID, "config");
+        var collection = __legacy_getCollection(data.gameID, "config");
         var key = "server_config";
 
         var config = {};
@@ -53697,7 +53697,7 @@ function lasttoliveGetServerConfig(context, logger, nk, payload) {
  */
 function quizverseAdminGrantItem(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID", "targetUserId", "itemId", "quantity"]);
+        var data = __legacy_parseAndValidateGamePayload(payload, ["gameID", "targetUserId", "itemId", "quantity"]);
 
         // In production, add admin permission check here
 
@@ -53706,7 +53706,7 @@ function quizverseAdminGrantItem(context, logger, nk, payload) {
             throw new Error("Invalid quantity");
         }
 
-        var collection = getCollection(data.gameID, "inventory");
+        var collection = __legacy_getCollection(data.gameID, "inventory");
         var key = "inv_" + data.targetUserId;
 
         // Read inventory
@@ -55125,26 +55125,26 @@ var DEFAULT_WEEKLY_GOALS = [
     { day: 7, id: "complete_all", title: "Weekly Master", description: "Complete all weekly goals", reward: { coins: 500, xp: 250, mysteryBox: true } }
 ];
 
-function getCurrentWeekNumber() {
+function __legacy_getCurrentWeekNumber() {
     var now = new Date();
     var startOfYear = new Date(now.getFullYear(), 0, 1);
     var days = Math.floor((now - startOfYear) / (24 * 60 * 60 * 1000));
     return Math.ceil((days + startOfYear.getDay() + 1) / 7);
 }
 
-function getCurrentDayOfWeek() {
+function __legacy_getCurrentDayOfWeek() {
     var day = new Date().getDay();
     return day === 0 ? 7 : day;
 }
 
-function rpcWeeklyGoalsGetStatus(ctx, logger, nk, payload) {
+function __legacy_rpcWeeklyGoalsGetStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
         var data = JSON.parse(payload || "{}");
         var gameId = data.gameId || "quiz-verse";
-        var currentWeek = getCurrentWeekNumber();
-        var currentDay = getCurrentDayOfWeek();
+        var currentWeek = __legacy_getCurrentWeekNumber();
+        var currentDay = __legacy_getCurrentDayOfWeek();
 
         var key = "weekly_goals_" + currentWeek;
         var records = nk.storageRead([{ collection: "weekly_goals", key: key, userId: ctx.userId }]);
@@ -55172,14 +55172,14 @@ function rpcWeeklyGoalsGetStatus(ctx, logger, nk, payload) {
     }
 }
 
-function rpcWeeklyGoalsUpdateProgress(ctx, logger, nk, payload) {
+function __legacy_rpcWeeklyGoalsUpdateProgress(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
         var data = JSON.parse(payload);
         var goalId = data.goalId;
         var value = data.value || 1;
-        var currentWeek = getCurrentWeekNumber();
+        var currentWeek = __legacy_getCurrentWeekNumber();
 
         var key = "weekly_goals_" + currentWeek;
         var records = nk.storageRead([{ collection: "weekly_goals", key: key, userId: ctx.userId }]);
@@ -55210,13 +55210,13 @@ function rpcWeeklyGoalsUpdateProgress(ctx, logger, nk, payload) {
     }
 }
 
-function rpcWeeklyGoalsClaimReward(ctx, logger, nk, payload) {
+function __legacy_rpcWeeklyGoalsClaimReward(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
         var data = JSON.parse(payload);
         var goalId = data.goalId;
-        var currentWeek = getCurrentWeekNumber();
+        var currentWeek = __legacy_getCurrentWeekNumber();
 
         var key = "weekly_goals_" + currentWeek;
         var records = nk.storageRead([{ collection: "weekly_goals", key: key, userId: ctx.userId }]);
@@ -55240,11 +55240,11 @@ function rpcWeeklyGoalsClaimReward(ctx, logger, nk, payload) {
     }
 }
 
-function rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload) {
+function __legacy_rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
-        var currentWeek = getCurrentWeekNumber();
+        var currentWeek = __legacy_getCurrentWeekNumber();
         var key = "weekly_goals_" + currentWeek;
         var records = nk.storageRead([{ collection: "weekly_goals", key: key, userId: ctx.userId }]);
 
@@ -55267,7 +55267,7 @@ function rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload) {
 
 var SEASON_CONFIG = { maxLevel: 50, xpPerLevel: 1000 };
 
-function rpcSeasonPassGetStatus(ctx, logger, nk, payload) {
+function __legacy_rpcSeasonPassGetStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55290,7 +55290,7 @@ function rpcSeasonPassGetStatus(ctx, logger, nk, payload) {
     }
 }
 
-function rpcSeasonPassAddXP(ctx, logger, nk, payload) {
+function __legacy_rpcSeasonPassAddXP(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55317,7 +55317,7 @@ function rpcSeasonPassAddXP(ctx, logger, nk, payload) {
     }
 }
 
-function rpcSeasonPassCompleteQuest(ctx, logger, nk, payload) {
+function __legacy_rpcSeasonPassCompleteQuest(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
     try {
         var data = JSON.parse(payload);
@@ -55327,7 +55327,7 @@ function rpcSeasonPassCompleteQuest(ctx, logger, nk, payload) {
     }
 }
 
-function rpcSeasonPassClaimReward(ctx, logger, nk, payload) {
+function __legacy_rpcSeasonPassClaimReward(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55357,7 +55357,7 @@ function rpcSeasonPassClaimReward(ctx, logger, nk, payload) {
     }
 }
 
-function rpcSeasonPassPurchasePremium(ctx, logger, nk, payload) {
+function __legacy_rpcSeasonPassPurchasePremium(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55387,7 +55387,7 @@ var MONTHLY_MILESTONES = [
     { id: "create_3", title: "Creator", description: "Create 3 quizzes", target: 3, reward: { badge: "creator" } }
 ];
 
-function rpcMonthlyMilestonesGetStatus(ctx, logger, nk, payload) {
+function __legacy_rpcMonthlyMilestonesGetStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55419,7 +55419,7 @@ function rpcMonthlyMilestonesGetStatus(ctx, logger, nk, payload) {
     }
 }
 
-function rpcMonthlyMilestonesUpdateProgress(ctx, logger, nk, payload) {
+function __legacy_rpcMonthlyMilestonesUpdateProgress(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55457,7 +55457,7 @@ function rpcMonthlyMilestonesUpdateProgress(ctx, logger, nk, payload) {
     }
 }
 
-function rpcMonthlyMilestonesClaimReward(ctx, logger, nk, payload) {
+function __legacy_rpcMonthlyMilestonesClaimReward(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55487,7 +55487,7 @@ function rpcMonthlyMilestonesClaimReward(ctx, logger, nk, payload) {
     }
 }
 
-function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
+function __legacy_rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55513,7 +55513,7 @@ function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
 
 // ==================== COLLECTIONS & PRESTIGE SYSTEM ====================
 
-function rpcCollectionsGetStatus(ctx, logger, nk, payload) {
+function __legacy_rpcCollectionsGetStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55537,7 +55537,7 @@ function rpcCollectionsGetStatus(ctx, logger, nk, payload) {
     }
 }
 
-function rpcCollectionsUnlockItem(ctx, logger, nk, payload) {
+function __legacy_rpcCollectionsUnlockItem(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55564,7 +55564,7 @@ function rpcCollectionsUnlockItem(ctx, logger, nk, payload) {
     }
 }
 
-function rpcCollectionsEquipItem(ctx, logger, nk, payload) {
+function __legacy_rpcCollectionsEquipItem(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55587,7 +55587,7 @@ function rpcCollectionsEquipItem(ctx, logger, nk, payload) {
     }
 }
 
-function rpcCollectionsAddMasteryXP(ctx, logger, nk, payload) {
+function __legacy_rpcCollectionsAddMasteryXP(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55624,7 +55624,7 @@ var COMEBACK_TIERS = [
     { minDays: 60, maxDays: 365, tier: "verylong", rewards: { coins: 2000, gems: 200, premiumTrialDays: 7 } }
 ];
 
-function rpcWinbackCheckStatus(ctx, logger, nk, payload) {
+function __legacy_rpcWinbackCheckStatus(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55651,7 +55651,7 @@ function rpcWinbackCheckStatus(ctx, logger, nk, payload) {
     }
 }
 
-function rpcWinbackClaimRewards(ctx, logger, nk, payload) {
+function __legacy_rpcWinbackClaimRewards(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55684,7 +55684,7 @@ function rpcWinbackClaimRewards(ctx, logger, nk, payload) {
     }
 }
 
-function rpcWinbackRecordSession(ctx, logger, nk, payload) {
+function __legacy_rpcWinbackRecordSession(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({ success: false, error: "Not authenticated" });
 
     try {
@@ -55706,7 +55706,7 @@ function rpcWinbackRecordSession(ctx, logger, nk, payload) {
     }
 }
 
-function rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
+function __legacy_rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
     return JSON.stringify({ success: true, message: "Re-engagement notifications scheduled" });
 }
 
@@ -55799,7 +55799,7 @@ var STORAGE_KEY_UNLOCKS = "progressive_unlocks";
 // HELPER FUNCTIONS
 // ============================================================================
 
-function getUnlockData(nk, userId) {
+function __legacy_getUnlockData(nk, userId) {
     try {
         var objects = nk.storageRead([{
             collection: STORAGE_COLLECTION_PROG,
@@ -55826,7 +55826,7 @@ function getUnlockData(nk, userId) {
     };
 }
 
-function saveUnlockData(nk, userId, data) {
+function __legacy_saveUnlockData(nk, userId, data) {
     data.lastUpdated = Date.now();
 
     nk.storageWrite([{
@@ -55839,7 +55839,7 @@ function saveUnlockData(nk, userId, data) {
     }]);
 }
 
-function calculateCurrentDay(firstLoginDate) {
+function __legacy_calculateCurrentDay(firstLoginDate) {
     var now = Date.now();
     var daysSinceFirst = Math.floor((now - firstLoginDate) / (24 * 60 * 60 * 1000));
     return Math.min(daysSinceFirst + 1, 7); // Cap at day 7
@@ -55912,16 +55912,16 @@ function grantRewardsProgressive(nk, userId, rewards, logger) {
  * Get current unlock state
  * Returns: unlockedFeatures, currentDay, nextUnlock, progress
  */
-function rpcGetUnlockState(ctx, logger, nk, payload) {
+function __legacy_rpcGetUnlockState(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
 
-    var data = getUnlockData(nk, ctx.userId);
+    var data = __legacy_getUnlockData(nk, ctx.userId);
 
     // Update current day
-    data.currentDay = calculateCurrentDay(data.firstLoginDate);
-    saveUnlockData(nk, ctx.userId, data);
+    data.currentDay = __legacy_calculateCurrentDay(data.firstLoginDate);
+    __legacy_saveUnlockData(nk, ctx.userId, data);
 
     // Calculate next unlock info
     var nextDay = null;
@@ -55973,7 +55973,7 @@ function rpcGetUnlockState(ctx, logger, nk, payload) {
  * Claim unlock for a specific day
  * Payload: { day: number }
  */
-function rpcClaimUnlock(ctx, logger, nk, payload) {
+function __legacy_rpcClaimUnlock(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
@@ -55990,8 +55990,8 @@ function rpcClaimUnlock(ctx, logger, nk, payload) {
         return JSON.stringify({ success: false, error: "Invalid day" });
     }
 
-    var data = getUnlockData(nk, ctx.userId);
-    data.currentDay = calculateCurrentDay(data.firstLoginDate);
+    var data = __legacy_getUnlockData(nk, ctx.userId);
+    data.currentDay = __legacy_calculateCurrentDay(data.firstLoginDate);
 
     // Check if already claimed
     if (data.claimedDays.indexOf(day) !== -1) {
@@ -56031,7 +56031,7 @@ function rpcClaimUnlock(ctx, logger, nk, payload) {
     grantRewardsProgressive(nk, ctx.userId, config.rewards, logger);
 
     // Save
-    saveUnlockData(nk, ctx.userId, data);
+    __legacy_saveUnlockData(nk, ctx.userId, data);
 
     logger.info("User " + ctx.userId + " claimed Day " + day + " unlock");
 
@@ -56050,7 +56050,7 @@ function rpcClaimUnlock(ctx, logger, nk, payload) {
 /**
  * Check if a specific feature is unlocked
  */
-function rpcCheckFeatureUnlocked(ctx, logger, nk, payload) {
+function __legacy_rpcCheckFeatureUnlocked(ctx, logger, nk, payload) {
     if (!ctx.userId) {
         return JSON.stringify({ success: false, error: "Not authenticated" });
     }
@@ -56067,7 +56067,7 @@ function rpcCheckFeatureUnlocked(ctx, logger, nk, payload) {
         return JSON.stringify({ success: false, error: "Feature required" });
     }
 
-    var data = getUnlockData(nk, ctx.userId);
+    var data = __legacy_getUnlockData(nk, ctx.userId);
     var isUnlocked = data.unlockedFeatures.indexOf(feature) !== -1;
 
     // Find which day unlocks this feature
@@ -56086,7 +56086,7 @@ function rpcCheckFeatureUnlocked(ctx, logger, nk, payload) {
             feature: feature,
             isUnlocked: isUnlocked,
             unlockDay: unlockDay,
-            currentDay: calculateCurrentDay(data.firstLoginDate)
+            currentDay: __legacy_calculateCurrentDay(data.firstLoginDate)
         }
     });
 }
@@ -56106,7 +56106,7 @@ function rpcUpdateProgressProgressive(ctx, logger, nk, payload) {
         return JSON.stringify({ success: false, error: "Invalid payload" });
     }
 
-    var data = getUnlockData(nk, ctx.userId);
+    var data = __legacy_getUnlockData(nk, ctx.userId);
 
     if (request.quizCompleted) {
         data.totalQuizzesCompleted++;
@@ -56115,8 +56115,8 @@ function rpcUpdateProgressProgressive(ctx, logger, nk, payload) {
         data.totalQuizzesWon++;
     }
 
-    data.currentDay = calculateCurrentDay(data.firstLoginDate);
-    saveUnlockData(nk, ctx.userId, data);
+    data.currentDay = __legacy_calculateCurrentDay(data.firstLoginDate);
+    __legacy_saveUnlockData(nk, ctx.userId, data);
 
     // Check if any new unlocks are available
     var newUnlocksAvailable = [];
@@ -56625,7 +56625,7 @@ function updateAdLastClaimTimestamp(nk, logger, userId, placement) {
  * RPC: Request a reward token BEFORE showing ad (user clicks button)
  * Payload: { placement: string, gameId: string, metadata?: object }
  */
-function rpcRewardedAdRequestToken(ctx, logger, nk, payload) {
+function __legacy_rpcRewardedAdRequestToken(ctx, logger, nk, payload) {
     logger.info("[RewardedAds] Token request from user: " + ctx.userId);
 
     var userId = ctx.userId;
@@ -56726,7 +56726,7 @@ function rpcRewardedAdRequestToken(ctx, logger, nk, payload) {
  * RPC: Claim reward after ad was watched
  * Payload: { token: string, adCompleted: bool, adNetwork?: string, metadata?: object }
  */
-function rpcRewardedAdClaim(ctx, logger, nk, payload) {
+function __legacy_rpcRewardedAdClaim(ctx, logger, nk, payload) {
     logger.info("[RewardedAds] Claim request from user: " + ctx.userId);
 
     var userId = ctx.userId;
@@ -56901,7 +56901,7 @@ function rpcRewardedAdClaim(ctx, logger, nk, payload) {
  * RPC: Validate score multiplier authorization
  * Payload: { authorizationToken: string, originalScore: number, multipliedScore: number }
  */
-function rpcValidateScoreMultiplier(ctx, logger, nk, payload) {
+function __legacy_rpcValidateScoreMultiplier(ctx, logger, nk, payload) {
     logger.info("[RewardedAds] Score multiplier validation from user: " + ctx.userId);
 
     var userId = ctx.userId;
@@ -56994,7 +56994,7 @@ function rpcValidateScoreMultiplier(ctx, logger, nk, payload) {
  * RPC: Get user's rewarded ad status
  * Payload: { placement?: string }
  */
-function rpcGetRewardedAdStatus(ctx, logger, nk, payload) {
+function __legacy_rpcGetRewardedAdStatus(ctx, logger, nk, payload) {
     var userId = ctx.userId;
     if (!userId) {
         return JSON.stringify({ success: false, error: "Authentication required" });
@@ -61982,7 +61982,7 @@ function rpcIvxMarkMessageRead(ctx, logger, nk, payload) {
     } catch(e) { return JSON.stringify({ success: false, error: e.message }); }
 }
 
-function rpcGiftSend(ctx, logger, nk, payload) {
+function __legacy_rpcGiftSend(ctx, logger, nk, payload) {
     try {
         var data = payload ? JSON.parse(payload) : {};
         var recipientId = data.recipientId || ''; var giftType = data.giftType || 'coins'; var amount = data.amount || 0;
@@ -62439,7 +62439,7 @@ function _charReadNamed(nk, uid, gid) { try { var r = nk.storageRead([{collectio
 function _charWriteNamed(nk, uid, gid, d) { nk.storageWrite([{collection:CHAR_COL_NAMED,key:_charKeyNamed(uid,gid),userId:uid,value:d,permissionRead:1,permissionWrite:0}]); }
 function _charInitNamed(uid) { var n=new Date().toISOString(); return {activeCharacter:'quizzy',unlockedCharacters:{quizzy:{unlockedAt:n}},totalXpFromUnlocks:0,createdAt:n,updatedAt:n}; }
 
-function rpcCharacterGetState(ctx, logger, nk, payload) {
+function __legacy_rpcCharacterGetState(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
     try {
         var d = payload ? JSON.parse(payload) : {};
@@ -62456,7 +62456,7 @@ function rpcCharacterGetState(ctx, logger, nk, payload) {
     } catch(e) { logger.error('[Characters] character_get_state: ' + e.message); return JSON.stringify({success:false,error:e.message}); }
 }
 
-function rpcCharacterUnlock(ctx, logger, nk, payload) {
+function __legacy_rpcCharacterUnlock(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
     try {
         var d = JSON.parse(payload || '{}');
@@ -62480,7 +62480,7 @@ function rpcCharacterUnlock(ctx, logger, nk, payload) {
     } catch(e) { logger.error('[Characters] character_unlock: '+e.message); return JSON.stringify({success:false,error:e.message}); }
 }
 
-function rpcCharacterSetActive(ctx, logger, nk, payload) {
+function __legacy_rpcCharacterSetActive(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
     try {
         var d = JSON.parse(payload || '{}');
@@ -62525,7 +62525,7 @@ function _lgWriteNamed(nk,uid,gid,s) { nk.storageWrite([{collection:LG_COL_NAMED
 function _lgInitNamed(uid,gid) { var n=new Date().toISOString(); return {userId:uid,gameId:gid,tier:'bronze',points:0,quizzesThisWeek:0,perfectRounds:0,totalAccuracy:0,accuracyCount:0,season:_lgWeekIdNamed(),seasonJoinedAt:n,qualifiesForPromotion:false,sandbaggingFlags:0,consecutiveLowAccuracy:0,consistencyBonus:false,lastSubmissionId:'',lastSubmissionAt:null,createdAt:n,updatedAt:n}; }
 function _lgRotateNamed(s) { s.points=0;s.quizzesThisWeek=0;s.perfectRounds=0;s.totalAccuracy=0;s.accuracyCount=0;s.qualifiesForPromotion=false;s.season=_lgWeekIdNamed();s.lastSubmissionId='';s.updatedAt=new Date().toISOString(); return s; }
 
-function rpcLeagueGetState(ctx, logger, nk, payload) {
+function __legacy_rpcLeagueGetState(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
     try {
         var d = payload ? JSON.parse(payload) : {};
@@ -62540,7 +62540,7 @@ function rpcLeagueGetState(ctx, logger, nk, payload) {
     } catch(e) { logger.error('[Leagues] league_get_state: '+e.message); return JSON.stringify({success:false,error:e.message}); }
 }
 
-function rpcLeagueSubmitPoints(ctx, logger, nk, payload) {
+function __legacy_rpcLeagueSubmitPoints(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
     try {
         var d = JSON.parse(payload || '{}');
@@ -62574,7 +62574,7 @@ function rpcLeagueSubmitPoints(ctx, logger, nk, payload) {
     } catch(e) { logger.error('[Leagues] league_submit_points: '+e.message); return JSON.stringify({success:false,error:e.message}); }
 }
 
-function rpcLeagueGetLeaderboard(ctx, logger, nk, payload) {
+function __legacy_rpcLeagueGetLeaderboard(ctx, logger, nk, payload) {
     if (!ctx.userId) return JSON.stringify({success:false,error:'User not authenticated'});
     try {
         var d = payload ? JSON.parse(payload) : {};
@@ -62597,7 +62597,7 @@ function rpcLeagueGetLeaderboard(ctx, logger, nk, payload) {
     } catch(e) { logger.error('[Leagues] league_get_leaderboard: '+e.message); return JSON.stringify({success:false,error:e.message}); }
 }
 
-function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
+function __legacy_rpcLeagueProcessSeason(ctx, logger, nk, payload) {
     if (ctx.userId) { var gd=payload?JSON.parse(payload):{}; if((gd.adminKey||'')!=='quizverse_season_cron_2026') return JSON.stringify({success:false,error:'Unauthorized'}); }
     try {
         var d = payload ? JSON.parse(payload) : {};
@@ -62636,62 +62636,62 @@ function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
 // Storage: collection="friend_quests", key="quest_state_{userId}"
 // ============================================================================
 
-// Stub: quizverseUpdateUserProfile - TODO: implement actual function
-var quizverseUpdateUserProfile = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseUpdateUserProfile called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseUpdateUserProfile not implemented', success: false });
+// Stub: __legacy_quizverseUpdateUserProfile - TODO: implement actual function
+var __legacy_quizverseUpdateUserProfile = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseUpdateUserProfile called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseUpdateUserProfile not implemented', success: false });
 };
-// Stub: quizverseGrantCurrency - TODO: implement actual function
-var quizverseGrantCurrency = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseGrantCurrency called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseGrantCurrency not implemented', success: false });
+// Stub: __legacy_quizverseGrantCurrency - TODO: implement actual function
+var __legacy_quizverseGrantCurrency = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseGrantCurrency called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseGrantCurrency not implemented', success: false });
 };
-// Stub: quizverseSpendCurrency - TODO: implement actual function
-var quizverseSpendCurrency = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseSpendCurrency called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseSpendCurrency not implemented', success: false });
+// Stub: __legacy_quizverseSpendCurrency - TODO: implement actual function
+var __legacy_quizverseSpendCurrency = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseSpendCurrency called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseSpendCurrency not implemented', success: false });
 };
-// Stub: quizverseValidatePurchase - TODO: implement actual function
-var quizverseValidatePurchase = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseValidatePurchase called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseValidatePurchase not implemented', success: false });
+// Stub: __legacy_quizverseValidatePurchase - TODO: implement actual function
+var __legacy_quizverseValidatePurchase = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseValidatePurchase called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseValidatePurchase not implemented', success: false });
 };
-// Stub: quizverseListInventory - TODO: implement actual function
-var quizverseListInventory = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseListInventory called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseListInventory not implemented', success: false });
+// Stub: __legacy_quizverseListInventory - TODO: implement actual function
+var __legacy_quizverseListInventory = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseListInventory called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseListInventory not implemented', success: false });
 };
-// Stub: quizverseGrantItem - TODO: implement actual function
-var quizverseGrantItem = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseGrantItem called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseGrantItem not implemented', success: false });
+// Stub: __legacy_quizverseGrantItem - TODO: implement actual function
+var __legacy_quizverseGrantItem = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseGrantItem called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseGrantItem not implemented', success: false });
 };
-// Stub: quizverseConsumeItem - TODO: implement actual function
-var quizverseConsumeItem = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseConsumeItem called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseConsumeItem not implemented', success: false });
+// Stub: __legacy_quizverseConsumeItem - TODO: implement actual function
+var __legacy_quizverseConsumeItem = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseConsumeItem called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseConsumeItem not implemented', success: false });
 };
-// Stub: quizverseSubmitScore - TODO: implement actual function
-var quizverseSubmitScore = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseSubmitScore called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseSubmitScore not implemented', success: false });
+// Stub: __legacy_quizverseSubmitScore - TODO: implement actual function
+var __legacy_quizverseSubmitScore = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseSubmitScore called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseSubmitScore not implemented', success: false });
 };
-// Stub: quizverseGetLeaderboard - TODO: implement actual function
-var quizverseGetLeaderboard = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseGetLeaderboard called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseGetLeaderboard not implemented', success: false });
+// Stub: __legacy_quizverseGetLeaderboard - TODO: implement actual function
+var __legacy_quizverseGetLeaderboard = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseGetLeaderboard called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseGetLeaderboard not implemented', success: false });
 };
-// Stub: quizverseJoinOrCreateMatch - TODO: implement actual function
-var quizverseJoinOrCreateMatch = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseJoinOrCreateMatch called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseJoinOrCreateMatch not implemented', success: false });
+// Stub: __legacy_quizverseJoinOrCreateMatch - TODO: implement actual function
+var __legacy_quizverseJoinOrCreateMatch = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseJoinOrCreateMatch called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseJoinOrCreateMatch not implemented', success: false });
 };
-// Stub: quizverseClaimDailyReward - TODO: implement actual function
-var quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseClaimDailyReward called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseClaimDailyReward not implemented', success: false });
+// Stub: __legacy_quizverseClaimDailyReward - TODO: implement actual function
+var __legacy_quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseClaimDailyReward called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseClaimDailyReward not implemented', success: false });
 };
-// ── DISABLED: legacy quizverseFindFriends stub ──────────────────────────────
+// ── DISABLED: legacy __legacy_quizverseFindFriends stub ──────────────────────────────
 // This `var` assignment used to silently OVERWRITE the real function declared
 // at line ~13094 via JavaScript's hoist-then-assign behaviour for `var`,
 // so every call to quizverse_find_friends returned `not implemented`.
@@ -62703,19 +62703,19 @@ var quizverseClaimDailyReward = function(ctx, logger, nk, payload) {
 // The merge at cbeacf6 reintroduced the stub in a conflict hunk; the stub
 // MUST stay deleted/commented out — see docs/bugs/2026-04-22-merge-conflict-broke-js-runtime.md.
 // ────────────────────────────────────────────────────────────────────────────
-// var quizverseFindFriends = function(ctx, logger, nk, payload) {
-//     logger.warn('quizverseFindFriends called but not implemented');
-//     return JSON.stringify({ error: 'quizverseFindFriends not implemented', success: false });
+// var __legacy_quizverseFindFriends = function(ctx, logger, nk, payload) {
+//     logger.warn('__legacy_quizverseFindFriends called but not implemented');
+//     return JSON.stringify({ error: '__legacy_quizverseFindFriends not implemented', success: false });
 // };
-// Stub: quizverseSavePlayerData - TODO: implement actual function
-var quizverseSavePlayerData = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseSavePlayerData called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseSavePlayerData not implemented', success: false });
+// Stub: __legacy_quizverseSavePlayerData - TODO: implement actual function
+var __legacy_quizverseSavePlayerData = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseSavePlayerData called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseSavePlayerData not implemented', success: false });
 };
-// Stub: quizverseLoadPlayerData - TODO: implement actual function
-var quizverseLoadPlayerData = function(ctx, logger, nk, payload) {
-    logger.debug('quizverseLoadPlayerData called but not implemented (stub)');
-    return JSON.stringify({ error: 'quizverseLoadPlayerData not implemented', success: false });
+// Stub: __legacy_quizverseLoadPlayerData - TODO: implement actual function
+var __legacy_quizverseLoadPlayerData = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_quizverseLoadPlayerData called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_quizverseLoadPlayerData not implemented', success: false });
 };
 // Stub: quizverseGetItemCatalog - TODO: implement actual function
 var quizverseGetItemCatalog = function(ctx, logger, nk, payload) {
@@ -62787,75 +62787,75 @@ var quizverseAdminGrantItem = function(ctx, logger, nk, payload) {
     logger.debug('quizverseAdminGrantItem called but not implemented (stub)');
     return JSON.stringify({ error: 'quizverseAdminGrantItem not implemented', success: false });
 };
-// Stub: lasttoliveUpdateUserProfile - TODO: implement actual function
-var lasttoliveUpdateUserProfile = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveUpdateUserProfile called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveUpdateUserProfile not implemented', success: false });
+// Stub: __legacy_lasttoliveUpdateUserProfile - TODO: implement actual function
+var __legacy_lasttoliveUpdateUserProfile = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveUpdateUserProfile called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveUpdateUserProfile not implemented', success: false });
 };
-// Stub: lasttoliveGrantCurrency - TODO: implement actual function
-var lasttoliveGrantCurrency = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveGrantCurrency called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveGrantCurrency not implemented', success: false });
+// Stub: __legacy_lasttoliveGrantCurrency - TODO: implement actual function
+var __legacy_lasttoliveGrantCurrency = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveGrantCurrency called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveGrantCurrency not implemented', success: false });
 };
-// Stub: lasttoliveSpendCurrency - TODO: implement actual function
-var lasttoliveSpendCurrency = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveSpendCurrency called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveSpendCurrency not implemented', success: false });
+// Stub: __legacy_lasttoliveSpendCurrency - TODO: implement actual function
+var __legacy_lasttoliveSpendCurrency = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveSpendCurrency called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveSpendCurrency not implemented', success: false });
 };
-// Stub: lasttoliveValidatePurchase - TODO: implement actual function
-var lasttoliveValidatePurchase = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveValidatePurchase called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveValidatePurchase not implemented', success: false });
+// Stub: __legacy_lasttoliveValidatePurchase - TODO: implement actual function
+var __legacy_lasttoliveValidatePurchase = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveValidatePurchase called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveValidatePurchase not implemented', success: false });
 };
-// Stub: lasttoliveListInventory - TODO: implement actual function
-var lasttoliveListInventory = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveListInventory called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveListInventory not implemented', success: false });
+// Stub: __legacy_lasttoliveListInventory - TODO: implement actual function
+var __legacy_lasttoliveListInventory = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveListInventory called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveListInventory not implemented', success: false });
 };
-// Stub: lasttoliveGrantItem - TODO: implement actual function
-var lasttoliveGrantItem = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveGrantItem called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveGrantItem not implemented', success: false });
+// Stub: __legacy_lasttoliveGrantItem - TODO: implement actual function
+var __legacy_lasttoliveGrantItem = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveGrantItem called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveGrantItem not implemented', success: false });
 };
-// Stub: lasttoliveConsumeItem - TODO: implement actual function
-var lasttoliveConsumeItem = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveConsumeItem called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveConsumeItem not implemented', success: false });
+// Stub: __legacy_lasttoliveConsumeItem - TODO: implement actual function
+var __legacy_lasttoliveConsumeItem = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveConsumeItem called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveConsumeItem not implemented', success: false });
 };
-// Stub: lasttoliveSubmitScore - TODO: implement actual function
-var lasttoliveSubmitScore = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveSubmitScore called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveSubmitScore not implemented', success: false });
+// Stub: __legacy_lasttoliveSubmitScore - TODO: implement actual function
+var __legacy_lasttoliveSubmitScore = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveSubmitScore called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveSubmitScore not implemented', success: false });
 };
-// Stub: lasttoliveGetLeaderboard - TODO: implement actual function
-var lasttoliveGetLeaderboard = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveGetLeaderboard called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveGetLeaderboard not implemented', success: false });
+// Stub: __legacy_lasttoliveGetLeaderboard - TODO: implement actual function
+var __legacy_lasttoliveGetLeaderboard = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveGetLeaderboard called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveGetLeaderboard not implemented', success: false });
 };
-// Stub: lasttoliveJoinOrCreateMatch - TODO: implement actual function
-var lasttoliveJoinOrCreateMatch = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveJoinOrCreateMatch called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveJoinOrCreateMatch not implemented', success: false });
+// Stub: __legacy_lasttoliveJoinOrCreateMatch - TODO: implement actual function
+var __legacy_lasttoliveJoinOrCreateMatch = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveJoinOrCreateMatch called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveJoinOrCreateMatch not implemented', success: false });
 };
-// Stub: lasttoliveClaimDailyReward - TODO: implement actual function
-var lasttoliveClaimDailyReward = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveClaimDailyReward called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveClaimDailyReward not implemented', success: false });
+// Stub: __legacy_lasttoliveClaimDailyReward - TODO: implement actual function
+var __legacy_lasttoliveClaimDailyReward = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveClaimDailyReward called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveClaimDailyReward not implemented', success: false });
 };
-// Stub: lasttolliveFindFriends - TODO: implement actual function
-var lasttolliveFindFriends = function(ctx, logger, nk, payload) {
-    logger.debug('lasttolliveFindFriends called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttolliveFindFriends not implemented', success: false });
+// Stub: __legacy_lasttolliveFindFriends - TODO: implement actual function
+var __legacy_lasttolliveFindFriends = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttolliveFindFriends called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttolliveFindFriends not implemented', success: false });
 };
-// Stub: lasttolliveSavePlayerData - TODO: implement actual function
-var lasttolliveSavePlayerData = function(ctx, logger, nk, payload) {
-    logger.debug('lasttolliveSavePlayerData called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttolliveSavePlayerData not implemented', success: false });
+// Stub: __legacy_lasttolliveSavePlayerData - TODO: implement actual function
+var __legacy_lasttolliveSavePlayerData = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttolliveSavePlayerData called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttolliveSavePlayerData not implemented', success: false });
 };
-// Stub: lasttoliveLoadPlayerData - TODO: implement actual function
-var lasttoliveLoadPlayerData = function(ctx, logger, nk, payload) {
-    logger.debug('lasttoliveLoadPlayerData called but not implemented (stub)');
-    return JSON.stringify({ error: 'lasttoliveLoadPlayerData not implemented', success: false });
+// Stub: __legacy_lasttoliveLoadPlayerData - TODO: implement actual function
+var __legacy_lasttoliveLoadPlayerData = function(ctx, logger, nk, payload) {
+    logger.debug('__legacy_lasttoliveLoadPlayerData called but not implemented (stub)');
+    return JSON.stringify({ error: '__legacy_lasttoliveLoadPlayerData not implemented', success: false });
 };
 // Stub: lasttoliveGetItemCatalog - TODO: implement actual function
 var lasttoliveGetItemCatalog = function(ctx, logger, nk, payload) {
@@ -62938,15 +62938,15 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[Copilot] Initializing Wallet Mapping Module...');
 
         // Register RPC: get_user_wallet
-        __rpc_get_user_wallet = __rpc_get_user_wallet || (getUserWallet);
+        __rpc_get_user_wallet = __rpc_get_user_wallet || (__legacy_getUserWallet);
         logger.info('[Copilot] Registered RPC: get_user_wallet');
 
         // Register RPC: link_wallet_to_game
-        __rpc_link_wallet_to_game = __rpc_link_wallet_to_game || (linkWalletToGame);
+        __rpc_link_wallet_to_game = __rpc_link_wallet_to_game || (__legacy_linkWalletToGame);
         logger.info('[Copilot] Registered RPC: link_wallet_to_game');
 
         // Register RPC: get_wallet_registry
-        __rpc_get_wallet_registry = __rpc_get_wallet_registry || (getWalletRegistry);
+        __rpc_get_wallet_registry = __rpc_get_wallet_registry || (__legacy_getWalletRegistry);
         logger.info('[Copilot] Registered RPC: get_wallet_registry');
 
         logger.info('[Copilot] Successfully registered 3 wallet RPC functions');
@@ -62961,11 +62961,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Time-Period Leaderboard RPCs
     try {
         logger.info('[Leaderboards] Initializing Time-Period Leaderboard Module...');
-        __rpc_create_time_period_leaderboards = __rpc_create_time_period_leaderboards || (rpcCreateTimePeriodLeaderboards);
+        __rpc_create_time_period_leaderboards = __rpc_create_time_period_leaderboards || (__legacy_rpcCreateTimePeriodLeaderboards);
         logger.info('[Leaderboards] Registered RPC: create_time_period_leaderboards');
-        __rpc_submit_score_to_time_periods = __rpc_submit_score_to_time_periods || (rpcSubmitScoreToTimePeriods);
+        __rpc_submit_score_to_time_periods = __rpc_submit_score_to_time_periods || (__legacy_rpcSubmitScoreToTimePeriods);
         logger.info('[Leaderboards] Registered RPC: submit_score_to_time_periods');
-        __rpc_get_time_period_leaderboard = __rpc_get_time_period_leaderboard || (rpcGetTimePeriodLeaderboard);
+        __rpc_get_time_period_leaderboard = __rpc_get_time_period_leaderboard || (__legacy_rpcGetTimePeriodLeaderboard);
         logger.info('[Leaderboards] Registered RPC: get_time_period_leaderboard');
         logger.info('[Leaderboards] Successfully registered 3 Time-Period Leaderboard RPCs');
     } catch (err) {
@@ -62999,9 +62999,9 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Daily Rewards RPCs
     try {
         logger.info('[DailyRewards] Initializing Daily Rewards Module...');
-        __rpc_daily_rewards_get_status = __rpc_daily_rewards_get_status || (rpcDailyRewardsGetStatus);
+        __rpc_daily_rewards_get_status = __rpc_daily_rewards_get_status || (__legacy_rpcDailyRewardsGetStatus);
         logger.info('[DailyRewards] Registered RPC: daily_rewards_get_status');
-        __rpc_daily_rewards_claim = __rpc_daily_rewards_claim || (rpcDailyRewardsClaim);
+        __rpc_daily_rewards_claim = __rpc_daily_rewards_claim || (__legacy_rpcDailyRewardsClaim);
         logger.info('[DailyRewards] Registered RPC: daily_rewards_claim');
         logger.info('[DailyRewards] Successfully registered 2 Daily Rewards RPCs');
     } catch (err) {
@@ -63011,13 +63011,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Quiz Results RPCs
     try {
         logger.info('[QuizResults] Initializing Quiz Results Module...');
-        __rpc_quiz_submit_result = __rpc_quiz_submit_result || (rpcQuizSubmitResult);
+        __rpc_quiz_submit_result = __rpc_quiz_submit_result || (__legacy_rpcQuizSubmitResult);
         logger.info('[QuizResults] Registered RPC: quiz_submit_result');
-        __rpc_quiz_get_history = __rpc_quiz_get_history || (rpcQuizGetHistory);
+        __rpc_quiz_get_history = __rpc_quiz_get_history || (__legacy_rpcQuizGetHistory);
         logger.info('[QuizResults] Registered RPC: quiz_get_history');
-        __rpc_quiz_get_stats = __rpc_quiz_get_stats || (rpcQuizGetStats);
+        __rpc_quiz_get_stats = __rpc_quiz_get_stats || (__legacy_rpcQuizGetStats);
         logger.info('[QuizResults] Registered RPC: quiz_get_stats');
-        __rpc_quiz_check_daily_completion = __rpc_quiz_check_daily_completion || (rpcQuizCheckDailyCompletion);
+        __rpc_quiz_check_daily_completion = __rpc_quiz_check_daily_completion || (__legacy_rpcQuizCheckDailyCompletion);
         logger.info('[QuizResults] Registered RPC: quiz_check_daily_completion');
         logger.info('[QuizResults] Successfully registered 4 Quiz Results RPCs');
     } catch (err) {
@@ -63041,11 +63041,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Daily Missions RPCs
     try {
         logger.info('[DailyMissions] Initializing Daily Missions Module...');
-        __rpc_get_daily_missions = __rpc_get_daily_missions || (rpcGetDailyMissions);
+        __rpc_get_daily_missions = __rpc_get_daily_missions || (__legacy_rpcGetDailyMissions);
         logger.info('[DailyMissions] Registered RPC: get_daily_missions');
-        __rpc_submit_mission_progress = __rpc_submit_mission_progress || (rpcSubmitMissionProgress);
+        __rpc_submit_mission_progress = __rpc_submit_mission_progress || (__legacy_rpcSubmitMissionProgress);
         logger.info('[DailyMissions] Registered RPC: submit_mission_progress');
-        __rpc_claim_mission_reward = __rpc_claim_mission_reward || (rpcClaimMissionReward);
+        __rpc_claim_mission_reward = __rpc_claim_mission_reward || (__legacy_rpcClaimMissionReward);
         logger.info('[DailyMissions] Registered RPC: claim_mission_reward');
         logger.info('[DailyMissions] Successfully registered 3 Daily Missions RPCs');
     } catch (err) {
@@ -63056,17 +63056,17 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Enhanced Wallet RPCs
     try {
         logger.info('[Wallet] Initializing Enhanced Wallet Module...');
-        __rpc_wallet_get_all = __rpc_wallet_get_all || (rpcWalletGetAll);
+        __rpc_wallet_get_all = __rpc_wallet_get_all || (__legacy_rpcWalletGetAll);
         logger.info('[Wallet] Registered RPC: wallet_get_all');
-        __rpc_wallet_update_global = __rpc_wallet_update_global || (rpcWalletUpdateGlobal);
+        __rpc_wallet_update_global = __rpc_wallet_update_global || (__legacy_rpcWalletUpdateGlobal);
         logger.info('[Wallet] Registered RPC: wallet_update_global');
-        __rpc_wallet_update_game_wallet = __rpc_wallet_update_game_wallet || (rpcWalletUpdateGameWallet);
+        __rpc_wallet_update_game_wallet = __rpc_wallet_update_game_wallet || (__legacy_rpcWalletUpdateGameWallet);
         logger.info('[Wallet] Registered RPC: wallet_update_game_wallet');
-        __rpc_wallet_transfer_between_game_wallets = __rpc_wallet_transfer_between_game_wallets || (rpcWalletTransferBetweenGameWallets);
+        __rpc_wallet_transfer_between_game_wallets = __rpc_wallet_transfer_between_game_wallets || (__legacy_rpcWalletTransferBetweenGameWallets);
         logger.info('[Wallet] Registered RPC: wallet_transfer_between_game_wallets');
 
         // NEW:
-        __rpc_wallet_get_balances = __rpc_wallet_get_balances || (rpcWalletGetBalances);
+        __rpc_wallet_get_balances = __rpc_wallet_get_balances || (__legacy_rpcWalletGetBalances);
         logger.info('[Wallet] Registered RPC: wallet_get_balances');
 
         logger.info('[Wallet] Successfully registered 5 Enhanced Wallet RPCs');
@@ -63077,7 +63077,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Analytics RPCs
     try {
         logger.info('[Analytics] Initializing Analytics Module...');
-        __rpc_analytics_log_event = __rpc_analytics_log_event || (rpcAnalyticsLogEvent);
+        __rpc_analytics_log_event = __rpc_analytics_log_event || (__legacy_rpcAnalyticsLogEvent);
         logger.info('[Analytics] Registered RPC: analytics_log_event');
         logger.info('[Analytics] Successfully registered 1 Analytics RPC');
     } catch (err) {
@@ -63108,15 +63108,15 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Groups/Clans/Guilds RPCs
     try {
         logger.info('[Groups] Initializing Groups/Clans/Guilds Module...');
-        __rpc_create_game_group = __rpc_create_game_group || (rpcCreateGameGroup);
+        __rpc_create_game_group = __rpc_create_game_group || (__legacy_rpcCreateGameGroup);
         logger.info('[Groups] Registered RPC: create_game_group');
-        __rpc_update_group_xp = __rpc_update_group_xp || (rpcUpdateGroupXP);
+        __rpc_update_group_xp = __rpc_update_group_xp || (__legacy_rpcUpdateGroupXP);
         logger.info('[Groups] Registered RPC: update_group_xp');
-        __rpc_get_group_wallet = __rpc_get_group_wallet || (rpcGetGroupWallet);
+        __rpc_get_group_wallet = __rpc_get_group_wallet || (__legacy_rpcGetGroupWallet);
         logger.info('[Groups] Registered RPC: get_group_wallet');
-        __rpc_update_group_wallet = __rpc_update_group_wallet || (rpcUpdateGroupWallet);
+        __rpc_update_group_wallet = __rpc_update_group_wallet || (__legacy_rpcUpdateGroupWallet);
         logger.info('[Groups] Registered RPC: update_group_wallet');
-        __rpc_get_user_groups = __rpc_get_user_groups || (rpcGetUserGroups);
+        __rpc_get_user_groups = __rpc_get_user_groups || (__legacy_rpcGetUserGroups);
         logger.info('[Groups] Registered RPC: get_user_groups');
         logger.info('[Groups] Successfully registered 5 Groups/Clans RPCs');
     } catch (err) {
@@ -63126,11 +63126,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Push Notifications RPCs
     try {
         logger.info('[PushNotifications] Initializing Push Notification Module...');
-        __rpc_push_register_token = __rpc_push_register_token || (rpcPushRegisterToken);
+        __rpc_push_register_token = __rpc_push_register_token || (__legacy_rpcPushRegisterToken);
         logger.info('[PushNotifications] Registered RPC: push_register_token');
-        __rpc_push_send_event = __rpc_push_send_event || (rpcPushSendEvent);
+        __rpc_push_send_event = __rpc_push_send_event || (__legacy_rpcPushSendEvent);
         logger.info('[PushNotifications] Registered RPC: push_send_event');
-        __rpc_push_get_endpoints = __rpc_push_get_endpoints || (rpcPushGetEndpoints);
+        __rpc_push_get_endpoints = __rpc_push_get_endpoints || (__legacy_rpcPushGetEndpoints);
         logger.info('[PushNotifications] Registered RPC: push_get_endpoints');
         logger.info('[PushNotifications] Successfully registered 3 Push Notification RPCs');
     } catch (err) {
@@ -63176,15 +63176,15 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Standard Player RPCs (simplified naming conventions)
     try {
         logger.info('[PlayerRPCs] Initializing Standard Player RPCs...');
-        __rpc_create_player_wallet = __rpc_create_player_wallet || (rpcCreatePlayerWallet);
+        __rpc_create_player_wallet = __rpc_create_player_wallet || (__legacy_rpcCreatePlayerWallet);
         logger.info('[PlayerRPCs] Registered RPC: create_player_wallet');
-        __rpc_update_wallet_balance = __rpc_update_wallet_balance || (rpcUpdateWalletBalance);
+        __rpc_update_wallet_balance = __rpc_update_wallet_balance || (__legacy_rpcUpdateWalletBalance);
         logger.info('[PlayerRPCs] Registered RPC: update_wallet_balance');
-        __rpc_get_wallet_balance = __rpc_get_wallet_balance || (rpcGetWalletBalance);
+        __rpc_get_wallet_balance = __rpc_get_wallet_balance || (__legacy_rpcGetWalletBalance);
         logger.info('[PlayerRPCs] Registered RPC: get_wallet_balance');
-        __rpc_submit_leaderboard_score = __rpc_submit_leaderboard_score || (rpcSubmitLeaderboardScore);
+        __rpc_submit_leaderboard_score = __rpc_submit_leaderboard_score || (__legacy_rpcSubmitLeaderboardScore);
         logger.info('[PlayerRPCs] Registered RPC: submit_leaderboard_score');
-        __rpc_get_leaderboard = __rpc_get_leaderboard || (rpcGetLeaderboard);
+        __rpc_get_leaderboard = __rpc_get_leaderboard || (__legacy_rpcGetLeaderboard);
         logger.info('[PlayerRPCs] Registered RPC: get_leaderboard');
         __rpc_check_geo_and_update_profile = __rpc_check_geo_and_update_profile || (rpcCheckGeoAndUpdateProfile);
         logger.info('[PlayerRPCs] Registered RPC: check_geo_and_update_profile');
@@ -63256,21 +63256,21 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
 
         var mgRpcs = [
             // QuizVerse RPCs - Core
-            { id: 'quizverse_update_user_profile', handler: quizverseUpdateUserProfile },
-            { id: 'quizverse_grant_currency', handler: quizverseGrantCurrency },
-            { id: 'quizverse_spend_currency', handler: quizverseSpendCurrency },
-            { id: 'quizverse_validate_purchase', handler: quizverseValidatePurchase },
-            { id: 'quizverse_list_inventory', handler: quizverseListInventory },
-            { id: 'quizverse_grant_item', handler: quizverseGrantItem },
-            { id: 'quizverse_consume_item', handler: quizverseConsumeItem },
-            { id: 'quizverse_submit_score', handler: quizverseSubmitScore },
-            { id: 'quizverse_get_leaderboard', handler: quizverseGetLeaderboard },
-            { id: 'quizverse_join_or_create_match', handler: quizverseJoinOrCreateMatch },
-            { id: 'quizverse_claim_daily_reward', handler: quizverseClaimDailyReward },
+            { id: 'quizverse_update_user_profile', handler: __legacy_quizverseUpdateUserProfile },
+            { id: 'quizverse_grant_currency', handler: __legacy_quizverseGrantCurrency },
+            { id: 'quizverse_spend_currency', handler: __legacy_quizverseSpendCurrency },
+            { id: 'quizverse_validate_purchase', handler: __legacy_quizverseValidatePurchase },
+            { id: 'quizverse_list_inventory', handler: __legacy_quizverseListInventory },
+            { id: 'quizverse_grant_item', handler: __legacy_quizverseGrantItem },
+            { id: 'quizverse_consume_item', handler: __legacy_quizverseConsumeItem },
+            { id: 'quizverse_submit_score', handler: __legacy_quizverseSubmitScore },
+            { id: 'quizverse_get_leaderboard', handler: __legacy_quizverseGetLeaderboard },
+            { id: 'quizverse_join_or_create_match', handler: __legacy_quizverseJoinOrCreateMatch },
+            { id: 'quizverse_claim_daily_reward', handler: __legacy_quizverseClaimDailyReward },
             // DISABLED: legacy duplicate — see data/modules/friends/find_friends.js
-            // { id: 'quizverse_find_friends', handler: quizverseFindFriends },
-            { id: 'quizverse_save_player_data', handler: quizverseSavePlayerData },
-            { id: 'quizverse_load_player_data', handler: quizverseLoadPlayerData },
+            // { id: 'quizverse_find_friends', handler: __legacy_quizverseFindFriends },
+            { id: 'quizverse_save_player_data', handler: __legacy_quizverseSavePlayerData },
+            { id: 'quizverse_load_player_data', handler: __legacy_quizverseLoadPlayerData },
 
             // QuizVerse RPCs - Catalog & Search
             { id: 'quizverse_get_item_catalog', handler: quizverseGetItemCatalog },
@@ -63297,21 +63297,21 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             { id: 'quizverse_admin_grant_item', handler: quizverseAdminGrantItem },
 
             // LastToLive RPCs - Core
-            { id: 'lasttolive_update_user_profile', handler: lasttoliveUpdateUserProfile },
-            { id: 'lasttolive_grant_currency', handler: lasttoliveGrantCurrency },
-            { id: 'lasttolive_spend_currency', handler: lasttoliveSpendCurrency },
-            { id: 'lasttolive_validate_purchase', handler: lasttoliveValidatePurchase },
-            { id: 'lasttolive_list_inventory', handler: lasttoliveListInventory },
-            { id: 'lasttolive_grant_item', handler: lasttoliveGrantItem },
-            { id: 'lasttolive_consume_item', handler: lasttoliveConsumeItem },
-            { id: 'lasttolive_submit_score', handler: lasttoliveSubmitScore },
-            { id: 'lasttolive_get_leaderboard', handler: lasttoliveGetLeaderboard },
-            { id: 'lasttolive_join_or_create_match', handler: lasttoliveJoinOrCreateMatch },
-            { id: 'lasttolive_claim_daily_reward', handler: lasttoliveClaimDailyReward },
+            { id: 'lasttolive_update_user_profile', handler: __legacy_lasttoliveUpdateUserProfile },
+            { id: 'lasttolive_grant_currency', handler: __legacy_lasttoliveGrantCurrency },
+            { id: 'lasttolive_spend_currency', handler: __legacy_lasttoliveSpendCurrency },
+            { id: 'lasttolive_validate_purchase', handler: __legacy_lasttoliveValidatePurchase },
+            { id: 'lasttolive_list_inventory', handler: __legacy_lasttoliveListInventory },
+            { id: 'lasttolive_grant_item', handler: __legacy_lasttoliveGrantItem },
+            { id: 'lasttolive_consume_item', handler: __legacy_lasttoliveConsumeItem },
+            { id: 'lasttolive_submit_score', handler: __legacy_lasttoliveSubmitScore },
+            { id: 'lasttolive_get_leaderboard', handler: __legacy_lasttoliveGetLeaderboard },
+            { id: 'lasttolive_join_or_create_match', handler: __legacy_lasttoliveJoinOrCreateMatch },
+            { id: 'lasttolive_claim_daily_reward', handler: __legacy_lasttoliveClaimDailyReward },
             // DISABLED: alias also owned by data/modules/friends/find_friends.js
-            // { id: 'lasttolive_find_friends', handler: lasttolliveFindFriends },
-            { id: 'lasttolive_save_player_data', handler: lasttolliveSavePlayerData },
-            { id: 'lasttolive_load_player_data', handler: lasttoliveLoadPlayerData },
+            // { id: 'lasttolive_find_friends', handler: __legacy_lasttolliveFindFriends },
+            { id: 'lasttolive_save_player_data', handler: __legacy_lasttolliveSavePlayerData },
+            { id: 'lasttolive_load_player_data', handler: __legacy_lasttoliveLoadPlayerData },
 
             // LastToLive RPCs - Catalog & Search
             { id: 'lasttolive_get_item_catalog', handler: lasttoliveGetItemCatalog },
@@ -63341,24 +63341,24 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         var mgRegistered = 0;
         var mgSkipped = 0;
 
-                __rpc_quizverse_update_user_profile = __rpc_quizverse_update_user_profile || (quizverseUpdateUserProfile);
-        __rpc_quizverse_grant_currency = __rpc_quizverse_grant_currency || (quizverseGrantCurrency);
-        __rpc_quizverse_spend_currency = __rpc_quizverse_spend_currency || (quizverseSpendCurrency);
-        __rpc_quizverse_validate_purchase = __rpc_quizverse_validate_purchase || (quizverseValidatePurchase);
-        __rpc_quizverse_list_inventory = __rpc_quizverse_list_inventory || (quizverseListInventory);
-        __rpc_quizverse_grant_item = __rpc_quizverse_grant_item || (quizverseGrantItem);
-        __rpc_quizverse_consume_item = __rpc_quizverse_consume_item || (quizverseConsumeItem);
-        __rpc_quizverse_submit_score = __rpc_quizverse_submit_score || (quizverseSubmitScore);
-        __rpc_quizverse_get_leaderboard = __rpc_quizverse_get_leaderboard || (quizverseGetLeaderboard);
-        __rpc_quizverse_join_or_create_match = __rpc_quizverse_join_or_create_match || (quizverseJoinOrCreateMatch);
-        __rpc_quizverse_claim_daily_reward = __rpc_quizverse_claim_daily_reward || (quizverseClaimDailyReward);
+                __rpc_quizverse_update_user_profile = __rpc_quizverse_update_user_profile || (__legacy_quizverseUpdateUserProfile);
+        __rpc_quizverse_grant_currency = __rpc_quizverse_grant_currency || (__legacy_quizverseGrantCurrency);
+        __rpc_quizverse_spend_currency = __rpc_quizverse_spend_currency || (__legacy_quizverseSpendCurrency);
+        __rpc_quizverse_validate_purchase = __rpc_quizverse_validate_purchase || (__legacy_quizverseValidatePurchase);
+        __rpc_quizverse_list_inventory = __rpc_quizverse_list_inventory || (__legacy_quizverseListInventory);
+        __rpc_quizverse_grant_item = __rpc_quizverse_grant_item || (__legacy_quizverseGrantItem);
+        __rpc_quizverse_consume_item = __rpc_quizverse_consume_item || (__legacy_quizverseConsumeItem);
+        __rpc_quizverse_submit_score = __rpc_quizverse_submit_score || (__legacy_quizverseSubmitScore);
+        __rpc_quizverse_get_leaderboard = __rpc_quizverse_get_leaderboard || (__legacy_quizverseGetLeaderboard);
+        __rpc_quizverse_join_or_create_match = __rpc_quizverse_join_or_create_match || (__legacy_quizverseJoinOrCreateMatch);
+        __rpc_quizverse_claim_daily_reward = __rpc_quizverse_claim_daily_reward || (__legacy_quizverseClaimDailyReward);
         // DISABLED: quizverse_find_friends is now owned by
         //   data/modules/friends/find_friends.js
         // The literal registerRpc call has been REMOVED (not commented) —
         // postbuild.js does text-based matching that re-binds even
         // commented-out registrations.
-        __rpc_quizverse_save_player_data = __rpc_quizverse_save_player_data || (quizverseSavePlayerData);
-        __rpc_quizverse_load_player_data = __rpc_quizverse_load_player_data || (quizverseLoadPlayerData);
+        __rpc_quizverse_save_player_data = __rpc_quizverse_save_player_data || (__legacy_quizverseSavePlayerData);
+        __rpc_quizverse_load_player_data = __rpc_quizverse_load_player_data || (__legacy_quizverseLoadPlayerData);
         __rpc_quizverse_get_item_catalog = __rpc_quizverse_get_item_catalog || (quizverseGetItemCatalog);
         __rpc_quizverse_search_items = __rpc_quizverse_search_items || (quizverseSearchItems);
         __rpc_quizverse_get_quiz_categories = __rpc_quizverse_get_quiz_categories || (quizverseGetQuizCategories);
@@ -63373,23 +63373,23 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         __rpc_quizverse_track_session_end = __rpc_quizverse_track_session_end || (quizverseTrackSessionEnd);
         __rpc_quizverse_get_server_config = __rpc_quizverse_get_server_config || (quizverseGetServerConfig);
         __rpc_quizverse_admin_grant_item = __rpc_quizverse_admin_grant_item || (quizverseAdminGrantItem);
-        __rpc_lasttolive_update_user_profile = __rpc_lasttolive_update_user_profile || (lasttoliveUpdateUserProfile);
-        __rpc_lasttolive_grant_currency = __rpc_lasttolive_grant_currency || (lasttoliveGrantCurrency);
-        __rpc_lasttolive_spend_currency = __rpc_lasttolive_spend_currency || (lasttoliveSpendCurrency);
-        __rpc_lasttolive_validate_purchase = __rpc_lasttolive_validate_purchase || (lasttoliveValidatePurchase);
-        __rpc_lasttolive_list_inventory = __rpc_lasttolive_list_inventory || (lasttoliveListInventory);
-        __rpc_lasttolive_grant_item = __rpc_lasttolive_grant_item || (lasttoliveGrantItem);
-        __rpc_lasttolive_consume_item = __rpc_lasttolive_consume_item || (lasttoliveConsumeItem);
-        __rpc_lasttolive_submit_score = __rpc_lasttolive_submit_score || (lasttoliveSubmitScore);
-        __rpc_lasttolive_get_leaderboard = __rpc_lasttolive_get_leaderboard || (lasttoliveGetLeaderboard);
-        __rpc_lasttolive_join_or_create_match = __rpc_lasttolive_join_or_create_match || (lasttoliveJoinOrCreateMatch);
-        __rpc_lasttolive_claim_daily_reward = __rpc_lasttolive_claim_daily_reward || (lasttoliveClaimDailyReward);
+        __rpc_lasttolive_update_user_profile = __rpc_lasttolive_update_user_profile || (__legacy_lasttoliveUpdateUserProfile);
+        __rpc_lasttolive_grant_currency = __rpc_lasttolive_grant_currency || (__legacy_lasttoliveGrantCurrency);
+        __rpc_lasttolive_spend_currency = __rpc_lasttolive_spend_currency || (__legacy_lasttoliveSpendCurrency);
+        __rpc_lasttolive_validate_purchase = __rpc_lasttolive_validate_purchase || (__legacy_lasttoliveValidatePurchase);
+        __rpc_lasttolive_list_inventory = __rpc_lasttolive_list_inventory || (__legacy_lasttoliveListInventory);
+        __rpc_lasttolive_grant_item = __rpc_lasttolive_grant_item || (__legacy_lasttoliveGrantItem);
+        __rpc_lasttolive_consume_item = __rpc_lasttolive_consume_item || (__legacy_lasttoliveConsumeItem);
+        __rpc_lasttolive_submit_score = __rpc_lasttolive_submit_score || (__legacy_lasttoliveSubmitScore);
+        __rpc_lasttolive_get_leaderboard = __rpc_lasttolive_get_leaderboard || (__legacy_lasttoliveGetLeaderboard);
+        __rpc_lasttolive_join_or_create_match = __rpc_lasttolive_join_or_create_match || (__legacy_lasttoliveJoinOrCreateMatch);
+        __rpc_lasttolive_claim_daily_reward = __rpc_lasttolive_claim_daily_reward || (__legacy_lasttoliveClaimDailyReward);
         // DISABLED: lasttolive_find_friends alias is now owned by
         //   data/modules/friends/find_friends.js
         // The literal registerRpc call has been REMOVED to prevent
         // postbuild's text-based scan from re-binding the legacy handler.
-        __rpc_lasttolive_save_player_data = __rpc_lasttolive_save_player_data || (lasttolliveSavePlayerData);
-        __rpc_lasttolive_load_player_data = __rpc_lasttolive_load_player_data || (lasttoliveLoadPlayerData);
+        __rpc_lasttolive_save_player_data = __rpc_lasttolive_save_player_data || (__legacy_lasttolliveSavePlayerData);
+        __rpc_lasttolive_load_player_data = __rpc_lasttolive_load_player_data || (__legacy_lasttoliveLoadPlayerData);
         __rpc_lasttolive_get_item_catalog = __rpc_lasttolive_get_item_catalog || (lasttoliveGetItemCatalog);
         __rpc_lasttolive_search_items = __rpc_lasttolive_search_items || (lasttoliveSearchItems);
         __rpc_lasttolive_get_weapon_stats = __rpc_lasttolive_get_weapon_stats || (lasttoliveGetWeaponStats);
@@ -63526,13 +63526,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Weekly Goals System RPCs (D7 Retention)
     try {
         logger.info('[WeeklyGoals] Initializing Weekly Goals Module...');
-        __rpc_weekly_goals_get_status = __rpc_weekly_goals_get_status || (rpcWeeklyGoalsGetStatus);
+        __rpc_weekly_goals_get_status = __rpc_weekly_goals_get_status || (__legacy_rpcWeeklyGoalsGetStatus);
         logger.info('[WeeklyGoals] Registered RPC: weekly_goals_get_status');
-        __rpc_weekly_goals_update_progress = __rpc_weekly_goals_update_progress || (rpcWeeklyGoalsUpdateProgress);
+        __rpc_weekly_goals_update_progress = __rpc_weekly_goals_update_progress || (__legacy_rpcWeeklyGoalsUpdateProgress);
         logger.info('[WeeklyGoals] Registered RPC: weekly_goals_update_progress');
-        __rpc_weekly_goals_claim_reward = __rpc_weekly_goals_claim_reward || (rpcWeeklyGoalsClaimReward);
+        __rpc_weekly_goals_claim_reward = __rpc_weekly_goals_claim_reward || (__legacy_rpcWeeklyGoalsClaimReward);
         logger.info('[WeeklyGoals] Registered RPC: weekly_goals_claim_reward');
-        __rpc_weekly_goals_claim_bonus = __rpc_weekly_goals_claim_bonus || (rpcWeeklyGoalsClaimBonus);
+        __rpc_weekly_goals_claim_bonus = __rpc_weekly_goals_claim_bonus || (__legacy_rpcWeeklyGoalsClaimBonus);
         logger.info('[WeeklyGoals] Registered RPC: weekly_goals_claim_bonus');
         logger.info('[WeeklyGoals] Successfully registered 4 Weekly Goals RPCs');
     } catch (err) {
@@ -63542,15 +63542,15 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Season Pass System RPCs (D7/D30 Retention)
     try {
         logger.info('[SeasonPass] Initializing Season Pass Module...');
-        __rpc_season_pass_get_status = __rpc_season_pass_get_status || (rpcSeasonPassGetStatus);
+        __rpc_season_pass_get_status = __rpc_season_pass_get_status || (__legacy_rpcSeasonPassGetStatus);
         logger.info('[SeasonPass] Registered RPC: season_pass_get_status');
-        __rpc_season_pass_add_xp = __rpc_season_pass_add_xp || (rpcSeasonPassAddXP);
+        __rpc_season_pass_add_xp = __rpc_season_pass_add_xp || (__legacy_rpcSeasonPassAddXP);
         logger.info('[SeasonPass] Registered RPC: season_pass_add_xp');
-        __rpc_season_pass_complete_quest = __rpc_season_pass_complete_quest || (rpcSeasonPassCompleteQuest);
+        __rpc_season_pass_complete_quest = __rpc_season_pass_complete_quest || (__legacy_rpcSeasonPassCompleteQuest);
         logger.info('[SeasonPass] Registered RPC: season_pass_complete_quest');
-        __rpc_season_pass_claim_reward = __rpc_season_pass_claim_reward || (rpcSeasonPassClaimReward);
+        __rpc_season_pass_claim_reward = __rpc_season_pass_claim_reward || (__legacy_rpcSeasonPassClaimReward);
         logger.info('[SeasonPass] Registered RPC: season_pass_claim_reward');
-        __rpc_season_pass_purchase_premium = __rpc_season_pass_purchase_premium || (rpcSeasonPassPurchasePremium);
+        __rpc_season_pass_purchase_premium = __rpc_season_pass_purchase_premium || (__legacy_rpcSeasonPassPurchasePremium);
         logger.info('[SeasonPass] Registered RPC: season_pass_purchase_premium');
         logger.info('[SeasonPass] Successfully registered 5 Season Pass RPCs');
     } catch (err) {
@@ -63560,13 +63560,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Monthly Milestones System RPCs (D30 Retention)
     try {
         logger.info('[MonthlyMilestones] Initializing Monthly Milestones Module...');
-        __rpc_monthly_milestones_get_status = __rpc_monthly_milestones_get_status || (rpcMonthlyMilestonesGetStatus);
+        __rpc_monthly_milestones_get_status = __rpc_monthly_milestones_get_status || (__legacy_rpcMonthlyMilestonesGetStatus);
         logger.info('[MonthlyMilestones] Registered RPC: monthly_milestones_get_status');
-        __rpc_monthly_milestones_update_progress = __rpc_monthly_milestones_update_progress || (rpcMonthlyMilestonesUpdateProgress);
+        __rpc_monthly_milestones_update_progress = __rpc_monthly_milestones_update_progress || (__legacy_rpcMonthlyMilestonesUpdateProgress);
         logger.info('[MonthlyMilestones] Registered RPC: monthly_milestones_update_progress');
-        __rpc_monthly_milestones_claim_reward = __rpc_monthly_milestones_claim_reward || (rpcMonthlyMilestonesClaimReward);
+        __rpc_monthly_milestones_claim_reward = __rpc_monthly_milestones_claim_reward || (__legacy_rpcMonthlyMilestonesClaimReward);
         logger.info('[MonthlyMilestones] Registered RPC: monthly_milestones_claim_reward');
-        __rpc_monthly_milestones_claim_legendary = __rpc_monthly_milestones_claim_legendary || (rpcMonthlyMilestonesClaimLegendary);
+        __rpc_monthly_milestones_claim_legendary = __rpc_monthly_milestones_claim_legendary || (__legacy_rpcMonthlyMilestonesClaimLegendary);
         logger.info('[MonthlyMilestones] Registered RPC: monthly_milestones_claim_legendary');
         logger.info('[MonthlyMilestones] Successfully registered 4 Monthly Milestones RPCs');
     } catch (err) {
@@ -63576,13 +63576,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Collections & Prestige System RPCs (D30 Retention)
     try {
         logger.info('[Collections] Initializing Collections & Prestige Module...');
-        __rpc_collections_get_status = __rpc_collections_get_status || (rpcCollectionsGetStatus);
+        __rpc_collections_get_status = __rpc_collections_get_status || (__legacy_rpcCollectionsGetStatus);
         logger.info('[Collections] Registered RPC: collections_get_status');
-        __rpc_collections_unlock_item = __rpc_collections_unlock_item || (rpcCollectionsUnlockItem);
+        __rpc_collections_unlock_item = __rpc_collections_unlock_item || (__legacy_rpcCollectionsUnlockItem);
         logger.info('[Collections] Registered RPC: collections_unlock_item');
-        __rpc_collections_equip_item = __rpc_collections_equip_item || (rpcCollectionsEquipItem);
+        __rpc_collections_equip_item = __rpc_collections_equip_item || (__legacy_rpcCollectionsEquipItem);
         logger.info('[Collections] Registered RPC: collections_equip_item');
-        __rpc_collections_add_mastery_xp = __rpc_collections_add_mastery_xp || (rpcCollectionsAddMasteryXP);
+        __rpc_collections_add_mastery_xp = __rpc_collections_add_mastery_xp || (__legacy_rpcCollectionsAddMasteryXP);
         logger.info('[Collections] Registered RPC: collections_add_mastery_xp');
         logger.info('[Collections] Successfully registered 4 Collections RPCs');
     } catch (err) {
@@ -63592,13 +63592,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Win-back System RPCs (D30 Retention - Re-engagement)
     try {
         logger.info('[Winback] Initializing Win-back Module...');
-        __rpc_winback_check_status = __rpc_winback_check_status || (rpcWinbackCheckStatus);
+        __rpc_winback_check_status = __rpc_winback_check_status || (__legacy_rpcWinbackCheckStatus);
         logger.info('[Winback] Registered RPC: winback_check_status');
-        __rpc_winback_claim_rewards = __rpc_winback_claim_rewards || (rpcWinbackClaimRewards);
+        __rpc_winback_claim_rewards = __rpc_winback_claim_rewards || (__legacy_rpcWinbackClaimRewards);
         logger.info('[Winback] Registered RPC: winback_claim_rewards');
-        __rpc_winback_record_session = __rpc_winback_record_session || (rpcWinbackRecordSession);
+        __rpc_winback_record_session = __rpc_winback_record_session || (__legacy_rpcWinbackRecordSession);
         logger.info('[Winback] Registered RPC: winback_record_session');
-        __rpc_winback_schedule_reengagement = __rpc_winback_schedule_reengagement || (rpcWinbackScheduleReengagement);
+        __rpc_winback_schedule_reengagement = __rpc_winback_schedule_reengagement || (__legacy_rpcWinbackScheduleReengagement);
         logger.info('[Winback] Registered RPC: winback_schedule_reengagement');
         logger.info('[Winback] Successfully registered 4 Win-back RPCs');
     } catch (err) {
@@ -63612,11 +63612,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Progressive Unlocks System RPCs (D7 Retention)
     try {
         logger.info('[ProgressiveUnlocks] Initializing Progressive Unlocks Module...');
-        __rpc_progressive_get_state = __rpc_progressive_get_state || (rpcGetUnlockState);
+        __rpc_progressive_get_state = __rpc_progressive_get_state || (__legacy_rpcGetUnlockState);
         logger.info('[ProgressiveUnlocks] Registered RPC: progressive_get_state');
-        __rpc_progressive_claim_unlock = __rpc_progressive_claim_unlock || (rpcClaimUnlock);
+        __rpc_progressive_claim_unlock = __rpc_progressive_claim_unlock || (__legacy_rpcClaimUnlock);
         logger.info('[ProgressiveUnlocks] Registered RPC: progressive_claim_unlock');
-        __rpc_progressive_check_feature = __rpc_progressive_check_feature || (rpcCheckFeatureUnlocked);
+        __rpc_progressive_check_feature = __rpc_progressive_check_feature || (__legacy_rpcCheckFeatureUnlocked);
         logger.info('[ProgressiveUnlocks] Registered RPC: progressive_check_feature');
         __rpc_progressive_update_progress = __rpc_progressive_update_progress || (rpcUpdateProgressProgressive);
         logger.info('[ProgressiveUnlocks] Registered RPC: progressive_update_progress');
@@ -63646,13 +63646,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // Register Rewarded Ads System RPCs
     try {
         logger.info('[RewardedAds] Initializing Rewarded Ads System Module...');
-        __rpc_rewarded_ad_request_token = __rpc_rewarded_ad_request_token || (rpcRewardedAdRequestToken);
+        __rpc_rewarded_ad_request_token = __rpc_rewarded_ad_request_token || (__legacy_rpcRewardedAdRequestToken);
         logger.info('[RewardedAds] Registered RPC: rewarded_ad_request_token');
-        __rpc_rewarded_ad_claim = __rpc_rewarded_ad_claim || (rpcRewardedAdClaim);
+        __rpc_rewarded_ad_claim = __rpc_rewarded_ad_claim || (__legacy_rpcRewardedAdClaim);
         logger.info('[RewardedAds] Registered RPC: rewarded_ad_claim');
-        __rpc_rewarded_ad_validate_score_multiplier = __rpc_rewarded_ad_validate_score_multiplier || (rpcValidateScoreMultiplier);
+        __rpc_rewarded_ad_validate_score_multiplier = __rpc_rewarded_ad_validate_score_multiplier || (__legacy_rpcValidateScoreMultiplier);
         logger.info('[RewardedAds] Registered RPC: rewarded_ad_validate_score_multiplier');
-        __rpc_rewarded_ad_get_status = __rpc_rewarded_ad_get_status || (rpcGetRewardedAdStatus);
+        __rpc_rewarded_ad_get_status = __rpc_rewarded_ad_get_status || (__legacy_rpcGetRewardedAdStatus);
         logger.info('[RewardedAds] Registered RPC: rewarded_ad_get_status');
         logger.info('[RewardedAds] Successfully registered 4 Rewarded Ads RPCs');
     } catch (err) {
@@ -63756,13 +63756,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[Leagues] Initializing League System Module...');
-        __rpc_league_get_state = __rpc_league_get_state || (rpcLeagueGetState);
+        __rpc_league_get_state = __rpc_league_get_state || (__legacy_rpcLeagueGetState);
         logger.info('[Leagues] Registered RPC: league_get_state');
-        __rpc_league_submit_points = __rpc_league_submit_points || (rpcLeagueSubmitPoints);
+        __rpc_league_submit_points = __rpc_league_submit_points || (__legacy_rpcLeagueSubmitPoints);
         logger.info('[Leagues] Registered RPC: league_submit_points');
-        __rpc_league_process_season = __rpc_league_process_season || (rpcLeagueProcessSeason);
+        __rpc_league_process_season = __rpc_league_process_season || (__legacy_rpcLeagueProcessSeason);
         logger.info('[Leagues] Registered RPC: league_process_season');
-        __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (rpcLeagueGetLeaderboard);
+        __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (__legacy_rpcLeagueGetLeaderboard);
         logger.info('[Leagues] Registered RPC: league_get_leaderboard');
         logger.info('[Leagues] Successfully registered 4 League RPCs');
     } catch (err) {
@@ -63833,7 +63833,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     function _charErr(msg) { return JSON.stringify({ success:false, error:msg }); }
     function _charParse(p) { if (!p || p==='') return {}; try { return JSON.parse(p); } catch(e) { return null; } }
 
-    var rpcCharacterGetState = function(ctx, logger, nk, payload) {
+    var __legacy_rpcCharacterGetState = function(ctx, logger, nk, payload) {
         if (!ctx.userId) return _charErr('User not authenticated');
         var data = _charParse(payload); if (data===null) return _charErr('Invalid JSON payload');
         var gameId = data.gameId || 'quizverse';
@@ -63852,7 +63852,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             timestamp:new Date().toISOString() });
     };
 
-    var rpcCharacterUnlock = function(ctx, logger, nk, payload) {
+    var __legacy_rpcCharacterUnlock = function(ctx, logger, nk, payload) {
         if (!ctx.userId) return _charErr('User not authenticated');
         var data = _charParse(payload); if (data===null) return _charErr('Invalid JSON');
         var gameId = data.gameId||'quizverse'; var characterId = data.characterId;
@@ -63881,7 +63881,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
             totalCharacters:Object.keys(CHAR_DEFS_INLINE).length, timestamp:now });
     };
 
-    var rpcCharacterSetActive = function(ctx, logger, nk, payload) {
+    var __legacy_rpcCharacterSetActive = function(ctx, logger, nk, payload) {
         if (!ctx.userId) return _charErr('User not authenticated');
         var data = _charParse(payload); if (data===null) return _charErr('Invalid JSON');
         var gameId = data.gameId||'quizverse'; var characterId = data.characterId;
@@ -63911,11 +63911,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
 
     try {
         logger.info('[Characters] Initializing Character System Module...');
-        __rpc_character_get_state = __rpc_character_get_state || (rpcCharacterGetState);
+        __rpc_character_get_state = __rpc_character_get_state || (__legacy_rpcCharacterGetState);
         logger.info('[Characters] Registered RPC: character_get_state');
-        __rpc_character_unlock = __rpc_character_unlock || (rpcCharacterUnlock);
+        __rpc_character_unlock = __rpc_character_unlock || (__legacy_rpcCharacterUnlock);
         logger.info('[Characters] Registered RPC: character_unlock');
-        __rpc_character_set_active = __rpc_character_set_active || (rpcCharacterSetActive);
+        __rpc_character_set_active = __rpc_character_set_active || (__legacy_rpcCharacterSetActive);
         logger.info('[Characters] Registered RPC: character_set_active');
         logger.info('[Characters] Successfully registered 3 Character RPCs');
     } catch (err) {
@@ -64099,7 +64099,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // v3.0 NEW RPCs â€” Gift System (1 RPC)
     // ============================================================================
     try {
-        __rpc_gift_send = __rpc_gift_send || (rpcGiftSend);
+        __rpc_gift_send = __rpc_gift_send || (__legacy_rpcGiftSend);
         logger.info('[Gifts] Registered gift_send');
     } catch (err) { logger.error('[Gifts] Failed: ' + err.message); }
 
@@ -64199,11 +64199,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         function _charWrite(nk, uid, gid, d) { nk.storageWrite([{collection:CHAR_COL,key:_charKey(uid,gid),userId:uid,value:d,permissionRead:1,permissionWrite:0}]); }
         function _charInit(uid) { var n=new Date().toISOString(); return {activeCharacter:'quizzy',unlockedCharacters:{quizzy:{unlockedAt:n}},totalXpFromUnlocks:0,createdAt:n,updatedAt:n}; }
 
-        __rpc_character_get_state = __rpc_character_get_state || (rpcCharacterGetState);
+        __rpc_character_get_state = __rpc_character_get_state || (__legacy_rpcCharacterGetState);
 
-        __rpc_character_unlock = __rpc_character_unlock || (rpcCharacterUnlock);
+        __rpc_character_unlock = __rpc_character_unlock || (__legacy_rpcCharacterUnlock);
 
-        __rpc_character_set_active = __rpc_character_set_active || (rpcCharacterSetActive);
+        __rpc_character_set_active = __rpc_character_set_active || (__legacy_rpcCharacterSetActive);
 
         logger.info('[Characters] Registered 3 Character System RPCs');
     } catch (err) { logger.error('[Characters] Failed to register: ' + err.message); }
@@ -64235,13 +64235,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         function _lgInit(uid,gid) { var n=new Date().toISOString(); return {userId:uid,gameId:gid,tier:'bronze',points:0,quizzesThisWeek:0,perfectRounds:0,totalAccuracy:0,accuracyCount:0,season:_lgWeekId(),seasonJoinedAt:n,qualifiesForPromotion:false,sandbaggingFlags:0,consecutiveLowAccuracy:0,consistencyBonus:false,lastSubmissionId:'',lastSubmissionAt:null,createdAt:n,updatedAt:n}; }
         function _lgRotate(s) { s.points=0;s.quizzesThisWeek=0;s.perfectRounds=0;s.totalAccuracy=0;s.accuracyCount=0;s.qualifiesForPromotion=false;s.season=_lgWeekId();s.lastSubmissionId='';s.updatedAt=new Date().toISOString(); return s; }
 
-        __rpc_league_get_state = __rpc_league_get_state || (rpcLeagueGetState);
+        __rpc_league_get_state = __rpc_league_get_state || (__legacy_rpcLeagueGetState);
 
-        __rpc_league_submit_points = __rpc_league_submit_points || (rpcLeagueSubmitPoints);
+        __rpc_league_submit_points = __rpc_league_submit_points || (__legacy_rpcLeagueSubmitPoints);
 
-        __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (rpcLeagueGetLeaderboard);
+        __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (__legacy_rpcLeagueGetLeaderboard);
 
-        __rpc_league_process_season = __rpc_league_process_season || (rpcLeagueProcessSeason);
+        __rpc_league_process_season = __rpc_league_process_season || (__legacy_rpcLeagueProcessSeason);
 
         logger.info('[Leagues] Registered 4 League System RPCs');
     } catch (err) { logger.error('[Leagues] Failed to register: ' + err.message); }
@@ -71062,7 +71062,18 @@ var LegacyAnalytics;
         }
     }
     function register(initializer) {
-        __rpc_analytics_log_event = rpcAnalyticsLogEvent;
+        // NOTE: analytics_log_event is intentionally NOT registered here.
+        // The modern handler in data/modules/analytics/analytics.js owns this RPC ID.
+        // It performs gameId slug<->UUID aliasing, dimension extraction (Tier/Country/
+        // Device/etc.), and writes both dashboardKey (SYSTEM_USER) and userKey
+        // (per-user) records that the breakdown / retention / timeline RPCs scan.
+        //
+        // Re-enabling the line below will overwrite the modern handler at postbuild
+        // time (TS build assignments are unguarded) and cause filtered breakdowns
+        // to return total_events=0 with all dimensions = "unknown".
+        //
+        // __rpc_analytics_log_event = rpcAnalyticsLogEvent;
+        void rpcAnalyticsLogEvent;
     }
     LegacyAnalytics.register = register;
     register();
@@ -78829,296 +78840,7 @@ var WalletHelpers;
 
 
 // --- Global-scope __rpc_ assignments (VM-pool fix) ---
-try { __rpc_submit_score_sync = __rpc_submit_score_sync || (submitScoreSync); } catch(e) {}
-try { __rpc_submit_score_with_aggregate = __rpc_submit_score_with_aggregate || (submitScoreWithAggregate); } catch(e) {}
-try { __rpc_create_all_leaderboards_with_friends = __rpc_create_all_leaderboards_with_friends || (createAllLeaderboardsWithFriends); } catch(e) {}
-try { __rpc_submit_score_with_friends_sync = __rpc_submit_score_with_friends_sync || (submitScoreWithFriendsSync); } catch(e) {}
-try { __rpc_get_friend_leaderboard = __rpc_get_friend_leaderboard || (getFriendLeaderboard); } catch(e) {}
-try { __rpc_get_notifications = __rpc_get_notifications || (getNotifications); } catch(e) {}
-try { __rpc_get_user_wallet = __rpc_get_user_wallet || (getUserWallet); } catch(e) {}
-try { __rpc_link_wallet_to_game = __rpc_link_wallet_to_game || (linkWalletToGame); } catch(e) {}
-try { __rpc_get_wallet_registry = __rpc_get_wallet_registry || (getWalletRegistry); } catch(e) {}
-try { __rpc_create_all_leaderboards_persistent = __rpc_create_all_leaderboards_persistent || (createAllLeaderboardsPersistent); } catch(e) {}
-try { __rpc_create_time_period_leaderboards = __rpc_create_time_period_leaderboards || (rpcCreateTimePeriodLeaderboards); } catch(e) {}
-try { __rpc_submit_score_to_time_periods = __rpc_submit_score_to_time_periods || (rpcSubmitScoreToTimePeriods); } catch(e) {}
-try { __rpc_get_time_period_leaderboard = __rpc_get_time_period_leaderboard || (rpcGetTimePeriodLeaderboard); } catch(e) {}
-try { __rpc_get_game_registry = __rpc_get_game_registry || (rpcGetGameRegistry); } catch(e) {}
-try { __rpc_get_game_by_id = __rpc_get_game_by_id || (rpcGetGameById); } catch(e) {}
-try { __rpc_sync_game_registry = __rpc_sync_game_registry || (rpcSyncGameRegistry); } catch(e) {}
-try { __rpc_daily_rewards_get_status = __rpc_daily_rewards_get_status || (rpcDailyRewardsGetStatus); } catch(e) {}
-try { __rpc_daily_rewards_claim = __rpc_daily_rewards_claim || (rpcDailyRewardsClaim); } catch(e) {}
-try { __rpc_quiz_submit_result = __rpc_quiz_submit_result || (rpcQuizSubmitResult); } catch(e) {}
-try { __rpc_quiz_get_history = __rpc_quiz_get_history || (rpcQuizGetHistory); } catch(e) {}
-try { __rpc_quiz_get_stats = __rpc_quiz_get_stats || (rpcQuizGetStats); } catch(e) {}
-try { __rpc_quiz_check_daily_completion = __rpc_quiz_check_daily_completion || (rpcQuizCheckDailyCompletion); } catch(e) {}
-try { __rpc_game_entry_validate = __rpc_game_entry_validate || (rpcGameEntryValidate); } catch(e) {}
-try { __rpc_game_entry_complete = __rpc_game_entry_complete || (rpcGameEntryComplete); } catch(e) {}
-try { __rpc_game_entry_get_status = __rpc_game_entry_get_status || (rpcGameEntryGetStatus); } catch(e) {}
-try { __rpc_get_daily_missions = __rpc_get_daily_missions || (rpcGetDailyMissions); } catch(e) {}
-try { __rpc_submit_mission_progress = __rpc_submit_mission_progress || (rpcSubmitMissionProgress); } catch(e) {}
-try { __rpc_claim_mission_reward = __rpc_claim_mission_reward || (rpcClaimMissionReward); } catch(e) {}
-try { __rpc_wallet_get_all = __rpc_wallet_get_all || (rpcWalletGetAll); } catch(e) {}
-try { __rpc_wallet_update_global = __rpc_wallet_update_global || (rpcWalletUpdateGlobal); } catch(e) {}
-try { __rpc_wallet_update_game_wallet = __rpc_wallet_update_game_wallet || (rpcWalletUpdateGameWallet); } catch(e) {}
-try { __rpc_wallet_transfer_between_game_wallets = __rpc_wallet_transfer_between_game_wallets || (rpcWalletTransferBetweenGameWallets); } catch(e) {}
-try { __rpc_wallet_get_balances = __rpc_wallet_get_balances || (rpcWalletGetBalances); } catch(e) {}
-try { __rpc_analytics_log_event = __rpc_analytics_log_event || (rpcAnalyticsLogEvent); } catch(e) {}
-try { __rpc_friends_block = __rpc_friends_block || (rpcFriendsBlock); } catch(e) {}
-try { __rpc_friends_unblock = __rpc_friends_unblock || (rpcFriendsUnblock); } catch(e) {}
-try { __rpc_friends_remove = __rpc_friends_remove || (rpcFriendsRemove); } catch(e) {}
-try { __rpc_friends_list = __rpc_friends_list || (rpcFriendsList); } catch(e) {}
-try { __rpc_create_game_group = __rpc_create_game_group || (rpcCreateGameGroup); } catch(e) {}
-try { __rpc_update_group_xp = __rpc_update_group_xp || (rpcUpdateGroupXP); } catch(e) {}
-try { __rpc_get_group_wallet = __rpc_get_group_wallet || (rpcGetGroupWallet); } catch(e) {}
-try { __rpc_update_group_wallet = __rpc_update_group_wallet || (rpcUpdateGroupWallet); } catch(e) {}
-try { __rpc_get_user_groups = __rpc_get_user_groups || (rpcGetUserGroups); } catch(e) {}
-try { __rpc_push_register_token = __rpc_push_register_token || (rpcPushRegisterToken); } catch(e) {}
-try { __rpc_push_send_event = __rpc_push_send_event || (rpcPushSendEvent); } catch(e) {}
-try { __rpc_push_get_endpoints = __rpc_push_get_endpoints || (rpcPushGetEndpoints); } catch(e) {}
-try { __rpc_submit_score_sync = __rpc_submit_score_sync || (submitScoreSync); } catch(e) {}
-try { __rpc_submit_score_with_aggregate = __rpc_submit_score_with_aggregate || (submitScoreWithAggregate); } catch(e) {}
-try { __rpc_create_all_leaderboards_with_friends = __rpc_create_all_leaderboards_with_friends || (createAllLeaderboardsWithFriends); } catch(e) {}
-try { __rpc_submit_score_with_friends_sync = __rpc_submit_score_with_friends_sync || (submitScoreWithFriendsSync); } catch(e) {}
-try { __rpc_get_friend_leaderboard = __rpc_get_friend_leaderboard || (getFriendLeaderboard); } catch(e) {}
-try { __rpc_get_notifications = __rpc_get_notifications || (getNotifications); } catch(e) {}
-try { __rpc_create_or_sync_user = __rpc_create_or_sync_user || (createOrSyncUser); } catch(e) {}
-try { __rpc_create_or_get_wallet = __rpc_create_or_get_wallet || (createOrGetWallet); } catch(e) {}
-try { __rpc_submit_score_and_sync = __rpc_submit_score_and_sync || (submitScoreAndSync); } catch(e) {}
-try { __rpc_get_all_leaderboards = __rpc_get_all_leaderboards || (getAllLeaderboards); } catch(e) {}
-try { __rpc_create_player_wallet = __rpc_create_player_wallet || (rpcCreatePlayerWallet); } catch(e) {}
-try { __rpc_update_wallet_balance = __rpc_update_wallet_balance || (rpcUpdateWalletBalance); } catch(e) {}
-try { __rpc_get_wallet_balance = __rpc_get_wallet_balance || (rpcGetWalletBalance); } catch(e) {}
-try { __rpc_submit_leaderboard_score = __rpc_submit_leaderboard_score || (rpcSubmitLeaderboardScore); } catch(e) {}
-try { __rpc_get_leaderboard = __rpc_get_leaderboard || (rpcGetLeaderboard); } catch(e) {}
-try { __rpc_check_geo_and_update_profile = __rpc_check_geo_and_update_profile || (rpcCheckGeoAndUpdateProfile); } catch(e) {}
-try { __rpc_get_player_portfolio = __rpc_get_player_portfolio || (rpcGetPlayerPortfolio); } catch(e) {}
-try { __rpc_rpc_update_player_metadata = __rpc_rpc_update_player_metadata || (rpcUpdatePlayerMetadata); } catch(e) {}
-try { __rpc_rpc_update_player_metadata = __rpc_rpc_update_player_metadata || (rpcUpdatePlayerMetadataUnified); } catch(e) {}
-try { __rpc_rpc_change_username = __rpc_rpc_change_username || (rpcChangeUsername); } catch(e) {}
-try { __rpc_get_player_metadata = __rpc_get_player_metadata || (rpcGetPlayerMetadata); } catch(e) {}
-try { __rpc_admin_delete_player_metadata = __rpc_admin_delete_player_metadata || (rpcAdminDeletePlayerMetadata); } catch(e) {}
-try { __rpc_calculate_score_reward = __rpc_calculate_score_reward || (rpcCalculateScoreReward); } catch(e) {}
-try { __rpc_update_game_reward_config = __rpc_update_game_reward_config || (rpcUpdateGameRewardConfig); } catch(e) {}
-try { __rpc_send_group_chat_message = __rpc_send_group_chat_message || (rpcSendGroupChatMessage); } catch(e) {}
-try { __rpc_send_direct_message = __rpc_send_direct_message || (rpcSendDirectMessage); } catch(e) {}
-try { __rpc_send_chat_room_message = __rpc_send_chat_room_message || (rpcSendChatRoomMessage); } catch(e) {}
-try { __rpc_get_group_chat_history = __rpc_get_group_chat_history || (rpcGetGroupChatHistory); } catch(e) {}
-try { __rpc_get_direct_message_history = __rpc_get_direct_message_history || (rpcGetDirectMessageHistory); } catch(e) {}
-try { __rpc_get_chat_room_history = __rpc_get_chat_room_history || (rpcGetChatRoomHistory); } catch(e) {}
-try { __rpc_mark_direct_messages_read = __rpc_mark_direct_messages_read || (rpcMarkDirectMessagesRead); } catch(e) {}
-try { __rpc_quizverse_update_user_profile = __rpc_quizverse_update_user_profile || (quizverseUpdateUserProfile); } catch(e) {}
-try { __rpc_quizverse_grant_currency = __rpc_quizverse_grant_currency || (quizverseGrantCurrency); } catch(e) {}
-try { __rpc_quizverse_spend_currency = __rpc_quizverse_spend_currency || (quizverseSpendCurrency); } catch(e) {}
-try { __rpc_quizverse_validate_purchase = __rpc_quizverse_validate_purchase || (quizverseValidatePurchase); } catch(e) {}
-try { __rpc_quizverse_list_inventory = __rpc_quizverse_list_inventory || (quizverseListInventory); } catch(e) {}
-try { __rpc_quizverse_grant_item = __rpc_quizverse_grant_item || (quizverseGrantItem); } catch(e) {}
-try { __rpc_quizverse_consume_item = __rpc_quizverse_consume_item || (quizverseConsumeItem); } catch(e) {}
-try { __rpc_quizverse_submit_score = __rpc_quizverse_submit_score || (quizverseSubmitScore); } catch(e) {}
-try { __rpc_quizverse_get_leaderboard = __rpc_quizverse_get_leaderboard || (quizverseGetLeaderboard); } catch(e) {}
-try { __rpc_quizverse_join_or_create_match = __rpc_quizverse_join_or_create_match || (quizverseJoinOrCreateMatch); } catch(e) {}
-try { __rpc_quizverse_claim_daily_reward = __rpc_quizverse_claim_daily_reward || (quizverseClaimDailyReward); } catch(e) {}
-try { __rpc_quizverse_save_player_data = __rpc_quizverse_save_player_data || (quizverseSavePlayerData); } catch(e) {}
-try { __rpc_quizverse_load_player_data = __rpc_quizverse_load_player_data || (quizverseLoadPlayerData); } catch(e) {}
-try { __rpc_quizverse_get_item_catalog = __rpc_quizverse_get_item_catalog || (quizverseGetItemCatalog); } catch(e) {}
-try { __rpc_quizverse_search_items = __rpc_quizverse_search_items || (quizverseSearchItems); } catch(e) {}
-try { __rpc_quizverse_get_quiz_categories = __rpc_quizverse_get_quiz_categories || (quizverseGetQuizCategories); } catch(e) {}
-try { __rpc_quizverse_refresh_server_cache = __rpc_quizverse_refresh_server_cache || (quizverseRefreshServerCache); } catch(e) {}
-try { __rpc_quizverse_guild_create = __rpc_quizverse_guild_create || (quizverseGuildCreate); } catch(e) {}
-try { __rpc_quizverse_guild_join = __rpc_quizverse_guild_join || (quizverseGuildJoin); } catch(e) {}
-try { __rpc_quizverse_guild_leave = __rpc_quizverse_guild_leave || (quizverseGuildLeave); } catch(e) {}
-try { __rpc_quizverse_guild_list = __rpc_quizverse_guild_list || (quizverseGuildList); } catch(e) {}
-try { __rpc_quizverse_send_channel_message = __rpc_quizverse_send_channel_message || (quizverseSendChannelMessage); } catch(e) {}
-try { __rpc_quizverse_log_event = __rpc_quizverse_log_event || (quizverseLogEvent); } catch(e) {}
-try { __rpc_quizverse_track_session_start = __rpc_quizverse_track_session_start || (quizverseTrackSessionStart); } catch(e) {}
-try { __rpc_quizverse_track_session_end = __rpc_quizverse_track_session_end || (quizverseTrackSessionEnd); } catch(e) {}
-try { __rpc_quizverse_get_server_config = __rpc_quizverse_get_server_config || (quizverseGetServerConfig); } catch(e) {}
-try { __rpc_quizverse_admin_grant_item = __rpc_quizverse_admin_grant_item || (quizverseAdminGrantItem); } catch(e) {}
-try { __rpc_lasttolive_update_user_profile = __rpc_lasttolive_update_user_profile || (lasttoliveUpdateUserProfile); } catch(e) {}
-try { __rpc_lasttolive_grant_currency = __rpc_lasttolive_grant_currency || (lasttoliveGrantCurrency); } catch(e) {}
-try { __rpc_lasttolive_spend_currency = __rpc_lasttolive_spend_currency || (lasttoliveSpendCurrency); } catch(e) {}
-try { __rpc_lasttolive_validate_purchase = __rpc_lasttolive_validate_purchase || (lasttoliveValidatePurchase); } catch(e) {}
-try { __rpc_lasttolive_list_inventory = __rpc_lasttolive_list_inventory || (lasttoliveListInventory); } catch(e) {}
-try { __rpc_lasttolive_grant_item = __rpc_lasttolive_grant_item || (lasttoliveGrantItem); } catch(e) {}
-try { __rpc_lasttolive_consume_item = __rpc_lasttolive_consume_item || (lasttoliveConsumeItem); } catch(e) {}
-try { __rpc_lasttolive_submit_score = __rpc_lasttolive_submit_score || (lasttoliveSubmitScore); } catch(e) {}
-try { __rpc_lasttolive_get_leaderboard = __rpc_lasttolive_get_leaderboard || (lasttoliveGetLeaderboard); } catch(e) {}
-try { __rpc_lasttolive_join_or_create_match = __rpc_lasttolive_join_or_create_match || (lasttoliveJoinOrCreateMatch); } catch(e) {}
-try { __rpc_lasttolive_claim_daily_reward = __rpc_lasttolive_claim_daily_reward || (lasttoliveClaimDailyReward); } catch(e) {}
-try { __rpc_lasttolive_save_player_data = __rpc_lasttolive_save_player_data || (lasttolliveSavePlayerData); } catch(e) {}
-try { __rpc_lasttolive_load_player_data = __rpc_lasttolive_load_player_data || (lasttoliveLoadPlayerData); } catch(e) {}
-try { __rpc_lasttolive_get_item_catalog = __rpc_lasttolive_get_item_catalog || (lasttoliveGetItemCatalog); } catch(e) {}
-try { __rpc_lasttolive_search_items = __rpc_lasttolive_search_items || (lasttoliveSearchItems); } catch(e) {}
-try { __rpc_lasttolive_get_weapon_stats = __rpc_lasttolive_get_weapon_stats || (lasttoliveGetWeaponStats); } catch(e) {}
-try { __rpc_lasttolive_refresh_server_cache = __rpc_lasttolive_refresh_server_cache || (lasttoliveRefreshServerCache); } catch(e) {}
-try { __rpc_lasttolive_guild_create = __rpc_lasttolive_guild_create || (lasttoliveGuildCreate); } catch(e) {}
-try { __rpc_lasttolive_guild_join = __rpc_lasttolive_guild_join || (lasttoliveGuildJoin); } catch(e) {}
-try { __rpc_lasttolive_guild_leave = __rpc_lasttolive_guild_leave || (lasttoliveGuildLeave); } catch(e) {}
-try { __rpc_lasttolive_guild_list = __rpc_lasttolive_guild_list || (lasttoliveGuildList); } catch(e) {}
-try { __rpc_lasttolive_send_channel_message = __rpc_lasttolive_send_channel_message || (lasttolliveSendChannelMessage); } catch(e) {}
-try { __rpc_lasttolive_log_event = __rpc_lasttolive_log_event || (lasttoliveLogEvent); } catch(e) {}
-try { __rpc_lasttolive_track_session_start = __rpc_lasttolive_track_session_start || (lasttoliveTrackSessionStart); } catch(e) {}
-try { __rpc_lasttolive_track_session_end = __rpc_lasttolive_track_session_end || (lasttoliveTrackSessionEnd); } catch(e) {}
-try { __rpc_lasttolive_get_server_config = __rpc_lasttolive_get_server_config || (lasttoliveGetServerConfig); } catch(e) {}
-try { __rpc_lasttolive_admin_grant_item = __rpc_lasttolive_admin_grant_item || (lasttoliveAdminGrantItem); } catch(e) {}
-try { __rpc_achievements_get_all = __rpc_achievements_get_all || (rpcAchievementsGetAll); } catch(e) {}
-try { __rpc_achievements_update_progress = __rpc_achievements_update_progress || (rpcAchievementsUpdateProgress); } catch(e) {}
-try { __rpc_achievements_create_definition = __rpc_achievements_create_definition || (rpcAchievementsCreateDefinition); } catch(e) {}
-try { __rpc_achievements_bulk_create = __rpc_achievements_bulk_create || (rpcAchievementsBulkCreate); } catch(e) {}
-try { __rpc_matchmaking_find_match = __rpc_matchmaking_find_match || (rpcMatchmakingFindMatch); } catch(e) {}
-try { __rpc_matchmaking_cancel = __rpc_matchmaking_cancel || (rpcMatchmakingCancel); } catch(e) {}
-try { __rpc_matchmaking_get_status = __rpc_matchmaking_get_status || (rpcMatchmakingGetStatus); } catch(e) {}
-try { __rpc_matchmaking_create_party = __rpc_matchmaking_create_party || (rpcMatchmakingCreateParty); } catch(e) {}
-try { __rpc_matchmaking_join_party = __rpc_matchmaking_join_party || (rpcMatchmakingJoinParty); } catch(e) {}
-try { __rpc_tournament_create = __rpc_tournament_create || (rpcTournamentCreate); } catch(e) {}
-try { __rpc_tournament_join = __rpc_tournament_join || (rpcTournamentJoin); } catch(e) {}
-try { __rpc_tournament_list_active = __rpc_tournament_list_active || (rpcTournamentListActive); } catch(e) {}
-try { __rpc_tournament_submit_score = __rpc_tournament_submit_score || (rpcTournamentSubmitScore); } catch(e) {}
-try { __rpc_tournament_get_leaderboard = __rpc_tournament_get_leaderboard || (rpcTournamentGetLeaderboard); } catch(e) {}
-try { __rpc_tournament_claim_rewards = __rpc_tournament_claim_rewards || (rpcTournamentClaimRewards); } catch(e) {}
-try { __rpc_batch_execute = __rpc_batch_execute || (rpcBatchExecute); } catch(e) {}
-try { __rpc_batch_wallet_operations = __rpc_batch_wallet_operations || (rpcBatchWalletOperations); } catch(e) {}
-try { __rpc_batch_achievement_progress = __rpc_batch_achievement_progress || (rpcBatchAchievementProgress); } catch(e) {}
-try { __rpc_rate_limit_status = __rpc_rate_limit_status || (rpcRateLimitStatus); } catch(e) {}
-try { __rpc_cache_stats = __rpc_cache_stats || (rpcCacheStats); } catch(e) {}
-try { __rpc_cache_clear = __rpc_cache_clear || (rpcCacheClear); } catch(e) {}
-try { __rpc_quizverse_submit_score = __rpc_quizverse_submit_score || (rpcQuizVerseSubmitScore); } catch(e) {}
-try { __rpc_quizverse_get_leaderboard = __rpc_quizverse_get_leaderboard || (rpcQuizVerseGetLeaderboard); } catch(e) {}
-try { __rpc_quizverse_submit_multiplayer_match = __rpc_quizverse_submit_multiplayer_match || (rpcQuizVerseSubmitMultiplayerMatch); } catch(e) {}
-try { __rpc_cleanup_guest_user_metadata = __rpc_cleanup_guest_user_metadata || (rpcCleanupGuestUserMetadata); } catch(e) {}
-try { __rpc_onboarding_get_state = __rpc_onboarding_get_state || (rpcOnboardingGetState); } catch(e) {}
-try { __rpc_onboarding_update_state = __rpc_onboarding_update_state || (rpcOnboardingUpdateState); } catch(e) {}
-try { __rpc_onboarding_complete_step = __rpc_onboarding_complete_step || (rpcOnboardingCompleteStep); } catch(e) {}
-try { __rpc_onboarding_set_interests = __rpc_onboarding_set_interests || (rpcOnboardingSetInterests); } catch(e) {}
-try { __rpc_onboarding_get_interests = __rpc_onboarding_get_interests || (rpcOnboardingGetInterests); } catch(e) {}
-try { __rpc_onboarding_claim_welcome_bonus = __rpc_onboarding_claim_welcome_bonus || (rpcOnboardingClaimWelcomeBonus); } catch(e) {}
-try { __rpc_onboarding_first_quiz_complete = __rpc_onboarding_first_quiz_complete || (rpcOnboardingFirstQuizComplete); } catch(e) {}
-try { __rpc_onboarding_get_tomorrow_preview = __rpc_onboarding_get_tomorrow_preview || (rpcOnboardingGetTomorrowPreview); } catch(e) {}
-try { __rpc_onboarding_track_session = __rpc_onboarding_track_session || (rpcOnboardingTrackSession); } catch(e) {}
-try { __rpc_onboarding_get_retention_data = __rpc_onboarding_get_retention_data || (rpcOnboardingGetRetentionData); } catch(e) {}
-try { __rpc_onboarding_create_link_quiz = __rpc_onboarding_create_link_quiz || (rpcOnboardingCreateLinkQuiz); } catch(e) {}
-try { __rpc_retention_grant_streak_shield = __rpc_retention_grant_streak_shield || (rpcRetentionGrantStreakShield); } catch(e) {}
-try { __rpc_retention_get_streak_shield = __rpc_retention_get_streak_shield || (rpcRetentionGetStreakShield); } catch(e) {}
-try { __rpc_retention_use_streak_shield = __rpc_retention_use_streak_shield || (rpcRetentionUseStreakShield); } catch(e) {}
-try { __rpc_retention_schedule_notification = __rpc_retention_schedule_notification || (rpcRetentionScheduleNotification); } catch(e) {}
-try { __rpc_retention_get_recommendations = __rpc_retention_get_recommendations || (rpcRetentionGetRecommendations); } catch(e) {}
-try { __rpc_retention_track_first_session = __rpc_retention_track_first_session || (rpcRetentionTrackFirstSession); } catch(e) {}
-try { __rpc_retention_claim_welcome_bonus = __rpc_retention_claim_welcome_bonus || (rpcRetentionClaimWelcomeBonus); } catch(e) {}
-try { __rpc_weekly_goals_get_status = __rpc_weekly_goals_get_status || (rpcWeeklyGoalsGetStatus); } catch(e) {}
-try { __rpc_weekly_goals_update_progress = __rpc_weekly_goals_update_progress || (rpcWeeklyGoalsUpdateProgress); } catch(e) {}
-try { __rpc_weekly_goals_claim_reward = __rpc_weekly_goals_claim_reward || (rpcWeeklyGoalsClaimReward); } catch(e) {}
-try { __rpc_weekly_goals_claim_bonus = __rpc_weekly_goals_claim_bonus || (rpcWeeklyGoalsClaimBonus); } catch(e) {}
-try { __rpc_season_pass_get_status = __rpc_season_pass_get_status || (rpcSeasonPassGetStatus); } catch(e) {}
-try { __rpc_season_pass_add_xp = __rpc_season_pass_add_xp || (rpcSeasonPassAddXP); } catch(e) {}
-try { __rpc_season_pass_complete_quest = __rpc_season_pass_complete_quest || (rpcSeasonPassCompleteQuest); } catch(e) {}
-try { __rpc_season_pass_claim_reward = __rpc_season_pass_claim_reward || (rpcSeasonPassClaimReward); } catch(e) {}
-try { __rpc_season_pass_purchase_premium = __rpc_season_pass_purchase_premium || (rpcSeasonPassPurchasePremium); } catch(e) {}
-try { __rpc_monthly_milestones_get_status = __rpc_monthly_milestones_get_status || (rpcMonthlyMilestonesGetStatus); } catch(e) {}
-try { __rpc_monthly_milestones_update_progress = __rpc_monthly_milestones_update_progress || (rpcMonthlyMilestonesUpdateProgress); } catch(e) {}
-try { __rpc_monthly_milestones_claim_reward = __rpc_monthly_milestones_claim_reward || (rpcMonthlyMilestonesClaimReward); } catch(e) {}
-try { __rpc_monthly_milestones_claim_legendary = __rpc_monthly_milestones_claim_legendary || (rpcMonthlyMilestonesClaimLegendary); } catch(e) {}
-try { __rpc_collections_get_status = __rpc_collections_get_status || (rpcCollectionsGetStatus); } catch(e) {}
-try { __rpc_collections_unlock_item = __rpc_collections_unlock_item || (rpcCollectionsUnlockItem); } catch(e) {}
-try { __rpc_collections_equip_item = __rpc_collections_equip_item || (rpcCollectionsEquipItem); } catch(e) {}
-try { __rpc_collections_add_mastery_xp = __rpc_collections_add_mastery_xp || (rpcCollectionsAddMasteryXP); } catch(e) {}
-try { __rpc_winback_check_status = __rpc_winback_check_status || (rpcWinbackCheckStatus); } catch(e) {}
-try { __rpc_winback_claim_rewards = __rpc_winback_claim_rewards || (rpcWinbackClaimRewards); } catch(e) {}
-try { __rpc_winback_record_session = __rpc_winback_record_session || (rpcWinbackRecordSession); } catch(e) {}
-try { __rpc_winback_schedule_reengagement = __rpc_winback_schedule_reengagement || (rpcWinbackScheduleReengagement); } catch(e) {}
-try { __rpc_progressive_get_state = __rpc_progressive_get_state || (rpcGetUnlockState); } catch(e) {}
-try { __rpc_progressive_claim_unlock = __rpc_progressive_claim_unlock || (rpcClaimUnlock); } catch(e) {}
-try { __rpc_progressive_check_feature = __rpc_progressive_check_feature || (rpcCheckFeatureUnlocked); } catch(e) {}
-try { __rpc_progressive_update_progress = __rpc_progressive_update_progress || (rpcUpdateProgressProgressive); } catch(e) {}
-try { __rpc_progression_add_mastery_xp = __rpc_progression_add_mastery_xp || (rpcProgressionAddMasteryXp); } catch(e) {}
-try { __rpc_progression_get_state = __rpc_progression_get_state || (rpcProgressionGetState); } catch(e) {}
-try { __rpc_progression_claim_prestige = __rpc_progression_claim_prestige || (rpcProgressionClaimPrestige); } catch(e) {}
-try { __rpc_rewarded_ad_request_token = __rpc_rewarded_ad_request_token || (rpcRewardedAdRequestToken); } catch(e) {}
-try { __rpc_rewarded_ad_claim = __rpc_rewarded_ad_claim || (rpcRewardedAdClaim); } catch(e) {}
-try { __rpc_rewarded_ad_validate_score_multiplier = __rpc_rewarded_ad_validate_score_multiplier || (rpcValidateScoreMultiplier); } catch(e) {}
-try { __rpc_rewarded_ad_get_status = __rpc_rewarded_ad_get_status || (rpcGetRewardedAdStatus); } catch(e) {}
-try { __rpc_compatibility_create_session = __rpc_compatibility_create_session || (rpcCompatibilityCreateSession); } catch(e) {}
-try { __rpc_compatibility_join_session = __rpc_compatibility_join_session || (rpcCompatibilityJoinSession); } catch(e) {}
-try { __rpc_compatibility_get_session = __rpc_compatibility_get_session || (rpcCompatibilityGetSession); } catch(e) {}
-try { __rpc_compatibility_submit_answers = __rpc_compatibility_submit_answers || (rpcCompatibilitySubmitAnswers); } catch(e) {}
-try { __rpc_compatibility_calculate = __rpc_compatibility_calculate || (rpcCompatibilityCalculate); } catch(e) {}
-try { __rpc_compatibility_list_sessions = __rpc_compatibility_list_sessions || (rpcCompatibilityListSessions); } catch(e) {}
-try { __rpc_async_challenge_create = __rpc_async_challenge_create || (rpcAsyncChallengeCreate); } catch(e) {}
-try { __rpc_async_challenge_join = __rpc_async_challenge_join || (rpcAsyncChallengeJoin); } catch(e) {}
-try { __rpc_async_challenge_get = __rpc_async_challenge_get || (rpcAsyncChallengeGet); } catch(e) {}
-try { __rpc_async_challenge_submit = __rpc_async_challenge_submit || (rpcAsyncChallengeSubmit); } catch(e) {}
-try { __rpc_async_challenge_list = __rpc_async_challenge_list || (rpcAsyncChallengeList); } catch(e) {}
-try { __rpc_async_challenge_cancel = __rpc_async_challenge_cancel || (rpcAsyncChallengeCancel); } catch(e) {}
-try { __rpc_async_challenge_stats = __rpc_async_challenge_stats || (rpcAsyncChallengeStats); } catch(e) {}
-try { __rpc_async_challenge_rematch = __rpc_async_challenge_rematch || (rpcAsyncChallengeRematch); } catch(e) {}
-try { __rpc_async_challenge_leaderboard = __rpc_async_challenge_leaderboard || (rpcAsyncChallengeLeaderboard); } catch(e) {}
-try { __rpc_badges_get_all = __rpc_badges_get_all || (rpcBadgesGetAll); } catch(e) {}
-try { __rpc_badges_update_progress = __rpc_badges_update_progress || (rpcBadgesUpdateProgress); } catch(e) {}
-try { __rpc_badges_check_event = __rpc_badges_check_event || (rpcBadgesCheckEvent); } catch(e) {}
-try { __rpc_badges_set_displayed = __rpc_badges_set_displayed || (rpcBadgesSetDisplayed); } catch(e) {}
-try { __rpc_badges_bulk_create = __rpc_badges_bulk_create || (rpcBadgesBulkCreate); } catch(e) {}
-try { __rpc_collectables_get_all = __rpc_collectables_get_all || (rpcCollectablesGetAll); } catch(e) {}
-try { __rpc_collectables_grant = __rpc_collectables_grant || (rpcCollectablesGrant); } catch(e) {}
-try { __rpc_collectables_equip = __rpc_collectables_equip || (rpcCollectablesEquip); } catch(e) {}
-try { __rpc_collectables_bulk_create = __rpc_collectables_bulk_create || (rpcCollectablesBulkCreate); } catch(e) {}
-try { __rpc_league_get_state = __rpc_league_get_state || (rpcLeagueGetState); } catch(e) {}
-try { __rpc_league_submit_points = __rpc_league_submit_points || (rpcLeagueSubmitPoints); } catch(e) {}
-try { __rpc_league_process_season = __rpc_league_process_season || (rpcLeagueProcessSeason); } catch(e) {}
-try { __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (rpcLeagueGetLeaderboard); } catch(e) {}
-try { __rpc_streak_repair = __rpc_streak_repair || (rpcStreakRepair); } catch(e) {}
-try { __rpc_streak_wager = __rpc_streak_wager || (rpcStreakWager); } catch(e) {}
-try { __rpc_character_get_state = __rpc_character_get_state || (rpcCharacterGetState); } catch(e) {}
-try { __rpc_character_unlock = __rpc_character_unlock || (rpcCharacterUnlock); } catch(e) {}
-try { __rpc_character_set_active = __rpc_character_set_active || (rpcCharacterSetActive); } catch(e) {}
-try { __rpc_notification_gate_get_state = __rpc_notification_gate_get_state || (rpcNotifGateGetState); } catch(e) {}
-try { __rpc_list_notification_inbox = __rpc_list_notification_inbox || (rpcListNotificationInbox); } catch(e) {}
-try { __rpc_mark_notifications_read = __rpc_mark_notifications_read || (rpcMarkNotificationsRead); } catch(e) {}
-try { __rpc_smart_review_get_cards = __rpc_smart_review_get_cards || (rpcSmartReviewGetCards); } catch(e) {}
-try { __rpc_smart_review_rate_card = __rpc_smart_review_rate_card || (rpcSmartReviewRateCard); } catch(e) {}
-try { __rpc_manifest_get_version = __rpc_manifest_get_version || (rpcManifestGetVersion); } catch(e) {}
-try { __rpc_player_get_full_profile = __rpc_player_get_full_profile || (rpcPlayerGetFullProfile); } catch(e) {}
-try { __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState); } catch(e) {}
-try { __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution); } catch(e) {}
-try { __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge); } catch(e) {}
-try { __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState); } catch(e) {}
-try { __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete); } catch(e) {}
-try { __rpc_fortune_wheel_get_state = __rpc_fortune_wheel_get_state || (fortuneWheelGetState); } catch(e) {}
-try { __rpc_fortune_wheel_spin = __rpc_fortune_wheel_spin || (fortuneWheelSpin); } catch(e) {}
-try { __rpc_streak_shield_freeze = __rpc_streak_shield_freeze || (rpcStreakShieldFreeze); } catch(e) {}
-try { __rpc_streak_shield_repair = __rpc_streak_shield_repair || (rpcStreakShieldRepair); } catch(e) {}
-try { __rpc_weekly_recap_get = __rpc_weekly_recap_get || (rpcWeeklyRecapGet); } catch(e) {}
-try { __rpc_friend_streak_milestone_reward = __rpc_friend_streak_milestone_reward || (rpcFriendStreakMilestoneReward); } catch(e) {}
-try { __rpc_collections_claim_set_reward = __rpc_collections_claim_set_reward || (rpcCollectionsClaimSetReward); } catch(e) {}
-try { __rpc_onboarding_complete = __rpc_onboarding_complete || (rpcOnboardingComplete); } catch(e) {}
-try { __rpc_user_set_interests = __rpc_user_set_interests || (rpcUserSetInterests); } catch(e) {}
-try { __rpc_compatibility_create_session = __rpc_compatibility_create_session || (rpcCompatibilityCreateSessionV30); } catch(e) {}
-try { __rpc_compatibility_join_session = __rpc_compatibility_join_session || (rpcCompatibilityJoinSessionV30); } catch(e) {}
-try { __rpc_compatibility_submit_answers = __rpc_compatibility_submit_answers || (rpcCompatibilitySubmitAnswersV30); } catch(e) {}
-try { __rpc_compatibility_get_session = __rpc_compatibility_get_session || (rpcCompatibilityGetSessionV30); } catch(e) {}
-try { __rpc_compatibility_calculate = __rpc_compatibility_calculate || (rpcCompatibilityCalculateV30); } catch(e) {}
-try { __rpc_ivx_set_player_presence = __rpc_ivx_set_player_presence || (rpcIvxSetPlayerPresence); } catch(e) {}
-try { __rpc_ivx_get_cross_game_messages = __rpc_ivx_get_cross_game_messages || (rpcIvxGetCrossGameMessages); } catch(e) {}
-try { __rpc_ivx_mark_message_read = __rpc_ivx_mark_message_read || (rpcIvxMarkMessageRead); } catch(e) {}
-try { __rpc_gift_send = __rpc_gift_send || (rpcGiftSend); } catch(e) {}
-try { __rpc_compatibility_create_session = __rpc_compatibility_create_session || (rpcCompatibilityCreateSessionV31); } catch(e) {}
-try { __rpc_compatibility_join_session = __rpc_compatibility_join_session || (rpcCompatibilityJoinSessionV31); } catch(e) {}
-try { __rpc_compatibility_submit_answers = __rpc_compatibility_submit_answers || (rpcCompatibilitySubmitAnswersV31); } catch(e) {}
-try { __rpc_compatibility_get_session = __rpc_compatibility_get_session || (rpcCompatibilityGetSessionV31); } catch(e) {}
-try { __rpc_compatibility_calculate = __rpc_compatibility_calculate || (rpcCompatibilityCalculateV31); } catch(e) {}
-try { __rpc_get_clan_challenges = __rpc_get_clan_challenges || (rpcGetClanChallenges); } catch(e) {}
-try { __rpc_contribute_clan_challenge = __rpc_contribute_clan_challenge || (rpcContributeClanChallenge); } catch(e) {}
-try { __rpc_get_clan_leaderboard = __rpc_get_clan_leaderboard || (rpcGetClanLeaderboard); } catch(e) {}
-try { __rpc_matchmaking_find_match = __rpc_matchmaking_find_match || (rpcMatchmakingFindMatch); } catch(e) {}
-try { __rpc_matchmaking_cancel = __rpc_matchmaking_cancel || (rpcMatchmakingCancel); } catch(e) {}
-try { __rpc_matchmaking_get_status = __rpc_matchmaking_get_status || (rpcMatchmakingGetStatus); } catch(e) {}
-try { __rpc_matchmaking_create_party = __rpc_matchmaking_create_party || (rpcMatchmakingCreateParty); } catch(e) {}
-try { __rpc_matchmaking_join_party = __rpc_matchmaking_join_party || (rpcMatchmakingJoinParty); } catch(e) {}
-try { __rpc_get_player_stats = __rpc_get_player_stats || (rpcGetPlayerStats); } catch(e) {}
-try { __rpc_character_get_state = __rpc_character_get_state || (rpcCharacterGetState); } catch(e) {}
-try { __rpc_character_unlock = __rpc_character_unlock || (rpcCharacterUnlock); } catch(e) {}
-try { __rpc_character_set_active = __rpc_character_set_active || (rpcCharacterSetActive); } catch(e) {}
-try { __rpc_league_get_state = __rpc_league_get_state || (rpcLeagueGetState); } catch(e) {}
-try { __rpc_league_submit_points = __rpc_league_submit_points || (rpcLeagueSubmitPoints); } catch(e) {}
-try { __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (rpcLeagueGetLeaderboard); } catch(e) {}
-try { __rpc_league_process_season = __rpc_league_process_season || (rpcLeagueProcessSeason); } catch(e) {}
+// Order: modules first (modern handlers win), then legacy fallbacks
 try { __rpc_analytics_log_event = __rpc_analytics_log_event || (rpcAnalyticsLogEvent); } catch(e) {}
 try { __rpc_analytics_dashboard = __rpc_analytics_dashboard || (rpcAnalyticsDashboard); } catch(e) {}
 try { __rpc_analytics_dashboard_summary = __rpc_analytics_dashboard_summary || (rpcAnalyticsDashboardSummary); } catch(e) {}
@@ -79263,6 +78985,296 @@ try { __rpc_smart_review_get_forecast = __rpc_smart_review_get_forecast || (rpcS
 try { __rpc_visual_path_get_state = __rpc_visual_path_get_state || (rpcVisualPathGetState); } catch(e) {}
 try { __rpc_visual_path_get_schedule = __rpc_visual_path_get_schedule || (rpcVisualPathGetSchedule); } catch(e) {}
 try { __rpc_visual_path_skip_day_with_ad = __rpc_visual_path_skip_day_with_ad || (rpcVisualPathSkipDayWithAd); } catch(e) {}
+try { __rpc_submit_score_sync = __rpc_submit_score_sync || (submitScoreSync); } catch(e) {}
+try { __rpc_submit_score_with_aggregate = __rpc_submit_score_with_aggregate || (submitScoreWithAggregate); } catch(e) {}
+try { __rpc_create_all_leaderboards_with_friends = __rpc_create_all_leaderboards_with_friends || (createAllLeaderboardsWithFriends); } catch(e) {}
+try { __rpc_submit_score_with_friends_sync = __rpc_submit_score_with_friends_sync || (submitScoreWithFriendsSync); } catch(e) {}
+try { __rpc_get_friend_leaderboard = __rpc_get_friend_leaderboard || (getFriendLeaderboard); } catch(e) {}
+try { __rpc_get_notifications = __rpc_get_notifications || (getNotifications); } catch(e) {}
+try { __rpc_get_user_wallet = __rpc_get_user_wallet || (__legacy_getUserWallet); } catch(e) {}
+try { __rpc_link_wallet_to_game = __rpc_link_wallet_to_game || (__legacy_linkWalletToGame); } catch(e) {}
+try { __rpc_get_wallet_registry = __rpc_get_wallet_registry || (__legacy_getWalletRegistry); } catch(e) {}
+try { __rpc_create_all_leaderboards_persistent = __rpc_create_all_leaderboards_persistent || (createAllLeaderboardsPersistent); } catch(e) {}
+try { __rpc_create_time_period_leaderboards = __rpc_create_time_period_leaderboards || (__legacy_rpcCreateTimePeriodLeaderboards); } catch(e) {}
+try { __rpc_submit_score_to_time_periods = __rpc_submit_score_to_time_periods || (__legacy_rpcSubmitScoreToTimePeriods); } catch(e) {}
+try { __rpc_get_time_period_leaderboard = __rpc_get_time_period_leaderboard || (__legacy_rpcGetTimePeriodLeaderboard); } catch(e) {}
+try { __rpc_get_game_registry = __rpc_get_game_registry || (rpcGetGameRegistry); } catch(e) {}
+try { __rpc_get_game_by_id = __rpc_get_game_by_id || (rpcGetGameById); } catch(e) {}
+try { __rpc_sync_game_registry = __rpc_sync_game_registry || (rpcSyncGameRegistry); } catch(e) {}
+try { __rpc_daily_rewards_get_status = __rpc_daily_rewards_get_status || (__legacy_rpcDailyRewardsGetStatus); } catch(e) {}
+try { __rpc_daily_rewards_claim = __rpc_daily_rewards_claim || (__legacy_rpcDailyRewardsClaim); } catch(e) {}
+try { __rpc_quiz_submit_result = __rpc_quiz_submit_result || (__legacy_rpcQuizSubmitResult); } catch(e) {}
+try { __rpc_quiz_get_history = __rpc_quiz_get_history || (__legacy_rpcQuizGetHistory); } catch(e) {}
+try { __rpc_quiz_get_stats = __rpc_quiz_get_stats || (__legacy_rpcQuizGetStats); } catch(e) {}
+try { __rpc_quiz_check_daily_completion = __rpc_quiz_check_daily_completion || (__legacy_rpcQuizCheckDailyCompletion); } catch(e) {}
+try { __rpc_game_entry_validate = __rpc_game_entry_validate || (rpcGameEntryValidate); } catch(e) {}
+try { __rpc_game_entry_complete = __rpc_game_entry_complete || (rpcGameEntryComplete); } catch(e) {}
+try { __rpc_game_entry_get_status = __rpc_game_entry_get_status || (rpcGameEntryGetStatus); } catch(e) {}
+try { __rpc_get_daily_missions = __rpc_get_daily_missions || (__legacy_rpcGetDailyMissions); } catch(e) {}
+try { __rpc_submit_mission_progress = __rpc_submit_mission_progress || (__legacy_rpcSubmitMissionProgress); } catch(e) {}
+try { __rpc_claim_mission_reward = __rpc_claim_mission_reward || (__legacy_rpcClaimMissionReward); } catch(e) {}
+try { __rpc_wallet_get_all = __rpc_wallet_get_all || (__legacy_rpcWalletGetAll); } catch(e) {}
+try { __rpc_wallet_update_global = __rpc_wallet_update_global || (__legacy_rpcWalletUpdateGlobal); } catch(e) {}
+try { __rpc_wallet_update_game_wallet = __rpc_wallet_update_game_wallet || (__legacy_rpcWalletUpdateGameWallet); } catch(e) {}
+try { __rpc_wallet_transfer_between_game_wallets = __rpc_wallet_transfer_between_game_wallets || (__legacy_rpcWalletTransferBetweenGameWallets); } catch(e) {}
+try { __rpc_wallet_get_balances = __rpc_wallet_get_balances || (__legacy_rpcWalletGetBalances); } catch(e) {}
+try { __rpc_analytics_log_event = __rpc_analytics_log_event || (__legacy_rpcAnalyticsLogEvent); } catch(e) {}
+try { __rpc_friends_block = __rpc_friends_block || (rpcFriendsBlock); } catch(e) {}
+try { __rpc_friends_unblock = __rpc_friends_unblock || (rpcFriendsUnblock); } catch(e) {}
+try { __rpc_friends_remove = __rpc_friends_remove || (rpcFriendsRemove); } catch(e) {}
+try { __rpc_friends_list = __rpc_friends_list || (rpcFriendsList); } catch(e) {}
+try { __rpc_create_game_group = __rpc_create_game_group || (__legacy_rpcCreateGameGroup); } catch(e) {}
+try { __rpc_update_group_xp = __rpc_update_group_xp || (__legacy_rpcUpdateGroupXP); } catch(e) {}
+try { __rpc_get_group_wallet = __rpc_get_group_wallet || (__legacy_rpcGetGroupWallet); } catch(e) {}
+try { __rpc_update_group_wallet = __rpc_update_group_wallet || (__legacy_rpcUpdateGroupWallet); } catch(e) {}
+try { __rpc_get_user_groups = __rpc_get_user_groups || (__legacy_rpcGetUserGroups); } catch(e) {}
+try { __rpc_push_register_token = __rpc_push_register_token || (__legacy_rpcPushRegisterToken); } catch(e) {}
+try { __rpc_push_send_event = __rpc_push_send_event || (__legacy_rpcPushSendEvent); } catch(e) {}
+try { __rpc_push_get_endpoints = __rpc_push_get_endpoints || (__legacy_rpcPushGetEndpoints); } catch(e) {}
+try { __rpc_submit_score_sync = __rpc_submit_score_sync || (submitScoreSync); } catch(e) {}
+try { __rpc_submit_score_with_aggregate = __rpc_submit_score_with_aggregate || (submitScoreWithAggregate); } catch(e) {}
+try { __rpc_create_all_leaderboards_with_friends = __rpc_create_all_leaderboards_with_friends || (createAllLeaderboardsWithFriends); } catch(e) {}
+try { __rpc_submit_score_with_friends_sync = __rpc_submit_score_with_friends_sync || (submitScoreWithFriendsSync); } catch(e) {}
+try { __rpc_get_friend_leaderboard = __rpc_get_friend_leaderboard || (getFriendLeaderboard); } catch(e) {}
+try { __rpc_get_notifications = __rpc_get_notifications || (getNotifications); } catch(e) {}
+try { __rpc_create_or_sync_user = __rpc_create_or_sync_user || (createOrSyncUser); } catch(e) {}
+try { __rpc_create_or_get_wallet = __rpc_create_or_get_wallet || (createOrGetWallet); } catch(e) {}
+try { __rpc_submit_score_and_sync = __rpc_submit_score_and_sync || (submitScoreAndSync); } catch(e) {}
+try { __rpc_get_all_leaderboards = __rpc_get_all_leaderboards || (getAllLeaderboards); } catch(e) {}
+try { __rpc_create_player_wallet = __rpc_create_player_wallet || (__legacy_rpcCreatePlayerWallet); } catch(e) {}
+try { __rpc_update_wallet_balance = __rpc_update_wallet_balance || (__legacy_rpcUpdateWalletBalance); } catch(e) {}
+try { __rpc_get_wallet_balance = __rpc_get_wallet_balance || (__legacy_rpcGetWalletBalance); } catch(e) {}
+try { __rpc_submit_leaderboard_score = __rpc_submit_leaderboard_score || (__legacy_rpcSubmitLeaderboardScore); } catch(e) {}
+try { __rpc_get_leaderboard = __rpc_get_leaderboard || (__legacy_rpcGetLeaderboard); } catch(e) {}
+try { __rpc_check_geo_and_update_profile = __rpc_check_geo_and_update_profile || (rpcCheckGeoAndUpdateProfile); } catch(e) {}
+try { __rpc_get_player_portfolio = __rpc_get_player_portfolio || (rpcGetPlayerPortfolio); } catch(e) {}
+try { __rpc_rpc_update_player_metadata = __rpc_rpc_update_player_metadata || (rpcUpdatePlayerMetadata); } catch(e) {}
+try { __rpc_rpc_update_player_metadata = __rpc_rpc_update_player_metadata || (rpcUpdatePlayerMetadataUnified); } catch(e) {}
+try { __rpc_rpc_change_username = __rpc_rpc_change_username || (rpcChangeUsername); } catch(e) {}
+try { __rpc_get_player_metadata = __rpc_get_player_metadata || (rpcGetPlayerMetadata); } catch(e) {}
+try { __rpc_admin_delete_player_metadata = __rpc_admin_delete_player_metadata || (rpcAdminDeletePlayerMetadata); } catch(e) {}
+try { __rpc_calculate_score_reward = __rpc_calculate_score_reward || (rpcCalculateScoreReward); } catch(e) {}
+try { __rpc_update_game_reward_config = __rpc_update_game_reward_config || (rpcUpdateGameRewardConfig); } catch(e) {}
+try { __rpc_send_group_chat_message = __rpc_send_group_chat_message || (rpcSendGroupChatMessage); } catch(e) {}
+try { __rpc_send_direct_message = __rpc_send_direct_message || (rpcSendDirectMessage); } catch(e) {}
+try { __rpc_send_chat_room_message = __rpc_send_chat_room_message || (rpcSendChatRoomMessage); } catch(e) {}
+try { __rpc_get_group_chat_history = __rpc_get_group_chat_history || (rpcGetGroupChatHistory); } catch(e) {}
+try { __rpc_get_direct_message_history = __rpc_get_direct_message_history || (rpcGetDirectMessageHistory); } catch(e) {}
+try { __rpc_get_chat_room_history = __rpc_get_chat_room_history || (rpcGetChatRoomHistory); } catch(e) {}
+try { __rpc_mark_direct_messages_read = __rpc_mark_direct_messages_read || (rpcMarkDirectMessagesRead); } catch(e) {}
+try { __rpc_quizverse_update_user_profile = __rpc_quizverse_update_user_profile || (__legacy_quizverseUpdateUserProfile); } catch(e) {}
+try { __rpc_quizverse_grant_currency = __rpc_quizverse_grant_currency || (__legacy_quizverseGrantCurrency); } catch(e) {}
+try { __rpc_quizverse_spend_currency = __rpc_quizverse_spend_currency || (__legacy_quizverseSpendCurrency); } catch(e) {}
+try { __rpc_quizverse_validate_purchase = __rpc_quizverse_validate_purchase || (__legacy_quizverseValidatePurchase); } catch(e) {}
+try { __rpc_quizverse_list_inventory = __rpc_quizverse_list_inventory || (__legacy_quizverseListInventory); } catch(e) {}
+try { __rpc_quizverse_grant_item = __rpc_quizverse_grant_item || (__legacy_quizverseGrantItem); } catch(e) {}
+try { __rpc_quizverse_consume_item = __rpc_quizverse_consume_item || (__legacy_quizverseConsumeItem); } catch(e) {}
+try { __rpc_quizverse_submit_score = __rpc_quizverse_submit_score || (__legacy_quizverseSubmitScore); } catch(e) {}
+try { __rpc_quizverse_get_leaderboard = __rpc_quizverse_get_leaderboard || (__legacy_quizverseGetLeaderboard); } catch(e) {}
+try { __rpc_quizverse_join_or_create_match = __rpc_quizverse_join_or_create_match || (__legacy_quizverseJoinOrCreateMatch); } catch(e) {}
+try { __rpc_quizverse_claim_daily_reward = __rpc_quizverse_claim_daily_reward || (__legacy_quizverseClaimDailyReward); } catch(e) {}
+try { __rpc_quizverse_save_player_data = __rpc_quizverse_save_player_data || (__legacy_quizverseSavePlayerData); } catch(e) {}
+try { __rpc_quizverse_load_player_data = __rpc_quizverse_load_player_data || (__legacy_quizverseLoadPlayerData); } catch(e) {}
+try { __rpc_quizverse_get_item_catalog = __rpc_quizverse_get_item_catalog || (quizverseGetItemCatalog); } catch(e) {}
+try { __rpc_quizverse_search_items = __rpc_quizverse_search_items || (quizverseSearchItems); } catch(e) {}
+try { __rpc_quizverse_get_quiz_categories = __rpc_quizverse_get_quiz_categories || (quizverseGetQuizCategories); } catch(e) {}
+try { __rpc_quizverse_refresh_server_cache = __rpc_quizverse_refresh_server_cache || (quizverseRefreshServerCache); } catch(e) {}
+try { __rpc_quizverse_guild_create = __rpc_quizverse_guild_create || (quizverseGuildCreate); } catch(e) {}
+try { __rpc_quizverse_guild_join = __rpc_quizverse_guild_join || (quizverseGuildJoin); } catch(e) {}
+try { __rpc_quizverse_guild_leave = __rpc_quizverse_guild_leave || (quizverseGuildLeave); } catch(e) {}
+try { __rpc_quizverse_guild_list = __rpc_quizverse_guild_list || (quizverseGuildList); } catch(e) {}
+try { __rpc_quizverse_send_channel_message = __rpc_quizverse_send_channel_message || (quizverseSendChannelMessage); } catch(e) {}
+try { __rpc_quizverse_log_event = __rpc_quizverse_log_event || (quizverseLogEvent); } catch(e) {}
+try { __rpc_quizverse_track_session_start = __rpc_quizverse_track_session_start || (quizverseTrackSessionStart); } catch(e) {}
+try { __rpc_quizverse_track_session_end = __rpc_quizverse_track_session_end || (quizverseTrackSessionEnd); } catch(e) {}
+try { __rpc_quizverse_get_server_config = __rpc_quizverse_get_server_config || (quizverseGetServerConfig); } catch(e) {}
+try { __rpc_quizverse_admin_grant_item = __rpc_quizverse_admin_grant_item || (quizverseAdminGrantItem); } catch(e) {}
+try { __rpc_lasttolive_update_user_profile = __rpc_lasttolive_update_user_profile || (__legacy_lasttoliveUpdateUserProfile); } catch(e) {}
+try { __rpc_lasttolive_grant_currency = __rpc_lasttolive_grant_currency || (__legacy_lasttoliveGrantCurrency); } catch(e) {}
+try { __rpc_lasttolive_spend_currency = __rpc_lasttolive_spend_currency || (__legacy_lasttoliveSpendCurrency); } catch(e) {}
+try { __rpc_lasttolive_validate_purchase = __rpc_lasttolive_validate_purchase || (__legacy_lasttoliveValidatePurchase); } catch(e) {}
+try { __rpc_lasttolive_list_inventory = __rpc_lasttolive_list_inventory || (__legacy_lasttoliveListInventory); } catch(e) {}
+try { __rpc_lasttolive_grant_item = __rpc_lasttolive_grant_item || (__legacy_lasttoliveGrantItem); } catch(e) {}
+try { __rpc_lasttolive_consume_item = __rpc_lasttolive_consume_item || (__legacy_lasttoliveConsumeItem); } catch(e) {}
+try { __rpc_lasttolive_submit_score = __rpc_lasttolive_submit_score || (__legacy_lasttoliveSubmitScore); } catch(e) {}
+try { __rpc_lasttolive_get_leaderboard = __rpc_lasttolive_get_leaderboard || (__legacy_lasttoliveGetLeaderboard); } catch(e) {}
+try { __rpc_lasttolive_join_or_create_match = __rpc_lasttolive_join_or_create_match || (__legacy_lasttoliveJoinOrCreateMatch); } catch(e) {}
+try { __rpc_lasttolive_claim_daily_reward = __rpc_lasttolive_claim_daily_reward || (__legacy_lasttoliveClaimDailyReward); } catch(e) {}
+try { __rpc_lasttolive_save_player_data = __rpc_lasttolive_save_player_data || (__legacy_lasttolliveSavePlayerData); } catch(e) {}
+try { __rpc_lasttolive_load_player_data = __rpc_lasttolive_load_player_data || (__legacy_lasttoliveLoadPlayerData); } catch(e) {}
+try { __rpc_lasttolive_get_item_catalog = __rpc_lasttolive_get_item_catalog || (lasttoliveGetItemCatalog); } catch(e) {}
+try { __rpc_lasttolive_search_items = __rpc_lasttolive_search_items || (lasttoliveSearchItems); } catch(e) {}
+try { __rpc_lasttolive_get_weapon_stats = __rpc_lasttolive_get_weapon_stats || (lasttoliveGetWeaponStats); } catch(e) {}
+try { __rpc_lasttolive_refresh_server_cache = __rpc_lasttolive_refresh_server_cache || (lasttoliveRefreshServerCache); } catch(e) {}
+try { __rpc_lasttolive_guild_create = __rpc_lasttolive_guild_create || (lasttoliveGuildCreate); } catch(e) {}
+try { __rpc_lasttolive_guild_join = __rpc_lasttolive_guild_join || (lasttoliveGuildJoin); } catch(e) {}
+try { __rpc_lasttolive_guild_leave = __rpc_lasttolive_guild_leave || (lasttoliveGuildLeave); } catch(e) {}
+try { __rpc_lasttolive_guild_list = __rpc_lasttolive_guild_list || (lasttoliveGuildList); } catch(e) {}
+try { __rpc_lasttolive_send_channel_message = __rpc_lasttolive_send_channel_message || (lasttolliveSendChannelMessage); } catch(e) {}
+try { __rpc_lasttolive_log_event = __rpc_lasttolive_log_event || (lasttoliveLogEvent); } catch(e) {}
+try { __rpc_lasttolive_track_session_start = __rpc_lasttolive_track_session_start || (lasttoliveTrackSessionStart); } catch(e) {}
+try { __rpc_lasttolive_track_session_end = __rpc_lasttolive_track_session_end || (lasttoliveTrackSessionEnd); } catch(e) {}
+try { __rpc_lasttolive_get_server_config = __rpc_lasttolive_get_server_config || (lasttoliveGetServerConfig); } catch(e) {}
+try { __rpc_lasttolive_admin_grant_item = __rpc_lasttolive_admin_grant_item || (lasttoliveAdminGrantItem); } catch(e) {}
+try { __rpc_achievements_get_all = __rpc_achievements_get_all || (rpcAchievementsGetAll); } catch(e) {}
+try { __rpc_achievements_update_progress = __rpc_achievements_update_progress || (rpcAchievementsUpdateProgress); } catch(e) {}
+try { __rpc_achievements_create_definition = __rpc_achievements_create_definition || (rpcAchievementsCreateDefinition); } catch(e) {}
+try { __rpc_achievements_bulk_create = __rpc_achievements_bulk_create || (rpcAchievementsBulkCreate); } catch(e) {}
+try { __rpc_matchmaking_find_match = __rpc_matchmaking_find_match || (rpcMatchmakingFindMatch); } catch(e) {}
+try { __rpc_matchmaking_cancel = __rpc_matchmaking_cancel || (rpcMatchmakingCancel); } catch(e) {}
+try { __rpc_matchmaking_get_status = __rpc_matchmaking_get_status || (rpcMatchmakingGetStatus); } catch(e) {}
+try { __rpc_matchmaking_create_party = __rpc_matchmaking_create_party || (rpcMatchmakingCreateParty); } catch(e) {}
+try { __rpc_matchmaking_join_party = __rpc_matchmaking_join_party || (rpcMatchmakingJoinParty); } catch(e) {}
+try { __rpc_tournament_create = __rpc_tournament_create || (rpcTournamentCreate); } catch(e) {}
+try { __rpc_tournament_join = __rpc_tournament_join || (rpcTournamentJoin); } catch(e) {}
+try { __rpc_tournament_list_active = __rpc_tournament_list_active || (rpcTournamentListActive); } catch(e) {}
+try { __rpc_tournament_submit_score = __rpc_tournament_submit_score || (rpcTournamentSubmitScore); } catch(e) {}
+try { __rpc_tournament_get_leaderboard = __rpc_tournament_get_leaderboard || (rpcTournamentGetLeaderboard); } catch(e) {}
+try { __rpc_tournament_claim_rewards = __rpc_tournament_claim_rewards || (rpcTournamentClaimRewards); } catch(e) {}
+try { __rpc_batch_execute = __rpc_batch_execute || (rpcBatchExecute); } catch(e) {}
+try { __rpc_batch_wallet_operations = __rpc_batch_wallet_operations || (rpcBatchWalletOperations); } catch(e) {}
+try { __rpc_batch_achievement_progress = __rpc_batch_achievement_progress || (rpcBatchAchievementProgress); } catch(e) {}
+try { __rpc_rate_limit_status = __rpc_rate_limit_status || (rpcRateLimitStatus); } catch(e) {}
+try { __rpc_cache_stats = __rpc_cache_stats || (rpcCacheStats); } catch(e) {}
+try { __rpc_cache_clear = __rpc_cache_clear || (rpcCacheClear); } catch(e) {}
+try { __rpc_quizverse_submit_score = __rpc_quizverse_submit_score || (rpcQuizVerseSubmitScore); } catch(e) {}
+try { __rpc_quizverse_get_leaderboard = __rpc_quizverse_get_leaderboard || (rpcQuizVerseGetLeaderboard); } catch(e) {}
+try { __rpc_quizverse_submit_multiplayer_match = __rpc_quizverse_submit_multiplayer_match || (rpcQuizVerseSubmitMultiplayerMatch); } catch(e) {}
+try { __rpc_cleanup_guest_user_metadata = __rpc_cleanup_guest_user_metadata || (rpcCleanupGuestUserMetadata); } catch(e) {}
+try { __rpc_onboarding_get_state = __rpc_onboarding_get_state || (rpcOnboardingGetState); } catch(e) {}
+try { __rpc_onboarding_update_state = __rpc_onboarding_update_state || (rpcOnboardingUpdateState); } catch(e) {}
+try { __rpc_onboarding_complete_step = __rpc_onboarding_complete_step || (rpcOnboardingCompleteStep); } catch(e) {}
+try { __rpc_onboarding_set_interests = __rpc_onboarding_set_interests || (rpcOnboardingSetInterests); } catch(e) {}
+try { __rpc_onboarding_get_interests = __rpc_onboarding_get_interests || (rpcOnboardingGetInterests); } catch(e) {}
+try { __rpc_onboarding_claim_welcome_bonus = __rpc_onboarding_claim_welcome_bonus || (rpcOnboardingClaimWelcomeBonus); } catch(e) {}
+try { __rpc_onboarding_first_quiz_complete = __rpc_onboarding_first_quiz_complete || (rpcOnboardingFirstQuizComplete); } catch(e) {}
+try { __rpc_onboarding_get_tomorrow_preview = __rpc_onboarding_get_tomorrow_preview || (rpcOnboardingGetTomorrowPreview); } catch(e) {}
+try { __rpc_onboarding_track_session = __rpc_onboarding_track_session || (rpcOnboardingTrackSession); } catch(e) {}
+try { __rpc_onboarding_get_retention_data = __rpc_onboarding_get_retention_data || (rpcOnboardingGetRetentionData); } catch(e) {}
+try { __rpc_onboarding_create_link_quiz = __rpc_onboarding_create_link_quiz || (rpcOnboardingCreateLinkQuiz); } catch(e) {}
+try { __rpc_retention_grant_streak_shield = __rpc_retention_grant_streak_shield || (rpcRetentionGrantStreakShield); } catch(e) {}
+try { __rpc_retention_get_streak_shield = __rpc_retention_get_streak_shield || (rpcRetentionGetStreakShield); } catch(e) {}
+try { __rpc_retention_use_streak_shield = __rpc_retention_use_streak_shield || (rpcRetentionUseStreakShield); } catch(e) {}
+try { __rpc_retention_schedule_notification = __rpc_retention_schedule_notification || (rpcRetentionScheduleNotification); } catch(e) {}
+try { __rpc_retention_get_recommendations = __rpc_retention_get_recommendations || (rpcRetentionGetRecommendations); } catch(e) {}
+try { __rpc_retention_track_first_session = __rpc_retention_track_first_session || (rpcRetentionTrackFirstSession); } catch(e) {}
+try { __rpc_retention_claim_welcome_bonus = __rpc_retention_claim_welcome_bonus || (rpcRetentionClaimWelcomeBonus); } catch(e) {}
+try { __rpc_weekly_goals_get_status = __rpc_weekly_goals_get_status || (__legacy_rpcWeeklyGoalsGetStatus); } catch(e) {}
+try { __rpc_weekly_goals_update_progress = __rpc_weekly_goals_update_progress || (__legacy_rpcWeeklyGoalsUpdateProgress); } catch(e) {}
+try { __rpc_weekly_goals_claim_reward = __rpc_weekly_goals_claim_reward || (__legacy_rpcWeeklyGoalsClaimReward); } catch(e) {}
+try { __rpc_weekly_goals_claim_bonus = __rpc_weekly_goals_claim_bonus || (__legacy_rpcWeeklyGoalsClaimBonus); } catch(e) {}
+try { __rpc_season_pass_get_status = __rpc_season_pass_get_status || (__legacy_rpcSeasonPassGetStatus); } catch(e) {}
+try { __rpc_season_pass_add_xp = __rpc_season_pass_add_xp || (__legacy_rpcSeasonPassAddXP); } catch(e) {}
+try { __rpc_season_pass_complete_quest = __rpc_season_pass_complete_quest || (__legacy_rpcSeasonPassCompleteQuest); } catch(e) {}
+try { __rpc_season_pass_claim_reward = __rpc_season_pass_claim_reward || (__legacy_rpcSeasonPassClaimReward); } catch(e) {}
+try { __rpc_season_pass_purchase_premium = __rpc_season_pass_purchase_premium || (__legacy_rpcSeasonPassPurchasePremium); } catch(e) {}
+try { __rpc_monthly_milestones_get_status = __rpc_monthly_milestones_get_status || (__legacy_rpcMonthlyMilestonesGetStatus); } catch(e) {}
+try { __rpc_monthly_milestones_update_progress = __rpc_monthly_milestones_update_progress || (__legacy_rpcMonthlyMilestonesUpdateProgress); } catch(e) {}
+try { __rpc_monthly_milestones_claim_reward = __rpc_monthly_milestones_claim_reward || (__legacy_rpcMonthlyMilestonesClaimReward); } catch(e) {}
+try { __rpc_monthly_milestones_claim_legendary = __rpc_monthly_milestones_claim_legendary || (__legacy_rpcMonthlyMilestonesClaimLegendary); } catch(e) {}
+try { __rpc_collections_get_status = __rpc_collections_get_status || (__legacy_rpcCollectionsGetStatus); } catch(e) {}
+try { __rpc_collections_unlock_item = __rpc_collections_unlock_item || (__legacy_rpcCollectionsUnlockItem); } catch(e) {}
+try { __rpc_collections_equip_item = __rpc_collections_equip_item || (__legacy_rpcCollectionsEquipItem); } catch(e) {}
+try { __rpc_collections_add_mastery_xp = __rpc_collections_add_mastery_xp || (__legacy_rpcCollectionsAddMasteryXP); } catch(e) {}
+try { __rpc_winback_check_status = __rpc_winback_check_status || (__legacy_rpcWinbackCheckStatus); } catch(e) {}
+try { __rpc_winback_claim_rewards = __rpc_winback_claim_rewards || (__legacy_rpcWinbackClaimRewards); } catch(e) {}
+try { __rpc_winback_record_session = __rpc_winback_record_session || (__legacy_rpcWinbackRecordSession); } catch(e) {}
+try { __rpc_winback_schedule_reengagement = __rpc_winback_schedule_reengagement || (__legacy_rpcWinbackScheduleReengagement); } catch(e) {}
+try { __rpc_progressive_get_state = __rpc_progressive_get_state || (__legacy_rpcGetUnlockState); } catch(e) {}
+try { __rpc_progressive_claim_unlock = __rpc_progressive_claim_unlock || (__legacy_rpcClaimUnlock); } catch(e) {}
+try { __rpc_progressive_check_feature = __rpc_progressive_check_feature || (__legacy_rpcCheckFeatureUnlocked); } catch(e) {}
+try { __rpc_progressive_update_progress = __rpc_progressive_update_progress || (rpcUpdateProgressProgressive); } catch(e) {}
+try { __rpc_progression_add_mastery_xp = __rpc_progression_add_mastery_xp || (rpcProgressionAddMasteryXp); } catch(e) {}
+try { __rpc_progression_get_state = __rpc_progression_get_state || (rpcProgressionGetState); } catch(e) {}
+try { __rpc_progression_claim_prestige = __rpc_progression_claim_prestige || (rpcProgressionClaimPrestige); } catch(e) {}
+try { __rpc_rewarded_ad_request_token = __rpc_rewarded_ad_request_token || (__legacy_rpcRewardedAdRequestToken); } catch(e) {}
+try { __rpc_rewarded_ad_claim = __rpc_rewarded_ad_claim || (__legacy_rpcRewardedAdClaim); } catch(e) {}
+try { __rpc_rewarded_ad_validate_score_multiplier = __rpc_rewarded_ad_validate_score_multiplier || (__legacy_rpcValidateScoreMultiplier); } catch(e) {}
+try { __rpc_rewarded_ad_get_status = __rpc_rewarded_ad_get_status || (__legacy_rpcGetRewardedAdStatus); } catch(e) {}
+try { __rpc_compatibility_create_session = __rpc_compatibility_create_session || (rpcCompatibilityCreateSession); } catch(e) {}
+try { __rpc_compatibility_join_session = __rpc_compatibility_join_session || (rpcCompatibilityJoinSession); } catch(e) {}
+try { __rpc_compatibility_get_session = __rpc_compatibility_get_session || (rpcCompatibilityGetSession); } catch(e) {}
+try { __rpc_compatibility_submit_answers = __rpc_compatibility_submit_answers || (rpcCompatibilitySubmitAnswers); } catch(e) {}
+try { __rpc_compatibility_calculate = __rpc_compatibility_calculate || (rpcCompatibilityCalculate); } catch(e) {}
+try { __rpc_compatibility_list_sessions = __rpc_compatibility_list_sessions || (rpcCompatibilityListSessions); } catch(e) {}
+try { __rpc_async_challenge_create = __rpc_async_challenge_create || (rpcAsyncChallengeCreate); } catch(e) {}
+try { __rpc_async_challenge_join = __rpc_async_challenge_join || (rpcAsyncChallengeJoin); } catch(e) {}
+try { __rpc_async_challenge_get = __rpc_async_challenge_get || (rpcAsyncChallengeGet); } catch(e) {}
+try { __rpc_async_challenge_submit = __rpc_async_challenge_submit || (rpcAsyncChallengeSubmit); } catch(e) {}
+try { __rpc_async_challenge_list = __rpc_async_challenge_list || (rpcAsyncChallengeList); } catch(e) {}
+try { __rpc_async_challenge_cancel = __rpc_async_challenge_cancel || (rpcAsyncChallengeCancel); } catch(e) {}
+try { __rpc_async_challenge_stats = __rpc_async_challenge_stats || (rpcAsyncChallengeStats); } catch(e) {}
+try { __rpc_async_challenge_rematch = __rpc_async_challenge_rematch || (rpcAsyncChallengeRematch); } catch(e) {}
+try { __rpc_async_challenge_leaderboard = __rpc_async_challenge_leaderboard || (rpcAsyncChallengeLeaderboard); } catch(e) {}
+try { __rpc_badges_get_all = __rpc_badges_get_all || (rpcBadgesGetAll); } catch(e) {}
+try { __rpc_badges_update_progress = __rpc_badges_update_progress || (rpcBadgesUpdateProgress); } catch(e) {}
+try { __rpc_badges_check_event = __rpc_badges_check_event || (rpcBadgesCheckEvent); } catch(e) {}
+try { __rpc_badges_set_displayed = __rpc_badges_set_displayed || (rpcBadgesSetDisplayed); } catch(e) {}
+try { __rpc_badges_bulk_create = __rpc_badges_bulk_create || (rpcBadgesBulkCreate); } catch(e) {}
+try { __rpc_collectables_get_all = __rpc_collectables_get_all || (rpcCollectablesGetAll); } catch(e) {}
+try { __rpc_collectables_grant = __rpc_collectables_grant || (rpcCollectablesGrant); } catch(e) {}
+try { __rpc_collectables_equip = __rpc_collectables_equip || (rpcCollectablesEquip); } catch(e) {}
+try { __rpc_collectables_bulk_create = __rpc_collectables_bulk_create || (rpcCollectablesBulkCreate); } catch(e) {}
+try { __rpc_league_get_state = __rpc_league_get_state || (__legacy_rpcLeagueGetState); } catch(e) {}
+try { __rpc_league_submit_points = __rpc_league_submit_points || (__legacy_rpcLeagueSubmitPoints); } catch(e) {}
+try { __rpc_league_process_season = __rpc_league_process_season || (__legacy_rpcLeagueProcessSeason); } catch(e) {}
+try { __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (__legacy_rpcLeagueGetLeaderboard); } catch(e) {}
+try { __rpc_streak_repair = __rpc_streak_repair || (rpcStreakRepair); } catch(e) {}
+try { __rpc_streak_wager = __rpc_streak_wager || (rpcStreakWager); } catch(e) {}
+try { __rpc_character_get_state = __rpc_character_get_state || (__legacy_rpcCharacterGetState); } catch(e) {}
+try { __rpc_character_unlock = __rpc_character_unlock || (__legacy_rpcCharacterUnlock); } catch(e) {}
+try { __rpc_character_set_active = __rpc_character_set_active || (__legacy_rpcCharacterSetActive); } catch(e) {}
+try { __rpc_notification_gate_get_state = __rpc_notification_gate_get_state || (rpcNotifGateGetState); } catch(e) {}
+try { __rpc_list_notification_inbox = __rpc_list_notification_inbox || (rpcListNotificationInbox); } catch(e) {}
+try { __rpc_mark_notifications_read = __rpc_mark_notifications_read || (rpcMarkNotificationsRead); } catch(e) {}
+try { __rpc_smart_review_get_cards = __rpc_smart_review_get_cards || (rpcSmartReviewGetCards); } catch(e) {}
+try { __rpc_smart_review_rate_card = __rpc_smart_review_rate_card || (rpcSmartReviewRateCard); } catch(e) {}
+try { __rpc_manifest_get_version = __rpc_manifest_get_version || (rpcManifestGetVersion); } catch(e) {}
+try { __rpc_player_get_full_profile = __rpc_player_get_full_profile || (rpcPlayerGetFullProfile); } catch(e) {}
+try { __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState); } catch(e) {}
+try { __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution); } catch(e) {}
+try { __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge); } catch(e) {}
+try { __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState); } catch(e) {}
+try { __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete); } catch(e) {}
+try { __rpc_fortune_wheel_get_state = __rpc_fortune_wheel_get_state || (fortuneWheelGetState); } catch(e) {}
+try { __rpc_fortune_wheel_spin = __rpc_fortune_wheel_spin || (fortuneWheelSpin); } catch(e) {}
+try { __rpc_streak_shield_freeze = __rpc_streak_shield_freeze || (rpcStreakShieldFreeze); } catch(e) {}
+try { __rpc_streak_shield_repair = __rpc_streak_shield_repair || (rpcStreakShieldRepair); } catch(e) {}
+try { __rpc_weekly_recap_get = __rpc_weekly_recap_get || (rpcWeeklyRecapGet); } catch(e) {}
+try { __rpc_friend_streak_milestone_reward = __rpc_friend_streak_milestone_reward || (rpcFriendStreakMilestoneReward); } catch(e) {}
+try { __rpc_collections_claim_set_reward = __rpc_collections_claim_set_reward || (rpcCollectionsClaimSetReward); } catch(e) {}
+try { __rpc_onboarding_complete = __rpc_onboarding_complete || (rpcOnboardingComplete); } catch(e) {}
+try { __rpc_user_set_interests = __rpc_user_set_interests || (rpcUserSetInterests); } catch(e) {}
+try { __rpc_compatibility_create_session = __rpc_compatibility_create_session || (rpcCompatibilityCreateSessionV30); } catch(e) {}
+try { __rpc_compatibility_join_session = __rpc_compatibility_join_session || (rpcCompatibilityJoinSessionV30); } catch(e) {}
+try { __rpc_compatibility_submit_answers = __rpc_compatibility_submit_answers || (rpcCompatibilitySubmitAnswersV30); } catch(e) {}
+try { __rpc_compatibility_get_session = __rpc_compatibility_get_session || (rpcCompatibilityGetSessionV30); } catch(e) {}
+try { __rpc_compatibility_calculate = __rpc_compatibility_calculate || (rpcCompatibilityCalculateV30); } catch(e) {}
+try { __rpc_ivx_set_player_presence = __rpc_ivx_set_player_presence || (rpcIvxSetPlayerPresence); } catch(e) {}
+try { __rpc_ivx_get_cross_game_messages = __rpc_ivx_get_cross_game_messages || (rpcIvxGetCrossGameMessages); } catch(e) {}
+try { __rpc_ivx_mark_message_read = __rpc_ivx_mark_message_read || (rpcIvxMarkMessageRead); } catch(e) {}
+try { __rpc_gift_send = __rpc_gift_send || (__legacy_rpcGiftSend); } catch(e) {}
+try { __rpc_compatibility_create_session = __rpc_compatibility_create_session || (rpcCompatibilityCreateSessionV31); } catch(e) {}
+try { __rpc_compatibility_join_session = __rpc_compatibility_join_session || (rpcCompatibilityJoinSessionV31); } catch(e) {}
+try { __rpc_compatibility_submit_answers = __rpc_compatibility_submit_answers || (rpcCompatibilitySubmitAnswersV31); } catch(e) {}
+try { __rpc_compatibility_get_session = __rpc_compatibility_get_session || (rpcCompatibilityGetSessionV31); } catch(e) {}
+try { __rpc_compatibility_calculate = __rpc_compatibility_calculate || (rpcCompatibilityCalculateV31); } catch(e) {}
+try { __rpc_get_clan_challenges = __rpc_get_clan_challenges || (rpcGetClanChallenges); } catch(e) {}
+try { __rpc_contribute_clan_challenge = __rpc_contribute_clan_challenge || (rpcContributeClanChallenge); } catch(e) {}
+try { __rpc_get_clan_leaderboard = __rpc_get_clan_leaderboard || (rpcGetClanLeaderboard); } catch(e) {}
+try { __rpc_matchmaking_find_match = __rpc_matchmaking_find_match || (rpcMatchmakingFindMatch); } catch(e) {}
+try { __rpc_matchmaking_cancel = __rpc_matchmaking_cancel || (rpcMatchmakingCancel); } catch(e) {}
+try { __rpc_matchmaking_get_status = __rpc_matchmaking_get_status || (rpcMatchmakingGetStatus); } catch(e) {}
+try { __rpc_matchmaking_create_party = __rpc_matchmaking_create_party || (rpcMatchmakingCreateParty); } catch(e) {}
+try { __rpc_matchmaking_join_party = __rpc_matchmaking_join_party || (rpcMatchmakingJoinParty); } catch(e) {}
+try { __rpc_get_player_stats = __rpc_get_player_stats || (rpcGetPlayerStats); } catch(e) {}
+try { __rpc_character_get_state = __rpc_character_get_state || (__legacy_rpcCharacterGetState); } catch(e) {}
+try { __rpc_character_unlock = __rpc_character_unlock || (__legacy_rpcCharacterUnlock); } catch(e) {}
+try { __rpc_character_set_active = __rpc_character_set_active || (__legacy_rpcCharacterSetActive); } catch(e) {}
+try { __rpc_league_get_state = __rpc_league_get_state || (__legacy_rpcLeagueGetState); } catch(e) {}
+try { __rpc_league_submit_points = __rpc_league_submit_points || (__legacy_rpcLeagueSubmitPoints); } catch(e) {}
+try { __rpc_league_get_leaderboard = __rpc_league_get_leaderboard || (__legacy_rpcLeagueGetLeaderboard); } catch(e) {}
+try { __rpc_league_process_season = __rpc_league_process_season || (__legacy_rpcLeagueProcessSeason); } catch(e) {}
 
 
 // --- RPC Registration Bridge (Goja AST Compatible) ---
