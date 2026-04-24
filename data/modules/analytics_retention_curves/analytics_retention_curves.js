@@ -35,6 +35,17 @@ var RC_WINDOWS = [1, 3, 7, 14, 30];
 
 // ─── Helpers ──────────────────────────────────────────────
 
+// Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-…").
+// Delegates to the bundled global resolveGameIdAlias when available so the
+// alias map (defined in analytics.js) stays the single source of truth.
+function rcResolveGameId(g) {
+    if (!g) return g;
+    try {
+        if (typeof resolveGameIdAlias === 'function') return resolveGameIdAlias(g);
+    } catch (e) { /* fall through */ }
+    return g;
+}
+
 function rcParse(payload) {
     try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
 }
@@ -193,7 +204,7 @@ function rpcAnalyticsRetentionCurves(ctx, logger, nk, payload) {
     var gate = rcRequireAdmin(ctx, nk, logger, data);
     if (!gate.ok) return rcErr(gate.reason, 401);
 
-    var gameId = data.gameId || "all";
+    var gameId = rcResolveGameId(data.gameId || "all");
     if (gameId === "all") {
         // Retention is per-game because user identity overlaps across games
         // shouldn't be smashed together. Surface this explicitly.

@@ -4,6 +4,39 @@ var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
 
 /**
+ * Slug → canonical UUID alias table.
+ *
+ * Older Unity clients (and some server-side adapters) emit gameId values as
+ * human-readable slugs ("quizverse", "lasttolive", …). All downstream
+ * dashboards / RPC filters key off the canonical game UUID, so we MUST
+ * resolve the slug BEFORE the UUID-shape validation in normalizeInboundEvent
+ * — otherwise the legacy events get rejected at ingestion and never appear
+ * on the dashboard at all.
+ *
+ * Mirrors GAME_REWARD_CONFIGS in legacy_runtime.js + KNOWN_GAMES in
+ * cross_game/cross_game.js. Keep these in sync when onboarding a new game.
+ */
+var GAME_ID_SLUG_ALIASES = {
+    "quizverse": "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+    "quiz-verse": "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+    "QuizVerse": "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+    "lasttolive": "8f3b1c2a-5d6e-4f7a-9b8c-1d2e3f4a5b6c",
+    "last-to-live": "8f3b1c2a-5d6e-4f7a-9b8c-1d2e3f4a5b6c",
+    "LastToLive": "8f3b1c2a-5d6e-4f7a-9b8c-1d2e3f4a5b6c"
+};
+
+function resolveGameIdAlias(gameId) {
+    if (!gameId) return gameId;
+    if (GAME_ID_SLUG_ALIASES[gameId]) return GAME_ID_SLUG_ALIASES[gameId];
+    // Case-insensitive fallback for slugs (UUIDs are already lowercase-canonical).
+    if (typeof gameId === "string" && !utils.isValidUUID(gameId)) {
+        var lower = gameId.toLowerCase();
+        if (GAME_ID_SLUG_ALIASES[lower]) return GAME_ID_SLUG_ALIASES[lower];
+    }
+    return gameId;
+}
+
+/**
  * Canonical event-name alias map. Clients emit various "-ed" suffix variants
  * (historical), but the rollup/funnel logic keys on a single canonical form.
  * Applied in normalizeInboundEvent so every downstream consumer sees the same
@@ -70,7 +103,11 @@ function normalizeInboundEvent(ctx, rawEvent) {
     if (!rawEvent || typeof rawEvent !== 'object') return null;
 
     var gameId = rawEvent.gameId || rawEvent.game_id || rawEvent.gameID || null;
-    if (!gameId || !utils.isValidUUID(gameId)) return { __invalid: "Invalid or missing gameId UUID" };
+    if (!gameId) return { __invalid: "Invalid or missing gameId UUID" };
+    // Resolve human-readable slugs ("quizverse", "lasttolive", …) to their canonical UUID
+    // BEFORE validation. Legacy clients still emit slugs and would otherwise be rejected.
+    gameId = resolveGameIdAlias(gameId);
+    if (!utils.isValidUUID(gameId)) return { __invalid: "Invalid or missing gameId UUID" };
 
     var eventName = rawEvent.eventName || rawEvent.event_name || rawEvent.event || null;
     if (!eventName) return { __invalid: "Missing eventName" };
@@ -79,12 +116,26 @@ function normalizeInboundEvent(ctx, rawEvent) {
     var eventData = rawEvent.eventData || rawEvent.event_data || rawEvent.properties || rawEvent.data || {};
     if (typeof eventData !== 'object' || eventData === null) eventData = {};
 
-    // Inject platform / app_version from top-level if client didn't put them in eventData.
+    // Inject dimensional fields from top-level if client didn't put them in eventData.
+    // These power the audience / platform / retention slices on the dashboard, so we
+    // need them on EVERY event regardless of which schema the client is using.
     if (!eventData.platform && rawEvent.platform) eventData.platform = rawEvent.platform;
     if (!eventData.app_version && rawEvent.app_version) eventData.app_version = rawEvent.app_version;
     if (!eventData.device_model && rawEvent.device_model) eventData.device_model = rawEvent.device_model;
+    if (!eventData.device_tier && rawEvent.device_tier) eventData.device_tier = rawEvent.device_tier;
+    if (!eventData.country && rawEvent.country) eventData.country = rawEvent.country;
+    if (!eventData.locale && rawEvent.locale) eventData.locale = rawEvent.locale;
+    if (!eventData.os && rawEvent.os) eventData.os = rawEvent.os;
+    if (!eventData.os_version && rawEvent.os_version) eventData.os_version = rawEvent.os_version;
+    if (!eventData.unity_ver && rawEvent.unity_ver) eventData.unity_ver = rawEvent.unity_ver;
+    if (!eventData.install_source && rawEvent.install_source) eventData.install_source = rawEvent.install_source;
+    if (!eventData.consent_state && rawEvent.consent_state) eventData.consent_state = rawEvent.consent_state;
+    if (!eventData.att_status && rawEvent.att_status) eventData.att_status = rawEvent.att_status;
     if (!eventData.session_id && rawEvent.session_id) eventData.session_id = rawEvent.session_id;
     if (!eventData.session_id && rawEvent.sessionId) eventData.session_id = rawEvent.sessionId;
+    if (!eventData.session_number && rawEvent.session_number) eventData.session_number = rawEvent.session_number;
+    if (!eventData.current_scene && rawEvent.current_scene) eventData.current_scene = rawEvent.current_scene;
+    if (!eventData.quiz_mode && rawEvent.quiz_mode) eventData.quiz_mode = rawEvent.quiz_mode;
 
     // Server-authoritative user id.
     var userId = ctx.userId;
@@ -149,8 +200,15 @@ function persistNormalizedEvent(nk, logger, ev) {
     // Dashboard-aggregation copy under SYSTEM_USER so scans don't need cross-user lookups.
     // Key day bucket off the event's unixTimestamp (honors client offline replay),
     // not server wall-clock, so the rollup's date-bucket scan sees it correctly.
+    //
+    // IMPORTANT: gameId is embedded as the SECOND field so analytics_extended.js's
+    // extractGameIdFromKey() can recover it for per-game filtering. Earlier the
+    // key omitted gameId entirely, which forced extScanEvents to rely solely on
+    // val.gameId — and any aggregated/legacy event missing that field could not
+    // be filtered to a specific game (the audience/retention/platform RPCs all
+    // returned empty results for QuizVerse as a result).
     var eventDay = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
-    var dashboardKey = "dash_" + eventDay + "_" + ev.eventName +
+    var dashboardKey = "dash_" + ev.gameId + "_" + eventDay + "_" + ev.eventName +
                        "_" + ev.unixTimestamp + "_" + Math.floor(Math.random() * 10000);
     utils.writeStorage(nk, logger, "analytics_events", dashboardKey, SYSTEM_USER, ev);
 

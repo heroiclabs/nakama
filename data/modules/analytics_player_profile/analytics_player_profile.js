@@ -34,12 +34,23 @@ var FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
 var EVENT_INDEX_COLLECTION = "analytics_event_count_user"; // optional rollup
 var DEFAULT_GAME_ID = "default";
 
+// Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-...").
+// Delegates to the bundled global resolveGameIdAlias when available so the
+// alias map (defined in analytics.js) stays the single source of truth.
+function appResolveGameId(g) {
+    if (!g) return g;
+    try {
+        if (typeof resolveGameIdAlias === 'function') return resolveGameIdAlias(g);
+    } catch (e) { /* fall through */ }
+    return g;
+}
+
 function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
     try {
         var data = {};
         try { data = JSON.parse(payload || '{}'); } catch (_) { /* ignore */ }
 
-        var gameId = data.gameId || data.game_id || DEFAULT_GAME_ID;
+        var gameId = appResolveGameId(data.gameId || data.game_id || DEFAULT_GAME_ID);
         var userId = ctx.userId;
         if (!userId) {
             return JSON.stringify({ success: false, error: "no_session" });
@@ -175,7 +186,7 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "no_session" });
         }
 
-        var gameId = data.gameId || data.game_id || DEFAULT_GAME_ID;
+        var gameId = appResolveGameId(data.gameId || data.game_id || DEFAULT_GAME_ID);
         var idempotencyKey = (data.idempotency_key || data.idempotencyKey || "").toString();
 
         var eventsDelta = parseInt(data.events_delta || data.eventsDelta || 0, 10) || 0;

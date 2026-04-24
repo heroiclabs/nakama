@@ -21,6 +21,17 @@ var AA_ADMIN_USERS_COLLECTION = "admin_users";
 var AA_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var AA_SESSION_TTL_SEC = 12 * 60 * 60; // 12 hours
 
+// Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-...").
+// Delegates to the bundled global resolveGameIdAlias when available so the
+// alias map (defined in analytics.js) stays the single source of truth.
+function aaResolveGameId(g) {
+    if (!g) return g;
+    try {
+        if (typeof resolveGameIdAlias === 'function') return resolveGameIdAlias(g);
+    } catch (e) { /* fall through */ }
+    return g;
+}
+
 var AA_REQUIRED_ENV = [
     "ADMIN_USERNAME",
     "ADMIN_PASSWORD_HASH",
@@ -340,6 +351,7 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
 
     var gameIdFilter = data.gameId || data.game_id || null;
     if (gameIdFilter === "all") gameIdFilter = null;
+    if (gameIdFilter) gameIdFilter = aaResolveGameId(gameIdFilter);
     var eventNameFilter = data.eventName || data.event_name || null;
     // 2026-04 hardening — Player-360 drilldown. Optional userId filter so
     // dashboards can pull a single player's full event timeline without
@@ -369,7 +381,7 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
                 }
                 if (evUnix && evUnix < cutoffSec) continue;
 
-                if (gameIdFilter && ev.gameId && ev.gameId !== gameIdFilter) continue;
+                if (gameIdFilter && ev.gameId && aaResolveGameId(ev.gameId) !== gameIdFilter) continue;
                 if (eventNameFilter && ev.eventName !== eventNameFilter) continue;
                 if (userIdFilter && ev.userId !== userIdFilter) continue;
 

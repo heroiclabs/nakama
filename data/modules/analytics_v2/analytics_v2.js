@@ -7,6 +7,19 @@ var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Local wrapper around the global resolveGameIdAlias helper exposed by
+// analytics.js (via postbuild bundling). Falls back to identity if the helper
+// has not been bundled yet so this module remains loadable in isolation.
+function avResolveGameId(gameId) {
+  if (!gameId) return gameId;
+  try {
+    if (typeof resolveGameIdAlias === 'function') {
+      return resolveGameIdAlias(gameId);
+    }
+  } catch (e) { /* helper not bundled — keep raw value */ }
+  return gameId;
+}
+
 function analyticsNowSeconds() {
   return Math.floor(Date.now() / 1000);
 }
@@ -147,7 +160,7 @@ function discoverGameIds(nk, days) {
     for (var i = 0; i < result.objects.length; i++) {
       var val = result.objects[i].value;
       if (val && val.gameId) {
-        gameIds[val.gameId] = true;
+        gameIds[avResolveGameId(val.gameId)] = true;
       }
     }
   }
@@ -184,7 +197,7 @@ function sampleUserIds(nk, limit) {
 function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
-    var gameIds = data.game_id ? [data.game_id] : discoverGameIds(nk, 7);
+    var gameIds = data.game_id ? [avResolveGameId(data.game_id)] : discoverGameIds(nk, 7);
     var todayStr = analyticsDaysAgo(0);
 
     var dauUsersToday = [];
@@ -283,7 +296,7 @@ function rpcAnalyticsRetentionCohort(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var cohortDate = data.cohort_date || analyticsDaysAgo(1);
-    var gameId = data.game_id;
+    var gameId = avResolveGameId(data.game_id);
     var gameIds = gameId ? [gameId] : discoverGameIds(nk, 30);
 
     var cohortStart = analyticsDateFromString(cohortDate).getTime();
@@ -351,7 +364,7 @@ function rpcAnalyticsEngagementScore(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var userId = data.user_id || ctx.userId;
-    var gameId = data.game_id;
+    var gameId = avResolveGameId(data.game_id);
 
     if (!userId) {
       return JSON.stringify({ error: "user_id required" });
@@ -453,7 +466,7 @@ function rpcAnalyticsEngagementScore(ctx, logger, nk, payload) {
 function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
-    var gameId = data.game_id;
+    var gameId = avResolveGameId(data.game_id);
     var days = data.days || 7;
     var cutoffSec = analyticsNowSeconds() - days * 86400;
 
@@ -542,7 +555,7 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
 function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
-    var gameId = data.game_id;
+    var gameId = avResolveGameId(data.game_id);
     var days = data.days || 30;
 
     var userIds = sampleUserIds(nk, 100);
@@ -661,7 +674,7 @@ function countD7Return(nk, userIds) {
 function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
-    var gameId = data.game_id;
+    var gameId = avResolveGameId(data.game_id);
 
     var userIds = sampleUserIds(nk, 100);
     var sampleSize = userIds.length;
@@ -768,7 +781,7 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
 function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
-    var gameId = data.game_id;
+    var gameId = avResolveGameId(data.game_id);
     var days = data.days || 7;
     var cutoffSec = analyticsNowSeconds() - days * 86400;
 
@@ -851,7 +864,7 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
 function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
-    var gameId = data.game_id;
+    var gameId = avResolveGameId(data.game_id);
 
     var userIds = sampleUserIds(nk, 100);
     var totalSampled = userIds.length;
@@ -940,7 +953,7 @@ function rpcAnalyticsLogError(ctx, logger, nk, payload) {
     var rpcName = data.rpc_name || "unknown";
     var errorMessage = data.error_message || "";
     var userId = data.user_id || ctx.userId || "";
-    var gameId = data.game_id || "";
+    var gameId = avResolveGameId(data.game_id) || "";
     var stackTrace = data.stack_trace || "";
     var nowSec = analyticsNowSeconds();
     var todayStr = analyticsDaysAgo(0);

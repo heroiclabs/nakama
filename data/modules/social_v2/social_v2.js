@@ -58,6 +58,19 @@ function generateJoinCode() {
     return String(100000 + Math.floor(Math.random() * 900000));
 }
 
+// Local wrapper around the global resolveGameIdAlias helper exposed by
+// analytics.js (via postbuild bundling). Falls back to identity if the helper
+// has not been bundled yet so this module remains loadable in isolation.
+function svResolveGameId(gameId) {
+    if (!gameId) return gameId;
+    try {
+        if (typeof resolveGameIdAlias === 'function') {
+            return resolveGameIdAlias(gameId);
+        }
+    } catch (e) { /* helper not bundled — keep raw value */ }
+    return gameId;
+}
+
 // ---------------------------------------------------------------------------
 // 1. rpcChallengeAccept
 // ---------------------------------------------------------------------------
@@ -154,7 +167,7 @@ function rpcChallengeList(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
         var userId = ctx.userId || SYSTEM_USER_ID;
-        var gameId = data.game_id || "";
+        var gameId = svResolveGameId(data.game_id) || "";
         var statusFilter = data.status || "";
 
         var records = [];
@@ -197,7 +210,7 @@ function rpcGetRivalry(ctx, logger, nk, payload) {
         }
 
         var userId = ctx.userId || SYSTEM_USER_ID;
-        var gameId = data.game_id || "";
+        var gameId = svResolveGameId(data.game_id) || "";
         var pairKey = [userId, data.target_user_id].sort().join(":");
         var key = "rivalry:" + gameId + ":" + pairKey;
 
@@ -234,7 +247,7 @@ function rpcFriendScoreAlert(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
         var userId = ctx.userId || SYSTEM_USER_ID;
-        var gameId = data.game_id || "";
+        var gameId = svResolveGameId(data.game_id) || "";
 
         var friends = [];
         try {
@@ -308,7 +321,10 @@ function rpcTeamQuizCreate(ctx, logger, nk, payload) {
     logger.info("[social_v2] rpcTeamQuizCreate called");
     try {
         var data = JSON.parse(payload || '{}');
-        if (!data.game_id || !data.team_name) {
+        // Canonicalize game_id (slug -> UUID) once so persisted records and
+        // downstream filters always see the canonical UUID.
+        var gameId = svResolveGameId(data.game_id);
+        if (!gameId || !data.team_name) {
             return JSON.stringify({ success: false, error: "game_id and team_name are required" });
         }
 
@@ -319,7 +335,7 @@ function rpcTeamQuizCreate(ctx, logger, nk, payload) {
 
         var teamQuiz = {
             quiz_id: quizId,
-            game_id: data.game_id,
+            game_id: gameId,
             team_name: data.team_name,
             join_code: joinCode,
             max_members: maxMembers,
@@ -395,7 +411,10 @@ function rpcDailyDuoCreate(ctx, logger, nk, payload) {
     logger.info("[social_v2] rpcDailyDuoCreate called");
     try {
         var data = JSON.parse(payload || '{}');
-        if (!data.game_id || !data.partner_user_id) {
+        // Canonicalize game_id (slug -> UUID) once at entry so duo records and
+        // notifications carry the canonical UUID for downstream filtering.
+        var gameId = svResolveGameId(data.game_id);
+        if (!gameId || !data.partner_user_id) {
             return JSON.stringify({ success: false, error: "game_id and partner_user_id are required" });
         }
 
@@ -405,7 +424,7 @@ function rpcDailyDuoCreate(ctx, logger, nk, payload) {
 
         var duo = {
             duo_id: duoId,
-            game_id: data.game_id,
+            game_id: gameId,
             creator_id: userId,
             partner_id: data.partner_user_id,
             date: today,
@@ -422,7 +441,7 @@ function rpcDailyDuoCreate(ctx, logger, nk, payload) {
                 data.partner_user_id,
                 "You've been invited to a Daily Duo!",
                 NOTIFY_DUO_INVITE,
-                { duo_id: duoId, game_id: data.game_id, from: userId },
+                { duo_id: duoId, game_id: gameId, from: userId },
                 userId
             );
         } catch (e) {

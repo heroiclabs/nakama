@@ -91,6 +91,19 @@ var AR_RETENTION_WINDOWS = [1, 3, 7, 14, 30];
 
 // ─── Helpers ──────────────────────────────────────────────
 
+// Resolve game-id slugs (e.g. "quizverse") to canonical UUIDs so the
+// rollup writes a single document per game even when legacy clients are
+// still emitting slug-style identifiers.
+function arResolveGameId(gameId) {
+    if (!gameId) return gameId;
+    try {
+        if (typeof resolveGameIdAlias === "function") {
+            return resolveGameIdAlias(gameId);
+        }
+    } catch (e) { /* helper not bundled yet — fall through */ }
+    return gameId;
+}
+
 function arParse(payload) {
     try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
 }
@@ -234,6 +247,12 @@ function arScanEventsForDate(nk, logger, dateStr) {
             if (!unix) continue;
             if (unix < dayStart || unix >= dayEnd) continue;
 
+            // Normalize event-derived gameId at the source so every downstream
+            // consumer (rollup, first-seen, retention, funnels) sees the same
+            // canonical UUID. Legacy events emitted with slug like "quizverse"
+            // are folded into 126bf539-... here.
+            if (ev.gameId) ev.gameId = arResolveGameId(ev.gameId);
+
             events.push(ev);
         }
 
@@ -266,6 +285,10 @@ function arScanEventsForDate(nk, logger, dateStr) {
  */
 function arUpsertFirstSeen(nk, logger, gameId, userIds, dateStr) {
     var result = { newUsers: {}, firstSeen: {} };
+    // Defensive aliasing: if a caller hands us a slug like "quizverse" we
+    // canonicalize before reading/writing so first_seen keys stay consistent
+    // across legacy and current event streams.
+    gameId = arResolveGameId(gameId);
     if (!gameId || gameId === "all" || !userIds || userIds.length === 0) return result;
 
     var batchSize = 50;
@@ -349,6 +372,9 @@ function arUpsertFirstSeen(nk, logger, gameId, userIds, dateStr) {
 // ─── Core: compute rollup from events for ONE gameId ──────
 
 function arComputeRollup(events, gameId, dateStr, newUsersSet) {
+    // Defensive: caller may have passed the slug; canonicalize so the
+    // ev.gameId !== gameId filter below matches normalized events.
+    gameId = arResolveGameId(gameId);
     var activeUsers = {};
     var sessions = {
         starts: 0,
@@ -587,6 +613,9 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
  * Value shape: { cohortDate, gameId, cohortSize: n, activeByDay: { "1": n, "3": n, ... } }
  */
 function arUpdateRetention(nk, logger, gameId, cohortDateStr, activeUserSet, todayOffset) {
+    // Canonicalize so all retention cohorts live under the UUID even if a
+    // caller still passes the legacy slug.
+    gameId = arResolveGameId(gameId);
     if (!gameId || gameId === "all") return;
     var key = "cohort_" + gameId + "_" + cohortDateStr;
     var existing = arReadOne(nk, AR_RETENTION_COLLECTION, key, AR_SYSTEM_USER) || {};
@@ -641,13 +670,15 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     var events = scanResult.events;
 
     // Build list of gameIds present in this date's events, plus optional explicit list.
+    // Canonicalize via arResolveGameId so callers passing legacy slugs (e.g. "quizverse")
+    // don't create a duplicate rollup bucket alongside the UUID-keyed events.
     var gameIdSet = {};
     for (var i = 0; i < events.length; i++) {
-        if (events[i].gameId) gameIdSet[events[i].gameId] = true;
+        if (events[i].gameId) gameIdSet[arResolveGameId(events[i].gameId)] = true;
     }
     if (Array.isArray(data.gameIds)) {
         for (var gi = 0; gi < data.gameIds.length; gi++) {
-            if (data.gameIds[gi]) gameIdSet[data.gameIds[gi]] = true;
+            if (data.gameIds[gi]) gameIdSet[arResolveGameId(data.gameIds[gi])] = true;
         }
     }
     var gameIds = Object.keys(gameIdSet);
@@ -658,7 +689,9 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     // and retention. This replaces two prior full-events scans per game.
     var activeByGame = {};
     for (var ei = 0; ei < events.length; ei++) {
-        var egid = events[ei].gameId;
+        // Canonicalize again here in case an event slipped through arScanEventsForDate
+        // without its gameId being aliased (defense in depth).
+        var egid = arResolveGameId(events[ei].gameId);
         var euid = events[ei].userId;
         if (!egid || !euid) continue;
         if (!activeByGame[egid]) activeByGame[egid] = {};
@@ -758,9 +791,19 @@ function rpcAnalyticsRollupBackfill(ctx, logger, nk, payload) {
     if (dates.length === 0) return arErr("Empty date range", 400);
     if (dates.length > 90) return arErr("Backfill range too large (max 90 days)", 400);
 
+    // Canonicalize caller-supplied gameIds once at the entry point so each
+    // per-date run downstream sees UUIDs even if the operator passed slugs.
+    var aliasedGameIds = null;
+    if (Array.isArray(data.gameIds)) {
+        aliasedGameIds = [];
+        for (var ag = 0; ag < data.gameIds.length; ag++) {
+            if (data.gameIds[ag]) aliasedGameIds.push(arResolveGameId(data.gameIds[ag]));
+        }
+    }
+
     var results = [];
     for (var i = 0; i < dates.length; i++) {
-        var runPayload = { date: dates[i], dashboard_secret: data.dashboard_secret, gameIds: data.gameIds };
+        var runPayload = { date: dates[i], dashboard_secret: data.dashboard_secret, gameIds: aliasedGameIds };
         var raw;
         try { raw = rpcAnalyticsRollupRun(ctx, logger, nk, JSON.stringify(runPayload)); }
         catch (e) {

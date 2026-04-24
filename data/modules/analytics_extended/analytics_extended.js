@@ -200,6 +200,22 @@ function extDaysAgo(days) {
     return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Resolve a gameId slug ("quizverse", "lasttolive", …) to its canonical UUID.
+ * Delegates to resolveGameIdAlias (defined in analytics.js, globally available
+ * inside the bundled runtime). Falls back to identity when the helper or the
+ * input is missing so existing callers stay safe.
+ */
+function extResolveGameId(gameId) {
+    if (!gameId) return gameId;
+    try {
+        if (typeof resolveGameIdAlias === 'function') {
+            return resolveGameIdAlias(gameId);
+        }
+    } catch (e) { /* helper not bundled yet — keep raw value */ }
+    return gameId;
+}
+
 function extStorageRead(nk, collection, key, userId) {
     try {
         var objs = nk.storageRead([{ collection: collection, key: key, userId: userId || SYSTEM_USER_ID }]);
@@ -231,7 +247,12 @@ var EVENT_COLLECTIONS = ['analytics_events', 'analytics_error_events'];
 function extScanEvents(nk, logger, collection, days, filter, gameId) {
     var events = [];
     var cutoffDate = extDaysAgo(days);
-    
+
+    // Canonicalize the requested gameId once: callers may pass a slug
+    // ("quizverse") and stored events may carry either the slug (legacy)
+    // or the canonical UUID, so we alias both sides before comparing.
+    var canonicalGameId = extResolveGameId(gameId);
+
     // Determine which collections to scan
     var collectionsToScan = (collection === 'analytics_events') ? EVENT_COLLECTIONS : [collection];
     
@@ -253,9 +274,10 @@ function extScanEvents(nk, logger, collection, days, filter, gameId) {
                     if (!val) continue;
                     
                     // GameId filter (supports both key prefix and value.gameId)
-                    if (gameId) {
-                        var eventGameId = val.gameId || extractGameIdFromKey(obj.key);
-                        if (eventGameId !== gameId) continue;
+                    if (canonicalGameId) {
+                        var rawEventGameId = val.gameId || extractGameIdFromKey(obj.key);
+                        var eventGameId = extResolveGameId(rawEventGameId);
+                        if (eventGameId !== canonicalGameId) continue;
                     }
                     
                     // Date filter
@@ -280,13 +302,41 @@ function extScanEvents(nk, logger, collection, days, filter, gameId) {
 }
 
 /**
- * Extract gameId from storage key format: {gameId}_{eventName}_{timestamp}_{userId}
+ * Extract gameId from a storage key.
+ *
+ * We support multiple historical key shapes:
+ *   - "dash_{gameId}_{YYYY-MM-DD}_{eventName}_{ts}_{rand}"   (new aggregated format)
+ *   - "dash_{YYYY-MM-DD}_{eventName}_{ts}_{rand}"             (legacy aggregated, gameId only on value)
+ *   - "event_{userId}_{gameId}_{ts}_{rand}"                   (per-user event copy)
+ *   - "{gameId}_{eventName}_{ts}_{userId}"                    (very old direct-write format)
+ *
+ * gameId may be a UUID (e.g. "126bf539-dae2-4bcf-964d-316c0fa1f92b") OR a slug
+ * (e.g. "quizverse"). UUIDs themselves contain hyphens, never underscores, so
+ * splitting on "_" is safe.
  */
 function extractGameIdFromKey(key) {
     if (!key) return null;
     var parts = key.split('_');
-    // Key format: gameId_eventName_timestamp_userId
-    // gameId is typically "quizverse", "cricket", etc.
+    if (parts.length < 2) return null;
+
+    // New aggregated dashboard key: dash_{gameId}_{date}_...
+    // The "date" segment matches YYYY-MM-DD; if parts[2] looks like a date,
+    // parts[1] is the gameId.
+    if (parts[0] === 'dash' && parts.length >= 5) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(parts[2])) {
+            return parts[1];
+        }
+        // Legacy dash_{date}_... — no gameId encoded in the key.
+        return null;
+    }
+
+    // Per-user event copy: event_{userId}_{gameId}_{ts}_{rand}
+    // userId is a UUID (no underscores), so parts[2] is the gameId.
+    if (parts[0] === 'event' && parts.length >= 5) {
+        return parts[2];
+    }
+
+    // Fallback / very old format: {gameId}_{eventName}_{ts}_{userId}
     if (parts.length >= 4) {
         return parts[0];
     }
@@ -347,7 +397,7 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var totalSessions = 0;
         var durations = [];
@@ -435,7 +485,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var quizStarted = 0;
         var quizCompleted = 0;
@@ -561,7 +611,7 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         var funnelType = data.funnel || 'onboarding';
         
         var stepCounts = {};
@@ -659,7 +709,7 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var totalAIEvents = 0;
         var aiUserSet = {};
@@ -741,7 +791,7 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         // Define features to track
         var featureDefs = [
@@ -819,7 +869,7 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var sampleSize = parseInt(data.sample_size, 10) || 100;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var coinBalances = [];
         var gemBalances = [];
@@ -917,7 +967,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var adImpressions = 0;
         var adCompleted = 0;
@@ -1116,7 +1166,7 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var platformCounts = {};
         var platformUsers = {};
@@ -1192,7 +1242,7 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var buttonClicks = {};
         var screenViews = {};
@@ -1269,7 +1319,7 @@ function rpcAnalyticsTopPlayers(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
         var limit = parseInt(data.limit, 10) || 50;
-        var gameId = data.game_id || data.gameId || null; // Filter by specific game
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Filter by specific game — alias slugs to canonical UUIDs
         
         var playerStats = {};
         
@@ -1375,7 +1425,7 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var totalErrors = 0;
         var errorsByRpc = {};
@@ -1521,7 +1571,7 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
 function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         // Thresholds (configurable)
         var WHALE_THRESHOLD = 100; // $100 total spent
@@ -1629,7 +1679,7 @@ function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
 function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         // Thresholds
         var AT_RISK_DAYS = 7;
@@ -1741,7 +1791,7 @@ function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
 function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
-        var gameId = data.game_id || data.gameId || null; // Optional filter
+        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var stats = {
             total_users: 0,
@@ -1871,7 +1921,7 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = data.game_id || data.gameId || null;
+        var gameId = extResolveGameId(data.game_id || data.gameId || null);
 
         // Per-dimension event-count maps and per-dimension user-set maps.
         var dims = {
@@ -1975,7 +2025,7 @@ function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 30;
-        var gameId = data.game_id || data.gameId || null;
+        var gameId = extResolveGameId(data.game_id || data.gameId || null);
 
         var counts = { retention_d1: 0, retention_d7: 0, retention_d30: 0 };
         var dailyMap = { retention_d1: {}, retention_d7: {}, retention_d30: {} };
