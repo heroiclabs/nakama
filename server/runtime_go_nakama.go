@@ -2248,7 +2248,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*r
 }
 
 // @group storage
-// @summary Write a set storage object changes with retries.
+// @summary Write a set of storage object changes with retries.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageRead) An array of object identifiers to be fetched.
 // @param updateFn(type=function) A function that applies changes to the read storage objects.
