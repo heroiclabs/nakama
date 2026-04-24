@@ -261,6 +261,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"storage_list":                       n.storageList,
 		"storage_read":                       n.storageRead,
 		"storage_write":                      n.storageWrite,
+		"storage_write_retry":                n.storageWriteRetry,
 		"storage_delete":                     n.storageDelete,
 		"multi_update":                       n.multiUpdate,
 		"leaderboard_create":                 n.leaderboardCreate,
@@ -6352,7 +6353,7 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 		return 1
 	}
 
-	ops, err := tableToStorageWrites(l, keys)
+	ops, err := tableToStorageOpWrites(l, keys)
 	if err != nil {
 		return 0
 	}
@@ -6377,7 +6378,340 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 	return 1
 }
 
-func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) (StorageOpWrites, error) {
+// @group storage
+// @summary Write a set of storage object changes with retries.
+// @param objectIDs(type=table) An array of object identifiers to be fetched.
+// @param updateFn(type=function) A function that applies changes to the read storage objects. It receives a table of storage reads and returns a table of storage writes.
+// @param maxRetries(type=number) Maximum number of retries to attempt if a version conflict is detected. Must be a value between 0 and 10.
+// @return acks(table) A list of acks with the version of the written objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) storageWriteRetry(l *lua.LState) int {
+	keys := l.CheckTable(1)
+	if keys == nil {
+		l.ArgError(1, "expects a valid set of keys")
+		return 0
+	}
+
+	updateFnLua := l.CheckFunction(2)
+	if updateFnLua == nil {
+		l.ArgError(2, "expects a valid update function")
+		return 0
+	}
+
+	maxRetries := l.CheckInt(3)
+	if maxRetries < 0 || maxRetries > 10 {
+		l.ArgError(3, "max retries must be a value between 0 and 10")
+		return 0
+	}
+
+	size := keys.Len()
+	if size == 0 {
+		// Empty input, empty response.
+		l.Push(l.CreateTable(0, 0))
+		return 1
+	}
+
+	objectIDs := make([]*api.ReadStorageObjectId, 0, size)
+	conversionError := false
+	keys.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		keyTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of keys")
+			return
+		}
+
+		objectID := &api.ReadStorageObjectId{}
+		keyTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "collection":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects collection to be string")
+					return
+				}
+				objectID.Collection = v.String()
+				if objectID.Collection == "" {
+					conversionError = true
+					l.ArgError(1, "expects collection to be a non-empty string")
+					return
+				}
+			case "key":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects key to be string")
+					return
+				}
+				objectID.Key = v.String()
+				if objectID.Key == "" {
+					conversionError = true
+					l.ArgError(1, "expects key to be a non-empty string")
+					return
+				}
+			case "user_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be string")
+					return
+				}
+				objectID.UserId = v.String()
+				if _, err := uuid.FromString(objectID.UserId); err != nil {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be a valid ID")
+					return
+				}
+			}
+		})
+
+		if conversionError {
+			return
+		}
+
+		if objectID.UserId == "" {
+			// Default to server-owned data if no owner is supplied.
+			objectID.UserId = uuid.Nil.String()
+		}
+
+		if objectID.Collection == "" {
+			conversionError = true
+			l.ArgError(1, "expects collection to be supplied")
+			return
+		} else if objectID.Key == "" {
+			conversionError = true
+			l.ArgError(1, "expects key to be supplied")
+			return
+		}
+
+		objectIDs = append(objectIDs, objectID)
+	})
+	if conversionError {
+		return 0
+	}
+
+	updateFn := func(objects []*api.StorageObject) ([]*runtime.StorageWrite, error) {
+		objectsTable := l.CreateTable(len(objects), 0)
+		for i, v := range objects {
+			vt := l.CreateTable(0, 9)
+			vt.RawSetString("key", lua.LString(v.Key))
+			vt.RawSetString("collection", lua.LString(v.Collection))
+			if v.UserId != "" {
+				vt.RawSetString("user_id", lua.LString(v.UserId))
+			} else {
+				vt.RawSetString("user_id", lua.LNil)
+			}
+			vt.RawSetString("version", lua.LString(v.Version))
+			vt.RawSetString("permission_read", lua.LNumber(v.PermissionRead))
+			vt.RawSetString("permission_write", lua.LNumber(v.PermissionWrite))
+			vt.RawSetString("create_time", lua.LNumber(v.CreateTime.Seconds))
+			vt.RawSetString("update_time", lua.LNumber(v.UpdateTime.Seconds))
+
+			valueMap := make(map[string]interface{})
+			err := json.Unmarshal([]byte(v.Value), &valueMap)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode object value: %w", err)
+			}
+			valueTable := RuntimeLuaConvertMap(l, valueMap)
+			vt.RawSetString("value", valueTable)
+
+			objectsTable.RawSetInt(i+1, vt)
+		}
+
+		l.Push(updateFnLua)
+		l.Push(objectsTable)
+
+		err := l.PCall(1, 1, nil)
+		if err != nil {
+			return nil, fmt.Errorf("update function error: %w", err)
+		}
+
+		retValue := l.Get(-1)
+		l.Pop(1)
+		if retValue.Type() != lua.LTTable {
+			return nil, fmt.Errorf("update function error: expects to return a valid table")
+		}
+
+		retTable := retValue.(*lua.LTable)
+
+		ops, err := tableToStorageWrites(l, retTable)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected update function return value: %w", err)
+		}
+
+		if len(ops) == 0 {
+			return []*runtime.StorageWrite{}, nil
+		}
+
+		return ops, nil
+	}
+
+	acks, err := StorageWriteWithRetries(l.Context(), n.logger, n.db, n.metrics, n.storageIndex, objectIDs, updateFn, maxRetries)
+	if err != nil {
+		l.RaiseError("failed to write storage objects with retry: %s", err.Error())
+		return 0
+	}
+
+	lv := l.CreateTable(len(acks.Acks), 0)
+	for i, k := range acks.Acks {
+		kt := l.CreateTable(0, 4)
+		kt.RawSetString("key", lua.LString(k.Key))
+		kt.RawSetString("collection", lua.LString(k.Collection))
+		kt.RawSetString("user_id", lua.LString(k.UserId))
+		kt.RawSetString("version", lua.LString(k.Version))
+
+		lv.RawSetInt(i+1, kt)
+	}
+	l.Push(lv)
+	return 1
+}
+
+func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) ([]*runtime.StorageWrite, error) {
+	size := dataTable.Len()
+	ops := make([]*runtime.StorageWrite, 0, size)
+	conversionError := false
+	dataTable.ForEach(func(k, v lua.LValue) {
+		if conversionError {
+			return
+		}
+
+		dataTable, ok := v.(*lua.LTable)
+		if !ok {
+			conversionError = true
+			l.ArgError(1, "expects a valid set of data")
+			return
+		}
+
+		w := &runtime.StorageWrite{}
+		var readSet, writeSet bool
+		dataTable.ForEach(func(k, v lua.LValue) {
+			if conversionError {
+				return
+			}
+
+			switch k.String() {
+			case "collection":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects collection to be string")
+					return
+				}
+				w.Collection = v.String()
+				if w.Collection == "" {
+					conversionError = true
+					l.ArgError(1, "expects collection to be a non-empty string")
+					return
+				}
+			case "key":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects key to be string")
+					return
+				}
+				w.Key = v.String()
+				if w.Key == "" {
+					conversionError = true
+					l.ArgError(1, "expects key to be a non-empty string")
+					return
+				}
+			case "user_id":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be string")
+					return
+				}
+				userID, err := uuid.FromString(v.String())
+				if err != nil {
+					conversionError = true
+					l.ArgError(1, "expects user_id to be a valid ID")
+					return
+				}
+				w.UserID = userID.String()
+			case "value":
+				if v.Type() != lua.LTTable {
+					conversionError = true
+					l.ArgError(1, "expects value to be table")
+					return
+				}
+				valueMap := RuntimeLuaConvertLuaTable(v.(*lua.LTable))
+				valueBytes, err := json.Marshal(valueMap)
+				if err != nil {
+					conversionError = true
+					l.ArgError(1, fmt.Sprintf("failed to convert value: %s", err.Error()))
+					return
+				}
+				w.Value = string(valueBytes)
+			case "version":
+				if v.Type() != lua.LTString {
+					conversionError = true
+					l.ArgError(1, "expects version to be string")
+					return
+				}
+				w.Version = v.String()
+				if w.Version == "" {
+					conversionError = true
+					l.ArgError(1, "expects version to be a non-empty string")
+					return
+				}
+			case "permission_read":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects permission_read to be number")
+					return
+				}
+				readSet = true
+				w.PermissionRead = int(v.(lua.LNumber))
+			case "permission_write":
+				if v.Type() != lua.LTNumber {
+					conversionError = true
+					l.ArgError(1, "expects permission_write to be number")
+					return
+				}
+				writeSet = true
+				w.PermissionWrite = int(v.(lua.LNumber))
+			}
+		})
+
+		if conversionError {
+			return
+		}
+
+		if w.Collection == "" {
+			conversionError = true
+			l.ArgError(1, "expects collection to be supplied")
+			return
+		} else if w.Key == "" {
+			conversionError = true
+			l.ArgError(1, "expects key to be supplied")
+			return
+		} else if w.Value == "" {
+			conversionError = true
+			l.ArgError(1, "expects value to be supplied")
+			return
+		}
+
+		if !readSet {
+			// Default to owner read if no permission_read is supplied.
+			w.PermissionRead = 1
+		}
+		if !writeSet {
+			// Default to owner write if no permission_write is supplied.
+			w.PermissionWrite = 1
+		}
+
+		ops = append(ops, w)
+	})
+
+	return ops, nil
+}
+
+func tableToStorageOpWrites(l *lua.LState, dataTable *lua.LTable) (StorageOpWrites, error) {
 	size := dataTable.Len()
 	ops := make(StorageOpWrites, 0, size)
 	conversionError := false
@@ -6514,37 +6848,6 @@ func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) (StorageOpWrites
 	})
 
 	return ops, nil
-}
-
-//nolint:unused
-func storageOpWritesToTable(l *lua.LState, ops StorageOpWrites) (*lua.LTable, error) {
-	lv := l.CreateTable(len(ops), 0)
-	for i, v := range ops {
-		vt := l.CreateTable(0, 7)
-		vt.RawSetString("key", lua.LString(v.Object.Key))
-		vt.RawSetString("collection", lua.LString(v.Object.Collection))
-		if v.OwnerID != "" {
-			vt.RawSetString("user_id", lua.LString(v.OwnerID))
-		} else {
-			vt.RawSetString("user_id", lua.LNil)
-		}
-		vt.RawSetString("version", lua.LString(v.Object.Version))
-		vt.RawSetString("permission_read", lua.LNumber(v.Object.PermissionRead.GetValue()))
-		vt.RawSetString("permission_write", lua.LNumber(v.Object.PermissionWrite.GetValue()))
-
-		valueMap := make(map[string]interface{})
-		err := json.Unmarshal([]byte(v.Object.Value), &valueMap)
-		if err != nil {
-			l.RaiseError("failed to convert value to json: %s", err.Error())
-			return nil, err
-		}
-		valueTable := RuntimeLuaConvertMap(l, valueMap)
-		vt.RawSetString("value", valueTable)
-
-		lv.RawSetInt(i+1, vt)
-	}
-
-	return lv, nil
 }
 
 // @group storage

@@ -163,8 +163,9 @@ const (
 )
 
 var (
-	ErrStorageRejectedVersion    = errors.New("Storage write rejected - version check failed.")
-	ErrStorageRejectedPermission = errors.New("Storage write rejected - permission denied.")
+	ErrStorageRejectedVersion       = errors.New("Storage write rejected - version check failed.")
+	ErrStorageRejectedPermission    = errors.New("Storage write rejected - permission denied.")
+	ErrStorageWriteExhaustedRetries = errors.New("Storage write retries exhausted.")
 
 	ErrChannelIDInvalid     = errors.New("invalid channel id")
 	ErrChannelCursorInvalid = errors.New("invalid channel cursor")
@@ -1152,6 +1153,7 @@ type NakamaModule interface {
 	StorageList(ctx context.Context, callerID, userID, collection string, limit int, cursor string) ([]*api.StorageObject, string, error)
 	StorageRead(ctx context.Context, reads []*StorageRead) ([]*api.StorageObject, error)
 	StorageWrite(ctx context.Context, writes []*StorageWrite) ([]*api.StorageObjectAck, error)
+	StorageWriteRetry(ctx context.Context, reads []*StorageRead, updateFn func(reads []*api.StorageObject) ([]*StorageWrite, error), maxRetries int) ([]*api.StorageObjectAck, error)
 	StorageDelete(ctx context.Context, deletes []*StorageDelete) error
 	StorageIndexList(ctx context.Context, callerID, indexName, query string, limit int, order []string, cursor string) (*api.StorageObjects, string, error)
 

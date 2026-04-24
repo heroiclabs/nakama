@@ -2248,6 +2248,51 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*r
 }
 
 // @group storage
+// @summary Write a set of storage object changes with retries.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param objectIDs(type=[]*runtime.StorageRead) An array of object identifiers to be fetched.
+// @param updateFn(type=function) A function that applies changes to the read storage objects.
+// @param maxRetries(type=int) Maximum number of retries to attempt if a version conflict is detected. Must be a value between 0 and 10.
+// @return acks([]*api.StorageObjectAck) A list of acks with the version of the written objects.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) StorageWriteRetry(ctx context.Context, objectIDs []*runtime.StorageRead, updateFn func(objects []*api.StorageObject) ([]*runtime.StorageWrite, error), maxRetries int) ([]*api.StorageObjectAck, error) {
+	if maxRetries < 0 || maxRetries > 10 {
+		return nil, errors.New("max retries must be a value between 0 and 10")
+	}
+
+	reads := make([]*api.ReadStorageObjectId, len(objectIDs))
+	for i, read := range objectIDs {
+		if read.Collection == "" {
+			return nil, errors.New("expects collection to be a non-empty string")
+		}
+		if read.Key == "" {
+			return nil, errors.New("expects key to be a non-empty string")
+		}
+		uid := uuid.Nil
+		var err error
+		if read.UserID != "" {
+			uid, err = uuid.FromString(read.UserID)
+			if err != nil {
+				return nil, errors.New("expects an empty or valid user id")
+			}
+		}
+
+		reads[i] = &api.ReadStorageObjectId{
+			Collection: read.Collection,
+			Key:        read.Key,
+			UserId:     uid.String(),
+		}
+	}
+
+	acks, err := StorageWriteWithRetries(ctx, n.logger, n.db, n.metrics, n.storageIndex, reads, updateFn, maxRetries)
+	if err != nil {
+		return nil, err
+	}
+
+	return acks.Acks, nil
+}
+
+// @group storage
 // @summary Remove one or more objects by their collection/keyname and optional user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageDelete) An array of object identifiers to be deleted.
