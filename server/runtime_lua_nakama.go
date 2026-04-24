@@ -6379,7 +6379,7 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 }
 
 // @group storage
-// @summary Write a set storage object changes with retries.
+// @summary Write a set of storage object changes with retries.
 // @param objectIDs(type=table) An array of object identifiers to be fetched.
 // @param updateFn(type=function) A function that applies changes to the read storage objects. It receives a table of storage reads and returns a table of storage writes.
 // @param maxRetries(type=number) Maximum number of retries to attempt if a version conflict is detected. Must be a value between 0 and 10.
@@ -6589,6 +6589,7 @@ func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) ([]*runtime.Stor
 		}
 
 		w := &runtime.StorageWrite{}
+		var readSet, writeSet bool
 		dataTable.ForEach(func(k, v lua.LValue) {
 			if conversionError {
 				return
@@ -6664,6 +6665,7 @@ func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) ([]*runtime.Stor
 					l.ArgError(1, "expects permission_read to be number")
 					return
 				}
+				readSet = true
 				w.PermissionRead = int(v.(lua.LNumber))
 			case "permission_write":
 				if v.Type() != lua.LTNumber {
@@ -6671,6 +6673,7 @@ func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) ([]*runtime.Stor
 					l.ArgError(1, "expects permission_write to be number")
 					return
 				}
+				writeSet = true
 				w.PermissionWrite = int(v.(lua.LNumber))
 			}
 		})
@@ -6693,11 +6696,11 @@ func tableToStorageWrites(l *lua.LState, dataTable *lua.LTable) ([]*runtime.Stor
 			return
 		}
 
-		if w.PermissionRead == 0 {
+		if !readSet {
 			// Default to owner read if no permission_read is supplied.
 			w.PermissionRead = 1
 		}
-		if w.PermissionWrite == 0 {
+		if !writeSet {
 			// Default to owner write if no permission_write is supplied.
 			w.PermissionWrite = 1
 		}

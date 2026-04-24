@@ -5005,7 +5005,7 @@ func (n *RuntimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 }
 
 // @group storage
-// @summary Write a set storage object changes with retries.
+// @summary Write a set of storage object changes with retries.
 // @param objectIDs(type=[]*nkruntime.StorageRead) An array of object identifiers to be fetched.
 // @param updateFn(type=function) A function that applies changes to the read storage objects.
 // @param maxRetries(type=int) Maximum number of retries to attempt if a version conflict is detected. Must be a value between 0 and 10.
