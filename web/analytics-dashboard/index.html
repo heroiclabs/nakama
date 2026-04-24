@@ -2377,8 +2377,21 @@
                     logout();
                     throw new Error('Session expired. Please sign in again.');
                 }
-                const text = await response.text().catch(() => '');
-                throw new Error(`RPC ${rpcId} failed: ${response.status} ${text.substring(0, 200)}`);
+                // 2026-04 fix — the previous error message was just
+                // "RPC <id> failed: 500" with no body, which made the prod
+                // dashboard misreport every Nakama-layer 404/400/etc. as a
+                // generic 500. Try to parse Nakama's standard
+                // {error,message,code} envelope so operators see the real
+                // failure ("RPC function not found", "Admin access required",
+                // unmarshal errors, etc.) instead of just a status number.
+                let bodyText = '';
+                try {
+                    bodyText = await response.text();
+                    const parsed = JSON.parse(bodyText);
+                    const upstreamMsg = parsed && (parsed.message || parsed.error);
+                    if (upstreamMsg) bodyText = upstreamMsg;
+                } catch (_) { /* keep raw bodyText */ }
+                throw new Error(`RPC ${rpcId} failed (HTTP ${response.status}): ${(bodyText || '').toString().substring(0, 240)}`);
             }
             
             const data = await response.json();
@@ -3157,13 +3170,28 @@
                 const tbody = document.querySelector('#errorTable tbody');
                 const errors = data.errors_by_rpc || [];
                 if (errors.length) {
-                    tbody.innerHTML = errors.map(e => `
+                    tbody.innerHTML = errors.map(e => {
+                        // 2026-04 — when the bucket is "unknown" the backend
+                        // now returns a `samples` array of redacted event
+                        // shapes. Render a small hint that points operators
+                        // at the real upstream gap (typically: Unity client
+                        // emitting error events without a `rpcName` field).
+                        const isUnknown = e.rpc_name === 'unknown';
+                        const samples = Array.isArray(e.samples) ? e.samples : [];
+                        const hint = isUnknown && samples.length
+                            ? `<div style="font-size:0.7rem;color:#fbbf24;margin-top:4px;">⚠️ upstream client did not stamp <code>rpcName</code>. Sample event: <code>${(samples[0].eventName || '?')}</code> with keys <code>${(samples[0].keys || []).slice(0,6).join(', ') || '∅'}</code></div>`
+                            : '';
+                        return `
                         <tr>
-                            <td>${e.rpc_name}</td>
+                            <td>${e.rpc_name}${isUnknown ? ' <span style="color:#fbbf24;font-size:0.7rem;">(unbucketed)</span>' : ''}</td>
                             <td style="color:var(--danger);">${e.count}</td>
                             <td style="font-size:0.8rem;">${e.last_occurred || '-'}</td>
-                            <td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${(e.sample_error||'').slice(0,80) || '-'}</td>
-                        </tr>`).join('');
+                            <td style="font-size:0.75rem;max-width:280px;">
+                                <div style="overflow:hidden;text-overflow:ellipsis;">${(e.sample_error||'').slice(0,120) || '-'}</div>
+                                ${hint}
+                            </td>
+                        </tr>`;
+                    }).join('');
                 } else {
                     tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No errors logged</td></tr>';
                 }
