@@ -158,7 +158,64 @@ namespace HiroChallenges {
     for (var id in defs) {
       list.push({ id: id, definition: defs[id] });
     }
-    return RpcHelpers.successResponse({ challenges: list });
+
+    var userId = ctx.userId;
+    var userState: any = null;
+    if (userId) {
+      var now = Math.floor(Date.now() / 1000);
+      var participating: any[] = [];
+      var available: any[] = [];
+      var completed: any[] = [];
+
+      try {
+        var instances = nk.storageList(Constants.SYSTEM_USER_ID, Constants.HIRO_CHALLENGES_COLLECTION, 100, "");
+        if (instances && instances.objects) {
+          for (var i = 0; i < instances.objects.length; i++) {
+            var obj: any = instances.objects[i].value;
+            if (!obj || !obj.id) continue;
+            var participantCount = obj.participants ? Object.keys(obj.participants).length : 0;
+            var isParticipant = obj.participants && obj.participants[userId];
+            var hasClaimed = obj.claimedBy && obj.claimedBy.indexOf(userId) >= 0;
+            var isExpired = now > obj.endAt;
+            var def = defs[obj.challengeId];
+            var maxParticipants = def ? def.maxParticipants : 0;
+
+            var summary = {
+              instanceId: obj.id,
+              challengeId: obj.challengeId,
+              creatorId: obj.creatorId,
+              startAt: obj.startAt,
+              endAt: obj.endAt,
+              participantCount: participantCount,
+              maxParticipants: maxParticipants,
+              userScore: isParticipant ? obj.participants[userId].score : 0,
+              claimed: hasClaimed,
+              expired: isExpired
+            };
+
+            if (isParticipant) {
+              if (hasClaimed || isExpired) {
+                completed.push(summary);
+              } else {
+                participating.push(summary);
+              }
+            } else if (!isExpired && participantCount < maxParticipants) {
+              available.push(summary);
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn("hiro_challenges_list: failed to enumerate instances: %s", String(e));
+      }
+
+      userState = {
+        participating: participating,
+        available: available,
+        completed: completed
+      };
+    }
+
+    return RpcHelpers.successResponse({ challenges: list, userState: userState });
   }
 
   export function register(initializer: nkruntime.Initializer): void {

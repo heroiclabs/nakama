@@ -210,28 +210,77 @@ namespace LegacyWallet {
       var v = RpcHelpers.validatePayload(data, ["gameId", "currency", "amount", "operation"]);
       if (!v.valid) return RpcHelpers.errorResponse("Missing: " + v.missing.join(", "));
       var userId = RpcHelpers.requireUserId(ctx);
-      var wallet = WalletHelpers.getGameWallet(nk, userId, data.gameId);
       var currency = data.currency;
-      var currenciesToUpdate = (currency === "game" || currency === "tokens") ? ["game", "tokens"] : [currency];
       var amt = Number(data.amount);
       var op = data.operation;
-      for (var i = 0; i < currenciesToUpdate.length; i++) {
-        var c = currenciesToUpdate[i];
-        if (wallet.currencies[c] === undefined) wallet.currencies[c] = 0;
-        if (op === "add") wallet.currencies[c] += amt;
-        else if (op === "subtract") {
-          wallet.currencies[c] -= amt;
-          if (wallet.currencies[c] < 0) wallet.currencies[c] = 0;
-        } else return RpcHelpers.errorResponse("Invalid operation");
+      if (op !== "add" && op !== "subtract") return RpcHelpers.errorResponse("Invalid operation");
+      if (!isFinite(amt) || amt < 0) return RpcHelpers.errorResponse("Invalid amount");
+
+      // Route global currencies to the GLOBAL wallet (separate storage object).
+      // Previously every currency was written into the game wallet's currencies map,
+      // so global credits never reached global_<userId> and read back as 0 on initial load.
+      var isGlobal = currency === "global" || currency === "xut";
+
+      // Always load the game wallet so the response can include game_balance for the client snapshot.
+      var gameWallet = WalletHelpers.getGameWallet(nk, userId, data.gameId);
+      var globalWallet = getGlobalWallet(nk, userId);
+
+      var newBalance = 0;
+
+      if (isGlobal) {
+        // Mirror "global" <-> "xut" so legacy clients keep working regardless of which alias they use.
+        var globalKeys = ["global", "xut"];
+        for (var gi = 0; gi < globalKeys.length; gi++) {
+          var gk = globalKeys[gi];
+          if (globalWallet.currencies[gk] === undefined) globalWallet.currencies[gk] = 0;
+          if (op === "add") globalWallet.currencies[gk] += amt;
+          else {
+            globalWallet.currencies[gk] -= amt;
+            if (globalWallet.currencies[gk] < 0) globalWallet.currencies[gk] = 0;
+          }
+        }
+        saveGlobalWallet(nk, userId, globalWallet);
+        newBalance = globalWallet.currencies[currency] || globalWallet.currencies.global || 0;
+      } else {
+        // Game-scoped currency. Mirror "game" <-> "tokens" for the same backward-compat reason.
+        var currenciesToUpdate = (currency === "game" || currency === "tokens") ? ["game", "tokens"] : [currency];
+        for (var i = 0; i < currenciesToUpdate.length; i++) {
+          var c = currenciesToUpdate[i];
+          if (gameWallet.currencies[c] === undefined) gameWallet.currencies[c] = 0;
+          if (op === "add") gameWallet.currencies[c] += amt;
+          else {
+            gameWallet.currencies[c] -= amt;
+            if (gameWallet.currencies[c] < 0) gameWallet.currencies[c] = 0;
+          }
+        }
+        WalletHelpers.saveGameWallet(nk, gameWallet);
+        newBalance = gameWallet.currencies[currency] || gameWallet.currencies.game || 0;
       }
-      WalletHelpers.saveGameWallet(nk, wallet);
+
+      var gameBal = gameWallet.currencies.game || gameWallet.currencies.tokens || 0;
+      var globalBal = globalWallet.currencies.global || globalWallet.currencies.xut || 0;
+
+      // Merge currencies so the client always sees a fresh snapshot of both wallets,
+      // matching the WalletOperationResultDto shape on the Unity side.
+      var mergedCurrencies: { [key: string]: number } = {};
+      var k: string;
+      for (k in gameWallet.currencies) mergedCurrencies[k] = gameWallet.currencies[k];
+      mergedCurrencies["global"] = globalWallet.currencies.global || 0;
+      mergedCurrencies["xut"] = globalWallet.currencies.xut || 0;
+      if (globalWallet.currencies.xp !== undefined) mergedCurrencies["xp"] = globalWallet.currencies.xp;
+
       return RpcHelpers.successResponse({
         userId: userId,
         gameId: data.gameId,
         currency: currency,
-        newBalance: wallet.currencies[currency] || wallet.currencies.game || 0,
-        game_balance: wallet.currencies.game || 0,
-        currencies: wallet.currencies,
+        wallet_type: isGlobal ? "global" : "game",
+        operation: op,
+        amount: amt,
+        newBalance: newBalance,
+        balance: newBalance,
+        game_balance: gameBal,
+        global_balance: globalBal,
+        currencies: mergedCurrencies,
         timestamp: new Date().toISOString()
       });
     } catch (e: any) {
@@ -282,12 +331,21 @@ namespace LegacyWallet {
       var gameBal = wallet.currencies.game || wallet.currencies.tokens || 0;
       var globalBal = global.currencies.global || global.currencies.xut || 0;
       var globalEquivalent = ratio > 0 ? Math.floor(gameBal / ratio) : 0;
+
+      // Merge so clients reading currencies["global"]/["xut"] also see the real global balance.
+      var mergedCurrencies: { [key: string]: number } = {};
+      var k: string;
+      for (k in wallet.currencies) mergedCurrencies[k] = wallet.currencies[k];
+      mergedCurrencies["global"] = global.currencies.global || 0;
+      mergedCurrencies["xut"] = global.currencies.xut || 0;
+      if (global.currencies.xp !== undefined) mergedCurrencies["xp"] = global.currencies.xp;
+
       return RpcHelpers.successResponse({
         userId: userId,
         gameId: data.gameId,
         game_balance: gameBal,
         global_balance: globalBal,
-        currencies: wallet.currencies,
+        currencies: mergedCurrencies,
         conversion: { ratio: ratio, globalEquivalent: globalEquivalent, canConvert: ratio > 0 && gameBal >= ratio, minConvertAmount: ratio },
         timestamp: new Date().toISOString()
       });

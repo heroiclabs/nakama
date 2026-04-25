@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "../../../../.."
+		},
+		{
+			"path": "../../../../../../intelli-verse-kube-infra"
+		},
+		{
+			"path": "../../../../../../content-factory"
+		},
+		{
+			"path": "../../../../../../Intelliverse-X-AI"
+		}
+	],
+	"settings": {}
+}

@@ -573,6 +573,117 @@ namespace AdminConsole {
 
     // Health
     initializer.registerRpc("admin_health_check", rpcHealthCheck);
+
+    // ============================================================================
+    // 2026-04-24 Client/Server RPC naming-mismatch aliases
+    // ----------------------------------------------------------------------------
+    // The QuizVerse Unity client + Intelli-verse-X SDK call a number of RPC IDs
+    // whose names diverged from the canonical server-side handler names over time
+    // (verb-position swaps, singular/plural drift, "_get/_config" naming, etc.).
+    // We register lightweight delegating aliases here so the client doesn't need
+    // a coordinated rollout. Aliases delegate to the canonical handler at
+    // runtime via `globalThis.__rpc_<id>` (which postbuild.js produces for every
+    // registered RPC). For client RPCs that have no server equivalent yet, we
+    // expose safe-default soft-stubs to unblock the SDK without throwing.
+    // See Docs/analytics/ANALYTICS-AUDIT-2026-04-22.md §16 for full mapping.
+    // ============================================================================
+    var g: any = globalThis as any;
+    function delegate(targetVar: string): nkruntime.RpcFunction {
+      return function (ctx, logger, nk, payload) {
+        var fn = g[targetVar];
+        if (typeof fn !== "function") {
+          return JSON.stringify({ success: false, error: "alias target unavailable: " + targetVar });
+        }
+        return fn(ctx, logger, nk, payload);
+      };
+    }
+    function softStub(payload: any): nkruntime.RpcFunction {
+      return function (_ctx, _logger, _nk, _p) {
+        return JSON.stringify(payload);
+      };
+    }
+
+    // ---- Daily missions (client uses daily_missions_*; server uses *_mission_reward / get_daily_missions) ----
+    initializer.registerRpc("daily_missions_get",             delegate("__rpc_get_daily_missions"));
+    initializer.registerRpc("daily_missions_claim",           delegate("__rpc_claim_mission_reward"));
+    initializer.registerRpc("daily_missions_update_progress", softStub({ success: true, updated: false, note: "progress is auto-tracked server-side" }));
+
+    // ---- Daily rewards ----
+    initializer.registerRpc("daily_rewards_get_state",    delegate("__rpc_daily_rewards_get_status"));
+    initializer.registerRpc("daily_rewards_get_calendar", delegate("__rpc_daily_rewards_get_status"));
+
+    // ---- Fortune wheel ----
+    initializer.registerRpc("fortune_wheel_get_config", delegate("__rpc_fortune_wheel_get_state"));
+
+    // ---- Hiro Ad-revenue (no server impl yet — soft-stub) ----
+    initializer.registerRpc("hiro_ad_revenue_get_config",        softStub({ enabled: false, config: {} }));
+    initializer.registerRpc("hiro_ad_revenue_record_impression", softStub({ success: true }));
+
+    // ---- Hiro Appointment system (no server impl yet) ----
+    initializer.registerRpc("hiro_appointment_get",   softStub({ appointments: [] }));
+    initializer.registerRpc("hiro_appointment_claim", softStub({ success: false, error: "appointment system not configured" }));
+
+    // ---- Hiro Daily content (no server impl yet) ----
+    initializer.registerRpc("hiro_daily_content_get",   softStub({ content: [] }));
+    initializer.registerRpc("hiro_daily_content_claim", softStub({ success: false, error: "daily content system not configured" }));
+
+    // ---- Hiro Friend battles (singular client → plural server) ----
+    initializer.registerRpc("hiro_friend_battle_get",    delegate("__rpc_hiro_friend_battles_get_active"));
+    initializer.registerRpc("hiro_friend_battle_send",   delegate("__rpc_hiro_friend_battles_challenge"));
+    initializer.registerRpc("hiro_friend_battle_accept", softStub({ success: true, accepted: true }));
+    initializer.registerRpc("hiro_friend_battle_submit", softStub({ success: true, submitted: true }));
+
+    // ---- Hiro Friend quests (singular client → plural server) ----
+    initializer.registerRpc("hiro_friend_quest_get",      delegate("__rpc_hiro_friend_quests_get_active"));
+    initializer.registerRpc("hiro_friend_quest_progress", delegate("__rpc_hiro_friend_quests_contribute"));
+    initializer.registerRpc("hiro_friend_quest_accept",   softStub({ success: true, accepted: true }));
+
+    // ---- Hiro Friend streak (different verb names) ----
+    initializer.registerRpc("hiro_friend_streak_get",             delegate("__rpc_friend_streak_get_state"));
+    initializer.registerRpc("hiro_friend_streak_interact",        delegate("__rpc_friend_streak_record_contribution"));
+    initializer.registerRpc("hiro_friend_streak_claim_milestone", delegate("__rpc_friend_streak_milestone_reward"));
+
+    // ---- Hiro IAP triggers (extra verbs the server doesn't model) ----
+    initializer.registerRpc("hiro_iap_trigger_evaluate", delegate("__rpc_hiro_iap_trigger_check"));
+    initializer.registerRpc("hiro_iap_trigger_dismiss",  softStub({ success: true, dismissed: true }));
+    initializer.registerRpc("hiro_iap_trigger_convert",  softStub({ success: true, converted: false, note: "IAP receipts handled via client SDK" }));
+
+    // ---- Hiro Offerwall (verb naming drift) ----
+    initializer.registerRpc("hiro_offerwall_get",      delegate("__rpc_hiro_offerwall_list"));
+    initializer.registerRpc("hiro_offerwall_complete", delegate("__rpc_hiro_offerwall_claim"));
+
+    // ---- Hiro Retention / Onboarding bridge (client uses hiro_retention_*; server uses retention_* / onboarding_*) ----
+    initializer.registerRpc("hiro_retention_claim_comeback",      delegate("__rpc_retention_claim_welcome_bonus"));
+    initializer.registerRpc("hiro_retention_complete_onboarding", delegate("__rpc_onboarding_complete"));
+    initializer.registerRpc("hiro_retention_heartbeat",           delegate("__rpc_onboarding_track_session"));
+
+    // ---- Hiro Session boosters (no server impl yet) ----
+    initializer.registerRpc("hiro_session_booster_get",        softStub({ boosters: [], activeBooster: null }));
+    initializer.registerRpc("hiro_session_booster_activate",   softStub({ success: false, error: "session booster system not enabled" }));
+    initializer.registerRpc("hiro_session_booster_claim_free", softStub({ success: false, error: "session booster system not enabled" }));
+
+    // ---- Hiro Smart-ad timer (one alias + two soft-stubs) ----
+    initializer.registerRpc("hiro_smart_ad_timer_can_show", delegate("__rpc_hiro_smart_ad_can_show"));
+    initializer.registerRpc("hiro_smart_ad_timer_get",      softStub({ nextShowAt: 0, canShow: true, cooldownSec: 0 }));
+    initializer.registerRpc("hiro_smart_ad_timer_record",   softStub({ success: true, recorded: true }));
+
+    // ---- Hiro Social pressure ----
+    initializer.registerRpc("hiro_social_pressure_get", delegate("__rpc_social_pressure_get_today_summary"));
+
+    // ---- Hiro Spin wheel (suffix drift) ----
+    // NOTE: We intentionally bypass __rpc_hiro_spin_wheel{,_config} (set in
+    // sdk_aliases.js → __ModuleInit_73) because postbuild.js replays those
+    // guarded ` || ` assignments at global scope BEFORE the legacy module
+    // assigns __rpc_fortune_wheel_{spin,get_state}, leaving the intermediate
+    // vars cemented to `undefined`. Delegate straight to the canonical
+    // legacy stubs which ARE defined by the time the alias is invoked.
+    initializer.registerRpc("hiro_spin_wheel_get",  delegate("__rpc_fortune_wheel_get_state"));
+    initializer.registerRpc("hiro_spin_wheel_spin", delegate("__rpc_fortune_wheel_spin"));
+
+    // ---- Hiro Streak shield (client uses hiro_streak_shield_*; server uses retention_*_streak_shield) ----
+    initializer.registerRpc("hiro_streak_shield_get",        delegate("__rpc_retention_get_streak_shield"));
+    initializer.registerRpc("hiro_streak_shield_activate",   delegate("__rpc_retention_use_streak_shield"));
+    initializer.registerRpc("hiro_streak_shield_replenish",  delegate("__rpc_retention_grant_streak_shield"));
   }
 
   function rpcGiftClaimsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {

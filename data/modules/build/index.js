@@ -4317,6 +4317,99 @@ var AdminConsole;
         initializer.registerRpc("admin_gift_claim_update", rpcGiftClaimUpdate);
         // Health
         initializer.registerRpc("admin_health_check", rpcHealthCheck);
+        // ============================================================================
+        // 2026-04-24 Client/Server RPC naming-mismatch aliases
+        // ----------------------------------------------------------------------------
+        // The QuizVerse Unity client + Intelli-verse-X SDK call a number of RPC IDs
+        // whose names diverged from the canonical server-side handler names over time
+        // (verb-position swaps, singular/plural drift, "_get/_config" naming, etc.).
+        // We register lightweight delegating aliases here so the client doesn't need
+        // a coordinated rollout. Aliases delegate to the canonical handler at
+        // runtime via `globalThis.__rpc_<id>` (which postbuild.js produces for every
+        // registered RPC). For client RPCs that have no server equivalent yet, we
+        // expose safe-default soft-stubs to unblock the SDK without throwing.
+        // See Docs/analytics/ANALYTICS-AUDIT-2026-04-22.md §16 for full mapping.
+        // ============================================================================
+        var g = globalThis;
+        function delegate(targetVar) {
+            return function (ctx, logger, nk, payload) {
+                var fn = g[targetVar];
+                if (typeof fn !== "function") {
+                    return JSON.stringify({ success: false, error: "alias target unavailable: " + targetVar });
+                }
+                return fn(ctx, logger, nk, payload);
+            };
+        }
+        function softStub(payload) {
+            return function (_ctx, _logger, _nk, _p) {
+                return JSON.stringify(payload);
+            };
+        }
+        // ---- Daily missions (client uses daily_missions_*; server uses *_mission_reward / get_daily_missions) ----
+        initializer.registerRpc("daily_missions_get", delegate("__rpc_get_daily_missions"));
+        initializer.registerRpc("daily_missions_claim", delegate("__rpc_claim_mission_reward"));
+        initializer.registerRpc("daily_missions_update_progress", softStub({ success: true, updated: false, note: "progress is auto-tracked server-side" }));
+        // ---- Daily rewards ----
+        initializer.registerRpc("daily_rewards_get_state", delegate("__rpc_daily_rewards_get_status"));
+        initializer.registerRpc("daily_rewards_get_calendar", delegate("__rpc_daily_rewards_get_status"));
+        // ---- Fortune wheel ----
+        initializer.registerRpc("fortune_wheel_get_config", delegate("__rpc_fortune_wheel_get_state"));
+        // ---- Hiro Ad-revenue (no server impl yet — soft-stub) ----
+        initializer.registerRpc("hiro_ad_revenue_get_config", softStub({ enabled: false, config: {} }));
+        initializer.registerRpc("hiro_ad_revenue_record_impression", softStub({ success: true }));
+        // ---- Hiro Appointment system (no server impl yet) ----
+        initializer.registerRpc("hiro_appointment_get", softStub({ appointments: [] }));
+        initializer.registerRpc("hiro_appointment_claim", softStub({ success: false, error: "appointment system not configured" }));
+        // ---- Hiro Daily content (no server impl yet) ----
+        initializer.registerRpc("hiro_daily_content_get", softStub({ content: [] }));
+        initializer.registerRpc("hiro_daily_content_claim", softStub({ success: false, error: "daily content system not configured" }));
+        // ---- Hiro Friend battles (singular client → plural server) ----
+        initializer.registerRpc("hiro_friend_battle_get", delegate("__rpc_hiro_friend_battles_get_active"));
+        initializer.registerRpc("hiro_friend_battle_send", delegate("__rpc_hiro_friend_battles_challenge"));
+        initializer.registerRpc("hiro_friend_battle_accept", softStub({ success: true, accepted: true }));
+        initializer.registerRpc("hiro_friend_battle_submit", softStub({ success: true, submitted: true }));
+        // ---- Hiro Friend quests (singular client → plural server) ----
+        initializer.registerRpc("hiro_friend_quest_get", delegate("__rpc_hiro_friend_quests_get_active"));
+        initializer.registerRpc("hiro_friend_quest_progress", delegate("__rpc_hiro_friend_quests_contribute"));
+        initializer.registerRpc("hiro_friend_quest_accept", softStub({ success: true, accepted: true }));
+        // ---- Hiro Friend streak (different verb names) ----
+        initializer.registerRpc("hiro_friend_streak_get", delegate("__rpc_friend_streak_get_state"));
+        initializer.registerRpc("hiro_friend_streak_interact", delegate("__rpc_friend_streak_record_contribution"));
+        initializer.registerRpc("hiro_friend_streak_claim_milestone", delegate("__rpc_friend_streak_milestone_reward"));
+        // ---- Hiro IAP triggers (extra verbs the server doesn't model) ----
+        initializer.registerRpc("hiro_iap_trigger_evaluate", delegate("__rpc_hiro_iap_trigger_check"));
+        initializer.registerRpc("hiro_iap_trigger_dismiss", softStub({ success: true, dismissed: true }));
+        initializer.registerRpc("hiro_iap_trigger_convert", softStub({ success: true, converted: false, note: "IAP receipts handled via client SDK" }));
+        // ---- Hiro Offerwall (verb naming drift) ----
+        initializer.registerRpc("hiro_offerwall_get", delegate("__rpc_hiro_offerwall_list"));
+        initializer.registerRpc("hiro_offerwall_complete", delegate("__rpc_hiro_offerwall_claim"));
+        // ---- Hiro Retention / Onboarding bridge (client uses hiro_retention_*; server uses retention_* / onboarding_*) ----
+        initializer.registerRpc("hiro_retention_claim_comeback", delegate("__rpc_retention_claim_welcome_bonus"));
+        initializer.registerRpc("hiro_retention_complete_onboarding", delegate("__rpc_onboarding_complete"));
+        initializer.registerRpc("hiro_retention_heartbeat", delegate("__rpc_onboarding_track_session"));
+        // ---- Hiro Session boosters (no server impl yet) ----
+        initializer.registerRpc("hiro_session_booster_get", softStub({ boosters: [], activeBooster: null }));
+        initializer.registerRpc("hiro_session_booster_activate", softStub({ success: false, error: "session booster system not enabled" }));
+        initializer.registerRpc("hiro_session_booster_claim_free", softStub({ success: false, error: "session booster system not enabled" }));
+        // ---- Hiro Smart-ad timer (one alias + two soft-stubs) ----
+        initializer.registerRpc("hiro_smart_ad_timer_can_show", delegate("__rpc_hiro_smart_ad_can_show"));
+        initializer.registerRpc("hiro_smart_ad_timer_get", softStub({ nextShowAt: 0, canShow: true, cooldownSec: 0 }));
+        initializer.registerRpc("hiro_smart_ad_timer_record", softStub({ success: true, recorded: true }));
+        // ---- Hiro Social pressure ----
+        initializer.registerRpc("hiro_social_pressure_get", delegate("__rpc_social_pressure_get_today_summary"));
+        // ---- Hiro Spin wheel (suffix drift) ----
+        // NOTE: We intentionally bypass __rpc_hiro_spin_wheel{,_config} (set in
+        // sdk_aliases.js → __ModuleInit_73) because postbuild.js replays those
+        // guarded ` || ` assignments at global scope BEFORE the legacy module
+        // assigns __rpc_fortune_wheel_{spin,get_state}, leaving the intermediate
+        // vars cemented to `undefined`. Delegate straight to the canonical
+        // legacy stubs which ARE defined by the time the alias is invoked.
+        initializer.registerRpc("hiro_spin_wheel_get", delegate("__rpc_fortune_wheel_get_state"));
+        initializer.registerRpc("hiro_spin_wheel_spin", delegate("__rpc_fortune_wheel_spin"));
+        // ---- Hiro Streak shield (client uses hiro_streak_shield_*; server uses retention_*_streak_shield) ----
+        initializer.registerRpc("hiro_streak_shield_get", delegate("__rpc_retention_get_streak_shield"));
+        initializer.registerRpc("hiro_streak_shield_activate", delegate("__rpc_retention_use_streak_shield"));
+        initializer.registerRpc("hiro_streak_shield_replenish", delegate("__rpc_retention_grant_streak_shield"));
     }
     AdminConsole.register = register;
     function rpcGiftClaimsList(ctx, logger, nk, payload) {
@@ -4612,7 +4705,62 @@ var HiroChallenges;
         for (var id in defs) {
             list.push({ id: id, definition: defs[id] });
         }
-        return RpcHelpers.successResponse({ challenges: list });
+        var userId = ctx.userId;
+        var userState = null;
+        if (userId) {
+            var now = Math.floor(Date.now() / 1000);
+            var participating = [];
+            var available = [];
+            var completed = [];
+            try {
+                var instances = nk.storageList(Constants.SYSTEM_USER_ID, Constants.HIRO_CHALLENGES_COLLECTION, 100, "");
+                if (instances && instances.objects) {
+                    for (var i = 0; i < instances.objects.length; i++) {
+                        var obj = instances.objects[i].value;
+                        if (!obj || !obj.id)
+                            continue;
+                        var participantCount = obj.participants ? Object.keys(obj.participants).length : 0;
+                        var isParticipant = obj.participants && obj.participants[userId];
+                        var hasClaimed = obj.claimedBy && obj.claimedBy.indexOf(userId) >= 0;
+                        var isExpired = now > obj.endAt;
+                        var def = defs[obj.challengeId];
+                        var maxParticipants = def ? def.maxParticipants : 0;
+                        var summary = {
+                            instanceId: obj.id,
+                            challengeId: obj.challengeId,
+                            creatorId: obj.creatorId,
+                            startAt: obj.startAt,
+                            endAt: obj.endAt,
+                            participantCount: participantCount,
+                            maxParticipants: maxParticipants,
+                            userScore: isParticipant ? obj.participants[userId].score : 0,
+                            claimed: hasClaimed,
+                            expired: isExpired
+                        };
+                        if (isParticipant) {
+                            if (hasClaimed || isExpired) {
+                                completed.push(summary);
+                            }
+                            else {
+                                participating.push(summary);
+                            }
+                        }
+                        else if (!isExpired && participantCount < maxParticipants) {
+                            available.push(summary);
+                        }
+                    }
+                }
+            }
+            catch (e) {
+                logger.warn("hiro_challenges_list: failed to enumerate instances: %s", String(e));
+            }
+            userState = {
+                participating: participating,
+                available: available,
+                completed: completed
+            };
+        }
+        return RpcHelpers.successResponse({ challenges: list, userState: userState });
     }
     function register(initializer) {
         initializer.registerRpc("hiro_challenges_create", rpcCreate);
@@ -5221,12 +5369,35 @@ var HiroIncentives;
     }
     function rpcList(ctx, logger, nk, payload) {
         var config = getConfig(nk);
-        return RpcHelpers.successResponse({
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var response = {
             referralReward: config.referralReward || null,
             referrerReward: config.referrerReward || null,
             returnBonus: config.returnBonus || null,
             returnBonusDays: config.returnBonusDays || 0
-        });
+        };
+        var userId = ctx.userId;
+        if (userId) {
+            var state = getUserState(nk, userId, data.gameId);
+            var now = Math.floor(Date.now() / 1000);
+            var returnBonusEligible = false;
+            var daysUntilReturnBonus = 0;
+            if (!state.returnBonusClaimed && state.lastSeenAt > 0 && config.returnBonusDays) {
+                var daysSinceLastSeen = (now - state.lastSeenAt) / 86400;
+                returnBonusEligible = daysSinceLastSeen >= config.returnBonusDays;
+                daysUntilReturnBonus = Math.max(0, config.returnBonusDays - daysSinceLastSeen);
+            }
+            response.userState = {
+                referralCode: state.referralCode || null,
+                referredBy: state.referredBy || null,
+                referralsClaimed: state.referralsClaimed || [],
+                returnBonusClaimed: !!state.returnBonusClaimed,
+                returnBonusEligible: returnBonusEligible,
+                daysUntilReturnBonus: daysUntilReturnBonus,
+                lastSeenAt: state.lastSeenAt || 0
+            };
+        }
+        return RpcHelpers.successResponse(response);
     }
     function rpcClaim(ctx, logger, nk, payload) {
         return rpcCheckReturnBonus(ctx, logger, nk, payload);
@@ -9546,33 +9717,81 @@ var LegacyWallet;
             if (!v.valid)
                 return RpcHelpers.errorResponse("Missing: " + v.missing.join(", "));
             var userId = RpcHelpers.requireUserId(ctx);
-            var wallet = WalletHelpers.getGameWallet(nk, userId, data.gameId);
             var currency = data.currency;
-            var currenciesToUpdate = (currency === "game" || currency === "tokens") ? ["game", "tokens"] : [currency];
             var amt = Number(data.amount);
             var op = data.operation;
-            for (var i = 0; i < currenciesToUpdate.length; i++) {
-                var c = currenciesToUpdate[i];
-                if (wallet.currencies[c] === undefined)
-                    wallet.currencies[c] = 0;
-                if (op === "add")
-                    wallet.currencies[c] += amt;
-                else if (op === "subtract") {
-                    wallet.currencies[c] -= amt;
-                    if (wallet.currencies[c] < 0)
-                        wallet.currencies[c] = 0;
+            if (op !== "add" && op !== "subtract")
+                return RpcHelpers.errorResponse("Invalid operation");
+            if (!isFinite(amt) || amt < 0)
+                return RpcHelpers.errorResponse("Invalid amount");
+            // Route global currencies to the GLOBAL wallet (separate storage object).
+            // Previously every currency was written into the game wallet's currencies map,
+            // so global credits never reached global_<userId> and read back as 0 on initial load.
+            var isGlobal = currency === "global" || currency === "xut";
+            // Always load the game wallet so the response can include game_balance for the client snapshot.
+            var gameWallet = WalletHelpers.getGameWallet(nk, userId, data.gameId);
+            var globalWallet = getGlobalWallet(nk, userId);
+            var newBalance = 0;
+            if (isGlobal) {
+                // Mirror "global" <-> "xut" so legacy clients keep working regardless of which alias they use.
+                var globalKeys = ["global", "xut"];
+                for (var gi = 0; gi < globalKeys.length; gi++) {
+                    var gk = globalKeys[gi];
+                    if (globalWallet.currencies[gk] === undefined)
+                        globalWallet.currencies[gk] = 0;
+                    if (op === "add")
+                        globalWallet.currencies[gk] += amt;
+                    else {
+                        globalWallet.currencies[gk] -= amt;
+                        if (globalWallet.currencies[gk] < 0)
+                            globalWallet.currencies[gk] = 0;
+                    }
                 }
-                else
-                    return RpcHelpers.errorResponse("Invalid operation");
+                saveGlobalWallet(nk, userId, globalWallet);
+                newBalance = globalWallet.currencies[currency] || globalWallet.currencies.global || 0;
             }
-            WalletHelpers.saveGameWallet(nk, wallet);
+            else {
+                // Game-scoped currency. Mirror "game" <-> "tokens" for the same backward-compat reason.
+                var currenciesToUpdate = (currency === "game" || currency === "tokens") ? ["game", "tokens"] : [currency];
+                for (var i = 0; i < currenciesToUpdate.length; i++) {
+                    var c = currenciesToUpdate[i];
+                    if (gameWallet.currencies[c] === undefined)
+                        gameWallet.currencies[c] = 0;
+                    if (op === "add")
+                        gameWallet.currencies[c] += amt;
+                    else {
+                        gameWallet.currencies[c] -= amt;
+                        if (gameWallet.currencies[c] < 0)
+                            gameWallet.currencies[c] = 0;
+                    }
+                }
+                WalletHelpers.saveGameWallet(nk, gameWallet);
+                newBalance = gameWallet.currencies[currency] || gameWallet.currencies.game || 0;
+            }
+            var gameBal = gameWallet.currencies.game || gameWallet.currencies.tokens || 0;
+            var globalBal = globalWallet.currencies.global || globalWallet.currencies.xut || 0;
+            // Merge currencies so the client always sees a fresh snapshot of both wallets,
+            // matching the WalletOperationResultDto shape on the Unity side.
+            var mergedCurrencies = {};
+            var k;
+            for (k in gameWallet.currencies)
+                mergedCurrencies[k] = gameWallet.currencies[k];
+            mergedCurrencies["global"] = globalWallet.currencies.global || 0;
+            mergedCurrencies["xut"] = globalWallet.currencies.xut || 0;
+            if (globalWallet.currencies.xp !== undefined)
+                mergedCurrencies["xp"] = globalWallet.currencies.xp;
             return RpcHelpers.successResponse({
                 userId: userId,
                 gameId: data.gameId,
                 currency: currency,
-                newBalance: wallet.currencies[currency] || wallet.currencies.game || 0,
-                game_balance: wallet.currencies.game || 0,
-                currencies: wallet.currencies,
+                wallet_type: isGlobal ? "global" : "game",
+                operation: op,
+                amount: amt,
+                newBalance: newBalance,
+                balance: newBalance,
+                game_balance: gameBal,
+                global_balance: globalBal,
+                currencies: mergedCurrencies,
                 timestamp: new Date().toISOString()
             });
         }
@@ -9628,12 +9847,21 @@ var LegacyWallet;
             var gameBal = wallet.currencies.game || wallet.currencies.tokens || 0;
             var globalBal = global.currencies.global || global.currencies.xut || 0;
             var globalEquivalent = ratio > 0 ? Math.floor(gameBal / ratio) : 0;
+            // Merge so clients reading currencies["global"]/["xut"] also see the real global balance.
+            var mergedCurrencies = {};
+            var k;
+            for (k in wallet.currencies)
+                mergedCurrencies[k] = wallet.currencies[k];
+            mergedCurrencies["global"] = global.currencies.global || 0;
+            mergedCurrencies["xut"] = global.currencies.xut || 0;
+            if (global.currencies.xp !== undefined)
+                mergedCurrencies["xp"] = global.currencies.xp;
             return RpcHelpers.successResponse({
                 userId: userId,
                 gameId: data.gameId,
                 game_balance: gameBal,
                 global_balance: globalBal,
-                currencies: wallet.currencies,
+                currencies: mergedCurrencies,
                 conversion: { ratio: ratio, globalEquivalent: globalEquivalent, canConvert: ratio > 0 && gameBal >= ratio, minConvertAmount: ratio },
                 timestamp: new Date().toISOString()
             });

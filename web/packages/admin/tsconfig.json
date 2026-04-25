@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@nakama/shared": ["../shared/src"],
+      "@nakama/shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": ["src", "vite-env.d.ts"]
+}

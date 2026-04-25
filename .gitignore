@@ -559,6 +559,9 @@ PublishScripts/
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
+# Allow our pnpm workspace packages under web/packages/ (admin/player/shared UIs).
+!web/packages/
+!web/packages/**
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/[Pp]ackages/repositories.config
 # NuGet v3's project.json files produces more ignorable files
@@ -747,3 +750,4 @@ data/modules/_tmp_*
 
 scripts/node_modules
 scripts/apple_data_cache.json
+.local-secrets/

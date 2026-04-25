@@ -87,12 +87,37 @@ namespace HiroIncentives {
 
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var config = getConfig(nk);
-    return RpcHelpers.successResponse({
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var response: any = {
       referralReward: config.referralReward || null,
       referrerReward: config.referrerReward || null,
       returnBonus: config.returnBonus || null,
       returnBonusDays: config.returnBonusDays || 0
-    });
+    };
+
+    var userId = ctx.userId;
+    if (userId) {
+      var state = getUserState(nk, userId, data.gameId);
+      var now = Math.floor(Date.now() / 1000);
+      var returnBonusEligible = false;
+      var daysUntilReturnBonus = 0;
+      if (!state.returnBonusClaimed && state.lastSeenAt > 0 && config.returnBonusDays) {
+        var daysSinceLastSeen = (now - state.lastSeenAt) / 86400;
+        returnBonusEligible = daysSinceLastSeen >= config.returnBonusDays;
+        daysUntilReturnBonus = Math.max(0, config.returnBonusDays - daysSinceLastSeen);
+      }
+      response.userState = {
+        referralCode: state.referralCode || null,
+        referredBy: state.referredBy || null,
+        referralsClaimed: state.referralsClaimed || [],
+        returnBonusClaimed: !!state.returnBonusClaimed,
+        returnBonusEligible: returnBonusEligible,
+        daysUntilReturnBonus: daysUntilReturnBonus,
+        lastSeenAt: state.lastSeenAt || 0
+      };
+    }
+
+    return RpcHelpers.successResponse(response);
   }
 
   function rpcClaim(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
