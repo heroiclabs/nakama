@@ -59,6 +59,7 @@ namespace Constants {
   // route to their correct collections.
   export const ANALYTICS_COLLECTION = "analytics_events";
   export const ANALYTICS_ERRORS_COLLECTION = "analytics_error_events";
+  export const ADMIN_AUDIT_COLLECTION = "admin_audit_events";
   export const PLAYER_METADATA_COLLECTION = "player_metadata";
   export const PUSH_TOKENS_COLLECTION = "push_tokens";
 }

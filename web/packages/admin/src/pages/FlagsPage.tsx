@@ -453,6 +453,9 @@ export function FlagsPage() {
 
   const handleToggle = useCallback(
     (name: string, enabled: boolean) => {
+      if (!window.confirm(`${enabled ? "Enable" : "Disable"} feature flag "${name}" in production?`)) {
+        return;
+      }
       setTogglingName(name);
       toggle.mutate({ name, enabled }, { onSettled: () => setTogglingName(null) });
     },
@@ -461,6 +464,9 @@ export function FlagsPage() {
 
   const handleFormSubmit = useCallback(
     (params: Parameters<typeof satori.toggleFlag>[0]) => {
+      if (!window.confirm(`Save feature flag "${params.name}" in production?`)) {
+        return;
+      }
       toggle.mutate(params, {
         onSuccess: () => {
           setShowForm(false);
@@ -658,6 +664,5 @@ function StatPill({
   );
 }
 
-export { FlagsPage as default };
 
 export default FlagsPage;

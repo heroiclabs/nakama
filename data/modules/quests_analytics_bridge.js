@@ -21,13 +21,51 @@ function _qeParseMaybeJson(v) {
   try { return JSON.parse(v); } catch (e) { return v; }
 }
 
+// 2026-04 polish — return HTTP 400 (not generic 500) when callers send a
+// malformed payload or omit a required field. Nakama's JS runtime expects
+// the thrown `code` field to be a **gRPC status code** (0-16), NOT an HTTP
+// status — anything outside the valid gRPC range falls through to UNKNOWN
+// which the HTTP layer surfaces as 500. The other places in the bundle
+// that throw `{code: 400, ...}` (e.g. quizverse_get_item_catalog) actually
+// produce HTTP 500 too — they just happen to ship a "400" inside the JSON
+// body, which is misleading. We use gRPC code 3 (INVALID_ARGUMENT) so the
+// HTTP layer correctly returns 400 for missing/malformed input.
+//
+//   gRPC 3  = INVALID_ARGUMENT → HTTP 400  (this function)
+//   gRPC 16 = UNAUTHENTICATED  → HTTP 401
+//   gRPC 7  = PERMISSION_DENIED→ HTTP 403
+//   gRPC 5  = NOT_FOUND        → HTTP 404
+function _qeBadRequest(message) {
+  return {
+    code: 3, // gRPC INVALID_ARGUMENT → HTTP 400
+    message: String(message || 'invalid request'),
+    data: {}
+  };
+}
+
+function _qeSafeParsePayload(payload) {
+  // Empty / null payload is treated as `{}` so missing-field validation
+  // below is the *only* thing that can trip the 400 — keeps behaviour
+  // predictable for callers that omit the body entirely.
+  if (payload === null || payload === undefined || payload === '') return {};
+  try {
+    var parsed = JSON.parse(payload);
+    if (parsed && typeof parsed === 'object') return parsed;
+    throw _qeBadRequest('payload must be a JSON object');
+  } catch (e) {
+    // Re-throw structured 400s as-is; wrap only raw SyntaxError from JSON.parse.
+    if (e && typeof e === 'object' && e.code === 3) throw e;
+    throw _qeBadRequest('payload is not valid JSON: ' + (e && e.message ? e.message : e));
+  }
+}
+
 // ─── RPC: qe_player_full_profile ─────────────────────────────────
 
 function rpcQePlayerFullProfile(ctx, logger, nk, payload) {
-  var input = JSON.parse(payload);
+  var input = _qeSafeParsePayload(payload);
   var userId = input.user_id || '';
   if (!userId) {
-    throw Error('user_id is required');
+    throw _qeBadRequest('user_id is required');
   }
 
   var profile = {};
@@ -188,10 +226,10 @@ function rpcQeCohortExport(ctx, logger, nk, payload) {
 // ─── RPC: qe_user_event_summary ─────────────────────────────────
 
 function rpcQeUserEventSummary(ctx, logger, nk, payload) {
-  var input = JSON.parse(payload);
+  var input = _qeSafeParsePayload(payload);
   var userId = input.user_id || '';
   if (!userId) {
-    throw Error('user_id is required');
+    throw _qeBadRequest('user_id is required');
   }
 
   try {

@@ -703,6 +703,7 @@ declare namespace AnalyticsAlerts {
 }
 declare namespace SatoriAudiences {
     function isInAudience(nk: nkruntime.Nakama, userId: string, audienceId: string): boolean;
+    function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string): string[];
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriDataLake {
@@ -809,6 +810,7 @@ declare namespace Constants {
     const GAME_REGISTRY_COLLECTION = "game_registry";
     const ANALYTICS_COLLECTION = "analytics_events";
     const ANALYTICS_ERRORS_COLLECTION = "analytics_error_events";
+    const ADMIN_AUDIT_COLLECTION = "admin_audit_events";
     const PLAYER_METADATA_COLLECTION = "player_metadata";
     const PUSH_TOKENS_COLLECTION = "push_tokens";
 }

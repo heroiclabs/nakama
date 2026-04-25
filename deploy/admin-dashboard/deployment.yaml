@@ -23,26 +23,49 @@ spec:
         app: nakama-admin-dashboard
         component: analytics-ui
       annotations:
-        # Ensure rollout when the dashboard html or nginx config changes.
-        # kustomize will inject hashes via configMapGenerator naming.
-        checksum/restart: "rev-1"
+        checksum/restart: "proxy-v1"
     spec:
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 101
-        runAsGroup: 101
-        fsGroup: 101
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: nginx
-          image: nginxinc/nginx-unprivileged:1.27-alpine
-          imagePullPolicy: IfNotPresent
+        - name: admin-dashboard
+          image: 970547373533.dkr.ecr.us-east-1.amazonaws.com/nakama-admin-dashboard:edge-hardening-20260425
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
+          env:
+            - name: ADMIN_DASHBOARD_BASE_PATH
+              value: /admin-dashboard
+            - name: ADMIN_DASHBOARD_PORT
+              value: "8080"
+            - name: NAKAMA_BASE_URL
+              value: http://intelliverse-nakama.aicart.svc.cluster.local:7350
+            - name: NAKAMA_HTTP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nakama-secret
+                  key: http_key
+                  optional: false
+            - name: NAKAMA_CONSOLE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: nakama-console-secret
+                  key: username
+                  optional: true
+            - name: NAKAMA_CONSOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nakama-console-secret
+                  key: password
+                  optional: true
           readinessProbe:
             httpGet:
               path: /healthz
@@ -59,39 +82,13 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 32Mi
+              memory: 64Mi
             limits:
               cpu: 200m
-              memory: 128Mi
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
-          volumeMounts:
-            - name: html
-              mountPath: /usr/share/nginx/html
-              readOnly: true
-            - name: nginx-conf
-              mountPath: /etc/nginx/conf.d
-              readOnly: true
-            - name: nginx-cache
-              mountPath: /var/cache/nginx
-            - name: nginx-run
-              mountPath: /var/run
-            - name: tmp
-              mountPath: /tmp
-      volumes:
-        - name: html
-          configMap:
-            name: nakama-admin-dashboard-html
-        - name: nginx-conf
-          configMap:
-            name: nakama-admin-dashboard-nginx
-        - name: nginx-cache
-          emptyDir: {}
-        - name: nginx-run
-          emptyDir: {}
-        - name: tmp
-          emptyDir: {}

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Editor, { type OnMount, type Monaco } from "@monaco-editor/react";
+import Editor, { loader, type OnMount, type Monaco } from "@monaco-editor/react";
+import * as monaco from "monaco-editor";
 import type { editor } from "monaco-editor";
 import {
   serverKeyAuth,
@@ -26,6 +27,8 @@ import {
   Radio,
 } from "lucide-react";
 
+loader.config({ monaco });
+
 const SYSTEM_LABELS: Record<SatoriSystem, string> = {
   audiences: "Audiences",
   flags: "Feature Flags",
@@ -43,6 +46,65 @@ const SYSTEM_DESCRIPTIONS: Record<SatoriSystem, string> = {
   messages: "Push and in-app messaging templates and campaigns",
   metrics: "Analytics metric definitions and alert thresholds",
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateSatoriConfig(system: SatoriSystem, value: unknown): string | null {
+  if (!isRecord(value)) return "Config must be a JSON object.";
+
+  if (system === "audiences") {
+    const audiences = value.audiences ?? value;
+    if (!isRecord(audiences) && !Array.isArray(audiences)) {
+      return "Audiences config must be an object or contain an `audiences` object/array.";
+    }
+  }
+
+  if (system === "flags") {
+    const flags = value.flags ?? value;
+    if (!isRecord(flags) && !Array.isArray(flags)) {
+      return "Flags config must be an object or contain a `flags` object/array.";
+    }
+    const entries = Array.isArray(flags) ? flags : Object.values(flags);
+    const invalid = entries.find((entry) => !isRecord(entry) || (!entry.id && !entry.key));
+    if (entries.length > 0 && invalid) return "Each flag must include an `id` or `key`.";
+  }
+
+  if (system === "experiments") {
+    const experiments = value.experiments ?? value;
+    if (!isRecord(experiments) && !Array.isArray(experiments)) {
+      return "Experiments config must be an object or contain an `experiments` object/array.";
+    }
+    const entries = Array.isArray(experiments) ? experiments : Object.values(experiments);
+    const invalid = entries.find((entry) => !isRecord(entry) || !Array.isArray(entry.variants));
+    if (entries.length > 0 && invalid) return "Each experiment must include a `variants` array.";
+  }
+
+  if (system === "live_events") {
+    const events = value.live_events ?? value.events ?? value;
+    if (!isRecord(events) && !Array.isArray(events)) {
+      return "Live events config must be an object/array or contain `live_events`/`events`.";
+    }
+  }
+
+  if (system === "messages") {
+    const messages = value.messages ?? value;
+    if (!isRecord(messages) && !Array.isArray(messages)) {
+      return "Messages config must be an object or contain a `messages` object/array.";
+    }
+    const entries = Array.isArray(messages) ? messages : Object.values(messages);
+    const invalid = entries.find((entry) => !isRecord(entry) || !entry.title);
+    if (entries.length > 0 && invalid) return "Each message must include a `title`.";
+  }
+
+  if (system === "metrics" && Object.keys(value).length > 0) {
+    const hasMetrics = value.metrics !== undefined || value.alerts !== undefined || value.thresholds !== undefined;
+    if (!hasMetrics) return "Metrics config should include `metrics`, `alerts`, or `thresholds`.";
+  }
+
+  return null;
+}
 
 function useSatoriConfig(system: SatoriSystem) {
   return useQuery({
@@ -156,6 +218,7 @@ export function SatoriConfigPage() {
   const [editorValue, setEditorValue] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     message: string;
     variant: "success" | "error";
@@ -178,8 +241,9 @@ export function SatoriConfigPage() {
       setEditorValue(formatted);
       setIsDirty(false);
       setParseError(null);
+      setSchemaError(validateSatoriConfig(activeSystem, configQuery.data));
     }
-  }, [configQuery.data]);
+  }, [activeSystem, configQuery.data]);
 
   const handleEditorMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
@@ -208,17 +272,22 @@ export function SatoriConfigPage() {
       setIsDirty(v !== serverConfig);
 
       try {
-        JSON.parse(v);
+        const parsed = JSON.parse(v);
         setParseError(null);
+        setSchemaError(validateSatoriConfig(activeSystem, parsed));
       } catch (e) {
         setParseError(e instanceof Error ? e.message : "Invalid JSON");
+        setSchemaError(null);
       }
     },
-    [serverConfig],
+    [activeSystem, serverConfig],
   );
 
   const handleSave = useCallback(() => {
-    if (parseError) return;
+    if (parseError || schemaError) return;
+    if (!window.confirm(`Save ${SYSTEM_LABELS[activeSystem]} config to production?`)) {
+      return;
+    }
     try {
       const parsed = JSON.parse(editorValue);
       saveMutation.mutate(parsed, {
@@ -239,13 +308,18 @@ export function SatoriConfigPage() {
     } catch {
       setToast({ message: "Cannot save — invalid JSON", variant: "error" });
     }
-  }, [editorValue, parseError, saveMutation, activeSystem]);
+  }, [editorValue, parseError, schemaError, saveMutation, activeSystem]);
 
   const handleReset = useCallback(() => {
     setEditorValue(serverConfig);
     setIsDirty(false);
     setParseError(null);
-  }, [serverConfig]);
+    try {
+      setSchemaError(validateSatoriConfig(activeSystem, JSON.parse(serverConfig || "{}")));
+    } catch {
+      setSchemaError(null);
+    }
+  }, [activeSystem, serverConfig]);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(editorValue);
@@ -278,6 +352,7 @@ export function SatoriConfigPage() {
           setEditorValue(formatted);
           setIsDirty(formatted !== serverConfig);
           setParseError(null);
+          setSchemaError(validateSatoriConfig(activeSystem, parsed));
           editorRef.current?.setValue(formatted);
         } catch {
           setToast({
@@ -289,7 +364,7 @@ export function SatoriConfigPage() {
       reader.readAsText(file);
     };
     input.click();
-  }, [serverConfig]);
+  }, [activeSystem, serverConfig]);
 
   const handleFormat = useCallback(() => {
     editorRef.current?.getAction("editor.action.formatDocument")?.run();
@@ -299,6 +374,7 @@ export function SatoriConfigPage() {
     setActiveSystem(sys);
     setIsDirty(false);
     setParseError(null);
+    setSchemaError(null);
   }, []);
 
   const filteredSystems = SATORI_SYSTEMS.filter((sys) =>
@@ -339,6 +415,12 @@ export function SatoriConfigPage() {
             <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
               <AlertTriangle className="h-3.5 w-3.5" />
               Parse error
+            </span>
+          )}
+          {schemaError && !parseError && (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Schema warning
             </span>
           )}
         </div>
@@ -428,10 +510,10 @@ export function SatoriConfigPage() {
               <button
                 id="save-satori-config-btn"
                 onClick={handleSave}
-                disabled={!isDirty || !!parseError || saveMutation.isPending}
+                disabled={!isDirty || !!parseError || !!schemaError || saveMutation.isPending}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                  isDirty && !parseError
+                  isDirty && !parseError && !schemaError
                     ? "bg-primary text-primary-foreground hover:bg-primary/90"
                     : "bg-muted text-muted-foreground cursor-not-allowed",
                 )}
@@ -447,6 +529,11 @@ export function SatoriConfigPage() {
           </div>
 
           {/* Monaco */}
+          {(schemaError || parseError) && (
+            <div className="border-b border-border bg-destructive/5 px-4 py-2 text-xs text-destructive">
+              {parseError ? `JSON parse error: ${parseError}` : `Schema validation: ${schemaError}`}
+            </div>
+          )}
           <div className="relative flex-1">
             {configQuery.isLoading ? (
               <div className="flex h-full items-center justify-center">
@@ -541,6 +628,5 @@ export function SatoriConfigPage() {
   );
 }
 
-export { SatoriConfigPage as default };
 
 export default SatoriConfigPage;

@@ -241,6 +241,11 @@ function BroadcastForm({
       params.schedule_at = Math.floor(new Date(scheduleAt).getTime() / 1000);
     }
 
+    const scope = audienceId ? `audience "${audienceId}"` : "all players";
+    if (!window.confirm(`${scheduleAt ? "Schedule" : "Create"} message "${title.trim()}" for ${scope} in production?`)) {
+      return;
+    }
+
     broadcast.mutate(params, { onSuccess: onClose });
   }
 
@@ -581,6 +586,5 @@ export function MessagesPage() {
   );
 }
 
-export { MessagesPage as default };
 
 export default MessagesPage;

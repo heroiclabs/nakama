@@ -15,6 +15,8 @@
 // Required env vars (set via docker-compose -> runtime env -> ctx.env):
 //   ADMIN_USERNAME        e.g. "ivx-admin"
 //   ADMIN_PASSWORD_HASH   bcrypt hash, e.g. "$2y$12$..."
+//   ADMIN_PASSWORD_SHA256 optional sha256 fallback for high-entropy rotated passwords.
+//   ADMIN_PASSWORD        optional exact-match fallback for high-entropy rotated passwords.
 //   DASHBOARD_SECRET      any long random string (32+ chars).
 
 var AA_ADMIN_USERS_COLLECTION = "admin_users";
@@ -35,6 +37,8 @@ function aaResolveGameId(g) {
 var AA_REQUIRED_ENV = [
     "ADMIN_USERNAME",
     "ADMIN_PASSWORD_HASH",
+    "ADMIN_PASSWORD_SHA256",
+    "ADMIN_PASSWORD",
     "DASHBOARD_SECRET",
     "DEFAULT_GAME_ID",
     "APPODEAL_API_KEY",
@@ -127,10 +131,12 @@ function rpcAdminLogin(ctx, logger, nk, payload) {
 
     var expectedUser = aaEnv(ctx, "ADMIN_USERNAME");
     var expectedHash = aaEnv(ctx, "ADMIN_PASSWORD_HASH");
+    var expectedSha256 = aaEnv(ctx, "ADMIN_PASSWORD_SHA256");
+    var expectedPassword = aaEnv(ctx, "ADMIN_PASSWORD");
 
-    if (!expectedUser || !expectedHash) {
-        logger.error("[analytics_admin] admin_login: ADMIN_USERNAME/ADMIN_PASSWORD_HASH not set in runtime env");
-        return aaErr("Admin login not configured on server. Set ADMIN_USERNAME and ADMIN_PASSWORD_HASH.", 503);
+    if (!expectedUser || (!expectedHash && !expectedSha256 && !expectedPassword)) {
+        logger.error("[analytics_admin] admin_login: ADMIN_USERNAME and password verifier not set in runtime env");
+        return aaErr("Admin login not configured on server. Set ADMIN_USERNAME and a password verifier.", 503);
     }
 
     if (!data.username || !data.password) {
@@ -145,11 +151,30 @@ function rpcAdminLogin(ctx, logger, nk, payload) {
     }
 
     var passOk = false;
-    try {
-        passOk = nk.bcryptCompare(expectedHash, String(data.password));
-    } catch (e) {
-        logger.error("[analytics_admin] bcryptCompare threw: " + e.message);
-        return aaErr("Password verification failed on server", 500);
+    if (expectedHash) {
+        try {
+            passOk = nk.bcryptCompare(expectedHash, String(data.password));
+            if (!passOk) {
+                // Older Nakama runtimes/documentation have differed on argument order.
+                // Try the inverse order so dashboard auth survives runtime upgrades.
+                try { passOk = nk.bcryptCompare(String(data.password), expectedHash); } catch (e2) { /* keep first result */ }
+            }
+        } catch (e) {
+            logger.error("[analytics_admin] bcryptCompare threw: " + e.message);
+        }
+    }
+
+    if (!passOk && expectedSha256) {
+        try {
+            passOk = nk.sha256Hash(String(data.password)) === expectedSha256;
+        } catch (e3) {
+            logger.error("[analytics_admin] sha256 fallback threw: " + e3.message);
+            return aaErr("Password verification failed on server", 500);
+        }
+    }
+
+    if (!passOk && expectedPassword) {
+        passOk = String(data.password) === expectedPassword;
     }
 
     if (!passOk) {

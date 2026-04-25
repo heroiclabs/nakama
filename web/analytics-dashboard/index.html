@@ -2102,7 +2102,7 @@
                 const resp = await fetch(`${CONFIG.serverUrl}/v2/rpc/admin_login?http_key=${encodeURIComponent(CONFIG.serverKey)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify(JSON.stringify({ username, password }))
                 });
                 
                 if (!resp.ok) {
@@ -2368,7 +2368,7 @@
                     'Authorization': 'Bearer ' + sessionToken,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(JSON.stringify(payload))
             });
             
             if (!response.ok) {

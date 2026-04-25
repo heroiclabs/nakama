@@ -1161,6 +1161,5 @@ export function LeaderboardsConfigPage() {
   );
 }
 
-export { LeaderboardsConfigPage as default };
 
 export default LeaderboardsConfigPage;

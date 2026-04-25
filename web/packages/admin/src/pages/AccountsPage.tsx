@@ -166,11 +166,17 @@ function ConfirmDialog({
 /* ── User Row ─────────────────────────────────────────────────────── */
 
 interface UserRowProps {
-  user: NakamaUser;
+  user: AdminAccount;
   onBan: (id: string) => void;
   onUnban: (id: string) => void;
   onDelete: (id: string) => void;
 }
+
+type AdminAccount = NakamaUser & {
+  id?: string;
+  disable_time?: string;
+  user?: Partial<NakamaUser> & { id?: string };
+};
 
 function UserRow({ user, onBan, onUnban, onDelete }: UserRowProps) {
   const { copied, copy } = useCopyToClipboard();
@@ -391,7 +397,7 @@ export function AccountsPage() {
     }
   }
 
-  const users = accounts.data?.users ?? [];
+  const users = (accounts.data?.users ?? []) as AdminAccount[];
   const hasNextPage = !!accounts.data?.cursor;
   const hasPrevPage = cursorStack.length > 1;
   const isPending =
@@ -557,6 +563,5 @@ export function AccountsPage() {
   );
 }
 
-export { AccountsPage as default };
 
 export default AccountsPage;

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the Nakama analytics dashboard (web/analytics-dashboard/index.html)
+# Deploy the hardened Nakama admin dashboard (React app + Node proxy)
 # behind the existing Nakama ALB at:
 #   https://nakama-rest.intelli-verse-x.ai/admin-dashboard/
 #
@@ -42,15 +42,10 @@ if ! kubectl -n "${NS}" get ingress "${INGRESS}" >/dev/null 2>&1; then
 fi
 
 # ── 1. Apply the ConfigMaps + Deployment + Service via kustomize ───────────
-# --load-restrictor LoadRestrictionsNone is required because the kustomization
-# references web/analytics-dashboard/index.html which lives outside the kustomize
-# root (the dashboard html lives under web/, the manifests under deploy/).
-#
-# --server-side is required because the dashboard HTML exceeds 256KB, which
-# overflows the kubectl.kubernetes.io/last-applied-configuration annotation
-# limit used by client-side apply.
-log "Applying kustomize bundle (ConfigMaps, Deployment, Service)…"
-kubectl kustomize --load-restrictor LoadRestrictionsNone "${SCRIPT_DIR}" \
+# --server-side avoids managed-field conflicts when the dashboard deployment is
+# rolled by image automation between local manifest updates.
+log "Applying kustomize bundle (Deployment, Service)…"
+kubectl kustomize "${SCRIPT_DIR}" \
   | kubectl apply --server-side --force-conflicts -f -
 
 log "Waiting for rollout of deploy/${BACKEND_SVC}…"

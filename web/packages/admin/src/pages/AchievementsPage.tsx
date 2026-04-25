@@ -1334,6 +1334,5 @@ export function AchievementsPage() {
   );
 }
 
-export { AchievementsPage as default };
 
 export default AchievementsPage;

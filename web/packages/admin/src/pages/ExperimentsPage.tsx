@@ -701,6 +701,9 @@ export function ExperimentsPage() {
 
   const handleToggle = useCallback(
     (exp: Experiment) => {
+      if (!window.confirm(`${exp.enabled ? "Disable" : "Enable"} experiment "${exp.id}" in production?`)) {
+        return;
+      }
       setTogglingId(exp.id);
       setup.mutate(
         {
@@ -717,6 +720,9 @@ export function ExperimentsPage() {
 
   const handleFormSubmit = useCallback(
     (params: Parameters<typeof satori.setupExperiment>[0]) => {
+      if (!window.confirm(`Save experiment "${params.id}" in production?`)) {
+        return;
+      }
       setup.mutate(params, {
         onSuccess: () => {
           setShowForm(false);
@@ -874,6 +880,5 @@ export function ExperimentsPage() {
   );
 }
 
-export { ExperimentsPage as default };
 
 export default ExperimentsPage;

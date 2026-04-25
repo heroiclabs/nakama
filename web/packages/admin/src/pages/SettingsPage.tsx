@@ -1,31 +1,23 @@
 import { useState } from "react";
-import { Eye, EyeOff, RotateCcw, Save, Wifi, WifiOff } from "lucide-react";
-import { useAdminStore, getEffectiveServerKey } from "@/stores/admin-store";
-import { NAKAMA_BASE_URL } from "@nakama/shared";
+import { Wifi, WifiOff } from "lucide-react";
+import { useAdminStore } from "@/stores/admin-store";
+import { useAdminAuth } from "@/auth/admin-auth";
 
 export function SettingsPage() {
-  const { serverKeyOverride, theme, setServerKeyOverride, setTheme } = useAdminStore();
-
-  const [keyInput, setKeyInput] = useState(serverKeyOverride ?? "");
-  const [revealed, setRevealed] = useState(false);
+  const { theme, setTheme } = useAdminStore();
+  const { session } = useAdminAuth();
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
-
-  function handleSave() {
-    const trimmed = keyInput.trim();
-    setServerKeyOverride(trimmed.length > 0 ? trimmed : null);
-  }
-
-  function handleReset() {
-    setServerKeyOverride(null);
-    setKeyInput("");
-  }
 
   async function handleTestConnection() {
     setTestStatus("loading");
     try {
-      const key = getEffectiveServerKey();
-      const res = await fetch(`${NAKAMA_BASE_URL}/healthcheck`, {
-        headers: { Authorization: `Basic ${btoa(`${key}:`)}` },
+      const res = await fetch("/admin-dashboard/api/rpc/admin_health_check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.token ?? ""}`,
+        },
+        body: JSON.stringify({}),
       });
       setTestStatus(res.ok ? "ok" : "error");
     } catch {
@@ -42,39 +34,29 @@ export function SettingsPage() {
 
       <div className="max-w-xl space-y-8">
         <section className="space-y-4">
-          <h3 className="text-lg font-semibold">Server Key</h3>
-          <div className="relative">
-            <input
-              type={revealed ? "text" : "password"}
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="Leave empty to use default key"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <button
-              type="button"
-              onClick={() => setRevealed((r) => !r)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {revealed ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
+          <h3 className="text-lg font-semibold">Admin Session</h3>
+          <div className="rounded-lg border border-border bg-card p-4 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">User</span>
+              <span className="font-medium">{session?.username ?? "unknown"}</span>
+            </div>
+            <div className="mt-2 flex justify-between gap-4">
+              <span className="text-muted-foreground">Role</span>
+              <span className="font-medium">{session?.role ?? "admin"}</span>
+            </div>
+            <div className="mt-2 flex justify-between gap-4">
+              <span className="text-muted-foreground">Expires</span>
+              <span className="font-medium">
+                {session?.expiresAt
+                  ? new Date(session.expiresAt * 1000).toLocaleString()
+                  : "unknown"}
+              </span>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              <Save size={14} />
-              Save
-            </button>
-            <button
-              onClick={handleReset}
-              className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-            >
-              <RotateCcw size={14} />
-              Reset to Default
-            </button>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Nakama HTTP and console credentials are held by the server-side admin
+            proxy and are no longer stored or edited in the browser.
+          </p>
         </section>
 
         <section className="space-y-4">
@@ -128,6 +110,5 @@ export function SettingsPage() {
   );
 }
 
-export { SettingsPage as default };
 
 export default SettingsPage;

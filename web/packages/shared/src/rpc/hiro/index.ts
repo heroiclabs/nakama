@@ -1,6 +1,18 @@
 import { callRpc, type RpcOptions } from "../client";
 import type { HiroSystem } from "../../lib/constants";
 
+function unwrapData<T>(value: unknown): T {
+  if (
+    value &&
+    typeof value === "object" &&
+    "success" in value &&
+    "data" in value
+  ) {
+    return (value as { data: T }).data;
+  }
+  return value as T;
+}
+
 export function hiroRpc<P = Record<string, unknown>, R = unknown>(
   system: string,
   action: string,
@@ -14,7 +26,10 @@ export function getHiroConfig(
   system: HiroSystem,
   opts: RpcOptions,
 ): Promise<Record<string, unknown>> {
-  return callRpc("admin_config_get", { system }, opts);
+  return callRpc("admin_config_get", { system }, opts).then((value) => {
+    const data = unwrapData<{ config?: Record<string, unknown> }>(value);
+    return data.config ?? (data as Record<string, unknown>);
+  });
 }
 
 export function setHiroConfig(

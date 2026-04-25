@@ -1003,6 +1003,5 @@ export function OffersPage() {
   );
 }
 
-export { OffersPage as default };
 
 export default OffersPage;

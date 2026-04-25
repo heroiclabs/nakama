@@ -113,6 +113,7 @@ const TABS = [
   { key: "events", label: "Player Events", icon: Activity },
   { key: "metrics", label: "Metrics & Alerts", icon: Bell },
   { key: "cohorts", label: "Cohort Analysis", icon: Users },
+  { key: "intelligence", label: "Game Intelligence", icon: TrendingUp },
   { key: "datalake", label: "Data Lake / Webhooks", icon: Database },
 ] as const;
 
@@ -126,7 +127,7 @@ type TabKey = (typeof TABS)[number]["key"];
 const STANDALONE_DASHBOARD_URL =
   (import.meta as unknown as { env?: Record<string, string | undefined> }).env
     ?.VITE_ANALYTICS_DASHBOARD_URL ??
-  "https://nakama-rest.intelli-verse-x.ai/admin-dashboard/";
+  "/admin-dashboard/legacy-analytics/";
 
 /* ------------------------------------------------------------------ */
 /*  Utility                                                            */
@@ -144,6 +145,14 @@ function fmtNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+function fmtAge(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined) return "No events";
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3_600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}h ago`;
+  return `${Math.floor(seconds / 86_400)}d ago`;
 }
 
 const OP_LABELS: Record<string, string> = {
@@ -392,7 +401,7 @@ function OverviewTab() {
   const now = Date.now();
   const activeToday = useMemo(() => {
     if (!accounts.data?.users) return 0;
-    return accounts.data.users.filter((u) => {
+    return accounts.data.users.filter((u: NakamaUser) => {
       const diff = now - new Date(u.update_time).getTime();
       return diff < 86_400_000;
     }).length;
@@ -400,7 +409,7 @@ function OverviewTab() {
 
   const activeWeek = useMemo(() => {
     if (!accounts.data?.users) return 0;
-    return accounts.data.users.filter((u) => {
+    return accounts.data.users.filter((u: NakamaUser) => {
       const diff = now - new Date(u.update_time).getTime();
       return diff < 7 * 86_400_000;
     }).length;
@@ -692,6 +701,7 @@ function MetricsTab() {
 
   const handleCreateAlert = () => {
     if (!alertForm.metric_id || !alertForm.name) return;
+    if (!window.confirm(`Create metric alert "${alertForm.name}" in production?`)) return;
     createAlert.mutate(alertForm, {
       onSuccess: () => {
         setShowForm(false);
@@ -1366,6 +1376,266 @@ function DataLakeTab() {
   );
 }
 
+function GameIntelligenceTab() {
+  const report = useQuery({
+    queryKey: ["analytics", "quizverse-game-intelligence"],
+    queryFn: () =>
+      callRpc(
+        "quizverse_game_intelligence_report",
+        { game_id: "quizverse", hours: 24, days: 7, sample_players: 25 },
+        serverKeyAuth(),
+      ),
+    retry: 1,
+  });
+
+  const reportData = report.data as
+    | {
+        executive_summary?: {
+          health_score?: number;
+          status?: "healthy" | "warning" | "critical";
+          headline?: string;
+        };
+        top_wins?: string[];
+        top_problems?: string[];
+        segment_insights?: string[];
+        action_list?: Array<{
+          impact?: string;
+          effort?: string;
+          owner?: string;
+          action?: string;
+          evidence?: string;
+        }>;
+        liveops_impact?: Record<string, number | boolean>;
+        key_metrics?: {
+          rpc?: {
+            calls?: number;
+            failed?: number;
+            success_rate?: number;
+            avg_ms?: number;
+            p90_ms?: number;
+          };
+          storage_samples?: Record<string, number>;
+        };
+        analytics_diagnostics?: {
+          expected_game_id?: string;
+          sampled_events?: number;
+          matching_expected_game_id?: number;
+          source_game_ids?: Record<string, number>;
+          last_event_at?: string | null;
+          last_event_age_seconds?: number | null;
+          last_event_game_id?: string;
+          status?: "fresh" | "stale" | "old" | "empty";
+        };
+        risks?: string[];
+      }
+    | undefined;
+
+  const text = useMemo(() => {
+    if (!report.data) return "";
+    return typeof report.data === "string"
+      ? report.data
+      : JSON.stringify(report.data, null, 2);
+  }, [report.data]);
+
+  const sourceGameIds = reportData?.analytics_diagnostics?.source_game_ids ?? {};
+  const sourceGameIdSummary = Object.entries(sourceGameIds)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([gameId, count]) => `${gameId}: ${count}`)
+    .join(", ");
+  const freshnessStatus = reportData?.analytics_diagnostics?.status;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeading
+        title="QuizVerse Game Intelligence"
+        description="Unified operator report for what is working, what is broken, and which LiveOps actions to run next."
+      />
+
+      {reportData?.executive_summary && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard
+            title="Health Score"
+            value={reportData.executive_summary.health_score ?? "—"}
+            icon={TrendingUp}
+            subtitle={reportData.executive_summary.status ?? "unknown"}
+            trend={
+              (reportData.executive_summary.health_score ?? 0) >= 70
+                ? "up"
+                : "down"
+            }
+          />
+          <StatCard
+            title="RPC Calls"
+            value={reportData.key_metrics?.rpc?.calls ?? 0}
+            icon={Server}
+            subtitle={`${reportData.key_metrics?.rpc?.failed ?? 0} failed`}
+          />
+          <StatCard
+            title="Success Rate"
+            value={`${Math.round((reportData.key_metrics?.rpc?.success_rate ?? 0) * 100)}%`}
+            icon={CheckCircle}
+            subtitle={`p90 ${reportData.key_metrics?.rpc?.p90_ms ?? 0}ms`}
+          />
+          <StatCard
+            title="LiveOps Objects"
+            value={Object.values(reportData.liveops_impact ?? {}).filter(Boolean).length}
+            icon={Calendar}
+            subtitle="configured surfaces"
+          />
+          <StatCard
+            title="Last Analytics Event"
+            value={fmtAge(reportData.analytics_diagnostics?.last_event_age_seconds)}
+            icon={Clock}
+            subtitle={reportData.analytics_diagnostics?.last_event_game_id ?? "unknown game"}
+            trend={freshnessStatus === "fresh" ? "up" : "down"}
+          />
+          <StatCard
+            title="Source Game IDs"
+            value={Object.keys(sourceGameIds).length}
+            icon={Hash}
+            subtitle={sourceGameIdSummary || "none sampled"}
+          />
+        </div>
+      )}
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Pulls the `quizverse_game_intelligence_report` operator endpoint through
+            the authenticated admin proxy.
+          </p>
+          <button
+            onClick={() => report.refetch()}
+            disabled={report.isFetching}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-4 w-4", report.isFetching && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
+
+        {report.isLoading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Generating report…
+          </div>
+        )}
+
+        {report.isError && (
+          <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+            The intelligence report endpoint is not available from this dashboard
+            build yet. Use the MCP tool `quizverse_game_intelligence_report` until
+            the runtime RPC bridge is deployed.
+          </div>
+        )}
+
+        {reportData?.executive_summary?.headline && (
+          <div className="mb-4 rounded-md border border-border bg-muted/30 p-3">
+            <div className="mb-1 flex items-center gap-2">
+              <Badge
+                variant={
+                  reportData.executive_summary.status === "healthy"
+                    ? "success"
+                    : reportData.executive_summary.status === "critical"
+                      ? "destructive"
+                      : "warning"
+                }
+              >
+                {reportData.executive_summary.status}
+              </Badge>
+              <span className="text-sm font-medium">Headline</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {reportData.executive_summary.headline}
+            </p>
+          </div>
+        )}
+
+        {reportData?.analytics_diagnostics && freshnessStatus !== "fresh" && (
+          <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+            <div className="mb-1 flex items-center gap-2 font-medium">
+              <AlertTriangle className="h-4 w-4" />
+              Analytics data freshness needs attention
+            </div>
+            <p>
+              Last sampled event:{" "}
+              {reportData.analytics_diagnostics.last_event_at ?? "none"}.
+              Expected game ID: {reportData.analytics_diagnostics.expected_game_id ?? "unknown"}.
+              Source game IDs: {sourceGameIdSummary || "none sampled"}.
+            </p>
+          </div>
+        )}
+
+        {reportData && (
+          <div className="mb-4 grid gap-4 lg:grid-cols-2">
+            <InsightList title="Top Wins" items={reportData.top_wins ?? []} variant="success" />
+            <InsightList title="Top Problems" items={reportData.top_problems ?? []} variant="destructive" />
+            <InsightList title="Segment Insights" items={reportData.segment_insights ?? []} variant="default" />
+            <InsightList title="Risks" items={reportData.risks ?? []} variant="warning" />
+          </div>
+        )}
+
+        {reportData?.action_list && reportData.action_list.length > 0 && (
+          <div className="mb-4 space-y-2">
+            <h4 className="text-sm font-semibold">Ranked Actions</h4>
+            {reportData.action_list.slice(0, 5).map((action, index) => (
+              <div key={`${action.action}-${index}`} className="rounded-md border border-border p-3">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <Badge variant={action.impact === "high" ? "destructive" : "warning"}>
+                    {action.impact ?? "impact"}
+                  </Badge>
+                  <Badge variant="outline">{action.effort ?? "effort"}</Badge>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {action.owner ?? "owner"}
+                  </span>
+                </div>
+                <p className="text-sm font-medium">{action.action}</p>
+                {action.evidence && (
+                  <p className="mt-1 text-xs text-muted-foreground">{action.evidence}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {text && (
+          <pre className="max-h-[40vh] overflow-auto rounded-md bg-muted/50 p-4 text-xs">
+            {text}
+          </pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InsightList({
+  title,
+  items,
+  variant,
+}: {
+  title: string;
+  items: string[];
+  variant: "default" | "success" | "warning" | "destructive";
+}) {
+  return (
+    <div className="rounded-md border border-border p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <Badge variant={variant}>{title}</Badge>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No entries reported.</p>
+      ) : (
+        <ul className="space-y-1 text-sm text-muted-foreground">
+          {items.slice(0, 5).map((item) => (
+            <li key={item}>- {item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
@@ -1418,6 +1688,7 @@ export function AnalyticsPage() {
       {tab === "events" && <PlayerEventsTab />}
       {tab === "metrics" && <MetricsTab />}
       {tab === "cohorts" && <CohortsTab />}
+      {tab === "intelligence" && <GameIntelligenceTab />}
       {tab === "datalake" && <DataLakeTab />}
     </div>
   );

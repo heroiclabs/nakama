@@ -1,13 +1,11 @@
 export const NAKAMA_HOST = import.meta.env.VITE_NAKAMA_HOST ?? "localhost";
 export const NAKAMA_PORT = import.meta.env.VITE_NAKAMA_PORT ?? "7350";
-export const NAKAMA_SERVER_KEY =
-  import.meta.env.VITE_NAKAMA_SERVER_KEY ?? "defaultkey";
-export const NAKAMA_HTTP_KEY =
-  import.meta.env.VITE_NAKAMA_HTTP_KEY ?? "defaulthttpkey";
 export const NAKAMA_USE_SSL =
   import.meta.env.VITE_NAKAMA_USE_SSL === "true";
 
-export const NAKAMA_BASE_URL = `${NAKAMA_USE_SSL ? "https" : "http"}://${NAKAMA_HOST}:${NAKAMA_PORT}`;
+export const NAKAMA_BASE_URL =
+  import.meta.env.VITE_NAKAMA_BASE_URL ??
+  `${NAKAMA_USE_SSL ? "https" : "http"}://${NAKAMA_HOST}:${NAKAMA_PORT}`;
 
 export const HIRO_SYSTEMS = [
   "economy",

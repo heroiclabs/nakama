@@ -787,6 +787,5 @@ export function StoragePage() {
   );
 }
 
-export { StoragePage as default };
 
 export default StoragePage;

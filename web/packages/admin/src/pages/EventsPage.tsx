@@ -471,6 +471,9 @@ export function EventsPage() {
 
   const handleSubmit = useCallback(
     (ev: Parameters<typeof satori.scheduleLiveEvent>[0]) => {
+      if (!window.confirm(`Schedule or update live event "${ev.id}" in production?`)) {
+        return;
+      }
       schedule.mutate(ev, {
         onSuccess: () => {
           setShowForm(false);
@@ -483,6 +486,9 @@ export function EventsPage() {
 
   const handleToggle = useCallback(
     (ev: LiveEvent) => {
+      if (!window.confirm(`${ev.enabled ? "Disable" : "Enable"} live event "${ev.id}" in production?`)) {
+        return;
+      }
       setTogglingId(ev.id);
       schedule.mutate(
         { id: ev.id, name: ev.name, enabled: !ev.enabled },
@@ -627,6 +633,5 @@ export function EventsPage() {
   );
 }
 
-export { EventsPage as default };
 
 export default EventsPage;

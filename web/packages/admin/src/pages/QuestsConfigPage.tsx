@@ -1108,6 +1108,5 @@ export function QuestsConfigPage() {
   );
 }
 
-export { QuestsConfigPage as default };
 
 export default QuestsConfigPage;

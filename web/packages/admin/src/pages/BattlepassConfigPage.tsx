@@ -1266,6 +1266,5 @@ export function BattlepassConfigPage() {
   );
 }
 
-export { BattlepassConfigPage as default };
 
 export default BattlepassConfigPage;

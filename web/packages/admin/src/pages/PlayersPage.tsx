@@ -1172,6 +1172,5 @@ export function PlayersPage() {
   );
 }
 
-export { PlayersPage as default };
 
 export default PlayersPage;

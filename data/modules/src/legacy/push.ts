@@ -4,6 +4,8 @@ namespace LegacyPush {
     tokens: { token: string; platform: string; updatedAt: number }[];
   }
 
+  var DEFAULT_PUSH_NOTIFICATION_CODE = 7001;
+
   function getPushTokens(nk: nkruntime.Nakama, userId: string): PushTokenData {
     var key = "token_" + userId;
     var data = Storage.readJson<PushTokenData>(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId);
@@ -42,17 +44,30 @@ namespace LegacyPush {
     try {
       var data = RpcHelpers.parseRpcPayload(payload);
       var targetUserId = data.userId || data.targetUserId;
-      var subject = data.subject || "push_event";
-      var content = data.content || {};
+      var subject = data.subject || data.eventType || "push_event";
+      var content = data.content || {
+        eventType: data.eventType || subject,
+        title: data.title || subject,
+        body: data.body || "",
+        data: data.data || {}
+      };
+      var code = Number(data.code || DEFAULT_PUSH_NOTIFICATION_CODE);
       if (!targetUserId) return RpcHelpers.errorResponse("userId required");
+      if (!code || code <= 0) code = DEFAULT_PUSH_NOTIFICATION_CODE;
       nk.notificationsSend([{
         userId: targetUserId,
         subject: subject,
         content: content,
-        code: data.code || 0,
+        code: code,
         persistent: data.persistent !== false
       }]);
-      return RpcHelpers.successResponse({ success: true });
+      return RpcHelpers.successResponse({
+        success: true,
+        messageId: "nakama_notification_" + Date.now(),
+        eventType: data.eventType || subject,
+        recipientCount: 1,
+        sentAt: new Date().toISOString()
+      });
     } catch (e: any) {
       return RpcHelpers.errorResponse(e.message || "Failed to send event");
     }

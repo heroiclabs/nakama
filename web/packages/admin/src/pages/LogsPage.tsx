@@ -909,6 +909,5 @@ export function LogsPage() {
   );
 }
 
-export { LogsPage as default };
 
 export default LogsPage;

@@ -333,6 +333,5 @@ export function AudiencesPage() {
   );
 }
 
-export { AudiencesPage as default };
 
 export default AudiencesPage;

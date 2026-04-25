@@ -31,6 +31,20 @@ function computeHealthScore(
   return Math.round(engagementScore + d1Score + d7Score + sessionScore + giniScore + sinkScore);
 }
 
+function asArray<T = any>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
+function scorePriority(impact: "high" | "medium" | "low", effort: "low" | "medium" | "high"): number {
+  const impactScore = { high: 3, medium: 2, low: 1 }[impact];
+  const effortScore = { low: 3, medium: 2, high: 1 }[effort];
+  return impactScore * 10 + effortScore;
+}
+
+function pushUnique(target: string[], value: string): void {
+  if (value && !target.includes(value)) target.push(value);
+}
+
 export function registerAnalyticsV2Tools(
   server: McpServer,
   console: NakamaConsoleClient,
@@ -626,6 +640,378 @@ export function registerAnalyticsV2Tools(
       };
 
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ──────────────────────────────────────────────
+  // Tool 7: quizverse_game_intelligence_report
+  // ──────────────────────────────────────────────
+  server.tool(
+    "quizverse_game_intelligence_report",
+    "Unified QuizVerse operator intelligence report. Joins Nakama analytics, Satori/Hiro LiveOps signals, quiz knowledge gaps, retention, economy, funnel, and technical health into ranked wins, problems, segments, and action recommendations.",
+    {
+      game_id: z.string().optional().describe("Game ID or UUID to analyze (default 'quizverse')"),
+      hours: z.number().min(1).max(72).optional().describe("RPC analytics lookback window in hours (default 24)"),
+      days: z.number().min(1).max(30).optional().describe("Gameplay analytics lookback window in days (default 7)"),
+      sample_players: z.number().int().min(0).max(100).optional().describe("Players to sample for knowledge gaps (default 25, max 100). Set 0 to skip."),
+      focus_user_id: z.string().optional().describe("Optional player UUID for user-specific timeline, quiz, and churn context"),
+    },
+    async ({ game_id, hours, days, sample_players, focus_user_id }) => {
+      const gameId = game_id ?? "quizverse";
+      const lookbackHours = hours ?? 24;
+      const lookbackDays = days ?? 7;
+      const samplePlayers = sample_players ?? 25;
+
+      const [
+        dashboard,
+        retention,
+        economy,
+        sessions,
+        featureAdoption,
+        funnel,
+        engagement,
+        errorLog,
+        rpcSummary,
+        topSlow,
+        topErrors,
+        hiroChallenges,
+        hiroIncentives,
+        satoriFlags,
+        satoriEvents,
+      ] = await Promise.all([
+        safeRpc(api, "analytics_dashboard", { game_id: gameId }),
+        safeRpc(api, "analytics_retention_cohort", { game_id: gameId }),
+        safeRpc(api, "analytics_economy_health", { game_id: gameId }),
+        safeRpc(api, "analytics_session_stats", { game_id: gameId, days: lookbackDays }),
+        safeRpc(api, "analytics_feature_adoption", { game_id: gameId }),
+        safeRpc(api, "analytics_funnel", { game_id: gameId }),
+        safeRpc(api, "analytics_engagement_score", { game_id: gameId }),
+        safeRpc(api, "analytics_error_log", { game_id: gameId, days: lookbackDays }),
+        safeRpc(api, "nakama_analytics_summary", { hours: lookbackHours }),
+        safeRpc(api, "nakama_analytics_top_slow", { hours: lookbackHours, top: 10, minCalls: 5 }),
+        safeRpc(api, "nakama_analytics_top_errors", { hours: lookbackHours, top: 10 }),
+        safeRpc(api, "hiro_challenges_list", { game_id: gameId }),
+        safeRpc(api, "hiro_incentives_list", { game_id: gameId }),
+        safeRpc(api, "satori_flags_get", { game_id: gameId }),
+        safeRpc(api, "satori_get_live_events", { game_id: gameId }),
+      ]);
+
+      const focusPlayer = focus_user_id
+        ? await Promise.all([
+            safeRpc(api, "quizverse_knowledge_map", { user_id: focus_user_id, game_id: gameId }),
+            safeRpc(api, "analytics_engagement_score", { user_id: focus_user_id, game_id: gameId }),
+            safeRpc(api, "satori_events_timeline", { user_id: focus_user_id, limit: 100 }),
+          ])
+        : null;
+
+      const dau = dashboard?.dau ?? 0;
+      const wau = dashboard?.wau ?? 0;
+      const mau = dashboard?.mau ?? 0;
+      const dauMauRatio = mau > 0 ? dau / mau : 0;
+      const d1 = retention?.d1 ?? 0;
+      const d7 = retention?.d7 ?? 0;
+      const d30 = retention?.d30 ?? 0;
+      const avgSessionSec = sessions?.avg_duration ?? 0;
+      const sessionsPerDay = sessions?.sessions_per_day ?? 0;
+      const sourceSinkRatio = economy?.source_sink_ratio ?? 1;
+      const gini = economy?.gini ?? 0;
+      const healthScore = computeHealthScore(dauMauRatio, d1, d7, avgSessionSec, gini, sourceSinkRatio);
+
+      const topWins: string[] = [];
+      const topProblems: string[] = [];
+      const segmentInsights: string[] = [];
+      const liveOpsImpact: string[] = [];
+      const risks: string[] = [];
+      const actions: Array<{
+        priority: number;
+        impact: "high" | "medium" | "low";
+        effort: "low" | "medium" | "high";
+        owner: "game_design" | "liveops" | "engineering" | "content" | "analytics";
+        action: string;
+        evidence: string;
+      }> = [];
+
+      if (healthScore >= 70) pushUnique(topWins, `Overall health score is ${healthScore}/100.`);
+      if (dauMauRatio >= 0.2) pushUnique(topWins, `DAU/MAU is ${(dauMauRatio * 100).toFixed(1)}%, indicating repeat engagement.`);
+      if (d1 >= 0.4) pushUnique(topWins, `D1 retention is ${(d1 * 100).toFixed(1)}%, above the good benchmark.`);
+      if (d7 >= 0.15) pushUnique(topWins, `D7 retention is ${(d7 * 100).toFixed(1)}%, suggesting the core loop has traction.`);
+      if (avgSessionSec >= 300) pushUnique(topWins, `Average session length is ${(avgSessionSec / 60).toFixed(1)} minutes.`);
+
+      if (healthScore < 40) pushUnique(topProblems, `Overall health score is critical at ${healthScore}/100.`);
+      if (dauMauRatio > 0 && dauMauRatio < 0.15) pushUnique(topProblems, `DAU/MAU is low at ${(dauMauRatio * 100).toFixed(1)}%.`);
+      if (d1 > 0 && d1 < 0.3) pushUnique(topProblems, `D1 retention is weak at ${(d1 * 100).toFixed(1)}%.`);
+      if (d7 > 0 && d7 < 0.1) pushUnique(topProblems, `D7 retention is critical at ${(d7 * 100).toFixed(1)}%.`);
+      if (avgSessionSec > 0 && avgSessionSec < 120) pushUnique(topProblems, `Average sessions are very short at ${(avgSessionSec / 60).toFixed(1)} minutes.`);
+      if (sourceSinkRatio > 1.5) pushUnique(topProblems, `Economy may be inflating: source/sink ratio is ${sourceSinkRatio.toFixed(2)}.`);
+      if (gini > 0.6) pushUnique(topProblems, `Economy is concentrated: Gini is ${gini.toFixed(2)}.`);
+
+      const rawFunnelSteps = asArray<{ name: string; count: number }>(funnel?.steps);
+      const funnelSteps = rawFunnelSteps.map((step, index) => {
+        const previous = index > 0 ? rawFunnelSteps[index - 1]?.count ?? step.count : step.count;
+        const drop = previous > 0 ? (previous - step.count) / previous : 0;
+        return { name: step.name, count: step.count, drop };
+      });
+      const worstFunnelDrop = funnelSteps.reduce(
+        (worst, step) => step.drop > worst.drop ? step : worst,
+        { name: "none", count: 0, drop: 0 },
+      );
+      if (worstFunnelDrop.drop > 0.4) {
+        pushUnique(topProblems, `Largest funnel drop is ${(worstFunnelDrop.drop * 100).toFixed(1)}% at ${worstFunnelDrop.name}.`);
+        actions.push({
+          priority: scorePriority("high", "medium"),
+          impact: "high",
+          effort: "medium",
+          owner: "game_design",
+          action: `Investigate and simplify the "${worstFunnelDrop.name}" funnel step.`,
+          evidence: `${(worstFunnelDrop.drop * 100).toFixed(1)}% drop-off from the previous step.`,
+        });
+      }
+
+      const features = asArray<{ name: string; adoption_pct: number; engagement_correlation?: number }>(featureAdoption?.features);
+      const strongFeatures = features
+        .filter((feature) => feature.adoption_pct >= 0.2)
+        .sort((a, b) => b.adoption_pct - a.adoption_pct)
+        .slice(0, 5);
+      for (const feature of strongFeatures) {
+        pushUnique(topWins, `${feature.name} has strong adoption at ${(feature.adoption_pct * 100).toFixed(1)}%.`);
+      }
+
+      const leverageFeatures = features
+        .filter((feature) => feature.adoption_pct < 0.1 && (feature.engagement_correlation ?? 0) > 0.3)
+        .slice(0, 5);
+      for (const feature of leverageFeatures) {
+        actions.push({
+          priority: scorePriority("medium", "low"),
+          impact: "medium",
+          effort: "low",
+          owner: "liveops",
+          action: `Promote underused high-correlation feature "${feature.name}" in UI prompts or missions.`,
+          evidence: `${(feature.adoption_pct * 100).toFixed(1)}% adoption with ${(feature.engagement_correlation ?? 0).toFixed(2)} engagement correlation.`,
+        });
+      }
+
+      const rpcErrorItems = asArray<any>(topErrors?.items ?? topErrors?.top_errors ?? topErrors?.rpcs);
+      const rpcSlowItems = asArray<any>(topSlow?.items ?? topSlow?.top_slow ?? topSlow?.rpcs);
+      if (rpcErrorItems.length > 0) {
+        const first = rpcErrorItems[0];
+        const rpcName = first.rpc ?? first.id ?? first.name ?? "unknown_rpc";
+        pushUnique(topProblems, `Top erroring RPC is ${rpcName}.`);
+        actions.push({
+          priority: scorePriority("high", "medium"),
+          impact: "high",
+          effort: "medium",
+          owner: "engineering",
+          action: `Fix top failing RPC "${rpcName}".`,
+          evidence: JSON.stringify(first).slice(0, 240),
+        });
+      }
+      if (rpcSlowItems.length > 0) {
+        const first = rpcSlowItems[0];
+        const rpcName = first.rpc ?? first.id ?? first.name ?? "unknown_rpc";
+        const p99 = first.p99_ms ?? first.p99 ?? first.latency_p99_ms;
+        pushUnique(topProblems, `Slowest hot RPC is ${rpcName}${p99 ? ` with p99 ${p99}ms` : ""}.`);
+        actions.push({
+          priority: scorePriority("medium", "medium"),
+          impact: "medium",
+          effort: "medium",
+          owner: "engineering",
+          action: `Profile and optimize slow RPC "${rpcName}".`,
+          evidence: JSON.stringify(first).slice(0, 240),
+        });
+      }
+
+      const totalErrors = errorLog?.total ?? 0;
+      if (totalErrors > 0) {
+        pushUnique(risks, `${totalErrors} gameplay errors recorded over the last ${lookbackDays} days.`);
+      }
+
+      const challengeCount = asArray(hiroChallenges?.challenges ?? hiroChallenges?.items ?? hiroChallenges).length;
+      const incentiveCount = asArray(hiroIncentives?.incentives ?? hiroIncentives?.items ?? hiroIncentives).length;
+      const flagCount = asArray(satoriFlags?.flags ?? satoriFlags?.items ?? satoriFlags).length;
+      const liveEventCount = asArray(satoriEvents?.events ?? satoriEvents?.items ?? satoriEvents).length;
+      if (challengeCount > 0) pushUnique(liveOpsImpact, `${challengeCount} Hiro challenges are configured.`);
+      if (incentiveCount > 0) pushUnique(liveOpsImpact, `${incentiveCount} Hiro incentives are configured.`);
+      if (flagCount > 0) pushUnique(liveOpsImpact, `${flagCount} Satori feature flags are configured.`);
+      if (liveEventCount > 0) pushUnique(liveOpsImpact, `${liveEventCount} Satori live events are configured.`);
+      if (challengeCount === 0 && incentiveCount === 0 && liveEventCount === 0) {
+        pushUnique(topProblems, "No active LiveOps challenges, incentives, or live events were detected.");
+        actions.push({
+          priority: scorePriority("high", "low"),
+          impact: "high",
+          effort: "low",
+          owner: "liveops",
+          action: "Launch a lightweight weekly challenge tied to weak quiz categories or streak recovery.",
+          evidence: "LiveOps config returned no challenges, incentives, or live events.",
+        });
+      }
+
+      let knowledgeGapSummary: Array<{ category: string; weak_players: number; total_players: number; weakness_rate: number }> = [];
+      let playersAnalyzed = 0;
+      if (samplePlayers > 0) {
+        const accounts = await console.listAccounts({ limit: samplePlayers }).catch((e: any) => ({ _error: e.message, users: [] }));
+        const users = asArray<any>((accounts as any)?.users);
+        const weak: Record<string, number> = {};
+        const total: Record<string, number> = {};
+
+        for (const user of users) {
+          const uid = user.user?.id ?? user.id;
+          if (!uid) continue;
+          const map = await safeRpc(api, "quizverse_knowledge_map", { user_id: uid, game_id: gameId });
+          if (map?._error) continue;
+          const categories = map?.categories ?? map?.payload?.categories ?? {};
+          for (const [category, stats] of Object.entries(categories)) {
+            const value = stats as any;
+            const accuracy = value.accuracy ?? value.score ?? 0;
+            total[category] = (total[category] ?? 0) + 1;
+            if (accuracy < 0.5) weak[category] = (weak[category] ?? 0) + 1;
+          }
+          playersAnalyzed++;
+        }
+
+        knowledgeGapSummary = Object.entries(weak)
+          .map(([category, weakPlayers]) => ({
+            category,
+            weak_players: weakPlayers,
+            total_players: total[category] ?? 0,
+            weakness_rate: total[category] ? weakPlayers / total[category] : 0,
+          }))
+          .sort((a, b) => b.weakness_rate - a.weakness_rate)
+          .slice(0, 10);
+
+        const topGap = knowledgeGapSummary[0];
+        if (topGap) {
+          pushUnique(topProblems, `Top quiz knowledge gap is ${topGap.category}: ${(topGap.weakness_rate * 100).toFixed(1)}% weak in sampled players.`);
+          actions.push({
+            priority: scorePriority("high", "medium"),
+            impact: "high",
+            effort: "medium",
+            owner: "content",
+            action: `Create targeted practice, flashcards, and LiveOps missions for "${topGap.category}".`,
+            evidence: `${topGap.weak_players}/${topGap.total_players} sampled players are weak in this category.`,
+          });
+        }
+      }
+
+      if (d1 > 0 && d1 < 0.3) {
+        segmentInsights.push("New users: activation/onboarding likely needs work before deeper LiveOps optimizations.");
+        actions.push({
+          priority: scorePriority("high", "medium"),
+          impact: "high",
+          effort: "medium",
+          owner: "game_design",
+          action: "Improve first-session flow and add an early win within the first quiz session.",
+          evidence: `D1 retention is ${(d1 * 100).toFixed(1)}%.`,
+        });
+      }
+      if (d7 > 0 && d7 < 0.1) {
+        segmentInsights.push("Returning users: core loop is not yet creating enough week-one habit.");
+        actions.push({
+          priority: scorePriority("high", "medium"),
+          impact: "high",
+          effort: "medium",
+          owner: "liveops",
+          action: "Run a 7-day streak ladder with personalized weak-topic rewards.",
+          evidence: `D7 retention is ${(d7 * 100).toFixed(1)}%.`,
+        });
+      }
+      if ((engagement?.risk_level ?? "") === "high") {
+        segmentInsights.push("Churn-risk segment: engagement score reports high risk.");
+      }
+
+      if (focusPlayer) {
+        const [knowledgeMap, playerEngagement, timeline] = focusPlayer;
+        segmentInsights.push(`Focus player ${focus_user_id}: included knowledge map, engagement score, and Satori timeline context.`);
+        if (playerEngagement?.risk_level === "high" || playerEngagement?.risk_level === "churning") {
+          actions.push({
+            priority: scorePriority("medium", "low"),
+            impact: "medium",
+            effort: "low",
+            owner: "liveops",
+            action: `Trigger a personalized comeback mission for focus player ${focus_user_id}.`,
+            evidence: `Risk level: ${playerEngagement?.risk_level}.`,
+          });
+        }
+        if (knowledgeMap?._error) pushUnique(risks, `Focus player knowledge map failed: ${knowledgeMap._error}`);
+        if (timeline?._error) pushUnique(risks, `Focus player Satori timeline failed: ${timeline._error}`);
+      }
+
+      if (topWins.length === 0) {
+        topWins.push("No strong positive signal was detected from the available data. Treat this as an instrumentation or early-data gap until verified.");
+      }
+      if (topProblems.length === 0) {
+        topProblems.push("No critical problems detected from available data. Continue monitoring and run controlled LiveOps experiments.");
+      }
+      if (segmentInsights.length === 0) {
+        segmentInsights.push("Segment signals are limited. Add cohort tags for exam type, onboarding stage, payer status, and churn risk.");
+      }
+      if (liveOpsImpact.length === 0) {
+        liveOpsImpact.push("LiveOps impact could not be measured from current config/event data.");
+      }
+
+      const sortedActions = actions
+        .sort((a, b) => b.priority - a.priority)
+        .slice(0, 12)
+        .map(({ priority, ...action }) => action);
+
+      const report = {
+        game_id: gameId,
+        generated_at: new Date().toISOString(),
+        windows: { rpc_hours: lookbackHours, gameplay_days: lookbackDays, sampled_players: playersAnalyzed },
+        executive_summary: {
+          health_score: healthScore,
+          status: healthScore < 40 ? "critical" : healthScore < 70 ? "warning" : "healthy",
+          headline: topProblems[0] ?? topWins[0],
+        },
+        top_wins: topWins.slice(0, 10),
+        top_problems: topProblems.slice(0, 10),
+        segment_insights: segmentInsights,
+        liveops_impact: liveOpsImpact,
+        action_list: sortedActions.length > 0 ? sortedActions : [{
+          impact: "medium",
+          effort: "low",
+          owner: "analytics",
+          action: "Run this report daily and compare deltas before changing live tuning.",
+          evidence: "No urgent action was automatically ranked from current data.",
+        }],
+        key_metrics: {
+          dau,
+          wau,
+          mau,
+          dau_mau_ratio: dauMauRatio,
+          retention: { d1, d7, d30 },
+          sessions: { avg_duration_sec: avgSessionSec, sessions_per_day: sessionsPerDay },
+          economy: { source_sink_ratio: sourceSinkRatio, gini },
+        },
+        quiz_knowledge_gaps: knowledgeGapSummary,
+        risks,
+        evidence: {
+          dashboard,
+          retention,
+          economy,
+          sessions,
+          feature_adoption: featureAdoption,
+          funnel,
+          engagement,
+          error_log: errorLog,
+          rpc_summary: rpcSummary,
+          top_slow: topSlow,
+          top_errors: topErrors,
+          liveops: {
+            hiro_challenges: hiroChallenges,
+            hiro_incentives: hiroIncentives,
+            satori_flags: satoriFlags,
+            satori_events: satoriEvents,
+          },
+          focus_player: focusPlayer ? {
+            user_id: focus_user_id,
+            knowledge_map: focusPlayer[0],
+            engagement: focusPlayer[1],
+            satori_timeline: focusPlayer[2],
+          } : undefined,
+        },
+      };
+
+      return { content: [{ type: "text", text: JSON.stringify(report, null, 2) }] };
     }
   );
 }

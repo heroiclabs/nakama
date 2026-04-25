@@ -1,8 +1,4 @@
-import {
-  NAKAMA_BASE_URL,
-  NAKAMA_HTTP_KEY,
-  NAKAMA_SERVER_KEY,
-} from "../lib/constants";
+import { NAKAMA_BASE_URL } from "../lib/constants";
 
 export type AuthMode =
   | { type: "server-key" }
@@ -12,6 +8,9 @@ export interface RpcOptions {
   auth: AuthMode;
   signal?: AbortSignal;
 }
+
+const ADMIN_SESSION_STORAGE_KEY = "nakama-admin-session";
+const ADMIN_API_BASE = "/admin-dashboard/api";
 
 export class NakamaRpcError extends Error {
   constructor(
@@ -26,9 +25,49 @@ export class NakamaRpcError extends Error {
 
 function buildAuthHeader(auth: AuthMode): string {
   if (auth.type === "server-key") {
-    return `Basic ${btoa(`${NAKAMA_SERVER_KEY}:`)}`;
+    const token = getStoredAdminToken();
+    return token ? `Bearer ${token}` : "";
   }
   return `Bearer ${auth.token}`;
+}
+
+function getStoredAdminToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as { token?: string; expiresAt?: number };
+    if (!session.token) return null;
+    if (session.expiresAt && session.expiresAt <= Math.floor(Date.now() / 1000)) {
+      window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+      return null;
+    }
+    return session.token;
+  } catch {
+    return null;
+  }
+}
+
+function parseRpcEnvelope<TResult>(json: unknown): TResult {
+  const payload = (json as { payload?: unknown } | null)?.payload;
+  if (typeof payload === "string") {
+    try {
+      return JSON.parse(payload) as TResult;
+    } catch {
+      return payload as TResult;
+    }
+  }
+  return json as TResult;
+}
+
+async function readResponseBody(res: Response): Promise<unknown> {
+  const text = await res.text().catch(() => "");
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
 }
 
 /**
@@ -48,20 +87,16 @@ export async function callRpc<TPayload = Record<string, unknown>, TResult = unkn
   options: RpcOptions,
 ): Promise<TResult> {
   const isServerKey = options.auth.type === "server-key";
-
-  const params = new URLSearchParams();
-  if (isServerKey) {
-    params.set("http_key", NAKAMA_HTTP_KEY);
-    params.set("unwrap", "true");
-  }
-  const qs = params.toString();
-  const url = `${NAKAMA_BASE_URL}/v2/rpc/${rpcId}${qs ? `?${qs}` : ""}`;
+  const url = isServerKey
+    ? `${ADMIN_API_BASE}/rpc/${encodeURIComponent(rpcId)}`
+    : `${NAKAMA_BASE_URL}/v2/rpc/${rpcId}`;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (!isServerKey) {
-    headers.Authorization = buildAuthHeader(options.auth);
+  const authHeader = buildAuthHeader(options.auth);
+  if (authHeader) {
+    headers.Authorization = authHeader;
   }
 
   const body = isServerKey
@@ -76,24 +111,12 @@ export async function callRpc<TPayload = Record<string, unknown>, TResult = unkn
   });
 
   if (!res.ok) {
-    const errBody = await res.json().catch(() => res.text());
+    const errBody = await readResponseBody(res);
     throw new NakamaRpcError(rpcId, res.status, errBody);
   }
 
-  const json = await res.json().catch(() => null as unknown);
-
-  if (isServerKey) {
-    return json as TResult;
-  }
-  const raw = (json as { payload?: unknown } | null)?.payload;
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw) as TResult;
-    } catch {
-      return raw as TResult;
-    }
-  }
-  return raw as TResult;
+  const json = await readResponseBody(res);
+  return parseRpcEnvelope<TResult>(json);
 }
 
 /**
@@ -104,12 +127,16 @@ export async function callHttpApi<TResult = unknown>(
   path: string,
   options: RpcOptions & { method?: string; body?: unknown },
 ): Promise<TResult> {
-  const url = `${NAKAMA_BASE_URL}${path}`;
+  const isServerKey = options.auth.type === "server-key";
+  const url = isServerKey
+    ? `${ADMIN_API_BASE}/http${path}`
+    : `${NAKAMA_BASE_URL}${path}`;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: buildAuthHeader(options.auth),
   };
+  const authHeader = buildAuthHeader(options.auth);
+  if (authHeader) headers.Authorization = authHeader;
 
   const res = await fetch(url, {
     method: options.method ?? "GET",
@@ -119,10 +146,10 @@ export async function callHttpApi<TResult = unknown>(
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => res.text());
+    const body = await readResponseBody(res);
     throw new NakamaRpcError(path, res.status, body);
   }
 
   if (res.status === 204) return undefined as TResult;
-  return res.json() as Promise<TResult>;
+  return readResponseBody(res) as Promise<TResult>;
 }

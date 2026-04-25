@@ -1,7 +1,9 @@
 import { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { AdminAuthProvider, useAdminAuth } from "./auth/admin-auth";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { DashboardPage } from "./pages/DashboardPage";
+import { LoginPage } from "./pages/LoginPage";
 
 const PlayersPage = lazy(() => import("./pages/PlayersPage"));
 const HiroConfigPage = lazy(() => import("./pages/HiroConfigPage"));
@@ -35,39 +37,53 @@ function Loading() {
   );
 }
 
+function ProtectedRoutes() {
+  const { isAuthenticated } = useAdminAuth();
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return (
+    <Routes>
+      <Route element={<AdminLayout />}>
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="players" element={<PlayersPage />} />
+        <Route path="hiro-config" element={<HiroConfigPage />} />
+        <Route path="satori-config" element={<SatoriConfigPage />} />
+        <Route path="flags" element={<FlagsPage />} />
+        <Route path="events" element={<EventsPage />} />
+        <Route path="experiments" element={<ExperimentsPage />} />
+        <Route path="audiences" element={<AudiencesPage />} />
+        <Route path="messages" element={<MessagesPage />} />
+        <Route path="accounts" element={<AccountsPage />} />
+        <Route path="offers" element={<OffersPage />} />
+        <Route path="quests-config" element={<QuestsConfigPage />} />
+        <Route path="battlepass-config" element={<BattlepassConfigPage />} />
+        <Route path="achievements" element={<AchievementsPage />} />
+        <Route path="leaderboards-config" element={<LeaderboardsConfigPage />} />
+        <Route path="storage" element={<StoragePage />} />
+        <Route path="matches" element={<MatchesPage />} />
+        <Route path="logs" element={<LogsPage />} />
+        <Route path="economy" element={<EconomyPage />} />
+        <Route path="retention" element={<RetentionPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="config-export" element={<ConfigExportPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="dev-guide" element={<DevGuidePage />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Route>
+    </Routes>
+  );
+}
+
 export function App() {
   return (
-    <Suspense fallback={<Loading />}>
-      <Routes>
-        <Route element={<AdminLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="players" element={<PlayersPage />} />
-          <Route path="hiro-config" element={<HiroConfigPage />} />
-          <Route path="satori-config" element={<SatoriConfigPage />} />
-          <Route path="flags" element={<FlagsPage />} />
-          <Route path="events" element={<EventsPage />} />
-          <Route path="experiments" element={<ExperimentsPage />} />
-          <Route path="audiences" element={<AudiencesPage />} />
-          <Route path="messages" element={<MessagesPage />} />
-          <Route path="accounts" element={<AccountsPage />} />
-          <Route path="offers" element={<OffersPage />} />
-          <Route path="quests-config" element={<QuestsConfigPage />} />
-          <Route path="battlepass-config" element={<BattlepassConfigPage />} />
-          <Route path="achievements" element={<AchievementsPage />} />
-          <Route path="leaderboards-config" element={<LeaderboardsConfigPage />} />
-          <Route path="storage" element={<StoragePage />} />
-          <Route path="matches" element={<MatchesPage />} />
-          <Route path="logs" element={<LogsPage />} />
-          <Route path="economy" element={<EconomyPage />} />
-          <Route path="retention" element={<RetentionPage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="config-export" element={<ConfigExportPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="dev-guide" element={<DevGuidePage />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Route>
-      </Routes>
-    </Suspense>
+    <AdminAuthProvider>
+      <Suspense fallback={<Loading />}>
+        <ProtectedRoutes />
+      </Suspense>
+    </AdminAuthProvider>
   );
 }

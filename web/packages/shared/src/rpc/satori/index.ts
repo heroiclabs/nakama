@@ -1,5 +1,18 @@
 import { callRpc, type RpcOptions } from "../client";
 import type { SatoriSystem } from "../../lib/constants";
+import type { Audience, Experiment, SatoriMessage } from "../types";
+
+function unwrapData<T>(value: unknown): T {
+  if (
+    value &&
+    typeof value === "object" &&
+    "success" in value &&
+    "data" in value
+  ) {
+    return (value as { data: T }).data;
+  }
+  return value as T;
+}
 
 export function satoriRpc<P = Record<string, unknown>, R = unknown>(
   system: string,
@@ -14,7 +27,10 @@ export function getSatoriConfig(
   system: SatoriSystem,
   opts: RpcOptions,
 ): Promise<Record<string, unknown>> {
-  return callRpc("satori_config_get", { system }, opts);
+  return callRpc("satori_config_get", { system }, opts).then((value) => {
+    const data = unwrapData<{ config?: Record<string, unknown> }>(value);
+    return data.config ?? (data as Record<string, unknown>);
+  });
 }
 
 export function setSatoriConfig(
@@ -35,7 +51,9 @@ export interface FeatureFlag {
 }
 
 export function getAllFlags(opts: RpcOptions): Promise<{ flags: FeatureFlag[] }> {
-  return satoriRpc("flags", "get_all", {}, opts);
+  return callRpc("admin_satori_flags_list", {}, opts).then((value) =>
+    unwrapData<{ flags: FeatureFlag[] }>(value),
+  );
 }
 
 export function toggleFlag(
@@ -50,8 +68,10 @@ export function toggleFlag(
   return callRpc("satori_flags_toggle", params, opts);
 }
 
-export function getAllExperiments(opts: RpcOptions) {
-  return satoriRpc("experiments", "get_all", {}, opts);
+export function getAllExperiments(opts: RpcOptions): Promise<{ experiments: Experiment[] }> {
+  return callRpc("admin_satori_experiments_list", {}, opts).then((value) =>
+    unwrapData<{ experiments: Experiment[] }>(value),
+  );
 }
 
 export function setupExperiment(
@@ -81,7 +101,9 @@ export interface LiveEvent {
 export function listLiveEvents(
   opts: RpcOptions,
 ): Promise<{ events: LiveEvent[] }> {
-  return satoriRpc("live_events", "list", {}, opts);
+  return callRpc("admin_satori_live_events_list", {}, opts).then((value) =>
+    unwrapData<{ events: LiveEvent[] }>(value),
+  );
 }
 
 export function scheduleLiveEvent(
@@ -100,12 +122,16 @@ export function scheduleLiveEvent(
   return callRpc("satori_live_event_schedule", event, opts);
 }
 
-export function listAudiences(opts: RpcOptions) {
-  return satoriRpc("audiences", "list", {}, opts);
+export function listAudiences(opts: RpcOptions): Promise<any> {
+  return satoriRpc("audiences", "list", {}, opts).then((value) =>
+    unwrapData<{ audiences?: Audience[] }>(value),
+  );
 }
 
-export function listMessages(opts: RpcOptions) {
-  return satoriRpc("messages", "list", {}, opts);
+export function listMessages(opts: RpcOptions): Promise<{ messages?: SatoriMessage[] }> {
+  return callRpc("admin_satori_messages_list", {}, opts).then((value) =>
+    unwrapData<{ messages?: SatoriMessage[] }>(value),
+  );
 }
 
 export function broadcastMessage(
@@ -118,7 +144,7 @@ export function broadcastMessage(
   },
   opts: RpcOptions,
 ) {
-  return callRpc("satori_message_broadcast", message, opts);
+  return callRpc("admin_satori_message_broadcast", message, opts);
 }
 
 export function getMetrics(opts: RpcOptions) {

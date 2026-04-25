@@ -1,7 +1,8 @@
 namespace SatoriMessages {
 
   function getMessageDefinitions(nk: nkruntime.Nakama): { [id: string]: Satori.MessageDefinition } {
-    return ConfigLoader.loadSatoriConfig<{ [id: string]: Satori.MessageDefinition }>(nk, "messages", {});
+    var raw = ConfigLoader.loadSatoriConfig<any>(nk, "messages", {});
+    return raw && raw.messages ? raw.messages : raw;
   }
 
   function getUserMessages(nk: nkruntime.Nakama, userId: string): Satori.UserMessages {
@@ -43,6 +44,15 @@ namespace SatoriMessages {
   export function deliverToAudience(nk: nkruntime.Nakama, logger: nkruntime.Logger, messageDef: Satori.MessageDefinition, audienceId: string): number {
     var delivered = 0;
     try {
+      var explicitIds = SatoriAudiences.getExplicitIncludeIds(nk, audienceId);
+      for (var explicitIndex = 0; explicitIndex < explicitIds.length; explicitIndex++) {
+        if (SatoriAudiences.isInAudience(nk, explicitIds[explicitIndex], audienceId)) {
+          deliverMessage(nk, explicitIds[explicitIndex], messageDef);
+          delivered++;
+        }
+      }
+      if (delivered > 0) return delivered;
+
       var users = nk.usersGetRandom(100);
       for (var i = 0; i < users.length; i++) {
         if (SatoriAudiences.isInAudience(nk, users[i].userId, audienceId)) {
@@ -154,26 +164,33 @@ namespace SatoriMessages {
   }
 
   function rpcBroadcast(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.title) return RpcHelpers.errorResponse("title required");
 
     var now = Math.floor(Date.now() / 1000);
+    var scheduleAt = data.scheduleAt || data.schedule_at;
+    var audienceId = data.audienceId || data.audience_id;
+    var reward = data.reward;
+    if (!reward && data.rewards_json) {
+      try { reward = JSON.parse(data.rewards_json); } catch (_) { reward = undefined; }
+    }
     var msgDef: Satori.MessageDefinition = {
       id: data.id || nk.uuidv4(),
       title: data.title,
       body: data.body,
       imageUrl: data.imageUrl,
       metadata: data.metadata,
-      reward: data.reward,
-      audienceId: data.audienceId,
-      scheduleAt: data.scheduleAt,
+      reward: reward,
+      audienceId: audienceId,
+      scheduleAt: scheduleAt,
       expiresAt: data.expiresAt,
       createdAt: now
     };
 
-    if (data.audienceId) {
-      var delivered = deliverToAudience(nk, logger, msgDef, data.audienceId);
-      return RpcHelpers.successResponse({ delivered: delivered, audienceId: data.audienceId });
+    if (audienceId && !scheduleAt) {
+      var delivered = deliverToAudience(nk, logger, msgDef, audienceId);
+      return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId });
     }
 
     var definitions = getMessageDefinitions(nk);

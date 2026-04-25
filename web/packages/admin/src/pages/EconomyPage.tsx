@@ -311,9 +311,9 @@ function OverviewTab({
   const topHolders = useMemo(() => {
     const scored = wallets.map((w) => ({
       ...w,
-      totalValue: Object.values(w.wallet).reduce((s, v) => s + (v ?? 0), 0),
+      totalValue: Object.values(w.wallet).reduce((sum, v) => (sum ?? 0) + (v ?? 0), 0),
     }));
-    return scored.sort((a, b) => b.totalValue - a.totalValue).slice(0, 10);
+    return scored.sort((a, b) => (b.totalValue ?? 0) - (a.totalValue ?? 0)).slice(0, 10);
   }, [wallets]);
 
   const configCurrencies = economyConfig?.currencies
@@ -324,7 +324,7 @@ function OverviewTab({
     ? Object.keys(storeConfig.items).length
     : storeConfig?.sections
       ? Object.values(storeConfig.sections).reduce(
-          (n, s) => n + (s.items ? Object.keys(s.items).length : 0),
+          (n, s: any) => n + (s?.items ? Object.keys(s.items).length : 0),
           0,
         )
       : 0;
@@ -597,16 +597,17 @@ function WalletsTab({
             {filtered.map((acct) => {
               const w = parseWallet(acct.wallet);
               const currencies = Object.entries(w).filter(([, v]) => v !== undefined);
-              const isExpanded = expanded.has(acct.user.id);
-              const isSelected = selectedId === acct.user.id;
+              const accountId = acct.user.id ?? acct.user.user_id;
+              const isExpanded = expanded.has(accountId);
+              const isSelected = selectedId === accountId;
               return (
                 <div
-                  key={acct.user.id}
+                  key={accountId}
                   className={cn(
                     "px-4 py-3 cursor-pointer transition-colors",
                     isSelected ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/50",
                   )}
-                  onClick={() => setSelectedId(acct.user.id)}
+                  onClick={() => setSelectedId(accountId)}
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -614,14 +615,14 @@ function WalletsTab({
                         {acct.user.display_name || acct.user.username || "—"}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <span className="font-mono">{acct.user.id?.slice(0, 12)}…</span>
-                        <CopyButton text={acct.user.id} />
+                        <span className="font-mono">{accountId.slice(0, 12)}…</span>
+                        <CopyButton text={accountId} />
                       </div>
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleExpand(acct.user.id);
+                        toggleExpand(accountId);
                       }}
                       className="text-muted-foreground hover:text-foreground"
                     >
@@ -1202,6 +1203,5 @@ export function EconomyPage() {
   );
 }
 
-export { EconomyPage as default };
 
 export default EconomyPage;

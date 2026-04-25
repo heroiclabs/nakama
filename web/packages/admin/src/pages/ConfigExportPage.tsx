@@ -1100,6 +1100,5 @@ export function ConfigExportPage() {
   );
 }
 
-export { ConfigExportPage as default };
 
 export default ConfigExportPage;

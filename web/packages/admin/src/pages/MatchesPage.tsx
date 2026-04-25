@@ -649,6 +649,5 @@ export function MatchesPage() {
   );
 }
 
-export { MatchesPage as default };
 
 export default MatchesPage;

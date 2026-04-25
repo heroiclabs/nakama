@@ -1,8 +1,49 @@
 namespace SatoriAudiences {
 
   function getAudienceDefinitions(nk: nkruntime.Nakama): { [id: string]: Satori.AudienceDefinition } {
-    var custom = ConfigLoader.loadSatoriConfig<{ [id: string]: Satori.AudienceDefinition }>(nk, "audiences", {});
-    return applyDefaults(custom);
+    var custom = ConfigLoader.loadSatoriConfig<any>(nk, "audiences", {});
+    return applyDefaults(normalizeAudienceDefinitions(custom));
+  }
+
+  function normalizeAudienceDefinitions(raw: any): { [id: string]: Satori.AudienceDefinition } {
+    var source = raw && raw.audiences ? raw.audiences : (raw || {});
+    var normalized: { [id: string]: Satori.AudienceDefinition } = {};
+
+    for (var id in source) {
+      if (!source.hasOwnProperty(id)) continue;
+      var def = source[id] || {};
+      var filters = def.rule && def.rule.filters
+        ? def.rule.filters
+        : (def.conditions || []);
+
+      normalized[id] = {
+        id: def.id || id,
+        name: def.name || id,
+        description: def.description || "",
+        rule: def.rule || {
+          combinator: def.combinator || "and",
+          filters: filters || []
+        },
+        includeIds: normalizeStringArray(def.includeIds || def.include_ids || def.userIds || def.user_ids),
+        excludeIds: normalizeStringArray(def.excludeIds || def.exclude_ids),
+        samplePct: def.samplePct !== undefined ? Number(def.samplePct) : undefined,
+        createdAt: Number(def.createdAt || def.created_at || 0),
+        updatedAt: Number(def.updatedAt || def.updated_at || 0)
+      };
+    }
+
+    return normalized;
+  }
+
+  function normalizeStringArray(value: any): string[] | undefined {
+    if (!value) return undefined;
+    if (Array.isArray(value)) {
+      return value.map(function (v) { return String(v); }).filter(function (v) { return !!v; });
+    }
+    if (typeof value === "string") {
+      return value.split(",").map(function (v) { return v.trim(); }).filter(function (v) { return !!v; });
+    }
+    return undefined;
   }
 
   function applyDefaults(audiences: { [id: string]: Satori.AudienceDefinition }): { [id: string]: Satori.AudienceDefinition } {
@@ -80,6 +121,13 @@ namespace SatoriAudiences {
     }
 
     return evaluateRule(allProps, def.rule);
+  }
+
+  export function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string): string[] {
+    var audiences = getAudienceDefinitions(nk);
+    var def = audiences[audienceId];
+    if (!def || !def.includeIds) return [];
+    return def.includeIds;
   }
 
   function evaluateRule(props: { [key: string]: string }, rule: Satori.AudienceRule): boolean {

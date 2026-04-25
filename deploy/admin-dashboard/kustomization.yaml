@@ -1,9 +1,7 @@
-# Kustomize bundle for the standalone Nakama analytics dashboard.
+# Kustomize bundle for the hardened Nakama admin dashboard.
 #
 # What this ships:
-#   - ConfigMap `nakama-admin-dashboard-html`  ← web/analytics-dashboard/index.html
-#   - ConfigMap `nakama-admin-dashboard-nginx` ← nginx.conf
-#   - Deployment `nakama-admin-dashboard` (2x nginx-unprivileged)
+#   - Deployment `nakama-admin-dashboard` (2x Node static/proxy server)
 #   - Service    `nakama-admin-dashboard` (ClusterIP :80)
 #
 # The Ingress is patched separately by deploy/admin-dashboard/apply.sh
@@ -31,18 +29,6 @@ labels:
 resources:
   - deployment.yaml
   - service.yaml
-
-# Generate ConfigMaps from real files. Kustomize appends a content hash to
-# each ConfigMap name, and rewrites the volume references in the Deployment
-# to match — so any change to index.html or nginx.conf triggers a rolling
-# update automatically.
-configMapGenerator:
-  - name: nakama-admin-dashboard-html
-    files:
-      - index.html=../../web/analytics-dashboard/index.html
-  - name: nakama-admin-dashboard-nginx
-    files:
-      - default.conf=nginx.conf
 
 generatorOptions:
   disableNameSuffixHash: false

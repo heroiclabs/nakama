@@ -1402,7 +1402,7 @@ export function RetentionPage() {
 
   const riskPlayers = useMemo<PlayerRisk[]>(() => {
     const users = players.data?.users ?? [];
-    return users.map((u) => {
+    return users.map((u: NakamaUser) => {
       const inactive = daysSince(u.update_time);
       return {
         user: u,
@@ -1552,6 +1552,5 @@ export function RetentionPage() {
   );
 }
 
-export { RetentionPage as default };
 
 export default RetentionPage;

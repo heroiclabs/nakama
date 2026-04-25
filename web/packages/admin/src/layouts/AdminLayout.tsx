@@ -29,9 +29,11 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdminStore } from "@/stores/admin-store";
+import { useAdminAuth } from "@/auth/admin-auth";
 
 interface NavItem {
   label: string;
@@ -114,7 +116,8 @@ function getPageTitle(pathname: string) {
 export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { theme, setTheme, serverKeyOverride } = useAdminStore();
+  const { theme, setTheme } = useAdminStore();
+  const { session, logout } = useAdminAuth();
 
   const pageTitle = getPageTitle(location.pathname);
 
@@ -193,19 +196,22 @@ export function AdminLayout() {
             >
               {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
             </button>
-            <div
-              title={serverKeyOverride ? "Custom server key set" : "Using default key"}
-              className={cn(
-                "h-2.5 w-2.5 rounded-full",
-                serverKeyOverride ? "bg-green-500" : "bg-muted-foreground/40",
-              )}
-            />
+            <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
+              {session?.username ?? "admin"}
+            </span>
             <NavLink
               to="/settings"
               className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <Settings size={16} />
             </NavLink>
+            <button
+              onClick={logout}
+              title="Sign out"
+              className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </header>
         <div className="p-6">

@@ -76,8 +76,18 @@ export function getHealthcheck(
 }
 
 export function listAccounts(
-  opts: RpcOptions & { limit?: number; cursor?: string; filter?: string },
-): Promise<{ users: NakamaUser[]; cursor?: string }> {
+  optsOrFilter?: (RpcOptions & { limit?: number; cursor?: string; filter?: string }) | string,
+  legacyLimit?: number,
+  legacyOpts?: RpcOptions,
+): Promise<any> {
+  const opts: RpcOptions & { limit?: number; cursor?: string; filter?: string } =
+    typeof optsOrFilter === "object" && optsOrFilter !== null && "auth" in optsOrFilter
+      ? optsOrFilter
+      : {
+          ...(legacyOpts ?? { auth: { type: "server-key" } as const }),
+          limit: legacyLimit,
+          filter: typeof optsOrFilter === "string" ? optsOrFilter : undefined,
+        };
   const params = new URLSearchParams();
   if (opts.limit) params.set("limit", String(opts.limit));
   if (opts.cursor) params.set("cursor", opts.cursor);
@@ -115,7 +125,7 @@ export function deleteAccount(userId: string, opts: RpcOptions) {
 
 export function listMatches(
   opts: RpcOptions & { limit?: number; label?: string },
-) {
+): Promise<any> {
   const params = new URLSearchParams();
   if (opts.limit) params.set("limit", String(opts.limit));
   if (opts.label) params.set("label", opts.label);
@@ -124,8 +134,20 @@ export function listMatches(
 
 export function listStorageObjects(
   collection: string,
-  opts: RpcOptions & { userId?: string; limit?: number; cursor?: string },
-) {
+  optsOrUserId?: (RpcOptions & { userId?: string; limit?: number; cursor?: string }) | string,
+  legacyCursor?: string,
+  legacyLimit?: number,
+  legacyOpts?: RpcOptions,
+): Promise<any> {
+  const opts: RpcOptions & { userId?: string; limit?: number; cursor?: string } =
+    typeof optsOrUserId === "object" && optsOrUserId !== null && "auth" in optsOrUserId
+      ? optsOrUserId
+      : {
+          ...(legacyOpts ?? { auth: { type: "server-key" } as const }),
+          userId: typeof optsOrUserId === "string" ? optsOrUserId : undefined,
+          cursor: legacyCursor,
+          limit: legacyLimit,
+        };
   const params = new URLSearchParams();
   if (opts.limit) params.set("limit", String(opts.limit));
   if (opts.cursor) params.set("cursor", opts.cursor);
