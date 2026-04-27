@@ -39,6 +39,29 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[AnalyticsAlerts] failed to install: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- IVX Multiplayer Kernel ----
+  // Registers all in-tree match templates (sync-turn-v1 today; more added
+  // in P5+) and the cross-template RPCs (mp_create_match,
+  // mp_read_match_result, mp_list_templates). Mounted BEFORE the Legacy
+  // and Hiro registrations so QuizVerse + future game plugins can call
+  // MpKernelSyncTurn.registerGenerator(...) during their own register().
+  try {
+    MpKernelModule.register(initializer, logger);
+  } catch (err: any) {
+    logger.error("[MpKernel] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- Game plugins on top of MpKernel ----
+  // QuizVerse runs on SyncTurnMatch (turn template registered above).
+  // Mounted AFTER the kernel so the SyncTurn generator registry exists,
+  // and BEFORE the legacy bridge so QuizVerse rpc IDs are pinned in
+  // _tsRpcList and the legacy_runtime.js stub cannot shadow them.
+  try {
+    QuizVersePlugin.register(initializer, nk, logger);
+  } catch (err: any) {
+    logger.error("[QuizVerse] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Legacy System Registration (backward-compatible RPCs) ----
   try {
     logger.info("[Legacy] Registering wallet RPCs...");

@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-25T21:45:10.066Z
-// RPC Count: 662
+// Generated: 2026-04-27T02:43:25.757Z
+// RPC Count: 687
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -116,6 +116,17 @@ var __rpc_admin_cache_invalidate;
 var __rpc_admin_user_data_get;
 var __rpc_admin_user_data_set;
 var __rpc_admin_user_data_delete;
+var __rpc_admin_accounts_list;
+var __rpc_admin_account_get;
+var __rpc_admin_account_ban;
+var __rpc_admin_account_unban;
+var __rpc_admin_account_delete;
+var __rpc_admin_matches_list;
+var __rpc_admin_tournaments_list;
+var __rpc_admin_tournament_create;
+var __rpc_admin_tournament_records_list;
+var __rpc_admin_tournament_records_around_owner;
+var __rpc_admin_tournament_record_write;
 var __rpc_admin_player_inspect;
 var __rpc_admin_user_search;
 var __rpc_admin_wallet_view;
@@ -123,6 +134,7 @@ var __rpc_admin_wallet_grant;
 var __rpc_admin_wallet_reset;
 var __rpc_admin_inventory_grant;
 var __rpc_admin_mailbox_send;
+var __rpc_admin_satori_audiences_list;
 var __rpc_admin_satori_flags_list;
 var __rpc_admin_satori_experiments_list;
 var __rpc_admin_satori_messages_list;
@@ -140,6 +152,7 @@ var __rpc_satori_flags_toggle;
 var __rpc_satori_live_event_schedule;
 var __rpc_satori_experiment_setup;
 var __rpc_admin_storage_list;
+var __rpc_admin_storage_write;
 var __rpc_gift_claims_list;
 var __rpc_admin_gift_claim_update;
 var __rpc_admin_health_check;
@@ -348,6 +361,18 @@ var __rpc_get_wallet_balance;
 var __rpc_create_or_get_wallet;
 var __rpc_calculate_score_reward;
 var __rpc_update_game_reward_config;
+var __rpc_mp_agent_spawn;
+var __rpc_mp_agent_despawn;
+var __rpc_mp_agent_list_personas;
+var __rpc_mp_agent_speak;
+var __rpc_mp_create_match;
+var __rpc_mp_read_match_result;
+var __rpc_mp_list_templates;
+var __rpc_mp_interest_size;
+var __rpc_mp_mod_get_params;
+var __rpc_mp_mod_set_params;
+var __rpc_mp_mod_appeal;
+var __rpc_mp_voice_token;
 var __rpc_nakama_analytics_tick;
 var __rpc_nakama_analytics_status;
 var __rpc_nakama_analytics_recent;
@@ -673,7 +698,7 @@ var __rpc_visual_path_get_schedule;
 var __rpc_visual_path_skip_day_with_ad;
 
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
-var __TS_OWNED_RPCS = {"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
+var __TS_OWNED_RPCS = {"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
 // --- Discovered Modules (80 files) ---
 
@@ -64562,6 +64587,29 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[AnalyticsAlerts] failed to install: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- IVX Multiplayer Kernel ----
+    // Registers all in-tree match templates (sync-turn-v1 today; more added
+    // in P5+) and the cross-template RPCs (mp_create_match,
+    // mp_read_match_result, mp_list_templates). Mounted BEFORE the Legacy
+    // and Hiro registrations so QuizVerse + future game plugins can call
+    // MpKernelSyncTurn.registerGenerator(...) during their own register().
+    try {
+        MpKernelModule.register(initializer, logger);
+    }
+    catch (err) {
+        logger.error("[MpKernel] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
+    // ---- Game plugins on top of MpKernel ----
+    // QuizVerse runs on SyncTurnMatch (turn template registered above).
+    // Mounted AFTER the kernel so the SyncTurn generator registry exists,
+    // and BEFORE the legacy bridge so QuizVerse rpc IDs are pinned in
+    // _tsRpcList and the legacy_runtime.js stub cannot shadow them.
+    try {
+        QuizVersePlugin.register(initializer, nk, logger);
+    }
+    catch (err) {
+        logger.error("[QuizVerse] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- Legacy System Registration (backward-compatible RPCs) ----
     try {
         logger.info("[Legacy] Registering wallet RPCs...");
@@ -68046,11 +68094,631 @@ var IntelliverseFriendsList;
     IntelliverseFriendsList.register = register;
     register();
 })(IntelliverseFriendsList || (IntelliverseFriendsList = {}));
+// QuizVerse turn generator — implements the SyncTurnMatch IGenerator
+// contract. Produces one quiz question per turn, scores submissions,
+// and builds the QV_REVEAL payload that goes back to clients.
+//
+// Three modes share the same base behaviour, differing only in scoring
+// curve and pack selection (driven by `template_init.mode`):
+//   - quizverse:classic       — ranked-style scoring, public packs.
+//   - quizverse:friend_battle — friend-only, fixed length, lenient.
+//   - quizverse:link_and_play — short room with code, faster cadence.
+var QuizVerseGenerator;
+(function (QuizVerseGenerator) {
+    // Score for a fully correct, instant answer. Speed bonus decays
+    // linearly to 0 across the input window. Wrong answer = small
+    // penalty so guessing does not pay; no_submit is a flat 0.
+    var BASE_CORRECT_SCORE = 1000;
+    var WRONG_PENALTY = -100;
+    var NO_SUBMIT_SCORE = 0;
+    function pickPack(nk, init) {
+        return QuizVersePackStore.readPack(nk, init.pack_id);
+    }
+    // Fisher-Yates over indices so each match draws a deterministic-but-
+    // shuffled subset (the kernel does not provide a per-match seed yet,
+    // so we use Date.now() — collisions across concurrent matches are
+    // acceptable for content variety; cheating-resistance comes from the
+    // server-authoritative correct_index, not draw secrecy).
+    function shuffleIndices(n) {
+        var idx = [];
+        for (var i = 0; i < n; i++)
+            idx.push(i);
+        for (var j = n - 1; j > 0; j--) {
+            var k = Math.floor(Math.random() * (j + 1));
+            var tmp = idx[j];
+            idx[j] = idx[k];
+            idx[k] = tmp;
+        }
+        return idx;
+    }
+    function buildShuffledPack(src, take) {
+        var n = src.questions.length;
+        var sample = Math.min(take, n);
+        var order = shuffleIndices(n);
+        var picked = [];
+        for (var i = 0; i < sample; i++)
+            picked.push(src.questions[order[i]]);
+        return {
+            pack_id: src.pack_id,
+            locale: src.locale,
+            revision: src.revision,
+            questions: picked
+        };
+    }
+    function makeGenerator(generatorId) {
+        return {
+            generatorId: generatorId,
+            initBlob: function (initParams) {
+                var init = initParams;
+                var nk = (initParams && initParams.__nk); // injected by registerNk()
+                // initBlob runs inside the kernel's matchInit, but the kernel
+                // does not pass `nk` directly to generators. We lazy-resolve the
+                // pack on the FIRST nextTurn() call using a closure-captured
+                // store function. The blob keeps the un-shuffled pack cached
+                // after that.
+                var blob = {
+                    pack_id: (init && init.pack_id) || QuizVerseGame.DefaultInit.pack_id,
+                    pack: { pack_id: "", questions: [] },
+                    cursor: 0,
+                    questions_total: (init && init.questions_total) || QuizVerseGame.DefaultInit.questions_total,
+                    per_question_ms: (init && init.per_question_ms) || QuizVerseGame.DefaultInit.per_question_ms,
+                    mode: (init && init.mode) || QuizVerseGame.DefaultInit.mode,
+                    current_correct_index: -1,
+                    current_question_id: ""
+                };
+                if (nk) {
+                    var srcPack = pickPack(nk, init || QuizVerseGame.DefaultInit);
+                    blob.pack = buildShuffledPack(srcPack, blob.questions_total);
+                }
+                return blob;
+            },
+            nextTurn: function (ctx) {
+                var blob = ctx.blob;
+                // Late-init pack if the kernel built blob without `nk` (older
+                // call sites). Falls through to the seed pack so smoke tests
+                // never end with zero turns.
+                if (!blob.pack || !blob.pack.questions || blob.pack.questions.length === 0) {
+                    blob.pack = buildShuffledPack(QuizVerseGame.SEED_PACK, blob.questions_total);
+                }
+                if (blob.cursor >= blob.pack.questions.length || blob.cursor >= blob.questions_total) {
+                    return null;
+                }
+                var q = blob.pack.questions[blob.cursor];
+                blob.cursor++;
+                blob.current_correct_index = q.correct_index;
+                blob.current_question_id = q.question_id;
+                var isFinal = blob.cursor >= blob.pack.questions.length || blob.cursor >= blob.questions_total;
+                return {
+                    turn_payload: {
+                        // Mirrors QuestionPrompt in quizverse.proto. Note we DO NOT
+                        // include the correct_index — clients compute correctness
+                        // server-side via QV_REVEAL.
+                        question_id: q.question_id,
+                        text: q.text,
+                        options: q.options,
+                        image_url: q.image_url || "",
+                        audio_url: q.audio_url || "",
+                        category: q.category || "",
+                        difficulty: q.difficulty || 1,
+                        time_ms: blob.per_question_ms
+                    },
+                    result_payload_for_correct: {
+                        question_id: q.question_id,
+                        correct_option: q.correct_index,
+                        explanation: q.explanation || ""
+                    },
+                    score_for_correct_full: BASE_CORRECT_SCORE,
+                    score_for_wrong: WRONG_PENALTY,
+                    score_for_no_submit: NO_SUBMIT_SCORE,
+                    input_window_ms: blob.per_question_ms,
+                    is_final_turn: isFinal
+                };
+            },
+            // Submission shape matches QvAnswer in quizverse.proto.
+            // Clients send { question_id, option_index, latency_ms?, used_lifeline? }.
+            // We trust the SERVER-recorded response_ms for scoring (kernel
+            // captures it on receipt), not the client-reported latency_ms,
+            // which is purely diagnostic.
+            scoreSubmission: function (submission, correctPayload, responseMs, baseReward) {
+                if (!submission || !correctPayload)
+                    return WRONG_PENALTY;
+                var sel = submission.option_index;
+                if (typeof sel !== "number")
+                    return WRONG_PENALTY;
+                if (sel === correctPayload.correct_option) {
+                    // Speed bonus: full reward at 0ms, 50% at the input window
+                    // edge. Keeps the curve gentle so packets-loss-induced
+                    // jitter doesn't tank scores.
+                    var window = (submission.__input_window_ms || 15000);
+                    var ratio = Math.max(0, Math.min(1, 1 - (responseMs / window) * 0.5));
+                    // Lifeline-assisted answers earn 60% of base — keeps lifelines
+                    // useful but not OP. Matches the legacy Photon behaviour.
+                    if (submission.used_lifeline)
+                        ratio *= 0.6;
+                    return Math.round(baseReward * ratio);
+                }
+                return WRONG_PENALTY;
+            },
+            buildResolvedPayload: function (correctPayload, verdicts, responseMs) {
+                // Build PlayerAnswerSummary[] mirroring quizverse.proto Reveal.
+                var players = [];
+                for (var u in verdicts) {
+                    if (!verdicts.hasOwnProperty(u))
+                        continue;
+                    var v = verdicts[u]; // 1=correct, 0=wrong, -1=no_submit
+                    players.push({
+                        user_id: u,
+                        chose_option: -1, // Filled by the kernel diff-stream in P5.
+                        correct: v === 1,
+                        latency_ms: responseMs[u] || 0,
+                        delta_score: 0, // Score delta carried via SCORE_UPDATE.
+                        streak: 0,
+                        used_lifeline: false
+                    });
+                }
+                return {
+                    question_id: correctPayload.question_id,
+                    correct_option: correctPayload.correct_option,
+                    explanation: correctPayload.explanation || "",
+                    players: players
+                };
+            }
+        };
+    }
+    // The kernel's IGenerator API does not pass `nk` into initBlob, so we
+    // wrap the registered generators here to inject it via a thread-local
+    // (single-threaded JS runtime, so safe). Called from
+    // QuizVersePlugin.register().
+    var pendingNk = null;
+    function registerNk(nk) { pendingNk = nk; }
+    QuizVerseGenerator.registerNk = registerNk;
+    function wrapInitBlob(g) {
+        var orig = g.initBlob;
+        g.initBlob = function (initParams) {
+            if (pendingNk && initParams && typeof initParams === "object") {
+                initParams.__nk = pendingNk;
+            }
+            return orig(initParams);
+        };
+        return g;
+    }
+    function buildAll() {
+        return [
+            wrapInitBlob(makeGenerator(QuizVerseGame.Mode.CLASSIC)),
+            wrapInitBlob(makeGenerator(QuizVerseGame.Mode.FRIEND_BATTLE)),
+            wrapInitBlob(makeGenerator(QuizVerseGame.Mode.LINK_AND_PLAY))
+        ];
+    }
+    QuizVerseGenerator.buildAll = buildAll;
+})(QuizVerseGenerator || (QuizVerseGenerator = {}));
+// QuizVerse multiplayer plugin — wires the QuizVerse turn generator into
+// the IVX SyncTurnMatch template and exposes thin wrapper RPCs for
+// client adapters that prefer game-specific endpoints over the generic
+// `mp_create_match`.
+//
+// Mounted from src/main.ts AFTER MpKernelModule.register() so that the
+// kernel + sync-turn template are already alive when we register our
+// generators.
+var QuizVersePlugin;
+(function (QuizVersePlugin) {
+    // RPC ids — keep stable; adapters depend on these strings.
+    QuizVersePlugin.RPC_CREATE_MATCH = "quizverse_create_match";
+    QuizVersePlugin.RPC_LOAD_PACK = "quizverse_load_pack";
+    QuizVersePlugin.RPC_LIST_PACKS = "quizverse_list_packs";
+    function nakamaError(msg, code) {
+        return { message: msg, code: code };
+    }
+    function buildBattle(raw) {
+        if (!raw || typeof raw !== "object")
+            return undefined;
+        var modeNum = (typeof raw.mode === "number") ? raw.mode : QuizVerseGame.BattleMode.ONE_VS_ONE;
+        if (modeNum < QuizVerseGame.BattleMode.ONE_VS_ONE || modeNum > QuizVerseGame.BattleMode.FIVE_VS_FIVE) {
+            throw nakamaError("battle.mode must be 1..5", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var topics = [];
+        if (raw.topics && Object.prototype.toString.call(raw.topics) === "[object Array]") {
+            for (var i = 0; i < raw.topics.length; i++) {
+                if (typeof raw.topics[i] === "string")
+                    topics.push(raw.topics[i]);
+            }
+        }
+        return {
+            mode: modeNum,
+            team1_name: (raw.team1_name && String(raw.team1_name)) || "Team 1",
+            team2_name: (raw.team2_name && String(raw.team2_name)) || "Team 2",
+            timeout_seconds: (typeof raw.timeout_seconds === "number") ? raw.timeout_seconds : 180,
+            room_code: (raw.room_code && String(raw.room_code)) || "",
+            challenger_id: (raw.challenger_id && String(raw.challenger_id)) || "",
+            challenger_name: (raw.challenger_name && String(raw.challenger_name)) || "",
+            topics: topics
+        };
+    }
+    function buildInit(raw) {
+        var out = {
+            mode: (raw && raw.mode) || QuizVerseGame.DefaultInit.mode,
+            pack_id: (raw && raw.pack_id) || QuizVerseGame.DefaultInit.pack_id,
+            questions_total: (raw && raw.questions_total) || QuizVerseGame.DefaultInit.questions_total,
+            per_question_ms: (raw && raw.per_question_ms) || QuizVerseGame.DefaultInit.per_question_ms,
+            room_code: (raw && raw.room_code) || "",
+            ai_host_persona: (raw && raw.ai_host_persona) || "",
+            enable_voice: !!(raw && raw.enable_voice),
+            battle: (raw && raw.battle) ? buildBattle(raw.battle) : undefined
+        };
+        // Validate ranges so a malformed adapter cannot crash the match
+        // template (e.g. infinite-turn match draining the runtime).
+        if (out.questions_total < 1 || out.questions_total > 50) {
+            throw nakamaError("questions_total must be 1..50", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        if (out.per_question_ms < 3000 || out.per_question_ms > 60000) {
+            throw nakamaError("per_question_ms must be 3000..60000", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var validMode = false;
+        for (var k in QuizVerseGame.Mode) {
+            if (QuizVerseGame.Mode.hasOwnProperty(k) && QuizVerseGame.Mode[k] === out.mode) {
+                validMode = true;
+                break;
+            }
+        }
+        if (!validMode) {
+            throw nakamaError("unknown mode: " + out.mode, 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        // Friend-Battle requires a battle config (cardinality is what
+        // determines max_players).
+        if (out.mode === QuizVerseGame.Mode.FRIEND_BATTLE && !out.battle) {
+            throw nakamaError("friend_battle requires battle config", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        return out;
+    }
+    // Friend-battle / Link-and-Play sanity: room code must be 4-8 alnum.
+    function validateRoomCode(code) {
+        if (!code)
+            return;
+        if (code.length < 4 || code.length > 8) {
+            throw nakamaError("room_code length 4..8", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        for (var i = 0; i < code.length; i++) {
+            var c = code.charCodeAt(i);
+            var ok = (c >= 0x30 && c <= 0x39) || // 0-9
+                (c >= 0x41 && c <= 0x5A) || // A-Z
+                (c >= 0x61 && c <= 0x7A); // a-z
+            if (!ok)
+                throw nakamaError("room_code must be alnum", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+    }
+    // Wrapper around mp_create_match that fixes template_id=sync-turn-v1,
+    // sets generator_id from QuizVerse mode, and pre-fills sane defaults.
+    // Adapters MAY still call mp_create_match directly; this exists for
+    // discoverability and to centralise QuizVerse validation logic.
+    function rpcCreateMatch(ctx, logger, nk, payload) {
+        var raw;
+        try {
+            raw = JSON.parse(payload || "{}");
+        }
+        catch (_e) {
+            throw nakamaError("bad json", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var init = buildInit(raw);
+        validateRoomCode(init.room_code || "");
+        // Validate pack exists before spinning up the match — better to
+        // fail here than have the generator log a warning mid-game and
+        // silently fall back to seed content.
+        try {
+            QuizVersePackStore.readPack(nk, init.pack_id);
+        }
+        catch (e) {
+            throw nakamaError("pack not found: " + init.pack_id, 5 /* nkruntime.Codes.NOT_FOUND */);
+        }
+        // Build the kernel template_init. The SyncTurn template merges this
+        // over its DefaultInit, so we only override what we need.
+        var maxPlayers = 5; // Classic default
+        var minPlayers = 2;
+        if (init.mode === QuizVerseGame.Mode.LINK_AND_PLAY) {
+            maxPlayers = 2;
+            minPlayers = 2;
+        }
+        else if (init.mode === QuizVerseGame.Mode.FRIEND_BATTLE) {
+            var bm = (init.battle && init.battle.mode) || QuizVerseGame.BattleMode.ONE_VS_ONE;
+            maxPlayers = QuizVerseGame.maxPlayersForMode(bm);
+            minPlayers = maxPlayers; // Friend-Battle: must be full to start
+        }
+        var templateInit = {
+            generator_id: init.mode,
+            min_players: minPlayers,
+            max_players: maxPlayers,
+            default_input_window_ms: init.per_question_ms,
+            // game_id stamped on the match label so admin-dashboard filters work.
+            game_id: "quizverse",
+            // QuizVerse-specific bag forwarded to the generator's initBlob.
+            mode: init.mode,
+            pack_id: init.pack_id,
+            questions_total: init.questions_total,
+            per_question_ms: init.per_question_ms,
+            room_code: init.room_code || "",
+            ai_host_persona: init.ai_host_persona || "",
+            enable_voice: !!init.enable_voice,
+            battle: init.battle || null
+        };
+        var matchId;
+        try {
+            matchId = nk.matchCreate(MpKernelModule.TEMPLATE_IDS.SYNC_TURN_V1, {
+                game_id: "quizverse",
+                region: raw.region || "",
+                template_init: templateInit,
+                creator_user_id: ctx.userId || ""
+            });
+        }
+        catch (err) {
+            logger.warn("[QuizVerse] matchCreate failed: " + (err && err.message ? err.message : String(err)));
+            throw nakamaError("matchCreate failed", 13 /* nkruntime.Codes.INTERNAL */);
+        }
+        return JSON.stringify({
+            match_id: matchId,
+            template_id: MpKernelModule.TEMPLATE_IDS.SYNC_TURN_V1,
+            mode: init.mode,
+            game_id: "quizverse",
+            pack_id: init.pack_id,
+            questions_total: init.questions_total,
+            per_question_ms: init.per_question_ms,
+            battle: init.battle || null,
+            max_players: maxPlayers,
+            min_players: minPlayers,
+            server_unix_ms: Date.now()
+        });
+    }
+    // Admin-only — push a new question pack into Nakama storage. In prod
+    // this is invoked by the CMS sync job in `web/packages/admin/...`,
+    // gated behind admin role. Plain users cannot invoke (we check
+    // ctx.userId is present and matches the SYSTEM_USER_ID env).
+    function rpcLoadPack(ctx, _logger, nk, payload) {
+        var systemId = ctx.env && ctx.env["IVX_SYSTEM_USER_ID"];
+        if (!systemId || ctx.userId !== systemId) {
+            throw nakamaError("admin only", 7 /* nkruntime.Codes.PERMISSION_DENIED */);
+        }
+        var pack;
+        try {
+            pack = JSON.parse(payload);
+        }
+        catch (_e) {
+            throw nakamaError("bad json", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        if (!pack.pack_id || !pack.questions || pack.questions.length < 1) {
+            throw nakamaError("pack must have pack_id + >=1 questions", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        // Per-question structural validation. Bad packs in storage cause
+        // silent gameplay corruption (wrong correct_index across all
+        // matches that load the pack), so reject up-front.
+        for (var i = 0; i < pack.questions.length; i++) {
+            var q = pack.questions[i];
+            if (!q.question_id || !q.text || !q.options || q.options.length < 2 || q.options.length > 6) {
+                throw nakamaError("question " + i + " invalid (need id,text,2..6 options)", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+            }
+            if (typeof q.correct_index !== "number" || q.correct_index < 0 || q.correct_index >= q.options.length) {
+                throw nakamaError("question " + i + " correct_index out of range", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+            }
+        }
+        QuizVersePackStore.writePack(nk, pack);
+        return JSON.stringify({ ok: true, pack_id: pack.pack_id, questions: pack.questions.length });
+    }
+    // List currently-stored packs. Public read so adapters can show a
+    // pack-picker UI without an admin token.
+    function rpcListPacks(_ctx, _logger, nk, _payload) {
+        var page = nk.storageList("", QuizVersePackStore.COLLECTION, 100);
+        var out = [];
+        if (page && page.objects) {
+            for (var i = 0; i < page.objects.length; i++) {
+                var obj = page.objects[i];
+                var v = obj.value;
+                out.push({
+                    pack_id: obj.key,
+                    questions: v && v.questions ? v.questions.length : 0,
+                    revision: (v && v.revision) || 0,
+                    locale: (v && v.locale) || ""
+                });
+            }
+        }
+        // Always include the embedded seed so smoke tests can run before
+        // any production pack has been uploaded.
+        var hasSeed = false;
+        for (var j = 0; j < out.length; j++) {
+            if (out[j].pack_id === QuizVerseGame.SEED_PACK.pack_id) {
+                hasSeed = true;
+                break;
+            }
+        }
+        if (!hasSeed) {
+            out.push({
+                pack_id: QuizVerseGame.SEED_PACK.pack_id,
+                questions: QuizVerseGame.SEED_PACK.questions.length,
+                revision: QuizVerseGame.SEED_PACK.revision || 0,
+                locale: QuizVerseGame.SEED_PACK.locale || ""
+            });
+        }
+        return JSON.stringify({ packs: out });
+    }
+    function register(initializer, nk, logger) {
+        QuizVerseGenerator.registerNk(nk);
+        var gens = QuizVerseGenerator.buildAll();
+        for (var i = 0; i < gens.length; i++) {
+            MpKernelSyncTurn.registerGenerator(gens[i]);
+        }
+        initializer.registerRpc(QuizVersePlugin.RPC_CREATE_MATCH, rpcCreateMatch);
+        initializer.registerRpc(QuizVersePlugin.RPC_LOAD_PACK, rpcLoadPack);
+        initializer.registerRpc(QuizVersePlugin.RPC_LIST_PACKS, rpcListPacks);
+        logger.info("[QuizVerse] plugin registered; generators=" + gens.length + " modes=classic|friend_battle|link_and_play");
+    }
+    QuizVersePlugin.register = register;
+    register();
+})(QuizVersePlugin || (QuizVersePlugin = {}));
+// QuizVerse pack store — Nakama storage wrapper for question packs.
+//
+// Packs live in the `quizverse_packs` collection (system-owned). The
+// QuizVerseGame.SEED_PACK is the always-available fallback so smoke
+// tests run green without any prior pack upload.
+var QuizVersePackStore;
+(function (QuizVersePackStore) {
+    QuizVersePackStore.COLLECTION = "quizverse_packs";
+    // Lightweight cache so the generator does not re-read storage on every
+    // turn. Cleared by writePack(). Keyed by pack_id; values are deep copies
+    // of the stored pack.
+    var cache = {};
+    function readPack(nk, packId) {
+        if (!packId)
+            packId = QuizVerseGame.DefaultInit.pack_id;
+        if (cache[packId])
+            return cache[packId];
+        var rows = [];
+        try {
+            rows = nk.storageRead([{ collection: QuizVersePackStore.COLLECTION, key: packId, userId: "" }]);
+        }
+        catch (_e) {
+            rows = [];
+        }
+        if (rows && rows.length > 0 && rows[0].value) {
+            var pack = rows[0].value;
+            if (pack && pack.questions && pack.questions.length > 0) {
+                cache[packId] = pack;
+                return pack;
+            }
+        }
+        if (packId === QuizVerseGame.DefaultInit.pack_id) {
+            cache[packId] = QuizVerseGame.SEED_PACK;
+            return QuizVerseGame.SEED_PACK;
+        }
+        // Caller asked for a non-default pack that does not exist; surface a
+        // clear error so the create_match RPC can return INVALID_ARGUMENT
+        // rather than silently falling back (which masks content bugs).
+        throw new Error("quizverse pack not found: " + packId);
+    }
+    QuizVersePackStore.readPack = readPack;
+    // Admin-only — invalidate cache after a fresh CMS push.
+    function writePack(nk, pack) {
+        if (!pack || !pack.pack_id || !pack.questions || pack.questions.length === 0) {
+            throw new Error("invalid pack");
+        }
+        nk.storageWrite([
+            {
+                collection: QuizVersePackStore.COLLECTION,
+                key: pack.pack_id,
+                userId: "",
+                value: pack,
+                permissionRead: 2, // public read
+                permissionWrite: 0 // admin only
+            }
+        ]);
+        delete cache[pack.pack_id];
+    }
+    QuizVersePackStore.writePack = writePack;
+})(QuizVersePackStore || (QuizVersePackStore = {}));
+// QuizVerse — game-specific opcode + type definitions.
+//
+// Mirrors `schemas/multiplayer/games/quizverse.proto` (reserved range
+// 0xC100-0xC1FF). If you change wire layout here, also update:
+//   - schemas/multiplayer/games/quizverse.proto
+//   - Assets/_QuizVerse/Scripts/MultiPlayer/Kernel/QvOpcode.cs
+//   - SDKs/javascript/packages/multiplayer/src/games/quizverse/* (when the
+//     JS plugin lands).
+var QuizVerseGame;
+(function (QuizVerseGame) {
+    QuizVerseGame.Op = {
+        QUESTION_PROMPT: 0xC100,
+        ANSWER: 0xC101,
+        REVEAL: 0xC102,
+        LEADERBOARD: 0xC103,
+        LIFELINE_USE: 0xC104,
+        LIFELINE_RESULT: 0xC105,
+        AI_HOST_LINE: 0xC106,
+        VOICE_TOGGLE: 0xC107,
+        BOOST_APPLIED: 0xC108,
+        REMATCH_REQUEST: 0xC109,
+        REMATCH_ACCEPT: 0xC10A,
+        // Friend-Battle team layer.
+        TEAM_JOIN: 0xC10B,
+        TEAM_STATE: 0xC10C,
+        TEAM_SCORE_DELTA: 0xC10D,
+        BATTLE_CONFIG: 0xC10E,
+        TEAMS_READY: 0xC10F
+    };
+    // Battle modes — mirror Trivia.Friends.BattleMode.
+    QuizVerseGame.BattleMode = {
+        UNSPECIFIED: 0,
+        ONE_VS_ONE: 1,
+        TWO_VS_TWO: 2,
+        THREE_VS_THREE: 3,
+        FOUR_VS_FOUR: 4,
+        FIVE_VS_FIVE: 5
+    };
+    // Battle teams.
+    QuizVerseGame.BattleTeam = {
+        NONE: 0,
+        ONE: 1,
+        TWO: 2
+    };
+    function teamSizeForMode(mode) {
+        switch (mode) {
+            case QuizVerseGame.BattleMode.ONE_VS_ONE: return 1;
+            case QuizVerseGame.BattleMode.TWO_VS_TWO: return 2;
+            case QuizVerseGame.BattleMode.THREE_VS_THREE: return 3;
+            case QuizVerseGame.BattleMode.FOUR_VS_FOUR: return 4;
+            case QuizVerseGame.BattleMode.FIVE_VS_FIVE: return 5;
+            default: return 1;
+        }
+    }
+    QuizVerseGame.teamSizeForMode = teamSizeForMode;
+    function maxPlayersForMode(mode) {
+        return teamSizeForMode(mode) * 2;
+    }
+    QuizVerseGame.maxPlayersForMode = maxPlayersForMode;
+    QuizVerseGame.Mode = {
+        CLASSIC: "quizverse:classic",
+        FRIEND_BATTLE: "quizverse:friend_battle",
+        LINK_AND_PLAY: "quizverse:link_and_play"
+    };
+    QuizVerseGame.DefaultInit = {
+        mode: QuizVerseGame.Mode.CLASSIC,
+        pack_id: "default",
+        questions_total: 10,
+        per_question_ms: 15000,
+        room_code: "",
+        ai_host_persona: "",
+        enable_voice: false
+    };
+    // Tiny in-memory seed bank so a brand new install can run smoke tests
+    // before any production pack has been uploaded. Production packs live
+    // in the `quizverse_packs` storage collection.
+    QuizVerseGame.SEED_PACK = {
+        pack_id: "default",
+        locale: "en",
+        revision: 1,
+        questions: [
+            {
+                question_id: "seed-001",
+                text: "Which planet is known as the Red Planet?",
+                options: ["Venus", "Mars", "Jupiter", "Saturn"],
+                correct_index: 1,
+                category: "science"
+            },
+            {
+                question_id: "seed-002",
+                text: "What is 2 + 2 * 2?",
+                options: ["4", "6", "8", "2"],
+                correct_index: 1,
+                category: "math"
+            },
+            {
+                question_id: "seed-003",
+                text: "Who wrote 'Romeo and Juliet'?",
+                options: ["Dickens", "Twain", "Shakespeare", "Austen"],
+                correct_index: 2,
+                category: "literature"
+            }
+        ]
+    };
+})(QuizVerseGame || (QuizVerseGame = {}));
 var HiroAchievements;
 (function (HiroAchievements) {
     var DEFAULT_CONFIG = { achievements: {} };
-    function getConfig(nk) {
-        return ConfigLoader.loadConfig(nk, "achievements", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "achievements", gameId, DEFAULT_CONFIG);
     }
     HiroAchievements.getConfig = getConfig;
     function getUserAchievements(nk, userId, gameId) {
@@ -68061,7 +68729,7 @@ var HiroAchievements;
         Storage.writeJson(nk, Constants.HIRO_ACHIEVEMENTS_COLLECTION, Constants.gameKey(gameId, "progress"), userId, data);
     }
     function addProgress(nk, logger, ctx, userId, achievementId, amount, gameId) {
-        var config = getConfig(nk);
+        var config = getConfig(nk, gameId);
         var def = config.achievements[achievementId];
         if (!def)
             return null;
@@ -68151,8 +68819,8 @@ var HiroAchievements;
     function rpcList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var gameId = data.gameId;
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var userAchievements = getUserAchievements(nk, userId, gameId);
         var result = [];
         for (var id in config.achievements) {
@@ -68183,7 +68851,7 @@ var HiroAchievements;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.achievementId)
             return RpcHelpers.errorResponse("achievementId required");
-        var progress = addProgress(nk, logger, ctx, userId, data.achievementId, data.amount || 1, data.gameId);
+        var progress = addProgress(nk, logger, ctx, userId, data.achievementId, data.amount || 1, RpcHelpers.gameId(data));
         if (!progress)
             return RpcHelpers.errorResponse("Achievement not found or preconditions not met");
         return RpcHelpers.successResponse({ progress: progress });
@@ -68193,11 +68861,12 @@ var HiroAchievements;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.achievementId)
             return RpcHelpers.errorResponse("achievementId required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var def = config.achievements[data.achievementId];
         if (!def)
             return RpcHelpers.errorResponse("Unknown achievement");
-        var ua = getUserAchievements(nk, userId, data.gameId);
+        var ua = getUserAchievements(nk, userId, gameId);
         var progress = ua.achievements[data.achievementId];
         if (!progress || !progress.completedAt)
             return RpcHelpers.errorResponse("Achievement not completed");
@@ -68207,10 +68876,10 @@ var HiroAchievements;
         var resolved = null;
         if (def.reward) {
             resolved = RewardEngine.resolveReward(nk, def.reward);
-            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
         }
         ua.achievements[data.achievementId] = progress;
-        saveUserAchievements(nk, userId, ua, data.gameId);
+        saveUserAchievements(nk, userId, ua, gameId);
         EventBus.emit(nk, logger, ctx, EventBus.Events.ACHIEVEMENT_CLAIMED, {
             userId: userId, achievementId: data.achievementId, reward: resolved
         });
@@ -68226,7 +68895,7 @@ var HiroAchievements;
     function registerEventHandlers() {
         // Auto-track achievements from other system events
         EventBus.on(EventBus.Events.GAME_COMPLETED, function (nk, logger, ctx, data) {
-            var config = getConfig(nk);
+            var config = getConfig(nk, data.gameId);
             for (var id in config.achievements) {
                 var def = config.achievements[id];
                 if (def.category === "games_played") {
@@ -68235,7 +68904,7 @@ var HiroAchievements;
             }
         });
         EventBus.on(EventBus.Events.SCORE_SUBMITTED, function (nk, logger, ctx, data) {
-            var config = getConfig(nk);
+            var config = getConfig(nk, data.gameId);
             for (var id in config.achievements) {
                 var def = config.achievements[id];
                 if (def.category === "score_threshold" && data.score >= def.count) {
@@ -68432,6 +69101,14 @@ var AdminConsole;
             gameId = firstDefinedValue(props, ["gameId", "game_id", "game", "appId", "app_id"]);
         return gameId ? String(gameId) : "unknown";
     }
+    function sameGameId(a, b) {
+        var qa = (a || "").toLowerCase();
+        var qb = (b || "").toLowerCase();
+        if (qa === qb)
+            return true;
+        var quizVerseUuid = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+        return (qa === "quizverse" && qb === quizVerseUuid) || (qb === "quizverse" && qa === quizVerseUuid);
+    }
     function extractEventTimeSec(record) {
         var value = recordValue(record);
         var raw = firstDefinedValue(value, ["timestamp", "ts", "createdAt", "created_at", "createTime", "create_time"]);
@@ -68457,7 +69134,7 @@ var AdminConsole;
         for (var i = 0; i < records.length; i++) {
             var gameId = extractEventGameId(records[i]);
             sourceCounts[gameId] = (sourceCounts[gameId] || 0) + 1;
-            if (gameId === expectedGameId)
+            if (sameGameId(gameId, expectedGameId))
                 expectedCount++;
             var eventSec = extractEventTimeSec(records[i]);
             if (eventSec > lastSec) {
@@ -68674,10 +69351,27 @@ var AdminConsole;
         }
         if (system === "metrics") {
             return {
-                metrics: {
-                    quiz_completion_rate: { name: "Quiz Completion Rate", type: "ratio", goal: "increase" },
-                    weak_topic_accuracy_lift: { name: "Weak Topic Accuracy Lift", type: "percentage", goal: "increase" },
-                    streak_rescue_return_rate: { name: "Streak Rescue Return Rate", type: "ratio", goal: "increase" }
+                quiz_completion_rate: {
+                    id: "quiz_completion_rate",
+                    name: "Quiz Completion Rate",
+                    eventName: "quiz_completed",
+                    aggregation: "count",
+                    windowSec: 86400
+                },
+                weak_topic_accuracy_lift: {
+                    id: "weak_topic_accuracy_lift",
+                    name: "Weak Topic Accuracy Lift",
+                    eventName: "weak_topic_practice_completed",
+                    aggregation: "avg",
+                    metadataField: "accuracy_delta",
+                    windowSec: 86400
+                },
+                streak_rescue_return_rate: {
+                    id: "streak_rescue_return_rate",
+                    name: "Streak Rescue Return Rate",
+                    eventName: "session_started",
+                    aggregation: "count",
+                    windowSec: 86400
                 },
                 alerts: {
                     analytics_freshness: { metric: "last_event_age_minutes", operator: "lt", threshold: 60 }
@@ -68687,20 +69381,49 @@ var AdminConsole;
         return undefined;
     }
     // ---- Hiro Config CRUD ----
+    function adminGameId(data) {
+        return String(data.game_id || data.gameId || "").trim();
+    }
+    function adminConfigKey(system, gameId) {
+        return Constants.gameKey(gameId || undefined, system);
+    }
+    function readScopedConfig(nk, collection, system, gameId, defaultValue) {
+        var key = adminConfigKey(system, gameId);
+        var config = Storage.readSystemJson(nk, collection, key);
+        if ((!config || objectCount(config) === 0) && gameId) {
+            config = Storage.readSystemJson(nk, collection, system);
+        }
+        if (!config || objectCount(config) === 0)
+            config = defaultValue;
+        return config || {};
+    }
+    function saveScopedSatoriConfig(nk, system, gameId, config) {
+        var key = adminConfigKey(system, gameId);
+        ConfigLoader.saveSatoriConfig(nk, key, config);
+        return key;
+    }
     function rpcConfigGet(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required (e.g. economy, inventory, achievements)");
-        var config = Storage.readSystemJson(nk, Constants.HIRO_CONFIGS_COLLECTION, data.system);
+        var gameId = adminGameId(data);
+        var key = adminConfigKey(data.system, gameId);
+        var inherited = false;
+        var config = Storage.readSystemJson(nk, Constants.HIRO_CONFIGS_COLLECTION, key);
+        if ((!config || objectCount(config) === 0) && gameId) {
+            config = Storage.readSystemJson(nk, Constants.HIRO_CONFIGS_COLLECTION, data.system);
+            inherited = !!config && objectCount(config) > 0;
+        }
         if (!config || objectCount(config) === 0) {
             var hiroDefault = defaultHiroConfig(data.system);
             if (hiroDefault !== undefined) {
-                ConfigLoader.saveConfig(nk, data.system, hiroDefault);
+                if (!gameId)
+                    ConfigLoader.saveConfig(nk, data.system, hiroDefault);
                 config = hiroDefault;
             }
         }
-        return RpcHelpers.successResponse({ system: data.system, config: config || {} });
+        return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, inherited: inherited, config: config || {} });
     }
     function rpcConfigSet(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -68708,19 +69431,23 @@ var AdminConsole;
         var config = configFromPayload(data);
         if (!data.system || config === undefined)
             return RpcHelpers.errorResponse("system and config required");
-        ConfigLoader.saveConfig(nk, data.system, config);
-        logAdminAudit(nk, ctx, "hiro_config_set", { system: data.system }, { source: "admin_console" });
-        return RpcHelpers.successResponse({ system: data.system, saved: true });
+        var gameId = adminGameId(data);
+        var key = adminConfigKey(data.system, gameId);
+        ConfigLoader.saveConfig(nk, key, config);
+        logAdminAudit(nk, ctx, "hiro_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
+        return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, saved: true });
     }
     function rpcConfigDelete(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required");
-        Storage.deleteRecord(nk, Constants.HIRO_CONFIGS_COLLECTION, data.system, Constants.SYSTEM_USER_ID);
-        ConfigLoader.invalidateCache(data.system);
-        logAdminAudit(nk, ctx, "hiro_config_delete", { system: data.system });
-        return RpcHelpers.successResponse({ system: data.system, deleted: true });
+        var gameId = adminGameId(data);
+        var key = adminConfigKey(data.system, gameId);
+        Storage.deleteRecord(nk, Constants.HIRO_CONFIGS_COLLECTION, key, Constants.SYSTEM_USER_ID);
+        ConfigLoader.invalidateCache(key);
+        logAdminAudit(nk, ctx, "hiro_config_delete", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key });
+        return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, deleted: true });
     }
     // ---- Satori Config CRUD ----
     function rpcSatoriConfigGet(ctx, logger, nk, payload) {
@@ -68728,15 +69455,23 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required (e.g. flags, experiments, audiences, live_events, messages, metrics)");
-        var config = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, data.system);
+        var gameId = adminGameId(data);
+        var key = adminConfigKey(data.system, gameId);
+        var inherited = false;
+        var config = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, key);
+        if ((!config || objectCount(config) === 0) && gameId) {
+            config = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, data.system);
+            inherited = !!config && objectCount(config) > 0;
+        }
         if (!config || objectCount(config) === 0) {
             var satoriDefault = defaultSatoriConfig(data.system);
             if (satoriDefault !== undefined) {
-                ConfigLoader.saveSatoriConfig(nk, data.system, satoriDefault);
+                if (!gameId)
+                    ConfigLoader.saveSatoriConfig(nk, data.system, satoriDefault);
                 config = satoriDefault;
             }
         }
-        return RpcHelpers.successResponse({ system: data.system, config: config || {} });
+        return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, inherited: inherited, config: config || {} });
     }
     function rpcSatoriConfigSet(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -68744,9 +69479,11 @@ var AdminConsole;
         var config = configFromPayload(data);
         if (!data.system || config === undefined)
             return RpcHelpers.errorResponse("system and config required");
-        ConfigLoader.saveSatoriConfig(nk, data.system, config);
-        logAdminAudit(nk, ctx, "satori_config_set", { system: data.system }, { source: "admin_console" });
-        return RpcHelpers.successResponse({ system: data.system, saved: true });
+        var gameId = adminGameId(data);
+        var key = adminConfigKey(data.system, gameId);
+        ConfigLoader.saveSatoriConfig(nk, key, config);
+        logAdminAudit(nk, ctx, "satori_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
+        return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, saved: true });
     }
     // ---- Bulk Import/Export ----
     function rpcBulkExport(ctx, logger, nk, payload) {
@@ -68828,6 +69565,7 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.userId)
             return RpcHelpers.errorResponse("userId required");
+        var gameId = adminGameId(data);
         var profile = {};
         try {
             var accounts = nk.accountsGetId([data.userId]);
@@ -68852,18 +69590,18 @@ var AdminConsole;
             profile.account = { error: e.message || String(e) };
         }
         var collections = [
-            { name: "wallet", collection: Constants.WALLETS_COLLECTION, key: "wallet" },
-            { name: "inventory", collection: Constants.HIRO_INVENTORY_COLLECTION, key: "items" },
-            { name: "achievements", collection: Constants.HIRO_ACHIEVEMENTS_COLLECTION, key: "progress" },
-            { name: "progression", collection: Constants.HIRO_PROGRESSION_COLLECTION, key: "state" },
-            { name: "energy", collection: Constants.HIRO_ENERGY_COLLECTION, key: "state" },
-            { name: "stats", collection: Constants.HIRO_STATS_COLLECTION, key: "values" },
-            { name: "streaks", collection: Constants.HIRO_STREAKS_COLLECTION, key: "state" },
-            { name: "tutorials", collection: Constants.HIRO_TUTORIALS_COLLECTION, key: "progress" },
-            { name: "unlockables", collection: Constants.HIRO_UNLOCKABLES_COLLECTION, key: "state" },
+            { name: "wallet", collection: Constants.WALLETS_COLLECTION, key: gameId ? ("wallet_" + data.userId + "_" + gameId) : "wallet" },
+            { name: "inventory", collection: Constants.HIRO_INVENTORY_COLLECTION, key: Constants.gameKey(gameId, "items") },
+            { name: "achievements", collection: Constants.HIRO_ACHIEVEMENTS_COLLECTION, key: Constants.gameKey(gameId, "progress") },
+            { name: "progression", collection: Constants.HIRO_PROGRESSION_COLLECTION, key: Constants.gameKey(gameId, "state") },
+            { name: "energy", collection: Constants.HIRO_ENERGY_COLLECTION, key: Constants.gameKey(gameId, "state") },
+            { name: "stats", collection: Constants.HIRO_STATS_COLLECTION, key: Constants.gameKey(gameId, "values") },
+            { name: "streaks", collection: Constants.HIRO_STREAKS_COLLECTION, key: Constants.gameKey(gameId, "state") },
+            { name: "tutorials", collection: Constants.HIRO_TUTORIALS_COLLECTION, key: Constants.gameKey(gameId, "progress") },
+            { name: "unlockables", collection: Constants.HIRO_UNLOCKABLES_COLLECTION, key: Constants.gameKey(gameId, "state") },
             { name: "satoriIdentity", collection: Constants.SATORI_IDENTITY_COLLECTION, key: "props" },
-            { name: "satoriAssignments", collection: Constants.SATORI_ASSIGNMENTS_COLLECTION, key: "assignments" },
-            { name: "mailbox", collection: Constants.HIRO_MAILBOX_COLLECTION, key: "inbox" }
+            { name: "satoriAssignments", collection: Constants.SATORI_ASSIGNMENTS_COLLECTION, key: Constants.gameKey(gameId, "assignments") },
+            { name: "mailbox", collection: Constants.HIRO_MAILBOX_COLLECTION, key: Constants.gameKey(gameId, "inbox") }
         ];
         var reads = [];
         for (var i = 0; i < collections.length; i++) {
@@ -68889,13 +69627,293 @@ var AdminConsole;
         }
         return RpcHelpers.successResponse(profile);
     }
+    function accountToConsoleAccount(account) {
+        var user = account.user;
+        var createTimeSec = Number(user.createTime || 0);
+        var updateTimeSec = Number(user.updateTime || 0);
+        var verifyTimeSec = Number(account.verifyTime || 0);
+        var disableTimeSec = Number(account.disableTime || 0);
+        return {
+            user: {
+                id: user.userId,
+                user_id: user.userId,
+                username: user.username || "",
+                display_name: user.displayName || "",
+                avatar_url: user.avatarUrl || "",
+                lang_tag: user.langTag || "",
+                location: user.location || "",
+                timezone: user.timezone || "",
+                metadata: user.metadata || {},
+                create_time: createTimeSec > 0 ? new Date(createTimeSec * 1000).toISOString() : "",
+                update_time: updateTimeSec > 0 ? new Date(updateTimeSec * 1000).toISOString() : "",
+                online: !!user.online
+            },
+            wallet: account.wallet ? JSON.stringify(account.wallet) : "{}",
+            email: account.email || "",
+            devices: account.devices || [],
+            custom_id: account.customId || "",
+            verify_time: verifyTimeSec > 0 ? new Date(verifyTimeSec * 1000).toISOString() : "",
+            disable_time: disableTimeSec > 0 ? new Date(disableTimeSec * 1000).toISOString() : ""
+        };
+    }
+    function rowToConsoleAccount(row) {
+        return {
+            user: {
+                id: row.id,
+                user_id: row.id,
+                username: row.username || "",
+                display_name: row.display_name || "",
+                avatar_url: row.avatar_url || "",
+                lang_tag: row.lang_tag || "",
+                location: row.location || "",
+                timezone: row.timezone || "",
+                metadata: row.metadata || {},
+                create_time: row.create_time || "",
+                update_time: row.update_time || "",
+                online: false
+            },
+            wallet: row.wallet || "{}",
+            email: row.email || "",
+            devices: [],
+            custom_id: row.custom_id || "",
+            verify_time: row.verify_time || "",
+            disable_time: row.disable_time || ""
+        };
+    }
+    function rpcAccountsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = Math.max(1, Math.min(Number(data.limit || 20), 100));
+        var offset = Math.max(0, Number(data.cursor || 0));
+        var filter = String(data.filter || "").trim();
+        var like = "%" + filter.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_") + "%";
+        var rows = [];
+        if (filter) {
+            rows = nk.sqlQuery("SELECT id::text, username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet::text, email, custom_id, verify_time, disable_time, create_time, update_time " +
+                "FROM users WHERE username ILIKE $1 OR display_name ILIKE $1 OR id::text = $2 " +
+                "ORDER BY update_time DESC LIMIT $3 OFFSET $4", [like, filter, limit + 1, offset]) || [];
+        }
+        else {
+            rows = nk.sqlQuery("SELECT id::text, username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet::text, email, custom_id, verify_time, disable_time, create_time, update_time " +
+                "FROM users ORDER BY update_time DESC LIMIT $1 OFFSET $2", [limit + 1, offset]) || [];
+        }
+        var hasMore = rows.length > limit;
+        if (hasMore)
+            rows = rows.slice(0, limit);
+        var users = [];
+        for (var i = 0; i < rows.length; i++)
+            users.push(rowToConsoleAccount(rows[i]));
+        return RpcHelpers.successResponse({
+            users: users,
+            cursor: hasMore ? String(offset + limit) : "",
+            total_count: users.length
+        });
+    }
+    function rpcAccountGet(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.userId)
+            return RpcHelpers.errorResponse("userId required");
+        var accounts = nk.accountsGetId([data.userId]);
+        if (!accounts || accounts.length === 0)
+            return RpcHelpers.errorResponse("account not found", 404);
+        return RpcHelpers.successResponse(accountToConsoleAccount(accounts[0]));
+    }
+    function rpcAccountBan(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.userId)
+            return RpcHelpers.errorResponse("userId required");
+        nk.usersBanId([data.userId]);
+        logAdminAudit(nk, ctx, "admin_account_ban", { userId: data.userId });
+        return RpcHelpers.successResponse({ banned: true, userId: data.userId });
+    }
+    function rpcAccountUnban(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.userId)
+            return RpcHelpers.errorResponse("userId required");
+        nk.usersUnbanId([data.userId]);
+        logAdminAudit(nk, ctx, "admin_account_unban", { userId: data.userId });
+        return RpcHelpers.successResponse({ unbanned: true, userId: data.userId });
+    }
+    function rpcAccountDelete(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.userId)
+            return RpcHelpers.errorResponse("userId required");
+        nk.accountDeleteId(data.userId, true);
+        logAdminAudit(nk, ctx, "admin_account_delete", { userId: data.userId });
+        return RpcHelpers.successResponse({ deleted: true, userId: data.userId });
+    }
+    function rpcMatchesList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = Math.max(1, Math.min(Number(data.limit || 50), 100));
+        var label = data.label ? String(data.label) : null;
+        var matches = nk.matchList(limit, null, label, null, null, null) || [];
+        var out = [];
+        for (var i = 0; i < matches.length; i++) {
+            var match = matches[i];
+            out.push({
+                match_id: match.matchId,
+                authoritative: !!match.authoritative,
+                size: match.size || 0,
+                label: match.label || "",
+                handler_name: match.handlerName || "",
+                tick_rate: match.tickRate || 0,
+                presences: []
+            });
+        }
+        return RpcHelpers.successResponse({ matches: out });
+    }
+    function isoFromUnixSec(value) {
+        var sec = Number(value || 0);
+        return sec > 0 ? new Date(sec * 1000).toISOString() : "";
+    }
+    function tournamentToAdmin(t) {
+        return {
+            id: t.id,
+            title: t.title || t.id,
+            description: t.description || "",
+            category: t.category,
+            sort_order: t.sortOrder,
+            size: t.size,
+            max_size: t.maxSize,
+            max_num_score: t.maxNumScore,
+            can_enter: t.canEnter,
+            end_active: t.endActive,
+            next_reset: t.nextReset,
+            metadata: t.metadata || {},
+            create_time: isoFromUnixSec(t.createTime),
+            start_time: isoFromUnixSec(t.startTime),
+            end_time: isoFromUnixSec(t.endTime),
+            duration: t.duration,
+            start_active: t.startActive,
+            operator: "best",
+            prev_reset: t.prevReset,
+            authoritative: false
+        };
+    }
+    function leaderboardRecordToAdmin(r) {
+        return {
+            leaderboard_id: r.leaderboardId,
+            owner_id: r.ownerId,
+            username: r.username || "",
+            score: r.score,
+            subscore: r.subscore,
+            num_score: r.numScore,
+            metadata: r.metadata || {},
+            create_time: isoFromUnixSec(r.createTime),
+            update_time: isoFromUnixSec(r.updateTime),
+            expiry_time: isoFromUnixSec(r.expiryTime),
+            rank: r.rank
+        };
+    }
+    function tournamentRecordsToAdmin(list) {
+        var records = [];
+        var ownerRecords = [];
+        var rawRecords = list.records || [];
+        var rawOwnerRecords = list.ownerRecords || [];
+        for (var i = 0; i < rawRecords.length; i++)
+            records.push(leaderboardRecordToAdmin(rawRecords[i]));
+        for (var j = 0; j < rawOwnerRecords.length; j++)
+            ownerRecords.push(leaderboardRecordToAdmin(rawOwnerRecords[j]));
+        return {
+            records: records,
+            owner_records: ownerRecords,
+            next_cursor: list.nextCursor || "",
+            prev_cursor: list.prevCursor || "",
+            rank_count: list.rankCount || 0
+        };
+    }
+    function rpcTournamentsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = Math.max(1, Math.min(Number(data.limit || 100), 100));
+        var categoryStart = data.categoryStart !== undefined ? Number(data.categoryStart) : 0;
+        var categoryEnd = data.categoryEnd !== undefined ? Number(data.categoryEnd) : 127;
+        categoryStart = Math.max(0, Math.min(categoryStart, 127));
+        categoryEnd = Math.max(categoryStart, Math.min(categoryEnd, 127));
+        var result = nk.tournamentList(categoryStart, categoryEnd, data.startTime !== undefined ? Number(data.startTime) : undefined, data.endTime !== undefined ? Number(data.endTime) : undefined, limit, data.cursor || undefined);
+        var tournaments = [];
+        var raw = result.tournaments || [];
+        for (var i = 0; i < raw.length; i++)
+            tournaments.push(tournamentToAdmin(raw[i]));
+        return RpcHelpers.successResponse({ tournaments: tournaments, cursor: result.cursor || "" });
+    }
+    function rpcTournamentCreate(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var id = String(data.id || data.tournamentId || "").trim();
+        if (!id)
+            return RpcHelpers.errorResponse("id required");
+        var existing = nk.tournamentsGetId([id]);
+        if (existing && existing.length > 0) {
+            return RpcHelpers.successResponse({ tournament: tournamentToAdmin(existing[0]), created: false });
+        }
+        var sortOrder = String(data.sortOrder || data.sort_order || "desc").toLowerCase() === "asc"
+            ? "ascending" /* nkruntime.SortOrder.ASCENDING */
+            : "descending" /* nkruntime.SortOrder.DESCENDING */;
+        var operatorName = String(data.operator || "best").toLowerCase();
+        var operator = "best" /* nkruntime.Operator.BEST */;
+        if (operatorName === "set")
+            operator = "set" /* nkruntime.Operator.SET */;
+        if (operatorName === "incr" || operatorName === "incremental")
+            operator = "increment" /* nkruntime.Operator.INCREMENTAL */;
+        var now = Math.floor(Date.now() / 1000);
+        var startTime = Number(data.startTime || data.start_time || now - 60);
+        var endTime = Number(data.endTime || data.end_time || now + 7 * 24 * 60 * 60);
+        var duration = Number(data.duration || Math.max(3600, endTime - startTime));
+        var metadata = data.metadata || {};
+        if (data.gameId || data.game_id)
+            metadata.gameId = data.gameId || data.game_id;
+        nk.tournamentCreate(id, !!data.authoritative, sortOrder, operator, duration, data.resetSchedule || data.reset_schedule || null, metadata, data.title || id, data.description || "", data.category !== undefined ? Math.max(0, Math.min(Number(data.category), 127)) : 0, startTime, endTime, data.maxSize !== undefined ? Number(data.maxSize) : (data.max_size !== undefined ? Number(data.max_size) : 10000), data.maxNumScore !== undefined ? Number(data.maxNumScore) : (data.max_num_score !== undefined ? Number(data.max_num_score) : 10), !!data.joinRequired, data.enableRank !== false);
+        var created = nk.tournamentsGetId([id]);
+        var tournament = created && created.length > 0 ? tournamentToAdmin(created[0]) : { id: id, metadata: metadata };
+        logAdminAudit(nk, ctx, "admin_tournament_create", { id: id, gameId: metadata.gameId || "" });
+        return RpcHelpers.successResponse({ tournament: tournament, created: true });
+    }
+    function rpcTournamentRecordsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.tournamentId)
+            return RpcHelpers.errorResponse("tournamentId required");
+        var limit = Math.max(1, Math.min(Number(data.limit || 50), 100));
+        var ownerIds = data.ownerIds || [];
+        var result = nk.tournamentRecordsList(data.tournamentId, ownerIds, limit, data.cursor || undefined, 0);
+        return RpcHelpers.successResponse(tournamentRecordsToAdmin(result));
+    }
+    function rpcTournamentRecordsAroundOwner(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.tournamentId || !data.ownerId)
+            return RpcHelpers.errorResponse("tournamentId and ownerId required");
+        var limit = Math.max(1, Math.min(Number(data.limit || 50), 100));
+        var result = nk.tournamentRecordsHaystack(data.tournamentId, data.ownerId, limit, data.cursor || undefined, 0);
+        return RpcHelpers.successResponse(tournamentRecordsToAdmin(result));
+    }
+    function rpcTournamentRecordWrite(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.tournamentId)
+            return RpcHelpers.errorResponse("tournamentId required");
+        var ownerId = data.ownerId || ctx.userId || Constants.SYSTEM_USER_ID;
+        var username = data.username || "admin";
+        var record = nk.tournamentRecordWrite(data.tournamentId, ownerId, username, Number(data.score || 0), Number(data.subscore || 0), data.metadata || {}, "best" /* nkruntime.OverrideOperator.BEST */);
+        logAdminAudit(nk, ctx, "admin_tournament_record_write", { tournamentId: data.tournamentId, ownerId: ownerId });
+        return RpcHelpers.successResponse(leaderboardRecordToAdmin(record));
+    }
     // ---- Wallet Direct Operations ----
     function rpcWalletView(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.userId)
             return RpcHelpers.errorResponse("userId required");
-        var wallet = Storage.readJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId);
+        var gameId = adminGameId(data);
+        var wallet = gameId
+            ? WalletHelpers.getGameWallet(nk, data.userId, gameId)
+            : Storage.readJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId);
         return RpcHelpers.successResponse({ userId: data.userId, wallet: wallet || {} });
     }
     function rpcWalletGrant(ctx, logger, nk, payload) {
@@ -68903,13 +69921,22 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.userId || !data.currencies)
             return RpcHelpers.errorResponse("userId and currencies required (e.g. { userId: '...', currencies: { coins: 100, gems: 5 } })");
-        var wallet = Storage.readJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId) || {};
+        var gameId = adminGameId(data);
+        var wallet = gameId ? WalletHelpers.getGameWallet(nk, data.userId, gameId) : (Storage.readJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId) || {});
         for (var currency in data.currencies) {
-            wallet[currency] = (wallet[currency] || 0) + data.currencies[currency];
+            if (gameId) {
+                wallet.currencies[currency] = (wallet.currencies[currency] || 0) + data.currencies[currency];
+            }
+            else {
+                wallet[currency] = (wallet[currency] || 0) + data.currencies[currency];
+            }
         }
-        Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, wallet);
+        if (gameId)
+            WalletHelpers.saveGameWallet(nk, wallet);
+        else
+            Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, wallet);
         EventBus.emit(nk, logger, ctx, "wallet_updated", { userId: data.userId, wallet: wallet, granted: data.currencies });
-        logAdminAudit(nk, ctx, "admin_wallet_grant", { userId: data.userId }, { currencies: data.currencies });
+        logAdminAudit(nk, ctx, "admin_wallet_grant", { userId: data.userId, gameId: gameId || Constants.DEFAULT_GAME_ID }, { currencies: data.currencies });
         return RpcHelpers.successResponse({ userId: data.userId, wallet: wallet });
     }
     function rpcWalletReset(ctx, logger, nk, payload) {
@@ -68917,9 +69944,20 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.userId)
             return RpcHelpers.errorResponse("userId required");
+        var gameId = adminGameId(data);
         var defaults = data.defaults || {};
-        Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, defaults);
-        logAdminAudit(nk, ctx, "admin_wallet_reset", { userId: data.userId });
+        if (gameId) {
+            WalletHelpers.saveGameWallet(nk, {
+                userId: data.userId,
+                gameId: gameId,
+                currencies: defaults.currencies || defaults || { game: 0, tokens: 0, xp: 0 },
+                items: defaults.items || {}
+            });
+        }
+        else {
+            Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, defaults);
+        }
+        logAdminAudit(nk, ctx, "admin_wallet_reset", { userId: data.userId, gameId: gameId || Constants.DEFAULT_GAME_ID });
         return RpcHelpers.successResponse({ userId: data.userId, wallet: defaults, reset: true });
     }
     // ---- Storage Collections Browser ----
@@ -68932,8 +69970,20 @@ var AdminConsole;
         var limit = data.limit || 50;
         var result = Storage.listUserRecords(nk, data.collection, userId, limit, data.cursor);
         var items = [];
+        var objects = [];
         for (var i = 0; i < result.records.length; i++) {
             var r = result.records[i];
+            objects.push({
+                collection: r.collection,
+                key: r.key,
+                user_id: r.userId,
+                version: r.version,
+                permission_read: r.permissionRead,
+                permission_write: r.permissionWrite,
+                create_time: new Date((r.createTime || 0) * 1000).toISOString(),
+                update_time: new Date((r.updateTime || 0) * 1000).toISOString(),
+                value: r.value
+            });
             items.push({
                 key: r.key,
                 userId: r.userId,
@@ -68946,13 +69996,59 @@ var AdminConsole;
             collection: data.collection,
             count: items.length,
             cursor: result.cursor,
+            objects: objects,
             items: items
         });
     }
+    function rpcStorageWrite(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.collection || !data.key)
+            return RpcHelpers.errorResponse("collection and key required");
+        var userId = data.userId || Constants.SYSTEM_USER_ID;
+        var acks = nk.storageWrite([{
+                collection: data.collection,
+                key: data.key,
+                userId: userId,
+                value: data.value || {},
+                version: data.version || "*",
+                permissionRead: data.permissionRead !== undefined ? data.permissionRead : 2,
+                permissionWrite: data.permissionWrite !== undefined ? data.permissionWrite : 1
+            }]);
+        logAdminAudit(nk, ctx, "admin_storage_write", { userId: userId, collection: data.collection, key: data.key });
+        return RpcHelpers.successResponse({
+            key: data.key,
+            collection: data.collection,
+            userId: userId,
+            version: acks && acks.length > 0 ? acks[0].version : ""
+        });
+    }
     // ---- Admin-safe Satori Lists ----
+    function rpcAdminAudiencesList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = adminGameId(data);
+        var audiencesConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "audiences", gameId, {});
+        var rawAudiences = audiencesConfig.audiences || audiencesConfig;
+        var audiences = [];
+        for (var id in rawAudiences) {
+            var def = rawAudiences[id] || {};
+            audiences.push({
+                id: def.id || id,
+                name: def.name || id,
+                description: def.description || "",
+                rule: def.rule || def.query || {},
+                size_estimate: def.sizeEstimate || def.size_estimate || 0,
+                updated_at: isoFromSec(def.updatedAt)
+            });
+        }
+        return RpcHelpers.successResponse({ audiences: audiences, game_id: gameId || Constants.DEFAULT_GAME_ID });
+    }
     function rpcAdminFlagsList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
-        var flagsConfig = ConfigLoader.loadSatoriConfig(nk, "flags", { flags: {} });
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = adminGameId(data);
+        var flagsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "flags", gameId, { flags: {} });
         var rawFlags = flagsConfig.flags || {};
         var flags = [];
         for (var name in rawFlags) {
@@ -68967,11 +70063,13 @@ var AdminConsole;
                 updated_at: isoFromSec(def.updatedAt)
             });
         }
-        return RpcHelpers.successResponse({ flags: flags });
+        return RpcHelpers.successResponse({ flags: flags, game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
     function rpcAdminExperimentsList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
-        var experimentsConfig = ConfigLoader.loadSatoriConfig(nk, "experiments", {});
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = adminGameId(data);
+        var experimentsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "experiments", gameId, {});
         var experiments = [];
         for (var id in experimentsConfig) {
             var def = experimentsConfig[id] || {};
@@ -68986,11 +70084,13 @@ var AdminConsole;
                 updated_at: isoFromSec(def.updatedAt)
             });
         }
-        return RpcHelpers.successResponse({ experiments: experiments });
+        return RpcHelpers.successResponse({ experiments: experiments, game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
     function rpcAdminLiveEventsList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
-        var eventsConfig = ConfigLoader.loadSatoriConfig(nk, "live_events", {});
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = adminGameId(data);
+        var eventsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_events", gameId, {});
         var events = [];
         for (var id in eventsConfig) {
             var def = eventsConfig[id] || {};
@@ -69007,12 +70107,14 @@ var AdminConsole;
                 updated_at: isoFromSec(def.updatedAt)
             });
         }
-        return RpcHelpers.successResponse({ events: events });
+        return RpcHelpers.successResponse({ events: events, game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
     function rpcAdminMessagesList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         SatoriMessages.processScheduledMessages(nk, logger);
-        var messagesConfig = ConfigLoader.loadSatoriConfig(nk, "messages", {});
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = adminGameId(data);
+        var messagesConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "messages", gameId, {});
         var messages = [];
         var now = Math.floor(Date.now() / 1000);
         for (var id in messagesConfig) {
@@ -69031,7 +70133,7 @@ var AdminConsole;
                 updated_at: isoFromSec(def.updatedAt)
             });
         }
-        return RpcHelpers.successResponse({ messages: messages });
+        return RpcHelpers.successResponse({ messages: messages, game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
     // ---- Feature Flag Quick Toggle ----
     function rpcFlagToggle(ctx, logger, nk, payload) {
@@ -69039,7 +70141,8 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.name)
             return RpcHelpers.errorResponse("name required (flag name to toggle)");
-        var flagsConfig = ConfigLoader.loadSatoriConfig(nk, "flags", { flags: {} });
+        var gameId = adminGameId(data);
+        var flagsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "flags", gameId, { flags: {} });
         if (!flagsConfig.flags)
             flagsConfig.flags = {};
         var existing = flagsConfig.flags[data.name];
@@ -69074,8 +70177,8 @@ var AdminConsole;
         else {
             return RpcHelpers.errorResponse("Flag '" + data.name + "' not found. Provide value to create.");
         }
-        ConfigLoader.saveSatoriConfig(nk, "flags", flagsConfig);
-        logAdminAudit(nk, ctx, "satori_flag_toggle", { name: data.name }, { enabled: flagsConfig.flags[data.name].enabled });
+        var key = saveScopedSatoriConfig(nk, "flags", gameId, flagsConfig);
+        logAdminAudit(nk, ctx, "satori_flag_toggle", { name: data.name, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { enabled: flagsConfig.flags[data.name].enabled });
         return RpcHelpers.successResponse({ flag: flagsConfig.flags[data.name], action: existing ? "toggled" : "created" });
     }
     // ---- Live Event Quick Schedule ----
@@ -69084,7 +70187,8 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.id || !data.name)
             return RpcHelpers.errorResponse("id and name required");
-        var eventsConfig = ConfigLoader.loadSatoriConfig(nk, "live_events", {});
+        var gameId = adminGameId(data);
+        var eventsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_events", gameId, {});
         var now = Math.floor(Date.now() / 1000);
         var audiences = firstArray(data.audiences) || firstArray(data.audiences_json);
         var reward = data.reward || parseMaybeJson(data.rewards_json, undefined);
@@ -69102,6 +70206,7 @@ var AdminConsole;
             sticky: data.sticky || false,
             requiresJoin: data.requiresJoin || false,
             category: data.category || "",
+            gameId: gameId || data.gameId || data.game_id || undefined,
             flagOverrides: data.flagOverrides,
             onJoinMessageId: data.onJoinMessageId,
             createdAt: (eventsConfig[data.id] && eventsConfig[data.id].createdAt) || now,
@@ -69109,8 +70214,8 @@ var AdminConsole;
         };
         var action = eventsConfig[data.id] ? "updated" : "created";
         eventsConfig[data.id] = newEvent;
-        ConfigLoader.saveSatoriConfig(nk, "live_events", eventsConfig);
-        logAdminAudit(nk, ctx, "satori_live_event_schedule", { id: data.id }, { action: action });
+        var key = saveScopedSatoriConfig(nk, "live_events", gameId, eventsConfig);
+        logAdminAudit(nk, ctx, "satori_live_event_schedule", { id: data.id, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { action: action });
         return RpcHelpers.successResponse({ event: newEvent, action: action });
     }
     // ---- Experiment Quick Setup ----
@@ -69120,7 +70225,8 @@ var AdminConsole;
         var variants = data.variants || parseMaybeJson(data.variants_json, undefined);
         if (!data.id || !data.name || !variants)
             return RpcHelpers.errorResponse("id, name, and variants[] required");
-        var expConfig = ConfigLoader.loadSatoriConfig(nk, "experiments", {});
+        var gameId = adminGameId(data);
+        var expConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "experiments", gameId, {});
         var now = Math.floor(Date.now() / 1000);
         var audiences = firstArray(data.audiences) || firstArray(data.audiences_json);
         var newExp = {
@@ -69138,13 +70244,14 @@ var AdminConsole;
             endAt: data.endAt,
             phases: data.phases,
             experimentType: data.experimentType || "custom",
+            gameId: gameId || data.gameId || data.game_id || undefined,
             createdAt: (expConfig[data.id] && expConfig[data.id].createdAt) || now,
             updatedAt: now
         };
         var action = expConfig[data.id] ? "updated" : "created";
         expConfig[data.id] = newExp;
-        ConfigLoader.saveSatoriConfig(nk, "experiments", expConfig);
-        logAdminAudit(nk, ctx, "satori_experiment_setup", { id: data.id }, { action: action });
+        var key = saveScopedSatoriConfig(nk, "experiments", gameId, expConfig);
+        logAdminAudit(nk, ctx, "satori_experiment_setup", { id: data.id, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { action: action });
         return RpcHelpers.successResponse({ experiment: newExp, action: action });
     }
     // ---- Message Broadcast / Schedule ----
@@ -69158,7 +70265,8 @@ var AdminConsole;
         var scheduleAt = data.schedule_at || data.scheduleAt;
         var audienceId = data.audience_id || data.audienceId;
         var reward = data.reward || parseMaybeJson(data.rewards_json, undefined);
-        var definitions = ConfigLoader.loadSatoriConfig(nk, "messages", {});
+        var gameId = adminGameId(data);
+        var definitions = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "messages", gameId, {});
         if (definitions && definitions.messages)
             definitions = definitions.messages;
         var messageDef = {
@@ -69167,6 +70275,7 @@ var AdminConsole;
             body: data.body || "",
             imageUrl: data.image_url || data.imageUrl,
             metadata: data.metadata || {},
+            gameId: gameId || data.gameId || data.game_id || undefined,
             reward: reward,
             audienceId: audienceId,
             scheduleAt: scheduleAt,
@@ -69176,15 +70285,15 @@ var AdminConsole;
             updatedAt: now
         };
         definitions[messageId] = messageDef;
-        ConfigLoader.saveSatoriConfig(nk, "messages", definitions);
+        var key = saveScopedSatoriConfig(nk, "messages", gameId, definitions);
         var delivered = 0;
         if (audienceId && (!scheduleAt || scheduleAt <= now)) {
-            delivered = SatoriMessages.deliverToAudience(nk, logger, messageDef, audienceId);
+            delivered = SatoriMessages.deliverToAudience(nk, logger, messageDef, audienceId, gameId);
             messageDef.status = "delivered";
             messageDef.deliveredAt = now;
-            ConfigLoader.saveSatoriConfig(nk, "messages", definitions);
+            saveScopedSatoriConfig(nk, "messages", gameId, definitions);
         }
-        logAdminAudit(nk, ctx, "satori_message_broadcast", { id: messageId, audienceId: audienceId }, { scheduled: !!scheduleAt, delivered: delivered });
+        logAdminAudit(nk, ctx, "satori_message_broadcast", { id: messageId, audienceId: audienceId, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { scheduled: !!scheduleAt, delivered: delivered });
         return RpcHelpers.successResponse({ scheduled: !!(scheduleAt && scheduleAt > now), delivered: delivered, messageId: messageId });
     }
     // ---- Game Intelligence ----
@@ -69194,13 +70303,13 @@ var AdminConsole;
         var gameId = data.game_id || data.gameId || "quizverse";
         var hours = typeof data.hours === "number" && data.hours > 0 ? Math.min(data.hours, 72) : 24;
         var days = typeof data.days === "number" && data.days > 0 ? Math.min(data.days, 30) : 7;
-        var flagsConfig = ConfigLoader.loadSatoriConfig(nk, "flags", { flags: {} });
-        var eventsConfig = ConfigLoader.loadSatoriConfig(nk, "live_events", {});
-        var experimentsConfig = ConfigLoader.loadSatoriConfig(nk, "experiments", {});
-        var messagesConfig = ConfigLoader.loadSatoriConfig(nk, "messages", {});
-        var audiencesConfig = ConfigLoader.loadSatoriConfig(nk, "audiences", {});
-        var challengesConfig = ConfigLoader.loadConfig(nk, "challenges", { challenges: {} });
-        var incentivesConfig = ConfigLoader.loadConfig(nk, "incentives", {});
+        var flagsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "flags", gameId, { flags: {} });
+        var eventsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_events", gameId, {});
+        var experimentsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "experiments", gameId, {});
+        var messagesConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "messages", gameId, {});
+        var audiencesConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "audiences", gameId, {});
+        var challengesConfig = readScopedConfig(nk, Constants.HIRO_CONFIGS_COLLECTION, "challenges", gameId, { challenges: {} });
+        var incentivesConfig = readScopedConfig(nk, Constants.HIRO_CONFIGS_COLLECTION, "incentives", gameId, {});
         var analyticsEvents = listSystemStorage(nk, Constants.ANALYTICS_COLLECTION, 1000);
         var analyticsErrors = listSystemStorage(nk, Constants.ANALYTICS_ERRORS_COLLECTION, 500);
         var quizResults = listSystemStorage(nk, "quiz_results", 500);
@@ -69375,19 +70484,13 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.userId || !data.itemId)
             return RpcHelpers.errorResponse("userId and itemId required. Optional: quantity (default 1)");
-        var inv = Storage.readJson(nk, Constants.HIRO_INVENTORY_COLLECTION, "state", data.userId) || { items: {} };
-        var items = inv.items || {};
+        var gameId = adminGameId(data);
         var qty = data.quantity || 1;
-        if (items[data.itemId]) {
-            items[data.itemId].count = (items[data.itemId].count || 0) + qty;
-        }
-        else {
-            items[data.itemId] = { id: data.itemId, count: qty, properties: data.properties || {} };
-        }
-        inv.items = items;
-        Storage.writeJson(nk, Constants.HIRO_INVENTORY_COLLECTION, "state", data.userId, inv);
-        logAdminAudit(nk, ctx, "admin_inventory_grant", { userId: data.userId, itemId: data.itemId }, { quantity: qty });
-        return RpcHelpers.successResponse({ userId: data.userId, item: items[data.itemId] });
+        var stringProps = data.stringProperties || data.string_properties || data.properties || {};
+        var numericProps = data.numericProperties || data.numeric_properties || {};
+        var item = HiroInventory.grantItem(nk, logger, ctx, data.userId, data.itemId, qty, stringProps, numericProps, gameId || undefined);
+        logAdminAudit(nk, ctx, "admin_inventory_grant", { userId: data.userId, itemId: data.itemId, gameId: gameId || Constants.DEFAULT_GAME_ID }, { quantity: qty });
+        return RpcHelpers.successResponse({ userId: data.userId, item: item });
     }
     // ---- Send Admin Mailbox Message ----
     function rpcMailboxSend(ctx, logger, nk, payload) {
@@ -69395,7 +70498,9 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.userId || !data.subject)
             return RpcHelpers.errorResponse("userId and subject required. Optional: body, rewards, expiresInSec");
-        var inbox = Storage.readJson(nk, Constants.HIRO_MAILBOX_COLLECTION, "inbox", data.userId) || { messages: [] };
+        var gameId = adminGameId(data);
+        var inboxKey = Constants.gameKey(gameId, "inbox");
+        var inbox = Storage.readJson(nk, Constants.HIRO_MAILBOX_COLLECTION, inboxKey, data.userId) || { messages: [] };
         var messages = inbox.messages || [];
         var now = Math.floor(Date.now() / 1000);
         var msg = {
@@ -69411,8 +70516,8 @@ var AdminConsole;
         };
         messages.push(msg);
         inbox.messages = messages;
-        Storage.writeJson(nk, Constants.HIRO_MAILBOX_COLLECTION, "inbox", data.userId, inbox);
-        logAdminAudit(nk, ctx, "admin_mailbox_send", { userId: data.userId, messageId: msg.id });
+        Storage.writeJson(nk, Constants.HIRO_MAILBOX_COLLECTION, inboxKey, data.userId, inbox);
+        logAdminAudit(nk, ctx, "admin_mailbox_send", { userId: data.userId, messageId: msg.id, gameId: gameId || Constants.DEFAULT_GAME_ID });
         return RpcHelpers.successResponse({ sent: true, messageId: msg.id, to: data.userId });
     }
     // ---- Satori Events Timeline (recent events for a user) ----
@@ -69481,6 +70586,17 @@ var AdminConsole;
         __rpc_admin_user_data_set = rpcUserDataSet;
         __rpc_admin_user_data_delete = rpcUserDataDelete;
         // Player tools
+        __rpc_admin_accounts_list = rpcAccountsList;
+        __rpc_admin_account_get = rpcAccountGet;
+        __rpc_admin_account_ban = rpcAccountBan;
+        __rpc_admin_account_unban = rpcAccountUnban;
+        __rpc_admin_account_delete = rpcAccountDelete;
+        __rpc_admin_matches_list = rpcMatchesList;
+        __rpc_admin_tournaments_list = rpcTournamentsList;
+        __rpc_admin_tournament_create = rpcTournamentCreate;
+        __rpc_admin_tournament_records_list = rpcTournamentRecordsList;
+        __rpc_admin_tournament_records_around_owner = rpcTournamentRecordsAroundOwner;
+        __rpc_admin_tournament_record_write = rpcTournamentRecordWrite;
         __rpc_admin_player_inspect = rpcPlayerInspect;
         __rpc_admin_user_search = rpcUserSearch;
         __rpc_admin_wallet_view = rpcWalletView;
@@ -69489,6 +70605,7 @@ var AdminConsole;
         __rpc_admin_inventory_grant = rpcInventoryGrant;
         __rpc_admin_mailbox_send = rpcMailboxSend;
         // Satori quick-ops
+        __rpc_admin_satori_audiences_list = rpcAdminAudiencesList;
         __rpc_admin_satori_flags_list = rpcAdminFlagsList;
         __rpc_admin_satori_experiments_list = rpcAdminExperimentsList;
         __rpc_admin_satori_messages_list = rpcAdminMessagesList;
@@ -69515,6 +70632,7 @@ var AdminConsole;
         // to rpcMailboxSend here (rpcMailboxSend writes to a single user's inbox).
         // Storage browser
         __rpc_admin_storage_list = rpcStorageList;
+        __rpc_admin_storage_write = rpcStorageWrite;
         // Gift claims
         __rpc_gift_claims_list = rpcGiftClaimsList;
         __rpc_admin_gift_claim_update = rpcGiftClaimUpdate;
@@ -69782,8 +70900,8 @@ var HiroBase;
 var HiroChallenges;
 (function (HiroChallenges) {
     var DEFAULT_CONFIG = { challenges: {} };
-    function getConfig(nk) {
-        return ConfigLoader.loadConfig(nk, "challenges", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "challenges", gameId, DEFAULT_CONFIG);
     }
     HiroChallenges.getConfig = getConfig;
     function getChallengeInstance(nk, instanceId) {
@@ -69797,13 +70915,14 @@ var HiroChallenges;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.challengeId)
             return RpcHelpers.errorResponse("challengeId required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var def = config.challenges[data.challengeId];
         if (!def)
             return RpcHelpers.errorResponse("Unknown challenge");
         if (def.entryCost && def.entryCost.currencies) {
             for (var cid in def.entryCost.currencies) {
-                WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", cid, def.entryCost.currencies[cid]);
+                WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId || "default", cid, def.entryCost.currencies[cid]);
             }
         }
         var now = Math.floor(Date.now() / 1000);
@@ -69834,7 +70953,8 @@ var HiroChallenges;
         var instance = getChallengeInstance(nk, data.instanceId);
         if (!instance)
             return RpcHelpers.errorResponse("Challenge not found");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var def = config.challenges[instance.challengeId];
         if (!def)
             return RpcHelpers.errorResponse("Challenge config not found");
@@ -69846,7 +70966,7 @@ var HiroChallenges;
             return RpcHelpers.errorResponse("Challenge ended");
         if (def.entryCost && def.entryCost.currencies) {
             for (var cid in def.entryCost.currencies) {
-                WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", cid, def.entryCost.currencies[cid]);
+                WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId || "default", cid, def.entryCost.currencies[cid]);
             }
         }
         instance.participants[userId] = { score: 0, joinedAt: now };
@@ -69881,7 +71001,8 @@ var HiroChallenges;
             return RpcHelpers.errorResponse("Challenge not found");
         if (instance.claimedBy.indexOf(userId) >= 0)
             return RpcHelpers.errorResponse("Already claimed");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var def = config.challenges[instance.challengeId];
         if (!def)
             return RpcHelpers.errorResponse("Challenge config not found");
@@ -69892,7 +71013,7 @@ var HiroChallenges;
         }
         if (rank === 1 && def.reward) {
             var resolved = RewardEngine.resolveReward(nk, def.reward);
-            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
             instance.claimedBy.push(userId);
             saveChallengeInstance(nk, instance);
             EventBus.emit(nk, logger, ctx, EventBus.Events.CHALLENGE_COMPLETED, {
@@ -69905,7 +71026,8 @@ var HiroChallenges;
         return RpcHelpers.successResponse({ rank: rank, reward: null });
     }
     function rpcList(ctx, logger, nk, payload) {
-        var config = getConfig(nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var config = getConfig(nk, RpcHelpers.gameId(data));
         var defs = config.challenges || {};
         var list = [];
         for (var id in defs) {
@@ -69989,8 +71111,8 @@ var HiroEconomy;
         donations: {},
         storeItems: {}
     };
-    function getConfig(nk) {
-        return ConfigLoader.loadConfig(nk, "economy", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "economy", gameId, DEFAULT_CONFIG);
     }
     HiroEconomy.getConfig = getConfig;
     function getUserDonations(nk, userId, gameId) {
@@ -70011,11 +71133,12 @@ var HiroEconomy;
         var donationId = data.donationId;
         if (!donationId)
             return RpcHelpers.errorResponse("donationId is required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var donationDef = config.donations[donationId];
         if (!donationDef)
             return RpcHelpers.errorResponse("Unknown donation: " + donationId);
-        var donations = getUserDonations(nk, userId, data.gameId);
+        var donations = getUserDonations(nk, userId, gameId);
         var now = Math.floor(Date.now() / 1000);
         var newDonation = {
             id: nk.uuidv4(),
@@ -70027,7 +71150,7 @@ var HiroEconomy;
             expiresAt: now + donationDef.durationSec
         };
         donations.outgoing.push(newDonation);
-        saveUserDonations(nk, userId, donations, data.gameId);
+        saveUserDonations(nk, userId, donations, gameId);
         return RpcHelpers.successResponse(newDonation);
     }
     HiroEconomy.rpcDonationRequest = rpcDonationRequest;
@@ -70038,16 +71161,17 @@ var HiroEconomy;
         var donationId = data.donationId;
         if (!targetUserId || !donationId)
             return RpcHelpers.errorResponse("userId and donationId required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var donationDef = config.donations[donationId];
         if (!donationDef)
             return RpcHelpers.errorResponse("Unknown donation: " + donationId);
         if (donationDef.cost && donationDef.cost.currencies) {
             for (var cid in donationDef.cost.currencies) {
-                WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", cid, donationDef.cost.currencies[cid]);
+                WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId || "default", cid, donationDef.cost.currencies[cid]);
             }
         }
-        var targetDonations = getUserDonations(nk, targetUserId, data.gameId);
+        var targetDonations = getUserDonations(nk, targetUserId, gameId);
         var now = Math.floor(Date.now() / 1000);
         for (var i = 0; i < targetDonations.outgoing.length; i++) {
             var d = targetDonations.outgoing[i];
@@ -70064,10 +71188,10 @@ var HiroEconomy;
                 break;
             }
         }
-        saveUserDonations(nk, targetUserId, targetDonations, data.gameId);
+        saveUserDonations(nk, targetUserId, targetDonations, gameId);
         if (donationDef.senderReward) {
             var senderResolved = RewardEngine.resolveReward(nk, donationDef.senderReward);
-            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", senderResolved);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", senderResolved);
         }
         return RpcHelpers.successResponse({ success: true });
     }
@@ -70078,8 +71202,9 @@ var HiroEconomy;
         var donationIds = data.donationIds;
         if (!donationIds || donationIds.length === 0)
             return RpcHelpers.errorResponse("donationIds required");
-        var config = getConfig(nk);
-        var donations = getUserDonations(nk, userId, data.gameId);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
+        var donations = getUserDonations(nk, userId, gameId);
         var now = Math.floor(Date.now() / 1000);
         var claimed = [];
         for (var i = 0; i < donations.outgoing.length; i++) {
@@ -70089,19 +71214,20 @@ var HiroEconomy;
                 var donationDef = config.donations[d.donationId];
                 if (donationDef && donationDef.reward) {
                     var resolved = RewardEngine.resolveReward(nk, donationDef.reward);
-                    RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+                    RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
                 }
                 claimed.push(d.donationId);
             }
         }
-        saveUserDonations(nk, userId, donations, data.gameId);
+        saveUserDonations(nk, userId, donations, gameId);
         return RpcHelpers.successResponse({ claimed: claimed });
     }
     HiroEconomy.rpcDonationClaim = rpcDonationClaim;
     function rpcRewardedVideoComplete(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var state = getRewardedVideoState(nk, userId, data.gameId);
+        var gameId = RpcHelpers.gameId(data);
+        var state = getRewardedVideoState(nk, userId, gameId);
         var today = new Date().toISOString().slice(0, 10);
         if (state.lastViewDate !== today) {
             state.viewsToday = 0;
@@ -70109,10 +71235,10 @@ var HiroEconomy;
         }
         state.viewsToday++;
         state.totalViews++;
-        Storage.writeJson(nk, Constants.HIRO_CONFIGS_COLLECTION, Constants.gameKey(data.gameId, "rewarded_video_" + userId), userId, state);
+        Storage.writeJson(nk, Constants.HIRO_CONFIGS_COLLECTION, Constants.gameKey(gameId, "rewarded_video_" + userId), userId, state);
         if (data.reward) {
             var resolved = RewardEngine.resolveReward(nk, data.reward);
-            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
             return RpcHelpers.successResponse({ reward: resolved, state: state });
         }
         return RpcHelpers.successResponse({ state: state });
@@ -70127,7 +71253,7 @@ var HiroEconomy;
             return RpcHelpers.errorResponse("currencyId and positive amount required");
         }
         try {
-            WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", currencyId, amount);
+            WalletHelpers.spendCurrency(nk, logger, ctx, userId, RpcHelpers.gameId(data) || "default", currencyId, amount);
             return RpcHelpers.successResponse({ success: true, currencyId: currencyId, amount: amount });
         }
         catch (e) {
@@ -70333,8 +71459,8 @@ var HiroEnergy;
 var HiroEventLeaderboards;
 (function (HiroEventLeaderboards) {
     var DEFAULT_CONFIG = { events: {} };
-    function getConfig(nk) {
-        return ConfigLoader.loadConfig(nk, "event_leaderboards", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "event_leaderboards", gameId, DEFAULT_CONFIG);
     }
     HiroEventLeaderboards.getConfig = getConfig;
     function getUserEventState(nk, userId, gameId) {
@@ -70351,9 +71477,10 @@ var HiroEventLeaderboards;
     function rpcList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var activeEvents = getActiveEvents(nk);
-        var userState = getUserEventState(nk, userId, data.gameId);
+        var userState = getUserEventState(nk, userId, gameId);
         var now = Math.floor(Date.now() / 1000);
         var result = [];
         for (var i = 0; i < activeEvents.length; i++) {
@@ -70383,7 +71510,8 @@ var HiroEventLeaderboards;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.eventId || data.score === undefined)
             return RpcHelpers.errorResponse("eventId and score required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var def = config.events[data.eventId];
         if (!def)
             return RpcHelpers.errorResponse("Unknown event");
@@ -70394,12 +71522,12 @@ var HiroEventLeaderboards;
         var now = Math.floor(Date.now() / 1000);
         if (now < ae.startAt || now > ae.endAt)
             return RpcHelpers.errorResponse("Event not in active window");
-        var userState = getUserEventState(nk, userId, data.gameId);
+        var userState = getUserEventState(nk, userId, gameId);
         if (!userState.events[data.eventId]) {
             userState.events[data.eventId] = { joined: true, cohortId: ae.cohortId || "default" };
         }
         userState.events[data.eventId].joined = true;
-        saveUserEventState(nk, userId, userState, data.gameId);
+        saveUserEventState(nk, userId, userState, gameId);
         var operatorMap = { best: "best" /* nkruntime.OverrideOperator.BEST */, set: "set" /* nkruntime.OverrideOperator.SET */, incr: "increment" /* nkruntime.OverrideOperator.INCREMENTAL */, decr: "decrement" /* nkruntime.OverrideOperator.DECREMENTAL */ };
         var op = operatorMap[def.operator] || "best" /* nkruntime.OverrideOperator.BEST */;
         nk.leaderboardRecordWrite(ae.leaderboardId, userId, ctx.username || "", data.score, data.subscore || 0, data.metadata || {}, op);
@@ -70413,11 +71541,12 @@ var HiroEventLeaderboards;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.eventId)
             return RpcHelpers.errorResponse("eventId required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var def = config.events[data.eventId];
         if (!def)
             return RpcHelpers.errorResponse("Unknown event");
-        var userState = getUserEventState(nk, userId, data.gameId);
+        var userState = getUserEventState(nk, userId, gameId);
         var us = userState.events[data.eventId];
         if (!us || !us.joined)
             return RpcHelpers.errorResponse("Not joined");
@@ -70437,12 +71566,12 @@ var HiroEventLeaderboards;
             var tier = def.tiers[i];
             if (rank >= tier.rankMin && rank <= tier.rankMax) {
                 reward = RewardEngine.resolveReward(nk, tier.reward);
-                RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", reward);
+                RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", reward);
                 break;
             }
         }
         us.claimedAt = Math.floor(Date.now() / 1000);
-        saveUserEventState(nk, userId, userState, data.gameId);
+        saveUserEventState(nk, userId, userState, gameId);
         return RpcHelpers.successResponse({ rank: rank, reward: reward });
     }
     function rpcGetRankings(ctx, logger, nk, payload) {
@@ -70453,7 +71582,7 @@ var HiroEventLeaderboards;
         var ae = activeEvents.find(function (e) { return e.eventId === data.eventId; });
         if (!ae)
             return RpcHelpers.errorResponse("Event not found or not active");
-        var config = getConfig(nk);
+        var config = getConfig(nk, RpcHelpers.gameId(data));
         var def = config.events[ae.eventId];
         var limit = data.limit || 50;
         var cursor = data.cursor || undefined;
@@ -70514,8 +71643,8 @@ var HiroEventLeaderboards;
 var HiroIncentives;
 (function (HiroIncentives) {
     var DEFAULT_CONFIG = {};
-    function getConfig(nk) {
-        return ConfigLoader.loadConfig(nk, "incentives", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "incentives", gameId, DEFAULT_CONFIG);
     }
     HiroIncentives.getConfig = getConfig;
     function getUserState(nk, userId, gameId) {
@@ -70528,10 +71657,11 @@ var HiroIncentives;
     function rpcGetReferralCode(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var state = getUserState(nk, userId, data.gameId);
+        var gameId = RpcHelpers.gameId(data);
+        var state = getUserState(nk, userId, gameId);
         if (!state.referralCode) {
             state.referralCode = userId.substring(0, 8).toUpperCase();
-            saveUserState(nk, userId, state, data.gameId);
+            saveUserState(nk, userId, state, gameId);
         }
         return RpcHelpers.successResponse({ referralCode: state.referralCode });
     }
@@ -70540,15 +71670,16 @@ var HiroIncentives;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.referralCode)
             return RpcHelpers.errorResponse("referralCode required");
-        var state = getUserState(nk, userId, data.gameId);
+        var gameId = RpcHelpers.gameId(data);
+        var state = getUserState(nk, userId, gameId);
         if (state.referredBy)
             return RpcHelpers.errorResponse("Already referred");
-        var config = getConfig(nk);
+        var config = getConfig(nk, gameId);
         state.referredBy = data.referralCode;
-        saveUserState(nk, userId, state, data.gameId);
+        saveUserState(nk, userId, state, gameId);
         if (config.referralReward) {
             var resolved = RewardEngine.resolveReward(nk, config.referralReward);
-            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
         }
         if (config.referrerReward) {
             RewardEngine.grantToMailbox(nk, data.referralCode, "Referral Reward", config.referrerReward);
@@ -70558,8 +71689,9 @@ var HiroIncentives;
     function rpcCheckReturnBonus(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var config = getConfig(nk);
-        var state = getUserState(nk, userId, data.gameId);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
+        var state = getUserState(nk, userId, gameId);
         var now = Math.floor(Date.now() / 1000);
         var eligible = false;
         if (!state.returnBonusClaimed && state.lastSeenAt > 0 && config.returnBonusDays) {
@@ -70567,19 +71699,20 @@ var HiroIncentives;
             eligible = daysSinceLastSeen >= config.returnBonusDays;
         }
         state.lastSeenAt = now;
-        saveUserState(nk, userId, state, data.gameId);
+        saveUserState(nk, userId, state, gameId);
         if (eligible && config.returnBonus) {
             var resolved = RewardEngine.resolveReward(nk, config.returnBonus);
-            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
             state.returnBonusClaimed = true;
-            saveUserState(nk, userId, state, data.gameId);
+            saveUserState(nk, userId, state, gameId);
             return RpcHelpers.successResponse({ eligible: true, reward: resolved });
         }
         return RpcHelpers.successResponse({ eligible: eligible });
     }
     function rpcList(ctx, logger, nk, payload) {
-        var config = getConfig(nk);
         var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var response = {
             referralReward: config.referralReward || null,
             referrerReward: config.referrerReward || null,
@@ -70588,7 +71721,7 @@ var HiroIncentives;
         };
         var userId = ctx.userId;
         if (userId) {
-            var state = getUserState(nk, userId, data.gameId);
+            var state = getUserState(nk, userId, gameId);
             var now = Math.floor(Date.now() / 1000);
             var returnBonusEligible = false;
             var daysUntilReturnBonus = 0;
@@ -70625,8 +71758,8 @@ var HiroIncentives;
 var HiroInventory;
 (function (HiroInventory) {
     var DEFAULT_CONFIG = { items: {} };
-    function getConfig(nk) {
-        return ConfigLoader.loadConfig(nk, "inventory", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "inventory", gameId, DEFAULT_CONFIG);
     }
     HiroInventory.getConfig = getConfig;
     function getUserInventory(nk, userId, gameId) {
@@ -70637,7 +71770,7 @@ var HiroInventory;
         Storage.writeJson(nk, Constants.HIRO_INVENTORY_COLLECTION, Constants.gameKey(gameId, "items"), userId, inv);
     }
     function grantItem(nk, logger, ctx, userId, itemId, count, stringProps, numericProps, gameId) {
-        var config = getConfig(nk);
+        var config = getConfig(nk, gameId);
         var itemDef = config.items[itemId];
         var inv = getUserInventory(nk, userId, gameId);
         var now = Math.floor(Date.now() / 1000);
@@ -70701,12 +71834,12 @@ var HiroInventory;
     function rpcList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var gameId = data.gameId;
+        var gameId = RpcHelpers.gameId(data);
         var inv = getUserInventory(nk, userId, gameId);
         inv = purgeExpired(inv);
         saveUserInventory(nk, userId, inv, gameId);
         if (data.category) {
-            var config = getConfig(nk);
+            var config = getConfig(nk, RpcHelpers.gameId(data));
             var filtered = {};
             for (var id in inv.items) {
                 var def = config.items[id];
@@ -70997,10 +72130,10 @@ var HiroPersonalizers;
         return config;
     }
     // ---- Satori Personalizer (feature flags + experiments) ----
-    function applySatoriOverrides(nk, userId, system, config) {
+    function applySatoriOverrides(nk, userId, system, config, gameId) {
         // Check feature flags for config overrides
         var flagName = "hiro_" + system + "_override";
-        var flag = SatoriFeatureFlags.getFlag(nk, userId, flagName);
+        var flag = SatoriFeatureFlags.getFlag(nk, userId, flagName, undefined, gameId);
         if (flag && flag.value) {
             try {
                 var flagOverrides = JSON.parse(flag.value);
@@ -71009,14 +72142,14 @@ var HiroPersonalizers;
             catch (_) { }
         }
         // Check experiment variants for config overrides
-        var experiments = ConfigLoader.loadSatoriConfig(nk, "experiments", {});
+        var experiments = ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
         for (var expId in experiments) {
             var exp = experiments[expId];
             if (exp.status !== "running")
                 continue;
             if (!exp.configSystem || exp.configSystem !== system)
                 continue;
-            var variant = SatoriExperiments.getVariant(nk, userId, expId);
+            var variant = SatoriExperiments.getVariant(nk, userId, expId, gameId);
             if (variant && variant.config) {
                 try {
                     var variantOverrides = {};
@@ -71039,7 +72172,7 @@ var HiroPersonalizers;
     function personalize(nk, userId, system, baseConfig, gameId) {
         var config = deepClone(baseConfig);
         config = applyStorageOverrides(nk, userId, system, config, gameId);
-        config = applySatoriOverrides(nk, userId, system, config);
+        config = applySatoriOverrides(nk, userId, system, config, gameId);
         return config;
     }
     HiroPersonalizers.personalize = personalize;
@@ -71054,7 +72187,8 @@ var HiroPersonalizers;
         if (!data.userId || !data.system || !data.path) {
             return RpcHelpers.errorResponse("userId, system, and path required");
         }
-        var userOverrides = Storage.readJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId);
+        var gameId = RpcHelpers.gameId(data);
+        var userOverrides = Storage.readJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(gameId, "overrides"), data.userId);
         if (!userOverrides)
             userOverrides = { overrides: {}, updatedAt: 0 };
         if (!userOverrides.overrides[data.system])
@@ -71071,7 +72205,7 @@ var HiroPersonalizers;
             userOverrides.overrides[data.system].push({ path: data.path, value: data.value });
         }
         userOverrides.updatedAt = Math.floor(Date.now() / 1000);
-        Storage.writeJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId, userOverrides);
+        Storage.writeJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(gameId, "overrides"), data.userId, userOverrides);
         return RpcHelpers.successResponse({ saved: true, system: data.system, path: data.path });
     }
     function rpcRemoveOverride(ctx, logger, nk, payload) {
@@ -71079,7 +72213,8 @@ var HiroPersonalizers;
         if (!data.userId || !data.system || !data.path) {
             return RpcHelpers.errorResponse("userId, system, and path required");
         }
-        var userOverrides = Storage.readJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId);
+        var gameId = RpcHelpers.gameId(data);
+        var userOverrides = Storage.readJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(gameId, "overrides"), data.userId);
         if (!userOverrides || !userOverrides.overrides[data.system]) {
             return RpcHelpers.successResponse({ removed: false });
         }
@@ -71087,22 +72222,23 @@ var HiroPersonalizers;
             return o.path !== data.path;
         });
         userOverrides.updatedAt = Math.floor(Date.now() / 1000);
-        Storage.writeJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId, userOverrides);
+        Storage.writeJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(gameId, "overrides"), data.userId, userOverrides);
         return RpcHelpers.successResponse({ removed: true });
     }
     function rpcGetOverrides(ctx, logger, nk, payload) {
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.userId)
             return RpcHelpers.errorResponse("userId required");
-        var userOverrides = Storage.readJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId);
+        var userOverrides = Storage.readJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(RpcHelpers.gameId(data), "overrides"), data.userId);
         return RpcHelpers.successResponse({ overrides: userOverrides || { overrides: {} } });
     }
     function rpcPreviewConfig(ctx, logger, nk, payload) {
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.userId || !data.system)
             return RpcHelpers.errorResponse("userId and system required");
-        var base = ConfigLoader.loadConfig(nk, data.system, {});
-        var personalized = personalize(nk, data.userId, data.system, base, data.gameId);
+        var gameId = RpcHelpers.gameId(data);
+        var base = ConfigLoader.loadConfigForGame(nk, data.system, gameId, {});
+        var personalized = personalize(nk, data.userId, data.system, base, gameId);
         return RpcHelpers.successResponse({ system: data.system, userId: data.userId, baseConfig: base, personalizedConfig: personalized });
     }
     function register(initializer) {
@@ -71551,8 +72687,8 @@ var HiroStats;
 var HiroStore;
 (function (HiroStore) {
     var DEFAULT_CONFIG = { sections: {} };
-    function getConfig(nk) {
-        return ConfigLoader.loadConfig(nk, "store", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "store", gameId, DEFAULT_CONFIG);
     }
     HiroStore.getConfig = getConfig;
     function getUserPurchases(nk, userId, gameId) {
@@ -71565,8 +72701,9 @@ var HiroStore;
     function rpcList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var config = getConfig(nk);
-        var purchases = getUserPurchases(nk, userId, data.gameId);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
+        var purchases = getUserPurchases(nk, userId, gameId);
         var now = Math.floor(Date.now() / 1000);
         var result = {};
         for (var sectionId in config.sections) {
@@ -71601,7 +72738,8 @@ var HiroStore;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.offerId)
             return RpcHelpers.errorResponse("offerId required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var offer = null;
         for (var sectionId in config.sections) {
             if (config.sections[sectionId].items[data.offerId]) {
@@ -71616,23 +72754,23 @@ var HiroStore;
             return RpcHelpers.errorResponse("Offer not yet available");
         if (offer.expiresAt && now > offer.expiresAt)
             return RpcHelpers.errorResponse("Offer expired");
-        var purchases = getUserPurchases(nk, userId, data.gameId);
+        var purchases = getUserPurchases(nk, userId, gameId);
         var purchaseCount = purchases.purchases[data.offerId] ? purchases.purchases[data.offerId].count : 0;
         if (offer.maxPurchases && purchaseCount >= offer.maxPurchases)
             return RpcHelpers.errorResponse("Max purchases reached");
         if (offer.cost && offer.cost.currencies) {
             for (var cid in offer.cost.currencies) {
-                WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", cid, offer.cost.currencies[cid]);
+                WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId || "default", cid, offer.cost.currencies[cid]);
             }
         }
         var resolved = RewardEngine.resolveReward(nk, offer.reward);
-        RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+        RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
         if (!purchases.purchases[data.offerId]) {
             purchases.purchases[data.offerId] = { count: 0, lastPurchaseAt: 0 };
         }
         purchases.purchases[data.offerId].count++;
         purchases.purchases[data.offerId].lastPurchaseAt = now;
-        saveUserPurchases(nk, userId, purchases, data.gameId);
+        saveUserPurchases(nk, userId, purchases, gameId);
         EventBus.emit(nk, logger, ctx, EventBus.Events.STORE_PURCHASE, {
             userId: userId, offerId: data.offerId, reward: resolved
         });
@@ -71648,8 +72786,8 @@ var HiroStore;
 var HiroStreaks;
 (function (HiroStreaks) {
     var DEFAULT_CONFIG = { streaks: {} };
-    function getConfig(nk) {
-        return ConfigLoader.loadConfig(nk, "streaks", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "streaks", gameId, DEFAULT_CONFIG);
     }
     HiroStreaks.getConfig = getConfig;
     function getUserStreaks(nk, userId, gameId) {
@@ -71660,7 +72798,7 @@ var HiroStreaks;
         Storage.writeJson(nk, Constants.HIRO_STREAKS_COLLECTION, Constants.gameKey(gameId, "state"), userId, data);
     }
     function updateStreak(nk, logger, ctx, userId, streakId, gameId) {
-        var config = getConfig(nk);
+        var config = getConfig(nk, gameId);
         var def = config.streaks[streakId];
         if (!def)
             throw new Error("Unknown streak: " + streakId);
@@ -71695,8 +72833,8 @@ var HiroStreaks;
     function rpcGet(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var gameId = data.gameId;
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var streaks = getUserStreaks(nk, userId, gameId);
         var result = {};
         for (var id in config.streaks) {
@@ -71719,7 +72857,7 @@ var HiroStreaks;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.streakId)
             return RpcHelpers.errorResponse("streakId required");
-        var state = updateStreak(nk, logger, ctx, userId, data.streakId, data.gameId);
+        var state = updateStreak(nk, logger, ctx, userId, data.streakId, RpcHelpers.gameId(data));
         return RpcHelpers.successResponse({ streak: state });
     }
     function rpcClaim(ctx, logger, nk, payload) {
@@ -71727,7 +72865,8 @@ var HiroStreaks;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.streakId || !data.milestone)
             return RpcHelpers.errorResponse("streakId and milestone required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var def = config.streaks[data.streakId];
         if (!def)
             return RpcHelpers.errorResponse("Unknown streak");
@@ -71735,17 +72874,17 @@ var HiroStreaks;
         var reward = def.milestones[milestone];
         if (!reward)
             return RpcHelpers.errorResponse("Unknown milestone");
-        var streaks = getUserStreaks(nk, userId, data.gameId);
+        var streaks = getUserStreaks(nk, userId, gameId);
         var state = streaks.streaks[data.streakId];
         if (!state || state.count < parseInt(milestone))
             return RpcHelpers.errorResponse("Milestone not reached");
         if (state.claimedMilestones.indexOf(milestone) >= 0)
             return RpcHelpers.errorResponse("Already claimed");
         var resolved = RewardEngine.resolveReward(nk, reward);
-        RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+        RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
         state.claimedMilestones.push(milestone);
         streaks.streaks[data.streakId] = state;
-        saveUserStreaks(nk, userId, streaks, data.gameId);
+        saveUserStreaks(nk, userId, streaks, gameId);
         return RpcHelpers.successResponse({ reward: resolved });
     }
     function register(initializer) {
@@ -74441,26 +75580,139 @@ var LegacyPush;
         var key = "token_" + userId;
         Storage.writeJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId, data);
     }
+    function env(ctx, key) {
+        return (ctx.env && ctx.env[key]) || "";
+    }
+    function parseJsonSafe(raw) {
+        if (!raw)
+            return {};
+        try {
+            return JSON.parse(raw);
+        }
+        catch (_) {
+            return {};
+        }
+    }
+    function normalizePlatform(platform) {
+        var p = String(platform || "unknown").toLowerCase();
+        if (p === "ios" || p === "apns" || p === "apple")
+            return "ios";
+        if (p === "android" || p === "fcm" || p === "gcm")
+            return "android";
+        if (p === "web")
+            return "web";
+        return p;
+    }
+    function registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId) {
+        var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL");
+        if (!registerUrl)
+            return { configured: false };
+        try {
+            var body = JSON.stringify({
+                userId: userId,
+                gameId: gameId || "quizverse",
+                deviceToken: token,
+                token: token,
+                platform: normalizePlatform(platform)
+            });
+            var resp = nk.httpRequest(registerUrl, "post", { "Content-Type": "application/json" }, body, 10000);
+            var parsed = parseJsonSafe(resp && resp.body ? resp.body : "");
+            var responseBody = parsed && parsed.body && typeof parsed.body === "string" ? parseJsonSafe(parsed.body) : parsed;
+            var code = resp && resp.code ? resp.code : 0;
+            if (code >= 200 && code < 300 && responseBody && responseBody.success !== false) {
+                return {
+                    configured: true,
+                    success: true,
+                    provider: "sns",
+                    endpointArn: responseBody.endpointArn || responseBody.EndpointArn,
+                    raw: responseBody
+                };
+            }
+            return {
+                configured: true,
+                success: false,
+                error: (responseBody && (responseBody.error || responseBody.message)) || ("Provider registration failed with HTTP " + code)
+            };
+        }
+        catch (e) {
+            logger.error("[LegacyPush] provider registration failed: %s", e.message || String(e));
+            return { configured: true, success: false, error: e.message || String(e) };
+        }
+    }
+    function sendProviderPush(ctx, logger, nk, endpoint, payload) {
+        var sendUrl = env(ctx, "PUSH_SEND_URL");
+        if (!sendUrl)
+            return { configured: false };
+        if (!endpoint.endpointArn)
+            return { configured: true, success: false, error: "endpointArn missing" };
+        try {
+            var body = JSON.stringify({
+                endpointArn: endpoint.endpointArn,
+                platform: normalizePlatform(endpoint.platform),
+                title: payload.title,
+                body: payload.body,
+                data: payload.data || {},
+                gameId: payload.gameId || "quizverse",
+                eventType: payload.eventType || "push_event"
+            });
+            var resp = nk.httpRequest(sendUrl, "post", { "Content-Type": "application/json" }, body, 10000);
+            var parsed = parseJsonSafe(resp && resp.body ? resp.body : "");
+            var responseBody = parsed && parsed.body && typeof parsed.body === "string" ? parseJsonSafe(parsed.body) : parsed;
+            var code = resp && resp.code ? resp.code : 0;
+            if (code >= 200 && code < 300 && responseBody && responseBody.success !== false) {
+                return { configured: true, success: true, messageId: responseBody.messageId, raw: responseBody };
+            }
+            return {
+                configured: true,
+                success: false,
+                error: (responseBody && (responseBody.error || responseBody.message)) || ("Provider send failed with HTTP " + code)
+            };
+        }
+        catch (e) {
+            logger.error("[LegacyPush] provider send failed: %s", e.message || String(e));
+            return { configured: true, success: false, error: e.message || String(e) };
+        }
+    }
     function rpcPushRegisterToken(ctx, logger, nk, payload) {
         try {
             var userId = RpcHelpers.requireUserId(ctx);
             var data = RpcHelpers.parseRpcPayload(payload);
             var token = data.token;
             var platform = data.platform || "unknown";
+            var gameId = data.gameId || data.game_id || "quizverse";
             if (!token)
                 return RpcHelpers.errorResponse("token required");
             var tokensData = getPushTokens(nk, userId);
             var now = Math.floor(Date.now() / 1000);
+            var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId);
             var existing = tokensData.tokens.find(function (t) { return t.token === token; });
             if (existing) {
                 existing.platform = platform;
                 existing.updatedAt = now;
+                if (provider.endpointArn)
+                    existing.endpointArn = provider.endpointArn;
+                if (provider.success) {
+                    existing.provider = provider.provider || "sns";
+                    existing.providerRegisteredAt = now;
+                    existing.providerError = undefined;
+                }
+                else if (provider.configured) {
+                    existing.providerError = provider.error || "Provider registration failed";
+                }
             }
             else {
-                tokensData.tokens.push({ token: token, platform: platform, updatedAt: now });
+                tokensData.tokens.push({
+                    token: token,
+                    platform: platform,
+                    updatedAt: now,
+                    endpointArn: provider.endpointArn,
+                    provider: provider.success ? (provider.provider || "sns") : undefined,
+                    providerRegisteredAt: provider.success ? now : undefined,
+                    providerError: provider.configured && !provider.success ? (provider.error || "Provider registration failed") : undefined
+                });
             }
             savePushTokens(nk, userId, tokensData);
-            return RpcHelpers.successResponse({ success: true });
+            return RpcHelpers.successResponse({ success: true, provider: provider });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to register token");
@@ -74482,6 +75734,28 @@ var LegacyPush;
                 return RpcHelpers.errorResponse("userId required");
             if (!code || code <= 0)
                 code = DEFAULT_PUSH_NOTIFICATION_CODE;
+            var title = content.title || subject;
+            var body = content.body || "";
+            var tokensData = getPushTokens(nk, targetUserId);
+            var providerResults = [];
+            for (var i = 0; i < tokensData.tokens.length; i++) {
+                var t = tokensData.tokens[i];
+                var providerResult = sendProviderPush(ctx, logger, nk, t, {
+                    title: title,
+                    body: body,
+                    data: content.data || {},
+                    gameId: data.gameId || data.game_id || "quizverse",
+                    eventType: data.eventType || subject
+                });
+                if (providerResult.configured)
+                    providerResults.push({
+                        platform: t.platform,
+                        endpointArn: t.endpointArn,
+                        success: providerResult.success === true,
+                        messageId: providerResult.messageId,
+                        error: providerResult.error
+                    });
+            }
             nk.notificationsSend([{
                     userId: targetUserId,
                     subject: subject,
@@ -74494,6 +75768,8 @@ var LegacyPush;
                 messageId: "nakama_notification_" + Date.now(),
                 eventType: data.eventType || subject,
                 recipientCount: 1,
+                providerConfigured: providerResults.length > 0,
+                providerResults: providerResults,
                 sentAt: new Date().toISOString()
             });
         }
@@ -74508,7 +75784,14 @@ var LegacyPush;
             var targetUserId = data.userId || userId;
             var tokensData = getPushTokens(nk, targetUserId);
             var endpoints = tokensData.tokens.map(function (t) {
-                return { token: t.token, platform: t.platform };
+                return {
+                    token: t.token,
+                    platform: t.platform,
+                    endpointArn: t.endpointArn,
+                    provider: t.provider,
+                    providerRegisteredAt: t.providerRegisteredAt,
+                    providerError: t.providerError
+                };
             });
             return RpcHelpers.successResponse({ endpoints: endpoints });
         }
@@ -75589,6 +76872,7450 @@ var LegacyWallet;
     LegacyWallet.register = register;
     register();
 })(LegacyWallet || (LegacyWallet = {}));
+// IIVXAgent — first-class AI-agent kernel service.
+//
+// Wire contract: schemas/multiplayer/services/agent.proto. Agents appear
+// as Nakama presences whose user_id is prefixed "agt_". This module owns:
+//
+//   * Persona registry (persona_id → AgentPersona descriptor)
+//   * Agent spawn / despawn into a match
+//   * Per-match agent budget tracking + automatic throttle / kick
+//   * Provider failover (primary LLM down → smaller fallback → silence)
+//   * Speak channel: a uniform `enqueueSpeech(matchId, agentId, text)` API
+//     that templates call. The kernel handles transcript fan-out + visemes.
+//   * Constraints enforcement (response rate, speaking minutes, etc.)
+//
+// What this module is NOT:
+//
+//   * NOT the LLM call itself. That's an external provider (OpenAI, Azure,
+//     Anthropic, custom). This module wraps providers behind IIVXLLMProvider.
+//   * NOT the TTS. TTS pipes audio into the IIVXVoice provider's input
+//     channel via a `mintAgentVoiceToken` call into voice.ts.
+//   * NOT the moderation classifier. Outgoing agent speech is enqueued
+//     into the moderation pipeline (services/moderation.ts) BEFORE it is
+//     fanned out to peers; if moderation blocks, the AgentSpoke message
+//     ships with `muted_by_moderation = true` and no voice frames go out.
+var MpKernelAgent;
+(function (MpKernelAgent) {
+    MpKernelAgent.Op = {
+        AGENT_JOINED: 0x2000,
+        AGENT_LEFT: 0x2001,
+        AGENT_THINKING: 0x2002,
+        AGENT_SPOKE: 0x2003,
+        AGENT_VISEME_STREAM: 0x2004,
+        AGENT_REQUEST_TURN: 0x2005,
+        AGENT_GRANT_TURN: 0x2006,
+        AGENT_DEGRADED: 0x2007,
+        AGENT_BUDGET_EXCEEDED: 0x2008,
+        AGENT_CONTEXT_RESET: 0x2009,
+        AGENT_TOOL_CALL: 0x200A,
+        AGENT_TOOL_RESULT: 0x200B
+    };
+    // Persona registry. Game plugins call `registerPersona()` at boot.
+    var personas = {};
+    // Per-match active agents.
+    var matchAgents = {};
+    // Provider-failover policy. Order is: primary → fallback model → silent.
+    var providerHealth = {};
+    function registerPersona(p) {
+        if (!p.persona_id)
+            throw new Error("persona_id required");
+        // Defaults — keep adapters from leaving everything at zero.
+        if (!p.constraints) {
+            p.constraints = {
+                max_response_tokens: 512,
+                max_responses_per_minute: 12,
+                max_seconds_speaking_per_minute: 30,
+                max_concurrent_matches: 50,
+                allow_proactive_speak: true,
+                allow_tools: false,
+                cost_budget_usd_micros_per_match: 100000, // $0.10
+                locale_allowlist_csv: ""
+            };
+        }
+        personas[p.persona_id] = p;
+    }
+    MpKernelAgent.registerPersona = registerPersona;
+    function listPersonas() {
+        var out = [];
+        for (var id in personas)
+            out.push(personas[id]);
+        return out;
+    }
+    MpKernelAgent.listPersonas = listPersonas;
+    function getPersona(id) {
+        return personas[id] || null;
+    }
+    MpKernelAgent.getPersona = getPersona;
+    function isAgentId(userId) {
+        return typeof userId === "string" &&
+            userId.length >= 4 && userId.substring(0, 4) === "agt_";
+    }
+    MpKernelAgent.isAgentId = isAgentId;
+    function newAgentId(personaId, suffix) {
+        var base = "agt_" + personaId.replace(/[^a-zA-Z0-9_-]/g, "_");
+        var rand = (suffix && suffix.length > 0) ? suffix : Math.random().toString(36).substring(2, 10);
+        return (base + "_" + rand).substring(0, 64);
+    }
+    MpKernelAgent.newAgentId = newAgentId;
+    /**
+     * Spawn an agent into a match. The kernel injects the agent as a
+     * server-managed presence (no real socket); templates see it like any
+     * other player. Returns the agent_id (or "" + reason on failure).
+     */
+    function spawnIntoMatch(nk, logger, matchId, personaId, opts) {
+        var persona = personas[personaId];
+        if (!persona) {
+            return { agent_id: "", rejected_reason: "unknown_persona" };
+        }
+        // Concurrency cap.
+        var concurrent = 0;
+        for (var mid in matchAgents) {
+            var ag = matchAgents[mid];
+            for (var aid in ag) {
+                if (ag[aid].persona_id === personaId)
+                    concurrent++;
+            }
+        }
+        if (concurrent >= persona.constraints.max_concurrent_matches) {
+            return { agent_id: "", rejected_reason: "concurrency_cap" };
+        }
+        var agentId = (opts && opts.agent_id) ? opts.agent_id : newAgentId(personaId);
+        var nowMs = Date.now();
+        var instance = {
+            agent_id: agentId,
+            persona_id: personaId,
+            display_name: persona.display_name,
+            avatar_url: persona.avatar_url,
+            spawned_by_user: (opts && opts.spawned_by_user) ? opts.spawned_by_user : "",
+            spawn_reason: (opts && opts.spawn_reason) ? opts.spawn_reason : "kernel",
+            spawned_unix_ms: nowMs,
+            match_id: matchId,
+            constraints: persona.constraints,
+            cost_used_usd_micros: 0,
+            speech_seconds_used: 0,
+            response_count_window: { unix_minute: Math.floor(nowMs / 60000), count: 0 },
+            speak_window: { unix_minute: Math.floor(nowMs / 60000), seconds: 0 },
+            last_speak_unix_ms: 0,
+            provider_state: "primary",
+            persona_version_major: persona.version_major,
+            persona_version_minor: persona.version_minor
+        };
+        if (!matchAgents[matchId])
+            matchAgents[matchId] = {};
+        matchAgents[matchId][agentId] = instance;
+        logger.info("[IIVXAgent] spawn agent=%s persona=%s match=%s reason=%s", agentId, personaId, matchId, instance.spawn_reason);
+        // Best-effort kernel-level fan-out via match signal — game plugins use
+        // their template's onLoop to surface AgentJoined to clients via the
+        // template's own opcode-fan-out. Kernel doesn't fan out directly to
+        // avoid coupling to template state.
+        return { agent_id: agentId };
+    }
+    MpKernelAgent.spawnIntoMatch = spawnIntoMatch;
+    /**
+     * Despawn an agent from a match. Reason gets propagated as AgentLeft.
+     */
+    function despawnFromMatch(matchId, agentId, reason) {
+        if (!matchAgents[matchId])
+            return;
+        delete matchAgents[matchId][agentId];
+        if (Object.keys(matchAgents[matchId]).length === 0) {
+            delete matchAgents[matchId];
+        }
+    }
+    MpKernelAgent.despawnFromMatch = despawnFromMatch;
+    function getAgentsInMatch(matchId) {
+        var out = [];
+        var bag = matchAgents[matchId];
+        if (!bag)
+            return out;
+        for (var id in bag)
+            out.push(bag[id]);
+        return out;
+    }
+    MpKernelAgent.getAgentsInMatch = getAgentsInMatch;
+    function getAgent(matchId, agentId) {
+        if (!matchAgents[matchId])
+            return null;
+        return matchAgents[matchId][agentId] || null;
+    }
+    MpKernelAgent.getAgent = getAgent;
+    var llmProvider = null;
+    var ttsProvider = null;
+    function setLLMProvider(p) { llmProvider = p; }
+    MpKernelAgent.setLLMProvider = setLLMProvider;
+    function setTTSProvider(p) { ttsProvider = p; }
+    MpKernelAgent.setTTSProvider = setTTSProvider;
+    /**
+     * Dummy fallback provider — returns a fixed string so the kernel can
+     * keep agents "alive" even when no real LLM is plugged in. Used by
+     * tests + first-boot smoke runs.
+     */
+    MpKernelAgent.ECHO_LLM_PROVIDER = {
+        complete: function (prompt, persona, _locale) {
+            var text = "[" + persona.display_name + "] echo: " + prompt.substring(0, 200);
+            return { text: text, cost_usd_micros: 100, provider: "echo" };
+        },
+        healthCheck: function () { return true; }
+    };
+    MpKernelAgent.SILENT_TTS_PROVIDER = {
+        speak: function (_text, _voice, _locale) {
+            return { ttfa_ms: 0, visemes: [] };
+        }
+    };
+    /**
+     * The single entry point for "make agent X say Y in match Z".
+     */
+    function enqueueSpeech(nk, logger, req) {
+        var inst = getAgent(req.match_id, req.agent_id);
+        if (!inst) {
+            return { accepted: false, rejected_reason: "agent_not_in_match" };
+        }
+        var nowMs = Date.now();
+        var nowMin = Math.floor(nowMs / 60000);
+        // Reset per-minute windows.
+        if (inst.response_count_window.unix_minute !== nowMin) {
+            inst.response_count_window.unix_minute = nowMin;
+            inst.response_count_window.count = 0;
+        }
+        if (inst.speak_window.unix_minute !== nowMin) {
+            inst.speak_window.unix_minute = nowMin;
+            inst.speak_window.seconds = 0;
+        }
+        // Locale gate.
+        if (inst.constraints.locale_allowlist_csv && req.locale) {
+            var allowed = inst.constraints.locale_allowlist_csv.split(",");
+            var ok = false;
+            for (var i = 0; i < allowed.length; i++) {
+                if (allowed[i].trim() === req.locale) {
+                    ok = true;
+                    break;
+                }
+            }
+            if (!ok)
+                return { accepted: false, rejected_reason: "locale_blocked" };
+        }
+        // Rate limit.
+        if (inst.response_count_window.count >= inst.constraints.max_responses_per_minute) {
+            return { accepted: false, rejected_reason: "rate_limit" };
+        }
+        // Budget.
+        if (inst.cost_used_usd_micros >= inst.constraints.cost_budget_usd_micros_per_match) {
+            return { accepted: false, rejected_reason: "budget" };
+        }
+        // Pick a provider. v1 single-tier; future: multi-tier with fallback.
+        var llm = llmProvider || MpKernelAgent.ECHO_LLM_PROVIDER;
+        var tts = ttsProvider || MpKernelAgent.SILENT_TTS_PROVIDER;
+        var persona = personas[inst.persona_id];
+        if (!persona) {
+            return { accepted: false, rejected_reason: "persona_missing" };
+        }
+        // Synchronous LLM call. Goja runs JS single-threaded so this blocks the
+        // tick — KEEP RESPONSE BUDGETS SMALL (max_response_tokens). Real hosts
+        // SHOULD use the v2 async path (Bun-style worker) when available.
+        var llmRes;
+        try {
+            llmRes = llm.complete(req.text, persona, req.locale || "");
+        }
+        catch (e) {
+            logger.warn("[IIVXAgent] LLM error agent=%s err=%s", inst.agent_id, (e && e.message) ? e.message : String(e));
+            return { accepted: false, rejected_reason: "provider_down" };
+        }
+        // Moderation.
+        var moderated = false;
+        if (typeof MpKernel.moderateAgentSpeech === "function") {
+            try {
+                var dec = MpKernel.moderateAgentSpeech(req.match_id, inst.agent_id, llmRes.text);
+                if (dec && dec.action === "block") {
+                    moderated = true;
+                }
+            }
+            catch (e) {
+                logger.debug("[IIVXAgent] moderation skipped: " + ((e && e.message) ? e.message : String(e)));
+            }
+        }
+        // TTS / visemes.
+        var ttsRes = { ttfa_ms: 0, visemes: [] };
+        if (!moderated && !req.silent_transcript) {
+            try {
+                ttsRes = tts.speak(llmRes.text, persona.voice_id, req.locale || "");
+            }
+            catch (e) {
+                logger.debug("[IIVXAgent] TTS error: " + ((e && e.message) ? e.message : String(e)));
+            }
+        }
+        // Counters / budgets.
+        inst.response_count_window.count++;
+        inst.cost_used_usd_micros += llmRes.cost_usd_micros;
+        inst.last_speak_unix_ms = nowMs;
+        // Approximate spoken duration as text-length / 15 chars-per-second.
+        var spokenSec = Math.max(1, Math.round(llmRes.text.length / 15));
+        inst.speak_window.seconds += spokenSec;
+        inst.speech_seconds_used += spokenSec;
+        if (inst.cost_used_usd_micros >= inst.constraints.cost_budget_usd_micros_per_match) {
+            // After this turn, the agent will be silent. Caller should also fan out
+            // an AGENT_BUDGET_EXCEEDED on the next tick — emit signal here too.
+            logger.info("[IIVXAgent] budget exceeded agent=%s cap=%d used=%d", inst.agent_id, inst.constraints.cost_budget_usd_micros_per_match, inst.cost_used_usd_micros);
+        }
+        return {
+            accepted: true,
+            transcript_text: llmRes.text,
+            cost_usd_micros: llmRes.cost_usd_micros,
+            ttfa_ms: ttsRes.ttfa_ms,
+            moderated: moderated
+        };
+    }
+    MpKernelAgent.enqueueSpeech = enqueueSpeech;
+    /**
+     * Force a context reset on an agent (e.g. moderator action). Templates
+     * MAY broadcast OP_AGENT_CONTEXT_RESET when they call this.
+     */
+    function resetContext(matchId, agentId, reason) {
+        var inst = getAgent(matchId, agentId);
+        if (!inst)
+            return false;
+        inst.cost_used_usd_micros = 0;
+        inst.response_count_window.count = 0;
+        inst.speak_window.seconds = 0;
+        inst.provider_state = "primary";
+        return true;
+    }
+    MpKernelAgent.resetContext = resetContext;
+    /**
+     * Per-match cleanup hook. Templates call this from their match
+     * teardown path so the agent table doesn't leak across reloads.
+     */
+    function cleanupMatch(matchId) {
+        delete matchAgents[matchId];
+    }
+    MpKernelAgent.cleanupMatch = cleanupMatch;
+    // -------- Provider health probe (call from a slow timer) --------
+    function probeProviders() {
+        var out = {};
+        if (llmProvider) {
+            var ok = false;
+            try {
+                ok = llmProvider.healthCheck();
+            }
+            catch (_e) {
+                ok = false;
+            }
+            providerHealth["llm"] = { healthy: ok, last_check_unix_ms: Date.now() };
+            out["llm"] = ok;
+        }
+        return out;
+    }
+    MpKernelAgent.probeProviders = probeProviders;
+    // -------- Mount hook — call once during MpKernelModule.register() --------
+    function register(initializer, logger) {
+        // Default providers.
+        if (!llmProvider)
+            llmProvider = MpKernelAgent.ECHO_LLM_PROVIDER;
+        if (!ttsProvider)
+            ttsProvider = MpKernelAgent.SILENT_TTS_PROVIDER;
+        // Bind moderation hook into MpKernel for templates that want it
+        // without taking a hard dependency on this module.
+        MpKernel.agentSpawn = function (nk, log, matchId, personaId, opts) {
+            return spawnIntoMatch(nk, log, matchId, personaId, opts);
+        };
+        MpKernel.agentDespawn = function (matchId, agentId, reason) {
+            despawnFromMatch(matchId, agentId, reason);
+        };
+        MpKernel.agentSpeak = function (nk, log, req) {
+            return enqueueSpeech(nk, log, req);
+        };
+        __rpc_mp_agent_spawn = rpcAgentSpawn;
+        __rpc_mp_agent_despawn = rpcAgentDespawn;
+        __rpc_mp_agent_list_personas = rpcListPersonas;
+        __rpc_mp_agent_speak = rpcAgentSpeak;
+        logger.info("[IIVXAgent] kernel agent service registered; personas=%d", listPersonas().length);
+    }
+    MpKernelAgent.register = register;
+    register();
+    // ---- RPC handlers (admin / authenticated game-plugin use) ----
+    function rpcAgentSpawn(ctx, logger, nk, payload) {
+        if (!isPrivileged(ctx))
+            throw "not authorized";
+        var req = {};
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (_e) { }
+        if (!req.match_id || !req.persona_id)
+            throw "match_id and persona_id required";
+        var res = spawnIntoMatch(nk, logger, req.match_id, req.persona_id, {
+            spawned_by_user: req.spawned_by_user || ctx.userId,
+            spawn_reason: req.spawn_reason || "rpc",
+            agent_id: req.agent_id
+        });
+        return JSON.stringify(res);
+    }
+    function rpcAgentDespawn(ctx, _logger, _nk, payload) {
+        if (!isPrivileged(ctx))
+            throw "not authorized";
+        var req = {};
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (_e) { }
+        if (!req.match_id || !req.agent_id)
+            throw "match_id and agent_id required";
+        despawnFromMatch(req.match_id, req.agent_id, req.reason || "rpc");
+        return JSON.stringify({ ok: true });
+    }
+    function rpcListPersonas(_ctx, _logger, _nk, _payload) {
+        return JSON.stringify({ personas: listPersonas() });
+    }
+    function rpcAgentSpeak(ctx, logger, nk, payload) {
+        if (!isPrivileged(ctx))
+            throw "not authorized";
+        var req = {};
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (_e) { }
+        if (!req.match_id || !req.agent_id || !req.text)
+            throw "match_id, agent_id, text required";
+        var res = enqueueSpeech(nk, logger, req);
+        return JSON.stringify(res);
+    }
+    function isPrivileged(ctx) {
+        // Admin RPCs are gated by the same flag the rest of the kernel uses.
+        if (ctx.userId === "00000000-0000-0000-0000-000000000000")
+            return true;
+        var headers = ctx.headers;
+        if (headers && headers["x-ivx-server-token"])
+            return true;
+        // For game-plugin RPCs: trust the auth context if it carries a server
+        // token in vars. Customize per deployment.
+        var vars = ctx.vars;
+        if (vars && vars["server_token"])
+            return true;
+        return false;
+    }
+})(MpKernelAgent || (MpKernelAgent = {}));
+// Server clock authority + match-time helpers (Pillar 8: time/state).
+//
+// The kernel stamps every outbound envelope with `match_time_ms` measured
+// from match start. Clients use this to pace timers; client wall-clocks
+// are never trusted.
+var MpKernelClock;
+(function (MpKernelClock) {
+    function init() {
+        return {
+            matchStartUnixMs: Date.now(),
+            nextSeq: 1,
+            lastClockSyncUnixMs: 0
+        };
+    }
+    MpKernelClock.init = init;
+    function matchTimeMs(c) {
+        return Date.now() - c.matchStartUnixMs;
+    }
+    MpKernelClock.matchTimeMs = matchTimeMs;
+    function nextSeq(c) {
+        return c.nextSeq++;
+    }
+    MpKernelClock.nextSeq = nextSeq;
+    function seqProvider(c) {
+        return { next: function () { return c.nextSeq++; } };
+    }
+    MpKernelClock.seqProvider = seqProvider;
+    // Detect extreme client clock skew (Pillar 8 — Time/state errors).
+    // Client `wall_clock_unix_ms` from Hello is compared to server now.
+    // > 30 s = CLOCK_SKEW_EXTREME.
+    MpKernelClock.CLOCK_SKEW_LIMIT_MS = 30 * 1000;
+    function isSkewExtreme(clientUnixMs) {
+        var diff = Math.abs(Date.now() - clientUnixMs);
+        return diff > MpKernelClock.CLOCK_SKEW_LIMIT_MS;
+    }
+    MpKernelClock.isSkewExtreme = isSkewExtreme;
+    // Cadence for ClockSync broadcasts. Every 5 s by default.
+    MpKernelClock.CLOCK_SYNC_INTERVAL_MS = 5000;
+    function shouldEmitClockSync(c) {
+        var now = Date.now();
+        if (now - c.lastClockSyncUnixMs >= MpKernelClock.CLOCK_SYNC_INTERVAL_MS) {
+            c.lastClockSyncUnixMs = now;
+            return true;
+        }
+        return false;
+    }
+    MpKernelClock.shouldEmitClockSync = shouldEmitClockSync;
+    function buildClockSync(c, clientEchoUnixMs) {
+        return {
+            server_unix_ms: Date.now(),
+            server_match_time_ms: matchTimeMs(c),
+            client_unix_ms_echo: clientEchoUnixMs
+        };
+    }
+    MpKernelClock.buildClockSync = buildClockSync;
+})(MpKernelClock || (MpKernelClock = {}));
+// Reserved opcode registry — validates that no two templates / services
+// claim overlapping ranges, and provides a quick lookup for diagnostics.
+//
+// Used at module init time by `MpKernelMatch.register*` to catch
+// developer mistakes early rather than at runtime when the conflict
+// causes silent message-drop.
+var MpKernelCodeRegistry;
+(function (MpKernelCodeRegistry) {
+    var owners = [];
+    function register(owner) {
+        for (var i = 0; i < owners.length; i++) {
+            var o = owners[i];
+            if (o.name === owner.name) {
+                // Idempotent re-registration (e.g. test reload): replace.
+                owners[i] = owner;
+                return;
+            }
+            if (rangesOverlap(o, owner)) {
+                throw new Error("[MpKernelCodeRegistry] range overlap: '" + owner.name +
+                    "' (0x" + owner.from.toString(16) + "-0x" + owner.to.toString(16) +
+                    ") overlaps '" + o.name +
+                    "' (0x" + o.from.toString(16) + "-0x" + o.to.toString(16) + ")");
+            }
+        }
+        owners.push(owner);
+    }
+    MpKernelCodeRegistry.register = register;
+    register();
+    function rangesOverlap(a, b) {
+        return a.from <= b.to && b.from <= a.to;
+    }
+    // Find the registered range that owns this opcode, if any. Used in
+    // unknown-opcode diagnostics and admin tooling.
+    function findOwner(op) {
+        for (var i = 0; i < owners.length; i++) {
+            var o = owners[i];
+            if (op >= o.from && op <= o.to)
+                return o;
+        }
+        return null;
+    }
+    MpKernelCodeRegistry.findOwner = findOwner;
+    function listAll() {
+        return owners.slice();
+    }
+    MpKernelCodeRegistry.listAll = listAll;
+    // Bootstraps the well-known kernel + service ranges so registering
+    // a template into a conflicting range fails fast.
+    function bootstrapKernelRanges() {
+        if (owners.length > 0)
+            return;
+        // Mirrors the canonical proto reservations in
+        // schemas/multiplayer/opcodes.proto. Template ranges register
+        // themselves on registerTemplate; ranges below are pre-claimed so
+        // any accidental overlap fails fast at module init.
+        register({ name: "kernel-control", from: 0x0000, to: 0x0FFF });
+        register({ name: "social-conversational", from: 0x1000, to: 0x1FFF });
+        register({ name: "agents", from: 0x2000, to: 0x2FFF });
+        register({ name: "moderation", from: 0x3000, to: 0x3FFF });
+        register({ name: "game-defined", from: 0xC000, to: 0xCFFF });
+        register({ name: "xr-pose-fast-path", from: 0xF000, to: 0xFFFF });
+    }
+    MpKernelCodeRegistry.bootstrapKernelRanges = bootstrapKernelRanges;
+})(MpKernelCodeRegistry || (MpKernelCodeRegistry = {}));
+// Canonical error builders. Every template emits errors via these helpers
+// so the wire shape stays uniform and the conformance suite (Pillar 8 +
+// 10) has one schema to verify against.
+var MpKernelError;
+(function (MpKernelError) {
+    function build(code, detail, retryAfterMs, minRequiredVersion) {
+        var e = { code: code };
+        if (detail)
+            e.detail = detail;
+        if (retryAfterMs && retryAfterMs > 0)
+            e.retry_after_ms = retryAfterMs;
+        if (minRequiredVersion)
+            e.min_required_version = minRequiredVersion;
+        return e;
+    }
+    MpKernelError.build = build;
+    function send(dispatcher, target, matchId, senderUserId, seqProvider, matchTimeMs, err) {
+        var env = {
+            h: {
+                wire_version: 1,
+                op: MpKernel.KernelOp.ERROR,
+                seq: seqProvider.next(),
+                match_time_ms: matchTimeMs,
+                sender_user_id: senderUserId,
+                match_id: matchId,
+                client_opcode_uuid: ""
+            },
+            p: err
+        };
+        var bytes = JSON.stringify(env);
+        if (target) {
+            dispatcher.broadcastMessage(MpKernel.KernelOp.ERROR, bytes, [target]);
+        }
+        else {
+            dispatcher.broadcastMessage(MpKernel.KernelOp.ERROR, bytes);
+        }
+    }
+    MpKernelError.send = send;
+    // Convenience for common errors with detail interpolation.
+    function badPayload(detail) {
+        return build(MpKernel.ErrorCode.BAD_PAYLOAD, detail);
+    }
+    MpKernelError.badPayload = badPayload;
+    function unknownOpcode(op) {
+        return build(MpKernel.ErrorCode.UNKNOWN_OPCODE, "op=0x" + op.toString(16));
+    }
+    MpKernelError.unknownOpcode = unknownOpcode;
+    function rateLimited(retryAfterMs) {
+        return build(MpKernel.ErrorCode.RATE_LIMITED, "rate-limited", retryAfterMs);
+    }
+    MpKernelError.rateLimited = rateLimited;
+    function notAuthorized(detail) {
+        return build(MpKernel.ErrorCode.NOT_AUTHORIZED, detail);
+    }
+    MpKernelError.notAuthorized = notAuthorized;
+    function matchEnded(reason) {
+        return build(MpKernel.ErrorCode.MATCH_ENDED, reason);
+    }
+    MpKernelError.matchEnded = matchEnded;
+    function clockSkewExtreme(skewMs) {
+        return build(MpKernel.ErrorCode.CLOCK_SKEW_EXTREME, "skew_ms=" + skewMs);
+    }
+    MpKernelError.clockSkewExtreme = clockSkewExtreme;
+    function schemaTooOld(minRequired) {
+        return build(MpKernel.ErrorCode.SCHEMA_TOO_OLD, undefined, undefined, minRequired);
+    }
+    MpKernelError.schemaTooOld = schemaTooOld;
+    function flapping(banSeconds) {
+        return build(MpKernel.ErrorCode.FLAPPING, "soft-banned", banSeconds * 1000);
+    }
+    MpKernelError.flapping = flapping;
+    function persistenceDegraded(detail) {
+        return build(MpKernel.ErrorCode.PERSISTENCE_DEGRADED, detail);
+    }
+    MpKernelError.persistenceDegraded = persistenceDegraded;
+})(MpKernelError || (MpKernelError = {}));
+// Idempotent opcode dedup (Pillar 8: Idempotent opcode tags).
+//
+// Each (match, sender) maintains a rolling 60-second ring buffer of
+// `client_opcode_uuid`s seen recently. Duplicate submissions inside the
+// window are silently dropped (with a DUPLICATE_OPCODE warn counter
+// incremented for diagnostics) so flaky clients can safely retry.
+var MpKernelIdempotency;
+(function (MpKernelIdempotency) {
+    // Implementation note: the JS runtime is a hot path so we use a flat
+    // ring buffer indexed by ring slot, plus a Map for O(1) lookup. The
+    // ring caps memory; the Map gives constant-time membership checks.
+    MpKernelIdempotency.DEDUP_WINDOW_MS = 60 * 1000;
+    MpKernelIdempotency.DEDUP_CAPACITY = 256;
+    function newRing() {
+        return {
+            capacity: MpKernelIdempotency.DEDUP_CAPACITY,
+            nowSlot: 0,
+            seen: {},
+            order: []
+        };
+    }
+    MpKernelIdempotency.newRing = newRing;
+    // Returns true if the uuid is new (process it). Returns false if it's
+    // a recent duplicate (drop it).
+    function admit(ring, uuid, nowUnixMs) {
+        if (!uuid || uuid.length === 0) {
+            // Empty uuid is acceptable for fire-and-forget opcodes (e.g. heartbeats);
+            // those are not deduped here.
+            return true;
+        }
+        var prev = ring.seen[uuid];
+        if (prev !== undefined && (nowUnixMs - prev) <= MpKernelIdempotency.DEDUP_WINDOW_MS) {
+            return false;
+        }
+        ring.seen[uuid] = nowUnixMs;
+        ring.order.push(uuid);
+        if (ring.order.length > ring.capacity) {
+            var evict = ring.order.shift();
+            if (evict !== undefined) {
+                delete ring.seen[evict];
+            }
+        }
+        return true;
+    }
+    MpKernelIdempotency.admit = admit;
+    // Evict expired entries. Cheap O(prefix) — stops at the first non-expired.
+    function gc(ring, nowUnixMs) {
+        while (ring.order.length > 0) {
+            var oldest = ring.order[0];
+            var seen = ring.seen[oldest];
+            if (seen === undefined || (nowUnixMs - seen) > MpKernelIdempotency.DEDUP_WINDOW_MS) {
+                ring.order.shift();
+                if (oldest !== undefined)
+                    delete ring.seen[oldest];
+            }
+            else {
+                break;
+            }
+        }
+    }
+    MpKernelIdempotency.gc = gc;
+})(MpKernelIdempotency || (MpKernelIdempotency = {}));
+// IVX Multiplayer Kernel — registration entry point.
+//
+// Mounted by `data/modules/src/main.ts` after AnalyticsAlerts. Adds:
+//   - `mp_create_match` RPC (any game): creates a match of a given template.
+//   - All shipped templates (sync-turn-v1 to start; more added in P5+).
+//   - System RPCs for admin sign-off + dashboard ingestion.
+var MpKernelModule;
+(function (MpKernelModule) {
+    // Public stable IDs so external SDKs and game plugins can refer to
+    // templates by string. Adding a template = bump this list + bump the
+    // schema's reserved opcode allocation.
+    MpKernelModule.TEMPLATE_IDS = {
+        SYNC_TURN_V1: "sync-turn-v1",
+        ASYNC_TURN_V1: "async-turn-v1",
+        REALTIME_TICK_V1: "realtime-tick-v1",
+        LOBBY_HANDOFF_V1: "lobby-handoff-v1",
+        TOURNAMENT_V1: "tournament-v1",
+        LIVE_EVENT_V1: "live-event-v1",
+        PERSISTENT_PARTY_V1: "persistent-party-v1",
+        AVATAR_REPLICATION_V1: "avatar-replication-v1",
+        MR_ANCHOR_V1: "mixed-reality-anchor-v1",
+        CONVERSATIONAL_PARTY_V1: "conversational-party-v1"
+    };
+    // Lookup table populated by registerTemplate().
+    var registeredTemplateIds = {};
+    function registerTemplateId(id) {
+        registeredTemplateIds[id] = true;
+    }
+    MpKernelModule.registerTemplateId = registerTemplateId;
+    function isKnownTemplate(id) {
+        return registeredTemplateIds[id] === true;
+    }
+    // The single RPC every adapter calls to spin up a match. Game plugins
+    // typically expose game-specific wrappers (e.g. `quizverse_create_match`)
+    // that call this with their template_init pre-filled.
+    function rpcCreateMatch(ctx, logger, nk, payload) {
+        var req;
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            throw nakamaError("bad json: " + (e && e.message ? e.message : String(e)), 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        if (!req.template_id) {
+            throw nakamaError("template_id required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        if (!isKnownTemplate(req.template_id)) {
+            throw nakamaError("unknown template_id=" + req.template_id, 5 /* nkruntime.Codes.NOT_FOUND */);
+        }
+        var matchParams = {
+            game_id: req.game_id || "unknown",
+            region: req.region || "",
+            template_init: req.template_init || {},
+            creator_user_id: ctx.userId || ""
+        };
+        var matchId;
+        try {
+            matchId = nk.matchCreate(req.template_id, matchParams);
+        }
+        catch (err) {
+            logger.warn("[MpKernel] matchCreate failed template=%s err=%s", req.template_id, (err && err.message) ? err.message : String(err));
+            throw nakamaError("matchCreate failed", 13 /* nkruntime.Codes.INTERNAL */);
+        }
+        var resp = {
+            match_id: matchId,
+            template_id: req.template_id,
+            game_id: req.game_id || "",
+            region: req.region || "",
+            server_unix_ms: Date.now()
+        };
+        return JSON.stringify(resp);
+    }
+    MpKernelModule.rpcCreateMatch = rpcCreateMatch;
+    // Read a persisted match result. Used by admin tools + the SLO board.
+    function rpcReadMatchResult(_ctx, _logger, nk, payload) {
+        var req;
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            throw nakamaError("bad json", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        if (!req.match_id)
+            throw nakamaError("match_id required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        var row = MpKernelMatchResult.read(nk, req.match_id);
+        if (!row)
+            throw nakamaError("not found", 5 /* nkruntime.Codes.NOT_FOUND */);
+        return JSON.stringify(row);
+    }
+    MpKernelModule.rpcReadMatchResult = rpcReadMatchResult;
+    // List the registered templates so the JS adapter can validate
+    // template_ids client-side at compile-time codegen.
+    function rpcListTemplates(_ctx, _logger, _nk, _payload) {
+        var owners = MpKernelCodeRegistry.listAll();
+        var out = {
+            templates: []
+        };
+        for (var i = 0; i < owners.length; i++) {
+            if (owners[i].template_id) {
+                out.templates.push({
+                    id: owners[i].template_id,
+                    from: owners[i].from,
+                    to: owners[i].to
+                });
+            }
+        }
+        return JSON.stringify(out);
+    }
+    MpKernelModule.rpcListTemplates = rpcListTemplates;
+    function nakamaError(msg, code) {
+        return { message: msg, code: code };
+    }
+    // Built-in "echo" generator. SDK adapters and the conformance suite use
+    // this to smoke-test the kernel end-to-end without needing a real game
+    // plugin loaded. Game plugins MUST register their own generator id (e.g.
+    // "quizverse:classic") and not collide with this one.
+    var ECHO_GENERATOR = {
+        generatorId: "echo",
+        initBlob: function (init) {
+            var maxTurns = init && init.max_turns ? init.max_turns : 1;
+            return { remaining: maxTurns, served: 0 };
+        },
+        nextTurn: function (ctx) {
+            var blob = ctx.blob || { remaining: 1, served: 0 };
+            if (blob.remaining <= 0)
+                return null;
+            blob.remaining--;
+            blob.served++;
+            var isFinal = blob.remaining <= 0;
+            return {
+                turn_payload: { kind: "echo", index: ctx.turn_index },
+                result_payload_for_correct: { ack: true },
+                score_for_correct_full: 1,
+                score_for_wrong: 0,
+                score_for_no_submit: 0,
+                input_window_ms: ctx.template_init && ctx.template_init.default_input_window_ms ? ctx.template_init.default_input_window_ms : 5000,
+                is_final_turn: isFinal
+            };
+        },
+        scoreSubmission: function (_submission, _correct, _responseMs, baseReward) {
+            // Any submission counts as "correct" for echo.
+            return baseReward;
+        },
+        buildResolvedPayload: function (correctPayload, verdicts, responseMs) {
+            return {
+                kind: "echo_resolved",
+                result_payload: correctPayload,
+                verdicts: verdicts,
+                response_ms: responseMs
+            };
+        }
+    };
+    // Built-in async-turn echo generator. Two-player ping-pong: each move
+    // toggles the active actor; "ended:true" in the move payload finishes
+    // the game with that actor as winner. Used by SDK conformance tests.
+    var ASYNC_ECHO_GENERATOR = {
+        generatorId: "async-echo",
+        initState: function (init, persisted) {
+            if (persisted && persisted.state) {
+                return {
+                    state: persisted.state,
+                    actor: persisted.actor || init.starting_actor || "",
+                    ended: !!persisted.ended,
+                    winner_user_id: persisted.winner_user_id || ""
+                };
+            }
+            return {
+                state: { moves: 0, history: [] },
+                actor: init.starting_actor || "",
+                ended: false
+            };
+        },
+        applyMove: function (state, userId, payload) {
+            var s = state || { moves: 0, history: [] };
+            s.moves = (s.moves || 0) + 1;
+            s.history = s.history || [];
+            s.history.push({ user: userId, payload: payload || {} });
+            var ended = !!(payload && payload.ended);
+            return {
+                state: s,
+                actor: ended ? "" : "", // Game plugin should override; echo doesn't track opponent
+                ended: ended,
+                winner_user_id: ended ? userId : "",
+                broadcast_payload: { move_index: s.moves, payload: payload || {} }
+            };
+        },
+        buildResult: function (state, actors, winnerUserId, ended) {
+            return {
+                moves: state ? state.moves || 0 : 0,
+                history: state ? state.history || [] : [],
+                actors: actors,
+                winner_user_id: winnerUserId,
+                ended: ended
+            };
+        }
+    };
+    // Single boot path: registers all built-in templates + RPCs.
+    function register(initializer, logger) {
+        MpKernelCodeRegistry.bootstrapKernelRanges();
+        // Templates ship one-by-one; P1 ships SyncTurnMatch, P5 adds
+        // AsyncTurnMatch + LobbyHandoffMatch.
+        MpKernelMatch.registerTemplate(initializer, MpKernelSyncTurn.template, logger);
+        registerTemplateId(MpKernelSyncTurn.template.templateId);
+        MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR);
+        MpKernelMatch.registerTemplate(initializer, MpKernelAsyncTurn.template, logger);
+        registerTemplateId(MpKernelAsyncTurn.template.templateId);
+        MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR);
+        MpKernelMatch.registerTemplate(initializer, MpKernelLobbyHandoff.template, logger);
+        registerTemplateId(MpKernelLobbyHandoff.template.templateId);
+        MpKernelMatch.registerTemplate(initializer, MpKernelTournament.template, logger);
+        registerTemplateId(MpKernelTournament.template.templateId);
+        MpKernelMatch.registerTemplate(initializer, MpKernelLiveEvent.template, logger);
+        registerTemplateId(MpKernelLiveEvent.template.templateId);
+        MpKernelMatch.registerTemplate(initializer, MpKernelPersistentParty.template, logger);
+        registerTemplateId(MpKernelPersistentParty.template.templateId);
+        MpKernelMatch.registerTemplate(initializer, MpKernelConvParty.template, logger);
+        registerTemplateId(MpKernelConvParty.template.templateId);
+        MpKernelMatch.registerTemplate(initializer, MpKernelMrAnchor.template, logger);
+        registerTemplateId(MpKernelMrAnchor.template.templateId);
+        // RealtimeTickMatch lives in a native Go plugin (data/modules/realtime_tick.so)
+        // so it can run at 10–30 Hz without paying the Goja per-tick cost. The Go
+        // plugin registers the match handler under "realtime-tick-v1" at boot via
+        // its own InitModule. Here we ONLY whitelist the template_id so
+        // `mp_create_match` will accept it — without this guard the RPC returns
+        // NOT_FOUND even though the Go side is ready. Also reserve the opcode
+        // range so other JS templates can't collide with realtime-tick wires.
+        registerTemplateId(MpKernelModule.TEMPLATE_IDS.REALTIME_TICK_V1);
+        try {
+            MpKernelCodeRegistry.register({
+                name: MpKernelModule.TEMPLATE_IDS.REALTIME_TICK_V1,
+                from: 0x6000,
+                to: 0x6FFF,
+                template_id: MpKernelModule.TEMPLATE_IDS.REALTIME_TICK_V1
+            });
+        }
+        catch (e) {
+            // Range already reserved (re-register on hot reload). Idempotent.
+            logger.debug("[MpKernel] realtime-tick range already reserved: " +
+                ((e && e.message) ? e.message : String(e)));
+        }
+        // AvatarReplicationMatch lives in a native Go plugin
+        // (data/modules/avatar_replication/main.go → avatar_replication.so) so it
+        // can sustain 60–90 Hz pose tick with delta + quantization + AOI without
+        // paying the Goja per-tick cost. The Go plugin registers the match
+        // handler under "avatar-replication-v1" at boot via its own InitModule.
+        // Here we whitelist the template_id so `mp_create_match` accepts it and
+        // reserve opcode range 0xF000–0xFFFF (XR pose fast-path) so other JS
+        // templates can't collide with XR wires.
+        registerTemplateId(MpKernelModule.TEMPLATE_IDS.AVATAR_REPLICATION_V1);
+        try {
+            MpKernelCodeRegistry.register({
+                name: MpKernelModule.TEMPLATE_IDS.AVATAR_REPLICATION_V1,
+                from: 0xF000,
+                to: 0xFFFF,
+                template_id: MpKernelModule.TEMPLATE_IDS.AVATAR_REPLICATION_V1
+            });
+        }
+        catch (e) {
+            logger.debug("[MpKernel] avatar-replication range already reserved: " +
+                ((e && e.message) ? e.message : String(e)));
+        }
+        __rpc_mp_create_match = rpcCreateMatch;
+        __rpc_mp_read_match_result = rpcReadMatchResult;
+        __rpc_mp_list_templates = rpcListTemplates;
+        // Voice-provider plumbing: register the `mp_voice_token` RPC. The
+        // active LiveKit minter is constructed lazily on first RPC call
+        // (config from storage `ivx_runtime_configs / mp_voice_livekit`,
+        // with fallback to a literal env map set via
+        // `MpKernelVoiceProviders.installEnv({...})` for tests/local dev).
+        try {
+            var voiceEnvOverride = MpKernel.voiceEnv;
+            if (voiceEnvOverride) {
+                MpKernelVoiceProviders.installEnv(voiceEnvOverride);
+            }
+            MpKernelVoiceProviders.register(initializer, logger);
+        }
+        catch (e) {
+            logger.warn("[MpKernel] voice-providers register failed: " +
+                ((e && e.message) ? e.message : String(e)));
+        }
+        // First-class AI-agent kernel service. Templates obtain agent
+        // operations via the (MpKernel as any).agentSpawn / agentSpeak hooks
+        // wired by this call. Goja runtime has no `process.env`; gate via
+        // a kernel-level constant set by adapters at boot if a deployment
+        // wants to suppress the agent service entirely.
+        if (!MpKernel.disableAgents) {
+            try {
+                MpKernelAgent.register(initializer, logger);
+            }
+            catch (e) {
+                logger.warn("[MpKernel] agent service register failed: " +
+                    ((e && e.message) ? e.message : String(e)));
+            }
+        }
+        else {
+            logger.info("[MpKernel] agents disabled via MpKernel.disableAgents");
+        }
+        // Real-time moderation pipeline (voice ASR → text classifier →
+        // action). Mounts MpKernel.moderateAgentSpeech / moderateUserText
+        // hooks so templates can opt in without a hard dependency.
+        try {
+            MpKernelModeration.register(initializer, logger);
+        }
+        catch (e) {
+            logger.warn("[MpKernel] moderation register failed: " +
+                ((e && e.message) ? e.message : String(e)));
+        }
+        // Server-side interest management (spatial hashing). Used by
+        // MixedRealityAnchorMatch + any TS template that needs AOI on the
+        // JS side. The Go AvatarReplicationMatch keeps its own native AOI.
+        try {
+            MpKernelInterest.register(initializer, logger);
+        }
+        catch (e) {
+            logger.warn("[MpKernel] interest register failed: " +
+                ((e && e.message) ? e.message : String(e)));
+        }
+        logger.info("[MpKernel] kernel registered; templates=%d generators=echo", MpKernelCodeRegistry.listAll().length);
+    }
+    MpKernelModule.register = register;
+    register();
+})(MpKernelModule || (MpKernelModule = {}));
+// IVX Multiplayer Kernel — server-side interest management.
+//
+// Spatial hashing + subscription sets for any template that needs to
+// fan out updates to a subset of peers based on proximity / cell. The
+// Go AvatarReplicationMatch ships its own native AOI; this module is
+// for TS templates (e.g. MixedRealityAnchorMatch, PersistentParty
+// when scaled to large rooms).
+//
+// Design:
+//
+//   * Cell size is per-match. Default 8 m (XR rooms) or 32 m (party
+//     stages); pick at template init time.
+//   * Each presence reports its position via update(matchId, userId, x, y, z).
+//     Stale entries are GC'd after `idleMs` (default 5 s).
+//   * subscribers(matchId, userId) returns the list of user_ids whose
+//     cell is within the per-match neighbour radius (3x3x3 cube).
+//
+// Memory:
+//
+//   * Per-match map: `cell -> set<user_id>`.
+//   * Per-user-in-match: `cellId, x, y, z, ts`.
+//
+// Limits:
+//
+//   * 64 cell buckets (each 8 m cube) ≈ 512 m³ visible per user.
+//     Covers the largest practical XR room. Beyond that, use Photon
+//     Voice rooms / sharded matches instead.
+var MpKernelInterest;
+(function (MpKernelInterest) {
+    MpKernelInterest.DEFAULT_CFG = {
+        cellMeters: 8.0,
+        neighbourRadius: 1,
+        idleMs: 5000
+    };
+    var matches = {};
+    function configure(matchId, cfg) {
+        var m = matches[matchId];
+        if (!m) {
+            matches[matchId] = {
+                cfg: Object.assign({}, MpKernelInterest.DEFAULT_CFG, cfg || {}),
+                users: {},
+                bycell: {}
+            };
+        }
+        else {
+            m.cfg = Object.assign({}, m.cfg, cfg || {});
+        }
+    }
+    MpKernelInterest.configure = configure;
+    function getConfig(matchId) {
+        var m = matches[matchId];
+        if (!m)
+            return MpKernelInterest.DEFAULT_CFG;
+        return m.cfg;
+    }
+    MpKernelInterest.getConfig = getConfig;
+    function ensure(matchId) {
+        var m = matches[matchId];
+        if (!m) {
+            matches[matchId] = {
+                cfg: Object.assign({}, MpKernelInterest.DEFAULT_CFG),
+                users: {},
+                bycell: {}
+            };
+            m = matches[matchId];
+        }
+        return m;
+    }
+    function cellOf(cellMeters, x, y, z) {
+        var cx = Math.floor(x / cellMeters);
+        var cy = Math.floor(y / cellMeters);
+        var cz = Math.floor(z / cellMeters);
+        return cx + "," + cy + "," + cz;
+    }
+    /**
+     * Update a user's position. Returns the user's neighbour set so
+     * callers can decide to re-broadcast their join/state to new
+     * neighbours.
+     */
+    function update(matchId, userId, x, y, z, nowMs) {
+        var m = ensure(matchId);
+        var ts = (typeof nowMs === "number") ? nowMs : Date.now();
+        var newCell = cellOf(m.cfg.cellMeters, x, y, z);
+        var prev = m.users[userId];
+        if (prev && prev.cell !== newCell) {
+            var pb = m.bycell[prev.cell];
+            if (pb) {
+                delete pb[userId];
+                if (Object.keys(pb).length === 0)
+                    delete m.bycell[prev.cell];
+            }
+        }
+        m.users[userId] = { cell: newCell, x: x, y: y, z: z, ts: ts };
+        if (!m.bycell[newCell])
+            m.bycell[newCell] = {};
+        m.bycell[newCell][userId] = true;
+        return subscribers(matchId, userId);
+    }
+    MpKernelInterest.update = update;
+    function remove(matchId, userId) {
+        var m = matches[matchId];
+        if (!m)
+            return;
+        var u = m.users[userId];
+        if (!u)
+            return;
+        var b = m.bycell[u.cell];
+        if (b) {
+            delete b[userId];
+            if (Object.keys(b).length === 0)
+                delete m.bycell[u.cell];
+        }
+        delete m.users[userId];
+    }
+    MpKernelInterest.remove = remove;
+    function getPosition(matchId, userId) {
+        var m = matches[matchId];
+        if (!m)
+            return null;
+        var u = m.users[userId];
+        if (!u)
+            return null;
+        return { x: u.x, y: u.y, z: u.z };
+    }
+    MpKernelInterest.getPosition = getPosition;
+    /**
+     * Return the user_ids whose cell is within `neighbourRadius` cells
+     * of `userId`. Includes `userId` itself in the result for symmetry
+     * (callers usually drop the self-id).
+     */
+    function subscribers(matchId, userId) {
+        var m = matches[matchId];
+        if (!m)
+            return [];
+        var u = m.users[userId];
+        if (!u)
+            return [];
+        var r = m.cfg.neighbourRadius;
+        var parts = u.cell.split(",");
+        var cx = parseInt(parts[0], 10);
+        var cy = parseInt(parts[1], 10);
+        var cz = parseInt(parts[2], 10);
+        var seen = {};
+        var out = [];
+        for (var dx = -r; dx <= r; dx++) {
+            for (var dy = -r; dy <= r; dy++) {
+                for (var dz = -r; dz <= r; dz++) {
+                    var key = (cx + dx) + "," + (cy + dy) + "," + (cz + dz);
+                    var bag = m.bycell[key];
+                    if (!bag)
+                        continue;
+                    for (var id in bag) {
+                        if (!seen[id]) {
+                            seen[id] = true;
+                            out.push(id);
+                        }
+                    }
+                }
+            }
+        }
+        return out;
+    }
+    MpKernelInterest.subscribers = subscribers;
+    /**
+     * GC stale entries (presence dropped without remove()).
+     */
+    function reap(matchId, nowMs) {
+        var m = matches[matchId];
+        if (!m)
+            return 0;
+        var ts = (typeof nowMs === "number") ? nowMs : Date.now();
+        var dropped = 0;
+        for (var id in m.users) {
+            var u = m.users[id];
+            if (ts - u.ts > m.cfg.idleMs) {
+                var b = m.bycell[u.cell];
+                if (b) {
+                    delete b[id];
+                    if (Object.keys(b).length === 0)
+                        delete m.bycell[u.cell];
+                }
+                delete m.users[id];
+                dropped++;
+            }
+        }
+        return dropped;
+    }
+    MpKernelInterest.reap = reap;
+    function cleanupMatch(matchId) {
+        delete matches[matchId];
+    }
+    MpKernelInterest.cleanupMatch = cleanupMatch;
+    function size(matchId) {
+        var m = matches[matchId];
+        if (!m)
+            return { users: 0, cells: 0 };
+        return {
+            users: Object.keys(m.users).length,
+            cells: Object.keys(m.bycell).length
+        };
+    }
+    MpKernelInterest.size = size;
+    // Mount hook — kernel attaches one global RPC for inspection.
+    function register(initializer, logger) {
+        __rpc_mp_interest_size = function (_ctx, _logger, _nk, payload) {
+            var req = {};
+            try {
+                req = JSON.parse(payload || "{}");
+            }
+            catch (_e) { }
+            if (!req.match_id)
+                throw "match_id required";
+            return JSON.stringify(size(req.match_id));
+        };
+        logger.info("[Interest] kernel interest-mgmt registered (default cell=%dm, radius=%d)", MpKernelInterest.DEFAULT_CFG.cellMeters, MpKernelInterest.DEFAULT_CFG.neighbourRadius);
+    }
+    MpKernelInterest.register = register;
+    register();
+})(MpKernelInterest || (MpKernelInterest = {}));
+// Generic Nakama MatchHandler that wraps an IMatchTemplate.
+//
+// One TS template = one MatchHandler. Templates focus on game logic and
+// outbound fan-out; the kernel handles:
+//   - presence accounting (incl. reconnect grace + flapping)
+//   - server clock authority + ClockSync emission
+//   - opcode idempotency dedup (per-sender ring)
+//   - sequence-gap detection (Pillar 8)
+//   - kernel control opcodes (HELLO, HEARTBEAT, MATCH_RESUME, LEAVE)
+//   - error fan-out via the canonical envelope
+//   - end-of-match MatchResultEnvelope persistence
+var MpKernelMatch;
+(function (MpKernelMatch) {
+    // Sequence-gap threshold: gaps larger than this trigger SEQ_GAP +
+    // state-resync. Templates that need a tighter / looser bound should
+    // override SEQ_GAP_THRESHOLD on this namespace at registration time.
+    MpKernelMatch.SEQ_GAP_THRESHOLD = 32;
+    // Wire helper — broadcast a kernel envelope to all/some clients. Stamps
+    // wire_version, seq, match_time_ms, match_id, sender_user_id="server".
+    function broadcastKernel(state, dispatcher, matchId, op, payload, targets, senderUserId) {
+        var env = {
+            h: {
+                wire_version: 1,
+                op: op,
+                seq: MpKernelClock.nextSeq(state.clock),
+                match_time_ms: MpKernelClock.matchTimeMs(state.clock),
+                sender_user_id: senderUserId || "server",
+                match_id: matchId,
+                client_opcode_uuid: "",
+                feature_flags: state.feature_flags
+            },
+            p: payload
+        };
+        var bytes = JSON.stringify(env);
+        if (targets) {
+            dispatcher.broadcastMessage(op, bytes, targets);
+        }
+        else {
+            dispatcher.broadcastMessage(op, bytes);
+        }
+    }
+    MpKernelMatch.broadcastKernel = broadcastKernel;
+    // ------- match handler factory -------
+    function makeHandler(template) {
+        return {
+            matchInit: function (ctx, logger, nk, params) {
+                var args = {
+                    template_id: template.templateId,
+                    game_id: (params && params.game_id) ? String(params.game_id) : "",
+                    region: (params && params.region) ? String(params.region) : "",
+                    template_init: (params && params.template_init) ? params.template_init : template.defaultInit,
+                    creator_user_id: (params && params.creator_user_id) ? String(params.creator_user_id) : "",
+                    flags: {}
+                };
+                var inner = template.initState(ctx, logger, nk, args);
+                // Determine reconnect grace from template_init or default.
+                var graceMs = MpKernelPresence.DEFAULT_GRACE_MS;
+                var ti = args.template_init;
+                if (ti && typeof ti.reconnect_grace_ms === "number" && ti.reconnect_grace_ms > 0) {
+                    graceMs = ti.reconnect_grace_ms;
+                }
+                else if (ti && typeof ti.reconnect_grace_seconds === "number" && ti.reconnect_grace_seconds > 0) {
+                    graceMs = ti.reconnect_grace_seconds * 1000;
+                }
+                var kernelState = {
+                    template_id: template.templateId,
+                    game_id: args.game_id,
+                    region: args.region,
+                    presence: MpKernelPresence.init(graceMs),
+                    clock: MpKernelClock.init(),
+                    feature_flags: 0,
+                    counters: {
+                        messages_in: 0,
+                        messages_in_dropped_dupe: 0,
+                        messages_in_dropped_unknown_op: 0,
+                        messages_in_dropped_seq_gap: 0,
+                        flap_kicks: 0,
+                        reconnects_inside_grace: 0
+                    },
+                    template_state: inner.state,
+                    template: template,
+                    last_resync_seq: 0
+                };
+                // Inject a kernel-shared seq provider into the template state so
+                // server-origin broadcasts (kernel + template) advance ONE counter.
+                // Without this, both would emit `sender_user_id="server"` with
+                // independent seqs and clients ordering by (sender, seq) would
+                // see two interleaved monotonic streams. Conformance test 06.
+                if (typeof inner.state === "object" && inner.state !== null) {
+                    inner.state.__seqProvider = function () {
+                        return MpKernelClock.nextSeq(kernelState.clock);
+                    };
+                    inner.state.__matchTimeMs = function () {
+                        return MpKernelClock.matchTimeMs(kernelState.clock);
+                    };
+                }
+                return {
+                    state: kernelState,
+                    tickRate: inner.tickRate,
+                    label: inner.label
+                };
+            },
+            matchJoinAttempt: function (ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
+                // Hand off to template for game-specific gating.
+                var ks = state;
+                var inner = ks.template.onJoinAttempt(ctx, logger, nk, dispatcher, tick, ks.template_state, presence, metadata);
+                ks.template_state = inner.state;
+                return { state: ks, accept: inner.accept, rejectMessage: inner.rejectMessage };
+            },
+            matchJoin: function (ctx, logger, nk, dispatcher, tick, state, presences) {
+                var ks = state;
+                var now = Date.now();
+                var matchId = ctx.matchId || "";
+                for (var i = 0; i < presences.length; i++) {
+                    var p = presences[i];
+                    var rj = MpKernelPresence.recordJoin(ks.presence, p, now);
+                    if (rj.flapped) {
+                        ks.counters.flap_kicks++;
+                        // Soft-ban: emit PlayerKicked + ERROR(FLAPPING), then evict.
+                        broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_KICKED, {
+                            user_id: p.userId,
+                            reason: MpKernel.LeaveReason.FLAPPING,
+                            ban_seconds: ks.presence.flap_ban_seconds
+                        }, null);
+                        MpKernelError.send(dispatcher, p, matchId, "server", MpKernelClock.seqProvider(ks.clock), MpKernelClock.matchTimeMs(ks.clock), MpKernelError.flapping(ks.presence.flap_ban_seconds));
+                        // Remove the seat fully — don't carry flapper state forward.
+                        delete ks.presence.seats[p.userId];
+                        try {
+                            dispatcher.matchKick([p]);
+                        }
+                        catch (_) { }
+                        continue;
+                    }
+                    if (rj.resumed) {
+                        ks.counters.reconnects_inside_grace++;
+                    }
+                    // Send Welcome to the (re)joining player.
+                    var welcome = {
+                        match_id: matchId,
+                        assigned_user_id: p.userId,
+                        server_match_time_ms: MpKernelClock.matchTimeMs(ks.clock),
+                        server_unix_ms: Date.now(),
+                        feature_flags: ks.feature_flags,
+                        reconnect_grace_ms_remaining: MpKernelPresence.reconnectGraceRemainingMs(rj.seat, ks.presence, now)
+                    };
+                    broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.WELCOME, welcome, [p]);
+                    // Broadcast PlayerJoined to everyone else (excluding self).
+                    var others = [];
+                    for (var k in ks.presence.seats) {
+                        if (!ks.presence.seats.hasOwnProperty(k))
+                            continue;
+                        if (k === p.userId)
+                            continue;
+                        var s = ks.presence.seats[k];
+                        if (s.disconnected_at_unix_ms === 0) {
+                            // We don't track Presence objects directly; fan-out goes
+                            // to "all-except-self" via dispatcher.broadcastMessage with
+                            // null + presenceRecipients excludes. Nakama's API doesn't
+                            // give us the Presence list back; we use targets=null and
+                            // an opt-out filter on the wire by sender_user_id check.
+                        }
+                    }
+                    broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_JOINED, {
+                        user_id: p.userId,
+                        is_agent: rj.seat.is_agent,
+                        display_name: rj.seat.display_name || "",
+                        presence_metadata: rj.seat.presence_metadata
+                    }, null);
+                }
+                // Defer to template for any game-side wiring.
+                var inner = ks.template.onJoin(ctx, logger, nk, dispatcher, tick, ks.template_state, presences);
+                ks.template_state = inner.state;
+                return { state: ks };
+            },
+            matchLeave: function (ctx, logger, nk, dispatcher, tick, state, presences) {
+                var ks = state;
+                var now = Date.now();
+                var matchId = ctx.matchId || "";
+                for (var i = 0; i < presences.length; i++) {
+                    MpKernelPresence.recordLeave(ks.presence, presences[i], now);
+                }
+                var inner = ks.template.onLeave(ctx, logger, nk, dispatcher, tick, ks.template_state, presences);
+                ks.template_state = inner.state;
+                return { state: ks };
+            },
+            matchLoop: function (ctx, logger, nk, dispatcher, tick, state, messages) {
+                var ks = state;
+                var matchId = ctx.matchId || "";
+                var now = Date.now();
+                // 1. GC reconnect-grace expirations.
+                var evicted = MpKernelPresence.evictExpired(ks.presence, now);
+                for (var i = 0; i < evicted.length; i++) {
+                    var ev = evicted[i];
+                    broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_LEFT, {
+                        user_id: ev.user_id,
+                        reason: MpKernel.LeaveReason.TIMEOUT
+                    }, null);
+                }
+                // 2. Process incoming messages — kernel intercepts control opcodes
+                //    + dedupes, then forwards game opcodes to the template.
+                var forwarded = [];
+                for (var j = 0; j < messages.length; j++) {
+                    var m = messages[j];
+                    ks.counters.messages_in++;
+                    if (handleKernelOpInbound(ks, dispatcher, matchId, m, logger))
+                        continue;
+                    // Idempotency dedup happens for game opcodes.
+                    var senderSeat = ks.presence.seats[m.sender.userId];
+                    if (senderSeat) {
+                        // Parse envelope to extract idem uuid + seq, but on parse failure
+                        // forward as-is (template may use legacy raw format during cutover).
+                        var hdr = parseHeader(m);
+                        if (hdr) {
+                            if (hdr.client_opcode_uuid && !MpKernelIdempotency.admit(senderSeat.idem_ring, hdr.client_opcode_uuid, now)) {
+                                ks.counters.messages_in_dropped_dupe++;
+                                continue;
+                            }
+                            if (hdr.seq > 0 && hdr.seq < senderSeat.last_seq_in_from_client) {
+                                // Out-of-order — drop, but don't error (Pillar 8: tolerate).
+                                continue;
+                            }
+                            if (hdr.seq > senderSeat.last_seq_in_from_client + MpKernelMatch.SEQ_GAP_THRESHOLD && senderSeat.last_seq_in_from_client !== 0) {
+                                ks.counters.messages_in_dropped_seq_gap++;
+                                MpKernelError.send(dispatcher, m.sender, matchId, "server", MpKernelClock.seqProvider(ks.clock), MpKernelClock.matchTimeMs(ks.clock), MpKernelError.build(MpKernel.ErrorCode.SEQ_GAP, "gap>" + MpKernelMatch.SEQ_GAP_THRESHOLD));
+                                // Force a state-resync — template.buildResult() (or a
+                                // dedicated snapshot hook) drives the snapshot payload.
+                                continue;
+                            }
+                            if (hdr.seq > senderSeat.last_seq_in_from_client) {
+                                senderSeat.last_seq_in_from_client = hdr.seq;
+                            }
+                            senderSeat.last_seen_unix_ms = now;
+                        }
+                    }
+                    forwarded.push(m);
+                }
+                // 3. Periodic ClockSync (every CLOCK_SYNC_INTERVAL_MS).
+                if (MpKernelClock.shouldEmitClockSync(ks.clock)) {
+                    broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.CLOCK_SYNC, MpKernelClock.buildClockSync(ks.clock, 0), null);
+                }
+                // 4. Hand off to template for game logic + outbound.
+                var inner = ks.template.onLoop(ctx, logger, nk, dispatcher, tick, ks.template_state, forwarded);
+                if (inner === null) {
+                    // Template requested match end. Persist + return null to Nakama.
+                    finalizeMatch(ks, dispatcher, matchId, "template_requested", logger, nk);
+                    return null;
+                }
+                ks.template_state = inner.state;
+                // 5. Liveness sanity check — quorum lost (active < min) ends match.
+                var initParams = ks.template.defaultInit;
+                var min = (initParams && typeof initParams.min_players === "number") ? initParams.min_players : 0;
+                if (min > 0 && MpKernelPresence.activeCount(ks.presence) < min) {
+                    // QuizVerse and similar games tolerate a brief drop-below-min during
+                    // grace. Only force-end when no seat is even pending reconnect.
+                    if (MpKernelPresence.totalCount(ks.presence) < min) {
+                        // Persist + broadcast in correct order: build the result first
+                        // so the wire MatchEnded can carry it (Pillar 8 — clients see
+                        // outcome immediately, don't have to round-trip an RPC).
+                        var endRes = null;
+                        if (typeof ks.template.buildResult === "function") {
+                            endRes = ks.template.buildResult(ks.template_state, "quorum_lost");
+                        }
+                        broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
+                            reason: MpKernel.EndReason.QUORUM_LOST,
+                            result_envelope: endRes
+                        }, null);
+                        finalizeMatch(ks, dispatcher, matchId, "quorum_lost", logger, nk);
+                        return null;
+                    }
+                }
+                return { state: ks };
+            },
+            matchTerminate: function (ctx, logger, nk, dispatcher, tick, state, graceSeconds) {
+                var ks = state;
+                var matchId = ctx.matchId || "";
+                var inner = ks.template.onTerminate(ctx, logger, nk, dispatcher, tick, ks.template_state, graceSeconds);
+                ks.template_state = inner.state;
+                finalizeMatch(ks, dispatcher, matchId, "operator_terminate", logger, nk);
+                return { state: ks };
+            },
+            matchSignal: function (ctx, logger, nk, dispatcher, tick, state, data) {
+                // Reserved for admin signals (force-end, mod-action). Default no-op.
+                return { state: state, data: data };
+            }
+        };
+    }
+    MpKernelMatch.makeHandler = makeHandler;
+    // ------- helpers -------
+    function parseHeader(m) {
+        try {
+            var raw = (typeof m.data === "string") ? m.data : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+            if (!raw)
+                return null;
+            var obj = JSON.parse(raw);
+            if (obj && obj.h && typeof obj.h.op === "number")
+                return obj.h;
+            return null;
+        }
+        catch (e) {
+            return null;
+        }
+    }
+    function handleKernelOpInbound(ks, dispatcher, matchId, m, _logger) {
+        var op = m.opCode;
+        if (op === MpKernel.KernelOp.HEARTBEAT) {
+            // Heartbeats just bump last-seen + answer with a server heartbeat
+            // tick so clients can compute RTT. They never echo to other clients.
+            var seat = ks.presence.seats[m.sender.userId];
+            if (seat)
+                seat.last_seen_unix_ms = Date.now();
+            return true;
+        }
+        if (op === MpKernel.KernelOp.NETWORK_CLOCK_PING) {
+            // Cristian-style clock sync: echo the client's ts + add server ts.
+            // Targets only the originating presence to keep fan-out cheap.
+            var pingPayload = null;
+            try {
+                var raw = (typeof m.data === "string") ? m.data
+                    : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+                if (raw)
+                    pingPayload = JSON.parse(raw);
+            }
+            catch (_e) { }
+            var clientTs = (pingPayload && pingPayload.p && typeof pingPayload.p.client_ts_ms === "number")
+                ? pingPayload.p.client_ts_ms : 0;
+            broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.NETWORK_CLOCK_PONG, {
+                client_ts_ms: clientTs,
+                server_ts_ms: Date.now()
+            }, [m.sender]);
+            return true;
+        }
+        if (op === MpKernel.KernelOp.CLIENT_HELLO) {
+            // Hello on an already-established match means schema renegotiation.
+            // For P1 we just bump last-seen + reply with a fresh ServerHello
+            // mirroring the original join welcome shape (so clients can recover
+            // capability flags after a transient disconnect that didn't trip the
+            // grace window).
+            var seat3 = ks.presence.seats[m.sender.userId];
+            if (seat3)
+                seat3.last_seen_unix_ms = Date.now();
+            broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.SERVER_HELLO, {
+                match_id: matchId,
+                assigned_user_id: m.sender.userId,
+                server_match_time_ms: MpKernelClock.matchTimeMs(ks.clock),
+                server_unix_ms: Date.now(),
+                feature_flags: ks.feature_flags,
+                reconnect_grace_ms_remaining: seat3 ? MpKernelPresence.reconnectGraceRemainingMs(seat3, ks.presence, Date.now()) : 0
+            }, [m.sender]);
+            return true;
+        }
+        if (op === MpKernel.KernelOp.MATCH_RESUME) {
+            // For P1, ack with the current server seq so the client can skip
+            // the snapshot replay if it's caught up. Real replay-from-seq lands
+            // in P5 (under the resume buffer feature flag).
+            broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_RESUME_ACK, {
+                replay_supported: false,
+                from_seq: 0,
+                to_seq: ks.clock.nextSeq,
+                dropped: 0
+            }, [m.sender]);
+            return true;
+        }
+        return false;
+    }
+    function finalizeMatch(ks, _dispatcher, matchId, reason, logger, nk) {
+        if (typeof ks.template.buildResult !== "function")
+            return;
+        var res = ks.template.buildResult(ks.template_state, reason);
+        if (!res)
+            return;
+        res.match_id = matchId;
+        res.template_id = ks.template_id;
+        res.game_id = ks.game_id;
+        res.region = ks.region;
+        if (!res.started_unix_ms)
+            res.started_unix_ms = ks.clock.matchStartUnixMs;
+        res.ended_unix_ms = Date.now();
+        res.duration_ms = res.ended_unix_ms - res.started_unix_ms;
+        var w = MpKernelMatchResult.persist(nk, logger, res);
+        if (!w.ok) {
+            logger.warn("[MpKernelMatch] persist failed match=%s reason=%s err=%s", matchId, reason, w.error || "?");
+        }
+    }
+    // ------- template registration -------
+    // Register a template with the Nakama runtime + the code registry.
+    // Idempotent across module reload.
+    function registerTemplate(initializer, template, logger) {
+        MpKernelCodeRegistry.bootstrapKernelRanges();
+        MpKernelCodeRegistry.register({
+            name: "template:" + template.templateId,
+            from: template.opRange.from,
+            to: template.opRange.to,
+            template_id: template.templateId
+        });
+        initializer.registerMatch(template.templateId, makeHandler(template));
+        logger.info("[MpKernel] registered match template '" + template.templateId +
+            "' opRange=0x" + template.opRange.from.toString(16) + "-0x" + template.opRange.to.toString(16));
+    }
+    MpKernelMatch.registerTemplate = registerTemplate;
+})(MpKernelMatch || (MpKernelMatch = {}));
+// MatchResultEnvelope persistence + AnalyticsAlerts wiring (Pillar 1).
+//
+// Templates call MpKernelMatchResult.persist(...) on natural / forced
+// match end. The result is stored in Hiro storage under a deterministic
+// key (audit-able) AND fanned out as an analytics event so the per-game
+// dashboard (Pillar 9) and SLO board (Pillar 10) can update.
+var MpKernelMatchResult;
+(function (MpKernelMatchResult) {
+    MpKernelMatchResult.COLLECTION = "mp_match_results";
+    // Default match-result retention in storage. Operators can override
+    // per-template via setRetentionDays().
+    MpKernelMatchResult.DEFAULT_RETENTION_DAYS = 90;
+    var retentionDays = MpKernelMatchResult.DEFAULT_RETENTION_DAYS;
+    function setRetentionDays(days) {
+        if (days > 0)
+            retentionDays = days;
+    }
+    MpKernelMatchResult.setRetentionDays = setRetentionDays;
+    function persist(nk, logger, result) {
+        if (!result.match_id || !result.template_id || !result.game_id) {
+            return { ok: false, error: "missing required identifiers" };
+        }
+        var key = result.match_id;
+        var write = {
+            collection: MpKernelMatchResult.COLLECTION,
+            key: key,
+            value: result,
+            // Permissions: 1 = owner-only read; 0 = no public write.
+            permissionRead: 2, // public-read (admin dashboard reads under system).
+            permissionWrite: 0,
+            userId: "" // System-owned record.
+        };
+        try {
+            nk.storageWrite([write]);
+        }
+        catch (e) {
+            logger.warn("[MpKernelMatchResult] storageWrite failed match=%s err=%s", result.match_id, (e && e.message) ? e.message : String(e));
+            return { ok: false, error: (e && e.message) ? e.message : String(e) };
+        }
+        // Best-effort analytics emission. Mirrors the existing AnalyticsAlerts
+        // shape so the same Discord summarizer / Grafana exporter pipeline
+        // picks up multiplayer matches without a separate ingest.
+        try {
+            if (typeof AnalyticsAlerts !== "undefined" && AnalyticsAlerts && typeof AnalyticsAlerts.recordSample === "function") {
+                AnalyticsAlerts.recordSample({
+                    rpc_id: "mp_match_finished",
+                    duration_ms: result.duration_ms,
+                    ok: true,
+                    tag: result.template_id + ":" + result.game_id,
+                    extra: {
+                        match_id: result.match_id,
+                        game_id: result.game_id,
+                        template_id: result.template_id,
+                        player_count: result.outcomes.length,
+                        region: result.region || ""
+                    }
+                });
+            }
+        }
+        catch (e) {
+            logger.warn("[MpKernelMatchResult] analytics record swallowed: %s", (e && e.message) ? e.message : String(e));
+        }
+        return { ok: true };
+    }
+    MpKernelMatchResult.persist = persist;
+    function read(nk, matchId) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: MpKernelMatchResult.COLLECTION,
+                    key: matchId,
+                    userId: ""
+                }]);
+            if (!rows || rows.length === 0)
+                return null;
+            return rows[0].value;
+        }
+        catch (e) {
+            return null;
+        }
+    }
+    MpKernelMatchResult.read = read;
+    // Build a baseline outcome row, leaving game-specific fields for the
+    // template's buildResult() to fill.
+    function newOutcome(userId, isAgent) {
+        return {
+            user_id: userId,
+            is_agent: isAgent,
+            placement: 0,
+            score: 0,
+            completed: false,
+            left_early: false
+        };
+    }
+    MpKernelMatchResult.newOutcome = newOutcome;
+})(MpKernelMatchResult || (MpKernelMatchResult = {}));
+// IIVXModeration — real-time moderation pipeline.
+//
+// Wire contract: schemas/multiplayer/services/moderation.proto.
+// Applies uniformly to:
+//
+//   * Human voice (ASR transcript → classifier → action)
+//   * Text chat (classifier → action)
+//   * Agent TTS pre-check (classifier → action; fail → "agent_correct")
+//   * Usernames + avatar metadata (snapshot at join)
+//
+// Architecture:
+//
+//   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+//   │ ASR client  │ -> │ classifier  │ -> │  action     │
+//   │ (LiveKit    │    │ (text /     │    │ (allow /    │
+//   │  audio sink)│    │  category)  │    │  redact /   │
+//   └─────────────┘    └─────────────┘    │  mute / kick│
+//                                         └─────────────┘
+//
+// All decisions are logged append-only into `safety_decision_log`
+// storage collection + emitted as Satori events for the SLO board.
+//
+// What this module is NOT:
+//
+//   * NOT the ASR transcoder (LiveKit voice provider hands us text).
+//   * NOT the policy authority — game plugins customize via the
+//     `setClassifier` / `setActionPolicy` injection points.
+//   * NOT a synchronous gate on every voice frame. Decisions are
+//     batched per `voice_window_ms` (default 2000 ms).
+var MpKernelModeration;
+(function (MpKernelModeration) {
+    MpKernelModeration.Op = {
+        MOD_DECISION: 0x3000,
+        MOD_WARN: 0x3001,
+        MOD_MUTE: 0x3002,
+        MOD_KICK: 0x3003,
+        MOD_APPEAL_OPENED: 0x3004,
+        MOD_APPEAL_RESOLVED: 0x3005
+    };
+    MpKernelModeration.Surface = {
+        UNSPECIFIED: 0,
+        VOICE: 1,
+        TEXT_CHAT: 2,
+        AGENT_TTS: 3,
+        USERNAME: 4,
+        AVATAR: 5
+    };
+    MpKernelModeration.Action = {
+        UNSPECIFIED: 0,
+        ALLOW: 1,
+        WARN: 2,
+        REDACT: 3,
+        MUTE: 4,
+        KICK: 5,
+        BAN: 6,
+        AGENT_CORRECT: 7
+    };
+    MpKernelModeration.Severity = {
+        UNSPECIFIED: 0,
+        LOW: 1,
+        MEDIUM: 2,
+        HIGH: 3,
+        CRITICAL: 4
+    };
+    MpKernelModeration.DEFAULTS = {
+        enable_voice_asr: false, // ASR is opt-in (privacy + cost)
+        enable_text: true,
+        enable_agent_pre_check: true,
+        voice_window_ms: 2000,
+        max_warnings_before_mute: 3,
+        classifier_model: "ivx-builtin-allowlist-v1",
+        asr_model: "openai-whisper-1",
+        strict_mode: false,
+        locale_allowlist_csv: ""
+    };
+    var params = MpKernelModeration.DEFAULTS;
+    function configure(p) {
+        params = Object.assign({}, MpKernelModeration.DEFAULTS, params, p);
+    }
+    MpKernelModeration.configure = configure;
+    function getParams() { return params; }
+    MpKernelModeration.getParams = getParams;
+    // -------- Built-in providers (so game plugins can run with no setup) --------
+    // The default classifier is intentionally simple: a denylist of
+    // obvious slurs / spam markers + URL-flooding heuristic. Real
+    // deployments inject Perspective / Azure Content Safety / Llama Guard.
+    MpKernelModeration.BUILTIN_CLASSIFIER = (function () {
+        var DENY = [
+            // Profanity / slurs are intentionally NOT enumerated here — operators
+            // load a deployment-specific list. We ship spam / scam markers only.
+            "free v-bucks", "click here to claim", "telegram://", "discord.gg/",
+            "scam", "phishing", "earn $$", "0% apr", "hack tool"
+        ];
+        function lc(s) { return (s || "").toLowerCase(); }
+        function looksUrlSpam(s) {
+            var m = (s || "").match(/https?:\/\//g);
+            return m !== null && m.length >= 3;
+        }
+        return {
+            classify: function (text, surface, _locale) {
+                var t = lc(text);
+                var categories = [];
+                for (var i = 0; i < DENY.length; i++) {
+                    if (t.indexOf(DENY[i]) >= 0) {
+                        categories.push("spam");
+                        break;
+                    }
+                }
+                if (looksUrlSpam(t))
+                    categories.push("spam");
+                var sev = categories.length === 0 ? MpKernelModeration.Severity.UNSPECIFIED : MpKernelModeration.Severity.MEDIUM;
+                return {
+                    severity: sev,
+                    categories: categories,
+                    detail: categories.length ? "matched_denylist" : "",
+                    redacted_text: categories.length ? "[redacted]" : undefined
+                };
+            },
+            modelName: function () { return "ivx-builtin-allowlist-v1"; }
+        };
+    })();
+    MpKernelModeration.BUILTIN_POLICY = {
+        decide: function (verdict, _surface, prevWarnings) {
+            if (!verdict.categories || verdict.categories.length === 0) {
+                return { action: MpKernelModeration.Action.ALLOW, detail: "", appealable: false };
+            }
+            if (verdict.severity >= MpKernelModeration.Severity.CRITICAL) {
+                return { action: MpKernelModeration.Action.KICK, detail: "critical_content", appealable: true };
+            }
+            if (verdict.severity >= MpKernelModeration.Severity.HIGH) {
+                return { action: MpKernelModeration.Action.MUTE, detail: "high_severity_mute", appealable: true };
+            }
+            if (verdict.severity >= MpKernelModeration.Severity.MEDIUM) {
+                if (prevWarnings >= params.max_warnings_before_mute - 1) {
+                    return { action: MpKernelModeration.Action.MUTE, detail: "warn_then_mute", appealable: true };
+                }
+                return { action: MpKernelModeration.Action.REDACT, detail: "redacted", appealable: true };
+            }
+            return { action: MpKernelModeration.Action.WARN, detail: "warning", appealable: false };
+        }
+    };
+    var classifier = MpKernelModeration.BUILTIN_CLASSIFIER;
+    var policy = MpKernelModeration.BUILTIN_POLICY;
+    function setClassifier(c) { classifier = c; }
+    MpKernelModeration.setClassifier = setClassifier;
+    function setActionPolicy(p) { policy = p; }
+    MpKernelModeration.setActionPolicy = setActionPolicy;
+    // Per-user warning counters (per match). Reset on match teardown.
+    var warnings = {};
+    function warnKey(matchId, userId) {
+        return matchId + "/" + userId;
+    }
+    /**
+     * Synchronous moderation entry point. Returns the action + safe text.
+     * Templates fan-out the safe text instead of the raw text when
+     * action==REDACT|WARN; for MUTE|KICK they call the corresponding
+     * presence kick/mute helpers.
+     */
+    function moderate(nk, logger, req) {
+        var nowMs = Date.now();
+        var verdict = classifier.classify(req.text, req.surface, req.locale || "");
+        var key = warnKey(req.match_id, req.user_id);
+        var prev = warnings[key] || 0;
+        var dec = policy.decide(verdict, req.surface, prev);
+        if (dec.action === MpKernelModeration.Action.WARN)
+            warnings[key] = prev + 1;
+        var decisionId = "dec_" + nowMs.toString(36) + "_" +
+            Math.random().toString(36).substring(2, 10);
+        // Append-only audit log. Best-effort — we never let logging failure
+        // block the moderation decision.
+        try {
+            var decision = {
+                decision_id: decisionId,
+                match_id: req.match_id,
+                user_id: req.user_id,
+                is_agent: req.is_agent,
+                surface: req.surface,
+                severity: verdict.severity,
+                action: dec.action,
+                detail: dec.detail,
+                categories: verdict.categories,
+                transcript: verdict.redacted_text || req.text,
+                ts_ms: nowMs,
+                classifier_model: classifier.modelName(),
+                asr_model: params.asr_model,
+                locale: req.locale || "",
+                region: req.region || "",
+                appealable: dec.appealable
+            };
+            nk.storageWrite([{
+                    collection: "safety_decision_log",
+                    key: decisionId,
+                    userId: "00000000-0000-0000-0000-000000000000",
+                    value: decision,
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+        }
+        catch (e) {
+            logger.debug("[Moderation] storageWrite failed: " +
+                ((e && e.message) ? e.message : String(e)));
+        }
+        // Best-effort metric.
+        try {
+            var labels = {
+                surface: String(req.surface),
+                action: String(dec.action),
+                severity: String(verdict.severity),
+                is_agent: req.is_agent ? "1" : "0"
+            };
+            if (nk.metricsCounterAdd) {
+                nk.metricsCounterAdd("ivx_mp_moderation_decisions_total", labels, 1);
+            }
+        }
+        catch (_e) { /* metrics optional */ }
+        return {
+            action: dec.action,
+            detail: dec.detail,
+            severity: verdict.severity,
+            categories: verdict.categories,
+            redacted_text: verdict.redacted_text || req.text,
+            decision_id: decisionId,
+            appealable: dec.appealable,
+            classifier_model: classifier.modelName()
+        };
+    }
+    MpKernelModeration.moderate = moderate;
+    /**
+     * Convenience: classify + map only. Used by the agent service so it
+     * can short-circuit "block" without writing a log entry (the wrapper
+     * call in `agents.ts` will rewrite the moderation log with a richer
+     * surface=AGENT_TTS payload anyway).
+     */
+    function quickCheck(text, surface, locale) {
+        var v = classifier.classify(text, surface, locale || "");
+        var d = policy.decide(v, surface, 0);
+        return { action: d.action, detail: d.detail, categories: v.categories };
+    }
+    MpKernelModeration.quickCheck = quickCheck;
+    /**
+     * Per-match cleanup hook.
+     */
+    function cleanupMatch(matchId) {
+        var prefix = matchId + "/";
+        for (var k in warnings) {
+            if (k.indexOf(prefix) === 0)
+                delete warnings[k];
+        }
+    }
+    MpKernelModeration.cleanupMatch = cleanupMatch;
+    // ---------------- Mount hook ----------------
+    function register(initializer, logger) {
+        // Bind kernel-level hooks; templates use these without taking a
+        // hard import on this module so it can be swapped at deploy time.
+        MpKernel.moderateText = function (nk, log, matchId, userId, text, locale) {
+            return moderate(nk, log, {
+                match_id: matchId, user_id: userId, is_agent: false,
+                surface: MpKernelModeration.Surface.TEXT_CHAT, text: text, locale: locale
+            });
+        };
+        MpKernel.moderateAgentSpeech = function (matchId, agentId, text) {
+            var qc = quickCheck(text, MpKernelModeration.Surface.AGENT_TTS);
+            return {
+                action: qc.action,
+                detail: qc.detail,
+                categories: qc.categories,
+                block: qc.action === MpKernelModeration.Action.REDACT || qc.action === MpKernelModeration.Action.MUTE ||
+                    qc.action === MpKernelModeration.Action.KICK || qc.action === MpKernelModeration.Action.AGENT_CORRECT
+            };
+        };
+        MpKernel.moderateVoiceTranscript = function (nk, log, matchId, userId, transcript, locale) {
+            if (!params.enable_voice_asr) {
+                return { action: MpKernelModeration.Action.ALLOW, severity: MpKernelModeration.Severity.UNSPECIFIED, categories: [], redacted_text: transcript };
+            }
+            return moderate(nk, log, {
+                match_id: matchId, user_id: userId, is_agent: false,
+                surface: MpKernelModeration.Surface.VOICE, text: transcript, locale: locale
+            });
+        };
+        __rpc_mp_mod_get_params = rpcGetParams;
+        __rpc_mp_mod_set_params = rpcSetParams;
+        __rpc_mp_mod_appeal = rpcOpenAppeal;
+        logger.info("[Moderation] pipeline registered (text=%s voice_asr=%s agent_pre=%s)", String(params.enable_text), String(params.enable_voice_asr), String(params.enable_agent_pre_check));
+    }
+    MpKernelModeration.register = register;
+    register();
+    function rpcGetParams(_ctx, _logger, _nk, _payload) {
+        return JSON.stringify({ params: params });
+    }
+    function rpcSetParams(ctx, logger, _nk, payload) {
+        if (!isAdmin(ctx))
+            throw "not authorized";
+        var req = {};
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (_e) { }
+        configure(req || {});
+        logger.info("[Moderation] params updated by " + (ctx.userId || "?"));
+        return JSON.stringify({ ok: true, params: params });
+    }
+    function rpcOpenAppeal(ctx, _logger, nk, payload) {
+        var req = {};
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (_e) { }
+        if (!req.decision_id)
+            throw "decision_id required";
+        var appealId = "app_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 10);
+        try {
+            nk.storageWrite([{
+                    collection: "safety_appeals",
+                    key: appealId,
+                    userId: "00000000-0000-0000-0000-000000000000",
+                    value: {
+                        appeal_id: appealId,
+                        decision_id: req.decision_id,
+                        user_id: ctx.userId,
+                        text: req.text || "",
+                        ts_ms: Date.now()
+                    },
+                    permissionRead: 1,
+                    permissionWrite: 1
+                }]);
+        }
+        catch (e) {
+            throw "appeal_write_failed: " + ((e && e.message) ? e.message : String(e));
+        }
+        return JSON.stringify({ appeal_id: appealId });
+    }
+    function isAdmin(ctx) {
+        if (ctx.userId === "00000000-0000-0000-0000-000000000000")
+            return true;
+        var headers = ctx.headers;
+        if (headers && headers["x-ivx-server-token"])
+            return true;
+        return false;
+    }
+})(MpKernelModeration || (MpKernelModeration = {}));
+// Presence tracking + reconnect grace + flapping detection (Pillar 8).
+var MpKernelPresence;
+(function (MpKernelPresence) {
+    MpKernelPresence.DEFAULT_GRACE_MS = 60 * 1000;
+    MpKernelPresence.DEFAULT_FLAP_LIMIT = 5;
+    MpKernelPresence.DEFAULT_FLAP_WINDOW = 60 * 1000;
+    MpKernelPresence.DEFAULT_FLAP_BAN_SEC = 30;
+    function init(graceMs) {
+        return {
+            seats: {},
+            reconnect_grace_ms: graceMs > 0 ? graceMs : MpKernelPresence.DEFAULT_GRACE_MS,
+            flap_threshold: MpKernelPresence.DEFAULT_FLAP_LIMIT,
+            flap_window_ms: MpKernelPresence.DEFAULT_FLAP_WINDOW,
+            flap_ban_seconds: MpKernelPresence.DEFAULT_FLAP_BAN_SEC
+        };
+    }
+    MpKernelPresence.init = init;
+    // Returns the seat (creating if first-time, restoring if within grace).
+    // `flapped` flag tells the caller to issue a PlayerKicked.FLAPPING.
+    function recordJoin(table, p, nowUnixMs) {
+        var existing = table.seats[p.userId];
+        if (existing) {
+            // Reconnect path. Detect flapping: too many disconnect→reconnect
+            // cycles in the window are soft-banned.
+            var winStart = existing.reconnect_count_window_start_unix_ms;
+            if (winStart === 0 || (nowUnixMs - winStart) > table.flap_window_ms) {
+                existing.reconnect_count_window_start_unix_ms = nowUnixMs;
+                existing.reconnect_count_in_window = 1;
+            }
+            else {
+                existing.reconnect_count_in_window++;
+            }
+            var flapped = existing.reconnect_count_in_window > table.flap_threshold;
+            existing.session_id = p.sessionId;
+            existing.last_seen_unix_ms = nowUnixMs;
+            existing.disconnected_at_unix_ms = 0;
+            return { seat: existing, flapped: flapped, resumed: true };
+        }
+        var seat = {
+            user_id: p.userId,
+            session_id: p.sessionId,
+            is_agent: p.userId.indexOf("agt_") === 0,
+            is_host: false,
+            joined_unix_ms: nowUnixMs,
+            last_seen_unix_ms: nowUnixMs,
+            disconnected_at_unix_ms: 0,
+            reconnect_count_in_window: 0,
+            reconnect_count_window_start_unix_ms: 0,
+            last_seq_in_from_client: 0,
+            last_seq_out_to_client: 0,
+            idem_ring: MpKernelIdempotency.newRing()
+        };
+        table.seats[p.userId] = seat;
+        return { seat: seat, flapped: false, resumed: false };
+    }
+    MpKernelPresence.recordJoin = recordJoin;
+    // Marks seat disconnected, but keeps state for grace_ms in case of resume.
+    function recordLeave(table, p, nowUnixMs) {
+        var seat = table.seats[p.userId];
+        if (!seat)
+            return null;
+        seat.disconnected_at_unix_ms = nowUnixMs;
+        return seat;
+    }
+    MpKernelPresence.recordLeave = recordLeave;
+    // Sweep grace expirations. Caller broadcasts PlayerLeft(TIMEOUT) for
+    // each evicted seat.
+    function evictExpired(table, nowUnixMs) {
+        var evicted = [];
+        for (var k in table.seats) {
+            if (!table.seats.hasOwnProperty(k))
+                continue;
+            var s = table.seats[k];
+            if (s.disconnected_at_unix_ms === 0)
+                continue;
+            if ((nowUnixMs - s.disconnected_at_unix_ms) > table.reconnect_grace_ms) {
+                evicted.push(s);
+                delete table.seats[k];
+            }
+        }
+        return evicted;
+    }
+    MpKernelPresence.evictExpired = evictExpired;
+    function activeCount(table) {
+        var n = 0;
+        for (var k in table.seats) {
+            if (!table.seats.hasOwnProperty(k))
+                continue;
+            if (table.seats[k].disconnected_at_unix_ms === 0)
+                n++;
+        }
+        return n;
+    }
+    MpKernelPresence.activeCount = activeCount;
+    function totalCount(table) {
+        var n = 0;
+        for (var k in table.seats) {
+            if (table.seats.hasOwnProperty(k))
+                n++;
+        }
+        return n;
+    }
+    MpKernelPresence.totalCount = totalCount;
+    function reconnectGraceRemainingMs(seat, table, nowUnixMs) {
+        if (seat.disconnected_at_unix_ms === 0)
+            return table.reconnect_grace_ms;
+        var elapsed = nowUnixMs - seat.disconnected_at_unix_ms;
+        var remain = table.reconnect_grace_ms - elapsed;
+        return remain > 0 ? remain : 0;
+    }
+    MpKernelPresence.reconnectGraceRemainingMs = reconnectGraceRemainingMs;
+})(MpKernelPresence || (MpKernelPresence = {}));
+// SpatialFrame service — kernel-side bookkeeping of a match's active
+// SpatialFrame and per-presence resolve status. XR templates
+// (AvatarReplicationMatch, MixedRealityAnchorMatch, ConvParty spatial voice)
+// embed an MpKernelSpatial.IFrameState in their match state and route
+// frame opcodes through these helpers so the bookkeeping is uniform.
+//
+// Wire contract: see `schemas/multiplayer/services/spatial.proto`.
+//
+// Lifecycle:
+//
+//   1. Match init picks an initial frame using NegotiateFrame() against
+//      the joiner's SpatialCapability.
+//   2. Host (or kernel under load) may issue SpatialFrameOffer; presences
+//      ack with SpatialFrameAck.
+//   3. When the kernel sees acks from `min_acks_to_switch` presences (or
+//      offer timeout fires with `accept_partial=true`), it broadcasts
+//      SpatialFrameSwitched and clamps subsequent pose messages to the
+//      new frame_id.
+var MpKernelSpatial;
+(function (MpKernelSpatial) {
+    MpKernelSpatial.Kind = {
+        UNSPECIFIED: 0,
+        KERNEL_WORLD: 1,
+        CLOUD_ANCHOR: 2,
+        QR_MARKER: 3,
+        IMAGE_MARKER: 4,
+        LOCAL_FLOOR: 5,
+        PCVR_PSEUDO: 6
+    };
+    // Default fallback chain when negotiation reduces capabilities.
+    // Higher = preferred. Listed in order; we pick the first the room+all
+    // joiners support.
+    MpKernelSpatial.FALLBACK_CHAIN = [
+        MpKernelSpatial.Kind.CLOUD_ANCHOR,
+        MpKernelSpatial.Kind.QR_MARKER,
+        MpKernelSpatial.Kind.IMAGE_MARKER,
+        MpKernelSpatial.Kind.PCVR_PSEUDO,
+        MpKernelSpatial.Kind.LOCAL_FLOOR,
+        MpKernelSpatial.Kind.KERNEL_WORLD
+    ];
+    // ---------- Constructors ----------
+    function buildKernelWorld(matchId, region) {
+        return {
+            frame_id: "kw_" + matchId,
+            kind: MpKernelSpatial.Kind.KERNEL_WORLD,
+            provider: "",
+            vendor_token: "",
+            issued_ms: Date.now(),
+            region: region,
+            floor_height_m: 0,
+            forward_yaw_deg: 0,
+            relocalize_grace_ms: 0
+        };
+    }
+    MpKernelSpatial.buildKernelWorld = buildKernelWorld;
+    function buildPcvrPseudo(matchId, region, floor_m, yaw_deg) {
+        return {
+            frame_id: "pcvr_" + matchId,
+            kind: MpKernelSpatial.Kind.PCVR_PSEUDO,
+            provider: "ivx_pcvr",
+            vendor_token: "",
+            issued_ms: Date.now(),
+            region: region,
+            floor_height_m: floor_m,
+            forward_yaw_deg: yaw_deg,
+            relocalize_grace_ms: 0
+        };
+    }
+    MpKernelSpatial.buildPcvrPseudo = buildPcvrPseudo;
+    // ---------- Capability negotiation ----------
+    function negotiateInitialKind(requested, capabilities) {
+        if (capabilities.length === 0)
+            return MpKernelSpatial.Kind.KERNEL_WORLD;
+        // Build a histogram of frames everyone supports.
+        var support = {};
+        for (var i = 0; i < capabilities.length; i++) {
+            var caps = capabilities[i];
+            if (!caps.supported_frames)
+                continue;
+            for (var j = 0; j < caps.supported_frames.length; j++) {
+                var kind = caps.supported_frames[j];
+                support[kind] = (support[kind] || 0) + 1;
+            }
+        }
+        var memberCount = capabilities.length;
+        // 1) If the requested kind is supported by everyone, use it.
+        if (requested && support[requested] === memberCount) {
+            return requested;
+        }
+        // 2) Else walk fallback chain and return the first kind everyone supports.
+        for (var k = 0; k < MpKernelSpatial.FALLBACK_CHAIN.length; k++) {
+            var f = MpKernelSpatial.FALLBACK_CHAIN[k];
+            if (support[f] === memberCount)
+                return f;
+        }
+        // 3) Last resort — kernel world (every adapter MUST support this).
+        return MpKernelSpatial.Kind.KERNEL_WORLD;
+    }
+    MpKernelSpatial.negotiateInitialKind = negotiateInitialKind;
+    // ---------- Offer / ack bookkeeping ----------
+    function startOffer(state, offeredBy, frame, graceMs) {
+        state.pending = frame;
+        state.pending_offered_by_user_id = offeredBy;
+        state.pending_started_ms = Date.now();
+        state.pending_grace_ms = graceMs;
+        state.acks = {};
+    }
+    MpKernelSpatial.startOffer = startOffer;
+    function recordAck(state, userId, ok, detail) {
+        state.acks[userId] = { ok: ok, detail: detail };
+    }
+    MpKernelSpatial.recordAck = recordAck;
+    function offerStatus(state, nowMs, minAcks) {
+        if (!state.pending || !state.pending_started_ms || !state.pending_grace_ms) {
+            return { ready: false, expired: false, ok_count: 0, fail_count: 0 };
+        }
+        var ok = 0, bad = 0;
+        for (var u in state.acks) {
+            if (state.acks[u].ok)
+                ok++;
+            else
+                bad++;
+        }
+        var expired = (nowMs - state.pending_started_ms) >= state.pending_grace_ms;
+        return { ready: ok >= minAcks, expired: expired, ok_count: ok, fail_count: bad };
+    }
+    MpKernelSpatial.offerStatus = offerStatus;
+    function commitPending(state) {
+        if (!state.pending)
+            return null;
+        var prev = state.current;
+        state.current = state.pending;
+        state.pending = undefined;
+        state.pending_offered_by_user_id = undefined;
+        state.pending_started_ms = undefined;
+        state.pending_grace_ms = undefined;
+        state.acks = {};
+        return prev;
+    }
+    MpKernelSpatial.commitPending = commitPending;
+    function abortPending(state) {
+        state.pending = undefined;
+        state.pending_offered_by_user_id = undefined;
+        state.pending_started_ms = undefined;
+        state.pending_grace_ms = undefined;
+        state.acks = {};
+    }
+    MpKernelSpatial.abortPending = abortPending;
+    // ---------- Pose message guard ----------
+    // Verify a frame_id on an inbound pose / anchor message. During the
+    // grace window after a frame switch, both old and new frame_ids are
+    // accepted. Otherwise stale frames are rejected.
+    function isFrameAcceptable(state, frameId, nowMs) {
+        if (!frameId)
+            return false;
+        if (state.current.frame_id === frameId)
+            return true;
+        if (state.pending && state.pending.frame_id === frameId)
+            return true;
+        return false;
+    }
+    MpKernelSpatial.isFrameAcceptable = isFrameAcceptable;
+})(MpKernelSpatial || (MpKernelSpatial = {}));
+// IVX Multiplayer Kernel — wire-shape types.
+//
+// These mirror the proto3 contracts in
+//   `Intelli-verse-X-SDK/schemas/multiplayer/*.proto`
+// but stay framework-agnostic. The Nakama JS runtime (goja) cannot run
+// google-protobuf JS bindings, so the wire format on TS templates is JSON
+// using these shapes; opcodes match the proto enum values exactly.
+//
+// Go-backed templates (RealtimeTick, AvatarReplication) use proto binary
+// against the same opcodes — encoding differs, contract is one.
+var MpKernel;
+(function (MpKernel) {
+    // ---------- Reserved opcode ranges (mirrors opcodes.proto) ----------
+    // The proto file in `Intelli-verse-X-SDK/schemas/multiplayer/opcodes.proto`
+    // is the canonical source. These constants MUST stay in sync with it;
+    // the codegen pipeline will overwrite this file once wired (P0/P12).
+    MpKernel.OP_RANGE = {
+        KERNEL: { from: 0x0000, to: 0x0FFF },
+        SOCIAL: { from: 0x1000, to: 0x1FFF }, // ConversationalParty
+        AGENTS: { from: 0x2000, to: 0x2FFF },
+        MODERATION: { from: 0x3000, to: 0x3FFF },
+        SYNC_TURN: { from: 0x4000, to: 0x4FFF },
+        ASYNC_TURN: { from: 0x5000, to: 0x5FFF },
+        REALTIME_TICK: { from: 0x6000, to: 0x6FFF },
+        LOBBY_HANDOFF: { from: 0x7000, to: 0x7FFF },
+        TOURNAMENT: { from: 0x8000, to: 0x8FFF },
+        LIVE_EVENT: { from: 0x9000, to: 0x9FFF },
+        PERSISTENT_PARTY: { from: 0xA000, to: 0xAFFF },
+        MR_ANCHOR: { from: 0xB000, to: 0xBFFF },
+        GAME_DEFINED: { from: 0xC000, to: 0xCFFF },
+        XR_POSE: { from: 0xF000, to: 0xFFFF }
+    };
+    // ---------- Kernel control opcodes (mirrors opcodes.proto Opcode) ----------
+    // Values MUST exactly match the proto. The kernel encodes/decodes by
+    // numeric opcode; constants below are aliases for readability only.
+    MpKernel.KernelOp = {
+        CLIENT_HELLO: 0x0001,
+        SERVER_HELLO: 0x0002, // formerly WELCOME
+        HEARTBEAT: 0x0003,
+        PLAYER_JOINED: 0x0004,
+        PLAYER_LEFT: 0x0005,
+        PLAYER_KICKED: 0x0006,
+        MATCH_ENDED: 0x0007,
+        ERROR: 0x0008,
+        MATCH_RESUME: 0x0009,
+        MATCH_RESUME_ACK: 0x000A,
+        LATENCY_WARNING: 0x000B,
+        TICK_RATE_CHANGED: 0x000C,
+        VOICE_CAPABILITY_CHANGED: 0x000D,
+        VOICE_UNAVAILABLE: 0x000E,
+        VOICE_MODE_CHANGED: 0x000F,
+        LOW_BANDWIDTH_REQUEST: 0x0010,
+        NETWORK_CLOCK_PING: 0x0011,
+        NETWORK_CLOCK_PONG: 0x0012,
+        WARN_RATE_LIMITED: 0x0013,
+        WARN_TICK_OVERRUN: 0x0014,
+        WARN_MATCH_STATE_LARGE: 0x0015,
+        WARN_AVATAR_FALLBACK: 0x0016,
+        WARN_DEPRECATED_CLIENT: 0x0017,
+        WARN_STATE_REBUILT: 0x0018,
+        CLOCK_SYNC: 0x0019, // server-initiated periodic broadcast (distinct from PING/PONG request/response)
+        // Legacy aliases preserved so downstream callers keep compiling
+        // during the rename. Will be removed in P3 alongside the codegen
+        // rollout that emits canonical names.
+        LEAVE: 0x0005, // alias of PLAYER_LEFT
+        WELCOME: 0x0002, // alias of SERVER_HELLO
+        STATE_RESYNC: 0x0018, // alias of WARN_STATE_REBUILT
+        WARN: 0x0013 // alias of WARN_RATE_LIMITED (generic warn fallback)
+    };
+    // ---------- Standard enum mirrors (kernel.proto) ----------
+    MpKernel.LeaveReason = {
+        UNSPECIFIED: 0,
+        VOLUNTARY: 1,
+        DISCONNECT: 2,
+        KICK: 3,
+        BAN: 4,
+        TIMEOUT: 5,
+        FLAPPING: 6,
+        MATCH_ENDED: 7
+    };
+    MpKernel.EndReason = {
+        UNSPECIFIED: 0,
+        COMPLETED: 1,
+        TIMEOUT: 2,
+        QUORUM_LOST: 3,
+        HOST_DISBAND: 4,
+        KICKED_ALL: 5,
+        DURATION_EXCEEDED: 6,
+        KERNEL_INTERNAL: 7,
+        // Distinct from completion: lobby disbanded before handoff,
+        // async-game cancelled, voluntary teardown by host, etc.
+        CANCELLED: 8
+    };
+    // ---------- Error codes (envelope.proto ErrorCode) ----------
+    // CANONICAL VALUES — these match the proto schema exactly. Adapters and
+    // dashboards must use these integers. See `docs/multiplayer/error-taxonomy.md`
+    // for retry-policy guidance.
+    MpKernel.ErrorCode = {
+        UNSPECIFIED: 0,
+        // 1-9 — schema / time
+        SCHEMA_TOO_OLD: 1,
+        SERVER_TOO_OLD: 2,
+        BAD_PAYLOAD: 3,
+        SEQ_GAP: 4,
+        UNKNOWN_OPCODE: 5,
+        DUPLICATE_OPCODE: 6,
+        CLOCK_SKEW_EXTREME: 7,
+        MATCH_STATE_LARGE: 8,
+        // 20-29 — capacity / membership
+        MATCH_FULL: 20,
+        MATCH_NOT_FOUND: 21,
+        NOT_A_MEMBER: 22,
+        RATE_LIMITED: 23,
+        FLAPPING: 24,
+        MATCH_ENDED: 25,
+        SESSION_REPLACED: 26,
+        // 30-39 — auth / permission
+        PERMISSION_DENIED: 30,
+        KICKED: 31,
+        BANNED: 32,
+        NOT_AUTHORIZED: 33,
+        // 40-49 — agent
+        BAD_PERSONA: 40,
+        BUDGET_EXCEEDED: 41,
+        AGENT_PROVIDER_DOWN: 42,
+        // 50-59 — XR / spatial
+        ANCHOR_INCOMPAT: 50,
+        ANCHOR_LOST: 51,
+        // 60-69 — voice
+        VOICE_UNAVAILABLE: 60,
+        VOICE_PERMISSION_DENIED: 61,
+        // 70-79 — moderation
+        MODERATED: 70,
+        // 80-89 — lifecycle (match-fatal)
+        TIMEOUT: 80,
+        QUORUM_LOST: 81,
+        DURATION_EXCEEDED: 82,
+        STATE_OVERFLOW: 83,
+        // 90-99 — capability
+        CAPABILITY_UNSUPPORTED: 90,
+        // 100-119 — infra
+        OVERLOAD: 100,
+        PERSISTENCE_DEGRADED: 101,
+        TICK_OVERRUN_DEGRADED: 102,
+        PROVIDER_UNAVAILABLE: 103,
+        // catch-all
+        INTERNAL: 999
+    };
+    // ---------- Warning codes (envelope.proto WarningCode) ----------
+    // Non-fatal; surfaced to adapters as OnWarning(...). Never end matches.
+    MpKernel.WarningCode = {
+        UNSPECIFIED: 0,
+        RATE_LIMITED: 1,
+        TICK_OVERRUN: 2,
+        MATCH_STATE_LARGE: 3,
+        AVATAR_FALLBACK: 4,
+        DEPRECATED_CLIENT: 5,
+        STATE_REBUILT: 6,
+        LOW_BANDWIDTH: 7,
+        AGENT_DEGRADED: 8,
+        CLOCK_REALIGN: 9
+    };
+})(MpKernel || (MpKernel = {}));
+// IIVXVoice — kernel-side helpers used by every template that opens a voice
+// surface (ConvParty, AvatarReplication, MR Anchor). Audio bytes never enter
+// the kernel; we mint short-lived bearer tokens against the configured
+// provider, then broadcast speaker state, voice levels, and moderation
+// decisions over the kernel wire.
+//
+// Wire contract: schemas/multiplayer/services/voice.proto.
+//
+// Provider plumbing lives outside this file (`/data/modules/src/multiplayer-kernel/voice-providers/`)
+// so games can compile the kernel without LiveKit/Agora deps if voiceless.
+var MpKernelVoice;
+(function (MpKernelVoice) {
+    MpKernelVoice.Provider = {
+        UNSPECIFIED: 0,
+        LIVEKIT: 1,
+        AGORA: 2,
+        TWILIO: 3,
+        DOLBY: 4,
+        NONE: 5
+    };
+    MpKernelVoice.Mode = {
+        OFF: 0,
+        BROADCAST: 1,
+        SPATIAL: 2,
+        PTT: 3
+    };
+    MpKernelVoice.Codec = {
+        UNSPECIFIED: 0,
+        OPUS: 1,
+        AAC: 2
+    };
+    // Default lifetimes, conservative — provider tokens are bearer credentials.
+    MpKernelVoice.DEFAULT_TOKEN_TTL_MS = 60000;
+    MpKernelVoice.DEFAULT_FLOOR_SECONDS = 60;
+    MpKernelVoice.DEFAULT_MAX_PUBLISHERS = 16;
+    MpKernelVoice.DEFAULT_VAD_BROADCAST_HZ = 4; // 4 Hz crowd meter
+    // ---------- Capability negotiation ----------
+    function intersectCapabilities(caps) {
+        if (!caps || caps.length === 0) {
+            return {
+                can_publish: false, can_subscribe: false, can_spatial: false,
+                codecs: [], max_publishers: 0, can_change_provider: false,
+                can_passthrough_external: false,
+                ptt_supported: false, broadcast_supported: false, spatial_supported: false
+            };
+        }
+        var pub = true, sub = true, spat = true, ptt = true, bcast = true, sptl = true;
+        var passthrough = true, change = true;
+        var maxPub = 1024;
+        var codecCount = {};
+        for (var i = 0; i < caps.length; i++) {
+            var c = caps[i];
+            pub = pub && c.can_publish;
+            sub = sub && c.can_subscribe;
+            spat = spat && c.can_spatial;
+            ptt = ptt && c.ptt_supported;
+            bcast = bcast && c.broadcast_supported;
+            sptl = sptl && c.spatial_supported;
+            passthrough = passthrough && c.can_passthrough_external;
+            change = change && c.can_change_provider;
+            if (c.max_publishers && c.max_publishers < maxPub)
+                maxPub = c.max_publishers;
+            if (c.codecs) {
+                for (var j = 0; j < c.codecs.length; j++) {
+                    codecCount[c.codecs[j]] = (codecCount[c.codecs[j]] || 0) + 1;
+                }
+            }
+        }
+        var commonCodecs = [];
+        for (var k in codecCount) {
+            if (codecCount[k] === caps.length)
+                commonCodecs.push(parseInt(k, 10));
+        }
+        if (commonCodecs.length === 0)
+            commonCodecs = [MpKernelVoice.Codec.OPUS]; // safe default
+        return {
+            can_publish: pub, can_subscribe: sub, can_spatial: spat,
+            codecs: commonCodecs,
+            max_publishers: maxPub === 1024 ? MpKernelVoice.DEFAULT_MAX_PUBLISHERS : maxPub,
+            can_change_provider: change, can_passthrough_external: passthrough,
+            ptt_supported: ptt, broadcast_supported: bcast, spatial_supported: sptl
+        };
+    }
+    MpKernelVoice.intersectCapabilities = intersectCapabilities;
+    function pickInitialMode(req, cap) {
+        if (req === MpKernelVoice.Mode.SPATIAL && cap.spatial_supported)
+            return MpKernelVoice.Mode.SPATIAL;
+        if (req === MpKernelVoice.Mode.PTT && cap.ptt_supported)
+            return MpKernelVoice.Mode.PTT;
+        if (req === MpKernelVoice.Mode.BROADCAST && cap.broadcast_supported)
+            return MpKernelVoice.Mode.BROADCAST;
+        // Fallback chain: spatial -> broadcast -> ptt -> off
+        if (cap.spatial_supported)
+            return MpKernelVoice.Mode.SPATIAL;
+        if (cap.broadcast_supported)
+            return MpKernelVoice.Mode.BROADCAST;
+        if (cap.ptt_supported)
+            return MpKernelVoice.Mode.PTT;
+        return MpKernelVoice.Mode.OFF;
+    }
+    MpKernelVoice.pickInitialMode = pickInitialMode;
+    function newFloorState(queueCap) {
+        return {
+            current_speaker_user_id: "",
+            started_ms: 0,
+            floor_seconds: 0,
+            queue: [],
+            queue_cap: queueCap || 50
+        };
+    }
+    MpKernelVoice.newFloorState = newFloorState;
+    // returns true if request was queued (or granted immediately).
+    function requestSpeaker(state, userId, topicHint, floorSeconds, nowMs) {
+        // Already on the floor?
+        if (state.current_speaker_user_id === userId) {
+            return { granted: true, queued: false, position: 0 };
+        }
+        // Already queued?
+        for (var i = 0; i < state.queue.length; i++) {
+            if (state.queue[i].user_id === userId) {
+                return { granted: false, queued: true, position: i + 1 };
+            }
+        }
+        // Queue full?
+        if (state.queue.length >= state.queue_cap) {
+            return { granted: false, queued: false, position: -1 };
+        }
+        // No current speaker and queue empty -> grant.
+        if (!state.current_speaker_user_id && state.queue.length === 0) {
+            state.current_speaker_user_id = userId;
+            state.started_ms = nowMs;
+            state.floor_seconds = floorSeconds;
+            return { granted: true, queued: false, position: 0 };
+        }
+        state.queue.push({ user_id: userId, topic_hint: topicHint || "", queued_ms: nowMs });
+        return { granted: false, queued: true, position: state.queue.length };
+    }
+    MpKernelVoice.requestSpeaker = requestSpeaker;
+    function releaseSpeaker(state, userId, nowMs) {
+        if (state.current_speaker_user_id !== userId) {
+            // Drop from queue if present.
+            for (var i = 0; i < state.queue.length; i++) {
+                if (state.queue[i].user_id === userId) {
+                    state.queue.splice(i, 1);
+                    break;
+                }
+            }
+            return { newSpeaker: state.current_speaker_user_id };
+        }
+        // Pop next from queue.
+        if (state.queue.length === 0) {
+            state.current_speaker_user_id = "";
+            state.started_ms = 0;
+            state.floor_seconds = 0;
+            return { newSpeaker: "" };
+        }
+        var next = state.queue.shift();
+        state.current_speaker_user_id = next.user_id;
+        state.started_ms = nowMs;
+        state.floor_seconds = state.floor_seconds; // keep configured length
+        return { newSpeaker: next.user_id };
+    }
+    MpKernelVoice.releaseSpeaker = releaseSpeaker;
+    // Drives floor expiry on each tick.
+    function checkFloorExpiry(state, nowMs) {
+        if (!state.current_speaker_user_id)
+            return { expired: false, user: "" };
+        if (!state.floor_seconds)
+            return { expired: false, user: "" };
+        var elapsedMs = nowMs - state.started_ms;
+        if (elapsedMs >= state.floor_seconds * 1000) {
+            var user = state.current_speaker_user_id;
+            releaseSpeaker(state, user, nowMs);
+            return { expired: true, user: user };
+        }
+        return { expired: false, user: "" };
+    }
+    MpKernelVoice.checkFloorExpiry = checkFloorExpiry;
+    function mintToken(minter, matchId, userId, canPublish, canSubscribe, spatial, region, nowMs) {
+        if (!minter) {
+            // No provider configured — return a "none" token so adapters can run
+            // gracefully in voiceless mode.
+            return {
+                provider: MpKernelVoice.Provider.NONE,
+                token: "",
+                room_id: matchId,
+                identity: userId,
+                url: "",
+                expires_at_ms: nowMs + MpKernelVoice.DEFAULT_TOKEN_TTL_MS,
+                can_publish: false, can_subscribe: false, spatial: false,
+                region: region
+            };
+        }
+        var ttl = MpKernelVoice.DEFAULT_TOKEN_TTL_MS;
+        var minted = minter.mint({
+            roomId: matchId, identity: userId,
+            canPublish: canPublish, canSubscribe: canSubscribe, spatial: spatial,
+            ttlMs: ttl, region: region
+        });
+        var providerCode = MpKernelVoice.Provider.UNSPECIFIED;
+        switch (minter.name) {
+            case "livekit":
+                providerCode = MpKernelVoice.Provider.LIVEKIT;
+                break;
+            case "agora":
+                providerCode = MpKernelVoice.Provider.AGORA;
+                break;
+            case "twilio":
+                providerCode = MpKernelVoice.Provider.TWILIO;
+                break;
+            case "dolby":
+                providerCode = MpKernelVoice.Provider.DOLBY;
+                break;
+            default:
+                providerCode = MpKernelVoice.Provider.UNSPECIFIED;
+                break;
+        }
+        return {
+            provider: providerCode,
+            token: minted.token,
+            room_id: matchId, identity: userId, url: minted.url,
+            expires_at_ms: nowMs + ttl,
+            can_publish: canPublish, can_subscribe: canSubscribe, spatial: spatial,
+            region: region,
+            provider_opts: minted.opts
+        };
+    }
+    MpKernelVoice.mintToken = mintToken;
+})(MpKernelVoice || (MpKernelVoice = {}));
+// AsyncTurnMatch — async turn template for games where players take
+// turns over hours/days (chess, daily-puzzle PvP, words-with-friends).
+// Reserved opcode range 0x5000-0x5FFF (templates/async_turn.proto).
+//
+// Design:
+//   * Authoritative game state persists in Nakama storage under the
+//     `mp_async_games` collection, keyed by `game_id` (NOT match_id;
+//     match_ids are ephemeral session handles).
+//   * A match instance exists only while >= 1 player is online. When
+//     the last player leaves, the handler persists final state and
+//     terminates. The next player to "open" the game spawns a fresh
+//     match instance, hydrating from storage.
+//   * Notifications fan-out via Nakama notifications API on TURN_END
+//     so the next-actor sees the move offline.
+//   * Game-specific logic plugs in via IAsyncTurnGenerator.
+var MpKernelAsyncTurn;
+(function (MpKernelAsyncTurn) {
+    // Opcodes (mirror templates/async_turn.proto AsyncTurnOp).
+    MpKernelAsyncTurn.Op = {
+        TURN_START: 0x5000, // server -> next_actor: it's your move
+        TURN_SUBMIT: 0x5001, // client -> server   : move payload
+        TURN_END: 0x5002, // server -> all      : authoritative move applied
+        NOTIFY_OPPONENT: 0x5003, // server -> all      : echoed for UI badge
+        FORFEIT: 0x5004, // client -> server   : I quit this game
+        RESIGN: 0x5005 // client -> server   : I resign (loss recorded)
+    };
+    MpKernelAsyncTurn.DefaultInit = {
+        // The persistent game id. SAME id across sessions; not the match_id.
+        game_id: "",
+        // Maximum think-time per move; if exceeded, server auto-forfeits.
+        move_timeout_ms: 7 * 24 * 60 * 60 * 1000, // 7 days
+        // 0 = no cap (typical for async); non-zero = total game wall-clock cap.
+        max_match_duration_ms: 0,
+        // Game plugin generator (registered via registerGenerator).
+        generator_id: "",
+        // Initial actor user_id. If empty, generator's nextActor() drives.
+        starting_actor: "",
+        // game_id ALSO used in MatchResultEnvelope.game_id.
+        game_label: "async-turn"
+    };
+    var generators = {};
+    function registerGenerator(g) {
+        generators[g.generatorId] = g;
+    }
+    MpKernelAsyncTurn.registerGenerator = registerGenerator;
+    // Storage collection for persistent async-game state.
+    var COLLECTION = "mp_async_games";
+    function loadPersisted(nk, gameId) {
+        if (!gameId)
+            return null;
+        try {
+            var rows = nk.storageRead([{ collection: COLLECTION, key: gameId, userId: "" }]);
+            if (rows && rows.length > 0 && rows[0].value)
+                return rows[0].value;
+        }
+        catch (_e) { /* swallow */ }
+        return null;
+    }
+    function persist(nk, gameId, blob) {
+        if (!gameId)
+            return;
+        try {
+            nk.storageWrite([{
+                    collection: COLLECTION,
+                    key: gameId,
+                    userId: "",
+                    value: blob,
+                    permissionRead: 2, // public-read so opponents can rebuild offline
+                    permissionWrite: 0 // server-only writes
+                }]);
+        }
+        catch (e) {
+            // Persistence failures must never crash the match loop; we'll
+            // try again on next move.
+            // logger only available in onLoop; swallow here.
+        }
+    }
+    function mergeInit(params) {
+        var out = {};
+        for (var k in MpKernelAsyncTurn.DefaultInit)
+            if (MpKernelAsyncTurn.DefaultInit.hasOwnProperty(k))
+                out[k] = MpKernelAsyncTurn.DefaultInit[k];
+        if (params)
+            for (var k2 in params)
+                if (params.hasOwnProperty(k2))
+                    out[k2] = params[k2];
+        return out;
+    }
+    MpKernelAsyncTurn.template = {
+        templateId: "async-turn-v1",
+        opRange: { from: 0x5000, to: 0x5FFF },
+        defaultInit: MpKernelAsyncTurn.DefaultInit,
+        initState: function (_ctx, _logger, nk, params) {
+            var init = mergeInit(params.template_init);
+            if (!init.game_id) {
+                // Fall back to match-scoped game; not persistent across sessions
+                // but lets a one-shot async match still work.
+                init.game_id = "";
+            }
+            var gen = init.generator_id ? generators[init.generator_id] : null;
+            var persisted = init.game_id ? loadPersisted(nk, init.game_id) : null;
+            var hydrated = gen ? gen.initState(init, persisted ? persisted.gen_state : null) : null;
+            var s = {
+                init: init,
+                game_id: init.game_id,
+                actors: persisted && persisted.actors ? persisted.actors.slice() : [],
+                online: {},
+                current_actor: hydrated ? (hydrated.actor || init.starting_actor || "") : (init.starting_actor || ""),
+                last_move_unix_ms: persisted && persisted.last_move_unix_ms ? persisted.last_move_unix_ms : Date.now(),
+                state: hydrated ? hydrated.state : (persisted ? persisted.gen_state : null),
+                generator: gen,
+                ended: hydrated ? !!hydrated.ended : (persisted ? !!persisted.ended : false),
+                winner_user_id: hydrated && hydrated.winner_user_id ? hydrated.winner_user_id :
+                    (persisted ? (persisted.winner_user_id || "") : ""),
+                started_unix_ms: persisted && persisted.started_unix_ms ? persisted.started_unix_ms : Date.now(),
+                pending_end_reason: "",
+                outbound_seq: 1
+            };
+            var label = JSON.stringify({
+                template_id: "async-turn-v1",
+                game_id: params.game_id || init.game_id,
+                async_game_id: init.game_id
+            });
+            // Slow tick — we're driven by player sends and a heartbeat for
+            // move-timeout checks, not by per-frame logic. 1 Hz is plenty.
+            return { state: s, tickRate: 1, label: label };
+        },
+        onJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presence, _metadata) {
+            var ks = state;
+            if (ks.ended) {
+                return { state: ks, accept: false, rejectMessage: "game ended" };
+            }
+            // Async games have no fixed cap — any prior actor + the next-actor
+            // can rejoin. We DON'T limit to ks.actors[] because spectators may
+            // also want to view (read-only); the generator decides who can move.
+            return { state: ks, accept: true };
+        },
+        onJoin: function (_ctx, _logger, _nk, dispatcher, _tick, state, presences) {
+            var ks = state;
+            var matchId = (_ctx.matchId) || "";
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                ks.online[p.userId] = true;
+                if (ks.actors.indexOf(p.userId) < 0)
+                    ks.actors.push(p.userId);
+                // If it's their turn, immediately send TURN_START so client
+                // can render move UI without waiting for next loop tick.
+                if (!ks.ended && ks.current_actor === p.userId) {
+                    broadcastTemplate(ks, dispatcher, matchId, MpKernelAsyncTurn.Op.TURN_START, {
+                        actor: p.userId,
+                        state: ks.state
+                    });
+                }
+            }
+            return { state: ks };
+        },
+        onLeave: function (_ctx, _logger, nk, _dispatcher, _tick, state, presences) {
+            var ks = state;
+            for (var i = 0; i < presences.length; i++) {
+                ks.online[presences[i].userId] = false;
+            }
+            // Persist whenever someone leaves so we can rehydrate.
+            if (ks.game_id)
+                persist(nk, ks.game_id, {
+                    actors: ks.actors,
+                    gen_state: ks.state,
+                    last_move_unix_ms: ks.last_move_unix_ms,
+                    started_unix_ms: ks.started_unix_ms,
+                    ended: ks.ended,
+                    winner_user_id: ks.winner_user_id
+                });
+            return { state: ks };
+        },
+        onLoop: function (ctx, logger, nk, dispatcher, _tick, state, messages) {
+            var ks = state;
+            var matchId = ctx.matchId || "";
+            var nowUnixMs = Date.now();
+            // 0. Apply inbound messages.
+            for (var i = 0; i < messages.length; i++) {
+                applyInbound(ks, messages[i], dispatcher, matchId, nk, logger);
+            }
+            // 1. Move-timeout — auto-forfeit slow actors.
+            if (!ks.ended && ks.current_actor && ks.init.move_timeout_ms > 0) {
+                var elapsed = nowUnixMs - ks.last_move_unix_ms;
+                if (elapsed > ks.init.move_timeout_ms) {
+                    var forfeiter = ks.current_actor;
+                    ks.ended = true;
+                    ks.pending_end_reason = "move_timeout";
+                    // Other actor wins by default if 2-player.
+                    if (ks.actors.length === 2) {
+                        ks.winner_user_id = ks.actors[0] === forfeiter ? ks.actors[1] : ks.actors[0];
+                    }
+                    broadcastTemplate(ks, dispatcher, matchId, MpKernelAsyncTurn.Op.FORFEIT, {
+                        user_id: forfeiter,
+                        reason: "move_timeout"
+                    });
+                    if (ks.game_id)
+                        persist(nk, ks.game_id, {
+                            actors: ks.actors,
+                            gen_state: ks.state,
+                            last_move_unix_ms: ks.last_move_unix_ms,
+                            started_unix_ms: ks.started_unix_ms,
+                            ended: true,
+                            winner_user_id: ks.winner_user_id
+                        });
+                }
+            }
+            // 2. Total-duration cap (rare for async).
+            if (ks.init.max_match_duration_ms > 0 &&
+                nowUnixMs > ks.started_unix_ms + ks.init.max_match_duration_ms &&
+                !ks.ended) {
+                ks.ended = true;
+                ks.pending_end_reason = "duration_exceeded";
+            }
+            // 3. End match if everyone left AND game is done.
+            if (ks.ended && countOnline(ks) === 0) {
+                return endMatch(ks, dispatcher, matchId, ks.pending_end_reason === "duration_exceeded"
+                    ? MpKernel.EndReason.DURATION_EXCEEDED
+                    : MpKernel.EndReason.COMPLETED);
+            }
+            return { state: ks };
+        },
+        onTerminate: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _grace) {
+            return { state: state };
+        },
+        buildResult: function (state, _reason) {
+            var ks = state;
+            var outcomes = [];
+            for (var i = 0; i < ks.actors.length; i++) {
+                var u = ks.actors[i];
+                var won = ks.winner_user_id && ks.winner_user_id === u;
+                outcomes.push({
+                    user_id: u,
+                    is_agent: u.indexOf("agt_") === 0,
+                    placement: won ? 1 : (ks.winner_user_id ? 2 : 0),
+                    score: won ? 1 : 0,
+                    completed: ks.ended,
+                    left_early: !ks.ended,
+                    game_payload: {}
+                });
+            }
+            var gp = ks.generator
+                ? ks.generator.buildResult(ks.state, ks.actors, ks.winner_user_id, ks.ended)
+                : {};
+            return {
+                match_id: "",
+                template_id: MpKernelAsyncTurn.template.templateId,
+                game_id: "",
+                started_unix_ms: ks.started_unix_ms,
+                ended_unix_ms: 0,
+                duration_ms: 0,
+                outcomes: outcomes,
+                game_payload: gp
+            };
+        }
+    };
+    function applyInbound(ks, m, dispatcher, matchId, nk, logger) {
+        var raw = (typeof m.data === "string") ? m.data : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+        if (!raw)
+            return;
+        var parsed;
+        try {
+            parsed = JSON.parse(raw);
+        }
+        catch (_e) {
+            return;
+        }
+        var p = parsed.p || {};
+        var sender = m.sender.userId;
+        if (m.opCode === MpKernelAsyncTurn.Op.TURN_SUBMIT) {
+            if (ks.ended)
+                return;
+            if (ks.current_actor !== sender) {
+                logger.warn("[AsyncTurn] reject — not %s's turn (current=%s)", sender, ks.current_actor);
+                return;
+            }
+            if (!ks.generator) {
+                logger.warn("[AsyncTurn] no generator — cannot apply move");
+                return;
+            }
+            var result;
+            try {
+                result = ks.generator.applyMove(ks.state, sender, p);
+            }
+            catch (e) {
+                logger.warn("[AsyncTurn] applyMove threw: %s", e && e.message ? e.message : String(e));
+                return;
+            }
+            if (!result) {
+                logger.warn("[AsyncTurn] illegal move from %s", sender);
+                return;
+            }
+            ks.state = result.state;
+            ks.current_actor = result.actor || "";
+            ks.last_move_unix_ms = Date.now();
+            ks.ended = !!result.ended;
+            ks.winner_user_id = result.winner_user_id || ks.winner_user_id;
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelAsyncTurn.Op.TURN_END, {
+                actor_user_id: sender,
+                next_actor: ks.current_actor,
+                state: ks.state,
+                move: result.broadcast_payload || p,
+                ended: ks.ended,
+                winner_user_id: ks.winner_user_id
+            });
+            // Persist after each move so reconnection is reliable.
+            if (ks.game_id)
+                persist(nk, ks.game_id, {
+                    actors: ks.actors,
+                    gen_state: ks.state,
+                    last_move_unix_ms: ks.last_move_unix_ms,
+                    started_unix_ms: ks.started_unix_ms,
+                    ended: ks.ended,
+                    winner_user_id: ks.winner_user_id
+                });
+            // Notify next actor offline if they aren't online here.
+            if (!ks.ended && ks.current_actor && !ks.online[ks.current_actor]) {
+                try {
+                    nk.notificationSend(ks.current_actor, "Your move", { game_id: ks.game_id, last_move_by: sender, async_match_id: matchId }, 1001, // app-defined notification code
+                    "", true);
+                }
+                catch (_e) { /* swallow */ }
+            }
+            // Echo the wake-up to all clients in case the next actor is here.
+            if (!ks.ended && ks.current_actor) {
+                broadcastTemplate(ks, dispatcher, matchId, MpKernelAsyncTurn.Op.NOTIFY_OPPONENT, {
+                    actor_user_id: ks.current_actor
+                });
+                broadcastTemplate(ks, dispatcher, matchId, MpKernelAsyncTurn.Op.TURN_START, {
+                    actor: ks.current_actor,
+                    state: ks.state
+                });
+            }
+        }
+        else if (m.opCode === MpKernelAsyncTurn.Op.RESIGN) {
+            if (ks.ended)
+                return;
+            ks.ended = true;
+            ks.winner_user_id = ks.actors.length === 2
+                ? (ks.actors[0] === sender ? ks.actors[1] : ks.actors[0])
+                : "";
+            ks.pending_end_reason = "resign";
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelAsyncTurn.Op.RESIGN, {
+                user_id: sender,
+                winner_user_id: ks.winner_user_id
+            });
+            if (ks.game_id)
+                persist(nk, ks.game_id, {
+                    actors: ks.actors, gen_state: ks.state,
+                    last_move_unix_ms: ks.last_move_unix_ms,
+                    started_unix_ms: ks.started_unix_ms,
+                    ended: true, winner_user_id: ks.winner_user_id
+                });
+        }
+        else if (m.opCode === MpKernelAsyncTurn.Op.FORFEIT) {
+            if (ks.ended)
+                return;
+            ks.ended = true;
+            ks.pending_end_reason = "forfeit";
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelAsyncTurn.Op.FORFEIT, {
+                user_id: sender, reason: "voluntary"
+            });
+        }
+    }
+    function countOnline(ks) {
+        var n = 0;
+        for (var u in ks.online)
+            if (ks.online[u])
+                n++;
+        return n;
+    }
+    function endMatch(ks, dispatcher, matchId, reasonEnum) {
+        var resultEnvelope = null;
+        if (MpKernelAsyncTurn.template.buildResult) {
+            var built = MpKernelAsyncTurn.template.buildResult(ks, ks.pending_end_reason || "completed");
+            if (built) {
+                built.match_id = matchId;
+                built.template_id = MpKernelAsyncTurn.template.templateId;
+                if (!built.started_unix_ms)
+                    built.started_unix_ms = ks.started_unix_ms;
+                resultEnvelope = built;
+            }
+        }
+        broadcastTemplate(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
+            reason: reasonEnum,
+            result_envelope: resultEnvelope
+        });
+        return null;
+    }
+    function broadcastTemplate(ks, dispatcher, matchId, op, payload) {
+        var seqProvider = ks.__seqProvider;
+        var matchTimeProvider = ks.__matchTimeMs;
+        var seq = (typeof seqProvider === "function") ? seqProvider() : ks.outbound_seq++;
+        var matchTimeMs = (typeof matchTimeProvider === "function")
+            ? matchTimeProvider()
+            : (Date.now() - ks.started_unix_ms);
+        var env = {
+            h: {
+                wire_version: 1,
+                op: op,
+                seq: seq,
+                match_time_ms: matchTimeMs,
+                sender_user_id: "server",
+                match_id: matchId,
+                client_opcode_uuid: ""
+            },
+            p: payload
+        };
+        dispatcher.broadcastMessage(op, JSON.stringify(env));
+    }
+})(MpKernelAsyncTurn || (MpKernelAsyncTurn = {}));
+// ConversationalPartyMatch — voice-first social template.
+//
+// Reserved opcode range 0x1000-0x1FFF.
+//
+// What this is:
+//   A live "voice room" template where N participants — humans and/or
+//   AI agents — share an authoritative speaker queue, hand-raise + grant
+//   workflow, transcript stream, reactions, and a topic. The actual audio
+//   is carried by a pluggable IIVXVoice provider (LiveKit by default);
+//   this template owns the *control plane* (who speaks when, what's the
+//   topic, who's an agent, what's been said) and the kernel guarantees
+//   ordering / idempotency / authority.
+//
+// Why a kernel template (not a custom RPC stack):
+//   * Reuses kernel envelope, presence, idempotency, seq-gap, error fan-out.
+//   * AI agents are first-class presences (user_id starts with "agt_") so
+//     turn-taking, transcripts, and moderation work without special-case
+//     code paths.
+//   * Free reconnect / state snapshot replay; clients can leave and return
+//     within reconnect_grace_ms and rebuild the room from RoomSnapshot.
+//
+// State invariants enforced here:
+//   1. At most one active speaker. The grant carries a floor expiry.
+//   2. Speaker queue capped at speaker_queue_cap (default 50). Overflow
+//      returns RATE_LIMITED via OP_ERROR.
+//   3. Reactions are throttled per user (default 5/sec, 1s window).
+//   4. Text chat is throttled per user (default 5/sec, 1s window).
+//   5. Topic changes only by moderator (or anyone if anyone_can_topic).
+//   6. Transcript is append-only; finalised chunks evict interim chunks
+//      with the same speaker_user_id + start_ts_ms.
+//   7. Hand-raise queue is FIFO. Lower-hand removes from queue.
+//   8. Agent invariants: agents may speak only when granted; agents emit
+//      transcripts via IIVXAgent kernel service (see agent.proto). This
+//      template only relays the chunks here.
+var MpKernelConvParty;
+(function (MpKernelConvParty) {
+    MpKernelConvParty.Op = {
+        SPEAKER_REQUEST: 0x1000,
+        SPEAKER_GRANT: 0x1001,
+        SPEAKER_REVOKE: 0x1002,
+        MUTE_SELF: 0x1003,
+        REACTION: 0x1004,
+        TEXT_CHAT: 0x1005,
+        TOPIC_SET: 0x1006,
+        PIN_MESSAGE: 0x1007,
+        TRANSCRIPT_CHUNK: 0x1008,
+        VOICE_MODE: 0x1009,
+        HAND_LOWER: 0x100A,
+        ROOM_SNAPSHOT: 0x100B
+    };
+    MpKernelConvParty.DefaultInit = {
+        max_members: 24,
+        speaker_floor_seconds: 60,
+        speaker_queue_cap: 50,
+        reaction_rate_per_sec: 5,
+        chat_rate_per_sec: 5,
+        allow_text_chat: true,
+        allow_agents: true,
+        max_agents: 4,
+        moderation_enabled: true,
+        transcript_enabled: true,
+        default_voice_mode: "spatial",
+        anyone_can_topic: false,
+        transcript_history: 50,
+        voice_room_id: "",
+        voice_provider: "livekit"
+    };
+    function mergeInit(params) {
+        var out = {};
+        for (var k in MpKernelConvParty.DefaultInit)
+            if (MpKernelConvParty.DefaultInit.hasOwnProperty(k))
+                out[k] = MpKernelConvParty.DefaultInit[k];
+        if (params)
+            for (var k2 in params)
+                if (params.hasOwnProperty(k2))
+                    out[k2] = params[k2];
+        // Hard guards.
+        if (out.max_members < 2)
+            out.max_members = 2;
+        if (out.max_members > 64)
+            out.max_members = 64;
+        if (out.speaker_floor_seconds < 5)
+            out.speaker_floor_seconds = 5;
+        if (out.speaker_floor_seconds > 600)
+            out.speaker_floor_seconds = 600;
+        if (out.speaker_queue_cap < 1)
+            out.speaker_queue_cap = 1;
+        if (out.speaker_queue_cap > 1000)
+            out.speaker_queue_cap = 1000;
+        if (out.reaction_rate_per_sec < 1)
+            out.reaction_rate_per_sec = 1;
+        if (out.reaction_rate_per_sec > 60)
+            out.reaction_rate_per_sec = 60;
+        if (out.chat_rate_per_sec < 1)
+            out.chat_rate_per_sec = 1;
+        if (out.chat_rate_per_sec > 60)
+            out.chat_rate_per_sec = 60;
+        if (out.transcript_history < 0)
+            out.transcript_history = 0;
+        if (out.transcript_history > 500)
+            out.transcript_history = 500;
+        return out;
+    }
+    function isAgent(userId) {
+        return typeof userId === "string" && userId.length >= 4 && userId.substring(0, 4) === "agt_";
+    }
+    function memberCount(s) {
+        var c = 0;
+        for (var u in s.members)
+            c++;
+        return c;
+    }
+    function agentCount(s) {
+        var c = 0;
+        for (var u in s.members)
+            if (s.members[u].is_agent)
+                c++;
+        return c;
+    }
+    MpKernelConvParty.template = {
+        templateId: "conversational-party-v1",
+        opRange: { from: 0x1000, to: 0x1FFF },
+        defaultInit: MpKernelConvParty.DefaultInit,
+        initState: function (ctx, _logger, _nk, params) {
+            var init = mergeInit(params.template_init);
+            var matchId = ctx.matchId || "";
+            var nowMs = Date.now();
+            var s = {
+                init: init,
+                members: {},
+                presences: {},
+                speaker_queue: [],
+                current_grant: null,
+                topic: "",
+                pinned_messages: [],
+                transcript_history: [],
+                started_unix_ms: nowMs,
+                last_idle_check_ms: nowMs,
+                last_nonzero_presence_unix_ms: nowMs,
+                creator_user_id: params.creator_user_id || "",
+                pending_end_reason: "",
+                outbound_seq: 1,
+                matchId: matchId
+            };
+            // Creator becomes the host; kept synchronous so first speaker grant
+            // doesn't race with the first join.
+            if (s.creator_user_id) {
+                s.members[s.creator_user_id] = {
+                    user_id: s.creator_user_id,
+                    is_agent: isAgent(s.creator_user_id),
+                    role: "host",
+                    joined_unix_ms: nowMs,
+                    last_seen_unix_ms: nowMs,
+                    online: false,
+                    muted_self: false,
+                    muted_by_kernel: false,
+                    hand_raised: false,
+                    voice_mode: init.default_voice_mode
+                };
+            }
+            var label = JSON.stringify({
+                template_id: MpKernelConvParty.template.templateId,
+                game_id: params.game_id,
+                max_members: init.max_members,
+                agents: init.allow_agents,
+                voice_provider: init.voice_provider,
+                voice_room_id: init.voice_room_id || matchId
+            });
+            // 4 Hz tick — voice rooms are mostly event-driven; the loop just
+            // expires speaker floors and drains messages.
+            return { state: s, tickRate: 4, label: label };
+        },
+        onJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presence, _metadata) {
+            var s = state;
+            var u = presence.userId;
+            var isA = isAgent(u);
+            // Capacity by member slots, not live presences.
+            if (!s.members[u]) {
+                if (memberCount(s) >= s.init.max_members) {
+                    return { state: s, accept: false, rejectMessage: "room full" };
+                }
+                if (isA) {
+                    if (!s.init.allow_agents) {
+                        return { state: s, accept: false, rejectMessage: "agents disabled" };
+                    }
+                    if (agentCount(s) >= s.init.max_agents) {
+                        return { state: s, accept: false, rejectMessage: "agent cap reached" };
+                    }
+                }
+            }
+            return { state: s, accept: true };
+        },
+        onJoin: function (_ctx, _logger, _nk, dispatcher, _tick, state, presences) {
+            var s = state;
+            var nowMs = Date.now();
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                var u = p.userId;
+                if (!s.members[u]) {
+                    s.members[u] = {
+                        user_id: u,
+                        is_agent: isAgent(u),
+                        role: s.creator_user_id === u ? "host" : "listener",
+                        joined_unix_ms: nowMs,
+                        last_seen_unix_ms: nowMs,
+                        online: true,
+                        muted_self: false,
+                        muted_by_kernel: false,
+                        hand_raised: false,
+                        voice_mode: s.init.default_voice_mode
+                    };
+                }
+                else {
+                    s.members[u].online = true;
+                    s.members[u].last_seen_unix_ms = nowMs;
+                }
+                if (!s.presences[u]) {
+                    s.presences[u] = {
+                        online: true,
+                        reaction_bucket: { bucket_unix_s: 0, count: 0 },
+                        chat_bucket: { bucket_unix_s: 0, count: 0 }
+                    };
+                }
+                else {
+                    s.presences[u].online = true;
+                }
+                s.last_nonzero_presence_unix_ms = nowMs;
+                // Send the joiner a complete RoomSnapshot so they don't see a
+                // half-rendered room while late events trickle in.
+                sendSnapshot(s, dispatcher, p);
+            }
+            return { state: s };
+        },
+        onLeave: function (_ctx, _logger, _nk, dispatcher, _tick, state, presences) {
+            var s = state;
+            var nowMs = Date.now();
+            for (var i = 0; i < presences.length; i++) {
+                var u = presences[i].userId;
+                if (s.presences[u])
+                    s.presences[u].online = false;
+                var m = s.members[u];
+                if (m) {
+                    m.online = false;
+                    m.last_seen_unix_ms = nowMs;
+                }
+                // If the leaver held the floor, revoke + advance the queue.
+                if (s.current_grant && s.current_grant.user_id === u) {
+                    s.current_grant = null;
+                    broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.SPEAKER_REVOKE, {
+                        user_id: u, reason: "voluntary"
+                    });
+                    advanceSpeakerQueue(s, dispatcher, nowMs);
+                }
+                // Lower their hand if raised.
+                if (m && m.hand_raised) {
+                    m.hand_raised = false;
+                    removeFromQueue(s, u);
+                    broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.HAND_LOWER, { user_id: u });
+                }
+            }
+            return { state: s };
+        },
+        onLoop: function (_ctx, logger, _nk, dispatcher, _tick, state, messages) {
+            var s = state;
+            var nowMs = Date.now();
+            // 1. Drain inbound. Pre-validation happens at the kernel layer; here
+            //    we trust m.opCode is in our range and m.sender is authentic.
+            for (var i = 0; i < messages.length; i++) {
+                applyInbound(s, messages[i], dispatcher, nowMs, logger);
+            }
+            // 2. Speaker floor expiry.
+            if (s.current_grant && s.current_grant.expires_unix_ms <= nowMs) {
+                var expired = s.current_grant.user_id;
+                s.current_grant = null;
+                broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.SPEAKER_REVOKE, {
+                    user_id: expired, reason: "time_up"
+                });
+                advanceSpeakerQueue(s, dispatcher, nowMs);
+            }
+            // 3. Idle termination — only if no live presences for 10 minutes
+            //    AND no agents (an unattended agent room becomes ghosty).
+            var live = 0;
+            for (var u in s.presences)
+                if (s.presences[u].online)
+                    live++;
+            if (live > 0)
+                s.last_nonzero_presence_unix_ms = nowMs;
+            else if (nowMs - s.last_nonzero_presence_unix_ms > 10 * 60 * 1000) {
+                s.pending_end_reason = "idle_terminate";
+                return endMatch(s, dispatcher, MpKernel.EndReason.COMPLETED);
+            }
+            if (s.pending_end_reason !== "") {
+                return endMatch(s, dispatcher, MpKernel.EndReason.COMPLETED);
+            }
+            return { state: s };
+        },
+        onTerminate: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _grace) {
+            return { state: state };
+        },
+        buildResult: function (state, reason) {
+            var s = state;
+            var outcomes = [];
+            for (var u in s.members) {
+                var m = s.members[u];
+                outcomes.push({
+                    user_id: u,
+                    is_agent: m.is_agent,
+                    placement: 0,
+                    score: 0,
+                    completed: true,
+                    left_early: false,
+                    game_payload: { role: m.role, last_seen_unix_ms: m.last_seen_unix_ms }
+                });
+            }
+            return {
+                match_id: s.matchId,
+                template_id: MpKernelConvParty.template.templateId,
+                game_id: "",
+                started_unix_ms: s.started_unix_ms,
+                ended_unix_ms: 0,
+                duration_ms: 0,
+                outcomes: outcomes,
+                game_payload: {
+                    end_reason: reason,
+                    topic: s.topic,
+                    transcript_count: s.transcript_history.length,
+                    host: s.creator_user_id
+                }
+            };
+        }
+    };
+    // ---- inbound handling ----
+    function applyInbound(s, m, dispatcher, nowMs, logger) {
+        var raw = (typeof m.data === "string") ? m.data : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+        if (!raw)
+            return;
+        var parsed;
+        try {
+            parsed = JSON.parse(raw);
+        }
+        catch (_e) {
+            sendError(s, dispatcher, m.sender.userId, MpKernel.ErrorCode.BAD_PAYLOAD, "invalid envelope");
+            return;
+        }
+        var p = parsed.p || {};
+        var sender = m.sender.userId;
+        var sm = s.members[sender];
+        if (!sm) {
+            // Not-a-member: silently drop. Should never happen since presence
+            // implies membership, but guard against split-brain races.
+            return;
+        }
+        sm.last_seen_unix_ms = nowMs;
+        switch (m.opCode) {
+            case MpKernelConvParty.Op.SPEAKER_REQUEST:
+                handleSpeakerRequest(s, dispatcher, sender, p, nowMs);
+                break;
+            case MpKernelConvParty.Op.SPEAKER_REVOKE:
+                handleSpeakerRevoke(s, dispatcher, sender, p, nowMs);
+                break;
+            case MpKernelConvParty.Op.MUTE_SELF:
+                handleMuteSelf(s, dispatcher, sender, p);
+                break;
+            case MpKernelConvParty.Op.REACTION:
+                handleReaction(s, dispatcher, sender, p, nowMs);
+                break;
+            case MpKernelConvParty.Op.TEXT_CHAT:
+                handleTextChat(s, dispatcher, sender, p, nowMs);
+                break;
+            case MpKernelConvParty.Op.TOPIC_SET:
+                handleTopicSet(s, dispatcher, sender, p);
+                break;
+            case MpKernelConvParty.Op.PIN_MESSAGE:
+                handlePinMessage(s, dispatcher, sender, p);
+                break;
+            case MpKernelConvParty.Op.TRANSCRIPT_CHUNK:
+                handleTranscriptChunk(s, dispatcher, sender, p, nowMs, logger);
+                break;
+            case MpKernelConvParty.Op.VOICE_MODE:
+                handleVoiceMode(s, dispatcher, sender, p);
+                break;
+            case MpKernelConvParty.Op.HAND_LOWER:
+                handleHandLower(s, dispatcher, sender, p);
+                break;
+            default:
+            // Unknown opcode in our range — ignore silently.
+        }
+    }
+    // ---- handlers ----
+    function handleSpeakerRequest(s, dispatcher, sender, p, nowMs) {
+        var sm = s.members[sender];
+        // If queue full, RATE_LIMITED.
+        if (s.speaker_queue.length >= s.init.speaker_queue_cap) {
+            sendError(s, dispatcher, sender, MpKernel.ErrorCode.RATE_LIMITED, "speaker queue full");
+            return;
+        }
+        if (s.current_grant && s.current_grant.user_id === sender) {
+            // Already speaking; ignore.
+            return;
+        }
+        // Already in queue? ignore (idempotent).
+        for (var i = 0; i < s.speaker_queue.length; i++) {
+            if (s.speaker_queue[i] === sender)
+                return;
+        }
+        s.speaker_queue.push(sender);
+        sm.hand_raised = true;
+        // If no current grant, immediately promote.
+        if (!s.current_grant) {
+            advanceSpeakerQueue(s, dispatcher, nowMs);
+        }
+        else {
+            // Tell sender their position.
+            sendUnicast(s, dispatcher, sender, MpKernelConvParty.Op.SPEAKER_GRANT, {
+                user_id: sender,
+                floor_seconds: 0,
+                queue_position: s.speaker_queue.length,
+                topic_hint: typeof p.topic_hint === "string" ? p.topic_hint : ""
+            });
+        }
+    }
+    function handleSpeakerRevoke(s, dispatcher, sender, p, nowMs) {
+        // Two cases: voluntary (sender == current speaker) or moderator forces.
+        var sm = s.members[sender];
+        var target = (typeof p.user_id === "string" && p.user_id) ? p.user_id : sender;
+        if (target !== sender) {
+            // Moderator-initiated revoke.
+            if (sm.role !== "host" && sm.role !== "moderator") {
+                sendError(s, dispatcher, sender, MpKernel.ErrorCode.PERMISSION_DENIED, "not a moderator");
+                return;
+            }
+        }
+        if (s.current_grant && s.current_grant.user_id === target) {
+            var reason = (target === sender) ? "voluntary" : "moderated";
+            s.current_grant = null;
+            broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.SPEAKER_REVOKE, {
+                user_id: target, reason: reason
+            });
+            advanceSpeakerQueue(s, dispatcher, nowMs);
+        }
+        else {
+            // Removing from queue if waiting.
+            removeFromQueue(s, target);
+            var sm2 = s.members[target];
+            if (sm2)
+                sm2.hand_raised = false;
+            broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.HAND_LOWER, { user_id: target });
+        }
+    }
+    function handleMuteSelf(s, dispatcher, sender, p) {
+        var sm = s.members[sender];
+        sm.muted_self = !!p.muted;
+        broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.MUTE_SELF, {
+            user_id: sender, muted: sm.muted_self
+        });
+    }
+    function handleReaction(s, dispatcher, sender, p, nowMs) {
+        var pres = s.presences[sender];
+        var nowS = Math.floor(nowMs / 1000);
+        if (pres.reaction_bucket.bucket_unix_s !== nowS) {
+            pres.reaction_bucket.bucket_unix_s = nowS;
+            pres.reaction_bucket.count = 0;
+        }
+        if (pres.reaction_bucket.count >= s.init.reaction_rate_per_sec) {
+            sendError(s, dispatcher, sender, MpKernel.ErrorCode.RATE_LIMITED, "reaction rate-limited");
+            return;
+        }
+        pres.reaction_bucket.count++;
+        var reactionId = (typeof p.reaction_id === "number") ? (p.reaction_id | 0) : 0;
+        var emoji = (typeof p.emoji === "string") ? p.emoji.substring(0, 16) : "";
+        broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.REACTION, {
+            user_id: sender, reaction_id: reactionId, emoji: emoji, ts_ms: nowMs
+        });
+    }
+    function handleTextChat(s, dispatcher, sender, p, nowMs) {
+        if (!s.init.allow_text_chat)
+            return;
+        var pres = s.presences[sender];
+        var nowS = Math.floor(nowMs / 1000);
+        if (pres.chat_bucket.bucket_unix_s !== nowS) {
+            pres.chat_bucket.bucket_unix_s = nowS;
+            pres.chat_bucket.count = 0;
+        }
+        if (pres.chat_bucket.count >= s.init.chat_rate_per_sec) {
+            sendError(s, dispatcher, sender, MpKernel.ErrorCode.RATE_LIMITED, "chat rate-limited");
+            return;
+        }
+        pres.chat_bucket.count++;
+        var text = (typeof p.text === "string") ? p.text.substring(0, 1000) : "";
+        var clientUuid = (typeof p.client_uuid === "string") ? p.client_uuid.substring(0, 64) : "";
+        broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.TEXT_CHAT, {
+            user_id: sender, text: text, client_uuid: clientUuid, ts_ms: nowMs
+        });
+    }
+    function handleTopicSet(s, dispatcher, sender, p) {
+        var sm = s.members[sender];
+        if (!s.init.anyone_can_topic && sm.role !== "host" && sm.role !== "moderator") {
+            sendError(s, dispatcher, sender, MpKernel.ErrorCode.PERMISSION_DENIED, "topic set: not a moderator");
+            return;
+        }
+        var topic = (typeof p.topic === "string") ? p.topic.substring(0, 200) : "";
+        s.topic = topic;
+        broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.TOPIC_SET, {
+            topic: topic, set_by: sender
+        });
+    }
+    function handlePinMessage(s, dispatcher, sender, p) {
+        var sm = s.members[sender];
+        if (sm.role !== "host" && sm.role !== "moderator") {
+            sendError(s, dispatcher, sender, MpKernel.ErrorCode.PERMISSION_DENIED, "pin: not a moderator");
+            return;
+        }
+        var msgId = (typeof p.message_id === "string") ? p.message_id.substring(0, 64) : "";
+        if (!msgId)
+            return;
+        var pin = !!p.pinned;
+        var idx = s.pinned_messages.indexOf(msgId);
+        if (pin && idx === -1) {
+            s.pinned_messages.push(msgId);
+            if (s.pinned_messages.length > 3)
+                s.pinned_messages.shift();
+        }
+        else if (!pin && idx !== -1) {
+            s.pinned_messages.splice(idx, 1);
+        }
+        broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.PIN_MESSAGE, {
+            message_id: msgId, user_id: sender, pinned: pin
+        });
+    }
+    function handleTranscriptChunk(s, dispatcher, sender, p, nowMs, logger) {
+        if (!s.init.transcript_enabled)
+            return;
+        var sm = s.members[sender];
+        // Authority: a transcript chunk's `speaker_user_id` MUST equal sender,
+        // unless the sender is the host emitting an out-of-band agent transcript
+        // (used by the IIVXAgent kernel service to publish on behalf of agents).
+        var speaker = (typeof p.speaker_user_id === "string") ? p.speaker_user_id : sender;
+        if (speaker !== sender && sm.role !== "host" && sm.role !== "moderator") {
+            sendError(s, dispatcher, sender, MpKernel.ErrorCode.NOT_AUTHORIZED, "transcript: speaker_user_id != sender");
+            return;
+        }
+        var chunk = {
+            speaker_user_id: speaker,
+            is_agent: !!p.is_agent || isAgent(speaker),
+            text: (typeof p.text === "string") ? p.text.substring(0, 4000) : "",
+            start_ts_ms: (typeof p.start_ts_ms === "number") ? p.start_ts_ms : nowMs,
+            end_ts_ms: (typeof p.end_ts_ms === "number") ? p.end_ts_ms : nowMs,
+            final: !!p.final,
+            locale: (typeof p.locale === "string") ? p.locale.substring(0, 16) : ""
+        };
+        // Final chunk evicts any matching interim chunk.
+        if (chunk.final) {
+            for (var i = s.transcript_history.length - 1; i >= 0; i--) {
+                var ex = s.transcript_history[i];
+                if (!ex.final && ex.speaker_user_id === chunk.speaker_user_id &&
+                    ex.start_ts_ms === chunk.start_ts_ms) {
+                    s.transcript_history.splice(i, 1);
+                }
+            }
+        }
+        s.transcript_history.push(chunk);
+        if (s.transcript_history.length > s.init.transcript_history) {
+            // Drop oldest.
+            var over = s.transcript_history.length - s.init.transcript_history;
+            s.transcript_history.splice(0, over);
+        }
+        broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.TRANSCRIPT_CHUNK, chunk);
+        if (s.init.moderation_enabled) {
+            // Note: we publish to the moderation pipeline via a kernel hook —
+            // see multiplayer-kernel/services/moderation.ts. v1 fires-and-forgets.
+            try {
+                if (typeof MpKernel.enqueueModeration === "function") {
+                    MpKernel.enqueueModeration({
+                        scope: "conversational_party",
+                        match_id: s.matchId,
+                        speaker_user_id: speaker,
+                        text: chunk.text,
+                        ts_ms: nowMs
+                    });
+                }
+            }
+            catch (e) {
+                logger.debug("[ConvParty] moderation hook missing: " +
+                    ((e && e.message) ? e.message : String(e)));
+            }
+        }
+    }
+    function handleVoiceMode(s, dispatcher, sender, p) {
+        var sm = s.members[sender];
+        var mode = (typeof p.voice_mode === "string") ? p.voice_mode : s.init.default_voice_mode;
+        if (mode !== "broadcast" && mode !== "spatial" && mode !== "ptt" && mode !== "off") {
+            sendError(s, dispatcher, sender, MpKernel.ErrorCode.BAD_PAYLOAD, "voice_mode: bad value");
+            return;
+        }
+        sm.voice_mode = mode;
+        broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.VOICE_MODE, {
+            user_id: sender, voice_mode: mode
+        });
+    }
+    function handleHandLower(s, dispatcher, sender, p) {
+        var target = (typeof p.user_id === "string" && p.user_id) ? p.user_id : sender;
+        var sm = s.members[sender];
+        if (target !== sender) {
+            // Only a moderator can lower someone else's hand.
+            if (sm.role !== "host" && sm.role !== "moderator") {
+                sendError(s, dispatcher, sender, MpKernel.ErrorCode.PERMISSION_DENIED, "hand_lower: not a moderator");
+                return;
+            }
+        }
+        var t = s.members[target];
+        if (!t)
+            return;
+        t.hand_raised = false;
+        removeFromQueue(s, target);
+        broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.HAND_LOWER, { user_id: target });
+    }
+    // ---- speaker queue mechanics ----
+    function advanceSpeakerQueue(s, dispatcher, nowMs) {
+        while (s.speaker_queue.length > 0 && !s.current_grant) {
+            var next = s.speaker_queue.shift();
+            if (!next)
+                break;
+            var nm = s.members[next];
+            // Skip offline / kicked / muted-by-kernel members.
+            if (!nm || !nm.online || nm.muted_by_kernel)
+                continue;
+            var grant = {
+                user_id: next,
+                granted_unix_ms: nowMs,
+                expires_unix_ms: nowMs + s.init.speaker_floor_seconds * 1000
+            };
+            s.current_grant = grant;
+            nm.hand_raised = false;
+            broadcastTemplate(s, dispatcher, MpKernelConvParty.Op.SPEAKER_GRANT, {
+                user_id: next,
+                floor_seconds: s.init.speaker_floor_seconds,
+                queue_position: 0
+            });
+            return;
+        }
+    }
+    function removeFromQueue(s, userId) {
+        for (var i = 0; i < s.speaker_queue.length; i++) {
+            if (s.speaker_queue[i] === userId) {
+                s.speaker_queue.splice(i, 1);
+                return;
+            }
+        }
+    }
+    // ---- snapshot / fan-out helpers ----
+    function sendSnapshot(s, dispatcher, target) {
+        var members = [];
+        for (var u in s.members) {
+            var m = s.members[u];
+            members.push({
+                user_id: u,
+                is_agent: m.is_agent,
+                role: m.role,
+                online: m.online,
+                muted_self: m.muted_self,
+                hand_raised: m.hand_raised,
+                voice_mode: m.voice_mode
+            });
+        }
+        var snap = {
+            members: members,
+            speaker_queue: s.speaker_queue.slice(),
+            current_speaker_user_id: s.current_grant ? s.current_grant.user_id : "",
+            topic: s.topic,
+            recent_transcript: s.transcript_history.slice(-Math.min(20, s.transcript_history.length)),
+            moderators: moderatorIds(s),
+            pinned_messages: s.pinned_messages.slice(),
+            voice_room_id: s.init.voice_room_id || s.matchId,
+            voice_provider: s.init.voice_provider,
+            schema_version: 1
+        };
+        sendUnicast(s, dispatcher, target.userId, MpKernelConvParty.Op.ROOM_SNAPSHOT, snap);
+    }
+    function moderatorIds(s) {
+        var out = [];
+        for (var u in s.members) {
+            var m = s.members[u];
+            if (m.role === "host" || m.role === "moderator")
+                out.push(u);
+        }
+        return out;
+    }
+    function broadcastTemplate(s, dispatcher, op, payload) {
+        var env = {
+            h: {
+                wire_version: 1, op: op,
+                seq: s.outbound_seq++,
+                match_time_ms: Date.now() - s.started_unix_ms,
+                sender_user_id: "server",
+                match_id: s.matchId,
+                client_opcode_uuid: ""
+            },
+            p: payload
+        };
+        dispatcher.broadcastMessage(op, JSON.stringify(env));
+    }
+    function sendUnicast(s, dispatcher, userId, op, payload) {
+        var env = {
+            h: {
+                wire_version: 1, op: op,
+                seq: s.outbound_seq++,
+                match_time_ms: Date.now() - s.started_unix_ms,
+                sender_user_id: "server",
+                match_id: s.matchId,
+                client_opcode_uuid: ""
+            },
+            p: payload
+        };
+        dispatcher.broadcastMessage(op, JSON.stringify(env), [{
+                userId: userId, sessionId: "", username: "", node: ""
+            }]);
+    }
+    function sendError(s, dispatcher, userId, code, detail) {
+        sendUnicast(s, dispatcher, userId, MpKernel.KernelOp.ERROR, {
+            code: code, detail: detail
+        });
+    }
+    function endMatch(s, dispatcher, reasonEnum) {
+        var resultEnvelope = null;
+        if (MpKernelConvParty.template.buildResult) {
+            var built = MpKernelConvParty.template.buildResult(s, s.pending_end_reason || "completed");
+            if (built) {
+                built.match_id = s.matchId;
+                if (!built.started_unix_ms)
+                    built.started_unix_ms = s.started_unix_ms;
+                resultEnvelope = built;
+            }
+        }
+        broadcastTemplate(s, dispatcher, MpKernel.KernelOp.MATCH_ENDED, {
+            reason: reasonEnum,
+            result_envelope: resultEnvelope
+        });
+        return null;
+    }
+})(MpKernelConvParty || (MpKernelConvParty = {}));
+// LiveEventRoom — long-running event room template.
+//
+// Reserved opcode range 0x9000-0x9FFF.
+//
+// Use cases: virtual concerts, premieres, raid lobbies, scheduled live
+// shows where many players gather, the server runs a phase machine
+// (PRE_SHOW -> SHOW -> POST_SHOW), and players mostly receive broadcasts
+// (phase changes, drops, leaderboard ticks) with limited inbound (cheers,
+// reaction emoji, chat).
+//
+// Differences from sync-turn / async-turn:
+//   * High join/leave churn — bursty: hundreds/thousands of presences
+//     joining at show start, leaving at show end. We don't quorum-end.
+//   * No "winning" — the result envelope is mostly attendance metrics +
+//     per-player participation summary.
+//   * Cuts (phase transitions) are externally scheduled (phase_schedule
+//     in init OR signal-driven from an admin RPC).
+//   * Reactions / chat are rate-limited per-player to avoid the 1k-room
+//     -> 1k-fanout amplification problem.
+//
+// Capacity: capped per-room. If demand exceeds room size, the orchestrator
+// (live ops) spawns sharded rooms with the same event_id; clients subscribe
+// to whichever room they're routed to.
+var MpKernelLiveEvent;
+(function (MpKernelLiveEvent) {
+    MpKernelLiveEvent.Op = {
+        PHASE_CHANGED: 0x9000, // server -> all
+        REACTION: 0x9001, // client -> server -> all (rate-limited)
+        DROP_AWARDED: 0x9002, // server -> targeted (or all)
+        EVENT_PROGRESS: 0x9003, // server -> all (e.g. crowd-meter)
+        PARTICIPATION_LOG: 0x9004, // server -> targeted; per-player participation receipt
+        EVENT_CHAT: 0x9005, // client -> server -> all (rate-limited, optional)
+        EVENT_SIGNAL: 0x9006, // admin/host -> server (phase advance, drop trigger)
+        QUEUED: 0x9007, // server -> all (waiting room status)
+        TIME_TO_START: 0x9008 // server -> all (countdown)
+    };
+    MpKernelLiveEvent.DefaultInit = {
+        event_id: "",
+        shard_index: 0,
+        max_attendees: 1024,
+        min_attendees_to_start: 1,
+        // Pre-show waiting room window before phase 0 starts.
+        waiting_room_ms: 60000,
+        phase_schedule: [
+            { name: "PRE_SHOW", duration_ms: 5 * 60 * 1000, auto_advance: true },
+            { name: "SHOW", duration_ms: 30 * 60 * 1000, auto_advance: true },
+            { name: "POST_SHOW", duration_ms: 5 * 60 * 1000, auto_advance: true }
+        ],
+        // Per-player rate-limits (per-second).
+        reactions_per_second: 4,
+        chat_per_second: 1,
+        // Allow chat at all? Some events are reaction-only.
+        chat_enabled: false,
+        // Drops fire at scheduled intervals during the SHOW phase.
+        drop_interval_ms: 0, // 0 = no scheduled drops
+        drop_payload: {},
+        drop_target_strategy: "all", // "all" | "random_n"
+        drop_target_n: 0,
+        // Hard wall-clock cap.
+        max_match_duration_ms: 4 * 60 * 60 * 1000,
+        // Allow the host (creator_user_id) to drive phases via EVENT_SIGNAL.
+        host_can_advance: true,
+        // Crowd-meter sample rate.
+        crowd_meter_interval_ms: 5000,
+        // Should events persist a per-attendee participation row in storage?
+        persist_attendance: true
+    };
+    var Phase;
+    (function (Phase) {
+        Phase[Phase["WAITING_ROOM"] = -1] = "WAITING_ROOM";
+        Phase[Phase["LIVE_PHASE_0"] = 0] = "LIVE_PHASE_0";
+        Phase[Phase["DONE"] = 99] = "DONE";
+    })(Phase || (Phase = {}));
+    function mergeInit(params) {
+        var out = {};
+        for (var k in MpKernelLiveEvent.DefaultInit)
+            if (MpKernelLiveEvent.DefaultInit.hasOwnProperty(k))
+                out[k] = MpKernelLiveEvent.DefaultInit[k];
+        if (params)
+            for (var k2 in params)
+                if (params.hasOwnProperty(k2))
+                    out[k2] = params[k2];
+        return out;
+    }
+    MpKernelLiveEvent.template = {
+        templateId: "live-event-v1",
+        opRange: { from: 0x9000, to: 0x9FFF },
+        defaultInit: MpKernelLiveEvent.DefaultInit,
+        initState: function (_ctx, _logger, _nk, params) {
+            var init = mergeInit(params.template_init);
+            var nowMs = Date.now();
+            var s = {
+                init: init,
+                phase_index: Phase.WAITING_ROOM,
+                phase_started_unix_ms: nowMs,
+                waiting_room_until_unix_ms: nowMs + init.waiting_room_ms,
+                started_unix_ms: nowMs,
+                attendees: {},
+                creator_user_id: params.creator_user_id || "",
+                next_drop_at_unix_ms: 0,
+                next_crowd_meter_at_unix_ms: nowMs + init.crowd_meter_interval_ms,
+                pending_end_reason: "",
+                outbound_seq: 1,
+                peak_attendance: 0,
+                reaction_total: 0,
+                chat_total: 0,
+                drops_total: 0
+            };
+            var label = JSON.stringify({
+                template_id: MpKernelLiveEvent.template.templateId,
+                game_id: params.game_id,
+                event_id: init.event_id,
+                shard_index: init.shard_index,
+                max_attendees: init.max_attendees
+            });
+            // 2 Hz — enough for phase transitions, reaction fan-out, crowd-meter
+            // ticks. Won't bottleneck on the JS runtime even at 1k attendees.
+            return { state: s, tickRate: 2, label: label };
+        },
+        onJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _presence, _metadata) {
+            var ks = state;
+            if (ks.phase_index === Phase.DONE) {
+                return { state: ks, accept: false, rejectMessage: "event ended" };
+            }
+            var n = 0;
+            for (var u in ks.attendees)
+                n++;
+            if (n >= ks.init.max_attendees) {
+                return { state: ks, accept: false, rejectMessage: "event full" };
+            }
+            return { state: ks, accept: true };
+        },
+        onJoin: function (_ctx, _logger, _nk, dispatcher, _tick, state, presences) {
+            var ks = state;
+            var matchId = ""; // set in onLoop; broadcasts here are replayed there
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                if (!ks.attendees[p.userId]) {
+                    ks.attendees[p.userId] = {
+                        user_id: p.userId,
+                        is_agent: p.userId.indexOf("agt_") === 0,
+                        joined_unix_ms: Date.now(),
+                        left_unix_ms: 0,
+                        reactions: 0,
+                        chat_count: 0,
+                        drops_received: 0,
+                        participation_score: 0,
+                        reaction_bucket_unix_s: 0,
+                        reaction_bucket_count: 0,
+                        chat_bucket_unix_s: 0,
+                        chat_bucket_count: 0
+                    };
+                }
+            }
+            var nLive = 0;
+            for (var u2 in ks.attendees)
+                if (ks.attendees[u2].left_unix_ms === 0)
+                    nLive++;
+            if (nLive > ks.peak_attendance)
+                ks.peak_attendance = nLive;
+            // Best-effort late-joiner sync — send current phase snapshot.
+            // matchId is populated lazily; this broadcast is harmless even with
+            // an empty match_id since clients filter by op.
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelLiveEvent.Op.QUEUED, {
+                phase_index: ks.phase_index,
+                phase_started_unix_ms: ks.phase_started_unix_ms,
+                attendees: nLive,
+                max_attendees: ks.init.max_attendees
+            });
+            return { state: ks };
+        },
+        onLeave: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presences) {
+            var ks = state;
+            for (var i = 0; i < presences.length; i++) {
+                var u = presences[i].userId;
+                if (ks.attendees[u]) {
+                    ks.attendees[u].left_unix_ms = Date.now();
+                    // Don't delete — we keep participation rows for the result
+                    // envelope. Storage GC happens via retention policy on
+                    // mp_match_results.
+                }
+            }
+            return { state: ks };
+        },
+        onLoop: function (ctx, _logger, nk, dispatcher, _tick, state, messages) {
+            var ks = state;
+            var matchId = ctx.matchId || "";
+            var nowUnixMs = Date.now();
+            // 0. Hard wall-clock cap.
+            if (nowUnixMs > ks.started_unix_ms + ks.init.max_match_duration_ms) {
+                ks.pending_end_reason = "duration_exceeded";
+                ks.phase_index = Phase.DONE;
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.DURATION_EXCEEDED, nk);
+            }
+            // 1. Drain inbound. Reaction / chat rate-limited, EVENT_SIGNAL host-gated.
+            for (var i = 0; i < messages.length; i++) {
+                applyInbound(ks, messages[i], dispatcher, matchId, nowUnixMs);
+            }
+            // 2. Phase machine.
+            if (ks.phase_index === Phase.WAITING_ROOM) {
+                if (nowUnixMs >= ks.waiting_room_until_unix_ms) {
+                    var live = 0;
+                    for (var u in ks.attendees)
+                        if (ks.attendees[u].left_unix_ms === 0)
+                            live++;
+                    if (live < ks.init.min_attendees_to_start) {
+                        // Don't cancel — re-arm waiting room a bit longer if any
+                        // attendees, otherwise end.
+                        if (live === 0) {
+                            ks.pending_end_reason = "no_attendees";
+                            ks.phase_index = Phase.DONE;
+                            return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.QUORUM_LOST, nk);
+                        }
+                        else {
+                            ks.waiting_room_until_unix_ms = nowUnixMs + 30000;
+                        }
+                    }
+                    else {
+                        advancePhase(ks, dispatcher, matchId, 0, nowUnixMs);
+                    }
+                }
+            }
+            else if (ks.phase_index >= 0 && ks.phase_index < ks.init.phase_schedule.length) {
+                var phaseDef = ks.init.phase_schedule[ks.phase_index];
+                if (phaseDef.auto_advance && nowUnixMs >= ks.phase_started_unix_ms + phaseDef.duration_ms) {
+                    var next = ks.phase_index + 1;
+                    if (next >= ks.init.phase_schedule.length) {
+                        ks.phase_index = Phase.DONE;
+                        ks.pending_end_reason = "completed";
+                        return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.COMPLETED, nk);
+                    }
+                    else {
+                        advancePhase(ks, dispatcher, matchId, next, nowUnixMs);
+                    }
+                }
+            }
+            // 3. Drops (only during SHOW = phase_index 1 by convention; we honor
+            //    drop_interval_ms regardless of phase if > 0).
+            if (ks.init.drop_interval_ms > 0 && ks.phase_index >= 0) {
+                if (ks.next_drop_at_unix_ms === 0) {
+                    ks.next_drop_at_unix_ms = nowUnixMs + ks.init.drop_interval_ms;
+                }
+                else if (nowUnixMs >= ks.next_drop_at_unix_ms) {
+                    fireDrop(ks, dispatcher, matchId, nowUnixMs);
+                    ks.next_drop_at_unix_ms = nowUnixMs + ks.init.drop_interval_ms;
+                }
+            }
+            // 4. Crowd-meter ticks.
+            if (nowUnixMs >= ks.next_crowd_meter_at_unix_ms) {
+                var alive = 0;
+                for (var u3 in ks.attendees)
+                    if (ks.attendees[u3].left_unix_ms === 0)
+                        alive++;
+                broadcastTemplate(ks, dispatcher, matchId, MpKernelLiveEvent.Op.EVENT_PROGRESS, {
+                    phase_index: ks.phase_index,
+                    attendees_live: alive,
+                    peak_attendance: ks.peak_attendance,
+                    reaction_total: ks.reaction_total,
+                    chat_total: ks.chat_total,
+                    drops_total: ks.drops_total,
+                    server_unix_ms: nowUnixMs
+                });
+                ks.next_crowd_meter_at_unix_ms = nowUnixMs + ks.init.crowd_meter_interval_ms;
+            }
+            // Final post-loop end-state resolution. Three paths can land here:
+            //   * Host signaled `end` -> phase=DONE, reason="host_ended"   -> COMPLETED
+            //   * Host advanced past end -> phase=DONE, reason="host_advanced_past_end" -> COMPLETED
+            //   * Inbound dropped us into pending_end_reason without DONE  -> KERNEL_INTERNAL
+            // Without this dual check the match silently continues running with
+            // phase=DONE forever (Goja keeps invoking onLoop), bleeding resources.
+            if (ks.phase_index === Phase.DONE && ks.pending_end_reason !== "") {
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.COMPLETED, nk);
+            }
+            if (ks.pending_end_reason !== "" && ks.phase_index !== Phase.DONE) {
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.KERNEL_INTERNAL, nk);
+            }
+            return { state: ks };
+        },
+        onTerminate: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _grace) {
+            return { state: state };
+        },
+        buildResult: function (state, reason) {
+            var ks = state;
+            var outcomes = [];
+            for (var u in ks.attendees) {
+                var a = ks.attendees[u];
+                outcomes.push({
+                    user_id: u,
+                    is_agent: a.is_agent,
+                    placement: 0,
+                    score: a.participation_score,
+                    completed: a.left_unix_ms === 0,
+                    left_early: a.left_unix_ms !== 0 && ks.phase_index !== Phase.DONE,
+                    game_payload: {
+                        joined_unix_ms: a.joined_unix_ms,
+                        left_unix_ms: a.left_unix_ms,
+                        reactions: a.reactions,
+                        chat_count: a.chat_count,
+                        drops_received: a.drops_received
+                    }
+                });
+            }
+            return {
+                match_id: "",
+                template_id: MpKernelLiveEvent.template.templateId,
+                game_id: "",
+                started_unix_ms: ks.started_unix_ms,
+                ended_unix_ms: 0,
+                duration_ms: 0,
+                outcomes: outcomes,
+                game_payload: {
+                    event_id: ks.init.event_id,
+                    shard_index: ks.init.shard_index,
+                    peak_attendance: ks.peak_attendance,
+                    reaction_total: ks.reaction_total,
+                    chat_total: ks.chat_total,
+                    drops_total: ks.drops_total,
+                    end_reason: reason
+                }
+            };
+        }
+    };
+    // ---- helpers ----
+    function applyInbound(ks, m, dispatcher, matchId, nowUnixMs) {
+        var raw = (typeof m.data === "string") ? m.data : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+        if (!raw)
+            return;
+        var parsed;
+        try {
+            parsed = JSON.parse(raw);
+        }
+        catch (_e) {
+            return;
+        }
+        var p = parsed.p || {};
+        var sender = m.sender.userId;
+        var att = ks.attendees[sender];
+        if (!att)
+            return;
+        if (m.opCode === MpKernelLiveEvent.Op.REACTION) {
+            var nowS = Math.floor(nowUnixMs / 1000);
+            if (att.reaction_bucket_unix_s !== nowS) {
+                att.reaction_bucket_unix_s = nowS;
+                att.reaction_bucket_count = 0;
+            }
+            if (att.reaction_bucket_count >= ks.init.reactions_per_second) {
+                // Drop silently — at 1k attendees we don't want to amplify a
+                // per-violation error into 1k outbound msgs.
+                return;
+            }
+            att.reaction_bucket_count++;
+            att.reactions++;
+            att.participation_score++;
+            ks.reaction_total++;
+            // Fan out a sampled subset only — clients render aggregate reaction
+            // visualisations (heart bursts), so we don't need every reaction
+            // to reach every client. Sample 1-in-N at high attendance.
+            var alive = 0;
+            for (var u in ks.attendees)
+                if (ks.attendees[u].left_unix_ms === 0)
+                    alive++;
+            var sampleEvery = Math.max(1, Math.floor(alive / 50)); // ~50 reactions/sec/room max fanout
+            if ((att.reactions % sampleEvery) === 0) {
+                broadcastTemplate(ks, dispatcher, matchId, MpKernelLiveEvent.Op.REACTION, {
+                    user_id: sender,
+                    emote: p.emote || "heart",
+                    intensity: p.intensity || 1,
+                    server_unix_ms: nowUnixMs
+                });
+            }
+        }
+        else if (m.opCode === MpKernelLiveEvent.Op.EVENT_CHAT) {
+            if (!ks.init.chat_enabled)
+                return;
+            var nowS2 = Math.floor(nowUnixMs / 1000);
+            if (att.chat_bucket_unix_s !== nowS2) {
+                att.chat_bucket_unix_s = nowS2;
+                att.chat_bucket_count = 0;
+            }
+            if (att.chat_bucket_count >= ks.init.chat_per_second)
+                return;
+            att.chat_bucket_count++;
+            att.chat_count++;
+            ks.chat_total++;
+            // Truncate text length — chat payload sanity.
+            var text = (typeof p.text === "string") ? p.text.substring(0, 200) : "";
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelLiveEvent.Op.EVENT_CHAT, {
+                user_id: sender,
+                text: text,
+                server_unix_ms: nowUnixMs
+            });
+        }
+        else if (m.opCode === MpKernelLiveEvent.Op.EVENT_SIGNAL) {
+            // Host-only signal channel. `host_can_advance=false` disables it
+            // even for the creator (used for fully-scheduled events where ops
+            // wants to lock out manual phase advances).
+            if (!ks.init.host_can_advance)
+                return;
+            if (sender !== ks.creator_user_id)
+                return;
+            if (p && p.advance) {
+                var next = (ks.phase_index === Phase.WAITING_ROOM) ? 0 : ks.phase_index + 1;
+                if (next >= ks.init.phase_schedule.length) {
+                    ks.phase_index = Phase.DONE;
+                    ks.pending_end_reason = "host_advanced_past_end";
+                    return;
+                }
+                advancePhase(ks, dispatcher, matchId, next, nowUnixMs);
+            }
+            else if (p && p.fire_drop) {
+                fireDrop(ks, dispatcher, matchId, nowUnixMs);
+            }
+            else if (p && p.end) {
+                ks.pending_end_reason = "host_ended";
+                ks.phase_index = Phase.DONE;
+            }
+        }
+    }
+    function advancePhase(ks, dispatcher, matchId, next, nowUnixMs) {
+        ks.phase_index = next;
+        ks.phase_started_unix_ms = nowUnixMs;
+        var def = ks.init.phase_schedule[next];
+        broadcastTemplate(ks, dispatcher, matchId, MpKernelLiveEvent.Op.PHASE_CHANGED, {
+            phase_index: next,
+            phase_name: def ? def.name : ("phase_" + next),
+            duration_ms: def ? def.duration_ms : 0,
+            auto_advance: def ? def.auto_advance : false,
+            server_unix_ms: nowUnixMs
+        });
+    }
+    function fireDrop(ks, dispatcher, matchId, nowUnixMs) {
+        var alive = [];
+        for (var u in ks.attendees)
+            if (ks.attendees[u].left_unix_ms === 0)
+                alive.push(u);
+        if (alive.length === 0)
+            return;
+        if (ks.init.drop_target_strategy === "random_n" && ks.init.drop_target_n > 0) {
+            var n = Math.min(ks.init.drop_target_n, alive.length);
+            // Fisher-Yates partial shuffle for first n picks.
+            for (var i = 0; i < n; i++) {
+                var j = i + Math.floor(Math.random() * (alive.length - i));
+                var tmp = alive[i];
+                alive[i] = alive[j];
+                alive[j] = tmp;
+            }
+            var picks = alive.slice(0, n);
+            for (var k = 0; k < picks.length; k++) {
+                var att = ks.attendees[picks[k]];
+                if (att) {
+                    att.drops_received++;
+                    att.participation_score += 5;
+                }
+            }
+            ks.drops_total += picks.length;
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelLiveEvent.Op.DROP_AWARDED, {
+                recipients: picks,
+                payload: ks.init.drop_payload,
+                server_unix_ms: nowUnixMs
+            });
+        }
+        else {
+            // "all"
+            for (var k2 = 0; k2 < alive.length; k2++) {
+                var a2 = ks.attendees[alive[k2]];
+                if (a2) {
+                    a2.drops_received++;
+                    a2.participation_score += 1;
+                }
+            }
+            ks.drops_total += alive.length;
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelLiveEvent.Op.DROP_AWARDED, {
+                recipients: alive,
+                payload: ks.init.drop_payload,
+                server_unix_ms: nowUnixMs
+            });
+        }
+    }
+    function endMatch(ks, dispatcher, matchId, reasonEnum, _nk) {
+        var resultEnvelope = null;
+        if (MpKernelLiveEvent.template.buildResult) {
+            var built = MpKernelLiveEvent.template.buildResult(ks, ks.pending_end_reason || "completed");
+            if (built) {
+                built.match_id = matchId;
+                if (!built.started_unix_ms)
+                    built.started_unix_ms = ks.started_unix_ms;
+                resultEnvelope = built;
+            }
+        }
+        broadcastTemplate(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
+            reason: reasonEnum,
+            result_envelope: resultEnvelope
+        });
+        return null;
+    }
+    function broadcastTemplate(ks, dispatcher, matchId, op, payload) {
+        var seqProvider = ks.__seqProvider;
+        var matchTimeProvider = ks.__matchTimeMs;
+        var seq = (typeof seqProvider === "function") ? seqProvider() : ks.outbound_seq++;
+        var matchTimeMs = (typeof matchTimeProvider === "function")
+            ? matchTimeProvider()
+            : (Date.now() - ks.started_unix_ms);
+        var env = {
+            h: {
+                wire_version: 1,
+                op: op,
+                seq: seq,
+                match_time_ms: matchTimeMs,
+                sender_user_id: "server",
+                match_id: matchId,
+                client_opcode_uuid: ""
+            },
+            p: payload
+        };
+        dispatcher.broadcastMessage(op, JSON.stringify(env));
+    }
+})(MpKernelLiveEvent || (MpKernelLiveEvent = {}));
+// LobbyHandoffMatch — pre-game lobby template that gathers players,
+// runs ready-up + character/loadout select, then hands them off to
+// the actual game match (Sync, Async, RealtimeTick) or a third-party
+// transport (P2P WebRTC, Photon Voice room) and self-terminates.
+//
+// Reserved opcode range 0x7000-0x7FFF (templates/lobby_handoff.proto).
+//
+// Lifecycle:
+//   FORM_UP   : players join, set ready, pick loadouts/characters.
+//               Times out -> DISBAND.
+//   HANDOFF   : >= min_ready ready, server creates target match, broadcasts
+//               LOBBY_HANDOFF_INFO with target_match_id (+ optional WebRTC
+//               signaling endpoint), waits grace_ms for clients to migrate.
+//   DONE      : terminate.
+//   DISBANDED : terminate (broadcasts DISBAND first).
+var MpKernelLobbyHandoff;
+(function (MpKernelLobbyHandoff) {
+    MpKernelLobbyHandoff.Op = {
+        READY: 0x7000, // client -> server
+        FORM_UP_DONE: 0x7001, // server -> all
+        HANDOFF_INFO: 0x7002, // server -> all
+        DISBAND: 0x7003 // server -> all
+    };
+    MpKernelLobbyHandoff.DefaultInit = {
+        // Target template_id to hand off into (e.g. "sync-turn-v1"). REQUIRED.
+        target_template_id: "",
+        // Init params for the target match. Forwarded verbatim to mp_create_match.
+        target_template_init: {},
+        target_game_id: "",
+        target_region: "",
+        // Min/max players in the lobby itself.
+        min_players: 2,
+        max_players: 4,
+        // Form-up window — disband if not enough ready players within this.
+        form_up_timeout_ms: 60000,
+        // Grace period after handoff broadcast before lobby self-terminates.
+        handoff_grace_ms: 5000,
+        // Optional: WebRTC signaling endpoint clients should hit post-handoff.
+        webrtc_signaling_url: "",
+        // Whether all joined players must be ready (true) or just min_players (false).
+        require_all_ready: false,
+        // Lobby itself max wallclock (cap).
+        max_match_duration_ms: 5 * 60 * 1000 // 5 min hard cap
+    };
+    var Phase;
+    (function (Phase) {
+        Phase[Phase["FORM_UP"] = 0] = "FORM_UP";
+        Phase[Phase["HANDOFF"] = 1] = "HANDOFF";
+        Phase[Phase["DONE"] = 2] = "DONE";
+        Phase[Phase["DISBANDED"] = 3] = "DISBANDED";
+    })(Phase || (Phase = {}));
+    function mergeInit(params) {
+        var out = {};
+        for (var k in MpKernelLobbyHandoff.DefaultInit)
+            if (MpKernelLobbyHandoff.DefaultInit.hasOwnProperty(k))
+                out[k] = MpKernelLobbyHandoff.DefaultInit[k];
+        if (params)
+            for (var k2 in params)
+                if (params.hasOwnProperty(k2))
+                    out[k2] = params[k2];
+        return out;
+    }
+    MpKernelLobbyHandoff.template = {
+        templateId: "lobby-handoff-v1",
+        opRange: { from: 0x7000, to: 0x7FFF },
+        defaultInit: MpKernelLobbyHandoff.DefaultInit,
+        initState: function (_ctx, _logger, _nk, params) {
+            var init = mergeInit(params.template_init);
+            if (!init.target_template_id) {
+                // Don't fail hard; the lobby still runs but DISBAND on form-up.
+                // Game plugins should validate before calling mp_create_match.
+            }
+            var s = {
+                init: init,
+                phase: Phase.FORM_UP,
+                players: {},
+                started_unix_ms: Date.now(),
+                form_up_deadline_unix_ms: Date.now() + init.form_up_timeout_ms,
+                handoff_at_unix_ms: 0,
+                target_match_id: "",
+                pending_end_reason: "",
+                outbound_seq: 1
+            };
+            var label = JSON.stringify({
+                template_id: "lobby-handoff-v1",
+                game_id: params.game_id,
+                target_template_id: init.target_template_id,
+                max_players: init.max_players,
+                min_players: init.min_players
+            });
+            // 4 Hz — same cadence as sync-turn for consistent timer accuracy.
+            return { state: s, tickRate: 4, label: label };
+        },
+        onJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _presence, _metadata) {
+            var ks = state;
+            if (ks.phase !== Phase.FORM_UP) {
+                return { state: ks, accept: false, rejectMessage: "lobby closed" };
+            }
+            if (Object.keys(ks.players).length >= ks.init.max_players) {
+                return { state: ks, accept: false, rejectMessage: "lobby full" };
+            }
+            return { state: ks, accept: true };
+        },
+        onJoin: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presences) {
+            var ks = state;
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                if (!ks.players[p.userId]) {
+                    ks.players[p.userId] = {
+                        user_id: p.userId,
+                        is_agent: p.userId.indexOf("agt_") === 0,
+                        ready: false,
+                        ready_at_unix_ms: 0,
+                        loadout: null
+                    };
+                }
+            }
+            return { state: ks };
+        },
+        onLeave: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presences) {
+            var ks = state;
+            // Remove fully — pre-game leaves don't need ghost slots.
+            for (var i = 0; i < presences.length; i++) {
+                delete ks.players[presences[i].userId];
+            }
+            return { state: ks };
+        },
+        onLoop: function (ctx, logger, nk, dispatcher, _tick, state, messages) {
+            var ks = state;
+            var matchId = ctx.matchId || "";
+            var nowUnixMs = Date.now();
+            // Cap on lobby itself.
+            if (nowUnixMs > ks.started_unix_ms + ks.init.max_match_duration_ms &&
+                ks.phase !== Phase.DONE && ks.phase !== Phase.DISBANDED) {
+                return disband(ks, dispatcher, matchId, "lobby_duration_exceeded");
+            }
+            // Process inbound messages.
+            for (var i = 0; i < messages.length; i++) {
+                applyInbound(ks, messages[i], dispatcher, matchId);
+            }
+            if (ks.phase === Phase.FORM_UP) {
+                var allReady = true;
+                var readyCount = 0;
+                var totalCount = 0;
+                for (var u in ks.players) {
+                    totalCount++;
+                    if (ks.players[u].ready)
+                        readyCount++;
+                    else
+                        allReady = false;
+                }
+                var readyEnough = readyCount >= ks.init.min_players &&
+                    (ks.init.require_all_ready ? (allReady && totalCount >= ks.init.min_players) : true);
+                if (readyEnough) {
+                    // Transition: FORM_UP -> HANDOFF
+                    broadcastTemplate(ks, dispatcher, matchId, MpKernelLobbyHandoff.Op.FORM_UP_DONE, {
+                        ready_user_ids: collectReady(ks)
+                    });
+                    var targetId;
+                    try {
+                        targetId = nk.matchCreate(ks.init.target_template_id || "sync-turn-v1", {
+                            game_id: ks.init.target_game_id || "",
+                            region: ks.init.target_region || "",
+                            template_init: ks.init.target_template_init || {},
+                            creator_user_id: pickHost(ks)
+                        });
+                    }
+                    catch (err) {
+                        logger.warn("[LobbyHandoff] target matchCreate failed template=%s err=%s", ks.init.target_template_id, (err && err.message) ? err.message : String(err));
+                        return disband(ks, dispatcher, matchId, "target_create_failed");
+                    }
+                    ks.target_match_id = targetId;
+                    ks.handoff_at_unix_ms = nowUnixMs;
+                    ks.phase = Phase.HANDOFF;
+                    broadcastTemplate(ks, dispatcher, matchId, MpKernelLobbyHandoff.Op.HANDOFF_INFO, {
+                        target_match_id: targetId,
+                        target_template_id: ks.init.target_template_id,
+                        target_game_id: ks.init.target_game_id,
+                        webrtc_signaling_url: ks.init.webrtc_signaling_url || "",
+                        handoff_unix_ms: nowUnixMs
+                    });
+                }
+                else if (nowUnixMs > ks.form_up_deadline_unix_ms) {
+                    return disband(ks, dispatcher, matchId, "form_up_timeout");
+                }
+            }
+            else if (ks.phase === Phase.HANDOFF) {
+                if (nowUnixMs > ks.handoff_at_unix_ms + ks.init.handoff_grace_ms) {
+                    // Self-terminate; clients have had grace_ms to migrate.
+                    ks.phase = Phase.DONE;
+                    ks.pending_end_reason = "handoff_complete";
+                    return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.COMPLETED);
+                }
+            }
+            return { state: ks };
+        },
+        onTerminate: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _grace) {
+            return { state: state };
+        },
+        buildResult: function (state, reason) {
+            var ks = state;
+            var outcomes = [];
+            for (var u in ks.players) {
+                var pl = ks.players[u];
+                outcomes.push({
+                    user_id: u,
+                    is_agent: pl.is_agent,
+                    placement: 0,
+                    score: 0,
+                    completed: pl.ready && ks.phase !== Phase.DISBANDED,
+                    left_early: !pl.ready && ks.phase === Phase.DISBANDED,
+                    game_payload: { loadout: pl.loadout }
+                });
+            }
+            return {
+                match_id: "",
+                template_id: MpKernelLobbyHandoff.template.templateId,
+                game_id: "",
+                started_unix_ms: ks.started_unix_ms,
+                ended_unix_ms: 0,
+                duration_ms: 0,
+                outcomes: outcomes,
+                game_payload: {
+                    target_match_id: ks.target_match_id,
+                    target_template_id: ks.init.target_template_id,
+                    end_reason: reason
+                }
+            };
+        }
+    };
+    function applyInbound(ks, m, dispatcher, matchId) {
+        if (ks.phase !== Phase.FORM_UP)
+            return;
+        var raw = (typeof m.data === "string") ? m.data : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+        if (!raw)
+            return;
+        var parsed;
+        try {
+            parsed = JSON.parse(raw);
+        }
+        catch (_e) {
+            return;
+        }
+        var p = parsed.p || {};
+        var sender = m.sender.userId;
+        if (m.opCode === MpKernelLobbyHandoff.Op.READY) {
+            var pl = ks.players[sender];
+            if (!pl)
+                return;
+            pl.ready = !!p.ready;
+            pl.ready_at_unix_ms = pl.ready ? Date.now() : 0;
+            if (p.loadout !== undefined)
+                pl.loadout = p.loadout;
+            // No broadcast — server publishes FORM_UP_DONE / HANDOFF_INFO when
+            // readiness threshold tips in onLoop.
+        }
+    }
+    function collectReady(ks) {
+        var out = [];
+        for (var u in ks.players)
+            if (ks.players[u].ready)
+                out.push(u);
+        return out;
+    }
+    function pickHost(ks) {
+        // Earliest-ready as a stable host pick. Pure function over state.
+        var best = "";
+        var bestAt = 0;
+        for (var u in ks.players) {
+            var pl = ks.players[u];
+            if (pl.ready && (best === "" || pl.ready_at_unix_ms < bestAt)) {
+                best = u;
+                bestAt = pl.ready_at_unix_ms;
+            }
+        }
+        return best;
+    }
+    function disband(ks, dispatcher, matchId, reason) {
+        if (ks.phase !== Phase.DISBANDED) {
+            ks.phase = Phase.DISBANDED;
+            ks.pending_end_reason = reason;
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelLobbyHandoff.Op.DISBAND, {
+                reason: reason
+            });
+        }
+        return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.CANCELLED);
+    }
+    function endMatch(ks, dispatcher, matchId, reasonEnum) {
+        var resultEnvelope = null;
+        if (MpKernelLobbyHandoff.template.buildResult) {
+            var built = MpKernelLobbyHandoff.template.buildResult(ks, ks.pending_end_reason || "completed");
+            if (built) {
+                built.match_id = matchId;
+                built.template_id = MpKernelLobbyHandoff.template.templateId;
+                if (!built.started_unix_ms)
+                    built.started_unix_ms = ks.started_unix_ms;
+                resultEnvelope = built;
+            }
+        }
+        broadcastTemplate(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
+            reason: reasonEnum,
+            result_envelope: resultEnvelope
+        });
+        return null;
+    }
+    function broadcastTemplate(ks, dispatcher, matchId, op, payload) {
+        var seqProvider = ks.__seqProvider;
+        var matchTimeProvider = ks.__matchTimeMs;
+        var seq = (typeof seqProvider === "function") ? seqProvider() : ks.outbound_seq++;
+        var matchTimeMs = (typeof matchTimeProvider === "function")
+            ? matchTimeProvider()
+            : (Date.now() - ks.started_unix_ms);
+        var env = {
+            h: {
+                wire_version: 1,
+                op: op,
+                seq: seq,
+                match_time_ms: matchTimeMs,
+                sender_user_id: "server",
+                match_id: matchId,
+                client_opcode_uuid: ""
+            },
+            p: payload
+        };
+        dispatcher.broadcastMessage(op, JSON.stringify(env));
+    }
+})(MpKernelLobbyHandoff || (MpKernelLobbyHandoff = {}));
+// MixedRealityAnchorMatch — XR shared-spatial-anchor + co-located object
+// authority template. Reserved opcode range 0xB000-0xBFFF.
+//
+// Concept:
+//   A "room" of XR participants whose devices have negotiated a shared
+//   spatial frame (Meta Spatial Anchors, ARKit collab + SharePlay,
+//   visionOS shared anchors, OpenXR XR_MSFT_spatial_anchor, Azure
+//   Spatial Anchors, or QR / image-marker fallbacks). All transforms
+//   exchanged in this match are *anchor-relative* — millimetres in the
+//   x/y/z axes of the anchor's local frame, with a packed quaternion.
+//
+// State invariants enforced here:
+//
+//   1. There is at most one active host anchor offer at any time. Late
+//      joiners receive the offer in their join welcome blob.
+//   2. Object authority is exclusive: only the current `holder_user_id`
+//      can publish ObjectTransform messages for that object. The server
+//      issues an authority_token on grant; transforms with stale tokens
+//      are dropped.
+//   3. Concurrent grabs within `grab_priority_window_ms` are tie-broken
+//      by `priority` (higher wins; ties → first-arrival).
+//   4. AnchorLost from the host triggers a re-offer / fallback (QR or
+//      image-marker if the host opted in).
+//   5. Per-user anchor resolve must complete within
+//      `anchor_resolve_timeout_ms` or the user is downgraded to
+//      "unanchored" (still observes, can't publish transforms).
+//   6. Position updates are routed through the kernel interest service
+//      so each client only receives transforms within its AOI cell
+//      neighbourhood (default 8 m cells, radius=1 → 24 m visible).
+var MpKernelMrAnchor;
+(function (MpKernelMrAnchor) {
+    MpKernelMrAnchor.Op = {
+        ANCHOR_OFFER: 0xB000, // server -> all (or new joiner)
+        ANCHOR_RESOLVED: 0xB001, // client -> server -> host (ack)
+        ANCHOR_LOST: 0xB002, // any -> server (-> all)
+        RELOCALIZED: 0xB003, // client -> server (-> all)
+        OBJECT_GRAB: 0xB004, // client -> server (-> all on grant)
+        OBJECT_GRAB_REJECTED: 0xB005, // server -> requester
+        OBJECT_RELEASE: 0xB006, // client -> server (-> all)
+        OBJECT_TRANSFORM: 0xB007, // owner -> server -> AOI peers
+        OBJECT_AUTHORITY: 0xB008, // server -> all (token rotation)
+        PARTICIPANT_STATE: 0xB009, // server -> all (anchor status snapshot)
+        HOST_REOFFER: 0xB00A, // server -> all (after AnchorLost)
+        DOWNGRADED: 0xB00B // server -> client (anchor resolve timeout)
+    };
+    MpKernelMrAnchor.AnchorProvider = {
+        UNSPECIFIED: 0,
+        META_SHARED: 1,
+        VISIONOS_SHARED: 2,
+        ARKIT_COLLAB: 3,
+        AZURE_SPATIAL: 4,
+        QR_FALLBACK: 5,
+        IMAGE_MARKER: 6,
+        PCVR_FAKE: 7
+    };
+    MpKernelMrAnchor.DefaultInit = {
+        max_users: 16,
+        anchor_resolve_timeout_ms: 15000,
+        require_anchor_to_join: false,
+        allow_qr_fallback: true,
+        allow_marker_fallback: true,
+        allow_pcvr_fake_anchor: true,
+        grab_priority_window_ms: 250,
+        cell_meters: 8.0,
+        aoi_radius: 1,
+        transform_rate_per_user: 60,
+        pcvr_fake_anchor_id: "pcvr-floor-fake-v1"
+    };
+    function mergeInit(input) {
+        var out = {};
+        for (var k in MpKernelMrAnchor.DefaultInit)
+            if (MpKernelMrAnchor.DefaultInit.hasOwnProperty(k))
+                out[k] = MpKernelMrAnchor.DefaultInit[k];
+        if (input)
+            for (var k2 in input)
+                if (input.hasOwnProperty(k2))
+                    out[k2] = input[k2];
+        return out;
+    }
+    function fanOut(state, dispatcher, op, payload, presences) {
+        state.outbound_seq++;
+        var env = {
+            seq: state.outbound_seq,
+            ts_ms: Date.now(),
+            op: op,
+            payload: payload
+        };
+        var bytes = JSON.stringify(env);
+        if (presences && presences.length) {
+            dispatcher.broadcastMessage(op, bytes, presences, null, true);
+        }
+        else {
+            dispatcher.broadcastMessage(op, bytes, null, null, true);
+        }
+    }
+    function sendErr(state, dispatcher, target, code, detail) {
+        state.outbound_seq++;
+        var env = {
+            seq: state.outbound_seq, ts_ms: Date.now(), op: MpKernel.KernelOp.ERROR,
+            payload: { code: code, detail: detail }
+        };
+        dispatcher.broadcastMessage(MpKernel.KernelOp.ERROR, JSON.stringify(env), [target], null, true);
+    }
+    function presenceListById(state, dispatcher, ctx, userIds) {
+        // The Goja runtime exposes the live presence list through ctx.match
+        // (set by the match handler before each callback). When unavailable,
+        // we fall back to broadcasting to all and let the client filter.
+        var allP = ctx.matchPresences;
+        if (!allP)
+            return [];
+        var lookup = {};
+        for (var i = 0; i < userIds.length; i++)
+            lookup[userIds[i]] = true;
+        var out = [];
+        for (var j = 0; j < allP.length; j++) {
+            if (lookup[allP[j].userId])
+                out.push(allP[j]);
+        }
+        return out;
+    }
+    MpKernelMrAnchor.template = {
+        templateId: "mixed-reality-anchor-v1",
+        opRange: { from: 0xB000, to: 0xBFFF },
+        defaultInit: MpKernelMrAnchor.DefaultInit,
+        initState: function (ctx, _logger, _nk, params) {
+            var init = mergeInit(params.template_init);
+            var nowMs = Date.now();
+            var matchId = ctx.matchId || "";
+            var s = {
+                init: init,
+                started_unix_ms: nowMs,
+                host_user_id: "",
+                current_offer: null,
+                participants: {},
+                objects: {},
+                auth_token_seq: 1,
+                last_grab_window_ms: 0,
+                pending_grabs: {},
+                transform_buckets: {},
+                creator_user_id: params.creator_user_id || "",
+                outbound_seq: 1
+            };
+            // Configure interest service for this match.
+            MpKernelInterest.configure(matchId, {
+                cellMeters: init.cell_meters,
+                neighbourRadius: init.aoi_radius
+            });
+            var label = JSON.stringify({
+                template_id: MpKernelMrAnchor.template.templateId,
+                game_id: params.game_id,
+                region: params.region || "",
+                max_users: init.max_users,
+                creator: params.creator_user_id || ""
+            });
+            // 30 Hz tick — drives anchor resolve timeouts + AOI sweeps.
+            return { state: s, tickRate: 30, label: label };
+        },
+        onJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presence, _metadata) {
+            var ks = state;
+            var memberCount = 0;
+            for (var k in ks.participants)
+                memberCount++;
+            if (!ks.participants[presence.userId] && memberCount >= ks.init.max_users) {
+                return { state: ks, accept: false, rejectMessage: "match full" };
+            }
+            // Optional require_anchor_to_join: not enforceable until the
+            // client signals provider capability, so we accept here and
+            // downgrade later if they fail to resolve in time.
+            return { state: ks, accept: true };
+        },
+        onJoin: function (_ctx, _logger, _nk, dispatcher, _tick, state, presences) {
+            var ks = state;
+            var nowMs = Date.now();
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                var u = p.userId;
+                if (!ks.participants[u]) {
+                    ks.participants[u] = {
+                        user_id: u,
+                        anchor_resolved: false,
+                        anchor_provider: MpKernelMrAnchor.AnchorProvider.UNSPECIFIED,
+                        anchor_resolve_ts_ms: 0,
+                        anchor_attempts: 0,
+                        anchor_failure_detail: "",
+                        last_position_pub_ms: nowMs,
+                        downgraded: false,
+                        is_host: false
+                    };
+                }
+                // First joiner becomes host (only if no host yet).
+                if (!ks.host_user_id) {
+                    ks.host_user_id = u;
+                    ks.participants[u].is_host = true;
+                }
+                // Replay current offer so the joiner can attempt to resolve.
+                if (ks.current_offer) {
+                    fanOut(ks, dispatcher, MpKernelMrAnchor.Op.ANCHOR_OFFER, ks.current_offer, [p]);
+                }
+                // Send participant snapshot.
+                fanOut(ks, dispatcher, MpKernelMrAnchor.Op.PARTICIPANT_STATE, { participants: ks.participants }, [p]);
+            }
+            return { state: ks };
+        },
+        onLeave: function (_ctx, _logger, _nk, dispatcher, _tick, state, presences) {
+            var ks = state;
+            var matchId = (presences && presences.length > 0) ? "(unknown)" : "(unknown)";
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                var u = p.userId;
+                // Drop their interest entry.
+                try {
+                    MpKernelInterest.remove(matchId, u);
+                }
+                catch (_e) { }
+                // Release any objects they were holding.
+                for (var oid in ks.objects) {
+                    var o = ks.objects[oid];
+                    if (o.holder_user_id === u) {
+                        o.holder_user_id = "";
+                        o.authority_token = ks.auth_token_seq++;
+                        fanOut(ks, dispatcher, MpKernelMrAnchor.Op.OBJECT_RELEASE, { object_id: oid, user_id: u });
+                        fanOut(ks, dispatcher, MpKernelMrAnchor.Op.OBJECT_AUTHORITY, {
+                            object_id: oid, holder_user_id: "", authority_token: o.authority_token
+                        });
+                    }
+                }
+                // Host migration.
+                if (ks.host_user_id === u) {
+                    ks.host_user_id = "";
+                    for (var k in ks.participants) {
+                        if (k !== u) {
+                            ks.host_user_id = k;
+                            ks.participants[k].is_host = true;
+                            break;
+                        }
+                    }
+                    fanOut(ks, dispatcher, MpKernelMrAnchor.Op.PARTICIPANT_STATE, { participants: ks.participants });
+                }
+                delete ks.participants[u];
+                delete ks.transform_buckets[u];
+            }
+            return { state: ks };
+        },
+        onLoop: function (ctx, logger, nk, dispatcher, _tick, state, messages) {
+            var ks = state;
+            var matchId = ctx.matchId || "";
+            var nowMs = Date.now();
+            // Process inbound messages.
+            for (var i = 0; i < messages.length; i++) {
+                var msg = messages[i];
+                var sender = msg.sender;
+                var op = msg.opCode;
+                var data = {};
+                try {
+                    data = JSON.parse(msg.data || "{}");
+                }
+                catch (_e) { }
+                switch (op) {
+                    case MpKernelMrAnchor.Op.ANCHOR_OFFER:
+                        if (sender.userId !== ks.host_user_id) {
+                            sendErr(ks, dispatcher, sender, MpKernel.ErrorCode.PERMISSION_DENIED, "only host can offer");
+                            break;
+                        }
+                        ks.current_offer = {
+                            anchor_id: data.anchor_id || ("a_" + nowMs.toString(36)),
+                            provider: data.provider || MpKernelMrAnchor.AnchorProvider.UNSPECIFIED,
+                            provider_anchor_token: data.provider_anchor_token || "",
+                            fallback_qr_b64: data.fallback_qr_b64 || "",
+                            fallback_marker_b64: data.fallback_marker_b64 || "",
+                            room_label: data.room_label || "",
+                            ts_ms: nowMs,
+                            region: data.region || ""
+                        };
+                        fanOut(ks, dispatcher, MpKernelMrAnchor.Op.ANCHOR_OFFER, ks.current_offer);
+                        break;
+                    case MpKernelMrAnchor.Op.ANCHOR_RESOLVED:
+                        var pp = ks.participants[sender.userId];
+                        if (!pp)
+                            break;
+                        pp.anchor_attempts++;
+                        if (data.ok) {
+                            pp.anchor_resolved = true;
+                            pp.anchor_resolve_ts_ms = nowMs;
+                            pp.anchor_provider = data.provider || ks.current_offer ? ks.current_offer.provider : 0;
+                            pp.anchor_failure_detail = "";
+                        }
+                        else {
+                            pp.anchor_resolved = false;
+                            pp.anchor_failure_detail = data.failure_detail || "unknown";
+                        }
+                        fanOut(ks, dispatcher, MpKernelMrAnchor.Op.PARTICIPANT_STATE, { participants: ks.participants });
+                        break;
+                    case MpKernelMrAnchor.Op.ANCHOR_LOST:
+                        var lostBy = ks.participants[sender.userId];
+                        if (lostBy)
+                            lostBy.anchor_resolved = false;
+                        fanOut(ks, dispatcher, MpKernelMrAnchor.Op.ANCHOR_LOST, {
+                            user_id: sender.userId, anchor_id: data.anchor_id || "",
+                            reason: data.reason || ""
+                        });
+                        // If host lost their own anchor, force a re-offer cycle.
+                        if (sender.userId === ks.host_user_id) {
+                            ks.current_offer = null;
+                            fanOut(ks, dispatcher, MpKernelMrAnchor.Op.HOST_REOFFER, { host_user_id: ks.host_user_id });
+                        }
+                        break;
+                    case MpKernelMrAnchor.Op.RELOCALIZED:
+                        fanOut(ks, dispatcher, MpKernelMrAnchor.Op.RELOCALIZED, {
+                            user_id: sender.userId,
+                            anchor_id: data.anchor_id || "",
+                            confidence_pct: data.confidence_pct || 0
+                        });
+                        break;
+                    case MpKernelMrAnchor.Op.OBJECT_GRAB:
+                        handleGrab(ks, dispatcher, sender, data, nowMs, ctx);
+                        break;
+                    case MpKernelMrAnchor.Op.OBJECT_RELEASE:
+                        handleRelease(ks, dispatcher, sender, data);
+                        break;
+                    case MpKernelMrAnchor.Op.OBJECT_TRANSFORM:
+                        handleTransform(ks, logger, dispatcher, sender, data, nowMs, matchId, ctx);
+                        break;
+                    default:
+                        // Unknown opcode in our range — surface a typed error.
+                        sendErr(ks, dispatcher, sender, MpKernel.ErrorCode.UNKNOWN_OPCODE, "op=" + op);
+                }
+            }
+            // Resolve grab tie-break windows.
+            for (var oid in ks.pending_grabs) {
+                var queue = ks.pending_grabs[oid];
+                if (queue.length === 0) {
+                    delete ks.pending_grabs[oid];
+                    continue;
+                }
+                var oldest = queue[0].arrived_ms;
+                if (nowMs - oldest >= ks.init.grab_priority_window_ms) {
+                    // Pick highest priority; tie -> first arrival.
+                    queue.sort(function (a, b) {
+                        if (a.priority !== b.priority)
+                            return b.priority - a.priority;
+                        return a.arrived_ms - b.arrived_ms;
+                    });
+                    var winner = queue[0];
+                    ks.pending_grabs[oid] = [];
+                    var obj = ks.objects[oid] || {
+                        object_id: oid, holder_user_id: "", authority_token: 0,
+                        last_pose_mm: { px: 0, py: 0, pz: 0, rot_packed: 0 },
+                        last_pub_ms: 0, grab_priority: 0, grab_arrived_ms: 0, frozen: false
+                    };
+                    if (obj.frozen) {
+                        // Reject everyone in the queue.
+                        for (var qi = 0; qi < queue.length; qi++) {
+                            var rp = presenceListById(ks, dispatcher, ctx, [queue[qi].user_id]);
+                            if (rp.length)
+                                sendErr(ks, dispatcher, rp[0], MpKernel.ErrorCode.PERMISSION_DENIED, "object_frozen");
+                        }
+                        continue;
+                    }
+                    obj.holder_user_id = winner.user_id;
+                    obj.authority_token = ks.auth_token_seq++;
+                    obj.grab_priority = winner.priority;
+                    obj.grab_arrived_ms = winner.arrived_ms;
+                    ks.objects[oid] = obj;
+                    fanOut(ks, dispatcher, MpKernelMrAnchor.Op.OBJECT_AUTHORITY, {
+                        object_id: oid,
+                        holder_user_id: winner.user_id,
+                        authority_token: obj.authority_token
+                    });
+                    // Reject the losers.
+                    for (var li = 1; li < queue.length; li++) {
+                        var rp2 = presenceListById(ks, dispatcher, ctx, [queue[li].user_id]);
+                        if (rp2.length) {
+                            fanOut(ks, dispatcher, MpKernelMrAnchor.Op.OBJECT_GRAB_REJECTED, {
+                                object_id: oid, user_id: queue[li].user_id,
+                                reason: "lost_priority", current_holder: winner.user_id
+                            }, rp2);
+                        }
+                    }
+                }
+            }
+            // Anchor resolve timeouts → downgrade.
+            for (var u in ks.participants) {
+                var part = ks.participants[u];
+                if (!part.anchor_resolved && !part.downgraded &&
+                    (nowMs - ks.started_unix_ms) > ks.init.anchor_resolve_timeout_ms) {
+                    part.downgraded = true;
+                    var rp3 = presenceListById(ks, dispatcher, ctx, [u]);
+                    if (rp3.length) {
+                        fanOut(ks, dispatcher, MpKernelMrAnchor.Op.DOWNGRADED, {
+                            user_id: u, reason: "anchor_resolve_timeout"
+                        }, rp3);
+                    }
+                    fanOut(ks, dispatcher, MpKernelMrAnchor.Op.PARTICIPANT_STATE, { participants: ks.participants });
+                }
+            }
+            // GC stale interest entries.
+            try {
+                MpKernelInterest.reap(matchId, nowMs);
+            }
+            catch (_e) { }
+            // Match terminates if everyone left.
+            var pcount = 0;
+            for (var pk in ks.participants)
+                pcount++;
+            if (pcount === 0 && _tick > 60) {
+                return null;
+            }
+            return { state: ks };
+        },
+        onTerminate: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _grace) {
+            var ks = state;
+            try {
+                MpKernelInterest.cleanupMatch(ks.match_id || "");
+            }
+            catch (_e) { }
+            return { state: ks };
+        },
+        buildResult: function (state, reason) {
+            var ks = state;
+            var nowMs = Date.now();
+            var outcomes = [];
+            for (var u in ks.participants) {
+                var p = ks.participants[u];
+                outcomes.push({
+                    user_id: u, is_agent: false, placement: 0, score: 0,
+                    completed: p.anchor_resolved, left_early: false,
+                    game_payload: {
+                        anchor_resolved: p.anchor_resolved,
+                        anchor_provider: p.anchor_provider,
+                        anchor_attempts: p.anchor_attempts,
+                        downgraded: p.downgraded,
+                        failure_detail: p.anchor_failure_detail
+                    }
+                });
+            }
+            return {
+                match_id: ks.match_id || "",
+                template_id: MpKernelMrAnchor.template.templateId,
+                game_id: "",
+                started_unix_ms: ks.started_unix_ms,
+                ended_unix_ms: nowMs,
+                duration_ms: Math.max(0, nowMs - ks.started_unix_ms),
+                outcomes: outcomes,
+                game_payload: {
+                    end_reason: reason || "",
+                    host_user_id: ks.host_user_id,
+                    objects: ks.objects
+                }
+            };
+        }
+    };
+    function handleGrab(state, dispatcher, sender, data, nowMs, _ctx) {
+        var oid = data.object_id;
+        if (!oid) {
+            sendErr(state, dispatcher, sender, MpKernel.ErrorCode.BAD_PAYLOAD, "object_id required");
+            return;
+        }
+        var part = state.participants[sender.userId];
+        if (!part || part.downgraded) {
+            sendErr(state, dispatcher, sender, MpKernel.ErrorCode.PERMISSION_DENIED, "downgraded_observer");
+            return;
+        }
+        var obj = state.objects[oid];
+        if (obj && obj.holder_user_id && obj.holder_user_id !== sender.userId && !obj.frozen) {
+            // Already held — surface explicit grab reject.
+            fanOut(state, dispatcher, MpKernelMrAnchor.Op.OBJECT_GRAB_REJECTED, {
+                object_id: oid, user_id: sender.userId,
+                reason: "held_by_other", current_holder: obj.holder_user_id
+            }, [sender]);
+            return;
+        }
+        if (obj && obj.frozen) {
+            fanOut(state, dispatcher, MpKernelMrAnchor.Op.OBJECT_GRAB_REJECTED, {
+                object_id: oid, user_id: sender.userId,
+                reason: "frozen", current_holder: obj.holder_user_id || ""
+            }, [sender]);
+            return;
+        }
+        // Add to pending queue; resolved on tick after grab_priority_window_ms.
+        if (!state.pending_grabs[oid])
+            state.pending_grabs[oid] = [];
+        state.pending_grabs[oid].push({
+            user_id: sender.userId,
+            priority: typeof data.priority === "number" ? data.priority : 0,
+            arrived_ms: nowMs
+        });
+    }
+    function handleRelease(state, dispatcher, sender, data) {
+        var oid = data.object_id;
+        if (!oid) {
+            sendErr(state, dispatcher, sender, MpKernel.ErrorCode.BAD_PAYLOAD, "object_id required");
+            return;
+        }
+        var obj = state.objects[oid];
+        if (!obj)
+            return;
+        if (obj.holder_user_id !== sender.userId) {
+            sendErr(state, dispatcher, sender, MpKernel.ErrorCode.PERMISSION_DENIED, "not_holder");
+            return;
+        }
+        obj.holder_user_id = "";
+        obj.authority_token = state.auth_token_seq++;
+        fanOut(state, dispatcher, MpKernelMrAnchor.Op.OBJECT_RELEASE, { object_id: oid, user_id: sender.userId });
+        fanOut(state, dispatcher, MpKernelMrAnchor.Op.OBJECT_AUTHORITY, {
+            object_id: oid, holder_user_id: "", authority_token: obj.authority_token
+        });
+    }
+    function handleTransform(state, logger, dispatcher, sender, data, nowMs, matchId, ctx) {
+        var oid = data.object_id;
+        var obj = state.objects[oid];
+        if (!obj) {
+            sendErr(state, dispatcher, sender, MpKernel.ErrorCode.MATCH_NOT_FOUND, "unknown_object");
+            return;
+        }
+        if (obj.holder_user_id !== sender.userId) {
+            sendErr(state, dispatcher, sender, MpKernel.ErrorCode.PERMISSION_DENIED, "not_holder");
+            return;
+        }
+        if ((data.authority_token | 0) !== (obj.authority_token | 0)) {
+            sendErr(state, dispatcher, sender, MpKernel.ErrorCode.NOT_AUTHORIZED, "stale_authority_token");
+            return;
+        }
+        // Per-user rate limit.
+        var nowS = Math.floor(nowMs / 1000);
+        var b = state.transform_buckets[sender.userId];
+        if (!b || b.unix_s !== nowS) {
+            state.transform_buckets[sender.userId] = { unix_s: nowS, count: 0 };
+            b = state.transform_buckets[sender.userId];
+        }
+        b.count++;
+        if (b.count > state.init.transform_rate_per_user) {
+            sendErr(state, dispatcher, sender, MpKernel.ErrorCode.RATE_LIMITED, "object_transform_rate");
+            return;
+        }
+        obj.last_pose_mm = {
+            px: (data.px_mm | 0), py: (data.py_mm | 0), pz: (data.pz_mm | 0),
+            rot_packed: (data.rot_packed | 0)
+        };
+        obj.last_pub_ms = nowMs;
+        // Update interest hash by holder position (mm → m).
+        try {
+            var ids = MpKernelInterest.update(matchId, sender.userId, obj.last_pose_mm.px / 1000, obj.last_pose_mm.py / 1000, obj.last_pose_mm.pz / 1000, nowMs);
+            var presences = presenceListById(state, dispatcher, ctx, ids);
+            if (presences.length) {
+                fanOut(state, dispatcher, MpKernelMrAnchor.Op.OBJECT_TRANSFORM, {
+                    object_id: oid,
+                    holder_user_id: sender.userId,
+                    authority_token: obj.authority_token,
+                    px_mm: obj.last_pose_mm.px,
+                    py_mm: obj.last_pose_mm.py,
+                    pz_mm: obj.last_pose_mm.pz,
+                    rot_packed: obj.last_pose_mm.rot_packed
+                }, presences);
+                return;
+            }
+        }
+        catch (e) {
+            logger.debug("[MR] interest update failed: " + ((e && e.message) ? e.message : String(e)));
+        }
+        // Fallback: full broadcast.
+        fanOut(state, dispatcher, MpKernelMrAnchor.Op.OBJECT_TRANSFORM, {
+            object_id: oid,
+            holder_user_id: sender.userId,
+            authority_token: obj.authority_token,
+            px_mm: obj.last_pose_mm.px,
+            py_mm: obj.last_pose_mm.py,
+            pz_mm: obj.last_pose_mm.pz,
+            rot_packed: obj.last_pose_mm.rot_packed
+        });
+    }
+})(MpKernelMrAnchor || (MpKernelMrAnchor = {}));
+// PersistentPartyRoom — long-lived party / friend-group room.
+//
+// Reserved opcode range 0xA000-0xAFFF.
+//
+// Concept: a "party" is a stable friend group that persists across
+// gameplay sessions. Members come and go (online/offline), but the
+// party itself (membership, roles, settings, last-seen state) lives
+// in storage between sessions. The match instance is the live presence
+// + chat substrate; storage is the durable identity.
+//
+// Lifecycle:
+//   * Party is created via mp_create_match with party_id (or auto-id).
+//   * On match init, server reads existing party state from storage
+//     (collection: mp_party); if none, creates with creator as owner.
+//   * Members join/leave the live presence freely; state writes back
+//     to storage on each membership change + at TTL intervals.
+//   * Roles: owner, officer, member. Owner can promote/demote, kick,
+//     transfer ownership.
+//   * Match terminates after `idle_terminate_ms` of zero presences,
+//     but the party identity in storage persists.
+//
+// Why a kernel template (not a custom service):
+//   * Reuses kernel envelope + opcodes + scoring infra.
+//   * Free integration with the SDK adapter — clients just call
+//     mp_create_match("persistent-party-v1", { party_id }) and get
+//     a session that survives reconnect (state replays from storage).
+//   * Uniform telemetry / SLO / shutdown story.
+var MpKernelPersistentParty;
+(function (MpKernelPersistentParty) {
+    MpKernelPersistentParty.Op = {
+        PARTY_STATE: 0xA000, // server -> all
+        INVITE: 0xA001, // owner/officer -> server -> targeted
+        INVITE_ACCEPT: 0xA002, // client -> server
+        INVITE_DECLINE: 0xA003, // client -> server
+        KICK: 0xA004, // owner/officer -> server
+        PROMOTE: 0xA005, // owner -> server
+        DEMOTE: 0xA006, // owner -> server
+        TRANSFER_OWNER: 0xA007, // owner -> server
+        LEAVE_PARTY: 0xA008, // client -> server (leave permanently)
+        SETTING_UPDATED: 0xA009, // owner/officer -> server -> all (e.g. party name)
+        PARTY_CHAT: 0xA00A, // client -> server -> all (rate-limited)
+        MEMBER_PRESENCE: 0xA00B, // server -> all
+        READY_FOR_MATCH: 0xA00C, // client -> server (queue for game)
+        MATCH_QUEUE_INFO: 0xA00D // server -> all (party is queueing for a match)
+    };
+    MpKernelPersistentParty.DefaultInit = {
+        party_id: "",
+        name: "Party",
+        visibility: "private", // "private" | "friends" | "public"
+        max_members: 8,
+        auto_kick_idle_ms: 0, // 0 = never auto-kick
+        chat_per_second: 2,
+        chat_enabled: true,
+        invite_ttl_ms: 24 * 60 * 60 * 1000,
+        // After zero live presences for this long, the match terminates.
+        // The party identity persists in storage; reopening creates a new match.
+        idle_terminate_ms: 5 * 60 * 1000,
+        // How often to flush state to storage even without membership changes.
+        storage_flush_interval_ms: 30000,
+        // Hard wall-clock cap (defensive); 7 days.
+        max_match_duration_ms: 7 * 24 * 60 * 60 * 1000,
+        // game_payload for settings.
+        game_payload: {}
+    };
+    MpKernelPersistentParty.STORAGE_COLLECTION = "mp_party";
+    function mergeInit(params) {
+        var out = {};
+        for (var k in MpKernelPersistentParty.DefaultInit)
+            if (MpKernelPersistentParty.DefaultInit.hasOwnProperty(k))
+                out[k] = MpKernelPersistentParty.DefaultInit[k];
+        if (params)
+            for (var k2 in params)
+                if (params.hasOwnProperty(k2))
+                    out[k2] = params[k2];
+        return out;
+    }
+    function readDoc(nk, partyId) {
+        if (!partyId)
+            return null;
+        try {
+            var rows = nk.storageRead([{ collection: MpKernelPersistentParty.STORAGE_COLLECTION, key: partyId, userId: "" }]);
+            if (!rows || rows.length === 0)
+                return null;
+            return rows[0].value;
+        }
+        catch (_e) {
+            return null;
+        }
+    }
+    function writeDoc(nk, logger, doc) {
+        try {
+            nk.storageWrite([{
+                    collection: MpKernelPersistentParty.STORAGE_COLLECTION,
+                    key: doc.party_id,
+                    value: doc,
+                    permissionRead: 2, // public-read; member metadata is non-sensitive
+                    permissionWrite: 0,
+                    userId: ""
+                }]);
+        }
+        catch (e) {
+            logger.warn("[PersistentParty] storageWrite party=%s err=%s", doc.party_id, (e && e.message) ? e.message : String(e));
+        }
+    }
+    function ensureDoc(state, ctx, init) {
+        var partyId = init.party_id || ctx.matchId || ("party_" + Date.now());
+        var existing = null;
+        // Resolution: nk.storageRead happens via initState; we get nk in
+        // initState only — so we hand the doc through state. ensureDoc is
+        // called only with the doc already populated.
+        if (state.party && state.party.party_id)
+            return state.party;
+        return {
+            party_id: partyId,
+            name: init.name || "Party",
+            created_unix_ms: Date.now(),
+            owner_user_id: state.creator_user_id || "",
+            members: {},
+            settings: {
+                visibility: init.visibility || "private",
+                auto_kick_idle_ms: init.auto_kick_idle_ms || 0,
+                max_members: init.max_members || 8,
+                game_payload: init.game_payload || {}
+            },
+            invites: {},
+            pinned_chat: []
+        };
+    }
+    MpKernelPersistentParty.template = {
+        templateId: "persistent-party-v1",
+        opRange: { from: 0xA000, to: 0xAFFF },
+        defaultInit: MpKernelPersistentParty.DefaultInit,
+        initState: function (ctx, _logger, nk, params) {
+            var init = mergeInit(params.template_init);
+            var matchId = ctx.matchId || "";
+            var partyId = init.party_id || matchId || ("party_" + Date.now());
+            var nowMs = Date.now();
+            var doc = readDoc(nk, partyId);
+            var s = {
+                init: init,
+                party: doc || {
+                    party_id: partyId,
+                    name: init.name || "Party",
+                    created_unix_ms: nowMs,
+                    owner_user_id: params.creator_user_id || "",
+                    members: {},
+                    settings: {
+                        visibility: init.visibility || "private",
+                        auto_kick_idle_ms: init.auto_kick_idle_ms || 0,
+                        max_members: init.max_members || 8,
+                        game_payload: init.game_payload || {}
+                    },
+                    invites: {},
+                    pinned_chat: []
+                },
+                presences: {},
+                started_unix_ms: nowMs,
+                last_storage_flush_unix_ms: nowMs,
+                last_nonzero_presence_unix_ms: nowMs,
+                creator_user_id: params.creator_user_id || "",
+                pending_end_reason: "",
+                outbound_seq: 1
+            };
+            // First-time creator becomes owner.
+            if (params.creator_user_id && !s.party.members[params.creator_user_id]) {
+                s.party.members[params.creator_user_id] = {
+                    user_id: params.creator_user_id,
+                    role: "owner",
+                    joined_unix_ms: nowMs,
+                    last_seen_unix_ms: nowMs,
+                    online: false,
+                    ready_for_match: false
+                };
+                if (!s.party.owner_user_id)
+                    s.party.owner_user_id = params.creator_user_id;
+            }
+            var label = JSON.stringify({
+                template_id: MpKernelPersistentParty.template.templateId,
+                game_id: params.game_id,
+                party_id: s.party.party_id,
+                owner: s.party.owner_user_id,
+                max_members: s.party.settings.max_members
+            });
+            // 1 Hz — party rooms are mostly chat + presence, low-frequency state.
+            return { state: s, tickRate: 1, label: label };
+        },
+        onJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presence, _metadata) {
+            var ks = state;
+            var u = presence.userId;
+            var member = ks.party.members[u];
+            var visibility = ks.party.settings.visibility;
+            // Private: must already be a member.
+            if (visibility === "private" && !member) {
+                // Allow if there's a pending invite.
+                var inv = ks.party.invites[u];
+                if (!inv || inv.expires_unix_ms < Date.now()) {
+                    return { state: ks, accept: false, rejectMessage: "private party — invite required" };
+                }
+            }
+            // Capacity: counted by *member* slots, not live presences.
+            var memberCount = 0;
+            for (var k in ks.party.members)
+                memberCount++;
+            if (!member && memberCount >= ks.party.settings.max_members) {
+                return { state: ks, accept: false, rejectMessage: "party full" };
+            }
+            return { state: ks, accept: true };
+        },
+        onJoin: function (_ctx, logger, nk, dispatcher, _tick, state, presences) {
+            var ks = state;
+            var nowMs = Date.now();
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                var u = p.userId;
+                // Promote pending invites to membership.
+                if (!ks.party.members[u]) {
+                    var inv = ks.party.invites[u];
+                    if (inv && inv.expires_unix_ms >= nowMs) {
+                        ks.party.members[u] = {
+                            user_id: u, role: "member",
+                            joined_unix_ms: nowMs,
+                            last_seen_unix_ms: nowMs,
+                            online: true,
+                            ready_for_match: false
+                        };
+                        delete ks.party.invites[u];
+                    }
+                    else if (ks.party.settings.visibility === "public") {
+                        ks.party.members[u] = {
+                            user_id: u, role: "member",
+                            joined_unix_ms: nowMs,
+                            last_seen_unix_ms: nowMs,
+                            online: true,
+                            ready_for_match: false
+                        };
+                    }
+                }
+                var m = ks.party.members[u];
+                if (m) {
+                    m.online = true;
+                    m.last_seen_unix_ms = nowMs;
+                }
+                if (!ks.presences[u]) {
+                    ks.presences[u] = { online: true, chat_bucket_unix_s: 0, chat_bucket_count: 0 };
+                }
+                else {
+                    ks.presences[u].online = true;
+                }
+                ks.last_nonzero_presence_unix_ms = nowMs;
+                broadcastTemplate(ks, dispatcher, "", MpKernelPersistentParty.Op.MEMBER_PRESENCE, {
+                    user_id: u, online: true
+                });
+            }
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, "", MpKernelPersistentParty.Op.PARTY_STATE, partyStateBroadcastShape(ks));
+            return { state: ks };
+        },
+        onLeave: function (_ctx, logger, nk, dispatcher, _tick, state, presences) {
+            var ks = state;
+            var nowMs = Date.now();
+            for (var i = 0; i < presences.length; i++) {
+                var u = presences[i].userId;
+                if (ks.presences[u])
+                    ks.presences[u].online = false;
+                var m = ks.party.members[u];
+                if (m) {
+                    m.online = false;
+                    m.last_seen_unix_ms = nowMs;
+                }
+                broadcastTemplate(ks, dispatcher, "", MpKernelPersistentParty.Op.MEMBER_PRESENCE, {
+                    user_id: u, online: false
+                });
+            }
+            writeDoc(nk, logger, ks.party);
+            return { state: ks };
+        },
+        onLoop: function (ctx, logger, nk, dispatcher, _tick, state, messages) {
+            var ks = state;
+            var matchId = ctx.matchId || "";
+            var nowMs = Date.now();
+            // 0. Hard cap.
+            if (nowMs > ks.started_unix_ms + ks.init.max_match_duration_ms) {
+                ks.pending_end_reason = "duration_exceeded";
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.DURATION_EXCEEDED, nk, logger);
+            }
+            // 1. Drain inbound.
+            for (var i = 0; i < messages.length; i++) {
+                applyInbound(ks, messages[i], dispatcher, matchId, nk, logger, nowMs);
+            }
+            // 2. Idle termination — but only the match instance; the party doc
+            //    itself persists in storage.
+            var liveCount = 0;
+            for (var u in ks.presences)
+                if (ks.presences[u].online)
+                    liveCount++;
+            if (liveCount > 0)
+                ks.last_nonzero_presence_unix_ms = nowMs;
+            else if (ks.init.idle_terminate_ms > 0 &&
+                nowMs - ks.last_nonzero_presence_unix_ms > ks.init.idle_terminate_ms) {
+                // Terminate match instance gracefully; party doc already persisted.
+                writeDoc(nk, logger, ks.party);
+                ks.pending_end_reason = "idle_terminate";
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.COMPLETED, nk, logger);
+            }
+            // 3. Periodic storage flush.
+            if (nowMs - ks.last_storage_flush_unix_ms >= ks.init.storage_flush_interval_ms) {
+                writeDoc(nk, logger, ks.party);
+                ks.last_storage_flush_unix_ms = nowMs;
+            }
+            // 4. Auto-kick idle members (NOT presences — actual idle members).
+            if (ks.party.settings.auto_kick_idle_ms > 0) {
+                var toKick = [];
+                for (var u2 in ks.party.members) {
+                    var mm = ks.party.members[u2];
+                    if (mm.role === "owner")
+                        continue; // never auto-kick owner
+                    if (!mm.online && (nowMs - mm.last_seen_unix_ms) > ks.party.settings.auto_kick_idle_ms) {
+                        toKick.push(u2);
+                    }
+                }
+                for (var k = 0; k < toKick.length; k++) {
+                    delete ks.party.members[toKick[k]];
+                    broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.KICK, {
+                        user_id: toKick[k], reason: "idle_auto_kick"
+                    });
+                }
+                if (toKick.length > 0)
+                    writeDoc(nk, logger, ks.party);
+            }
+            if (ks.pending_end_reason !== "") {
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.COMPLETED, nk, logger);
+            }
+            return { state: ks };
+        },
+        onTerminate: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _grace) {
+            // Final storage flush is best-effort here; we already flushed in
+            // onLoop's idle path. If terminate is forced from outside, the
+            // pre-terminate writeDoc covers persistence.
+            return { state: state };
+        },
+        buildResult: function (state, reason) {
+            var ks = state;
+            var outcomes = [];
+            for (var u in ks.party.members) {
+                var m = ks.party.members[u];
+                outcomes.push({
+                    user_id: u,
+                    is_agent: u.indexOf("agt_") === 0,
+                    placement: 0,
+                    score: 0,
+                    completed: true,
+                    left_early: false,
+                    game_payload: { role: m.role, last_seen_unix_ms: m.last_seen_unix_ms }
+                });
+            }
+            return {
+                match_id: "",
+                template_id: MpKernelPersistentParty.template.templateId,
+                game_id: "",
+                started_unix_ms: ks.started_unix_ms,
+                ended_unix_ms: 0,
+                duration_ms: 0,
+                outcomes: outcomes,
+                game_payload: {
+                    party_id: ks.party.party_id,
+                    end_reason: reason,
+                    owner: ks.party.owner_user_id,
+                    member_count: outcomes.length
+                }
+            };
+        }
+    };
+    // ---- inbound + helpers ----
+    function applyInbound(ks, m, dispatcher, matchId, nk, logger, nowMs) {
+        var raw = (typeof m.data === "string") ? m.data : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+        if (!raw)
+            return;
+        var parsed;
+        try {
+            parsed = JSON.parse(raw);
+        }
+        catch (_e) {
+            return;
+        }
+        var p = parsed.p || {};
+        var sender = m.sender.userId;
+        var senderMember = ks.party.members[sender];
+        var senderRole = senderMember ? senderMember.role : "member";
+        // Per-sender chat rate-limit applied first since chat is the noisiest op.
+        if (m.opCode === MpKernelPersistentParty.Op.PARTY_CHAT) {
+            if (!ks.init.chat_enabled)
+                return;
+            if (!senderMember)
+                return; // non-members can't chat
+            var pres = ks.presences[sender];
+            if (!pres)
+                return;
+            var nowS = Math.floor(nowMs / 1000);
+            if (pres.chat_bucket_unix_s !== nowS) {
+                pres.chat_bucket_unix_s = nowS;
+                pres.chat_bucket_count = 0;
+            }
+            if (pres.chat_bucket_count >= ks.init.chat_per_second)
+                return;
+            pres.chat_bucket_count++;
+            var text = (typeof p.text === "string") ? p.text.substring(0, 500) : "";
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.PARTY_CHAT, {
+                user_id: sender,
+                text: text,
+                server_unix_ms: nowMs
+            });
+            return;
+        }
+        if (m.opCode === MpKernelPersistentParty.Op.INVITE) {
+            if (senderRole !== "owner" && senderRole !== "officer")
+                return;
+            var target = p.user_id;
+            if (!target)
+                return;
+            ks.party.invites[target] = {
+                invited_by: sender,
+                at_unix_ms: nowMs,
+                expires_unix_ms: nowMs + ks.init.invite_ttl_ms
+            };
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.INVITE, {
+                user_id: target, invited_by: sender, expires_unix_ms: ks.party.invites[target].expires_unix_ms
+            });
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.INVITE_ACCEPT) {
+            var inv = ks.party.invites[sender];
+            if (!inv || inv.expires_unix_ms < nowMs)
+                return;
+            ks.party.members[sender] = {
+                user_id: sender, role: "member",
+                joined_unix_ms: nowMs, last_seen_unix_ms: nowMs,
+                online: true, ready_for_match: false
+            };
+            delete ks.party.invites[sender];
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.PARTY_STATE, partyStateBroadcastShape(ks));
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.INVITE_DECLINE) {
+            delete ks.party.invites[sender];
+            writeDoc(nk, logger, ks.party);
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.KICK) {
+            if (senderRole !== "owner" && senderRole !== "officer")
+                return;
+            var kickTarget = p.user_id;
+            if (!kickTarget)
+                return;
+            var t = ks.party.members[kickTarget];
+            if (!t)
+                return;
+            // Officers can't kick owner / other officers.
+            if (senderRole === "officer" && (t.role === "owner" || t.role === "officer"))
+                return;
+            delete ks.party.members[kickTarget];
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.KICK, {
+                user_id: kickTarget, by: sender, reason: p.reason || ""
+            });
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.PROMOTE) {
+            if (senderRole !== "owner")
+                return;
+            var pTarget = p.user_id;
+            var pt = ks.party.members[pTarget];
+            if (!pt)
+                return;
+            pt.role = "officer";
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.PROMOTE, { user_id: pTarget });
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.DEMOTE) {
+            if (senderRole !== "owner")
+                return;
+            var dTarget = p.user_id;
+            var dt = ks.party.members[dTarget];
+            if (!dt)
+                return;
+            dt.role = "member";
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.DEMOTE, { user_id: dTarget });
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.TRANSFER_OWNER) {
+            if (senderRole !== "owner")
+                return;
+            var newOwner = p.user_id;
+            var no = ks.party.members[newOwner];
+            if (!no || newOwner === sender)
+                return;
+            var oldOwner = ks.party.members[sender];
+            if (oldOwner)
+                oldOwner.role = "officer";
+            no.role = "owner";
+            ks.party.owner_user_id = newOwner;
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.TRANSFER_OWNER, {
+                from: sender, to: newOwner
+            });
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.LEAVE_PARTY) {
+            if (!senderMember)
+                return;
+            // Owner leaving without transfer: auto-promote longest-tenured officer
+            // (or member) so the party isn't orphaned.
+            if (senderMember.role === "owner") {
+                var promote = "";
+                var promoteAt = Number.MAX_SAFE_INTEGER;
+                for (var u in ks.party.members) {
+                    var mm = ks.party.members[u];
+                    if (u === sender)
+                        continue;
+                    // Officers preferred over members.
+                    var rank = (mm.role === "officer") ? 0 : 1;
+                    var key = rank * 1e15 + mm.joined_unix_ms;
+                    if (key < promoteAt) {
+                        promote = u;
+                        promoteAt = key;
+                    }
+                }
+                if (promote) {
+                    ks.party.members[promote].role = "owner";
+                    ks.party.owner_user_id = promote;
+                    broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.TRANSFER_OWNER, {
+                        from: sender, to: promote, reason: "owner_left"
+                    });
+                }
+                else {
+                    // Last member leaving — clear owner; party doc lingers in storage
+                    // until GC. A future "rejoin" creates a new party.
+                    ks.party.owner_user_id = "";
+                }
+            }
+            delete ks.party.members[sender];
+            delete ks.presences[sender];
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.LEAVE_PARTY, { user_id: sender });
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.SETTING_UPDATED) {
+            if (senderRole !== "owner" && senderRole !== "officer")
+                return;
+            if (typeof p.name === "string")
+                ks.party.name = p.name.substring(0, 80);
+            if (p.visibility === "private" || p.visibility === "friends" || p.visibility === "public") {
+                ks.party.settings.visibility = p.visibility;
+            }
+            if (typeof p.max_members === "number" && p.max_members > 0 && p.max_members <= 32) {
+                // Don't shrink below current member count.
+                var mc = 0;
+                for (var um in ks.party.members)
+                    mc++;
+                ks.party.settings.max_members = Math.max(mc, p.max_members);
+            }
+            if (p.game_payload) {
+                ks.party.settings.game_payload = p.game_payload;
+            }
+            writeDoc(nk, logger, ks.party);
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.SETTING_UPDATED, partyStateBroadcastShape(ks));
+        }
+        else if (m.opCode === MpKernelPersistentParty.Op.READY_FOR_MATCH) {
+            if (!senderMember)
+                return;
+            senderMember.ready_for_match = !!p.ready;
+            // No storage flush for transient "ready" — captured in next periodic flush.
+            var allReady = true;
+            var liveCount = 0;
+            for (var u3 in ks.party.members) {
+                var mmm = ks.party.members[u3];
+                if (mmm.online)
+                    liveCount++;
+                if (mmm.online && !mmm.ready_for_match)
+                    allReady = false;
+            }
+            broadcastTemplate(ks, dispatcher, matchId, MpKernelPersistentParty.Op.MATCH_QUEUE_INFO, {
+                all_ready: allReady && liveCount > 1,
+                live_count: liveCount,
+                ready_user_ids: collectReady(ks)
+            });
+        }
+    }
+    function collectReady(ks) {
+        var out = [];
+        for (var u in ks.party.members) {
+            var m = ks.party.members[u];
+            if (m.online && m.ready_for_match)
+                out.push(u);
+        }
+        return out;
+    }
+    function partyStateBroadcastShape(ks) {
+        return {
+            party_id: ks.party.party_id,
+            name: ks.party.name,
+            owner: ks.party.owner_user_id,
+            members: ks.party.members,
+            settings: ks.party.settings,
+            // Don't leak invites broadly — only the invitee's client should see
+            // their own invite. Future: per-target unicast for INVITE op only.
+            invites: {},
+            pinned_chat: ks.party.pinned_chat
+        };
+    }
+    function endMatch(ks, dispatcher, matchId, reasonEnum, nk, logger) {
+        // Always flush before ending — ensures we capture the latest party state.
+        writeDoc(nk, logger, ks.party);
+        var resultEnvelope = null;
+        if (MpKernelPersistentParty.template.buildResult) {
+            var built = MpKernelPersistentParty.template.buildResult(ks, ks.pending_end_reason || "completed");
+            if (built) {
+                built.match_id = matchId;
+                if (!built.started_unix_ms)
+                    built.started_unix_ms = ks.started_unix_ms;
+                resultEnvelope = built;
+            }
+        }
+        broadcastTemplate(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
+            reason: reasonEnum,
+            result_envelope: resultEnvelope
+        });
+        return null;
+    }
+    function broadcastTemplate(ks, dispatcher, matchId, op, payload) {
+        var seqProvider = ks.__seqProvider;
+        var matchTimeProvider = ks.__matchTimeMs;
+        var seq = (typeof seqProvider === "function") ? seqProvider() : ks.outbound_seq++;
+        var matchTimeMs = (typeof matchTimeProvider === "function")
+            ? matchTimeProvider()
+            : (Date.now() - ks.started_unix_ms);
+        var env = {
+            h: {
+                wire_version: 1,
+                op: op,
+                seq: seq,
+                match_time_ms: matchTimeMs,
+                sender_user_id: "server",
+                match_id: matchId,
+                client_opcode_uuid: ""
+            },
+            p: payload
+        };
+        dispatcher.broadcastMessage(op, JSON.stringify(env));
+    }
+    // Silence unused-helper warning (ensureDoc is exposed for future
+    // readDoc-via-external-RPC paths but is unused inside this file).
+    var _keepEnsureDoc = ensureDoc;
+    void _keepEnsureDoc;
+})(MpKernelPersistentParty || (MpKernelPersistentParty = {}));
+// SyncTurnMatch — synchronous turn template.
+// Server-authoritative timer + opcode fan-out + scoring loop.
+// Reserved opcode range 0x4000-0x4FFF (templates/sync_turn.proto).
+//
+// Lifecycle:
+//   PreGame:  waiting for >= min_players to ready up.
+//   Turn:     server emits TURN_START, opens input, gathers TURN_INPUT_SUBMIT,
+//             closes input on timer expiry OR all-submitted, emits
+//             TURN_RESOLVED, ScoreUpdate, then loops or ends match.
+//   PostGame: emits MATCH_ENDED + persists MatchResultEnvelope.
+var MpKernelSyncTurn;
+(function (MpKernelSyncTurn) {
+    // Opcodes (mirror templates/sync_turn.proto SyncTurnOp).
+    MpKernelSyncTurn.Op = {
+        TURN_START: 0x4001,
+        TURN_INPUT_OPENED: 0x4002,
+        TURN_INPUT_CLOSED: 0x4003,
+        TURN_RESOLVED: 0x4004,
+        SCORE_UPDATE: 0x4005,
+        PLAYER_ELIMINATED: 0x4006,
+        ROUND_STARTED: 0x4007,
+        ROUND_ENDED: 0x4008,
+        TURN_INPUT_SUBMIT: 0x4010,
+        PLAYER_READY: 0x4011,
+        PLAYER_FORFEIT: 0x4012
+    };
+    // Template-init defaults (game plugins override).
+    MpKernelSyncTurn.DefaultInit = {
+        min_players: 2,
+        max_players: 5,
+        default_input_window_ms: 15000,
+        max_match_duration_ms: 30 * 60 * 1000, // 30 min hard cap.
+        reconnect_grace_ms: 60000,
+        game_id: "",
+        agent_seat_count: 0,
+        // The game plugin populates this with its turn-generator hook id.
+        // The kernel calls it via an inline closure registered at template
+        // bootstrap (see registerGenerator below).
+        generator_id: ""
+    };
+    var generators = {};
+    function registerGenerator(g) {
+        generators[g.generatorId] = g;
+    }
+    MpKernelSyncTurn.registerGenerator = registerGenerator;
+    // -------- match state --------
+    var Phase;
+    (function (Phase) {
+        Phase[Phase["PRE_GAME"] = 0] = "PRE_GAME";
+        Phase[Phase["TURN_INPUT_OPEN"] = 1] = "TURN_INPUT_OPEN";
+        Phase[Phase["TURN_RESOLVING"] = 2] = "TURN_RESOLVING";
+        Phase[Phase["POST_GAME"] = 3] = "POST_GAME";
+    })(Phase || (Phase = {}));
+    // -------- template implementation --------
+    MpKernelSyncTurn.template = {
+        templateId: "sync-turn-v1",
+        opRange: { from: 0x4000, to: 0x4FFF },
+        defaultInit: MpKernelSyncTurn.DefaultInit,
+        initState: function (_ctx, _logger, _nk, params) {
+            var init = mergeInit(params.template_init);
+            var gen = init.generator_id ? generators[init.generator_id] : null;
+            var blob = gen ? gen.initBlob(init) : null;
+            var s = {
+                init: init,
+                phase: Phase.PRE_GAME,
+                turn_index: 0,
+                round_index: 0,
+                input_opens_at_ms: 0,
+                input_closes_at_ms: 0,
+                current_turn_payload: null,
+                current_correct_payload: null,
+                current_base_reward: 0,
+                current_wrong_penalty: 0,
+                current_no_submit_penalty: 0,
+                submissions: {},
+                ready: {},
+                forfeited: {},
+                stats: {},
+                match_started_unix_ms: Date.now(),
+                match_force_end_at_unix_ms: Date.now() + init.max_match_duration_ms,
+                pending_end_reason: "",
+                generator: gen,
+                generator_blob: blob,
+                is_final_turn: false,
+                outbound_seq: 1
+            };
+            var label = JSON.stringify({
+                template_id: "sync-turn-v1",
+                game_id: params.game_id,
+                max_players: init.max_players,
+                min_players: init.min_players
+            });
+            // 4 Hz tick is plenty for sync-turn; finer cadences add cost without value.
+            return { state: s, tickRate: 4, label: label };
+        },
+        onJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _presence, _metadata) {
+            var ks = state;
+            var seatCount = countTotalSeats(ks);
+            if (seatCount >= ks.init.max_players) {
+                return { state: ks, accept: false, rejectMessage: "match full" };
+            }
+            if (ks.phase === Phase.POST_GAME) {
+                return { state: ks, accept: false, rejectMessage: "match ended" };
+            }
+            return { state: ks, accept: true };
+        },
+        onJoin: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presences) {
+            var ks = state;
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                if (!ks.stats[p.userId]) {
+                    ks.stats[p.userId] = {
+                        user_id: p.userId,
+                        is_agent: p.userId.indexOf("agt_") === 0,
+                        score: 0,
+                        correct_count: 0,
+                        wrong_count: 0,
+                        no_submit_count: 0,
+                        forfeited: false
+                    };
+                }
+            }
+            return { state: ks };
+        },
+        onLeave: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presences) {
+            var ks = state;
+            // Mark forfeit only if the match has started; pre-game leaves are fine.
+            if (ks.phase !== Phase.PRE_GAME) {
+                for (var i = 0; i < presences.length; i++) {
+                    ks.forfeited[presences[i].userId] = true;
+                    if (ks.stats[presences[i].userId]) {
+                        ks.stats[presences[i].userId].forfeited = true;
+                    }
+                }
+            }
+            return { state: ks };
+        },
+        onLoop: function (ctx, logger, _nk, dispatcher, _tick, state, messages) {
+            var ks = state;
+            var matchId = ctx.matchId || "";
+            var nowUnixMs = Date.now();
+            var matchTimeMs = nowUnixMs - ks.match_started_unix_ms;
+            // 0. Hard-cap match duration (Pillar 8 — duration_exceeded).
+            if (nowUnixMs > ks.match_force_end_at_unix_ms && ks.phase !== Phase.POST_GAME) {
+                ks.pending_end_reason = "duration_exceeded";
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.DURATION_EXCEEDED);
+            }
+            // 1. Process inbound game opcodes.
+            for (var i = 0; i < messages.length; i++) {
+                var m = messages[i];
+                applyInbound(ks, m, matchTimeMs, logger);
+            }
+            // 2. Drive the turn FSM.
+            switch (ks.phase) {
+                case Phase.PRE_GAME:
+                    // Auto-start when min_players are present (no explicit ready needed
+                    // for v1; PLAYER_READY gates upgrade in P4 if required).
+                    if (countActiveSeats(ks) >= ks.init.min_players) {
+                        startNextTurn(ks, dispatcher, matchId, logger);
+                    }
+                    break;
+                case Phase.TURN_INPUT_OPEN:
+                    if (matchTimeMs >= ks.input_closes_at_ms || allActiveSubmitted(ks)) {
+                        closeInputAndResolve(ks, dispatcher, matchId, logger);
+                    }
+                    break;
+                case Phase.TURN_RESOLVING:
+                    // After 1 tick (~250ms) of letting clients receive TURN_RESOLVED,
+                    // start the next turn.
+                    if (matchTimeMs - ks.input_closes_at_ms >= 250) {
+                        startNextTurn(ks, dispatcher, matchId, logger);
+                    }
+                    break;
+                case Phase.POST_GAME:
+                    return null; // Match end persisted in finalizeMatch on prior tick.
+            }
+            return { state: ks };
+        },
+        onTerminate: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _graceSeconds) {
+            return { state: state };
+        },
+        buildResult: function (state, reason) {
+            var ks = state;
+            var outcomes = [];
+            var rankList = [];
+            for (var u in ks.stats) {
+                if (ks.stats.hasOwnProperty(u))
+                    rankList.push(ks.stats[u]);
+            }
+            rankList.sort(function (a, b) { return b.score - a.score; });
+            for (var i = 0; i < rankList.length; i++) {
+                var st = rankList[i];
+                outcomes.push({
+                    user_id: st.user_id,
+                    is_agent: st.is_agent,
+                    placement: i + 1,
+                    score: st.score,
+                    completed: !st.forfeited,
+                    left_early: st.forfeited,
+                    game_payload: {
+                        correct_count: st.correct_count,
+                        wrong_count: st.wrong_count,
+                        no_submit_count: st.no_submit_count
+                    }
+                });
+            }
+            return {
+                match_id: "", // filled by kernel finalizer
+                template_id: "sync-turn-v1",
+                game_id: "",
+                started_unix_ms: ks.match_started_unix_ms,
+                ended_unix_ms: 0,
+                duration_ms: 0,
+                outcomes: outcomes,
+                game_payload: {
+                    end_reason: reason || ks.pending_end_reason || "completed",
+                    total_turns: ks.turn_index
+                }
+            };
+        }
+    };
+    // -------- internals --------
+    function mergeInit(init) {
+        var out = {};
+        for (var k in MpKernelSyncTurn.DefaultInit) {
+            if (MpKernelSyncTurn.DefaultInit.hasOwnProperty(k))
+                out[k] = MpKernelSyncTurn.DefaultInit[k];
+        }
+        if (init) {
+            for (var k2 in init) {
+                if (init.hasOwnProperty(k2))
+                    out[k2] = init[k2];
+            }
+        }
+        return out;
+    }
+    function countTotalSeats(ks) {
+        var n = 0;
+        for (var k in ks.stats) {
+            if (ks.stats.hasOwnProperty(k))
+                n++;
+        }
+        return n;
+    }
+    function countActiveSeats(ks) {
+        var n = 0;
+        for (var k in ks.stats) {
+            if (ks.stats.hasOwnProperty(k) && !ks.forfeited[k])
+                n++;
+        }
+        return n;
+    }
+    function allActiveSubmitted(ks) {
+        for (var k in ks.stats) {
+            if (!ks.stats.hasOwnProperty(k))
+                continue;
+            if (ks.forfeited[k])
+                continue;
+            if (!ks.submissions[k])
+                return false;
+        }
+        return countActiveSeats(ks) > 0;
+    }
+    function applyInbound(ks, m, matchTimeMs, _logger) {
+        var raw = (typeof m.data === "string") ? m.data : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+        if (!raw)
+            return;
+        var parsed;
+        try {
+            parsed = JSON.parse(raw);
+        }
+        catch (e) {
+            return;
+        }
+        var op = m.opCode;
+        var sender = m.sender.userId;
+        if (op === MpKernelSyncTurn.Op.TURN_INPUT_SUBMIT) {
+            if (ks.phase !== Phase.TURN_INPUT_OPEN)
+                return;
+            if (ks.forfeited[sender])
+                return;
+            if (ks.submissions[sender])
+                return; // No double-submit per turn.
+            var p = parsed.p || {};
+            var serverResponseMs = matchTimeMs - ks.input_opens_at_ms;
+            // Clamp client-claimed response ms to [0, server response ms] (Pillar 8).
+            var claimedMs = (typeof p.client_response_ms === "number") ? p.client_response_ms : serverResponseMs;
+            if (claimedMs < 0)
+                claimedMs = 0;
+            if (claimedMs > serverResponseMs)
+                claimedMs = serverResponseMs;
+            ks.submissions[sender] = {
+                payload: p,
+                response_ms: claimedMs,
+                recv_match_ms: matchTimeMs
+            };
+        }
+        else if (op === MpKernelSyncTurn.Op.PLAYER_READY) {
+            ks.ready[sender] = true;
+        }
+        else if (op === MpKernelSyncTurn.Op.PLAYER_FORFEIT) {
+            ks.forfeited[sender] = true;
+            if (ks.stats[sender])
+                ks.stats[sender].forfeited = true;
+        }
+    }
+    function startNextTurn(ks, dispatcher, matchId, logger) {
+        if (!ks.generator) {
+            logger.warn("[SyncTurn] no generator registered; cannot start next turn (game_id=%s)", ks.init.game_id || "?");
+            // No generator = end immediately. Game plugins that don't supply
+            // a generator typically handle turn payload themselves on the wire.
+            ks.pending_end_reason = "no_generator";
+            endMatch(ks, dispatcher, matchId, MpKernel.EndReason.KERNEL_INTERNAL);
+            return;
+        }
+        if (ks.is_final_turn) {
+            ks.pending_end_reason = "completed";
+            endMatch(ks, dispatcher, matchId, MpKernel.EndReason.COMPLETED);
+            return;
+        }
+        ks.turn_index++;
+        ks.submissions = {};
+        var gen = ks.generator.nextTurn({
+            blob: ks.generator_blob,
+            turn_index: ks.turn_index,
+            round_index: ks.round_index,
+            template_init: ks.init
+        });
+        if (gen === null) {
+            ks.pending_end_reason = "completed";
+            endMatch(ks, dispatcher, matchId, MpKernel.EndReason.COMPLETED);
+            return;
+        }
+        ks.current_turn_payload = gen.turn_payload;
+        ks.current_correct_payload = gen.result_payload_for_correct;
+        ks.current_base_reward = gen.score_for_correct_full;
+        ks.current_wrong_penalty = gen.score_for_wrong;
+        ks.current_no_submit_penalty = gen.score_for_no_submit;
+        ks.is_final_turn = !!gen.is_final_turn;
+        var window = (gen.input_window_ms && gen.input_window_ms > 0)
+            ? gen.input_window_ms
+            : ks.init.default_input_window_ms;
+        var matchTimeMs = Date.now() - ks.match_started_unix_ms;
+        ks.input_opens_at_ms = matchTimeMs;
+        ks.input_closes_at_ms = matchTimeMs + window;
+        ks.phase = Phase.TURN_INPUT_OPEN;
+        // Broadcast TURN_START.
+        var turnStart = {
+            turn_index: ks.turn_index,
+            round_index: ks.round_index,
+            input_window_ms: window,
+            input_opens_at_match_ms: ks.input_opens_at_ms,
+            input_closes_at_match_ms: ks.input_closes_at_ms,
+            turn_payload: gen.turn_payload,
+            is_final_turn: ks.is_final_turn
+        };
+        broadcastTemplate(ks, dispatcher, matchId, MpKernelSyncTurn.Op.TURN_START, turnStart);
+        broadcastTemplate(ks, dispatcher, matchId, MpKernelSyncTurn.Op.TURN_INPUT_OPENED, { turn_index: ks.turn_index });
+    }
+    function closeInputAndResolve(ks, dispatcher, matchId, _logger) {
+        var matchTimeMs = Date.now() - ks.match_started_unix_ms;
+        var allSubmitted = allActiveSubmitted(ks);
+        ks.input_closes_at_ms = matchTimeMs;
+        broadcastTemplate(ks, dispatcher, matchId, MpKernelSyncTurn.Op.TURN_INPUT_CLOSED, {
+            turn_index: ks.turn_index,
+            all_submitted: allSubmitted
+        });
+        var verdicts = {};
+        var responseMs = {};
+        var scoreDelta = {};
+        for (var u in ks.stats) {
+            if (!ks.stats.hasOwnProperty(u))
+                continue;
+            var st = ks.stats[u];
+            if (ks.forfeited[u]) {
+                verdicts[u] = -1;
+                responseMs[u] = 0;
+                st.no_submit_count++;
+                var penalty = ks.current_no_submit_penalty;
+                st.score += penalty;
+                if (penalty !== 0)
+                    scoreDelta[u] = penalty;
+                continue;
+            }
+            var sub = ks.submissions[u];
+            if (!sub) {
+                verdicts[u] = -1;
+                responseMs[u] = 0;
+                st.no_submit_count++;
+                var p2 = ks.current_no_submit_penalty;
+                st.score += p2;
+                if (p2 !== 0)
+                    scoreDelta[u] = p2;
+                continue;
+            }
+            var delta = ks.generator
+                ? ks.generator.scoreSubmission(sub.payload, ks.current_correct_payload, sub.response_ms, ks.current_base_reward)
+                : 0;
+            st.score += delta;
+            responseMs[u] = sub.response_ms;
+            // Generators decide correctness via delta sign by convention; positive
+            // = correct, zero/negative = wrong. Generators may override by
+            // emitting their own verdicts inside buildResolvedPayload.
+            if (delta > 0) {
+                verdicts[u] = 1;
+                st.correct_count++;
+            }
+            else {
+                verdicts[u] = 0;
+                st.wrong_count++;
+                st.score += ks.current_wrong_penalty;
+                delta += ks.current_wrong_penalty;
+            }
+            if (delta !== 0)
+                scoreDelta[u] = delta;
+        }
+        var resolvedPayload = ks.generator
+            ? ks.generator.buildResolvedPayload(ks.current_correct_payload, verdicts, responseMs)
+            : { result_payload: ks.current_correct_payload };
+        broadcastTemplate(ks, dispatcher, matchId, MpKernelSyncTurn.Op.TURN_RESOLVED, {
+            turn_index: ks.turn_index,
+            result_payload: resolvedPayload,
+            score_delta: scoreDelta
+        });
+        var totals = {};
+        for (var u2 in ks.stats) {
+            if (ks.stats.hasOwnProperty(u2))
+                totals[u2] = ks.stats[u2].score;
+        }
+        broadcastTemplate(ks, dispatcher, matchId, MpKernelSyncTurn.Op.SCORE_UPDATE, {
+            turn_index: ks.turn_index,
+            totals: totals
+        });
+        ks.phase = Phase.TURN_RESOLVING;
+    }
+    function endMatch(ks, dispatcher, matchId, matchEndedReasonEnum) {
+        if (ks.phase === Phase.POST_GAME)
+            return null;
+        ks.phase = Phase.POST_GAME;
+        // Build the result-envelope inline so the wire MATCH_ENDED carries
+        // the outcome. The match-handler's finalizeMatch persists a fresh
+        // copy on the next tick (with kernel-side fields filled in); the
+        // template never persists directly.
+        var resultEnvelope = null;
+        if (typeof MpKernelSyncTurn.template.buildResult === "function") {
+            var built = MpKernelSyncTurn.template.buildResult(ks, ks.pending_end_reason || "completed");
+            if (built) {
+                // Stamp the (template-known) match metadata; kernel fills the rest.
+                built.match_id = matchId;
+                built.template_id = MpKernelSyncTurn.template.templateId;
+                if (!built.started_unix_ms)
+                    built.started_unix_ms = ks.match_started_unix_ms;
+                resultEnvelope = built;
+            }
+        }
+        broadcastTemplate(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
+            reason: matchEndedReasonEnum,
+            result_envelope: resultEnvelope
+        });
+        return null;
+    }
+    // Outbound helper. Prefers the kernel-shared seq provider injected at
+    // matchInit so server-origin broadcasts (kernel + template) advance a
+    // single (match, "server") seq stream. Falls back to a per-match
+    // counter for unit-test paths that build state without going through
+    // the kernel (e.g. direct invocation of `template.onLoop`).
+    // Conformance: Pillar 8 test 06 (seq monotonicity).
+    function broadcastTemplate(ks, dispatcher, matchId, op, payload) {
+        var seqProvider = ks.__seqProvider;
+        var matchTimeProvider = ks.__matchTimeMs;
+        var seq = (typeof seqProvider === "function") ? seqProvider() : ks.outbound_seq++;
+        var matchTimeMs = (typeof matchTimeProvider === "function")
+            ? matchTimeProvider()
+            : (Date.now() - ks.match_started_unix_ms);
+        var env = {
+            h: {
+                wire_version: 1,
+                op: op,
+                seq: seq,
+                match_time_ms: matchTimeMs,
+                sender_user_id: "server",
+                match_id: matchId,
+                client_opcode_uuid: ""
+            },
+            p: payload
+        };
+        dispatcher.broadcastMessage(op, JSON.stringify(env));
+    }
+})(MpKernelSyncTurn || (MpKernelSyncTurn = {}));
+// TournamentOrchestrator — bracket / ladder coordinator template.
+//
+// Reserved opcode range 0x8000-0x8FFF.
+//
+// Responsibilities:
+//   * Accept registrations during a `REGISTRATION` phase; close on
+//     registration_close_unix_ms or capacity hit.
+//   * Generate bracket pairings (single-elim by default; mode is opaque
+//     so a custom IBracketGenerator can implement double-elim, swiss,
+//     round-robin, ladder).
+//   * Spawn a round's "leg" matches via `nk.matchCreate(target_template_id, ...)`
+//     for each pairing, then poll mp_match_result storage to collect winners.
+//   * Advance the bracket round-by-round, broadcasting BRACKET_UPDATED.
+//   * On final match: resolve champion, emit TOURNAMENT_RESOLVED, persist.
+//
+// Match cadence: 1 Hz. We're not running a game, we're polling.
+//
+// Failure modes covered:
+//   * leg_match_failed:  if a spawned leg fails to create -> opponent
+//                        wins by walkover; logged in audit trail.
+//   * leg_match_timeout: if a leg doesn't write a result within
+//                        leg_timeout_ms -> both players are eliminated
+//                        (or higher-seed wins; configurable).
+//   * registration_short:if fewer than min_players registered at deadline
+//                        -> CANCELLED with refund signal in result envelope.
+var MpKernelTournament;
+(function (MpKernelTournament) {
+    MpKernelTournament.Op = {
+        REGISTER: 0x8000, // client -> server
+        REGISTRATION_CLOSED: 0x8001, // server -> all
+        BRACKET_UPDATED: 0x8002, // server -> all
+        LEG_MATCH_INFO: 0x8003, // server -> participants of a leg
+        LEG_MATCH_RESULT: 0x8004, // server -> all
+        TOURNAMENT_RESOLVED: 0x8005, // server -> all
+        PLAYER_FORFEIT: 0x8006, // client -> server
+        BYE_AWARDED: 0x8007 // server -> all
+    };
+    MpKernelTournament.DefaultInit = {
+        // Stable identifier the game plugin chose; used as storage key.
+        tournament_id: "",
+        // Max bracket size; rounded up to next power of 2 for single-elim.
+        max_players: 16,
+        min_players: 2,
+        // Registration window — server closes phase on whichever fires first.
+        registration_open_unix_ms: 0, // 0 = open immediately
+        registration_close_unix_ms: 0, // 0 = close on capacity
+        // Per-leg game template.
+        leg_template_id: "sync-turn-v1",
+        leg_template_init: {},
+        leg_target_game_id: "",
+        leg_target_region: "",
+        // How long a leg has to complete before we declare a forfeit.
+        leg_timeout_ms: 15 * 60 * 1000,
+        // Time between the end of one round and the start of the next.
+        inter_round_grace_ms: 10 * 1000,
+        // What to do if a leg's host crashes or matchCreate fails.
+        walkover_on_match_failure: true,
+        // Bracket mode hint (the IBracketGenerator decides the actual layout).
+        bracket_mode: "single_elim", // "single_elim" | "round_robin" | "ladder"
+        // Custom generator id; "" = built-in single-elim.
+        bracket_generator_id: "",
+        // Hard wall-clock cap on the entire tournament.
+        max_match_duration_ms: 6 * 60 * 60 * 1000,
+        // Allow agents (AI bots) to register? Useful for filling brackets.
+        allow_agents: true,
+        // Round-1 byes auto-applied when registered count is not power-of-2.
+        allow_byes: true
+    };
+    var Phase;
+    (function (Phase) {
+        Phase[Phase["REGISTRATION"] = 0] = "REGISTRATION";
+        Phase[Phase["SEEDING"] = 1] = "SEEDING";
+        Phase[Phase["LIVE"] = 2] = "LIVE";
+        Phase[Phase["DONE"] = 3] = "DONE";
+        Phase[Phase["CANCELLED"] = 4] = "CANCELLED";
+    })(Phase || (Phase = {}));
+    // ---- generator registry ----
+    var generators = {};
+    function registerGenerator(g) { generators[g.generatorId] = g; }
+    MpKernelTournament.registerGenerator = registerGenerator;
+    // Built-in single-elim bracket.
+    // Seeding: lowest seed plays highest seed (1 vs N, 2 vs N-1, …).
+    var SINGLE_ELIM = {
+        generatorId: "single-elim",
+        initBracket: function (state) {
+            var seeded = [];
+            for (var u in state.registrants)
+                seeded.push(state.registrants[u]);
+            seeded.sort(function (a, b) { return a.seed - b.seed; });
+            // Pad to next power of 2 with byes.
+            var n = seeded.length;
+            var size = 1;
+            while (size < n)
+                size *= 2;
+            var byes = size - n;
+            // Top `byes` seeds get byes (i.e. paired with "" opponent).
+            var round0 = [];
+            var lo = 0;
+            var hi = seeded.length - 1;
+            var legIdx = 0;
+            // Standard "1 v N, 2 v N-1" pattern with byes attached to top seeds.
+            while (lo <= hi) {
+                var a = seeded[lo].user_id;
+                var b = (lo === hi) ? "" : seeded[hi].user_id;
+                // If we still have byes to assign and this leg's `b` is the
+                // weakest unpaired player, drop the opponent so player_a gets a bye.
+                if (byes > 0 && b !== "") {
+                    // Walk byes from outside in; only assign to top seeds.
+                    // Heuristic: assign bye if seeds[lo] is in top `byes` seeds
+                    // (i.e. lo < byes).
+                    if (lo < byes) {
+                        // Bye for seeds[lo].
+                        b = "";
+                        // Don't consume hi; the would-be opponent stays for the next pair.
+                        round0.push({
+                            leg_id: "r0-m" + legIdx,
+                            round_index: 0,
+                            player_a: a, player_b: "",
+                            match_id: "", started_unix_ms: 0, ended_unix_ms: 0,
+                            winner_user_id: a, loser_user_id: "",
+                            status: "walkover", failure_reason: ""
+                        });
+                        legIdx++;
+                        lo++;
+                        byes--;
+                        continue;
+                    }
+                }
+                round0.push({
+                    leg_id: "r0-m" + legIdx,
+                    round_index: 0,
+                    player_a: a, player_b: b,
+                    match_id: "", started_unix_ms: 0, ended_unix_ms: 0,
+                    winner_user_id: (b === "") ? a : "",
+                    loser_user_id: "",
+                    status: (b === "") ? "walkover" : "pending",
+                    failure_reason: ""
+                });
+                legIdx++;
+                lo++;
+                if (b !== "")
+                    hi--;
+            }
+            var roundsCount = log2Up(size);
+            var rounds = [round0];
+            for (var r = 1; r < roundsCount; r++)
+                rounds.push([]);
+            return {
+                rounds: rounds,
+                winners_path: [[]]
+            };
+        },
+        nextRoundLegs: function (_state, bracket) {
+            // Return legs in `current_round_index` that still need spawning.
+            // The orchestrator drives current_round_index; we return all pending
+            // legs in that round.
+            var roundIdx = bracket.rounds.length - 1;
+            // Find the deepest round with any pending leg.
+            for (var r = 0; r < bracket.rounds.length; r++) {
+                for (var i = 0; i < bracket.rounds[r].length; i++) {
+                    if (bracket.rounds[r][i].status === "pending") {
+                        roundIdx = r;
+                        r = bracket.rounds.length; // break outer
+                        break;
+                    }
+                }
+            }
+            var pending = [];
+            for (var i2 = 0; i2 < bracket.rounds[roundIdx].length; i2++) {
+                var leg = bracket.rounds[roundIdx][i2];
+                if (leg.status === "pending")
+                    pending.push(leg);
+            }
+            return pending;
+        },
+        onLegResolved: function (bracket, leg, winnerUserId, loserUserId) {
+            // Mutate the leg in-place.
+            var rl = bracket.rounds[leg.round_index];
+            for (var i = 0; i < rl.length; i++) {
+                if (rl[i].leg_id === leg.leg_id) {
+                    rl[i].winner_user_id = winnerUserId;
+                    rl[i].loser_user_id = loserUserId;
+                    rl[i].status = leg.status;
+                    rl[i].ended_unix_ms = Date.now();
+                    break;
+                }
+            }
+            // If round complete, build next round.
+            var roundIdx = leg.round_index;
+            var round = bracket.rounds[roundIdx];
+            var allDone = true;
+            var winners = [];
+            for (var j = 0; j < round.length; j++) {
+                if (round[j].status === "pending" || round[j].status === "live") {
+                    allDone = false;
+                    break;
+                }
+                winners.push(round[j].winner_user_id);
+            }
+            if (allDone && roundIdx + 1 < bracket.rounds.length) {
+                // Pair winners in order: (0,1), (2,3), …
+                var nextRound = [];
+                for (var k = 0; k < winners.length; k += 2) {
+                    var a2 = winners[k];
+                    var b2 = (k + 1 < winners.length) ? winners[k + 1] : "";
+                    nextRound.push({
+                        leg_id: "r" + (roundIdx + 1) + "-m" + (k / 2 | 0),
+                        round_index: roundIdx + 1,
+                        player_a: a2, player_b: b2,
+                        match_id: "", started_unix_ms: 0, ended_unix_ms: 0,
+                        winner_user_id: (b2 === "") ? a2 : "",
+                        loser_user_id: "",
+                        status: (b2 === "") ? "walkover" : "pending",
+                        failure_reason: ""
+                    });
+                }
+                bracket.rounds[roundIdx + 1] = nextRound;
+            }
+            return bracket;
+        },
+        isComplete: function (bracket) {
+            var last = bracket.rounds[bracket.rounds.length - 1];
+            if (!last || last.length === 0)
+                return false;
+            // Final round must have exactly 1 resolved leg.
+            if (last.length !== 1)
+                return false;
+            var l = last[0];
+            return l.status === "resolved" || l.status === "walkover" || l.status === "forfeited";
+        },
+        championOf: function (bracket) {
+            var last = bracket.rounds[bracket.rounds.length - 1];
+            if (!last || last.length !== 1)
+                return "";
+            return last[0].winner_user_id || "";
+        }
+    };
+    registerGenerator(SINGLE_ELIM);
+    // ---- helpers ----
+    function log2Up(n) {
+        var i = 0;
+        var v = 1;
+        while (v < n) {
+            v *= 2;
+            i++;
+        }
+        return Math.max(1, i);
+    }
+    function mergeInit(params) {
+        var out = {};
+        for (var k in MpKernelTournament.DefaultInit)
+            if (MpKernelTournament.DefaultInit.hasOwnProperty(k))
+                out[k] = MpKernelTournament.DefaultInit[k];
+        if (params)
+            for (var k2 in params)
+                if (params.hasOwnProperty(k2))
+                    out[k2] = params[k2];
+        return out;
+    }
+    function pickGenerator(state) {
+        var id = state.init.bracket_generator_id || "";
+        if (id && generators[id])
+            return generators[id];
+        return SINGLE_ELIM;
+    }
+    function logEvent(s, kind, data) {
+        s.events.push({ at_unix_ms: Date.now(), kind: kind, data: data });
+        if (s.events.length > 500)
+            s.events = s.events.slice(s.events.length - 500);
+    }
+    // ---- template ----
+    MpKernelTournament.template = {
+        templateId: "tournament-v1",
+        opRange: { from: 0x8000, to: 0x8FFF },
+        defaultInit: MpKernelTournament.DefaultInit,
+        initState: function (_ctx, _logger, _nk, params) {
+            var init = mergeInit(params.template_init);
+            var s = {
+                init: init,
+                phase: Phase.REGISTRATION,
+                registrants: {},
+                registration_close_unix_ms_effective: init.registration_close_unix_ms || (Date.now() + 5 * 60 * 1000),
+                started_unix_ms: Date.now(),
+                bracket: null,
+                current_round_index: 0,
+                current_round_started_unix_ms: 0,
+                bracket_generator: null,
+                pending_end_reason: "",
+                outbound_seq: 1,
+                events: []
+            };
+            var label = JSON.stringify({
+                template_id: MpKernelTournament.template.templateId,
+                game_id: params.game_id,
+                tournament_id: init.tournament_id,
+                max_players: init.max_players
+            });
+            // 1 Hz — orchestrator polls leg results, drives phase transitions.
+            return { state: s, tickRate: 1, label: label };
+        },
+        onJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presence, _metadata) {
+            var ks = state;
+            if (ks.phase !== Phase.REGISTRATION) {
+                return { state: ks, accept: false, rejectMessage: "registration closed" };
+            }
+            var n = 0;
+            for (var u in ks.registrants)
+                n++;
+            if (n >= ks.init.max_players) {
+                return { state: ks, accept: false, rejectMessage: "tournament full" };
+            }
+            var isAgent = (presence.userId.indexOf("agt_") === 0);
+            if (isAgent && !ks.init.allow_agents) {
+                return { state: ks, accept: false, rejectMessage: "agents not allowed" };
+            }
+            return { state: ks, accept: true };
+        },
+        onJoin: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presences) {
+            var ks = state;
+            for (var i = 0; i < presences.length; i++) {
+                var p = presences[i];
+                if (!ks.registrants[p.userId]) {
+                    ks.registrants[p.userId] = {
+                        user_id: p.userId,
+                        is_agent: p.userId.indexOf("agt_") === 0,
+                        seed: 0,
+                        eliminated: false,
+                        placement: 0
+                    };
+                }
+            }
+            return { state: ks };
+        },
+        onLeave: function (_ctx, _logger, _nk, _dispatcher, _tick, state, presences) {
+            var ks = state;
+            // Pre-bracket: remove from registrants.
+            for (var i = 0; i < presences.length; i++) {
+                var u = presences[i].userId;
+                if (ks.phase === Phase.REGISTRATION) {
+                    delete ks.registrants[u];
+                }
+                else {
+                    // Mid-tournament leave is a forfeit of any active leg they're in.
+                    forfeitPlayer(ks, u);
+                }
+            }
+            return { state: ks };
+        },
+        onLoop: function (ctx, logger, nk, dispatcher, _tick, state, messages) {
+            var ks = state;
+            var matchId = ctx.matchId || "";
+            var nowUnixMs = Date.now();
+            // Hard wall-clock cap.
+            if (nowUnixMs > ks.started_unix_ms + ks.init.max_match_duration_ms &&
+                ks.phase !== Phase.DONE && ks.phase !== Phase.CANCELLED) {
+                ks.pending_end_reason = "duration_exceeded";
+                ks.phase = Phase.CANCELLED;
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.DURATION_EXCEEDED);
+            }
+            // Inbound.
+            for (var i = 0; i < messages.length; i++) {
+                applyInbound(ks, messages[i], dispatcher, matchId);
+            }
+            // ---------- Phase machine ----------
+            if (ks.phase === Phase.REGISTRATION) {
+                var n = 0;
+                for (var u in ks.registrants)
+                    n++;
+                var capHit = n >= ks.init.max_players;
+                var deadlineHit = nowUnixMs >= ks.registration_close_unix_ms_effective;
+                if (capHit || deadlineHit) {
+                    if (n < ks.init.min_players) {
+                        broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.REGISTRATION_CLOSED, {
+                            registered: n,
+                            cancelled: true,
+                            reason: "registration_short"
+                        });
+                        ks.phase = Phase.CANCELLED;
+                        ks.pending_end_reason = "registration_short";
+                        return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.CANCELLED);
+                    }
+                    // Seed by registration order (fast path; real tournaments
+                    // would seed by ELO via a custom IBracketGenerator).
+                    var idx = 1;
+                    for (var u2 in ks.registrants) {
+                        ks.registrants[u2].seed = idx++;
+                    }
+                    ks.bracket_generator = pickGenerator(ks);
+                    ks.bracket = ks.bracket_generator.initBracket(ks);
+                    ks.phase = Phase.SEEDING;
+                    ks.current_round_started_unix_ms = nowUnixMs;
+                    broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.REGISTRATION_CLOSED, {
+                        registered: n,
+                        seeded: idx - 1,
+                        bracket: ks.bracket
+                    });
+                    // Fall through to LIVE on next tick.
+                    return { state: ks };
+                }
+            }
+            if (ks.phase === Phase.SEEDING) {
+                // Auto-advance: SEEDING is a one-tick handoff so clients see the
+                // bracket before legs spawn.
+                ks.phase = Phase.LIVE;
+            }
+            if (ks.phase === Phase.LIVE) {
+                if (!ks.bracket || !ks.bracket_generator) {
+                    ks.pending_end_reason = "kernel_internal_no_bracket";
+                    ks.phase = Phase.CANCELLED;
+                    return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.KERNEL_INTERNAL);
+                }
+                // Pump pending legs.
+                var pendingLegs = ks.bracket_generator.nextRoundLegs(ks, ks.bracket);
+                for (var li = 0; li < pendingLegs.length; li++) {
+                    var leg = pendingLegs[li];
+                    if (leg.status !== "pending")
+                        continue;
+                    // Spawn the leg match.
+                    var legMatchId = "";
+                    try {
+                        legMatchId = nk.matchCreate(ks.init.leg_template_id, {
+                            game_id: ks.init.leg_target_game_id || "",
+                            region: ks.init.leg_target_region || "",
+                            template_init: ks.init.leg_template_init || {},
+                            creator_user_id: leg.player_a,
+                            tournament_id: ks.init.tournament_id,
+                            tournament_leg: leg.leg_id
+                        });
+                    }
+                    catch (err) {
+                        logger.warn("[Tournament] leg matchCreate failed leg=%s err=%s", leg.leg_id, (err && err.message) ? err.message : String(err));
+                    }
+                    if (!legMatchId) {
+                        // walkover_on_match_failure: top seed advances; otherwise cancel.
+                        if (ks.init.walkover_on_match_failure) {
+                            leg.status = "walkover";
+                            leg.winner_user_id = leg.player_a;
+                            leg.loser_user_id = leg.player_b;
+                            leg.failure_reason = "leg_create_failed";
+                            leg.ended_unix_ms = nowUnixMs;
+                            ks.bracket = ks.bracket_generator.onLegResolved(ks.bracket, leg, leg.player_a, leg.player_b);
+                            broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.LEG_MATCH_RESULT, {
+                                leg_id: leg.leg_id,
+                                round_index: leg.round_index,
+                                winner_user_id: leg.player_a,
+                                loser_user_id: leg.player_b,
+                                status: "walkover",
+                                reason: "leg_create_failed"
+                            });
+                            logEvent(ks, "leg_walkover", { leg_id: leg.leg_id, reason: "leg_create_failed" });
+                        }
+                        else {
+                            broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.LEG_MATCH_RESULT, {
+                                leg_id: leg.leg_id,
+                                round_index: leg.round_index,
+                                status: "failed",
+                                reason: "leg_create_failed"
+                            });
+                            ks.pending_end_reason = "leg_create_failed_no_walkover";
+                            ks.phase = Phase.CANCELLED;
+                            return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.KERNEL_INTERNAL);
+                        }
+                    }
+                    else {
+                        leg.match_id = legMatchId;
+                        leg.status = "live";
+                        leg.started_unix_ms = nowUnixMs;
+                        broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.LEG_MATCH_INFO, {
+                            leg_id: leg.leg_id,
+                            round_index: leg.round_index,
+                            match_id: legMatchId,
+                            player_a: leg.player_a,
+                            player_b: leg.player_b,
+                            template_id: ks.init.leg_template_id
+                        });
+                        logEvent(ks, "leg_spawned", { leg_id: leg.leg_id, match_id: legMatchId });
+                    }
+                }
+                // Poll live legs for results.
+                for (var rIdx = 0; rIdx < ks.bracket.rounds.length; rIdx++) {
+                    var round = ks.bracket.rounds[rIdx];
+                    for (var lIdx = 0; lIdx < round.length; lIdx++) {
+                        var lg = round[lIdx];
+                        if (lg.status !== "live")
+                            continue;
+                        var result = MpKernelMatchResult.read(nk, lg.match_id);
+                        if (result) {
+                            // Decode winner from outcomes (placement === 1).
+                            var winner = "";
+                            var loser = "";
+                            for (var o = 0; o < result.outcomes.length; o++) {
+                                if (result.outcomes[o].placement === 1)
+                                    winner = result.outcomes[o].user_id;
+                                else if (lg.player_b !== "" && result.outcomes[o].user_id !== winner)
+                                    loser = result.outcomes[o].user_id;
+                            }
+                            if (winner === "") {
+                                // Tie / no winner — pick higher seed (lower seed value wins).
+                                var sa = ks.registrants[lg.player_a];
+                                var sb = ks.registrants[lg.player_b];
+                                winner = (sa && sb && sa.seed <= sb.seed) ? lg.player_a : lg.player_b;
+                                loser = (winner === lg.player_a) ? lg.player_b : lg.player_a;
+                            }
+                            lg.winner_user_id = winner;
+                            lg.loser_user_id = loser;
+                            lg.status = "resolved";
+                            lg.ended_unix_ms = nowUnixMs;
+                            ks.bracket = ks.bracket_generator.onLegResolved(ks.bracket, lg, winner, loser);
+                            if (loser && ks.registrants[loser])
+                                ks.registrants[loser].eliminated = true;
+                            broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.LEG_MATCH_RESULT, {
+                                leg_id: lg.leg_id,
+                                round_index: lg.round_index,
+                                winner_user_id: winner,
+                                loser_user_id: loser,
+                                status: "resolved"
+                            });
+                            logEvent(ks, "leg_resolved", { leg_id: lg.leg_id, winner: winner });
+                        }
+                        else if (nowUnixMs > lg.started_unix_ms + ks.init.leg_timeout_ms) {
+                            // Leg timed out without writing a result.
+                            var seedA = ks.registrants[lg.player_a];
+                            var seedB = ks.registrants[lg.player_b];
+                            var winner2 = (seedA && seedB && seedA.seed <= seedB.seed) ? lg.player_a : lg.player_b;
+                            var loser2 = (winner2 === lg.player_a) ? lg.player_b : lg.player_a;
+                            lg.winner_user_id = winner2;
+                            lg.loser_user_id = loser2;
+                            lg.status = "forfeited";
+                            lg.failure_reason = "leg_timeout";
+                            lg.ended_unix_ms = nowUnixMs;
+                            ks.bracket = ks.bracket_generator.onLegResolved(ks.bracket, lg, winner2, loser2);
+                            if (loser2 && ks.registrants[loser2])
+                                ks.registrants[loser2].eliminated = true;
+                            broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.LEG_MATCH_RESULT, {
+                                leg_id: lg.leg_id,
+                                round_index: lg.round_index,
+                                winner_user_id: winner2,
+                                loser_user_id: loser2,
+                                status: "forfeited",
+                                reason: "leg_timeout"
+                            });
+                            logEvent(ks, "leg_forfeit", { leg_id: lg.leg_id, reason: "leg_timeout" });
+                        }
+                    }
+                }
+                // Walkover legs need to be threaded through onLegResolved so the
+                // bracket builds the next round even when we never spawned a match.
+                for (var rIdx2 = 0; rIdx2 < ks.bracket.rounds.length; rIdx2++) {
+                    var roundW = ks.bracket.rounds[rIdx2];
+                    for (var lIdx2 = 0; lIdx2 < roundW.length; lIdx2++) {
+                        var lgW = roundW[lIdx2];
+                        if (lgW.status === "walkover" && lgW.ended_unix_ms === 0) {
+                            lgW.ended_unix_ms = nowUnixMs;
+                            ks.bracket = ks.bracket_generator.onLegResolved(ks.bracket, lgW, lgW.winner_user_id, lgW.loser_user_id);
+                            broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.BYE_AWARDED, {
+                                leg_id: lgW.leg_id,
+                                round_index: lgW.round_index,
+                                user_id: lgW.winner_user_id
+                            });
+                        }
+                    }
+                }
+                broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.BRACKET_UPDATED, {
+                    rounds: ks.bracket.rounds
+                });
+                if (ks.bracket_generator.isComplete(ks.bracket)) {
+                    var champion = ks.bracket_generator.championOf(ks.bracket);
+                    if (champion && ks.registrants[champion])
+                        ks.registrants[champion].placement = 1;
+                    // Fill placements for remaining: eliminated players in round
+                    // order (later round = higher placement).
+                    var place = 2;
+                    for (var rr = ks.bracket.rounds.length - 1; rr >= 0; rr--) {
+                        var rrRound = ks.bracket.rounds[rr];
+                        for (var ll = 0; ll < rrRound.length; ll++) {
+                            var lll = rrRound[ll];
+                            var loser3 = lll.loser_user_id;
+                            if (loser3 && ks.registrants[loser3] && ks.registrants[loser3].placement === 0) {
+                                ks.registrants[loser3].placement = place++;
+                            }
+                        }
+                    }
+                    broadcastTemplate(ks, dispatcher, matchId, MpKernelTournament.Op.TOURNAMENT_RESOLVED, {
+                        champion_user_id: champion,
+                        bracket: ks.bracket,
+                        registrants: ks.registrants
+                    });
+                    ks.phase = Phase.DONE;
+                    ks.pending_end_reason = "completed";
+                    return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.COMPLETED);
+                }
+            }
+            if (ks.pending_end_reason !== "" && ks.phase !== Phase.DONE && ks.phase !== Phase.CANCELLED) {
+                return endMatch(ks, dispatcher, matchId, MpKernel.EndReason.KERNEL_INTERNAL);
+            }
+            return { state: ks };
+        },
+        onTerminate: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _grace) {
+            return { state: state };
+        },
+        buildResult: function (state, reason) {
+            var ks = state;
+            var outcomes = [];
+            for (var u in ks.registrants) {
+                var r = ks.registrants[u];
+                outcomes.push({
+                    user_id: u,
+                    is_agent: r.is_agent,
+                    placement: r.placement,
+                    score: 0,
+                    completed: !r.eliminated || r.placement > 0,
+                    left_early: false,
+                    game_payload: { seed: r.seed, eliminated: r.eliminated }
+                });
+            }
+            return {
+                match_id: "",
+                template_id: MpKernelTournament.template.templateId,
+                game_id: "",
+                started_unix_ms: ks.started_unix_ms,
+                ended_unix_ms: 0,
+                duration_ms: 0,
+                outcomes: outcomes,
+                game_payload: {
+                    tournament_id: ks.init.tournament_id,
+                    bracket_mode: ks.init.bracket_mode,
+                    bracket: ks.bracket,
+                    end_reason: reason,
+                    events: ks.events
+                }
+            };
+        }
+    };
+    // ---- inbound + helpers ----
+    function applyInbound(ks, m, _dispatcher, _matchId) {
+        var raw = (typeof m.data === "string") ? m.data : (m.data ? String.fromCharCode.apply(null, m.data) : "");
+        if (!raw)
+            return;
+        var parsed;
+        try {
+            parsed = JSON.parse(raw);
+        }
+        catch (_e) {
+            return;
+        }
+        var p = parsed.p || {};
+        var sender = m.sender.userId;
+        if (m.opCode === MpKernelTournament.Op.PLAYER_FORFEIT) {
+            forfeitPlayer(ks, sender);
+            logEvent(ks, "player_forfeit", { user_id: sender, reason: p.reason || "self" });
+        }
+        // Op.REGISTER is not used as a separate inbound — joining the match
+        // IS the registration. Future versions can use it for late registration
+        // with payment info.
+    }
+    function forfeitPlayer(ks, userId) {
+        var r = ks.registrants[userId];
+        if (!r)
+            return;
+        r.eliminated = true;
+        if (!ks.bracket)
+            return;
+        for (var rIdx = 0; rIdx < ks.bracket.rounds.length; rIdx++) {
+            var round = ks.bracket.rounds[rIdx];
+            for (var lIdx = 0; lIdx < round.length; lIdx++) {
+                var lg = round[lIdx];
+                if ((lg.status === "pending" || lg.status === "live") &&
+                    (lg.player_a === userId || lg.player_b === userId)) {
+                    var opp = (lg.player_a === userId) ? lg.player_b : lg.player_a;
+                    lg.winner_user_id = opp;
+                    lg.loser_user_id = userId;
+                    lg.status = "forfeited";
+                    lg.failure_reason = "self_forfeit";
+                    lg.ended_unix_ms = Date.now();
+                    if (ks.bracket_generator) {
+                        ks.bracket = ks.bracket_generator.onLegResolved(ks.bracket, lg, opp, userId);
+                    }
+                }
+            }
+        }
+    }
+    function endMatch(ks, dispatcher, matchId, reasonEnum) {
+        var resultEnvelope = null;
+        if (MpKernelTournament.template.buildResult) {
+            var built = MpKernelTournament.template.buildResult(ks, ks.pending_end_reason || "completed");
+            if (built) {
+                built.match_id = matchId;
+                if (!built.started_unix_ms)
+                    built.started_unix_ms = ks.started_unix_ms;
+                resultEnvelope = built;
+            }
+        }
+        broadcastTemplate(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
+            reason: reasonEnum,
+            result_envelope: resultEnvelope
+        });
+        return null;
+    }
+    function broadcastTemplate(ks, dispatcher, matchId, op, payload) {
+        var seqProvider = ks.__seqProvider;
+        var matchTimeProvider = ks.__matchTimeMs;
+        var seq = (typeof seqProvider === "function") ? seqProvider() : ks.outbound_seq++;
+        var matchTimeMs = (typeof matchTimeProvider === "function")
+            ? matchTimeProvider()
+            : (Date.now() - ks.started_unix_ms);
+        var env = {
+            h: {
+                wire_version: 1,
+                op: op,
+                seq: seq,
+                match_time_ms: matchTimeMs,
+                sender_user_id: "server",
+                match_id: matchId,
+                client_opcode_uuid: ""
+            },
+            p: payload
+        };
+        dispatcher.broadcastMessage(op, JSON.stringify(env));
+    }
+})(MpKernelTournament || (MpKernelTournament = {}));
+// IVX kernel voice-provider plumbing.
+//
+// At kernel boot we install ONE active token-minter (LiveKit by default,
+// optionally Agora/Twilio/Dolby in the future) and expose:
+//
+//   * MpKernelVoiceProviders.activeMinter()      — currently-installed minter
+//   * MpKernelVoiceProviders.bootstrap(env)      — one-time install at boot
+//   * MpKernelVoiceProviders.b64url(s)           — goja-safe base64url
+//   * MpKernelVoiceProviders.hmacSha256B64Url    — uses nk.hmacSha256Hash
+//   * RPC `mp_voice_token`                       — clients mint per-match tokens
+//
+// This file is the ONLY place that should know provider-specific details
+// at the kernel level; templates ask for tokens via MpKernelVoice.mintToken
+// + activeMinter().
+var MpKernelVoiceProviders;
+(function (MpKernelVoiceProviders) {
+    var _activeMinter = null;
+    function activeMinter() {
+        return _activeMinter;
+    }
+    MpKernelVoiceProviders.activeMinter = activeMinter;
+    function setActiveMinter(m) {
+        _activeMinter = m;
+    }
+    MpKernelVoiceProviders.setActiveMinter = setActiveMinter;
+    // ── base64url for goja (no Buffer/btoa available) ────────────────────
+    // Standard base64 alphabet for binary→text, then translate to URL-safe
+    // and strip padding. Input is assumed to be a UTF-8 JS string of the
+    // JWT segment payload (header or claims JSON).
+    var B64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    function b64url(input) {
+        var bytes = [];
+        for (var i = 0; i < input.length; i++) {
+            var c = input.charCodeAt(i);
+            if (c < 0x80) {
+                bytes.push(c);
+            }
+            else if (c < 0x800) {
+                bytes.push(0xC0 | (c >> 6));
+                bytes.push(0x80 | (c & 0x3F));
+            }
+            else {
+                bytes.push(0xE0 | (c >> 12));
+                bytes.push(0x80 | ((c >> 6) & 0x3F));
+                bytes.push(0x80 | (c & 0x3F));
+            }
+        }
+        var out = "";
+        var n = bytes.length;
+        var i2 = 0;
+        while (i2 + 3 <= n) {
+            var b0 = bytes[i2++], b1 = bytes[i2++], b2 = bytes[i2++];
+            out += B64_ALPHABET.charAt(b0 >> 2);
+            out += B64_ALPHABET.charAt(((b0 & 3) << 4) | (b1 >> 4));
+            out += B64_ALPHABET.charAt(((b1 & 15) << 2) | (b2 >> 6));
+            out += B64_ALPHABET.charAt(b2 & 63);
+        }
+        var rem = n - i2;
+        if (rem === 1) {
+            var bA = bytes[i2];
+            out += B64_ALPHABET.charAt(bA >> 2);
+            out += B64_ALPHABET.charAt((bA & 3) << 4);
+            out += "==";
+        }
+        else if (rem === 2) {
+            var bB0 = bytes[i2], bB1 = bytes[i2 + 1];
+            out += B64_ALPHABET.charAt(bB0 >> 2);
+            out += B64_ALPHABET.charAt(((bB0 & 3) << 4) | (bB1 >> 4));
+            out += B64_ALPHABET.charAt((bB1 & 15) << 2);
+            out += "=";
+        }
+        return out.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+    MpKernelVoiceProviders.b64url = b64url;
+    // hex → base64url (LiveKit JWT signature is the HMAC raw bytes encoded
+    // as base64url; Nakama's nk.hmacSha256Hash returns hex, so we adapt).
+    function hexToB64url(hex) {
+        if (!hex)
+            return "";
+        var bytes = [];
+        for (var i = 0; i < hex.length; i += 2) {
+            bytes.push(parseInt(hex.substr(i, 2), 16));
+        }
+        // Reuse the b64url path by manually packing bytes.
+        var s = "";
+        for (var j = 0; j < bytes.length; j++)
+            s += String.fromCharCode(bytes[j]);
+        return b64url(s);
+    }
+    MpKernelVoiceProviders.hexToB64url = hexToB64url;
+    // Cached env-shape for lazy bootstrap. Set either by:
+    //   1. `installEnv(env)` from InitModule for tests/local-dev, or
+    //   2. ConfigLoader.loadConfig(nk, "mp_voice_livekit", {}) at first
+    //      `mp_voice_token` invocation (production path; admin-rotatable).
+    // `nk` isn't available at module register time, so we defer minter
+    // creation to first RPC call when `nk` is in scope.
+    var _envOverride = null;
+    var _installed = false;
+    var _installedAtMs = 0;
+    // 5-minute hot-reload window — if storage config changes after
+    // boot, the new minter takes effect within 5 minutes.
+    var REINSTALL_TTL_MS = 300000;
+    function installEnv(env) {
+        _envOverride = env || {};
+        _installed = false;
+    }
+    MpKernelVoiceProviders.installEnv = installEnv;
+    function configFromStorage(nk) {
+        try {
+            var stored = ConfigLoader.loadConfig(nk, "mp_voice_livekit", null);
+            if (!stored)
+                return null;
+            if (!stored.api_key || !stored.api_secret)
+                return null;
+            var regional = {};
+            if (stored.regional_urls) {
+                for (var k in stored.regional_urls) {
+                    regional[k.toLowerCase()] = stored.regional_urls[k];
+                }
+            }
+            return {
+                apiKey: stored.api_key,
+                apiSecret: stored.api_secret,
+                defaultUrl: stored.default_url || "",
+                regionalUrls: regional
+            };
+        }
+        catch (e) {
+            return null;
+        }
+    }
+    function lazyInstall(nk, logger) {
+        var nowMs = Date.now();
+        if (_installed && (nowMs - _installedAtMs) < REINSTALL_TTL_MS)
+            return;
+        _installed = true;
+        _installedAtMs = nowMs;
+        var cfg = configFromStorage(nk);
+        if (!cfg && _envOverride) {
+            cfg = MpVoiceLiveKit.loadConfig(_envOverride);
+            if (!cfg.apiKey || !cfg.apiSecret)
+                cfg = null;
+        }
+        if (!cfg) {
+            if (logger)
+                logger.info("[MpVoice] LiveKit unconfigured (storage + env both empty); voice-capable templates will degrade to NONE provider");
+            _activeMinter = null;
+            return;
+        }
+        var hmacSha256AsB64 = function (key, msg) {
+            var hex = nk.hmacSha256Hash(key, msg);
+            return hexToB64url(hex);
+        };
+        _activeMinter = MpVoiceLiveKit.makeMinter(cfg, b64url, hmacSha256AsB64);
+        if (logger)
+            logger.info("[MpVoice] LiveKit minter installed regions=" + JSON.stringify(Object.keys(cfg.regionalUrls)));
+    }
+    // ── RPC: clients mint per-match voice session tokens ──────────────────
+    //
+    // Request:
+    //   { match_id: string, can_publish?: bool, can_subscribe?: bool,
+    //     spatial?: bool, region?: string }
+    //
+    // Response (MpKernelVoice.ISessionToken serialized):
+    //   { provider, token, room_id, identity, url, expires_at_ms,
+    //     can_publish, can_subscribe, spatial, region, provider_opts }
+    //
+    // Authentication is required (ctx.userId is the LiveKit identity).
+    function rpcVoiceToken(ctx, logger, nk, payload) {
+        if (!ctx.userId) {
+            throw { message: "auth required", code: 16 /* nkruntime.Codes.UNAUTHENTICATED */ };
+        }
+        var req;
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            throw { message: "bad json", code: 3 /* nkruntime.Codes.INVALID_ARGUMENT */ };
+        }
+        if (!req.match_id) {
+            throw { message: "match_id required", code: 3 /* nkruntime.Codes.INVALID_ARGUMENT */ };
+        }
+        lazyInstall(nk, logger);
+        var minter = _activeMinter;
+        var canPub = req.can_publish !== false; // default publish=true
+        var canSub = req.can_subscribe !== false; // default subscribe=true
+        var spatial = !!req.spatial;
+        var region = req.region || "";
+        var token = MpKernelVoice.mintToken(minter, req.match_id, ctx.userId, canPub, canSub, spatial, region, Date.now());
+        return JSON.stringify(token);
+    }
+    MpKernelVoiceProviders.rpcVoiceToken = rpcVoiceToken;
+    function register(initializer, _logger) {
+        __rpc_mp_voice_token = rpcVoiceToken;
+    }
+    MpKernelVoiceProviders.register = register;
+    register();
+})(MpKernelVoiceProviders || (MpKernelVoiceProviders = {}));
+// LiveKit voice provider — server-side bearer-token minter.
+//
+// Conforms to MpKernelVoice.ITokenMinter. Tokens are short-lived
+// JWTs signed with the LiveKit api_key/api_secret. Identity is the
+// IVX user_id (or 'agt_*' for agents). The room id is the IVX match_id.
+//
+// Configuration is loaded from Nakama runtime env:
+//
+//   IVX_LIVEKIT_URL          - wss://<host>:<port> (or set per-region)
+//   IVX_LIVEKIT_API_KEY      - LiveKit API key
+//   IVX_LIVEKIT_API_SECRET   - LiveKit API secret
+//   IVX_LIVEKIT_REGION_<R>_URL - optional regional override (e.g. _US, _EU)
+//
+// HMAC-SHA256 in goja: we hand-roll a tiny JWT signer because the goja
+// runtime has no Web Crypto API. SHA256 + HMAC implementations are
+// resident as kernel utilities (see crypto/hmac.ts).
+var MpVoiceLiveKit;
+(function (MpVoiceLiveKit) {
+    function loadConfig(env) {
+        var regional = {};
+        for (var k in env) {
+            var m = /^IVX_LIVEKIT_REGION_([A-Z0-9_]+)_URL$/.exec(k);
+            if (m)
+                regional[m[1].toLowerCase()] = env[k];
+        }
+        return {
+            apiKey: env["IVX_LIVEKIT_API_KEY"] || "",
+            apiSecret: env["IVX_LIVEKIT_API_SECRET"] || "",
+            defaultUrl: env["IVX_LIVEKIT_URL"] || "",
+            regionalUrls: regional
+        };
+    }
+    MpVoiceLiveKit.loadConfig = loadConfig;
+    // Returns the wss URL for a given region, falling back to the default.
+    function urlFor(cfg, region) {
+        if (region) {
+            var key = region.toLowerCase();
+            if (cfg.regionalUrls[key])
+                return cfg.regionalUrls[key];
+        }
+        return cfg.defaultUrl;
+    }
+    MpVoiceLiveKit.urlFor = urlFor;
+    // Build a minimal LiveKit JWT (https://docs.livekit.io/realtime/concepts/authentication/).
+    // grants:
+    //   - room: ivx_<matchId>
+    //   - roomJoin: true
+    //   - canPublish: <bool>
+    //   - canSubscribe: <bool>
+    //   - canPublishData: <bool>  (used for visemes / control)
+    //
+    // Implementation note: goja can JSON.stringify but lacks btoa; we use a
+    // base64 helper. Signing is HMAC-SHA256 over `${b64header}.${b64body}`.
+    function makeMinter(cfg, b64url, hmacSha256) {
+        return {
+            name: "livekit",
+            mint: function (args) {
+                if (!cfg.apiKey || !cfg.apiSecret) {
+                    // No creds -> degrade to "none" provider in the kernel.
+                    return { token: "", url: "", opts: { error: "livekit_unconfigured" } };
+                }
+                var nowSec = Math.floor(Date.now() / 1000);
+                var ttlSec = Math.max(30, Math.floor(args.ttlMs / 1000));
+                var payload = {
+                    iss: cfg.apiKey,
+                    sub: args.identity,
+                    iat: nowSec,
+                    nbf: nowSec - 5,
+                    exp: nowSec + ttlSec,
+                    name: args.identity,
+                    video: {
+                        room: "ivx_" + args.roomId,
+                        roomJoin: true,
+                        canPublish: !!args.canPublish,
+                        canSubscribe: !!args.canSubscribe,
+                        canPublishData: true
+                    }
+                };
+                var header = { alg: "HS256", typ: "JWT" };
+                var b64header = b64url(JSON.stringify(header));
+                var b64body = b64url(JSON.stringify(payload));
+                var signingInput = b64header + "." + b64body;
+                var sig = hmacSha256(cfg.apiSecret, signingInput);
+                var token = signingInput + "." + sig;
+                return {
+                    token: token,
+                    url: urlFor(cfg, args.region),
+                    opts: {
+                        // Hint for clients: identity matches kernel user_id.
+                        identity_kind: args.identity.indexOf("agt_") === 0 ? "agent" : "human",
+                        spatial: args.spatial ? "true" : "false"
+                    }
+                };
+            }
+        };
+    }
+    MpVoiceLiveKit.makeMinter = makeMinter;
+})(MpVoiceLiveKit || (MpVoiceLiveKit = {}));
 // =============================================================================
 // AnalyticsAlerts — Hardened RPC analytics + Discord summaries for Nakama
 // =============================================================================
@@ -76496,8 +85223,8 @@ var AnalyticsAlerts;
 })(AnalyticsAlerts || (AnalyticsAlerts = {}));
 var SatoriAudiences;
 (function (SatoriAudiences) {
-    function getAudienceDefinitions(nk) {
-        var custom = ConfigLoader.loadSatoriConfig(nk, "audiences", {});
+    function getAudienceDefinitions(nk, gameId) {
+        var custom = ConfigLoader.loadSatoriConfigForGame(nk, "audiences", gameId, {});
         return applyDefaults(normalizeAudienceDefinitions(custom));
     }
     function normalizeAudienceDefinitions(raw) {
@@ -76580,8 +85307,8 @@ var SatoriAudiences;
         }
         return audiences;
     }
-    function isInAudience(nk, userId, audienceId) {
-        var audiences = getAudienceDefinitions(nk);
+    function isInAudience(nk, userId, audienceId, gameId) {
+        var audiences = getAudienceDefinitions(nk, gameId);
         var def = audiences[audienceId];
         if (!def)
             return false;
@@ -76616,8 +85343,8 @@ var SatoriAudiences;
         return evaluateRule(allProps, def.rule);
     }
     SatoriAudiences.isInAudience = isInAudience;
-    function getExplicitIncludeIds(nk, audienceId) {
-        var audiences = getAudienceDefinitions(nk);
+    function getExplicitIncludeIds(nk, audienceId, gameId) {
+        var audiences = getAudienceDefinitions(nk, gameId);
         var def = audiences[audienceId];
         if (!def || !def.includeIds)
             return [];
@@ -76679,10 +85406,12 @@ var SatoriAudiences;
     // ---- RPCs ----
     function rpcGetMemberships(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
-        var audiences = getAudienceDefinitions(nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var audiences = getAudienceDefinitions(nk, gameId);
         var memberships = [];
         for (var id in audiences) {
-            if (isInAudience(nk, userId, id)) {
+            if (isInAudience(nk, userId, id, gameId)) {
                 memberships.push(id);
             }
         }
@@ -76690,20 +85419,22 @@ var SatoriAudiences;
     }
     function rpcCompute(ctx, logger, nk, payload) {
         var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
         var targetUserId = data.userId || ctx.userId;
         if (!targetUserId)
             return RpcHelpers.errorResponse("userId required");
-        var audiences = getAudienceDefinitions(nk);
+        var audiences = getAudienceDefinitions(nk, gameId);
         var memberships = [];
         for (var id in audiences) {
-            if (isInAudience(nk, targetUserId, id)) {
+            if (isInAudience(nk, targetUserId, id, gameId)) {
                 memberships.push(id);
             }
         }
         return RpcHelpers.successResponse({ userId: targetUserId, audiences: memberships });
     }
     function rpcList(ctx, logger, nk, payload) {
-        var audiences = getAudienceDefinitions(nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var audiences = getAudienceDefinitions(nk, RpcHelpers.gameId(data));
         var list = [];
         for (var id in audiences) {
             list.push(audiences[id]);
@@ -77182,15 +85913,15 @@ var SatoriEventCapture;
 })(SatoriEventCapture || (SatoriEventCapture = {}));
 var SatoriExperiments;
 (function (SatoriExperiments) {
-    function getExperiments(nk) {
-        return ConfigLoader.loadSatoriConfig(nk, "experiments", {});
+    function getExperiments(nk, gameId) {
+        return ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
     }
-    function getUserExperiments(nk, userId) {
-        var data = Storage.readJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, "assignments", userId);
+    function getUserExperiments(nk, userId, gameId) {
+        var data = Storage.readJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, Constants.gameKey(gameId, "assignments"), userId);
         return data || { assignments: {} };
     }
-    function saveUserExperiments(nk, userId, data) {
-        Storage.writeJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, "assignments", userId, data);
+    function saveUserExperiments(nk, userId, data, gameId) {
+        Storage.writeJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, Constants.gameKey(gameId, "assignments"), userId, data);
     }
     function deterministicAssign(userId, experimentId, variants, splitKey) {
         var totalWeight = 0;
@@ -77232,17 +85963,17 @@ var SatoriExperiments;
             return true;
         return Math.floor(Date.now() / 1000) <= def.admissionDeadline;
     }
-    function getVariant(nk, userId, experimentId) {
-        var experiments = getExperiments(nk);
+    function getVariant(nk, userId, experimentId, gameId) {
+        var experiments = getExperiments(nk, gameId);
         var def = experiments[experimentId];
         if (!def || !isExperimentActive(def))
             return null;
         if (!def.variants || def.variants.length === 0)
             return null;
-        if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId)) {
+        if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId, gameId)) {
             return null;
         }
-        var userExp = getUserExperiments(nk, userId);
+        var userExp = getUserExperiments(nk, userId, gameId);
         var assignment = userExp.assignments[experimentId];
         if (!assignment) {
             if (!isWithinAdmissionDeadline(def))
@@ -77254,7 +85985,7 @@ var SatoriExperiments;
                 assignedAt: Math.floor(Date.now() / 1000)
             };
             userExp.assignments[experimentId] = assignment;
-            saveUserExperiments(nk, userId, userExp);
+            saveUserExperiments(nk, userId, userExp, gameId);
         }
         if (def.lockParticipation && assignment.locked) {
             // locked assignments cannot change
@@ -77288,15 +86019,17 @@ var SatoriExperiments;
     // ---- RPCs ----
     function rpcGet(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
-        var experiments = getExperiments(nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var experiments = getExperiments(nk, gameId);
         var result = [];
         for (var id in experiments) {
             var def = experiments[id];
             if (!isExperimentActive(def))
                 continue;
-            if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId))
+            if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId, gameId))
                 continue;
-            var variant = getVariant(nk, userId, id);
+            var variant = getVariant(nk, userId, id, gameId);
             result.push({
                 id: id,
                 name: def.name,
@@ -77315,7 +86048,7 @@ var SatoriExperiments;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.experimentId)
             return RpcHelpers.errorResponse("experimentId required");
-        var variant = getVariant(nk, userId, data.experimentId);
+        var variant = getVariant(nk, userId, data.experimentId, RpcHelpers.gameId(data));
         return RpcHelpers.successResponse({ variant: variant });
     }
     function register(initializer) {
@@ -77329,18 +86062,18 @@ var SatoriExperiments;
 var SatoriFeatureFlags;
 (function (SatoriFeatureFlags) {
     var DEFAULT_CONFIG = { flags: {} };
-    function getConfig(nk) {
-        return ConfigLoader.loadSatoriConfig(nk, "flags", DEFAULT_CONFIG);
+    function getConfig(nk, gameId) {
+        return ConfigLoader.loadSatoriConfigForGame(nk, "flags", gameId, DEFAULT_CONFIG);
     }
-    function getFlag(nk, userId, flagName, defaultValue) {
-        var config = getConfig(nk);
+    function getFlag(nk, userId, flagName, defaultValue, gameId) {
+        var config = getConfig(nk, gameId);
         var def = config.flags[flagName];
         if (!def || !def.enabled) {
             return { name: flagName, value: defaultValue || "" };
         }
         if (def.conditionsByAudience && userId) {
             for (var audienceId in def.conditionsByAudience) {
-                if (SatoriAudiences.isInAudience(nk, userId, audienceId)) {
+                if (SatoriAudiences.isInAudience(nk, userId, audienceId, gameId)) {
                     return { name: flagName, value: def.conditionsByAudience[audienceId] };
                 }
             }
@@ -77348,8 +86081,8 @@ var SatoriFeatureFlags;
         return { name: flagName, value: def.value };
     }
     SatoriFeatureFlags.getFlag = getFlag;
-    function getAllFlags(nk, userId) {
-        var config = getConfig(nk);
+    function getAllFlags(nk, userId, gameId) {
+        var config = getConfig(nk, gameId);
         var flags = [];
         for (var name in config.flags) {
             var def = config.flags[name];
@@ -77358,7 +86091,7 @@ var SatoriFeatureFlags;
             var value = def.value;
             if (def.conditionsByAudience && userId) {
                 for (var audienceId in def.conditionsByAudience) {
-                    if (SatoriAudiences.isInAudience(nk, userId, audienceId)) {
+                    if (SatoriAudiences.isInAudience(nk, userId, audienceId, gameId)) {
                         value = def.conditionsByAudience[audienceId];
                         break;
                     }
@@ -77375,7 +86108,7 @@ var SatoriFeatureFlags;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.name)
             return RpcHelpers.errorResponse("Flag name required");
-        var flag = getFlag(nk, userId, data.name, data.defaultValue);
+        var flag = getFlag(nk, userId, data.name, data.defaultValue, RpcHelpers.gameId(data));
         return RpcHelpers.successResponse({ flag: flag });
     }
     function rpcGetAll(ctx, logger, nk, payload) {
@@ -77385,11 +86118,11 @@ var SatoriFeatureFlags;
         if (data.names && Array.isArray(data.names)) {
             flags = [];
             for (var i = 0; i < data.names.length; i++) {
-                flags.push(getFlag(nk, userId, data.names[i]));
+                flags.push(getFlag(nk, userId, data.names[i], undefined, RpcHelpers.gameId(data)));
             }
         }
         else {
-            flags = getAllFlags(nk, userId);
+            flags = getAllFlags(nk, userId, RpcHelpers.gameId(data));
         }
         return RpcHelpers.successResponse({ flags: flags });
     }
@@ -77398,7 +86131,8 @@ var SatoriFeatureFlags;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.name)
             return RpcHelpers.errorResponse("Flag name required");
-        var config = getConfig(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var config = getConfig(nk, gameId);
         var now = Math.floor(Date.now() / 1000);
         var existing = config.flags[data.name];
         config.flags[data.name] = {
@@ -77410,7 +86144,7 @@ var SatoriFeatureFlags;
             createdAt: existing ? existing.createdAt : now,
             updatedAt: now
         };
-        ConfigLoader.saveSatoriConfig(nk, "flags", config);
+        ConfigLoader.saveSatoriConfigForGame(nk, "flags", gameId, config);
         return RpcHelpers.successResponse({ flag: config.flags[data.name] });
     }
     function register(initializer) {
@@ -78358,15 +87092,15 @@ var SatoriCreatorEvents;
 })(SatoriCreatorEvents || (SatoriCreatorEvents = {}));
 var SatoriLiveEvents;
 (function (SatoriLiveEvents) {
-    function getEventDefinitions(nk) {
-        return ConfigLoader.loadSatoriConfig(nk, "live_events", {});
+    function getEventDefinitions(nk, gameId) {
+        return ConfigLoader.loadSatoriConfigForGame(nk, "live_events", gameId, {});
     }
-    function getUserLiveEventStates(nk, userId) {
-        var data = Storage.readJson(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_event_state_" + userId, userId);
+    function getUserLiveEventStates(nk, userId, gameId) {
+        var data = Storage.readJson(nk, Constants.SATORI_CONFIGS_COLLECTION, Constants.gameKey(gameId, "live_event_state_" + userId), userId);
         return (data && data.events) || {};
     }
-    function saveUserLiveEventStates(nk, userId, states) {
-        Storage.writeJson(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_event_state_" + userId, userId, { events: states });
+    function saveUserLiveEventStates(nk, userId, states, gameId) {
+        Storage.writeJson(nk, Constants.SATORI_CONFIGS_COLLECTION, Constants.gameKey(gameId, "live_event_state_" + userId), userId, { events: states });
     }
     function getEventStatus(def) {
         var now = Math.floor(Date.now() / 1000);
@@ -78398,12 +87132,13 @@ var SatoriLiveEvents;
     function rpcList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        var events = getEventDefinitions(nk);
-        var userStates = getUserLiveEventStates(nk, userId);
+        var gameId = RpcHelpers.gameId(data);
+        var events = getEventDefinitions(nk, gameId);
+        var userStates = getUserLiveEventStates(nk, userId, gameId);
         var result = [];
         for (var id in events) {
             var def = events[id];
-            if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId))
+            if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId, gameId))
                 continue;
             var status = getEventStatus(def);
             if (data.names && data.names.indexOf(def.name) < 0)
@@ -78442,21 +87177,22 @@ var SatoriLiveEvents;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.eventId)
             return RpcHelpers.errorResponse("eventId required");
-        var events = getEventDefinitions(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var events = getEventDefinitions(nk, gameId);
         var def = events[data.eventId];
         if (!def)
             return RpcHelpers.errorResponse("Event not found");
         var status = getEventStatus(def);
         if (status !== "active")
             return RpcHelpers.errorResponse("Event is not active");
-        var userStates = getUserLiveEventStates(nk, userId);
+        var userStates = getUserLiveEventStates(nk, userId, gameId);
         if (!userStates[data.eventId]) {
             userStates[data.eventId] = { eventId: data.eventId };
         }
         userStates[data.eventId].joinedAt = Math.floor(Date.now() / 1000);
-        saveUserLiveEventStates(nk, userId, userStates);
+        saveUserLiveEventStates(nk, userId, userStates, gameId);
         if (def.onJoinMessageId) {
-            var msgDefs = ConfigLoader.loadSatoriConfig(nk, "messages", {});
+            var msgDefs = ConfigLoader.loadSatoriConfigForGame(nk, "messages", gameId, {});
             if (msgDefs[def.onJoinMessageId]) {
                 SatoriMessages.deliverMessage(nk, userId, msgDefs[def.onJoinMessageId]);
             }
@@ -78468,11 +87204,12 @@ var SatoriLiveEvents;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.eventId)
             return RpcHelpers.errorResponse("eventId required");
-        var events = getEventDefinitions(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var events = getEventDefinitions(nk, gameId);
         var def = events[data.eventId];
         if (!def)
             return RpcHelpers.errorResponse("Event not found");
-        var userStates = getUserLiveEventStates(nk, userId);
+        var userStates = getUserLiveEventStates(nk, userId, gameId);
         var state = userStates[data.eventId];
         if (def.requiresJoin && (!state || !state.joinedAt))
             return RpcHelpers.errorResponse("Not joined");
@@ -78485,10 +87222,10 @@ var SatoriLiveEvents;
         var reward = null;
         if (def.reward) {
             reward = RewardEngine.resolveReward(nk, def.reward);
-            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", reward);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", reward);
         }
         state.claimedAt = Math.floor(Date.now() / 1000);
-        saveUserLiveEventStates(nk, userId, userStates);
+        saveUserLiveEventStates(nk, userId, userStates, gameId);
         return RpcHelpers.successResponse({ reward: reward });
     }
     /**
@@ -78502,7 +87239,8 @@ var SatoriLiveEvents;
         if (!data.eventId || !data.seasonId) {
             return RpcHelpers.errorResponse("eventId and seasonId required");
         }
-        var events = getEventDefinitions(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var events = getEventDefinitions(nk, gameId);
         var def = events[data.eventId];
         if (!def) {
             return RpcHelpers.errorResponse("Event not found: " + data.eventId);
@@ -78526,13 +87264,13 @@ var SatoriLiveEvents;
                     continue;
                 // Write join state for this user
                 try {
-                    var userStates = getUserLiveEventStates(nk, entry.userId);
+                    var userStates = getUserLiveEventStates(nk, entry.userId, gameId);
                     if (!userStates[data.eventId] || !userStates[data.eventId].joinedAt) {
                         if (!userStates[data.eventId]) {
                             userStates[data.eventId] = { eventId: data.eventId };
                         }
                         userStates[data.eventId].joinedAt = now;
-                        saveUserLiveEventStates(nk, entry.userId, userStates);
+                        saveUserLiveEventStates(nk, entry.userId, userStates, gameId);
                         joinedCount++;
                     }
                 }
@@ -78561,19 +87299,19 @@ var SatoriLiveEvents;
 })(SatoriLiveEvents || (SatoriLiveEvents = {}));
 var SatoriMessages;
 (function (SatoriMessages) {
-    function getMessageDefinitions(nk) {
-        var raw = ConfigLoader.loadSatoriConfig(nk, "messages", {});
+    function getMessageDefinitions(nk, gameId) {
+        var raw = ConfigLoader.loadSatoriConfigForGame(nk, "messages", gameId, {});
         return raw && raw.messages ? raw.messages : raw;
     }
-    function getUserMessages(nk, userId) {
-        var data = Storage.readJson(nk, Constants.SATORI_MESSAGES_COLLECTION, "inbox", userId);
+    function getUserMessages(nk, userId, gameId) {
+        var data = Storage.readJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "inbox"), userId);
         return data || { messages: [] };
     }
-    function saveUserMessages(nk, userId, data) {
-        Storage.writeJson(nk, Constants.SATORI_MESSAGES_COLLECTION, "inbox", userId, data);
+    function saveUserMessages(nk, userId, data, gameId) {
+        Storage.writeJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "inbox"), userId, data);
     }
-    function deliverMessage(nk, userId, messageDef) {
-        var inbox = getUserMessages(nk, userId);
+    function deliverMessage(nk, userId, messageDef, gameId) {
+        var inbox = getUserMessages(nk, userId, gameId);
         var alreadyDelivered = false;
         for (var i = 0; i < inbox.messages.length; i++) {
             if (inbox.messages[i].messageDefId === messageDef.id) {
@@ -78595,16 +87333,16 @@ var SatoriMessages;
             expiresAt: messageDef.expiresAt
         };
         inbox.messages.push(msg);
-        saveUserMessages(nk, userId, inbox);
+        saveUserMessages(nk, userId, inbox, gameId);
     }
     SatoriMessages.deliverMessage = deliverMessage;
-    function deliverToAudience(nk, logger, messageDef, audienceId) {
+    function deliverToAudience(nk, logger, messageDef, audienceId, gameId) {
         var delivered = 0;
         try {
-            var explicitIds = SatoriAudiences.getExplicitIncludeIds(nk, audienceId);
+            var explicitIds = SatoriAudiences.getExplicitIncludeIds(nk, audienceId, gameId);
             for (var explicitIndex = 0; explicitIndex < explicitIds.length; explicitIndex++) {
-                if (SatoriAudiences.isInAudience(nk, explicitIds[explicitIndex], audienceId)) {
-                    deliverMessage(nk, explicitIds[explicitIndex], messageDef);
+                if (SatoriAudiences.isInAudience(nk, explicitIds[explicitIndex], audienceId, gameId)) {
+                    deliverMessage(nk, explicitIds[explicitIndex], messageDef, gameId);
                     delivered++;
                 }
             }
@@ -78612,8 +87350,8 @@ var SatoriMessages;
                 return delivered;
             var users = nk.usersGetRandom(100);
             for (var i = 0; i < users.length; i++) {
-                if (SatoriAudiences.isInAudience(nk, users[i].userId, audienceId)) {
-                    deliverMessage(nk, users[i].userId, messageDef);
+                if (SatoriAudiences.isInAudience(nk, users[i].userId, audienceId, gameId)) {
+                    deliverMessage(nk, users[i].userId, messageDef, gameId);
                     delivered++;
                 }
             }
@@ -78624,20 +87362,20 @@ var SatoriMessages;
         return delivered;
     }
     SatoriMessages.deliverToAudience = deliverToAudience;
-    function processScheduledMessages(nk, logger) {
-        var definitions = getMessageDefinitions(nk);
+    function processScheduledMessages(nk, logger, gameId) {
+        var definitions = getMessageDefinitions(nk, gameId);
         var now = Math.floor(Date.now() / 1000);
         for (var id in definitions) {
             var def = definitions[id];
             if (!def.scheduleAt || def.scheduleAt > now)
                 continue;
-            var deliveryState = Storage.readSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, "schedule_" + id);
+            var deliveryState = Storage.readSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "schedule_" + id));
             if (deliveryState && deliveryState.delivered)
                 continue;
             if (def.audienceId) {
-                deliverToAudience(nk, logger, def, def.audienceId);
+                deliverToAudience(nk, logger, def, def.audienceId, gameId);
             }
-            Storage.writeSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, "schedule_" + id, { delivered: true, deliveredAt: now });
+            Storage.writeSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "schedule_" + id), { delivered: true, deliveredAt: now });
             logger.info("Delivered scheduled message: %s", id);
         }
     }
@@ -78652,10 +87390,12 @@ var SatoriMessages;
     // ---- RPCs ----
     function rpcList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
-        processScheduledMessages(nk, logger);
-        var inbox = getUserMessages(nk, userId);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        processScheduledMessages(nk, logger, gameId);
+        var inbox = getUserMessages(nk, userId, gameId);
         inbox = purgeExpired(inbox);
-        saveUserMessages(nk, userId, inbox);
+        saveUserMessages(nk, userId, inbox, gameId);
         return RpcHelpers.successResponse({
             messages: inbox.messages.map(function (m) {
                 return {
@@ -78678,7 +87418,8 @@ var SatoriMessages;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.messageId)
             return RpcHelpers.errorResponse("messageId required");
-        var inbox = getUserMessages(nk, userId);
+        var gameId = RpcHelpers.gameId(data);
+        var inbox = getUserMessages(nk, userId, gameId);
         var msg;
         for (var i = 0; i < inbox.messages.length; i++) {
             if (inbox.messages[i].id === data.messageId) {
@@ -78690,14 +87431,14 @@ var SatoriMessages;
             return RpcHelpers.errorResponse("Message not found");
         if (!msg.readAt) {
             msg.readAt = Math.floor(Date.now() / 1000);
-            saveUserMessages(nk, userId, inbox);
+            saveUserMessages(nk, userId, inbox, gameId);
         }
         var reward = null;
         if (msg.reward && !msg.consumedAt) {
             reward = RewardEngine.resolveReward(nk, msg.reward);
-            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", reward);
+            RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", reward);
             msg.consumedAt = Math.floor(Date.now() / 1000);
-            saveUserMessages(nk, userId, inbox);
+            saveUserMessages(nk, userId, inbox, gameId);
         }
         return RpcHelpers.successResponse({ message: msg, reward: reward });
     }
@@ -78706,9 +87447,10 @@ var SatoriMessages;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.messageId)
             return RpcHelpers.errorResponse("messageId required");
-        var inbox = getUserMessages(nk, userId);
+        var gameId = RpcHelpers.gameId(data);
+        var inbox = getUserMessages(nk, userId, gameId);
         inbox.messages = inbox.messages.filter(function (m) { return m.id !== data.messageId; });
-        saveUserMessages(nk, userId, inbox);
+        saveUserMessages(nk, userId, inbox, gameId);
         return RpcHelpers.successResponse({ success: true });
     }
     function rpcBroadcast(ctx, logger, nk, payload) {
@@ -78716,6 +87458,7 @@ var SatoriMessages;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.title)
             return RpcHelpers.errorResponse("title required");
+        var gameId = RpcHelpers.gameId(data);
         var now = Math.floor(Date.now() / 1000);
         var scheduleAt = data.scheduleAt || data.schedule_at;
         var audienceId = data.audienceId || data.audience_id;
@@ -78741,12 +87484,12 @@ var SatoriMessages;
             createdAt: now
         };
         if (audienceId && !scheduleAt) {
-            var delivered = deliverToAudience(nk, logger, msgDef, audienceId);
+            var delivered = deliverToAudience(nk, logger, msgDef, audienceId, gameId);
             return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId });
         }
-        var definitions = getMessageDefinitions(nk);
+        var definitions = getMessageDefinitions(nk, gameId);
         definitions[msgDef.id] = msgDef;
-        ConfigLoader.saveSatoriConfig(nk, "messages", definitions);
+        ConfigLoader.saveSatoriConfigForGame(nk, "messages", gameId, definitions);
         return RpcHelpers.successResponse({ scheduled: true, messageId: msgDef.id });
     }
     function register(initializer) {
@@ -78763,23 +87506,25 @@ var SatoriMessages;
 })(SatoriMessages || (SatoriMessages = {}));
 var SatoriMetrics;
 (function (SatoriMetrics) {
-    function getMetricDefinitions(nk) {
-        return ConfigLoader.loadSatoriConfig(nk, "metrics", {});
+    function getMetricDefinitions(nk, gameId) {
+        var raw = ConfigLoader.loadSatoriConfigForGame(nk, "metrics", gameId, {});
+        return raw && raw.metrics ? raw.metrics : raw;
     }
-    function getMetricState(nk, metricId) {
-        var data = Storage.readSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, metricId);
+    function getMetricState(nk, metricId, gameId) {
+        var data = Storage.readSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, metricId));
         return data || { buckets: {} };
     }
-    function saveMetricState(nk, metricId, state) {
-        Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, metricId, state);
+    function saveMetricState(nk, metricId, state, gameId) {
+        Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, metricId), state);
     }
     function processEvent(nk, logger, userId, eventName, metadata) {
-        var definitions = getMetricDefinitions(nk);
+        var gameId = metadata.gameId || metadata.game_id;
+        var definitions = getMetricDefinitions(nk, gameId);
         for (var id in definitions) {
             var def = definitions[id];
             if (def.eventName !== eventName)
                 continue;
-            var state = getMetricState(nk, id);
+            var state = getMetricState(nk, id, gameId);
             var now = Math.floor(Date.now() / 1000);
             var bucketKey = def.windowSec ? String(Math.floor(now / def.windowSec) * def.windowSec) : "all";
             if (!state.buckets[bucketKey]) {
@@ -78814,7 +87559,7 @@ var SatoriMetrics;
                     break;
             }
             bucket.count++;
-            saveMetricState(nk, id, state);
+            saveMetricState(nk, id, state, gameId);
             checkAlerts(nk, logger, id, bucket.value);
         }
     }
@@ -78855,13 +87600,14 @@ var SatoriMetrics;
     // ---- RPCs ----
     function rpcQuery(ctx, logger, nk, payload) {
         var data = RpcHelpers.parseRpcPayload(payload);
-        var definitions = getMetricDefinitions(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var definitions = getMetricDefinitions(nk, gameId);
         var results = [];
         var now = Math.floor(Date.now() / 1000);
         var metricIds = data.metricIds || Object.keys(definitions);
         for (var i = 0; i < metricIds.length; i++) {
             var metricId = metricIds[i];
-            var state = getMetricState(nk, metricId);
+            var state = getMetricState(nk, metricId, gameId);
             var latestBucket = "all";
             var latestTime = 0;
             for (var bk in state.buckets) {
@@ -78872,13 +87618,11 @@ var SatoriMetrics;
                 }
             }
             var bucket = state.buckets[latestBucket];
-            if (bucket) {
-                results.push({
-                    metricId: metricId,
-                    value: bucket.value,
-                    computedAt: now
-                });
-            }
+            results.push({
+                metricId: metricId,
+                value: bucket ? bucket.value : 0,
+                computedAt: now
+            });
         }
         return RpcHelpers.successResponse({ metrics: results });
     }
@@ -78888,7 +87632,8 @@ var SatoriMetrics;
         if (!data.id || !data.name || !data.eventName || !data.aggregation) {
             return RpcHelpers.errorResponse("id, name, eventName, and aggregation required");
         }
-        var definitions = getMetricDefinitions(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var definitions = getMetricDefinitions(nk, gameId);
         definitions[data.id] = {
             id: data.id,
             name: data.name,
@@ -78897,7 +87642,7 @@ var SatoriMetrics;
             aggregation: data.aggregation,
             windowSec: data.windowSec
         };
-        ConfigLoader.saveSatoriConfig(nk, "metrics", definitions);
+        ConfigLoader.saveSatoriConfigForGame(nk, "metrics", gameId, definitions);
         return RpcHelpers.successResponse({ metric: definitions[data.id] });
     }
     function rpcSetAlert(ctx, logger, nk, payload) {
@@ -78923,10 +87668,12 @@ var SatoriMetrics;
     }
     function rpcPrometheus(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
-        var definitions = getMetricDefinitions(nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var definitions = getMetricDefinitions(nk, gameId);
         var lines = [];
         for (var id in definitions) {
-            var state = getMetricState(nk, id);
+            var state = getMetricState(nk, id, gameId);
             var latestValue = 0;
             var latestTime = 0;
             for (var bk in state.buckets) {
@@ -79415,6 +88162,15 @@ var ConfigLoader;
         return data;
     }
     ConfigLoader.loadConfig = loadConfig;
+    function loadConfigForGame(nk, configKey, gameId, defaultValue) {
+        var scopedKey = Constants.gameKey(gameId, configKey);
+        var data = loadConfig(nk, scopedKey, defaultValue);
+        if (scopedKey !== configKey && data === defaultValue) {
+            return loadConfig(nk, configKey, defaultValue);
+        }
+        return data;
+    }
+    ConfigLoader.loadConfigForGame = loadConfigForGame;
     function loadSatoriConfig(nk, configKey, defaultValue) {
         var now = Date.now();
         var cacheKey = "satori_" + configKey;
@@ -79430,6 +88186,15 @@ var ConfigLoader;
         return data;
     }
     ConfigLoader.loadSatoriConfig = loadSatoriConfig;
+    function loadSatoriConfigForGame(nk, configKey, gameId, defaultValue) {
+        var scopedKey = Constants.gameKey(gameId, configKey);
+        var data = loadSatoriConfig(nk, scopedKey, defaultValue);
+        if (scopedKey !== configKey && data === defaultValue) {
+            return loadSatoriConfig(nk, configKey, defaultValue);
+        }
+        return data;
+    }
+    ConfigLoader.loadSatoriConfigForGame = loadSatoriConfigForGame;
     function saveConfig(nk, configKey, data) {
         Storage.writeSystemJson(nk, Constants.HIRO_CONFIGS_COLLECTION, configKey, data);
         delete configCache[configKey];
@@ -79440,6 +88205,10 @@ var ConfigLoader;
         delete configCache["satori_" + configKey];
     }
     ConfigLoader.saveSatoriConfig = saveSatoriConfig;
+    function saveSatoriConfigForGame(nk, configKey, gameId, data) {
+        saveSatoriConfig(nk, Constants.gameKey(gameId, configKey), data);
+    }
+    ConfigLoader.saveSatoriConfigForGame = saveSatoriConfigForGame;
     function invalidateCache(configKey) {
         if (configKey) {
             delete configCache[configKey];
@@ -79905,6 +88674,11 @@ var RpcHelpers;
         return result.data;
     }
     RpcHelpers.parseRpcPayload = parseRpcPayload;
+    function gameId(data) {
+        var value = data && (data.gameId || data.game_id || data.appId || data.app_id);
+        return value ? String(value) : undefined;
+    }
+    RpcHelpers.gameId = gameId;
     function logRpcError(nk, logger, rpcName, errorMessage, userId, gameId) {
         try {
             var now = new Date();
@@ -80691,6 +89465,17 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("admin_user_data_get", __rpc_admin_user_data_get); } catch(e) {}
   try { initializer.registerRpc("admin_user_data_set", __rpc_admin_user_data_set); } catch(e) {}
   try { initializer.registerRpc("admin_user_data_delete", __rpc_admin_user_data_delete); } catch(e) {}
+  try { initializer.registerRpc("admin_accounts_list", __rpc_admin_accounts_list); } catch(e) {}
+  try { initializer.registerRpc("admin_account_get", __rpc_admin_account_get); } catch(e) {}
+  try { initializer.registerRpc("admin_account_ban", __rpc_admin_account_ban); } catch(e) {}
+  try { initializer.registerRpc("admin_account_unban", __rpc_admin_account_unban); } catch(e) {}
+  try { initializer.registerRpc("admin_account_delete", __rpc_admin_account_delete); } catch(e) {}
+  try { initializer.registerRpc("admin_matches_list", __rpc_admin_matches_list); } catch(e) {}
+  try { initializer.registerRpc("admin_tournaments_list", __rpc_admin_tournaments_list); } catch(e) {}
+  try { initializer.registerRpc("admin_tournament_create", __rpc_admin_tournament_create); } catch(e) {}
+  try { initializer.registerRpc("admin_tournament_records_list", __rpc_admin_tournament_records_list); } catch(e) {}
+  try { initializer.registerRpc("admin_tournament_records_around_owner", __rpc_admin_tournament_records_around_owner); } catch(e) {}
+  try { initializer.registerRpc("admin_tournament_record_write", __rpc_admin_tournament_record_write); } catch(e) {}
   try { initializer.registerRpc("admin_player_inspect", __rpc_admin_player_inspect); } catch(e) {}
   try { initializer.registerRpc("admin_user_search", __rpc_admin_user_search); } catch(e) {}
   try { initializer.registerRpc("admin_wallet_view", __rpc_admin_wallet_view); } catch(e) {}
@@ -80698,6 +89483,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("admin_wallet_reset", __rpc_admin_wallet_reset); } catch(e) {}
   try { initializer.registerRpc("admin_inventory_grant", __rpc_admin_inventory_grant); } catch(e) {}
   try { initializer.registerRpc("admin_mailbox_send", __rpc_admin_mailbox_send); } catch(e) {}
+  try { initializer.registerRpc("admin_satori_audiences_list", __rpc_admin_satori_audiences_list); } catch(e) {}
   try { initializer.registerRpc("admin_satori_flags_list", __rpc_admin_satori_flags_list); } catch(e) {}
   try { initializer.registerRpc("admin_satori_experiments_list", __rpc_admin_satori_experiments_list); } catch(e) {}
   try { initializer.registerRpc("admin_satori_messages_list", __rpc_admin_satori_messages_list); } catch(e) {}
@@ -80715,6 +89501,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("satori_live_event_schedule", __rpc_satori_live_event_schedule); } catch(e) {}
   try { initializer.registerRpc("satori_experiment_setup", __rpc_satori_experiment_setup); } catch(e) {}
   try { initializer.registerRpc("admin_storage_list", __rpc_admin_storage_list); } catch(e) {}
+  try { initializer.registerRpc("admin_storage_write", __rpc_admin_storage_write); } catch(e) {}
   try { initializer.registerRpc("gift_claims_list", __rpc_gift_claims_list); } catch(e) {}
   try { initializer.registerRpc("admin_gift_claim_update", __rpc_admin_gift_claim_update); } catch(e) {}
   try { initializer.registerRpc("admin_health_check", __rpc_admin_health_check); } catch(e) {}
@@ -80923,6 +89710,18 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("create_or_get_wallet", __rpc_create_or_get_wallet); } catch(e) {}
   try { initializer.registerRpc("calculate_score_reward", __rpc_calculate_score_reward); } catch(e) {}
   try { initializer.registerRpc("update_game_reward_config", __rpc_update_game_reward_config); } catch(e) {}
+  try { initializer.registerRpc("mp_agent_spawn", __rpc_mp_agent_spawn); } catch(e) {}
+  try { initializer.registerRpc("mp_agent_despawn", __rpc_mp_agent_despawn); } catch(e) {}
+  try { initializer.registerRpc("mp_agent_list_personas", __rpc_mp_agent_list_personas); } catch(e) {}
+  try { initializer.registerRpc("mp_agent_speak", __rpc_mp_agent_speak); } catch(e) {}
+  try { initializer.registerRpc("mp_create_match", __rpc_mp_create_match); } catch(e) {}
+  try { initializer.registerRpc("mp_read_match_result", __rpc_mp_read_match_result); } catch(e) {}
+  try { initializer.registerRpc("mp_list_templates", __rpc_mp_list_templates); } catch(e) {}
+  try { initializer.registerRpc("mp_interest_size", __rpc_mp_interest_size); } catch(e) {}
+  try { initializer.registerRpc("mp_mod_get_params", __rpc_mp_mod_get_params); } catch(e) {}
+  try { initializer.registerRpc("mp_mod_set_params", __rpc_mp_mod_set_params); } catch(e) {}
+  try { initializer.registerRpc("mp_mod_appeal", __rpc_mp_mod_appeal); } catch(e) {}
+  try { initializer.registerRpc("mp_voice_token", __rpc_mp_voice_token); } catch(e) {}
   try { initializer.registerRpc("nakama_analytics_tick", __rpc_nakama_analytics_tick); } catch(e) {}
   try { initializer.registerRpc("nakama_analytics_status", __rpc_nakama_analytics_status); } catch(e) {}
   try { initializer.registerRpc("nakama_analytics_recent", __rpc_nakama_analytics_recent); } catch(e) {}
@@ -81246,5 +90045,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 662 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 687 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }
