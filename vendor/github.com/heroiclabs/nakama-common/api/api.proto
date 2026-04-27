@@ -1457,6 +1457,13 @@ message PartyList {
   string cursor = 2;
 }
 
+message VerifyEmailCode {
+  // The email address to verify
+  string email = 1;
+  // The code sent to the email address
+  string code = 2;
+}
+
 message VerifyEmailResponse {
   bool verified = 1;
 }
