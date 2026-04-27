@@ -338,7 +338,14 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 		logger.Error("Error hashing password.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
-	query = "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_codes TEXT, code_expires TIMESTAMPTZ; INSERT INTO users (id, username, email, password, create_time, update_time, verification_code, code_expires) VALUES ($1, $2, $3, $4, now(), now(), $5, $6, $7, now() + interval '15 minutes')"
+
+	_, err = db.ExecContext(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_code TEXT, ADD COLUMN IF NOT EXISTS code_expires TIMESTAMPTZ`)
+	if err != nil {
+		logger.Error("Error altering users table.", zap.Error(err))
+		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	query = `INSERT INTO users (id, username, email, password, create_time, update_time, verification_code, code_expires) VALUES ($1, $2, $3, $4, now(), now(), $5, now() + interval '15 minutes')`
 	result, err := db.ExecContext(ctx, query, userID, username, email, hashedPassword, verifCode)
 	if err != nil {
 		var pgErr *pgconn.PgError
