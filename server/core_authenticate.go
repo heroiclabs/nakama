@@ -1166,6 +1166,7 @@ func sendVerificationEmail(logger *zap.Logger, verification *VerificationConfig,
 
 	to := []string{toEmail}
 	msg := []byte("To: " + toEmail + "\r\n" +
+		"From: " + verification.VerificationEmail + "\r\n" +
 		"Subject: Verify your account\r\n" +
 		"\r\n" +
 		"Your verification code is: " + verifCode + "\r\n If you did not request this code, you can ignore this email, or report it to support.\r\n")
