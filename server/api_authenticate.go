@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	crand "crypto/rand"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -361,7 +362,9 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 		cleanEmail := strings.ToLower(email.Email)
 		create := in.Create == nil || in.Create.Value
 
-		dbUserID, username, created, err = AuthenticateEmail(ctx, logger, s.db, cleanEmail, email.Password, username, create)
+		verification := s.config.GetVerification()
+
+		dbUserID, username, created, err = AuthenticateEmail(ctx, logger, s.db, cleanEmail, email.Password, username, create, verification, generateCryptoKey())
 	}
 	if err != nil {
 		return nil, err
@@ -391,6 +394,27 @@ func (s *ApiServer) AuthenticateEmail(ctx context.Context, in *api.AuthenticateE
 	}
 
 	return session, nil
+}
+
+func (s *ApiServer) VerifyEmailCode(ctx context.Context, in *api.VerifyEmailCode) (*api.VerifyEmailResponse, error) {
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
+
+	// this looks very messy i will say
+	if in == nil {
+		return nil, status.Error(codes.InvalidArgument, "Email address and verification code are required.")
+	} else if invalidCharsRegex.MatchString(in.Email) {
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address, no spaces or control characters allowed.")
+	} else if !emailRegex.MatchString(in.Email) {
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address format.")
+	} else if len(in.Email) < 10 || len(in.Email) > 255 {
+		return nil, status.Error(codes.InvalidArgument, "Invalid email address, must be 10-255 bytes.")
+	} else if strings.TrimSpace(in.Code) == "" {
+		return nil, status.Error(codes.InvalidArgument, "Verification code is required.")
+	} else if err := verifyEmailCode(ctx, logger, s.db, strings.ToLower(in.Email), strings.TrimSpace(in.Code)); err != nil {
+		return nil, err
+	}
+
+	return &api.VerifyEmailResponse{Verified: true}, nil
 }
 
 func (s *ApiServer) AuthenticateFacebook(ctx context.Context, in *api.AuthenticateFacebookRequest) (*api.Session, error) {
@@ -804,4 +828,9 @@ func generateUsername() string {
 		b[i] = usernameAlphabet[rand.Intn(len(usernameAlphabet))]
 	}
 	return string(b)
+}
+
+func generateCryptoKey() string {
+	key := crand.Text()
+	return string(key[0:5])
 }

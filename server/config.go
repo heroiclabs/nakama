@@ -55,6 +55,7 @@ type Config interface {
 	GetStorage() *StorageConfig
 	GetMFA() *MFAConfig
 	GetParty() *PartyConfig
+	GetVerification() *VerificationConfig
 	GetLimit() int
 
 	Clone() (Config, error)
@@ -464,29 +465,30 @@ func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeE
 }
 
 type config struct {
-	Name             string             `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
-	Config           []string           `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
-	ShutdownGraceSec int                `yaml:"shutdown_grace_sec" json:"shutdown_grace_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 0 seconds. If 0 the server will shut down immediately when it receives a termination signal."`
-	Datadir          string             `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
-	Logger           *LoggerConfig      `yaml:"logger" json:"logger" usage:"Logger levels and output."`
-	Metrics          *MetricsConfig     `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
-	Session          *SessionConfig     `yaml:"session" json:"session" usage:"Session authentication settings."`
-	Socket           *SocketConfig      `yaml:"socket" json:"socket" usage:"Socket configuration."`
-	Database         *DatabaseConfig    `yaml:"database" json:"database" usage:"Database connection settings."`
-	Social           *SocialConfig      `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
-	Runtime          *RuntimeConfig     `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
-	Match            *MatchConfig       `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
-	Tracker          *TrackerConfig     `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
-	Console          *ConsoleConfig     `yaml:"console" json:"console" usage:"Console settings."`
-	Leaderboard      *LeaderboardConfig `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
-	Matchmaker       *MatchmakerConfig  `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
-	IAP              *IAPConfig         `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
-	GoogleAuth       *GoogleAuthConfig  `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
-	Satori           *SatoriConfig      `yaml:"satori" json:"satori" usage:"Satori integration settings."`
-	Storage          *StorageConfig     `yaml:"storage" json:"storage" usage:"Storage settings."`
-	MFA              *MFAConfig         `yaml:"mfa" json:"mfa" usage:"MFA settings."`
-	Party            *PartyConfig       `yaml:"party" json:"party" usage:"Party settings."`
-	Limit            int                `json:"-"` // Only used for migrate command.
+	Name             string              `yaml:"name" json:"name" usage:"Nakama server’s node name - must be unique."`
+	Config           []string            `yaml:"config" json:"config" usage:"The absolute file path to configuration YAML file."`
+	ShutdownGraceSec int                 `yaml:"shutdown_grace_sec" json:"shutdown_grace_sec" usage:"Maximum number of seconds to wait for the server to complete work before shutting down. Default is 0 seconds. If 0 the server will shut down immediately when it receives a termination signal."`
+	Datadir          string              `yaml:"data_dir" json:"data_dir" usage:"An absolute path to a writeable folder where Nakama will store its data."`
+	Logger           *LoggerConfig       `yaml:"logger" json:"logger" usage:"Logger levels and output."`
+	Metrics          *MetricsConfig      `yaml:"metrics" json:"metrics" usage:"Metrics settings."`
+	Session          *SessionConfig      `yaml:"session" json:"session" usage:"Session authentication settings."`
+	Socket           *SocketConfig       `yaml:"socket" json:"socket" usage:"Socket configuration."`
+	Database         *DatabaseConfig     `yaml:"database" json:"database" usage:"Database connection settings."`
+	Social           *SocialConfig       `yaml:"social" json:"social" usage:"Properties for social provider integrations."`
+	Runtime          *RuntimeConfig      `yaml:"runtime" json:"runtime" usage:"Script Runtime properties."`
+	Match            *MatchConfig        `yaml:"match" json:"match" usage:"Authoritative realtime match properties."`
+	Tracker          *TrackerConfig      `yaml:"tracker" json:"tracker" usage:"Presence tracker properties."`
+	Console          *ConsoleConfig      `yaml:"console" json:"console" usage:"Console settings."`
+	Leaderboard      *LeaderboardConfig  `yaml:"leaderboard" json:"leaderboard" usage:"Leaderboard settings."`
+	Matchmaker       *MatchmakerConfig   `yaml:"matchmaker" json:"matchmaker" usage:"Matchmaker settings."`
+	IAP              *IAPConfig          `yaml:"iap" json:"iap" usage:"In-App Purchase settings."`
+	GoogleAuth       *GoogleAuthConfig   `yaml:"google_auth" json:"google_auth" usage:"Google's auth settings."`
+	Satori           *SatoriConfig       `yaml:"satori" json:"satori" usage:"Satori integration settings."`
+	Storage          *StorageConfig      `yaml:"storage" json:"storage" usage:"Storage settings."`
+	MFA              *MFAConfig          `yaml:"mfa" json:"mfa" usage:"MFA settings."`
+	Party            *PartyConfig        `yaml:"party" json:"party" usage:"Party settings."`
+	Verification     *VerificationConfig `yaml:"verification" json:"verification" usage:"Verification settings."`
+	Limit            int                 `json:"-"` // Only used for migrate command.
 }
 
 // NewConfig constructs a Config struct which represents server settings, and populates it with default values.
@@ -516,6 +518,7 @@ func NewConfig(logger *zap.Logger) *config {
 		Satori:           NewSatoriConfig(),
 		Storage:          NewStorageConfig(),
 		Party:            NewPartyConfig(),
+		Verification:     NewVerificationConfig(),
 		MFA:              NewMFAConfig(),
 
 		Limit: -1,
@@ -635,6 +638,10 @@ func (c *config) GetParty() *PartyConfig {
 	return c.Party
 }
 
+func (c *config) GetVerification() *VerificationConfig {
+	return c.Verification
+}
+	
 func (c *config) GetMFA() *MFAConfig {
 	return c.MFA
 }
@@ -1651,5 +1658,30 @@ func NewPartyConfig() *PartyConfig {
 	return &PartyConfig{
 		LabelUpdateIntervalMs: 1_000,
 		IdleCheckIntervalMs:   30_000,
+	}
+}
+
+type VerificationConfig struct {
+	Identity string `yaml:"identity" json:"identity" usage:"Identity for sending emails through SMTP. Usually empty."`
+	VerificationEmail string `yaml:"verification_email" json:"verification_email" usage:"Email to send verification key with."`
+	Password string `yaml:"email_password" json:"email_password" usage:"Generated SMTP password from your email provider."`
+	EmailHost string `yaml:"email_host" json:"email_host" usage:"SMTP host site. Default smtp.gmail.com."`
+}
+
+func (cfg *VerificationConfig) Clone() *VerificationConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
+}
+
+func NewVerificationConfig() *VerificationConfig {
+	return &VerificationConfig{
+		Identity: "",
+		VerificationEmail: "set_this_to_your_email",
+		Password: "your_smtp_password",
+		EmailHost: "smtp.gmail.com",
 	}
 }

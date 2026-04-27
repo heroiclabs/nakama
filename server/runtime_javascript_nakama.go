@@ -1635,7 +1635,7 @@ func (n *RuntimeJavascriptNakamaModule) authenticateEmail(r *goja.Runtime) func(
 		} else {
 			cleanEmail := strings.ToLower(email)
 
-			dbUserID, username, created, err = AuthenticateEmail(n.ctx, n.logger, n.db, cleanEmail, password, username, create)
+			dbUserID, username, created, err = AuthenticateEmail(n.ctx, n.logger, n.db, cleanEmail, password, username, create, n.config.GetVerification(), "")
 		}
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
