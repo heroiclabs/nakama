@@ -174,6 +174,12 @@ EOF
         sleep 10
 
         LOGS=$( cd "$STACK_DIR" && docker compose logs nakama 2>&1 )
+
+        # Always print last 60 lines so CI has context without needing docker exec.
+        echo "--- Nakama boot log (last 60 lines) ---"
+        echo "$LOGS" | tail -60
+        echo "--- end boot log ---"
+
         assert_logs_clean "$LOGS"
         assert_health_rpc "http://127.0.0.1:57350" "defaultkey"
         assert_known_rpc_registered "http://127.0.0.1:57350" "defaultkey" "wallet_get_all"
