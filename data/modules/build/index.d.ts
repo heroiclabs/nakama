@@ -2741,6 +2741,7 @@ declare namespace EventBus {
         EVENT_ENDED: string;
         EVENT_CANCELLED: string;
         QUIZ_COMPLETED: string;
+        PRIZE_FULFILLMENT_REQUESTED: string;
     };
     export {};
 }

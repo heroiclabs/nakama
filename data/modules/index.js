@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-28T09:32:07.743Z
+// Generated: 2026-04-28T11:07:01.563Z
 // RPC Count: 700
 // ============================================================
 
@@ -88696,6 +88696,17 @@ var SatoriCreatorEvents;
             entryFeePaid: def.entryFee,
         });
     }
+    /** Convert a stored difficulty string into a server-trusted speed-bonus multiplier.
+     *  This is the single source of truth — clients can't influence the multiplier
+     *  because the value comes from the event definition, not the request payload. */
+    function difficultySpeedMultiplier(diff) {
+        var d = (diff || "challenge").toString().toLowerCase().trim();
+        if (d === "casual" || d === "easy")
+            return 1.0;
+        if (d === "expert" || d === "hard" || d === "pro")
+            return 2.0;
+        return 1.5; // challenge / default
+    }
     function rpcSubmit(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
@@ -88709,6 +88720,7 @@ var SatoriCreatorEvents;
         var status = computeEffectiveStatus(def);
         if (status !== "live")
             return RpcHelpers.errorResponse("Event is not live");
+        var speedMult = difficultySpeedMultiplier(def.difficulty);
         var userStates = getUserStates(nk, userId);
         var state = userStates[data.eventId];
         if (!state || !state.joinedAt)
@@ -88724,7 +88736,8 @@ var SatoriCreatorEvents;
             var isCorrect = userAnswer === correctAnswer;
             var elapsedSec = now - def.scheduledAt;
             var maxDuration = def.duration * 60;
-            var timeBonus = isCorrect ? Math.max(0, Math.floor(((maxDuration - elapsedSec) / maxDuration) * 1000)) : 0;
+            var rawTimeBonus = isCorrect ? Math.max(0, Math.floor(((maxDuration - elapsedSec) / maxDuration) * 1000)) : 0;
+            var timeBonus = Math.floor(rawTimeBonus * speedMult);
             var points = isCorrect ? 1000 + timeBonus : 0;
             state.score = points;
             state.answers.push({
@@ -88745,6 +88758,8 @@ var SatoriCreatorEvents;
                 correct: isCorrect,
                 score: points,
                 timeBonus: timeBonus,
+                difficulty: def.difficulty || "challenge",
+                speedMultiplier: speedMult,
             });
         }
         // ---- Speed Quiz / Elimination mode ----
@@ -88766,9 +88781,11 @@ var SatoriCreatorEvents;
         }
         var isCorrect = data.answer.toString().toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
         var points = isCorrect ? question.points : 0;
+        var appliedSpeedBonus = 0;
         if (isCorrect && typeof data.timeElapsed === "number") {
-            var speedBonus = Math.max(0, Math.floor(((question.timeLimit - data.timeElapsed) / question.timeLimit) * (question.points * 0.5)));
-            points += speedBonus;
+            var rawSpeedBonus = Math.max(0, Math.floor(((question.timeLimit - data.timeElapsed) / question.timeLimit) * (question.points * 0.5)));
+            appliedSpeedBonus = Math.floor(rawSpeedBonus * speedMult);
+            points += appliedSpeedBonus;
         }
         if (def.gameMode === "elimination" && !isCorrect) {
             state.eliminated = true;
@@ -88798,10 +88815,13 @@ var SatoriCreatorEvents;
         return RpcHelpers.successResponse({
             correct: isCorrect,
             points: points,
+            speedBonus: appliedSpeedBonus,
             totalScore: state.score,
             eliminated: state.eliminated || false,
             questionsAnswered: state.answers.length,
             totalQuestions: def.questions.length,
+            difficulty: def.difficulty || "challenge",
+            speedMultiplier: speedMult,
         });
     }
     function rpcLeaderboard(ctx, logger, nk, payload) {
@@ -88900,6 +88920,18 @@ var SatoriCreatorEvents;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.eventId)
             return RpcHelpers.errorResponse("eventId required");
+        // Player-supplied delivery email (optional). Used to send a SES prize-delivery
+        // email *only* if there is a real prize (XUT > 0, gift card, or merchandise).
+        var deliveryEmail = "";
+        if (typeof data.email === "string") {
+            var em = data.email.trim();
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+                deliveryEmail = em;
+        }
+        var deliveryName = "";
+        if (typeof data.playerName === "string") {
+            deliveryName = data.playerName.trim().slice(0, 120);
+        }
         var def = getEventDefinition(nk, data.eventId);
         if (!def)
             return RpcHelpers.errorResponse("Event not found");
@@ -88990,6 +89022,73 @@ var SatoriCreatorEvents;
             claimedAt: state.claimedAt,
             eventTitle: def.title,
         });
+        // ---- Prize delivery email (SES via quests-api, best-effort) ----
+        var emailSent = false;
+        var emailError = "";
+        var hasRealPrize = (xutGranted > 0) || !!giftCardTier;
+        if (deliveryEmail && hasRealPrize) {
+            try {
+                var apiBase = (ctx.env && ctx.env["QUESTS_API_BASE_URL"])
+                    || (ctx.env && ctx.env["LIVE_EVENTS_API_BASE_URL"])
+                    || "https://api.intelli-verse-x.ai";
+                var sharedSecret = (ctx.env && ctx.env["LIVE_EVENTS_INTERNAL_SECRET"]) || "";
+                if (!sharedSecret) {
+                    logger.warn("[CreatorEvent] LIVE_EVENTS_INTERNAL_SECRET not configured; skipping prize email");
+                }
+                else {
+                    var emailPrize = {
+                        type: giftCardTier && xutGranted > 0 ? "mixed"
+                            : giftCardTier ? "giftcard"
+                                : xutGranted > 0 ? "xut"
+                                    : "xut",
+                    };
+                    if (xutGranted > 0)
+                        emailPrize.xutAmount = xutGranted;
+                    if (giftCardTier) {
+                        // Map server gift-card tier → flat structure expected by quests-api SES service.
+                        // Approximate USD value from currency (INR ≈ /83).
+                        var usdValue = giftCardTier.currency === "USD"
+                            ? giftCardTier.value
+                            : Math.max(1, Math.round((giftCardTier.value || 0) / 83));
+                        emailPrize.giftCard = {
+                            tier: state.rank === 1 ? "platinum"
+                                : state.rank === 2 ? "gold"
+                                    : state.rank === 3 ? "silver"
+                                        : "bronze",
+                            vendor: giftCardTier.brand || "amazon",
+                            valueUsd: usdValue,
+                            currency: giftCardTier.currency || "USD",
+                        };
+                    }
+                    var emailPayload = {
+                        to: deliveryEmail,
+                        playerName: deliveryName || "",
+                        eventTitle: def.title || "Live Event",
+                        eventId: data.eventId,
+                        rank: state.rank || 0,
+                        prize: emailPrize,
+                    };
+                    var emailUrl = apiBase.replace(/\/+$/, "") + "/api/live-events/email/prize-delivery";
+                    var emailHeaders = {
+                        "Content-Type": "application/json",
+                        "x-internal-secret": sharedSecret,
+                    };
+                    var emailResp = nk.httpRequest(emailUrl, "post", emailHeaders, JSON.stringify(emailPayload), 8000);
+                    if (emailResp && emailResp.code >= 200 && emailResp.code < 300) {
+                        emailSent = true;
+                        logger.info("[CreatorEvent] Prize email sent: user=%s event=%s to=%s", userId, data.eventId, deliveryEmail);
+                    }
+                    else {
+                        emailError = "HTTP " + (emailResp ? emailResp.code : "?") + " " + (emailResp ? (emailResp.body || "").slice(0, 200) : "");
+                        logger.warn("[CreatorEvent] Prize email failed: %s", emailError);
+                    }
+                }
+            }
+            catch (eErr) {
+                emailError = (eErr && eErr.message) ? eErr.message : String(eErr);
+                logger.warn("[CreatorEvent] Prize email exception: %s", emailError);
+            }
+        }
         return RpcHelpers.successResponse({
             success: true,
             eventId: data.eventId,
@@ -89005,6 +89104,12 @@ var SatoriCreatorEvents;
                 fulfillment: giftCardTier.fulfillment,
                 status: "pending",
             } : null,
+            email: deliveryEmail ? {
+                requested: true,
+                sent: emailSent,
+                error: emailError || undefined,
+                to: deliveryEmail,
+            } : { requested: false, sent: false },
         });
     }
     // ---- Creator RPCs ----
@@ -89036,6 +89141,7 @@ var SatoriCreatorEvents;
             category: String(data.category),
             customTopic: data.customTopic ? String(data.customTopic) : "",
             gameMode: String(data.gameMode || "best_guess"),
+            difficulty: data.difficulty ? String(data.difficulty).toLowerCase() : "challenge",
             scheduledAt: data.scheduledAt,
             duration: typeof data.duration === "number" ? data.duration : 30,
             region: String(data.region || "global"),
