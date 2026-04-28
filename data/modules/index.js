@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-28T12:51:07.355Z
+// Generated: 2026-04-28T23:44:44.961Z
 // RPC Count: 701
 // ============================================================
 
@@ -65925,6 +65925,35 @@ var InsightsAggregator;
                 logger.warn("[InsightsAggregator] bucket " + new Date(b).toISOString() +
                     " failed: " + (e && e.message ? e.message : String(e)));
             }
+        }
+        // Opportunistic DLQ drain on every tick. This is what turns the
+        // "AI svc rolling restart drops in-flight ingests" failure mode
+        // (qv-ops 2026-04-28T19:37 alert) from a manual-replay incident
+        // into a self-healing transient — the next aggregator tick replays
+        // every bundle that was parked while the AI svc was down.
+        //
+        // Guarded by `typeof PendingBundles` so a missing/renamed module
+        // doesn't break the aggregator path; failure is logged and the
+        // tick still returns ok.
+        var dlqDrained = 0;
+        var dlqDeadLetters = 0;
+        try {
+            if (typeof PendingBundles !== "undefined" && PendingBundles
+                && typeof PendingBundles.drain === "function") {
+                var dr = PendingBundles.drain(nk, logger, function (bundle) {
+                    return postBundle(nk, logger, bundle);
+                });
+                dlqDrained = (dr && dr.drained) || 0;
+                dlqDeadLetters = (dr && dr.deadLetters) || 0;
+                if (dlqDrained > 0 || dlqDeadLetters > 0) {
+                    logger.info("[InsightsAggregator] DLQ drain on tick: drained=" +
+                        dlqDrained + " deadLetters=" + dlqDeadLetters);
+                }
+            }
+        }
+        catch (e) {
+            logger.warn("[InsightsAggregator] DLQ drain on tick failed: " +
+                (e && e.message ? e.message : String(e)));
         }
         writeLastRun(nk, now);
         return { ran: true, bucketsProcessed: bucketsProcessed, bundlesEmitted: bundlesEmitted, reason: "ok" };
