@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-28T11:07:01.563Z
+// Generated: 2026-04-28T12:43:59.340Z
 // RPC Count: 700
 // ============================================================
 
@@ -89276,10 +89276,22 @@ var SatoriCreatorEvents;
         }
         var leaderboardId = LEADERBOARD_PREFIX + event.id;
         try {
-            nk.leaderboardCreate(leaderboardId, true, "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */);
+            // Pass full 6-arg signature (id, authoritative, sort, operator, resetSchedule, metadata)
+            // to match the working legacy/leaderboards.ts pattern. The shorter 4-arg form has been
+            // observed to silently no-op in our cluster, leaving rpcSubmit/rpcEnd unable to
+            // read scores → claim flow blocked.
+            nk.leaderboardCreate(leaderboardId, true, "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */, "", { scope: "creator_event", eventId: event.id, title: event.title });
+            logger.info("[CreatorEvent] Leaderboard created: %s", leaderboardId);
         }
         catch (err) {
-            logger.warn("[CreatorEvent] Leaderboard may already exist: %s", err.message || String(err));
+            // "already exists" is fine; anything else needs visibility.
+            var msg = (err && err.message) ? err.message : String(err);
+            if (/exist/i.test(msg)) {
+                logger.info("[CreatorEvent] Leaderboard already exists: %s", leaderboardId);
+            }
+            else {
+                logger.error("[CreatorEvent] leaderboardCreate FAILED for %s: %s", leaderboardId, msg);
+            }
         }
         try {
             HiroCreatorEventRewards.createBucketForEvent(nk, logger, event.id, event.prizes, event.prizePool);
