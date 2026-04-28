@@ -24589,10 +24589,22 @@ var SatoriCreatorEvents;
         }
         var leaderboardId = LEADERBOARD_PREFIX + event.id;
         try {
-            nk.leaderboardCreate(leaderboardId, true, "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */);
+            // Pass full 6-arg signature (id, authoritative, sort, operator, resetSchedule, metadata)
+            // to match the working legacy/leaderboards.ts pattern. The shorter 4-arg form has been
+            // observed to silently no-op in our cluster, leaving rpcSubmit/rpcEnd unable to
+            // read scores → claim flow blocked.
+            nk.leaderboardCreate(leaderboardId, true, "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */, "", { scope: "creator_event", eventId: event.id, title: event.title });
+            logger.info("[CreatorEvent] Leaderboard created: %s", leaderboardId);
         }
         catch (err) {
-            logger.warn("[CreatorEvent] Leaderboard may already exist: %s", err.message || String(err));
+            // "already exists" is fine; anything else needs visibility.
+            var msg = (err && err.message) ? err.message : String(err);
+            if (/exist/i.test(msg)) {
+                logger.info("[CreatorEvent] Leaderboard already exists: %s", leaderboardId);
+            }
+            else {
+                logger.error("[CreatorEvent] leaderboardCreate FAILED for %s: %s", leaderboardId, msg);
+            }
         }
         try {
             HiroCreatorEventRewards.createBucketForEvent(nk, logger, event.id, event.prizes, event.prizePool);
@@ -24905,6 +24917,7 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_cancel", rpcCancel);
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
         initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
+        initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
     }
     SatoriCreatorEvents.register = register;
     /**
@@ -24953,6 +24966,272 @@ var SatoriCreatorEvents;
             return RpcHelpers.errorResponse("Insufficient XUT balance to fund prize pool (" + amount + " XUT needed). " +
                 "Earn more XUT or pick a different funding method.");
         }
+    }
+    function rankToTierKey(rank) {
+        if (rank === 1)
+            return "1st";
+        if (rank === 2)
+            return "2nd";
+        if (rank === 3)
+            return "3rd";
+        if (rank > 0 && rank <= 10)
+            return "top_10";
+        return "all";
+    }
+    function findTierForRank(tiers, rank) {
+        if (!tiers || tiers.length === 0)
+            return null;
+        var key = rankToTierKey(rank);
+        var fallback = null;
+        for (var i = 0; i < tiers.length; i++) {
+            var t = tiers[i];
+            if (!t || !t.rank)
+                continue;
+            if (t.rank === key)
+                return t;
+            if (t.rank === "all")
+                fallback = t;
+        }
+        return fallback;
+    }
+    function spaGiftCardTier(rank) {
+        // Map server rank → quests-api SES "tier" enum (cosmetic for the email).
+        if (rank === 1)
+            return "platinum";
+        if (rank === 2)
+            return "gold";
+        if (rank === 3)
+            return "silver";
+        return "bronze";
+    }
+    function rpcSpaClaim(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        if (!data.creatorId)
+            return RpcHelpers.errorResponse("creatorId required (the event creator's userId)");
+        var eventId = String(data.eventId);
+        var creatorId = String(data.creatorId);
+        // 1. Read event def from live_events (creator-owned)
+        var defRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: creatorId }]);
+        if (!defRecords || defRecords.length === 0 || !defRecords[0].value) {
+            return RpcHelpers.errorResponse("Event not found in SPA storage");
+        }
+        var def = defRecords[0].value;
+        // 2. Verify event has actually ended
+        var nowSec = Math.floor(Date.now() / 1000);
+        var endAt = (def.scheduledAt || 0) + (def.duration || 30) * 60;
+        if (nowSec < endAt) {
+            return RpcHelpers.errorResponse("Event has not ended yet");
+        }
+        // 3. Idempotency — already claimed?
+        var claimKey = "claim_" + eventId;
+        var prior = Storage.readJson(nk, "creator_event_claims", claimKey, userId);
+        if (prior) {
+            return RpcHelpers.errorResponse("Already claimed (rank " + prior.rank + ", " + prior.xut + " XUT, at " + prior.claimedAt + ")");
+        }
+        // 4. Read player's own answer
+        var myRecords = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
+        if (!myRecords || myRecords.length === 0 || !myRecords[0].value) {
+            return RpcHelpers.errorResponse("You did not participate in this event");
+        }
+        var myAnswer = myRecords[0].value;
+        // 5. List all answers across players (paginated, capped at 5 pages × 100 = 500)
+        var allAnswers = [];
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList("", "event_answers", 100, cursor);
+            }
+            catch (lerr) {
+                logger.warn("[CreatorEvent SPA] storageList failed: %s", lerr.message || String(lerr));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var o = objs[i];
+                var v = o.value;
+                if (!v || v.eventId !== eventId)
+                    continue;
+                allAnswers.push({
+                    userId: o.userId,
+                    score: typeof v.score === "number" ? v.score : 0,
+                    submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
+                });
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < 5);
+        // 6. Sort: score desc, submit-time asc (ties broken by speed)
+        allAnswers.sort(function (a, b) {
+            if (a.score !== b.score)
+                return b.score - a.score;
+            return (a.submitMs || 0) - (b.submitMs || 0);
+        });
+        var myRank = 0;
+        for (var ri = 0; ri < allAnswers.length; ri++) {
+            if (allAnswers[ri].userId === userId) {
+                myRank = ri + 1;
+                break;
+            }
+        }
+        if (myRank === 0) {
+            return RpcHelpers.errorResponse("Could not determine your rank — answer record missing");
+        }
+        // 7. Pick tier + compute reward
+        var tier = findTierForRank(def.giftCardPrizes && def.giftCardPrizes.tiers, myRank);
+        var xutGranted = 0;
+        var giftCard = null;
+        if (tier) {
+            var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
+            if (isXut) {
+                xutGranted = Math.max(0, Math.floor(tier.value || 0));
+                if (xutGranted > 0) {
+                    try {
+                        nk.walletUpdate(userId, { xut: xutGranted }, {
+                            reason: "spa_event_prize:" + eventId,
+                            tier: tier.rank,
+                            rank: myRank,
+                        }, true);
+                        logger.info("[CreatorEvent SPA] Granted %d XUT to %s for event %s rank=%d", xutGranted, userId, eventId, myRank);
+                    }
+                    catch (werr) {
+                        logger.error("[CreatorEvent SPA] walletUpdate FAILED for %s: %s", userId, werr.message || String(werr));
+                        xutGranted = 0;
+                    }
+                }
+            }
+            else {
+                giftCard = tier;
+                // Queue fulfillment for n8n / admin pipeline
+                try {
+                    Storage.writeSystemJson(nk, "prize_fulfillments", eventId + ":" + userId, {
+                        userId: userId,
+                        eventId: eventId,
+                        rank: myRank,
+                        giftCard: tier,
+                        status: "pending",
+                        queuedAt: nowSec,
+                        eventTitle: def.title || "",
+                        region: def.region || (def.giftCardPrizes && def.giftCardPrizes.region) || "global",
+                        source: "spa_claim",
+                    });
+                    logger.info("[CreatorEvent SPA] Gift card queued: user=%s event=%s tier=%s prize=%s", userId, eventId, tier.rank, tier.prize);
+                }
+                catch (ferr) {
+                    logger.warn("[CreatorEvent SPA] failed to queue fulfillment: %s", ferr.message || String(ferr));
+                }
+            }
+        }
+        // 8. Mark claimed (idempotent)
+        try {
+            Storage.writeJson(nk, "creator_event_claims", claimKey, userId, {
+                rank: myRank,
+                tier: tier ? tier.rank : "",
+                xut: xutGranted,
+                giftCard: giftCard ? { brand: giftCard.brand, value: giftCard.value, currency: giftCard.currency } : null,
+                claimedAt: nowSec,
+            });
+        }
+        catch (cerr) {
+            logger.warn("[CreatorEvent SPA] failed to write claim record: %s", cerr.message || String(cerr));
+        }
+        // 9. Best-effort SES email
+        var deliveryEmail = "";
+        if (typeof data.email === "string") {
+            var em = data.email.trim();
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+                deliveryEmail = em;
+        }
+        var deliveryName = "";
+        if (typeof data.playerName === "string") {
+            deliveryName = data.playerName.trim().slice(0, 120);
+        }
+        var emailRequested = !!deliveryEmail;
+        var emailSent = false;
+        var emailError = "";
+        var hasRealPrize = (xutGranted > 0) || !!giftCard;
+        if (emailRequested && hasRealPrize) {
+            try {
+                var apiBase = (ctx.env && ctx.env["QUESTS_API_BASE_URL"])
+                    || (ctx.env && ctx.env["LIVE_EVENTS_API_BASE_URL"])
+                    || "https://quests.intelli-verse-x.ai";
+                var sharedSecret = (ctx.env && ctx.env["LIVE_EVENTS_INTERNAL_SECRET"]) || "";
+                if (!sharedSecret) {
+                    emailError = "LIVE_EVENTS_INTERNAL_SECRET not configured";
+                    logger.warn("[CreatorEvent SPA] %s", emailError);
+                }
+                else {
+                    var emailPrize = {
+                        type: giftCard && xutGranted > 0 ? "mixed"
+                            : giftCard ? "giftcard"
+                                : "xut",
+                    };
+                    if (xutGranted > 0)
+                        emailPrize.xutAmount = xutGranted;
+                    if (giftCard) {
+                        // Approximate USD value — INR /83, USD as-is, XUT skipped (already in xutAmount).
+                        var usdValue = (giftCard.currency || "").toUpperCase() === "USD"
+                            ? giftCard.value
+                            : Math.max(1, Math.round((giftCard.value || 0) / 83));
+                        emailPrize.giftCard = {
+                            tier: spaGiftCardTier(myRank),
+                            vendor: giftCard.brand || "amazon",
+                            valueUsd: usdValue,
+                            currency: giftCard.currency || "USD",
+                        };
+                    }
+                    var emailUrl = String(apiBase).replace(/\/+$/, "") + "/api/live-events/email/prize-delivery";
+                    var emailPayload = {
+                        to: deliveryEmail,
+                        playerName: deliveryName || "",
+                        eventTitle: def.title || "Live Event",
+                        eventId: eventId,
+                        rank: myRank,
+                        prize: emailPrize,
+                    };
+                    var headers = {
+                        "Content-Type": "application/json",
+                        "x-internal-secret": sharedSecret,
+                    };
+                    var resp = nk.httpRequest(emailUrl, "post", headers, JSON.stringify(emailPayload), 8000);
+                    if (resp && resp.code >= 200 && resp.code < 300) {
+                        emailSent = true;
+                        logger.info("[CreatorEvent SPA] Prize email sent: user=%s event=%s to=%s", userId, eventId, deliveryEmail);
+                    }
+                    else {
+                        emailError = "HTTP " + (resp ? resp.code : "?") + " " + (resp ? (resp.body || "").slice(0, 200) : "");
+                        logger.warn("[CreatorEvent SPA] Prize email failed: %s", emailError);
+                    }
+                }
+            }
+            catch (eerr) {
+                emailError = (eerr && eerr.message) ? eerr.message : String(eerr);
+                logger.warn("[CreatorEvent SPA] Prize email exception: %s", emailError);
+            }
+        }
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: eventId,
+            rank: myRank,
+            totalParticipants: allAnswers.length,
+            tier: tier ? tier.rank : "",
+            xutGranted: xutGranted,
+            giftCard: giftCard ? {
+                prize: giftCard.prize,
+                brand: giftCard.brand,
+                value: giftCard.value,
+                currency: giftCard.currency,
+                fulfillment: giftCard.fulfillment || "manual",
+                status: "pending",
+            } : null,
+            email: emailRequested
+                ? { requested: true, sent: emailSent, error: emailError || undefined, to: deliveryEmail }
+                : { requested: false, sent: false },
+        });
     }
 })(SatoriCreatorEvents || (SatoriCreatorEvents = {}));
 var SatoriLiveEvents;
