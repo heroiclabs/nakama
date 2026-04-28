@@ -1090,5 +1090,54 @@ namespace SatoriCreatorEvents {
     initializer.registerRpc("creator_event_end", rpcEnd);
     initializer.registerRpc("creator_event_cancel", rpcCancel);
     initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
+    initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
+  }
+
+  /**
+   * Lightweight, idempotent prize-pool funding RPC.
+   *
+   * Used by the SPA's hybrid publish flow: SPA writes the event to Storage
+   * directly (existing UX preserved), then immediately calls this RPC to
+   * debit the creator's XUT wallet for the chosen prizePool amount.
+   *
+   * Idempotency: a `funded_pools` record per (eventId, creatorId) prevents
+   * double-debit if the SPA retries.
+   *
+   * Payload: { eventId, prizePool, method }   // method must be "coins"
+   * Returns: { success, debited, balanceAfter? }
+   */
+  function rpcFundPool(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+    var amount = Math.floor(Number(data.prizePool || 0));
+    if (amount <= 0) return RpcHelpers.successResponse({ success: true, debited: 0, skipped: "non-positive amount" });
+    var method = String(data.method || "coins");
+    if (method !== "coins") return RpcHelpers.successResponse({ success: true, debited: 0, skipped: "non-coins method" });
+
+    // Idempotency check
+    var fundedKey = "funded_" + data.eventId;
+    var prior = Storage.readJson<{ amount: number; ts: number }>(nk, COLLECTION, fundedKey, userId);
+    if (prior && prior.amount > 0) {
+      return RpcHelpers.successResponse({ success: true, debited: 0, alreadyFunded: prior.amount });
+    }
+
+    try {
+      var result = nk.walletUpdate(userId, { xut: -amount }, { reason: "prize_pool_funded:" + data.eventId }, false);
+      Storage.writeJson(nk, COLLECTION, fundedKey, userId, { amount: amount, ts: Math.floor(Date.now() / 1000) });
+      var balAfter = (result && (result as any).updated && (result as any).updated.xut) || 0;
+      logger.info("[CreatorEvent] Funded prize pool: user=%s event=%s amount=%d balanceAfter=%d", userId, data.eventId, amount, balAfter);
+      return RpcHelpers.successResponse({
+        success: true,
+        debited: amount,
+        balanceAfter: balAfter,
+        eventId: data.eventId,
+      });
+    } catch (err: any) {
+      return RpcHelpers.errorResponse(
+        "Insufficient XUT balance to fund prize pool (" + amount + " XUT needed). " +
+        "Earn more XUT or pick a different funding method."
+      );
+    }
   }
 }
