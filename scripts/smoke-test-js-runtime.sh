@@ -163,6 +163,16 @@ EOF
         done
         [ "$STATUS" = "healthy" ] || fail "Nakama never became healthy (status=$STATUS)"
 
+        # Give the JS runtime a moment after the Go healthcheck turns green.
+        # Nakama's /healthcheck (port 7349) responds as soon as the HTTP server
+        # is up, but Goja (the JS engine) still needs a few seconds to finish
+        # executing InitModule for large bundles (600+ RPCs). Without this sleep
+        # the nakama_js_health probe lands too early and gets HTTP 404 even
+        # though the runtime is healthy — a false-negative that aborts the build.
+        # The cluster mode already has an equivalent sleep 5; mirror it here.
+        echo "[smoke] Waiting 10 s for JS runtime InitModule to complete…"
+        sleep 10
+
         LOGS=$( cd "$STACK_DIR" && docker compose logs nakama 2>&1 )
         assert_logs_clean "$LOGS"
         assert_health_rpc "http://127.0.0.1:57350" "defaultkey"
