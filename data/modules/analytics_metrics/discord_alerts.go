@@ -349,6 +349,14 @@ func startDiscordAlertScheduler(ctx context.Context, logger nkruntime.Logger, db
 		return
 	}
 
+	// Best-effort schema bootstrap for the leader-claim table. Idempotent
+	// (CREATE IF NOT EXISTS); failure is logged but does not block the
+	// scheduler — claimAlertLeader will fail-open and post regardless if
+	// the table is missing, preferring duplicates over silence.
+	if err := ensureAlertLeaderTable(ctx, db); err != nil {
+		logger.Warn("[discord_alerts] could not ensure leader-claim table: %v — will fail-open (may emit dupes)", err)
+	}
+
 	logger.Info("[discord_alerts] starting — interval=%s metrics=%s llm_enabled=%t leader_election=%t",
 		cfg.Interval.String(), cfg.MetricsURL, cfg.LLMEnabled, db != nil)
 
@@ -492,60 +500,120 @@ func runAlertCycle(ctx context.Context, logger nkruntime.Logger, cfg alertConfig
 }
 
 // ─── Leader election (cross-pod single-poster) ───────────────
+//
+// Design: a tiny persistent claim table keyed on (alert_kind,
+// window_key) with INSERT … ON CONFLICT DO NOTHING semantics. The
+// pod whose insert returns a row "wins" the window; all others get
+// zero rows back and skip the post. The claim survives a
+// connection close (unlike pg_advisory_lock which only prevents
+// CONCURRENT holders), so two pods that tick five seconds apart
+// inside the same window will still emit exactly one Discord post.
+//
+// Fail-open: if the table cannot be ensured or the upsert fails, we
+// return claimed=true so the alert still publishes. Multi-replica
+// duplicates are noisy; total channel silence is worse.
 
-// windowLockKey returns the lock key all replicas should use for the
-// 6h window enclosing `now`. Truncating to the cron interval guarantees
-// every pod in the same window converges on the same int64 — exactly
-// one of them will succeed at pg_try_advisory_lock(key).
+const alertKindRpcSummary = "rpc_summary"
+
+// ensureAlertLeaderTable creates the claim table if it does not
+// already exist. Idempotent and safe to invoke from every pod on
+// every startup — the CREATE IF NOT EXISTS races are resolved by
+// Postgres in the catalog. Bundled into ensureAlertLeaderTable
+// because we don't run a migration framework from inside the Go
+// plugin.
+func ensureAlertLeaderTable(ctx context.Context, db *sql.DB) error {
+	if db == nil {
+		return nil
+	}
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, err := db.ExecContext(cctx, `
+		CREATE TABLE IF NOT EXISTS nakama_alert_leader_v1 (
+			alert_kind  TEXT       NOT NULL,
+			window_key  BIGINT     NOT NULL,
+			leader_pod  TEXT,
+			posted_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (alert_kind, window_key)
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	// Best-effort GC: keep ~7 days of claims (enough for replay
+	// debugging) and drop the rest. Failure is non-fatal.
+	_, _ = db.ExecContext(cctx, `
+		DELETE FROM nakama_alert_leader_v1
+		 WHERE posted_at < NOW() - INTERVAL '7 days'
+	`)
+	return nil
+}
+
+// windowLockKey returns the deterministic per-window key all
+// replicas converge on. Truncating to the cron interval guarantees
+// every pod that ticks inside the same window computes the same
+// int64.
 func windowLockKey(now time.Time, interval time.Duration) int64 {
 	if interval <= 0 {
 		return now.Unix()
 	}
-	// XOR a fixed prefix so we don't collide with locks taken by the
-	// rest of Nakama / migrations / app code on plain unix timestamps.
-	const advisoryPrefix int64 = 0x71764E616B616D61 // "qvNakama" in hex
+	// XOR a fixed prefix so we don't collide with any other code
+	// that might key on plain unix timestamps in the same table.
+	const advisoryPrefix int64 = 0x71764E616B616D61 // "qvNakama"
 	return advisoryPrefix ^ now.Truncate(interval).Unix()
 }
 
-// claimAlertLeader tries to acquire a session-scoped Postgres advisory
-// lock on `lockKey`. Returns (true, release) if acquired and (false,
-// nil) if another pod already holds the lock for this window. The
-// release closure unlocks AND returns the dedicated connection to the
-// pool — both must run for clean teardown.
+// claimAlertLeader tries to insert a sentinel row claiming this
+// (alert_kind, window_key) tuple. INSERT … ON CONFLICT DO NOTHING
+// returns 1 row only for the winning pod; everyone else gets 0
+// rows. Once claimed, the row sticks around (subject to GC) so
+// later same-window ticks from any pod cannot re-claim.
 //
-// Fail-open: if `db` is nil OR Postgres is unreachable, we return true
-// with a no-op release so the alert still posts. Better to risk
-// duplicates than silence the channel during a DB outage.
-func claimAlertLeader(ctx context.Context, db *sql.DB, lockKey int64) (bool, func()) {
+// The returned release closure exists only so the call site can
+// keep its `defer release()` line stable across the old advisory-
+// lock impl and this one. It is a no-op now — there is no lock to
+// release.
+//
+// Fail-open: any error path returns claimed=true so the alert
+// still publishes. The persistent claim is best-effort; channel
+// silence is the worse failure mode.
+func claimAlertLeader(ctx context.Context, db *sql.DB, windowKey int64) (bool, func()) {
 	if db == nil {
 		return true, func() {}
 	}
 	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	conn, err := db.Conn(cctx)
-	if err != nil {
-		// DB unreachable — fail open.
+	pod := podIdentity()
+	row := db.QueryRowContext(cctx, `
+		INSERT INTO nakama_alert_leader_v1 (alert_kind, window_key, leader_pod)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (alert_kind, window_key) DO NOTHING
+		RETURNING 1
+	`, alertKindRpcSummary, windowKey, pod)
+
+	var claimed int
+	if err := row.Scan(&claimed); err != nil {
+		if err == sql.ErrNoRows {
+			// Another pod already claimed this window.
+			return false, nil
+		}
+		// Schema missing / DB unreachable / something else — fail open.
 		return true, func() {}
 	}
-	var ok bool
-	if err := conn.QueryRowContext(cctx, "SELECT pg_try_advisory_lock($1)", lockKey).Scan(&ok); err != nil {
-		_ = conn.Close()
-		return true, func() {}
+	return true, func() {}
+}
+
+// podIdentity returns a short label identifying this replica for
+// the leader-pod audit column. Falls back to "nakama" if HOSTNAME
+// is unset (it always is inside a kube container).
+func podIdentity() string {
+	if h := os.Getenv("HOSTNAME"); h != "" {
+		return h
 	}
-	if !ok {
-		_ = conn.Close()
-		return false, nil
+	if h, err := os.Hostname(); err == nil && h != "" {
+		return h
 	}
-	// Caller MUST invoke release() so the lock is freed and the conn
-	// returns to the pool. Use a fresh background context so the
-	// release survives even if the parent ctx was cancelled.
-	return true, func() {
-		bg, bgCancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer bgCancel()
-		_, _ = conn.ExecContext(bg, "SELECT pg_advisory_unlock($1)", lockKey)
-		_ = conn.Close()
-	}
+	return "nakama"
 }
 
 // ─── Prometheus scraping & parsing ───────────────────────
