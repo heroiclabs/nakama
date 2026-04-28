@@ -77,6 +77,14 @@ namespace AdminConsole {
     return gameId ? String(gameId) : "unknown";
   }
 
+  function sameGameId(a: string, b: string): boolean {
+    var qa = (a || "").toLowerCase();
+    var qb = (b || "").toLowerCase();
+    if (qa === qb) return true;
+    var quizVerseUuid = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    return (qa === "quizverse" && qb === quizVerseUuid) || (qb === "quizverse" && qa === quizVerseUuid);
+  }
+
   function extractEventTimeSec(record: any): number {
     var value = recordValue(record);
     var raw = firstDefinedValue(value, ["timestamp", "ts", "createdAt", "created_at", "createTime", "create_time"]);
@@ -100,7 +108,7 @@ namespace AdminConsole {
     for (var i = 0; i < records.length; i++) {
       var gameId = extractEventGameId(records[i]);
       sourceCounts[gameId] = (sourceCounts[gameId] || 0) + 1;
-      if (gameId === expectedGameId) expectedCount++;
+      if (sameGameId(gameId, expectedGameId)) expectedCount++;
 
       var eventSec = extractEventTimeSec(records[i]);
       if (eventSec > lastSec) {
@@ -322,10 +330,27 @@ namespace AdminConsole {
     }
     if (system === "metrics") {
       return {
-        metrics: {
-          quiz_completion_rate: { name: "Quiz Completion Rate", type: "ratio", goal: "increase" },
-          weak_topic_accuracy_lift: { name: "Weak Topic Accuracy Lift", type: "percentage", goal: "increase" },
-          streak_rescue_return_rate: { name: "Streak Rescue Return Rate", type: "ratio", goal: "increase" }
+        quiz_completion_rate: {
+          id: "quiz_completion_rate",
+          name: "Quiz Completion Rate",
+          eventName: "quiz_completed",
+          aggregation: "count",
+          windowSec: 86400
+        },
+        weak_topic_accuracy_lift: {
+          id: "weak_topic_accuracy_lift",
+          name: "Weak Topic Accuracy Lift",
+          eventName: "weak_topic_practice_completed",
+          aggregation: "avg",
+          metadataField: "accuracy_delta",
+          windowSec: 86400
+        },
+        streak_rescue_return_rate: {
+          id: "streak_rescue_return_rate",
+          name: "Streak Rescue Return Rate",
+          eventName: "session_started",
+          aggregation: "count",
+          windowSec: 86400
         },
         alerts: {
           analytics_freshness: { metric: "last_event_age_minutes", operator: "lt", threshold: 60 }
@@ -337,20 +362,51 @@ namespace AdminConsole {
 
   // ---- Hiro Config CRUD ----
 
+  function adminGameId(data: any): string {
+    return String(data.game_id || data.gameId || "").trim();
+  }
+
+  function adminConfigKey(system: string, gameId: string): string {
+    return Constants.gameKey(gameId || undefined, system);
+  }
+
+  function readScopedConfig(nk: nkruntime.Nakama, collection: string, system: string, gameId: string, defaultValue: any): any {
+    var key = adminConfigKey(system, gameId);
+    var config = Storage.readSystemJson<any>(nk, collection, key);
+    if ((!config || objectCount(config) === 0) && gameId) {
+      config = Storage.readSystemJson<any>(nk, collection, system);
+    }
+    if (!config || objectCount(config) === 0) config = defaultValue;
+    return config || {};
+  }
+
+  function saveScopedSatoriConfig(nk: nkruntime.Nakama, system: string, gameId: string, config: any): string {
+    var key = adminConfigKey(system, gameId);
+    ConfigLoader.saveSatoriConfig(nk, key, config);
+    return key;
+  }
+
   function rpcConfigGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required (e.g. economy, inventory, achievements)");
 
-    var config = Storage.readSystemJson<any>(nk, Constants.HIRO_CONFIGS_COLLECTION, data.system);
+    var gameId = adminGameId(data);
+    var key = adminConfigKey(data.system, gameId);
+    var inherited = false;
+    var config = Storage.readSystemJson<any>(nk, Constants.HIRO_CONFIGS_COLLECTION, key);
+    if ((!config || objectCount(config) === 0) && gameId) {
+      config = Storage.readSystemJson<any>(nk, Constants.HIRO_CONFIGS_COLLECTION, data.system);
+      inherited = !!config && objectCount(config) > 0;
+    }
     if (!config || objectCount(config) === 0) {
       var hiroDefault = defaultHiroConfig(data.system);
       if (hiroDefault !== undefined) {
-        ConfigLoader.saveConfig(nk, data.system, hiroDefault);
+        if (!gameId) ConfigLoader.saveConfig(nk, data.system, hiroDefault);
         config = hiroDefault;
       }
     }
-    return RpcHelpers.successResponse({ system: data.system, config: config || {} });
+    return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, inherited: inherited, config: config || {} });
   }
 
   function rpcConfigSet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -359,9 +415,11 @@ namespace AdminConsole {
     var config = configFromPayload(data);
     if (!data.system || config === undefined) return RpcHelpers.errorResponse("system and config required");
 
-    ConfigLoader.saveConfig(nk, data.system, config);
-    logAdminAudit(nk, ctx, "hiro_config_set", { system: data.system }, { source: "admin_console" });
-    return RpcHelpers.successResponse({ system: data.system, saved: true });
+    var gameId = adminGameId(data);
+    var key = adminConfigKey(data.system, gameId);
+    ConfigLoader.saveConfig(nk, key, config);
+    logAdminAudit(nk, ctx, "hiro_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
+    return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, saved: true });
   }
 
   function rpcConfigDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -369,10 +427,12 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required");
 
-    Storage.deleteRecord(nk, Constants.HIRO_CONFIGS_COLLECTION, data.system, Constants.SYSTEM_USER_ID);
-    ConfigLoader.invalidateCache(data.system);
-    logAdminAudit(nk, ctx, "hiro_config_delete", { system: data.system });
-    return RpcHelpers.successResponse({ system: data.system, deleted: true });
+    var gameId = adminGameId(data);
+    var key = adminConfigKey(data.system, gameId);
+    Storage.deleteRecord(nk, Constants.HIRO_CONFIGS_COLLECTION, key, Constants.SYSTEM_USER_ID);
+    ConfigLoader.invalidateCache(key);
+    logAdminAudit(nk, ctx, "hiro_config_delete", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key });
+    return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, deleted: true });
   }
 
   // ---- Satori Config CRUD ----
@@ -382,15 +442,22 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required (e.g. flags, experiments, audiences, live_events, messages, metrics)");
 
-    var config = Storage.readSystemJson<any>(nk, Constants.SATORI_CONFIGS_COLLECTION, data.system);
+    var gameId = adminGameId(data);
+    var key = adminConfigKey(data.system, gameId);
+    var inherited = false;
+    var config = Storage.readSystemJson<any>(nk, Constants.SATORI_CONFIGS_COLLECTION, key);
+    if ((!config || objectCount(config) === 0) && gameId) {
+      config = Storage.readSystemJson<any>(nk, Constants.SATORI_CONFIGS_COLLECTION, data.system);
+      inherited = !!config && objectCount(config) > 0;
+    }
     if (!config || objectCount(config) === 0) {
       var satoriDefault = defaultSatoriConfig(data.system);
       if (satoriDefault !== undefined) {
-        ConfigLoader.saveSatoriConfig(nk, data.system, satoriDefault);
+        if (!gameId) ConfigLoader.saveSatoriConfig(nk, data.system, satoriDefault);
         config = satoriDefault;
       }
     }
-    return RpcHelpers.successResponse({ system: data.system, config: config || {} });
+    return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, inherited: inherited, config: config || {} });
   }
 
   function rpcSatoriConfigSet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -399,9 +466,11 @@ namespace AdminConsole {
     var config = configFromPayload(data);
     if (!data.system || config === undefined) return RpcHelpers.errorResponse("system and config required");
 
-    ConfigLoader.saveSatoriConfig(nk, data.system, config);
-    logAdminAudit(nk, ctx, "satori_config_set", { system: data.system }, { source: "admin_console" });
-    return RpcHelpers.successResponse({ system: data.system, saved: true });
+    var gameId = adminGameId(data);
+    var key = adminConfigKey(data.system, gameId);
+    ConfigLoader.saveSatoriConfig(nk, key, config);
+    logAdminAudit(nk, ctx, "satori_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
+    return RpcHelpers.successResponse({ system: data.system, game_id: gameId || Constants.DEFAULT_GAME_ID, key: key, saved: true });
   }
 
   // ---- Bulk Import/Export ----
@@ -498,6 +567,7 @@ namespace AdminConsole {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
+    var gameId = adminGameId(data);
 
     var profile: any = {};
 
@@ -524,18 +594,18 @@ namespace AdminConsole {
     }
 
     var collections = [
-      { name: "wallet", collection: Constants.WALLETS_COLLECTION, key: "wallet" },
-      { name: "inventory", collection: Constants.HIRO_INVENTORY_COLLECTION, key: "items" },
-      { name: "achievements", collection: Constants.HIRO_ACHIEVEMENTS_COLLECTION, key: "progress" },
-      { name: "progression", collection: Constants.HIRO_PROGRESSION_COLLECTION, key: "state" },
-      { name: "energy", collection: Constants.HIRO_ENERGY_COLLECTION, key: "state" },
-      { name: "stats", collection: Constants.HIRO_STATS_COLLECTION, key: "values" },
-      { name: "streaks", collection: Constants.HIRO_STREAKS_COLLECTION, key: "state" },
-      { name: "tutorials", collection: Constants.HIRO_TUTORIALS_COLLECTION, key: "progress" },
-      { name: "unlockables", collection: Constants.HIRO_UNLOCKABLES_COLLECTION, key: "state" },
+      { name: "wallet", collection: Constants.WALLETS_COLLECTION, key: gameId ? ("wallet_" + data.userId + "_" + gameId) : "wallet" },
+      { name: "inventory", collection: Constants.HIRO_INVENTORY_COLLECTION, key: Constants.gameKey(gameId, "items") },
+      { name: "achievements", collection: Constants.HIRO_ACHIEVEMENTS_COLLECTION, key: Constants.gameKey(gameId, "progress") },
+      { name: "progression", collection: Constants.HIRO_PROGRESSION_COLLECTION, key: Constants.gameKey(gameId, "state") },
+      { name: "energy", collection: Constants.HIRO_ENERGY_COLLECTION, key: Constants.gameKey(gameId, "state") },
+      { name: "stats", collection: Constants.HIRO_STATS_COLLECTION, key: Constants.gameKey(gameId, "values") },
+      { name: "streaks", collection: Constants.HIRO_STREAKS_COLLECTION, key: Constants.gameKey(gameId, "state") },
+      { name: "tutorials", collection: Constants.HIRO_TUTORIALS_COLLECTION, key: Constants.gameKey(gameId, "progress") },
+      { name: "unlockables", collection: Constants.HIRO_UNLOCKABLES_COLLECTION, key: Constants.gameKey(gameId, "state") },
       { name: "satoriIdentity", collection: Constants.SATORI_IDENTITY_COLLECTION, key: "props" },
-      { name: "satoriAssignments", collection: Constants.SATORI_ASSIGNMENTS_COLLECTION, key: "assignments" },
-      { name: "mailbox", collection: Constants.HIRO_MAILBOX_COLLECTION, key: "inbox" }
+      { name: "satoriAssignments", collection: Constants.SATORI_ASSIGNMENTS_COLLECTION, key: Constants.gameKey(gameId, "assignments") },
+      { name: "mailbox", collection: Constants.HIRO_MAILBOX_COLLECTION, key: Constants.gameKey(gameId, "inbox") }
     ];
 
     var reads: nkruntime.StorageReadRequest[] = [];
@@ -563,6 +633,327 @@ namespace AdminConsole {
     return RpcHelpers.successResponse(profile);
   }
 
+  function accountToConsoleAccount(account: nkruntime.Account): any {
+    var user = account.user;
+    var createTimeSec = Number(user.createTime || 0);
+    var updateTimeSec = Number(user.updateTime || 0);
+    var verifyTimeSec = Number(account.verifyTime || 0);
+    var disableTimeSec = Number(account.disableTime || 0);
+    return {
+      user: {
+        id: user.userId,
+        user_id: user.userId,
+        username: user.username || "",
+        display_name: user.displayName || "",
+        avatar_url: user.avatarUrl || "",
+        lang_tag: user.langTag || "",
+        location: user.location || "",
+        timezone: user.timezone || "",
+        metadata: user.metadata || {},
+        create_time: createTimeSec > 0 ? new Date(createTimeSec * 1000).toISOString() : "",
+        update_time: updateTimeSec > 0 ? new Date(updateTimeSec * 1000).toISOString() : "",
+        online: !!user.online
+      },
+      wallet: account.wallet ? JSON.stringify(account.wallet) : "{}",
+      email: account.email || "",
+      devices: account.devices || [],
+      custom_id: account.customId || "",
+      verify_time: verifyTimeSec > 0 ? new Date(verifyTimeSec * 1000).toISOString() : "",
+      disable_time: disableTimeSec > 0 ? new Date(disableTimeSec * 1000).toISOString() : ""
+    };
+  }
+
+  function rowToConsoleAccount(row: any): any {
+    return {
+      user: {
+        id: row.id,
+        user_id: row.id,
+        username: row.username || "",
+        display_name: row.display_name || "",
+        avatar_url: row.avatar_url || "",
+        lang_tag: row.lang_tag || "",
+        location: row.location || "",
+        timezone: row.timezone || "",
+        metadata: row.metadata || {},
+        create_time: row.create_time || "",
+        update_time: row.update_time || "",
+        online: false
+      },
+      wallet: row.wallet || "{}",
+      email: row.email || "",
+      devices: [],
+      custom_id: row.custom_id || "",
+      verify_time: row.verify_time || "",
+      disable_time: row.disable_time || ""
+    };
+  }
+
+  function rpcAccountsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var limit = Math.max(1, Math.min(Number(data.limit || 20), 100));
+    var offset = Math.max(0, Number(data.cursor || 0));
+    var filter = String(data.filter || "").trim();
+    var like = "%" + filter.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_") + "%";
+    var rows: any[] = [];
+
+    if (filter) {
+      rows = nk.sqlQuery(
+        "SELECT id::text, username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet::text, email, custom_id, verify_time, disable_time, create_time, update_time " +
+        "FROM users WHERE username ILIKE $1 OR display_name ILIKE $1 OR id::text = $2 " +
+        "ORDER BY update_time DESC LIMIT $3 OFFSET $4",
+        [like, filter, limit + 1, offset]
+      ) || [];
+    } else {
+      rows = nk.sqlQuery(
+        "SELECT id::text, username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet::text, email, custom_id, verify_time, disable_time, create_time, update_time " +
+        "FROM users ORDER BY update_time DESC LIMIT $1 OFFSET $2",
+        [limit + 1, offset]
+      ) || [];
+    }
+
+    var hasMore = rows.length > limit;
+    if (hasMore) rows = rows.slice(0, limit);
+    var users: any[] = [];
+    for (var i = 0; i < rows.length; i++) users.push(rowToConsoleAccount(rows[i]));
+    return RpcHelpers.successResponse({
+      users: users,
+      cursor: hasMore ? String(offset + limit) : "",
+      total_count: users.length
+    });
+  }
+
+  function rpcAccountGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.userId) return RpcHelpers.errorResponse("userId required");
+    var accounts = nk.accountsGetId([data.userId]);
+    if (!accounts || accounts.length === 0) return RpcHelpers.errorResponse("account not found", 404);
+    return RpcHelpers.successResponse(accountToConsoleAccount(accounts[0]));
+  }
+
+  function rpcAccountBan(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.userId) return RpcHelpers.errorResponse("userId required");
+    nk.usersBanId([data.userId]);
+    logAdminAudit(nk, ctx, "admin_account_ban", { userId: data.userId });
+    return RpcHelpers.successResponse({ banned: true, userId: data.userId });
+  }
+
+  function rpcAccountUnban(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.userId) return RpcHelpers.errorResponse("userId required");
+    nk.usersUnbanId([data.userId]);
+    logAdminAudit(nk, ctx, "admin_account_unban", { userId: data.userId });
+    return RpcHelpers.successResponse({ unbanned: true, userId: data.userId });
+  }
+
+  function rpcAccountDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.userId) return RpcHelpers.errorResponse("userId required");
+    nk.accountDeleteId(data.userId, true);
+    logAdminAudit(nk, ctx, "admin_account_delete", { userId: data.userId });
+    return RpcHelpers.successResponse({ deleted: true, userId: data.userId });
+  }
+
+  function rpcMatchesList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var limit = Math.max(1, Math.min(Number(data.limit || 50), 100));
+    var label = data.label ? String(data.label) : null;
+    var matches = nk.matchList(limit, null, label, null, null, null) || [];
+    var out: any[] = [];
+    for (var i = 0; i < matches.length; i++) {
+      var match: any = matches[i];
+      out.push({
+        match_id: match.matchId,
+        authoritative: !!match.authoritative,
+        size: match.size || 0,
+        label: match.label || "",
+        handler_name: match.handlerName || "",
+        tick_rate: match.tickRate || 0,
+        presences: []
+      });
+    }
+    return RpcHelpers.successResponse({ matches: out });
+  }
+
+  function isoFromUnixSec(value: any): string {
+    var sec = Number(value || 0);
+    return sec > 0 ? new Date(sec * 1000).toISOString() : "";
+  }
+
+  function tournamentToAdmin(t: nkruntime.Tournament): any {
+    return {
+      id: t.id,
+      title: t.title || t.id,
+      description: t.description || "",
+      category: t.category,
+      sort_order: t.sortOrder,
+      size: t.size,
+      max_size: t.maxSize,
+      max_num_score: t.maxNumScore,
+      can_enter: t.canEnter,
+      end_active: t.endActive,
+      next_reset: t.nextReset,
+      metadata: t.metadata || {},
+      create_time: isoFromUnixSec(t.createTime),
+      start_time: isoFromUnixSec(t.startTime),
+      end_time: isoFromUnixSec(t.endTime),
+      duration: t.duration,
+      start_active: t.startActive,
+      operator: "best",
+      prev_reset: t.prevReset,
+      authoritative: false
+    };
+  }
+
+  function leaderboardRecordToAdmin(r: nkruntime.LeaderboardRecord): any {
+    return {
+      leaderboard_id: r.leaderboardId,
+      owner_id: r.ownerId,
+      username: r.username || "",
+      score: r.score,
+      subscore: r.subscore,
+      num_score: r.numScore,
+      metadata: r.metadata || {},
+      create_time: isoFromUnixSec(r.createTime),
+      update_time: isoFromUnixSec(r.updateTime),
+      expiry_time: isoFromUnixSec(r.expiryTime),
+      rank: r.rank
+    };
+  }
+
+  function tournamentRecordsToAdmin(list: nkruntime.TournamentRecordList): any {
+    var records: any[] = [];
+    var ownerRecords: any[] = [];
+    var rawRecords = list.records || [];
+    var rawOwnerRecords = list.ownerRecords || [];
+    for (var i = 0; i < rawRecords.length; i++) records.push(leaderboardRecordToAdmin(rawRecords[i]));
+    for (var j = 0; j < rawOwnerRecords.length; j++) ownerRecords.push(leaderboardRecordToAdmin(rawOwnerRecords[j]));
+    return {
+      records: records,
+      owner_records: ownerRecords,
+      next_cursor: list.nextCursor || "",
+      prev_cursor: list.prevCursor || "",
+      rank_count: list.rankCount || 0
+    };
+  }
+
+  function rpcTournamentsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var limit = Math.max(1, Math.min(Number(data.limit || 100), 100));
+    var categoryStart = data.categoryStart !== undefined ? Number(data.categoryStart) : 0;
+    var categoryEnd = data.categoryEnd !== undefined ? Number(data.categoryEnd) : 127;
+    categoryStart = Math.max(0, Math.min(categoryStart, 127));
+    categoryEnd = Math.max(categoryStart, Math.min(categoryEnd, 127));
+    var result = nk.tournamentList(
+      categoryStart,
+      categoryEnd,
+      data.startTime !== undefined ? Number(data.startTime) : undefined,
+      data.endTime !== undefined ? Number(data.endTime) : undefined,
+      limit,
+      data.cursor || undefined
+    );
+    var tournaments: any[] = [];
+    var raw = result.tournaments || [];
+    for (var i = 0; i < raw.length; i++) tournaments.push(tournamentToAdmin(raw[i]));
+    return RpcHelpers.successResponse({ tournaments: tournaments, cursor: result.cursor || "" });
+  }
+
+  function rpcTournamentCreate(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var id = String(data.id || data.tournamentId || "").trim();
+    if (!id) return RpcHelpers.errorResponse("id required");
+
+    var existing = nk.tournamentsGetId([id]);
+    if (existing && existing.length > 0) {
+      return RpcHelpers.successResponse({ tournament: tournamentToAdmin(existing[0]), created: false });
+    }
+
+    var sortOrder = String(data.sortOrder || data.sort_order || "desc").toLowerCase() === "asc"
+      ? nkruntime.SortOrder.ASCENDING
+      : nkruntime.SortOrder.DESCENDING;
+    var operatorName = String(data.operator || "best").toLowerCase();
+    var operator = nkruntime.Operator.BEST;
+    if (operatorName === "set") operator = nkruntime.Operator.SET;
+    if (operatorName === "incr" || operatorName === "incremental") operator = nkruntime.Operator.INCREMENTAL;
+
+    var now = Math.floor(Date.now() / 1000);
+    var startTime = Number(data.startTime || data.start_time || now - 60);
+    var endTime = Number(data.endTime || data.end_time || now + 7 * 24 * 60 * 60);
+    var duration = Number(data.duration || Math.max(3600, endTime - startTime));
+    var metadata = data.metadata || {};
+    if (data.gameId || data.game_id) metadata.gameId = data.gameId || data.game_id;
+
+    nk.tournamentCreate(
+      id,
+      !!data.authoritative,
+      sortOrder,
+      operator,
+      duration,
+      data.resetSchedule || data.reset_schedule || null,
+      metadata,
+      data.title || id,
+      data.description || "",
+      data.category !== undefined ? Math.max(0, Math.min(Number(data.category), 127)) : 0,
+      startTime,
+      endTime,
+      data.maxSize !== undefined ? Number(data.maxSize) : (data.max_size !== undefined ? Number(data.max_size) : 10000),
+      data.maxNumScore !== undefined ? Number(data.maxNumScore) : (data.max_num_score !== undefined ? Number(data.max_num_score) : 10),
+      !!data.joinRequired,
+      data.enableRank !== false
+    );
+
+    var created = nk.tournamentsGetId([id]);
+    var tournament = created && created.length > 0 ? tournamentToAdmin(created[0]) : { id: id, metadata: metadata };
+    logAdminAudit(nk, ctx, "admin_tournament_create", { id: id, gameId: metadata.gameId || "" });
+    return RpcHelpers.successResponse({ tournament: tournament, created: true });
+  }
+
+  function rpcTournamentRecordsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.tournamentId) return RpcHelpers.errorResponse("tournamentId required");
+    var limit = Math.max(1, Math.min(Number(data.limit || 50), 100));
+    var ownerIds = data.ownerIds || [];
+    var result = nk.tournamentRecordsList(data.tournamentId, ownerIds, limit, data.cursor || undefined, 0);
+    return RpcHelpers.successResponse(tournamentRecordsToAdmin(result));
+  }
+
+  function rpcTournamentRecordsAroundOwner(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.tournamentId || !data.ownerId) return RpcHelpers.errorResponse("tournamentId and ownerId required");
+    var limit = Math.max(1, Math.min(Number(data.limit || 50), 100));
+    var result = nk.tournamentRecordsHaystack(data.tournamentId, data.ownerId, limit, data.cursor || undefined, 0);
+    return RpcHelpers.successResponse(tournamentRecordsToAdmin(result));
+  }
+
+  function rpcTournamentRecordWrite(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.tournamentId) return RpcHelpers.errorResponse("tournamentId required");
+    var ownerId = data.ownerId || ctx.userId || Constants.SYSTEM_USER_ID;
+    var username = data.username || "admin";
+    var record = nk.tournamentRecordWrite(
+      data.tournamentId,
+      ownerId,
+      username,
+      Number(data.score || 0),
+      Number(data.subscore || 0),
+      data.metadata || {},
+      nkruntime.OverrideOperator.BEST
+    );
+    logAdminAudit(nk, ctx, "admin_tournament_record_write", { tournamentId: data.tournamentId, ownerId: ownerId });
+    return RpcHelpers.successResponse(leaderboardRecordToAdmin(record));
+  }
+
   // ---- Wallet Direct Operations ----
 
   function rpcWalletView(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -570,7 +961,10 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
 
-    var wallet = Storage.readJson<any>(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId);
+    var gameId = adminGameId(data);
+    var wallet = gameId
+      ? WalletHelpers.getGameWallet(nk, data.userId, gameId)
+      : Storage.readJson<any>(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId);
     return RpcHelpers.successResponse({ userId: data.userId, wallet: wallet || {} });
   }
 
@@ -579,14 +973,20 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.currencies) return RpcHelpers.errorResponse("userId and currencies required (e.g. { userId: '...', currencies: { coins: 100, gems: 5 } })");
 
-    var wallet = Storage.readJson<any>(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId) || {};
+    var gameId = adminGameId(data);
+    var wallet = gameId ? WalletHelpers.getGameWallet(nk, data.userId, gameId) : (Storage.readJson<any>(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId) || {});
     for (var currency in data.currencies) {
-      wallet[currency] = (wallet[currency] || 0) + data.currencies[currency];
+      if (gameId) {
+        wallet.currencies[currency] = (wallet.currencies[currency] || 0) + data.currencies[currency];
+      } else {
+        wallet[currency] = (wallet[currency] || 0) + data.currencies[currency];
+      }
     }
-    Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, wallet);
+    if (gameId) WalletHelpers.saveGameWallet(nk, wallet);
+    else Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, wallet);
 
     EventBus.emit(nk, logger, ctx, "wallet_updated", { userId: data.userId, wallet: wallet, granted: data.currencies });
-    logAdminAudit(nk, ctx, "admin_wallet_grant", { userId: data.userId }, { currencies: data.currencies });
+    logAdminAudit(nk, ctx, "admin_wallet_grant", { userId: data.userId, gameId: gameId || Constants.DEFAULT_GAME_ID }, { currencies: data.currencies });
     return RpcHelpers.successResponse({ userId: data.userId, wallet: wallet });
   }
 
@@ -595,9 +995,19 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
 
+    var gameId = adminGameId(data);
     var defaults = data.defaults || {};
-    Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, defaults);
-    logAdminAudit(nk, ctx, "admin_wallet_reset", { userId: data.userId });
+    if (gameId) {
+      WalletHelpers.saveGameWallet(nk, {
+        userId: data.userId,
+        gameId: gameId,
+        currencies: defaults.currencies || defaults || { game: 0, tokens: 0, xp: 0 },
+        items: defaults.items || {}
+      });
+    } else {
+      Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, defaults);
+    }
+    logAdminAudit(nk, ctx, "admin_wallet_reset", { userId: data.userId, gameId: gameId || Constants.DEFAULT_GAME_ID });
     return RpcHelpers.successResponse({ userId: data.userId, wallet: defaults, reset: true });
   }
 
@@ -613,8 +1023,20 @@ namespace AdminConsole {
     var result = Storage.listUserRecords(nk, data.collection, userId, limit, data.cursor);
 
     var items: any[] = [];
+    var objects: any[] = [];
     for (var i = 0; i < result.records.length; i++) {
       var r = result.records[i];
+      objects.push({
+        collection: r.collection,
+        key: r.key,
+        user_id: r.userId,
+        version: r.version,
+        permission_read: r.permissionRead,
+        permission_write: r.permissionWrite,
+        create_time: new Date((r.createTime || 0) * 1000).toISOString(),
+        update_time: new Date((r.updateTime || 0) * 1000).toISOString(),
+        value: r.value
+      });
       items.push({
         key: r.key,
         userId: r.userId,
@@ -628,15 +1050,64 @@ namespace AdminConsole {
       collection: data.collection,
       count: items.length,
       cursor: result.cursor,
+      objects: objects,
       items: items
+    });
+  }
+
+  function rpcStorageWrite(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.collection || !data.key) return RpcHelpers.errorResponse("collection and key required");
+    var userId = data.userId || Constants.SYSTEM_USER_ID;
+    var acks = nk.storageWrite([{
+      collection: data.collection,
+      key: data.key,
+      userId: userId,
+      value: data.value || {},
+      version: data.version || "*",
+      permissionRead: data.permissionRead !== undefined ? data.permissionRead : 2 as nkruntime.ReadPermissionValues,
+      permissionWrite: data.permissionWrite !== undefined ? data.permissionWrite : 1 as nkruntime.WritePermissionValues
+    }]);
+    logAdminAudit(nk, ctx, "admin_storage_write", { userId: userId, collection: data.collection, key: data.key });
+    return RpcHelpers.successResponse({
+      key: data.key,
+      collection: data.collection,
+      userId: userId,
+      version: acks && acks.length > 0 ? acks[0].version : ""
     });
   }
 
   // ---- Admin-safe Satori Lists ----
 
+  function rpcAdminAudiencesList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = adminGameId(data);
+    var audiencesConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "audiences", gameId, {});
+    var rawAudiences = audiencesConfig.audiences || audiencesConfig;
+    var audiences: any[] = [];
+
+    for (var id in rawAudiences) {
+      var def = rawAudiences[id] || {};
+      audiences.push({
+        id: def.id || id,
+        name: def.name || id,
+        description: def.description || "",
+        rule: def.rule || def.query || {},
+        size_estimate: def.sizeEstimate || def.size_estimate || 0,
+        updated_at: isoFromSec(def.updatedAt)
+      });
+    }
+
+    return RpcHelpers.successResponse({ audiences: audiences, game_id: gameId || Constants.DEFAULT_GAME_ID });
+  }
+
   function rpcAdminFlagsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
-    var flagsConfig = ConfigLoader.loadSatoriConfig<any>(nk, "flags", { flags: {} });
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = adminGameId(data);
+    var flagsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "flags", gameId, { flags: {} });
     var rawFlags = flagsConfig.flags || {};
     var flags: any[] = [];
 
@@ -653,12 +1124,14 @@ namespace AdminConsole {
       });
     }
 
-    return RpcHelpers.successResponse({ flags: flags });
+    return RpcHelpers.successResponse({ flags: flags, game_id: gameId || Constants.DEFAULT_GAME_ID });
   }
 
   function rpcAdminExperimentsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
-    var experimentsConfig = ConfigLoader.loadSatoriConfig<any>(nk, "experiments", {});
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = adminGameId(data);
+    var experimentsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "experiments", gameId, {});
     var experiments: any[] = [];
 
     for (var id in experimentsConfig) {
@@ -675,12 +1148,14 @@ namespace AdminConsole {
       });
     }
 
-    return RpcHelpers.successResponse({ experiments: experiments });
+    return RpcHelpers.successResponse({ experiments: experiments, game_id: gameId || Constants.DEFAULT_GAME_ID });
   }
 
   function rpcAdminLiveEventsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
-    var eventsConfig = ConfigLoader.loadSatoriConfig<any>(nk, "live_events", {});
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = adminGameId(data);
+    var eventsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_events", gameId, {});
     var events: any[] = [];
 
     for (var id in eventsConfig) {
@@ -699,13 +1174,15 @@ namespace AdminConsole {
       });
     }
 
-    return RpcHelpers.successResponse({ events: events });
+    return RpcHelpers.successResponse({ events: events, game_id: gameId || Constants.DEFAULT_GAME_ID });
   }
 
   function rpcAdminMessagesList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     SatoriMessages.processScheduledMessages(nk, logger);
-    var messagesConfig = ConfigLoader.loadSatoriConfig<any>(nk, "messages", {});
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = adminGameId(data);
+    var messagesConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "messages", gameId, {});
     var messages: any[] = [];
     var now = Math.floor(Date.now() / 1000);
 
@@ -726,7 +1203,7 @@ namespace AdminConsole {
       });
     }
 
-    return RpcHelpers.successResponse({ messages: messages });
+    return RpcHelpers.successResponse({ messages: messages, game_id: gameId || Constants.DEFAULT_GAME_ID });
   }
 
   // ---- Feature Flag Quick Toggle ----
@@ -736,7 +1213,8 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.name) return RpcHelpers.errorResponse("name required (flag name to toggle)");
 
-    var flagsConfig = ConfigLoader.loadSatoriConfig<Satori.FlagsConfig>(nk, "flags", { flags: {} });
+    var gameId = adminGameId(data);
+    var flagsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "flags", gameId, { flags: {} }) as Satori.FlagsConfig;
     if (!flagsConfig.flags) flagsConfig.flags = {};
 
     var existing = flagsConfig.flags[data.name];
@@ -769,8 +1247,8 @@ namespace AdminConsole {
       return RpcHelpers.errorResponse("Flag '" + data.name + "' not found. Provide value to create.");
     }
 
-    ConfigLoader.saveSatoriConfig(nk, "flags", flagsConfig);
-    logAdminAudit(nk, ctx, "satori_flag_toggle", { name: data.name }, { enabled: flagsConfig.flags[data.name].enabled });
+    var key = saveScopedSatoriConfig(nk, "flags", gameId, flagsConfig);
+    logAdminAudit(nk, ctx, "satori_flag_toggle", { name: data.name, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { enabled: flagsConfig.flags[data.name].enabled });
     return RpcHelpers.successResponse({ flag: flagsConfig.flags[data.name], action: existing ? "toggled" : "created" });
   }
 
@@ -781,7 +1259,8 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.id || !data.name) return RpcHelpers.errorResponse("id and name required");
 
-    var eventsConfig = ConfigLoader.loadSatoriConfig<{ [id: string]: any }>(nk, "live_events", {});
+    var gameId = adminGameId(data);
+    var eventsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_events", gameId, {}) as { [id: string]: any };
     var now = Math.floor(Date.now() / 1000);
 
     var audiences = firstArray(data.audiences) || firstArray(data.audiences_json);
@@ -801,6 +1280,7 @@ namespace AdminConsole {
       sticky: data.sticky || false,
       requiresJoin: data.requiresJoin || false,
       category: data.category || "",
+      gameId: gameId || data.gameId || data.game_id || undefined,
       flagOverrides: data.flagOverrides,
       onJoinMessageId: data.onJoinMessageId,
       createdAt: (eventsConfig[data.id] && eventsConfig[data.id].createdAt) || now,
@@ -809,8 +1289,8 @@ namespace AdminConsole {
 
     var action = eventsConfig[data.id] ? "updated" : "created";
     eventsConfig[data.id] = newEvent;
-    ConfigLoader.saveSatoriConfig(nk, "live_events", eventsConfig);
-    logAdminAudit(nk, ctx, "satori_live_event_schedule", { id: data.id }, { action: action });
+    var key = saveScopedSatoriConfig(nk, "live_events", gameId, eventsConfig);
+    logAdminAudit(nk, ctx, "satori_live_event_schedule", { id: data.id, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { action: action });
     return RpcHelpers.successResponse({ event: newEvent, action: action });
   }
 
@@ -822,7 +1302,8 @@ namespace AdminConsole {
     var variants = data.variants || parseMaybeJson(data.variants_json, undefined);
     if (!data.id || !data.name || !variants) return RpcHelpers.errorResponse("id, name, and variants[] required");
 
-    var expConfig = ConfigLoader.loadSatoriConfig<{ [id: string]: any }>(nk, "experiments", {});
+    var gameId = adminGameId(data);
+    var expConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "experiments", gameId, {}) as { [id: string]: any };
     var now = Math.floor(Date.now() / 1000);
     var audiences = firstArray(data.audiences) || firstArray(data.audiences_json);
 
@@ -841,14 +1322,15 @@ namespace AdminConsole {
       endAt: data.endAt,
       phases: data.phases,
       experimentType: data.experimentType || "custom",
+      gameId: gameId || data.gameId || data.game_id || undefined,
       createdAt: (expConfig[data.id] && expConfig[data.id].createdAt) || now,
       updatedAt: now
     };
 
     var action = expConfig[data.id] ? "updated" : "created";
     expConfig[data.id] = newExp;
-    ConfigLoader.saveSatoriConfig(nk, "experiments", expConfig);
-    logAdminAudit(nk, ctx, "satori_experiment_setup", { id: data.id }, { action: action });
+    var key = saveScopedSatoriConfig(nk, "experiments", gameId, expConfig);
+    logAdminAudit(nk, ctx, "satori_experiment_setup", { id: data.id, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { action: action });
     return RpcHelpers.successResponse({ experiment: newExp, action: action });
   }
 
@@ -864,7 +1346,8 @@ namespace AdminConsole {
     var scheduleAt = data.schedule_at || data.scheduleAt;
     var audienceId = data.audience_id || data.audienceId;
     var reward = data.reward || parseMaybeJson(data.rewards_json, undefined);
-    var definitions = ConfigLoader.loadSatoriConfig<any>(nk, "messages", {});
+    var gameId = adminGameId(data);
+    var definitions = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "messages", gameId, {});
     if (definitions && definitions.messages) definitions = definitions.messages;
 
     var messageDef: any = {
@@ -873,6 +1356,7 @@ namespace AdminConsole {
       body: data.body || "",
       imageUrl: data.image_url || data.imageUrl,
       metadata: data.metadata || {},
+      gameId: gameId || data.gameId || data.game_id || undefined,
       reward: reward,
       audienceId: audienceId,
       scheduleAt: scheduleAt,
@@ -883,15 +1367,15 @@ namespace AdminConsole {
     };
     definitions[messageId] = messageDef;
 
-    ConfigLoader.saveSatoriConfig(nk, "messages", definitions);
+    var key = saveScopedSatoriConfig(nk, "messages", gameId, definitions);
     var delivered = 0;
     if (audienceId && (!scheduleAt || scheduleAt <= now)) {
-      delivered = SatoriMessages.deliverToAudience(nk, logger, messageDef, audienceId);
+      delivered = SatoriMessages.deliverToAudience(nk, logger, messageDef, audienceId, gameId);
       messageDef.status = "delivered";
       messageDef.deliveredAt = now;
-      ConfigLoader.saveSatoriConfig(nk, "messages", definitions);
+      saveScopedSatoriConfig(nk, "messages", gameId, definitions);
     }
-    logAdminAudit(nk, ctx, "satori_message_broadcast", { id: messageId, audienceId: audienceId }, { scheduled: !!scheduleAt, delivered: delivered });
+    logAdminAudit(nk, ctx, "satori_message_broadcast", { id: messageId, audienceId: audienceId, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { scheduled: !!scheduleAt, delivered: delivered });
     return RpcHelpers.successResponse({ scheduled: !!(scheduleAt && scheduleAt > now), delivered: delivered, messageId: messageId });
   }
 
@@ -904,13 +1388,13 @@ namespace AdminConsole {
     var hours = typeof data.hours === "number" && data.hours > 0 ? Math.min(data.hours, 72) : 24;
     var days = typeof data.days === "number" && data.days > 0 ? Math.min(data.days, 30) : 7;
 
-    var flagsConfig = ConfigLoader.loadSatoriConfig<any>(nk, "flags", { flags: {} });
-    var eventsConfig = ConfigLoader.loadSatoriConfig<any>(nk, "live_events", {});
-    var experimentsConfig = ConfigLoader.loadSatoriConfig<any>(nk, "experiments", {});
-    var messagesConfig = ConfigLoader.loadSatoriConfig<any>(nk, "messages", {});
-    var audiencesConfig = ConfigLoader.loadSatoriConfig<any>(nk, "audiences", {});
-    var challengesConfig = ConfigLoader.loadConfig<any>(nk, "challenges", { challenges: {} });
-    var incentivesConfig = ConfigLoader.loadConfig<any>(nk, "incentives", {});
+    var flagsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "flags", gameId, { flags: {} });
+    var eventsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_events", gameId, {});
+    var experimentsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "experiments", gameId, {});
+    var messagesConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "messages", gameId, {});
+    var audiencesConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "audiences", gameId, {});
+    var challengesConfig = readScopedConfig(nk, Constants.HIRO_CONFIGS_COLLECTION, "challenges", gameId, { challenges: {} });
+    var incentivesConfig = readScopedConfig(nk, Constants.HIRO_CONFIGS_COLLECTION, "incentives", gameId, {});
 
     var analyticsEvents = listSystemStorage(nk, Constants.ANALYTICS_COLLECTION, 1000);
     var analyticsErrors = listSystemStorage(nk, Constants.ANALYTICS_ERRORS_COLLECTION, 500);
@@ -1089,20 +1573,13 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.itemId) return RpcHelpers.errorResponse("userId and itemId required. Optional: quantity (default 1)");
 
-    var inv = Storage.readJson<any>(nk, Constants.HIRO_INVENTORY_COLLECTION, "state", data.userId) || { items: {} };
-    var items = inv.items || {};
+    var gameId = adminGameId(data);
     var qty = data.quantity || 1;
-
-    if (items[data.itemId]) {
-      items[data.itemId].count = (items[data.itemId].count || 0) + qty;
-    } else {
-      items[data.itemId] = { id: data.itemId, count: qty, properties: data.properties || {} };
-    }
-
-    inv.items = items;
-    Storage.writeJson(nk, Constants.HIRO_INVENTORY_COLLECTION, "state", data.userId, inv);
-    logAdminAudit(nk, ctx, "admin_inventory_grant", { userId: data.userId, itemId: data.itemId }, { quantity: qty });
-    return RpcHelpers.successResponse({ userId: data.userId, item: items[data.itemId] });
+    var stringProps = data.stringProperties || data.string_properties || data.properties || {};
+    var numericProps = data.numericProperties || data.numeric_properties || {};
+    var item = HiroInventory.grantItem(nk, logger, ctx, data.userId, data.itemId, qty, stringProps, numericProps, gameId || undefined);
+    logAdminAudit(nk, ctx, "admin_inventory_grant", { userId: data.userId, itemId: data.itemId, gameId: gameId || Constants.DEFAULT_GAME_ID }, { quantity: qty });
+    return RpcHelpers.successResponse({ userId: data.userId, item: item });
   }
 
   // ---- Send Admin Mailbox Message ----
@@ -1112,7 +1589,9 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.subject) return RpcHelpers.errorResponse("userId and subject required. Optional: body, rewards, expiresInSec");
 
-    var inbox = Storage.readJson<any>(nk, Constants.HIRO_MAILBOX_COLLECTION, "inbox", data.userId) || { messages: [] };
+    var gameId = adminGameId(data);
+    var inboxKey = Constants.gameKey(gameId, "inbox");
+    var inbox = Storage.readJson<any>(nk, Constants.HIRO_MAILBOX_COLLECTION, inboxKey, data.userId) || { messages: [] };
     var messages = inbox.messages || [];
 
     var now = Math.floor(Date.now() / 1000);
@@ -1130,8 +1609,8 @@ namespace AdminConsole {
 
     messages.push(msg);
     inbox.messages = messages;
-    Storage.writeJson(nk, Constants.HIRO_MAILBOX_COLLECTION, "inbox", data.userId, inbox);
-    logAdminAudit(nk, ctx, "admin_mailbox_send", { userId: data.userId, messageId: msg.id });
+    Storage.writeJson(nk, Constants.HIRO_MAILBOX_COLLECTION, inboxKey, data.userId, inbox);
+    logAdminAudit(nk, ctx, "admin_mailbox_send", { userId: data.userId, messageId: msg.id, gameId: gameId || Constants.DEFAULT_GAME_ID });
     return RpcHelpers.successResponse({ sent: true, messageId: msg.id, to: data.userId });
   }
 
@@ -1211,6 +1690,17 @@ namespace AdminConsole {
     initializer.registerRpc("admin_user_data_delete", rpcUserDataDelete);
 
     // Player tools
+    initializer.registerRpc("admin_accounts_list", rpcAccountsList);
+    initializer.registerRpc("admin_account_get", rpcAccountGet);
+    initializer.registerRpc("admin_account_ban", rpcAccountBan);
+    initializer.registerRpc("admin_account_unban", rpcAccountUnban);
+    initializer.registerRpc("admin_account_delete", rpcAccountDelete);
+    initializer.registerRpc("admin_matches_list", rpcMatchesList);
+    initializer.registerRpc("admin_tournaments_list", rpcTournamentsList);
+    initializer.registerRpc("admin_tournament_create", rpcTournamentCreate);
+    initializer.registerRpc("admin_tournament_records_list", rpcTournamentRecordsList);
+    initializer.registerRpc("admin_tournament_records_around_owner", rpcTournamentRecordsAroundOwner);
+    initializer.registerRpc("admin_tournament_record_write", rpcTournamentRecordWrite);
     initializer.registerRpc("admin_player_inspect", rpcPlayerInspect);
     initializer.registerRpc("admin_user_search", rpcUserSearch);
     initializer.registerRpc("admin_wallet_view", rpcWalletView);
@@ -1220,6 +1710,7 @@ namespace AdminConsole {
     initializer.registerRpc("admin_mailbox_send", rpcMailboxSend);
 
     // Satori quick-ops
+    initializer.registerRpc("admin_satori_audiences_list", rpcAdminAudiencesList);
     initializer.registerRpc("admin_satori_flags_list", rpcAdminFlagsList);
     initializer.registerRpc("admin_satori_experiments_list", rpcAdminExperimentsList);
     initializer.registerRpc("admin_satori_messages_list", rpcAdminMessagesList);
@@ -1248,6 +1739,7 @@ namespace AdminConsole {
 
     // Storage browser
     initializer.registerRpc("admin_storage_list", rpcStorageList);
+    initializer.registerRpc("admin_storage_write", rpcStorageWrite);
 
     // Gift claims
     initializer.registerRpc("gift_claims_list", rpcGiftClaimsList);

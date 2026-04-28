@@ -2,8 +2,8 @@ namespace HiroStore {
 
   var DEFAULT_CONFIG: Hiro.StoreConfig = { sections: {} };
 
-  export function getConfig(nk: nkruntime.Nakama): Hiro.StoreConfig {
-    return ConfigLoader.loadConfig<Hiro.StoreConfig>(nk, "store", DEFAULT_CONFIG);
+  export function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.StoreConfig {
+    return ConfigLoader.loadConfigForGame<Hiro.StoreConfig>(nk, "store", gameId, DEFAULT_CONFIG);
   }
 
   interface UserPurchases {
@@ -22,8 +22,9 @@ namespace HiroStore {
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var config = getConfig(nk);
-    var purchases = getUserPurchases(nk, userId, data.gameId);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
+    var purchases = getUserPurchases(nk, userId, gameId);
     var now = Math.floor(Date.now() / 1000);
 
     var result: any = {};
@@ -61,7 +62,8 @@ namespace HiroStore {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.offerId) return RpcHelpers.errorResponse("offerId required");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var offer: Hiro.StoreOfferConfig | null = null;
     for (var sectionId in config.sections) {
       if (config.sections[sectionId].items[data.offerId]) {
@@ -75,25 +77,25 @@ namespace HiroStore {
     if (offer.availableAt && now < offer.availableAt) return RpcHelpers.errorResponse("Offer not yet available");
     if (offer.expiresAt && now > offer.expiresAt) return RpcHelpers.errorResponse("Offer expired");
 
-    var purchases = getUserPurchases(nk, userId, data.gameId);
+    var purchases = getUserPurchases(nk, userId, gameId);
     var purchaseCount = purchases.purchases[data.offerId] ? purchases.purchases[data.offerId].count : 0;
     if (offer.maxPurchases && purchaseCount >= offer.maxPurchases) return RpcHelpers.errorResponse("Max purchases reached");
 
     if (offer.cost && offer.cost.currencies) {
       for (var cid in offer.cost.currencies) {
-        WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", cid, offer.cost.currencies[cid]!);
+        WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId || "default", cid, offer.cost.currencies[cid]!);
       }
     }
 
     var resolved = RewardEngine.resolveReward(nk, offer.reward);
-    RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+    RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
 
     if (!purchases.purchases[data.offerId]) {
       purchases.purchases[data.offerId] = { count: 0, lastPurchaseAt: 0 };
     }
     purchases.purchases[data.offerId].count++;
     purchases.purchases[data.offerId].lastPurchaseAt = now;
-    saveUserPurchases(nk, userId, purchases, data.gameId);
+    saveUserPurchases(nk, userId, purchases, gameId);
 
     EventBus.emit(nk, logger, ctx, EventBus.Events.STORE_PURCHASE, {
       userId: userId, offerId: data.offerId, reward: resolved

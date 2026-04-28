@@ -2,8 +2,8 @@ namespace HiroEventLeaderboards {
 
   var DEFAULT_CONFIG: Hiro.EventLeaderboardConfig = { events: {} };
 
-  export function getConfig(nk: nkruntime.Nakama): Hiro.EventLeaderboardConfig {
-    return ConfigLoader.loadConfig<Hiro.EventLeaderboardConfig>(nk, "event_leaderboards", DEFAULT_CONFIG);
+  export function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.EventLeaderboardConfig {
+    return ConfigLoader.loadConfigForGame<Hiro.EventLeaderboardConfig>(nk, "event_leaderboards", gameId, DEFAULT_CONFIG);
   }
 
   interface ActiveEvent {
@@ -35,9 +35,10 @@ namespace HiroEventLeaderboards {
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var activeEvents = getActiveEvents(nk);
-    var userState = getUserEventState(nk, userId, data.gameId);
+    var userState = getUserEventState(nk, userId, gameId);
     var now = Math.floor(Date.now() / 1000);
 
     var result: any[] = [];
@@ -71,7 +72,8 @@ namespace HiroEventLeaderboards {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.eventId || data.score === undefined) return RpcHelpers.errorResponse("eventId and score required");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var def = config.events[data.eventId];
     if (!def) return RpcHelpers.errorResponse("Unknown event");
 
@@ -82,12 +84,12 @@ namespace HiroEventLeaderboards {
     var now = Math.floor(Date.now() / 1000);
     if (now < ae.startAt || now > ae.endAt) return RpcHelpers.errorResponse("Event not in active window");
 
-    var userState = getUserEventState(nk, userId, data.gameId);
+    var userState = getUserEventState(nk, userId, gameId);
     if (!userState.events[data.eventId]) {
       userState.events[data.eventId] = { joined: true, cohortId: ae.cohortId || "default" };
     }
     userState.events[data.eventId].joined = true;
-    saveUserEventState(nk, userId, userState, data.gameId);
+    saveUserEventState(nk, userId, userState, gameId);
 
     var operatorMap: { [key: string]: nkruntime.OverrideOperator } = { best: nkruntime.OverrideOperator.BEST, set: nkruntime.OverrideOperator.SET, incr: nkruntime.OverrideOperator.INCREMENTAL, decr: nkruntime.OverrideOperator.DECREMENTAL };
     var op = operatorMap[def.operator] || nkruntime.OverrideOperator.BEST;
@@ -105,11 +107,12 @@ namespace HiroEventLeaderboards {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var def = config.events[data.eventId];
     if (!def) return RpcHelpers.errorResponse("Unknown event");
 
-    var userState = getUserEventState(nk, userId, data.gameId);
+    var userState = getUserEventState(nk, userId, gameId);
     var us = userState.events[data.eventId];
     if (!us || !us.joined) return RpcHelpers.errorResponse("Not joined");
     if (us.claimedAt) return RpcHelpers.errorResponse("Already claimed");
@@ -129,13 +132,13 @@ namespace HiroEventLeaderboards {
       var tier = def.tiers[i];
       if (rank >= tier.rankMin && rank <= tier.rankMax) {
         reward = RewardEngine.resolveReward(nk, tier.reward);
-        RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", reward);
+        RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", reward);
         break;
       }
     }
 
     us.claimedAt = Math.floor(Date.now() / 1000);
-    saveUserEventState(nk, userId, userState, data.gameId);
+    saveUserEventState(nk, userId, userState, gameId);
 
     return RpcHelpers.successResponse({ rank: rank, reward: reward });
   }
@@ -148,7 +151,7 @@ namespace HiroEventLeaderboards {
     var ae = activeEvents.find(function (e) { return e.eventId === data.eventId; });
     if (!ae) return RpcHelpers.errorResponse("Event not found or not active");
 
-    var config = getConfig(nk);
+    var config = getConfig(nk, RpcHelpers.gameId(data));
     var def = config.events[ae.eventId];
     var limit = data.limit || 50;
     var cursor = data.cursor || undefined;

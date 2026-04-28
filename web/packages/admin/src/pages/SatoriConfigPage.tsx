@@ -98,30 +98,32 @@ function validateSatoriConfig(system: SatoriSystem, value: unknown): string | nu
     if (entries.length > 0 && invalid) return "Each message must include a `title`.";
   }
 
-  if (system === "metrics" && Object.keys(value).length > 0) {
-    const hasMetrics = value.metrics !== undefined || value.alerts !== undefined || value.thresholds !== undefined;
-    if (!hasMetrics) return "Metrics config should include `metrics`, `alerts`, or `thresholds`.";
-  }
-
   return null;
 }
 
-function useSatoriConfig(system: SatoriSystem) {
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
+
+function useSatoriConfig(system: SatoriSystem, gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "satori-config", system],
-    queryFn: () => satori.getSatoriConfig(system, serverKeyAuth()),
+    queryKey: ["admin", "satori-config", gameScope, system],
+    queryFn: () => satori.getSatoriConfig(system, serverKeyAuth(), rpcGameId(gameScope)),
     staleTime: 30_000,
     retry: 1,
   });
 }
 
-function useSaveSatoriConfig(system: SatoriSystem) {
+function useSaveSatoriConfig(system: SatoriSystem, gameScope: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (config: Record<string, unknown>) =>
-      satori.setSatoriConfig(system, config, serverKeyAuth()),
+      satori.setSatoriConfig(system, config, serverKeyAuth(), rpcGameId(gameScope)),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "satori-config", system] });
+      qc.invalidateQueries({ queryKey: ["admin", "satori-config", gameScope, system] });
     },
   });
 }
@@ -215,6 +217,7 @@ function ToolbarButton({
 export function SatoriConfigPage() {
   const theme = useAdminStore((s) => s.theme);
   const [activeSystem, setActiveSystem] = useState<SatoriSystem>("audiences");
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
   const [editorValue, setEditorValue] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -228,8 +231,8 @@ export function SatoriConfigPage() {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
 
-  const configQuery = useSatoriConfig(activeSystem);
-  const saveMutation = useSaveSatoriConfig(activeSystem);
+  const configQuery = useSatoriConfig(activeSystem, gameScope);
+  const saveMutation = useSaveSatoriConfig(activeSystem, gameScope);
 
   const serverConfig = configQuery.data
     ? JSON.stringify(configQuery.data, null, 2)
@@ -400,11 +403,23 @@ export function SatoriConfigPage() {
             Satori Config Editor
           </h2>
           <p className="text-muted-foreground">
-            Edit LiveOps configurations — audiences, flags, experiments, events,
-            messages, and metrics.
+            Edit global defaults or game-specific LiveOps configurations — audiences, flags,
+            experiments, events, messages, and metrics.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => {
+                setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE);
+                setIsDirty(false);
+              }}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
           {isDirty && (
             <span className="flex items-center gap-1.5 text-xs font-medium text-yellow-600 dark:text-yellow-400">
               <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
@@ -482,7 +497,7 @@ export function SatoriConfigPage() {
                 {SYSTEM_LABELS[activeSystem]}
               </span>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {activeSystem}
+                {rpcGameId(gameScope) ? `${gameScope}:${activeSystem}` : activeSystem}
               </span>
               <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400">
                 satori

@@ -1,16 +1,16 @@
 namespace SatoriLiveEvents {
 
-  function getEventDefinitions(nk: nkruntime.Nakama): { [id: string]: Satori.LiveEventDefinition } {
-    return ConfigLoader.loadSatoriConfig<{ [id: string]: Satori.LiveEventDefinition }>(nk, "live_events", {});
+  function getEventDefinitions(nk: nkruntime.Nakama, gameId?: string): { [id: string]: Satori.LiveEventDefinition } {
+    return ConfigLoader.loadSatoriConfigForGame<{ [id: string]: Satori.LiveEventDefinition }>(nk, "live_events", gameId, {});
   }
 
-  function getUserLiveEventStates(nk: nkruntime.Nakama, userId: string): { [eventId: string]: Satori.UserLiveEventState } {
-    var data = Storage.readJson<{ events: { [eventId: string]: Satori.UserLiveEventState } }>(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_event_state_" + userId, userId);
+  function getUserLiveEventStates(nk: nkruntime.Nakama, userId: string, gameId?: string): { [eventId: string]: Satori.UserLiveEventState } {
+    var data = Storage.readJson<{ events: { [eventId: string]: Satori.UserLiveEventState } }>(nk, Constants.SATORI_CONFIGS_COLLECTION, Constants.gameKey(gameId, "live_event_state_" + userId), userId);
     return (data && data.events) || {};
   }
 
-  function saveUserLiveEventStates(nk: nkruntime.Nakama, userId: string, states: { [eventId: string]: Satori.UserLiveEventState }): void {
-    Storage.writeJson(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_event_state_" + userId, userId, { events: states });
+  function saveUserLiveEventStates(nk: nkruntime.Nakama, userId: string, states: { [eventId: string]: Satori.UserLiveEventState }, gameId?: string): void {
+    Storage.writeJson(nk, Constants.SATORI_CONFIGS_COLLECTION, Constants.gameKey(gameId, "live_event_state_" + userId), userId, { events: states });
   }
 
   function getEventStatus(def: any): Satori.LiveEventStatus {
@@ -46,13 +46,14 @@ namespace SatoriLiveEvents {
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var events = getEventDefinitions(nk);
-    var userStates = getUserLiveEventStates(nk, userId);
+    var gameId = RpcHelpers.gameId(data);
+    var events = getEventDefinitions(nk, gameId);
+    var userStates = getUserLiveEventStates(nk, userId, gameId);
 
     var result: any[] = [];
     for (var id in events) {
       var def = events[id] as any;
-      if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId)) continue;
+      if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId, gameId)) continue;
 
       var status = getEventStatus(def);
       if (data.names && data.names.indexOf(def.name) < 0) continue;
@@ -95,22 +96,23 @@ namespace SatoriLiveEvents {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
 
-    var events = getEventDefinitions(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var events = getEventDefinitions(nk, gameId);
     var def = events[data.eventId] as any;
     if (!def) return RpcHelpers.errorResponse("Event not found");
 
     var status = getEventStatus(def);
     if (status !== "active") return RpcHelpers.errorResponse("Event is not active");
 
-    var userStates = getUserLiveEventStates(nk, userId);
+    var userStates = getUserLiveEventStates(nk, userId, gameId);
     if (!userStates[data.eventId]) {
       userStates[data.eventId] = { eventId: data.eventId };
     }
     userStates[data.eventId].joinedAt = Math.floor(Date.now() / 1000);
-    saveUserLiveEventStates(nk, userId, userStates);
+    saveUserLiveEventStates(nk, userId, userStates, gameId);
 
     if (def.onJoinMessageId) {
-      var msgDefs = ConfigLoader.loadSatoriConfig<{ [id: string]: Satori.MessageDefinition }>(nk, "messages", {});
+      var msgDefs = ConfigLoader.loadSatoriConfigForGame<{ [id: string]: Satori.MessageDefinition }>(nk, "messages", gameId, {});
       if (msgDefs[def.onJoinMessageId]) {
         SatoriMessages.deliverMessage(nk, userId, msgDefs[def.onJoinMessageId]);
       }
@@ -124,11 +126,12 @@ namespace SatoriLiveEvents {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
 
-    var events = getEventDefinitions(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var events = getEventDefinitions(nk, gameId);
     var def = events[data.eventId] as any;
     if (!def) return RpcHelpers.errorResponse("Event not found");
 
-    var userStates = getUserLiveEventStates(nk, userId);
+    var userStates = getUserLiveEventStates(nk, userId, gameId);
     var state = userStates[data.eventId];
     if (def.requiresJoin && (!state || !state.joinedAt)) return RpcHelpers.errorResponse("Not joined");
     if (state && state.claimedAt) return RpcHelpers.errorResponse("Already claimed");
@@ -141,11 +144,11 @@ namespace SatoriLiveEvents {
     var reward: Hiro.ResolvedReward | null = null;
     if (def.reward) {
       reward = RewardEngine.resolveReward(nk, def.reward);
-      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", reward);
+      RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", reward);
     }
 
     state.claimedAt = Math.floor(Date.now() / 1000);
-    saveUserLiveEventStates(nk, userId, userStates);
+    saveUserLiveEventStates(nk, userId, userStates, gameId);
 
     return RpcHelpers.successResponse({ reward: reward });
   }
@@ -163,7 +166,8 @@ namespace SatoriLiveEvents {
       return RpcHelpers.errorResponse("eventId and seasonId required");
     }
 
-    var events = getEventDefinitions(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var events = getEventDefinitions(nk, gameId);
     var def = events[data.eventId];
     if (!def) {
       return RpcHelpers.errorResponse("Event not found: " + data.eventId);
@@ -190,13 +194,13 @@ namespace SatoriLiveEvents {
 
         // Write join state for this user
         try {
-          var userStates = getUserLiveEventStates(nk, entry.userId);
+          var userStates = getUserLiveEventStates(nk, entry.userId, gameId);
           if (!userStates[data.eventId] || !userStates[data.eventId].joinedAt) {
             if (!userStates[data.eventId]) {
               userStates[data.eventId] = { eventId: data.eventId };
             }
             userStates[data.eventId].joinedAt = now;
-            saveUserLiveEventStates(nk, entry.userId, userStates);
+            saveUserLiveEventStates(nk, entry.userId, userStates, gameId);
             joinedCount++;
           }
         } catch (err) {

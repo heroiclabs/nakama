@@ -2,8 +2,8 @@ namespace HiroIncentives {
 
   var DEFAULT_CONFIG: Hiro.IncentivesConfig = {};
 
-  export function getConfig(nk: nkruntime.Nakama): Hiro.IncentivesConfig {
-    return ConfigLoader.loadConfig<Hiro.IncentivesConfig>(nk, "incentives", DEFAULT_CONFIG);
+  export function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.IncentivesConfig {
+    return ConfigLoader.loadConfigForGame<Hiro.IncentivesConfig>(nk, "incentives", gameId, DEFAULT_CONFIG);
   }
 
   interface UserIncentiveState {
@@ -26,10 +26,11 @@ namespace HiroIncentives {
   function rpcGetReferralCode(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var state = getUserState(nk, userId, data.gameId);
+    var gameId = RpcHelpers.gameId(data);
+    var state = getUserState(nk, userId, gameId);
     if (!state.referralCode) {
       state.referralCode = userId.substring(0, 8).toUpperCase();
-      saveUserState(nk, userId, state, data.gameId);
+      saveUserState(nk, userId, state, gameId);
     }
     return RpcHelpers.successResponse({ referralCode: state.referralCode });
   }
@@ -39,16 +40,17 @@ namespace HiroIncentives {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.referralCode) return RpcHelpers.errorResponse("referralCode required");
 
-    var state = getUserState(nk, userId, data.gameId);
+    var gameId = RpcHelpers.gameId(data);
+    var state = getUserState(nk, userId, gameId);
     if (state.referredBy) return RpcHelpers.errorResponse("Already referred");
 
-    var config = getConfig(nk);
+    var config = getConfig(nk, gameId);
     state.referredBy = data.referralCode;
-    saveUserState(nk, userId, state, data.gameId);
+    saveUserState(nk, userId, state, gameId);
 
     if (config.referralReward) {
       var resolved = RewardEngine.resolveReward(nk, config.referralReward);
-      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+      RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
     }
 
     if (config.referrerReward) {
@@ -61,8 +63,9 @@ namespace HiroIncentives {
   function rpcCheckReturnBonus(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var config = getConfig(nk);
-    var state = getUserState(nk, userId, data.gameId);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
+    var state = getUserState(nk, userId, gameId);
     var now = Math.floor(Date.now() / 1000);
 
     var eligible = false;
@@ -72,13 +75,13 @@ namespace HiroIncentives {
     }
 
     state.lastSeenAt = now;
-    saveUserState(nk, userId, state, data.gameId);
+    saveUserState(nk, userId, state, gameId);
 
     if (eligible && config.returnBonus) {
       var resolved = RewardEngine.resolveReward(nk, config.returnBonus);
-      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+      RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
       state.returnBonusClaimed = true;
-      saveUserState(nk, userId, state, data.gameId);
+      saveUserState(nk, userId, state, gameId);
       return RpcHelpers.successResponse({ eligible: true, reward: resolved });
     }
 
@@ -86,8 +89,9 @@ namespace HiroIncentives {
   }
 
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var config = getConfig(nk);
     var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var response: any = {
       referralReward: config.referralReward || null,
       referrerReward: config.referrerReward || null,
@@ -97,7 +101,7 @@ namespace HiroIncentives {
 
     var userId = ctx.userId;
     if (userId) {
-      var state = getUserState(nk, userId, data.gameId);
+      var state = getUserState(nk, userId, gameId);
       var now = Math.floor(Date.now() / 1000);
       var returnBonusEligible = false;
       var daysUntilReturnBonus = 0;

@@ -2,8 +2,8 @@ namespace HiroInventory {
 
   var DEFAULT_CONFIG: Hiro.InventoryConfig = { items: {} };
 
-  export function getConfig(nk: nkruntime.Nakama): Hiro.InventoryConfig {
-    return ConfigLoader.loadConfig<Hiro.InventoryConfig>(nk, "inventory", DEFAULT_CONFIG);
+  export function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.InventoryConfig {
+    return ConfigLoader.loadConfigForGame<Hiro.InventoryConfig>(nk, "inventory", gameId, DEFAULT_CONFIG);
   }
 
   function getUserInventory(nk: nkruntime.Nakama, userId: string, gameId?: string): Hiro.UserInventory {
@@ -16,7 +16,7 @@ namespace HiroInventory {
   }
 
   export function grantItem(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, itemId: string, count: number, stringProps?: { [key: string]: string }, numericProps?: { [key: string]: number }, gameId?: string): Hiro.InventoryItem {
-    var config = getConfig(nk);
+    var config = getConfig(nk, gameId);
     var itemDef = config.items[itemId];
     var inv = getUserInventory(nk, userId, gameId);
     var now = Math.floor(Date.now() / 1000);
@@ -89,12 +89,12 @@ namespace HiroInventory {
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var gameId: string | undefined = data.gameId;
+    var gameId = RpcHelpers.gameId(data);
     var inv = getUserInventory(nk, userId, gameId);
     inv = purgeExpired(inv);
     saveUserInventory(nk, userId, inv, gameId);
     if (data.category) {
-      var config = getConfig(nk);
+      var config = getConfig(nk, RpcHelpers.gameId(data));
       var filtered: { [id: string]: Hiro.InventoryItem } = {};
       for (var id in inv.items) {
         var def = config.items[id];

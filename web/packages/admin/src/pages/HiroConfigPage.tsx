@@ -73,22 +73,29 @@ function validateHiroConfig(system: HiroSystem, value: unknown): string | null {
   return null;
 }
 
-function useHiroConfig(system: HiroSystem) {
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
+
+function useHiroConfig(system: HiroSystem, gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "hiro-config", system],
-    queryFn: () => hiro.getHiroConfig(system, serverKeyAuth()),
+    queryKey: ["admin", "hiro-config", gameScope, system],
+    queryFn: () => hiro.getHiroConfig(system, serverKeyAuth(), rpcGameId(gameScope)),
     staleTime: 30_000,
     retry: 1,
   });
 }
 
-function useSaveHiroConfig(system: HiroSystem) {
+function useSaveHiroConfig(system: HiroSystem, gameScope: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (config: Record<string, unknown>) =>
-      hiro.setHiroConfig(system, config, serverKeyAuth()),
+      hiro.setHiroConfig(system, config, serverKeyAuth(), rpcGameId(gameScope)),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "hiro-config", system] });
+      qc.invalidateQueries({ queryKey: ["admin", "hiro-config", gameScope, system] });
     },
   });
 }
@@ -159,6 +166,7 @@ function Toast({
 export function HiroConfigPage() {
   const theme = useAdminStore((s) => s.theme);
   const [activeSystem, setActiveSystem] = useState<HiroSystem>("economy");
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
   const [editorValue, setEditorValue] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -172,8 +180,8 @@ export function HiroConfigPage() {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
 
-  const configQuery = useHiroConfig(activeSystem);
-  const saveMutation = useSaveHiroConfig(activeSystem);
+  const configQuery = useHiroConfig(activeSystem, gameScope);
+  const saveMutation = useSaveHiroConfig(activeSystem, gameScope);
 
   const serverConfig = configQuery.data
     ? JSON.stringify(configQuery.data, null, 2)
@@ -338,10 +346,22 @@ export function HiroConfigPage() {
             Hiro Config Editor
           </h2>
           <p className="text-muted-foreground">
-            Edit game system configurations with JSON validation.
+            Edit global defaults or game-specific Hiro configurations with JSON validation.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => {
+                setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE);
+                setIsDirty(false);
+              }}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
           {isDirty && (
             <span className="flex items-center gap-1.5 text-xs font-medium text-yellow-600 dark:text-yellow-400">
               <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
@@ -414,7 +434,7 @@ export function HiroConfigPage() {
                 {SYSTEM_LABELS[activeSystem]}
               </span>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {activeSystem}
+                {rpcGameId(gameScope) ? `${gameScope}:${activeSystem}` : activeSystem}
               </span>
             </div>
             <div className="flex items-center gap-1.5">

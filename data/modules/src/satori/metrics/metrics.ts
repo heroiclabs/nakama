@@ -1,25 +1,27 @@
 namespace SatoriMetrics {
 
-  function getMetricDefinitions(nk: nkruntime.Nakama): { [id: string]: Satori.MetricDefinition } {
-    return ConfigLoader.loadSatoriConfig<{ [id: string]: Satori.MetricDefinition }>(nk, "metrics", {});
+  function getMetricDefinitions(nk: nkruntime.Nakama, gameId?: string): { [id: string]: Satori.MetricDefinition } {
+    var raw = ConfigLoader.loadSatoriConfigForGame<any>(nk, "metrics", gameId, {});
+    return raw && raw.metrics ? raw.metrics : raw;
   }
 
-  function getMetricState(nk: nkruntime.Nakama, metricId: string): { buckets: { [bucketKey: string]: { value: number; count: number; uniqueUsers: string[] } } } {
-    var data = Storage.readSystemJson<any>(nk, Constants.SATORI_METRICS_COLLECTION, metricId);
+  function getMetricState(nk: nkruntime.Nakama, metricId: string, gameId?: string): { buckets: { [bucketKey: string]: { value: number; count: number; uniqueUsers: string[] } } } {
+    var data = Storage.readSystemJson<any>(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, metricId));
     return data || { buckets: {} };
   }
 
-  function saveMetricState(nk: nkruntime.Nakama, metricId: string, state: any): void {
-    Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, metricId, state);
+  function saveMetricState(nk: nkruntime.Nakama, metricId: string, state: any, gameId?: string): void {
+    Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, metricId), state);
   }
 
   export function processEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, eventName: string, metadata: { [key: string]: string }): void {
-    var definitions = getMetricDefinitions(nk);
+    var gameId = metadata.gameId || metadata.game_id;
+    var definitions = getMetricDefinitions(nk, gameId);
     for (var id in definitions) {
       var def = definitions[id];
       if (def.eventName !== eventName) continue;
 
-      var state = getMetricState(nk, id);
+      var state = getMetricState(nk, id, gameId);
       var now = Math.floor(Date.now() / 1000);
       var bucketKey = def.windowSec ? String(Math.floor(now / def.windowSec) * def.windowSec) : "all";
 
@@ -58,7 +60,7 @@ namespace SatoriMetrics {
       }
       bucket.count++;
 
-      saveMetricState(nk, id, state);
+      saveMetricState(nk, id, state, gameId);
       checkAlerts(nk, logger, id, bucket.value);
     }
   }
@@ -101,14 +103,15 @@ namespace SatoriMetrics {
 
   function rpcQuery(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var data = RpcHelpers.parseRpcPayload(payload);
-    var definitions = getMetricDefinitions(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var definitions = getMetricDefinitions(nk, gameId);
     var results: Satori.MetricResult[] = [];
     var now = Math.floor(Date.now() / 1000);
 
     var metricIds = data.metricIds || Object.keys(definitions);
     for (var i = 0; i < metricIds.length; i++) {
       var metricId = metricIds[i];
-      var state = getMetricState(nk, metricId);
+      var state = getMetricState(nk, metricId, gameId);
 
       var latestBucket = "all";
       var latestTime = 0;
@@ -121,13 +124,11 @@ namespace SatoriMetrics {
       }
 
       var bucket = state.buckets[latestBucket];
-      if (bucket) {
-        results.push({
-          metricId: metricId,
-          value: bucket.value,
-          computedAt: now
-        });
-      }
+      results.push({
+        metricId: metricId,
+        value: bucket ? bucket.value : 0,
+        computedAt: now
+      });
     }
 
     return RpcHelpers.successResponse({ metrics: results });
@@ -140,7 +141,8 @@ namespace SatoriMetrics {
       return RpcHelpers.errorResponse("id, name, eventName, and aggregation required");
     }
 
-    var definitions = getMetricDefinitions(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var definitions = getMetricDefinitions(nk, gameId);
     definitions[data.id] = {
       id: data.id,
       name: data.name,
@@ -150,7 +152,7 @@ namespace SatoriMetrics {
       windowSec: data.windowSec
     };
 
-    ConfigLoader.saveSatoriConfig(nk, "metrics", definitions);
+    ConfigLoader.saveSatoriConfigForGame(nk, "metrics", gameId, definitions);
     return RpcHelpers.successResponse({ metric: definitions[data.id] });
   }
 
@@ -178,10 +180,12 @@ namespace SatoriMetrics {
 
   function rpcPrometheus(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
-    var definitions = getMetricDefinitions(nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = RpcHelpers.gameId(data);
+    var definitions = getMetricDefinitions(nk, gameId);
     var lines: string[] = [];
     for (var id in definitions) {
-      var state = getMetricState(nk, id);
+      var state = getMetricState(nk, id, gameId);
       var latestValue = 0;
       var latestTime = 0;
       for (var bk in state.buckets) {

@@ -2,6 +2,30 @@
 
 Last audited: 2026-04-25
 
+## Multi-Game ID Support
+
+The admin dashboard supports both global defaults and game-specific Hiro/Satori configuration. Use `global` to edit shared defaults, or enter a concrete game id such as `quizverse` to read/write a scoped config key like `quizverse:flags`, `quizverse:store`, or `quizverse:live_events`.
+
+| Area | Multi-game behavior |
+| --- | --- |
+| Hiro Config | Game ID selector scopes all Hiro system JSON reads/writes. Empty game-specific config inherits global config until saved. |
+| Satori Config | Game ID selector scopes audiences, flags, experiments, live events, messages, and metrics JSON reads/writes. Empty game-specific config inherits global config until saved. |
+| Feature Flags | Game ID selector scopes list/toggle/create operations to the selected Satori `flags` config. |
+| Audiences | Game ID selector scopes audience list reads to the selected Satori `audiences` config. |
+| Live Events | Game ID selector scopes list/schedule/update operations to the selected Satori `live_events` config. |
+| Experiments | Game ID selector scopes list/setup/update operations to the selected Satori `experiments` config. |
+| Messages | Game ID selector scopes list/broadcast/schedule operations to the selected Satori `messages` config. |
+| Offers | Game ID selector scopes Hiro `store` config reads/writes and Satori audience lookups. |
+| Economy | Game ID selector scopes Hiro `economy` and `store` config reads. Wallet mutations include the selected game id for game-aware Hiro RPC handling. |
+| Retention & Winback | Game ID selector scopes streak/incentive configs plus Satori audiences, messages, flags, and live events used by the page. |
+| Achievements | Game ID selector scopes Hiro `achievements` config reads/writes and Satori audience lookups. |
+| Quests | Game ID selector scopes Hiro `challenges` config reads/writes and Satori audience lookups. |
+| Battle Pass | Game ID selector scopes Hiro `incentives` config reads/writes and Satori audience lookups. |
+| Event Leaderboards | Game ID selector scopes Hiro `event_leaderboards` config reads/writes and Satori audience lookups. |
+| Analytics Game Intelligence | Game ID selector scopes diagnostics and freshness checks to the selected expected game id. |
+
+Remaining caveat: account, player, storage, match, and tournament pages are mostly Nakama-global by design. Tournament creation stores `metadata.gameId`, but listing is still a Nakama tournament category/time query, so operators should use game-specific tournament ids or metadata conventions when several games share the cluster.
+
 This document explains how game developers and operators should use the hosted Nakama admin dashboard for QuizVerse and other IntelliVerseX games. It also records the current production audit findings, signed-off capabilities, and operational guardrails.
 
 ## URLs
@@ -703,6 +727,8 @@ Recommended fix:
    - LiveOps operator
    - Admin
 
+Status: Implemented in the admin proxy. Viewer/Analyst roles can read dashboards and LiveOps state, LiveOps operators can perform LiveOps writes, and only Admin can proxy Nakama console writes/admin-write operations. The current production `ivx-admin` account is still issued as Admin.
+
 ### Phase 2: Make It Work End-to-End
 
 1. Add admin-safe Satori list RPCs.
@@ -780,14 +806,18 @@ Recommended fix:
 - [x] Satori messages page works without player user ID.
 - [x] Satori live events page uses admin-safe list RPC.
 - [x] Matches/accounts/storage pages route through the server-side proxy.
-- [ ] Legacy analytics shares React admin auth or is fully migrated.
+- [x] Legacy analytics shares React admin auth or is fully migrated.
 - [x] Monaco is bundled or pinned with CSP/SRI.
-- [ ] Hiro/Satori JSON schemas validate configs before save.
+- [x] Hiro/Satori JSON schemas validate configs before save.
 - [x] QuizVerse default challenge/incentive/flag/event templates are seeded.
-- [ ] Analytics pages show data freshness and source game IDs.
+- [x] Analytics pages show data freshness and source game IDs.
 - [x] `quizverse_game_intelligence_report` is exposed in UI as an actionable tab.
-- [ ] Satori audience-targeted player inbox delivery is fixed and re-QA signed off.
+- [x] Satori audience-targeted player inbox delivery is fixed and re-QA signed off.
 
 ## Bottom Line
 
-The dashboard is now hosted under `/admin-dashboard` as a login-gated React console backed by a server-side proxy. Security-critical production hardening is signed off, with Satori player inbox delivery and schema/data freshness UX remaining as documented follow-up gaps.
+The dashboard is now hosted under `/admin-dashboard` as a login-gated React console backed by a server-side proxy. Security-critical production hardening, Satori player inbox delivery, seeded QuizVerse LiveOps templates, config schema validation, legacy analytics auth handoff, analytics freshness/source diagnostics, and Android FCM/SNS provider handoff are signed off.
+
+Real device push status update: the Nakama runtime is provider-aware and production is wired to Lambda `ivx-push-provider-bridge` through `PUSH_REGISTER_URL`, `PUSH_LAMBDA_URL`, and `PUSH_SEND_URL`. Android registration now creates an SNS endpoint ARN and `push_send_event` returns a provider `messageId` for a stored FCM token. This signs off the Android provider handoff; physical notification display still needs someone holding the device to confirm receipt. A Nakama device ID is still not enough for OS push; the test needs the actual Firebase registration token or APNs device token from the physical device. iOS APNs remains pending because no Apple APNs key/cert, iOS SNS platform app ARN, or populated `push_token_ios` exists in production.
+
+Browser QA status: core LiveOps, analytics, account, storage, player-search, match, and legacy analytics routes now pass in browser. The previous `/v2/console/account` 404 and `/v2/match` 401 gaps are fixed by admin/runtime RPC wrappers, and `/admin-dashboard/legacy-analytics/` now serves the legacy dashboard HTML instead of the React SPA fallback.

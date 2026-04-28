@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/copy-legacy-analytics.mjs",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "serve": "node server/admin-dashboard-server.mjs"

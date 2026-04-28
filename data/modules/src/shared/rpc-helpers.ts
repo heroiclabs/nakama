@@ -38,6 +38,11 @@ namespace RpcHelpers {
     return result.data;
   }
 
+  export function gameId(data: any): string | undefined {
+    var value = data && (data.gameId || data.game_id || data.appId || data.app_id);
+    return value ? String(value) : undefined;
+  }
+
   export function logRpcError(nk: nkruntime.Nakama, logger: nkruntime.Logger, rpcName: string, errorMessage: string, userId?: string, gameId?: string): void {
     try {
       var now = new Date();

@@ -138,6 +138,10 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString();
 }
 
+function unwrapUser(row: NakamaUser | { user?: NakamaUser }): NakamaUser {
+  return ("user" in row && row.user ? row.user : row) as NakamaUser;
+}
+
 function parseWallet(raw: string): Record<string, number> {
   try {
     return JSON.parse(raw) as Record<string, number>;
@@ -194,35 +198,39 @@ function SearchResults({
           </tr>
         </thead>
         <tbody>
-          {users.map((u) => (
-            <tr
-              key={u.user_id}
-              onClick={() => onSelect(u.user_id)}
-              className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent/50"
-            >
-              <td className="px-4 py-2.5 font-medium">{u.username}</td>
-              <td className="px-4 py-2.5 text-muted-foreground">
-                {u.display_name || "—"}
-              </td>
-              <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
-                {u.user_id.slice(0, 18)}...
-              </td>
-              <td className="px-4 py-2.5 text-center">
-                <span
-                  className={cn(
-                    "inline-block h-2 w-2 rounded-full",
-                    u.online ? "bg-green-500" : "bg-muted-foreground/30",
-                  )}
-                />
-              </td>
-              <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                {formatDate(u.create_time)}
-              </td>
-              <td className="px-4 py-2.5">
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </td>
-            </tr>
-          ))}
+          {users.map((row) => {
+            const u = unwrapUser(row);
+            const uid = u.user_id ?? u.id ?? "";
+            return (
+              <tr
+                key={uid}
+                onClick={() => uid && onSelect(uid)}
+                className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-accent/50"
+              >
+                <td className="px-4 py-2.5 font-medium">{u.username}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">
+                  {u.display_name || "—"}
+                </td>
+                <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                  {uid ? `${uid.slice(0, 18)}...` : "—"}
+                </td>
+                <td className="px-4 py-2.5 text-center">
+                  <span
+                    className={cn(
+                      "inline-block h-2 w-2 rounded-full",
+                      u.online ? "bg-green-500" : "bg-muted-foreground/30",
+                    )}
+                  />
+                </td>
+                <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                  {formatDate(u.create_time ?? "")}
+                </td>
+                <td className="px-4 py-2.5">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

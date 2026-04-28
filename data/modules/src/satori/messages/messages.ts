@@ -1,21 +1,21 @@
 namespace SatoriMessages {
 
-  function getMessageDefinitions(nk: nkruntime.Nakama): { [id: string]: Satori.MessageDefinition } {
-    var raw = ConfigLoader.loadSatoriConfig<any>(nk, "messages", {});
+  function getMessageDefinitions(nk: nkruntime.Nakama, gameId?: string): { [id: string]: Satori.MessageDefinition } {
+    var raw = ConfigLoader.loadSatoriConfigForGame<any>(nk, "messages", gameId, {});
     return raw && raw.messages ? raw.messages : raw;
   }
 
-  function getUserMessages(nk: nkruntime.Nakama, userId: string): Satori.UserMessages {
-    var data = Storage.readJson<Satori.UserMessages>(nk, Constants.SATORI_MESSAGES_COLLECTION, "inbox", userId);
+  function getUserMessages(nk: nkruntime.Nakama, userId: string, gameId?: string): Satori.UserMessages {
+    var data = Storage.readJson<Satori.UserMessages>(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "inbox"), userId);
     return data || { messages: [] };
   }
 
-  function saveUserMessages(nk: nkruntime.Nakama, userId: string, data: Satori.UserMessages): void {
-    Storage.writeJson(nk, Constants.SATORI_MESSAGES_COLLECTION, "inbox", userId, data);
+  function saveUserMessages(nk: nkruntime.Nakama, userId: string, data: Satori.UserMessages, gameId?: string): void {
+    Storage.writeJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "inbox"), userId, data);
   }
 
-  export function deliverMessage(nk: nkruntime.Nakama, userId: string, messageDef: Satori.MessageDefinition): void {
-    var inbox = getUserMessages(nk, userId);
+  export function deliverMessage(nk: nkruntime.Nakama, userId: string, messageDef: Satori.MessageDefinition, gameId?: string): void {
+    var inbox = getUserMessages(nk, userId, gameId);
 
     var alreadyDelivered = false;
     for (var i = 0; i < inbox.messages.length; i++) {
@@ -38,16 +38,16 @@ namespace SatoriMessages {
       expiresAt: messageDef.expiresAt
     };
     inbox.messages.push(msg);
-    saveUserMessages(nk, userId, inbox);
+    saveUserMessages(nk, userId, inbox, gameId);
   }
 
-  export function deliverToAudience(nk: nkruntime.Nakama, logger: nkruntime.Logger, messageDef: Satori.MessageDefinition, audienceId: string): number {
+  export function deliverToAudience(nk: nkruntime.Nakama, logger: nkruntime.Logger, messageDef: Satori.MessageDefinition, audienceId: string, gameId?: string): number {
     var delivered = 0;
     try {
-      var explicitIds = SatoriAudiences.getExplicitIncludeIds(nk, audienceId);
+      var explicitIds = SatoriAudiences.getExplicitIncludeIds(nk, audienceId, gameId);
       for (var explicitIndex = 0; explicitIndex < explicitIds.length; explicitIndex++) {
-        if (SatoriAudiences.isInAudience(nk, explicitIds[explicitIndex], audienceId)) {
-          deliverMessage(nk, explicitIds[explicitIndex], messageDef);
+        if (SatoriAudiences.isInAudience(nk, explicitIds[explicitIndex], audienceId, gameId)) {
+          deliverMessage(nk, explicitIds[explicitIndex], messageDef, gameId);
           delivered++;
         }
       }
@@ -55,8 +55,8 @@ namespace SatoriMessages {
 
       var users = nk.usersGetRandom(100);
       for (var i = 0; i < users.length; i++) {
-        if (SatoriAudiences.isInAudience(nk, users[i].userId, audienceId)) {
-          deliverMessage(nk, users[i].userId, messageDef);
+        if (SatoriAudiences.isInAudience(nk, users[i].userId, audienceId, gameId)) {
+          deliverMessage(nk, users[i].userId, messageDef, gameId);
           delivered++;
         }
       }
@@ -66,22 +66,22 @@ namespace SatoriMessages {
     return delivered;
   }
 
-  export function processScheduledMessages(nk: nkruntime.Nakama, logger: nkruntime.Logger): void {
-    var definitions = getMessageDefinitions(nk);
+  export function processScheduledMessages(nk: nkruntime.Nakama, logger: nkruntime.Logger, gameId?: string): void {
+    var definitions = getMessageDefinitions(nk, gameId);
     var now = Math.floor(Date.now() / 1000);
 
     for (var id in definitions) {
       var def = definitions[id];
       if (!def.scheduleAt || def.scheduleAt > now) continue;
 
-      var deliveryState = Storage.readSystemJson<{ delivered: boolean }>(nk, Constants.SATORI_MESSAGES_COLLECTION, "schedule_" + id);
+      var deliveryState = Storage.readSystemJson<{ delivered: boolean }>(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "schedule_" + id));
       if (deliveryState && deliveryState.delivered) continue;
 
       if (def.audienceId) {
-        deliverToAudience(nk, logger, def, def.audienceId);
+        deliverToAudience(nk, logger, def, def.audienceId, gameId);
       }
 
-      Storage.writeSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, "schedule_" + id, { delivered: true, deliveredAt: now });
+      Storage.writeSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "schedule_" + id), { delivered: true, deliveredAt: now });
       logger.info("Delivered scheduled message: %s", id);
     }
   }
@@ -98,12 +98,14 @@ namespace SatoriMessages {
 
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = RpcHelpers.gameId(data);
 
-    processScheduledMessages(nk, logger);
+    processScheduledMessages(nk, logger, gameId);
 
-    var inbox = getUserMessages(nk, userId);
+    var inbox = getUserMessages(nk, userId, gameId);
     inbox = purgeExpired(inbox);
-    saveUserMessages(nk, userId, inbox);
+    saveUserMessages(nk, userId, inbox, gameId);
 
     return RpcHelpers.successResponse({
       messages: inbox.messages.map(function (m) {
@@ -127,8 +129,9 @@ namespace SatoriMessages {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.messageId) return RpcHelpers.errorResponse("messageId required");
+    var gameId = RpcHelpers.gameId(data);
 
-    var inbox = getUserMessages(nk, userId);
+    var inbox = getUserMessages(nk, userId, gameId);
     var msg: Satori.UserMessage | undefined;
     for (var i = 0; i < inbox.messages.length; i++) {
       if (inbox.messages[i].id === data.messageId) { msg = inbox.messages[i]; break; }
@@ -137,15 +140,15 @@ namespace SatoriMessages {
 
     if (!msg.readAt) {
       msg.readAt = Math.floor(Date.now() / 1000);
-      saveUserMessages(nk, userId, inbox);
+      saveUserMessages(nk, userId, inbox, gameId);
     }
 
     var reward: Hiro.ResolvedReward | null = null;
     if (msg.reward && !msg.consumedAt) {
       reward = RewardEngine.resolveReward(nk, msg.reward);
-      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", reward);
+      RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", reward);
       msg.consumedAt = Math.floor(Date.now() / 1000);
-      saveUserMessages(nk, userId, inbox);
+      saveUserMessages(nk, userId, inbox, gameId);
     }
 
     return RpcHelpers.successResponse({ message: msg, reward: reward });
@@ -155,10 +158,11 @@ namespace SatoriMessages {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.messageId) return RpcHelpers.errorResponse("messageId required");
+    var gameId = RpcHelpers.gameId(data);
 
-    var inbox = getUserMessages(nk, userId);
+    var inbox = getUserMessages(nk, userId, gameId);
     inbox.messages = inbox.messages.filter(function (m) { return m.id !== data.messageId; });
-    saveUserMessages(nk, userId, inbox);
+    saveUserMessages(nk, userId, inbox, gameId);
 
     return RpcHelpers.successResponse({ success: true });
   }
@@ -167,6 +171,7 @@ namespace SatoriMessages {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.title) return RpcHelpers.errorResponse("title required");
+    var gameId = RpcHelpers.gameId(data);
 
     var now = Math.floor(Date.now() / 1000);
     var scheduleAt = data.scheduleAt || data.schedule_at;
@@ -189,13 +194,13 @@ namespace SatoriMessages {
     };
 
     if (audienceId && !scheduleAt) {
-      var delivered = deliverToAudience(nk, logger, msgDef, audienceId);
+      var delivered = deliverToAudience(nk, logger, msgDef, audienceId, gameId);
       return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId });
     }
 
-    var definitions = getMessageDefinitions(nk);
+    var definitions = getMessageDefinitions(nk, gameId);
     definitions[msgDef.id] = msgDef;
-    ConfigLoader.saveSatoriConfig(nk, "messages", definitions);
+    ConfigLoader.saveSatoriConfigForGame(nk, "messages", gameId, definitions);
     return RpcHelpers.successResponse({ scheduled: true, messageId: msgDef.id });
   }
 

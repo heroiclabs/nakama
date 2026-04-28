@@ -48,6 +48,13 @@ import {
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
@@ -471,28 +478,29 @@ function EventLbForm({
 
 function EventLeaderboardsTab() {
   const qc = useQueryClient();
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<EventLbDef | null>(null);
   const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
 
   const configQ = useQuery({
-    queryKey: ["hiro-config", "event_leaderboards"],
-    queryFn: () => hiro.getHiroConfig("event_leaderboards", auth()) as Promise<EventLbConfig>,
+    queryKey: ["hiro-config", "event_leaderboards", gameScope],
+    queryFn: () => hiro.getHiroConfig("event_leaderboards", auth(), rpcGameId(gameScope)) as Promise<EventLbConfig>,
   });
 
   const audienceQ = useQuery({
-    queryKey: ["satori-audiences"],
-    queryFn: () => satori.listAudiences(auth()) as Promise<{ audiences: Audience[] }>,
+    queryKey: ["satori-audiences", gameScope],
+    queryFn: () => satori.listAudiences(auth(), rpcGameId(gameScope)) as Promise<{ audiences: Audience[] }>,
   });
 
   const audiences = audienceQ.data?.audiences ?? [];
 
   const saveMut = useMutation({
     mutationFn: async (cfg: EventLbConfig) => {
-      await hiro.setHiroConfig("event_leaderboards", cfg, auth());
+      await hiro.setHiroConfig("event_leaderboards", cfg, auth(), rpcGameId(gameScope));
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiro-config", "event_leaderboards"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiro-config", "event_leaderboards", gameScope] }),
   });
 
   const lbs = useMemo(() => {
@@ -598,6 +606,15 @@ function EventLeaderboardsTab() {
           <option value="enabled">Enabled</option>
           <option value="disabled">Disabled</option>
         </select>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          Game ID
+          <input
+            value={gameScope}
+            onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+            placeholder="global or quizverse"
+            className="w-44 rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground"
+          />
+        </label>
         <button
           onClick={() => configQ.refetch()}
           className="inline-flex items-center gap-1.5 rounded-md border border-input px-3 py-2 text-sm hover:bg-muted"

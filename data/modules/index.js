@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-27T02:43:25.757Z
-// RPC Count: 687
+// Generated: 2026-04-28T03:56:01.614Z
+// RPC Count: 699
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -62,6 +62,18 @@ var __rpc_quizverse_track_session_end;
 var __rpc_quizverse_get_server_config;
 var __rpc_quizverse_admin_grant_item;
 var __rpc____;
+var __rpc_crash_log_append;
+var __rpc_xsell_pick;
+var __rpc_xsell_record;
+var __rpc_insights_aggregator_tick;
+var __rpc_pending_bundles_drain;
+var __rpc_personalization_get;
+var __rpc_personalization_get_for_mode;
+var __rpc_privacy_erase_user;
+var __rpc_privacy_erase_discord;
+var __rpc_consent_upsert;
+var __rpc_consent_invalidate;
+var __rpc_product_changelog_append;
 var __rpc_cricket_auction_create_room;
 var __rpc_cricket_auction_get_room;
 var __rpc_cricket_auction_place_bid;
@@ -698,7 +710,7 @@ var __rpc_visual_path_get_schedule;
 var __rpc_visual_path_skip_day_with_ad;
 
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
-var __TS_OWNED_RPCS = {"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
+var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
 // --- Discovered Modules (80 files) ---
 
@@ -2060,7 +2072,7 @@ function resolveEventTimestamp(rawEvent) {
  * Handles legacy casings (gameID, eventData=properties, etc.) so the dashboard
  * sees one consistent shape regardless of client version.
  */
-function normalizeInboundEvent(ctx, rawEvent) {
+function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
     if (!rawEvent || typeof rawEvent !== 'object') return null;
 
     var gameId = rawEvent.gameId || rawEvent.game_id || rawEvent.gameID || null;
@@ -2103,6 +2115,49 @@ function normalizeInboundEvent(ctx, rawEvent) {
     if (!userId) return { __invalid: "User not authenticated" };
 
     var unixTs = resolveEventTimestamp(rawEvent);
+
+    // Phase 1A (qv-insights-loop): universal event enricher. Back-fills
+    // any field still empty after the dimensional logic above by reading
+    // the per-session context from `game_session_index`. Anything still
+    // missing is recorded into `game_coverage_gap_log` so #qv-ops can
+    // surface the worst offenders in the daily coverage health embed.
+    // Defined in src/analytics/event-enricher.ts; concatenated at global
+    // scope by postbuild.js so this typeof check succeeds in production.
+    if (nk && typeof EventEnricher !== "undefined" && EventEnricher && typeof EventEnricher.enrich === "function") {
+        try {
+            var sid = eventData.session_id || null;
+            var enrichResult = EventEnricher.enrich(nk, logger, eventName, eventData, sid, gameId);
+            if (enrichResult && enrichResult.gaps && enrichResult.gaps.length > 0) {
+                EventEnricher.recordCoverageGap(nk, logger, gameId, eventName, enrichResult.gaps);
+            }
+            // session_start = upsert the session-context row. The full set
+            // of immutable session fields (app_version/os/country/tier) is
+            // captured here so every later event can back-fill against it.
+            if (eventName === "session_start" && sid) {
+                EventEnricher.upsertSessionIndex(nk, logger, ctx, {
+                    sessionId: sid,
+                    gameId: gameId,
+                    userId: ctx.userId,
+                    appVersion: eventData.app_version,
+                    sdkVersion: eventData.sdk_version,
+                    os: eventData.os,
+                    osVersion: eventData.os_version,
+                    country: eventData.country,
+                    locale: eventData.locale,
+                    tier: eventData.device_tier,
+                    deviceModel: eventData.device_model,
+                    installSource: eventData.install_source,
+                    consentState: eventData.consent_state,
+                    attStatus: eventData.att_status,
+                    cohortLabel: eventData.cohort_label,
+                    cohortDefVersion: eventData.cohort_def_version,
+                    cohortHoldout: eventData.cohort_holdout,
+                });
+            }
+        } catch (enrichErr) {
+            // never throw into the host RPC
+        }
+    }
 
     return {
         userId: userId,
@@ -2224,7 +2279,7 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     var errors = [];
 
     for (var i = 0; i < inbound.length; i++) {
-        var normalized = normalizeInboundEvent(ctx, inbound[i]);
+        var normalized = normalizeInboundEvent(ctx, inbound[i], nk, logger);
         if (!normalized || normalized.__invalid) {
             rejected++;
             errors.push({ index: i, reason: (normalized && normalized.__invalid) || "Invalid event" });
@@ -64628,6 +64683,47 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
         LegacyMissions.register(initializer);
         logger.info("[Legacy] Registering analytics RPCs...");
         LegacyAnalytics.register(initializer);
+        // Phase 0.5 (qv-insights-loop): product_changelog_append RPC. Lets any
+        // service (deploy pipeline, satori experiment flipper, on-call ops)
+        // log a step-change event that the AI-svc analyst will join into
+        // every brief as a date-anchored citation.
+        logger.info("[QvProductChangelog] Registering product_changelog_append RPC...");
+        QvProductChangelog.register(initializer);
+        // Phase 2A (qv-insights-loop): hourly InsightsAggregator + DLQ.
+        // The aggregator hooks into the AnalyticsAlerts scheduler tick so
+        // it runs opportunistically on every successful 3h slot post.
+        // We additionally expose `insights_aggregator_tick` (manual debug
+        // entry) and `pending_bundles_drain` (admin DLQ replay) here so an
+        // operator can hand-trigger them out-of-band when investigating.
+        logger.info("[InsightsAggregator] Registering insights_aggregator_tick + pending_bundles_drain RPCs...");
+        InsightsAggregator.register(initializer);
+        PendingBundles.register(initializer);
+        // Phase 3 (qv-insights-loop): client crash log RPC. The IVXCrashUploader
+        // (Unity SDK) batches & uploads exceptions/asserts/errors; we persist
+        // each as a `game_crash_log` row and the InsightsAggregator picks up
+        // the materialised `game_crash_pattern_summary[gameId]` blob to
+        // attach the top patterns into the per-game (_global) bundle.
+        logger.info("[QvCrashHandler] Registering crash_log_append RPC...");
+        QvCrashHandler.register(initializer);
+        // Phase 4 Cross-Sell Engine (qv-insights-loop): xsell_pick + xsell_record
+        // RPCs. SDK -> Nakama -> AI svc proxy. Nakama signs every forward with
+        // IVX_INSIGHTS_SHARED_SECRET and stamps the calling user's sha256-derived
+        // user_id_hash so the AI svc delivery cap is enforceable per user.
+        logger.info("[QvCrossSell] Registering xsell_pick + xsell_record RPCs...");
+        QvCrossSell.register(initializer);
+        // Phase 4B (qv-insights-loop): personalization_get + personalization_get_for_mode
+        // RPCs. SDK -> Nakama -> AI svc proxy. Returns the per-user
+        // smartNudge / todayFeed / pushSchedule / per-mode systemPromptAddenda
+        // so the SDK can render them and so per-mode AI surfaces (AI Host /
+        // Voice / Fortune / Tutor / Chat) can inject mode-specific addenda.
+        logger.info("[QvPersonalization] Registering personalization_get + personalization_get_for_mode RPCs...");
+        QvPersonalization.register(initializer);
+        // Phase 7 (qv-insights-loop): privacy + consent forwarder RPCs. Admin-only;
+        // bound to Nakama account-deletion webhook + the SDK consent-set RPC.
+        // Cascade-deletes a user's footprint from the AI svc (GDPR Art.17 / CCPA)
+        // and keeps the AI svc consent-gate cache in sync (COPPA / GDPR / CCPA).
+        logger.info("[QvPrivacy] Registering privacy_erase_user / privacy_erase_discord / consent_upsert / consent_invalidate RPCs...");
+        QvPrivacy.register(initializer);
         logger.info("[Legacy] Registering friends RPCs...");
         LegacyFriends.register(initializer);
         // ── First-class IntelliVerse friend search (replaces the historical
@@ -64863,6 +64959,2035 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     logger.info("IntelliVerse-X Runtime initialized!");
     logger.info("========================================");
 }
+// Phase 3 (qv-insights-loop) — Crash log RPC + pattern summariser.
+//
+// Receives crash payloads from `IVXCrashUploader` (Unity SDK), persists
+// them to `game_crash_log` (one row per crash, indexed for the
+// aggregator), and periodically (every 15min) recomputes
+// `game_crash_pattern_summary[gameId]` so the InsightsAggregator can
+// surface the top patterns into bundles cheaply.
+//
+// Why TWO collections?
+//   - game_crash_log               raw rows, per-crash. Bounded retention
+//                                  (we drop entries older than 7 days
+//                                  on each summariser pass).
+//   - game_crash_pattern_summary   pre-aggregated top patterns per
+//                                  (gameId, fingerprint) — what the
+//                                  bundle envelope cites. O(unique
+//                                  fingerprints) rather than O(crashes).
+//
+// PII scrubbing happens client-side (IVXCrashUploader); we still defend
+// in depth by stripping anything that looks like a Bearer token, IPv4,
+// or GUID before persistence (cheap, ~5 regexes).
+var QvCrashHandler;
+(function (QvCrashHandler) {
+    QvCrashHandler.LOG_COLLECTION = "game_crash_log";
+    QvCrashHandler.PATTERN_COLLECTION = "game_crash_pattern_summary";
+    QvCrashHandler.STATE_COLLECTION = "analytics_state";
+    QvCrashHandler.STATE_KEY_LAST_SUMMARY = "crash_pattern_summariser_last_run";
+    QvCrashHandler.MAX_BACKLOG_PER_GAME = 5000; // raw row cap
+    QvCrashHandler.SUMMARY_INTERVAL_MS = 15 * 60000; // 15 minutes
+    QvCrashHandler.RAW_RETENTION_MS = 7 * 24 * 3600 * 1000; // 7 days
+    QvCrashHandler.MAX_MESSAGE_LEN = 1024;
+    QvCrashHandler.MAX_STACK_LEN = 4096;
+    // Defensive PII scrub regexes — same intent as the client-side ones,
+    // applied again so a bad client (or a bypass) can't poison the KB.
+    var BEARER_RE = /Bearer\s+[A-Za-z0-9._-]+/g;
+    var IP_RE = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g;
+    var GUID_RE = /\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b/g;
+    // ─────────────────────────────────────────────────────────────────
+    // RPC: crash_log_append
+    // ─────────────────────────────────────────────────────────────────
+    function rpcAppend(ctx, logger, nk, payload) {
+        var p;
+        try {
+            p = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ success: false, error: "invalid_json" });
+        }
+        if (!p || !p.game_id) {
+            return JSON.stringify({ success: false, error: "missing_game_id" });
+        }
+        var nowMs = Date.now();
+        var ts = (typeof p.ts_unix_ms === "number" && p.ts_unix_ms > 0) ? p.ts_unix_ms : nowMs;
+        var fp = (p.fingerprint || "unknown").slice(0, 64);
+        var row = {
+            gameId: p.game_id,
+            appVersion: (p.app_version || "unknown").slice(0, 64),
+            platformOs: (p.platform_os || "unknown").slice(0, 32),
+            deviceModel: (p.device_model || "unknown").slice(0, 64),
+            tsUnixMs: ts,
+            severity: (p.severity || "Error").slice(0, 16),
+            type: (p.type || "Unknown").slice(0, 80),
+            message: scrub(p.message || "", QvCrashHandler.MAX_MESSAGE_LEN),
+            stack: scrub(p.stack || "", QvCrashHandler.MAX_STACK_LEN),
+            fingerprint: fp,
+            repeatedCount: clampInt(p.repeated_count, 1, 1000),
+            clientUnityV: (p.client_unity_v || "unknown").slice(0, 32),
+            // userId is set by Nakama auth — we keep a hash for distinct count
+            // but never the raw id (matches the same k-anon contract used by
+            // the RpcSample userIdHash in Phase 1B).
+            userIdHash: ctx.userId ? sha1Prefix(ctx.userId, nk) : null,
+        };
+        try {
+            // One row per (gameId, fingerprint, ts_unix_ms) to allow easy
+            // bucket scans by fingerprint. Keys collide is unlikely (ts in ms
+            // + fingerprint) but we tolerate it via storageWrite version="*".
+            var key = p.game_id + ":" + fp + ":" + ts;
+            nk.storageWrite([{
+                    collection: QvCrashHandler.LOG_COLLECTION,
+                    key: key,
+                    userId: "",
+                    value: row,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (e) {
+            logger.warn("[QvCrashHandler] storage write failed: " +
+                (e && e.message ? e.message : String(e)));
+            return JSON.stringify({ success: false, error: "storage_write_failed" });
+        }
+        // Opportunistically trigger summariser; rate-limited internally.
+        try {
+            maybeRunSummariser(nk, logger);
+        }
+        catch (_) { }
+        return JSON.stringify({ success: true, data: { stored: true, fingerprint: fp } });
+    }
+    // ─────────────────────────────────────────────────────────────────
+    // Summariser — scans recent rows + writes the pattern summary blob.
+    // ─────────────────────────────────────────────────────────────────
+    function maybeRunSummariser(nk, logger) {
+        var lastRun = readLastSummary(nk);
+        var now = Date.now();
+        if (lastRun > 0 && (now - lastRun) < QvCrashHandler.SUMMARY_INTERVAL_MS) {
+            return { ran: false, reason: "cooldown" };
+        }
+        writeLastSummary(nk, now);
+        var byGame = {};
+        var bucketEnd = now;
+        var bucketStart = now - 3 * 60 * 60 * 1000; // last 3h, matches brief cadence
+        var listed;
+        try {
+            listed = nk.storageList("", QvCrashHandler.LOG_COLLECTION, QvCrashHandler.MAX_BACKLOG_PER_GAME);
+        }
+        catch (e) {
+            logger.warn("[QvCrashHandler] summariser list failed: " +
+                (e && e.message ? e.message : String(e)));
+            return { ran: false, reason: "list_failed" };
+        }
+        var objs = (listed && listed.objects) || [];
+        var scanned = 0;
+        var patterns = {};
+        for (var i = 0; i < objs.length; i++) {
+            var v = objs[i].value;
+            if (!v || !v.gameId || !v.fingerprint)
+                continue;
+            if (typeof v.tsUnixMs !== "number")
+                continue;
+            // Drop rows older than RAW_RETENTION_MS.
+            if (now - v.tsUnixMs > QvCrashHandler.RAW_RETENTION_MS) {
+                try {
+                    nk.storageDelete([{ collection: QvCrashHandler.LOG_COLLECTION, key: objs[i].key, userId: "" }]);
+                }
+                catch (_) { }
+                continue;
+            }
+            if (v.tsUnixMs < bucketStart)
+                continue;
+            scanned++;
+            var gFp = v.gameId + "|" + v.fingerprint;
+            var p = patterns[gFp] || {
+                fingerprint: v.fingerprint,
+                count: 0,
+                severity: v.severity || "Error",
+                type: v.type || "Unknown",
+                sampleMessage: v.message || "",
+                firstSeenMs: v.tsUnixMs,
+                lastSeenMs: v.tsUnixMs,
+                appVersions: {},
+                osBreakdown: {},
+            };
+            p.count += (v.repeatedCount || 1);
+            if (v.tsUnixMs > p.lastSeenMs)
+                p.lastSeenMs = v.tsUnixMs;
+            if (v.tsUnixMs < p.firstSeenMs)
+                p.firstSeenMs = v.tsUnixMs;
+            if (v.appVersion)
+                p.appVersions[v.appVersion] = (p.appVersions[v.appVersion] || 0) + 1;
+            if (v.platformOs)
+                p.osBreakdown[v.platformOs] = (p.osBreakdown[v.platformOs] || 0) + 1;
+            patterns[gFp] = p;
+            if (!byGame[v.gameId])
+                byGame[v.gameId] = [];
+        }
+        // Group by gameId.
+        for (var gFp2 in patterns) {
+            if (!patterns.hasOwnProperty(gFp2))
+                continue;
+            var sep = gFp2.indexOf("|");
+            var gid = gFp2.slice(0, sep);
+            byGame[gid].push(patterns[gFp2]);
+        }
+        var games = 0;
+        for (var gid2 in byGame) {
+            if (!byGame.hasOwnProperty(gid2))
+                continue;
+            var rows = byGame[gid2].sort(function (a, b) { return b.count - a.count; }).slice(0, 25);
+            var summary = {
+                gameId: gid2,
+                builtAtMs: now,
+                windowMs: bucketEnd - bucketStart,
+                rawRowsScanned: scanned,
+                patterns: rows,
+            };
+            try {
+                nk.storageWrite([{
+                        collection: QvCrashHandler.PATTERN_COLLECTION,
+                        key: gid2,
+                        userId: "",
+                        value: summary,
+                        permissionRead: 0,
+                        permissionWrite: 0,
+                    }]);
+                games++;
+            }
+            catch (e) {
+                logger.warn("[QvCrashHandler] summary write failed for " + gid2 + ": " +
+                    (e && e.message ? e.message : String(e)));
+            }
+        }
+        return { ran: true, perGame: games };
+    }
+    QvCrashHandler.maybeRunSummariser = maybeRunSummariser;
+    /**
+     * Public read API used by InsightsAggregator (Phase 2A) to surface
+     * top patterns into per-cohort bundles.
+     */
+    function readPatternSummary(nk, gameId) {
+        try {
+            var rows = nk.storageRead([{ collection: QvCrashHandler.PATTERN_COLLECTION, key: gameId, userId: "" }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                return rows[0].value;
+            }
+        }
+        catch (_) { }
+        return null;
+    }
+    QvCrashHandler.readPatternSummary = readPatternSummary;
+    // ─── helpers ───────────────────────────────────────────────────
+    function scrub(s, maxLen) {
+        if (!s)
+            return "";
+        var out = s.replace(BEARER_RE, "Bearer ***");
+        out = out.replace(IP_RE, "<ip>");
+        out = out.replace(GUID_RE, "<guid>");
+        if (out.length > maxLen)
+            out = out.slice(0, maxLen);
+        return out;
+    }
+    function clampInt(v, lo, hi) {
+        var n = typeof v === "number" ? v : Number(v);
+        if (!Number.isFinite(n))
+            return 1;
+        if (n < lo)
+            return lo;
+        if (n > hi)
+            return hi;
+        return Math.floor(n);
+    }
+    function sha1Prefix(s, nk) {
+        try {
+            // Cheap hash via HMAC with a fixed pepper — we only want a
+            // stable prefix, not a true crypto identifier. Same convention
+            // as the AnalyticsAlerts userIdHash in Phase 1B.
+            var raw = nk.hmacSha256Hash(s, "qv-crash-pepper-v1");
+            return nk.base16Encode(raw, false).toLowerCase().slice(0, 12);
+        }
+        catch (_) {
+            return "";
+        }
+    }
+    function readLastSummary(nk) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: QvCrashHandler.STATE_COLLECTION,
+                    key: QvCrashHandler.STATE_KEY_LAST_SUMMARY,
+                    userId: "",
+                }]);
+            if (rows && rows.length > 0 && rows[0].value && rows[0].value.ts) {
+                return rows[0].value.ts;
+            }
+        }
+        catch (_) { }
+        return 0;
+    }
+    function writeLastSummary(nk, ts) {
+        try {
+            nk.storageWrite([{
+                    collection: QvCrashHandler.STATE_COLLECTION,
+                    key: QvCrashHandler.STATE_KEY_LAST_SUMMARY,
+                    userId: "",
+                    value: { ts: ts },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (_) { }
+    }
+    function register(initializer) {
+        __rpc_crash_log_append = rpcAppend;
+    }
+    QvCrashHandler.register = register;
+    register();
+})(QvCrashHandler || (QvCrashHandler = {}));
+// Phase 4 Cross-Sell Engine (qv-insights-loop) — xsell_pick + xsell_record RPCs.
+//
+// SDK -> Nakama -> AI svc. The SDK never holds the HMAC shared secret;
+// Nakama signs every forward with IVX_INSIGHTS_SHARED_SECRET and
+// stamps the calling user id (sha-1 hash) as the user_id_hash so the
+// delivery cap is enforceable server-side.
+//
+// Why route through Nakama instead of letting the SDK call the AI svc
+// directly?
+//   1. Single shared secret (rotation in one place).
+//   2. The Nakama session id is the trust anchor for the user_id_hash;
+//      otherwise the SDK could spoof and bypass the per-user cap.
+//   3. Server-side schema validation rejects junk payloads at the edge.
+//
+// Behaviour:
+//   xsell_pick   — proxy to POST /insights/xsell/pick. Returns
+//                  {pick: null} on any error so the SDK's UI never
+//                  renders garbage.
+//   xsell_record — proxy to POST /insights/xsell/record. Returns
+//                  {ok: true|false}. Caller fire-and-forget.
+var QvCrossSell;
+(function (QvCrossSell) {
+    function sha1Hex(nk, s) {
+        if (!s)
+            return "";
+        try {
+            // Nakama exposes sha256; we don't have sha1 — use sha256 truncated
+            // to 40 hex chars for a stable, non-reversible user-id-hash. The
+            // AI svc treats this as opaque so the algorithm choice is local.
+            var raw = nk.sha256Hash(s);
+            return nk.base16Encode(raw, false).toLowerCase().substr(0, 40);
+        }
+        catch (e) {
+            return "";
+        }
+    }
+    function aiSvcBase(ctx, logger) {
+        var base = (ctx.env && ctx.env["IVX_AI_SVC_BASE_URL"]) || "";
+        if (!base) {
+            logger.warn("[QvCrossSell] IVX_AI_SVC_BASE_URL unset; call will be skipped");
+            return null;
+        }
+        return base.replace(/\/$/, "");
+    }
+    function computeHmac(ctx, nk, ts, path, body, logger) {
+        var secret = (ctx.env && ctx.env["IVX_INSIGHTS_SHARED_SECRET"]) || "";
+        if (!secret) {
+            logger.warn("[QvCrossSell] IVX_INSIGHTS_SHARED_SECRET unset; signature empty");
+            return "";
+        }
+        var msg = ts + ":" + path + ":" + body;
+        try {
+            var raw = nk.hmacSha256Hash(msg, secret);
+            return nk.base16Encode(raw, false).toLowerCase();
+        }
+        catch (e) {
+            logger.warn("[QvCrossSell] hmac compute failed: " + ((e && e.message) ? e.message : String(e)));
+            return "";
+        }
+    }
+    function postJson(ctx, nk, logger, path, body) {
+        var base = aiSvcBase(ctx, logger);
+        if (!base)
+            return null;
+        var ts = String(Date.now());
+        var sig = computeHmac(ctx, nk, ts, path, body, logger);
+        try {
+            var resp = nk.httpRequest(base + path, "post", {
+                "Content-Type": "application/json",
+                "X-IVX-Service": "nakama",
+                "X-IVX-Timestamp": ts,
+                "X-IVX-Signature": sig,
+            }, body, 4500);
+            if (!resp || resp.code < 200 || resp.code >= 300) {
+                logger.warn("[QvCrossSell] post " + path + " HTTP " + (resp ? resp.code : "no_resp"));
+                return null;
+            }
+            return resp.body || "";
+        }
+        catch (e) {
+            logger.warn("[QvCrossSell] post " + path + " threw: " + ((e && e.message) ? e.message : String(e)));
+            return null;
+        }
+    }
+    function rpcPick(ctx, logger, nk, payload) {
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ pick: null, error: "invalid_json" });
+        }
+        if (!data.game_id || !data.surface) {
+            return JSON.stringify({ pick: null, error: "missing_required_fields" });
+        }
+        var userIdHash = sha1Hex(nk, ctx.userId || "");
+        if (!userIdHash) {
+            return JSON.stringify({ pick: null, error: "no_user" });
+        }
+        var body = JSON.stringify({
+            gameId: data.game_id,
+            userIdHash: userIdHash,
+            surface: data.surface,
+            cohortLabel: data.cohort_label || null,
+            quizMode: data.quiz_mode || null,
+            features: data.features || {},
+        });
+        var resp = postJson(ctx, nk, logger, "/insights/xsell/pick", body);
+        if (resp == null)
+            return JSON.stringify({ pick: null });
+        // Pass-through — controller already returns {pick: ...}
+        return resp;
+    }
+    function rpcRecord(ctx, logger, nk, payload) {
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ ok: false, error: "invalid_json" });
+        }
+        if (!data.offer_id || !data.kind || !data.game_id) {
+            return JSON.stringify({ ok: false, error: "missing_required_fields" });
+        }
+        if (data.kind !== "impression" && data.kind !== "engagement") {
+            // Conversions are server-confirmed via the billing webhook only.
+            return JSON.stringify({ ok: false, error: "invalid_kind" });
+        }
+        var userIdHash = sha1Hex(nk, ctx.userId || "");
+        var body = JSON.stringify({
+            gameId: data.game_id,
+            userIdHash: userIdHash,
+            surface: data.surface,
+            offerId: data.offer_id,
+            kind: data.kind,
+        });
+        var resp = postJson(ctx, nk, logger, "/insights/xsell/record", body);
+        if (resp == null)
+            return JSON.stringify({ ok: false });
+        return resp;
+    }
+    function register(initializer) {
+        __rpc_xsell_pick = rpcPick;
+        __rpc_xsell_record = rpcRecord;
+    }
+    QvCrossSell.register = register;
+    register();
+})(QvCrossSell || (QvCrossSell = {}));
+// Phase 1A (qv-insights-loop) — Universal event enricher.
+//
+// Guarantees that every analytics event (regardless of which Unity client
+// version emitted it) carries a *complete* dimensional vector by the time
+// it reaches the dashboard / aggregator / Discord summarizer:
+//
+//   game_id, app_version, os, country, tier, sdk_version,
+//   session_id, screen, quiz_mode, quiz_card_type,
+//   cohort_label (primary), cohort_def_version, cohort_holdout
+//
+// How it works:
+//
+//   1. session_start → upsertSessionIndex() persists the per-session
+//      context (app_version, os, country, tier, etc.) under
+//      `game_session_index`. ttl ~36h via lazy expiry.
+//
+//   2. Every subsequent event → enrich() back-fills missing fields by
+//      looking up the session record. Cheap path: in-process LRU keyed
+//      by sessionId hashes, hit rate >95% in steady state.
+//
+//   3. Anything still missing after back-fill → recordCoverageGap()
+//      writes a row into `game_coverage_gap_log`. The daily coverage
+//      health post (postCoverageHealth) summarises the worst offenders
+//      to #qv-ops via the existing AnalyticsAlerts webhook plumbing.
+//
+//   4. Cohort label is fetched from the AI svc personalization layer
+//      (Phase 4A) when available; if the cache is empty / expired we
+//      still emit the event but tag cohort_label = "pending". The
+//      analyst tolerates this — it's data, not the absence of data.
+//
+// Calling convention:
+//   - Pure function over (rawEvent, ctx, nk, logger) — never throws into
+//     the host RPC; on any internal error we return the original event
+//     untouched and log a single line at WARN.
+//   - The legacy `data/modules/analytics/analytics.js` rpcAnalyticsLogEvent
+//     handler invokes EventEnricher.enrich(...) inside normalizeInboundEvent
+//     after its own dimensional back-fill, so the enricher is the LAST
+//     line of defence against missing fields.
+var EventEnricher;
+(function (EventEnricher) {
+    EventEnricher.SESSION_COLLECTION = "game_session_index";
+    EventEnricher.GAP_COLLECTION = "game_coverage_gap_log";
+    EventEnricher.SESSION_TTL_MS = 36 * 60 * 60 * 1000;
+    EventEnricher.SESSION_LRU_MAX = 5000;
+    /**
+     * Required fields the analyst expects on EVERY event. Anything missing
+     * from this set after enrichment lands in the coverage-gap log.
+     */
+    EventEnricher.REQUIRED_FIELDS = [
+        "game_id",
+        "app_version",
+        "os",
+        "country",
+        "session_id",
+        "screen",
+    ];
+    /**
+     * Per-event-name enrichment hints. Lets us require quiz_mode on quiz_*
+     * events without forcing it on, say, login_success.
+     */
+    EventEnricher.EVENT_REQUIRED = {
+        quiz_start: ["quiz_mode"],
+        quiz_complete: ["quiz_mode"],
+        quiz_abandoned: ["quiz_mode"],
+        weekly_card_started: ["quiz_card_type", "quiz_mode"],
+        weekly_card_completed: ["quiz_card_type", "quiz_mode"],
+        weekly_card_abandoned: ["quiz_card_type", "quiz_mode"],
+        iap_clicked: ["sku"],
+        iap_purchased: ["sku"],
+        iap_failed: ["sku"],
+        paywall_shown: ["screen"],
+        ad_shown: ["ad_format"],
+        ad_completed: ["ad_format"],
+        ad_clicked: ["ad_format"],
+        ad_load_failed: ["ad_format"],
+    };
+    // In-process LRU. Sized for a single Nakama replica's working set.
+    var lru = {};
+    var lruOrder = [];
+    function lruGet(sessionId) {
+        var rec = lru[sessionId];
+        if (!rec)
+            return null;
+        if (Date.now() - rec.lastSeenAt > EventEnricher.SESSION_TTL_MS) {
+            delete lru[sessionId];
+            return null;
+        }
+        return rec;
+    }
+    function lruPut(sessionId, rec) {
+        if (!lru[sessionId]) {
+            lruOrder.push(sessionId);
+            if (lruOrder.length > EventEnricher.SESSION_LRU_MAX) {
+                var evict = lruOrder.shift();
+                if (evict)
+                    delete lru[evict];
+            }
+        }
+        lru[sessionId] = rec;
+    }
+    /**
+     * Persist the session context emitted by session_start. Idempotent
+     * (writes are keyed by session_id; a re-emitted session_start updates
+     * the lastSeenAt timestamp without touching the immutable fields).
+     */
+    function upsertSessionIndex(nk, logger, ctx, rec) {
+        try {
+            var userId = (rec.userId || ctx.userId || "");
+            var now = Date.now();
+            var existing = lruGet(rec.sessionId);
+            var merged = existing || {
+                sessionId: rec.sessionId,
+                gameId: rec.gameId,
+                userId: userId,
+                startedAt: now,
+                lastSeenAt: now,
+            };
+            // First-write semantics for immutable fields (don't overwrite
+            // app_version/os/country with empty strings on a heartbeat).
+            var keys = [
+                "appVersion",
+                "sdkVersion",
+                "os",
+                "osVersion",
+                "country",
+                "locale",
+                "tier",
+                "deviceModel",
+                "installSource",
+                "consentState",
+                "attStatus",
+                "cohortLabel",
+                "cohortDefVersion",
+                "cohortHoldout",
+            ];
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
+                if (rec[k] !== undefined && rec[k] !== null && rec[k] !== "") {
+                    merged[k] = rec[k];
+                }
+            }
+            merged.userId = merged.userId || userId;
+            merged.gameId = merged.gameId || rec.gameId;
+            merged.lastSeenAt = now;
+            lruPut(rec.sessionId, merged);
+            // System-owned write so a single read from any replica resolves it.
+            nk.storageWrite([{
+                    collection: EventEnricher.SESSION_COLLECTION,
+                    key: rec.sessionId,
+                    userId: "",
+                    value: merged,
+                    permissionRead: 2,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (e) {
+            try {
+                logger.warn("[EventEnricher] upsertSessionIndex failed: "
+                    + ((e && e.message) ? e.message : String(e)));
+            }
+            catch (_) { }
+        }
+    }
+    EventEnricher.upsertSessionIndex = upsertSessionIndex;
+    /**
+     * Read the session context for back-fill. LRU-first, storage on miss.
+     * Returns null if the session is unknown — caller should treat the
+     * fields as missing and let coverage-gap logging fire.
+     */
+    function getSessionContext(nk, sessionId) {
+        if (!sessionId)
+            return null;
+        var hit = lruGet(sessionId);
+        if (hit)
+            return hit;
+        try {
+            var rows = nk.storageRead([{
+                    collection: EventEnricher.SESSION_COLLECTION,
+                    key: sessionId,
+                    userId: "",
+                }]);
+            if (!rows || rows.length === 0)
+                return null;
+            var rec = rows[0].value;
+            if (rec && rec.sessionId) {
+                lruPut(sessionId, rec);
+                return rec;
+            }
+            return null;
+        }
+        catch (e) {
+            return null;
+        }
+    }
+    /**
+     * Main entry point. Returns the enriched eventData PLUS the list of
+     * fields that were still missing after enrichment (so analytics.js
+     * can decide whether to record a coverage gap).
+     *
+     * Mutates eventData in place. The original analytics.js dimensional
+     * back-fill runs BEFORE this; we only fill what's still empty.
+     */
+    function enrich(nk, logger, eventName, eventData, sessionId, gameId) {
+        var gaps = [];
+        try {
+            var session = sessionId ? getSessionContext(nk, sessionId) : null;
+            if (session) {
+                if (!eventData.app_version && session.appVersion)
+                    eventData.app_version = session.appVersion;
+                if (!eventData.sdk_version && session.sdkVersion)
+                    eventData.sdk_version = session.sdkVersion;
+                if (!eventData.os && session.os)
+                    eventData.os = session.os;
+                if (!eventData.os_version && session.osVersion)
+                    eventData.os_version = session.osVersion;
+                if (!eventData.country && session.country)
+                    eventData.country = session.country;
+                if (!eventData.locale && session.locale)
+                    eventData.locale = session.locale;
+                if (!eventData.device_tier && session.tier)
+                    eventData.device_tier = session.tier;
+                if (!eventData.device_model && session.deviceModel)
+                    eventData.device_model = session.deviceModel;
+                if (!eventData.install_source && session.installSource)
+                    eventData.install_source = session.installSource;
+                if (!eventData.consent_state && session.consentState)
+                    eventData.consent_state = session.consentState;
+                if (!eventData.att_status && session.attStatus)
+                    eventData.att_status = session.attStatus;
+                if (!eventData.cohort_label && session.cohortLabel)
+                    eventData.cohort_label = session.cohortLabel;
+                if (!eventData.cohort_def_version && session.cohortDefVersion)
+                    eventData.cohort_def_version = session.cohortDefVersion;
+                if (eventData.cohort_holdout === undefined && session.cohortHoldout !== undefined)
+                    eventData.cohort_holdout = session.cohortHoldout;
+                if (!eventData.session_id)
+                    eventData.session_id = session.sessionId;
+            }
+            // Default cohort marker so the analyst doesn't see undefined.
+            if (!eventData.cohort_label)
+                eventData.cohort_label = "pending";
+            // Ensure game_id is always present in the eventData payload (the
+            // outer record carries it too but the dashboard slices key off
+            // eventData).
+            if (!eventData.game_id && gameId)
+                eventData.game_id = gameId;
+            // Compute the gaps list.
+            var globalReq = EventEnricher.REQUIRED_FIELDS;
+            for (var i = 0; i < globalReq.length; i++) {
+                var f = globalReq[i];
+                if (eventData[f] === undefined || eventData[f] === null || eventData[f] === "") {
+                    gaps.push(f);
+                }
+            }
+            var perEventReq = EventEnricher.EVENT_REQUIRED[eventName] || [];
+            for (var j = 0; j < perEventReq.length; j++) {
+                var fe = perEventReq[j];
+                if (eventData[fe] === undefined || eventData[fe] === null || eventData[fe] === "") {
+                    if (gaps.indexOf(fe) === -1)
+                        gaps.push(fe);
+                }
+            }
+        }
+        catch (e) {
+            try {
+                logger.warn("[EventEnricher] enrich failed: "
+                    + ((e && e.message) ? e.message : String(e)));
+            }
+            catch (_) { }
+        }
+        return { gaps: gaps };
+    }
+    EventEnricher.enrich = enrich;
+    /**
+     * Append a coverage-gap row. One row per (event, gap_set) per hour,
+     * keyed so re-emissions of the same gap collapse to a single row + a
+     * counter rather than spamming the table.
+     */
+    function recordCoverageGap(nk, logger, gameId, eventName, gaps) {
+        if (!gaps || gaps.length === 0)
+            return;
+        try {
+            var hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
+            var gapKey = gaps.slice().sort().join(",");
+            var key = "gap_" + gameId + "_" + hourBucket + "_" + eventName + "_" + safeKey(gapKey);
+            // Read-modify-write to bump the counter.
+            var existing = null;
+            try {
+                var rows = nk.storageRead([{
+                        collection: EventEnricher.GAP_COLLECTION,
+                        key: key,
+                        userId: "",
+                    }]);
+                if (rows && rows.length > 0)
+                    existing = rows[0].value;
+            }
+            catch (_) { }
+            var record = existing && typeof existing === "object" ? existing : {
+                gameId: gameId,
+                eventName: eventName,
+                gaps: gaps,
+                gapKey: gapKey,
+                firstSeenMs: Date.now(),
+                count: 0,
+            };
+            record.count = (record.count || 0) + 1;
+            record.lastSeenMs = Date.now();
+            nk.storageWrite([{
+                    collection: EventEnricher.GAP_COLLECTION,
+                    key: key,
+                    userId: "",
+                    value: record,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (e) {
+            try {
+                logger.warn("[EventEnricher] recordCoverageGap failed: "
+                    + ((e && e.message) ? e.message : String(e)));
+            }
+            catch (_) { }
+        }
+    }
+    EventEnricher.recordCoverageGap = recordCoverageGap;
+    function safeKey(s) {
+        return s.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 64);
+    }
+    // ────────────────────────────────────────────────────────────────────
+    // Daily coverage health summary
+    //
+    // Scans the last 24h of GAP_COLLECTION and emits a one-shot embed
+    // to the AnalyticsAlerts Discord webhook (#qv-ops). Triggered by
+    // the opportunistic scheduler tick from analytics-alerts.ts so we
+    // don't need a true cron facility.
+    // ────────────────────────────────────────────────────────────────────
+    var lastCoveragePostMs = 0;
+    var COVERAGE_POST_INTERVAL_MS = 24 * 60 * 60 * 1000;
+    function maybePostDailyCoverageHealth(nk, logger, webhookUrl) {
+        var now = Date.now();
+        if (!webhookUrl)
+            return;
+        if (now - lastCoveragePostMs < COVERAGE_POST_INTERVAL_MS)
+            return;
+        lastCoveragePostMs = now;
+        try {
+            var summary = scanCoverage(nk, logger);
+            if (!summary || summary.totalGaps === 0) {
+                // No gaps in the window — still emit a green status once a day
+                // so on-call can see the loop is alive.
+                var greenEmbed = {
+                    title: "Analytics Coverage — green",
+                    description: "No coverage gaps recorded in the last 24h.",
+                    color: 0x2ecc71,
+                    timestamp: new Date().toISOString(),
+                };
+                nk.httpRequest(webhookUrl, "post", { "Content-Type": "application/json" }, JSON.stringify({ embeds: [greenEmbed] }), 5000);
+                return;
+            }
+            var top = summary.topGaps.slice(0, 10).map(function (g, idx) {
+                return (idx + 1) + ". `" + g.eventName + "` missing [" + g.gaps.join(", ") +
+                    "] — " + g.count + "× across " + g.uniqueHours + "h";
+            }).join("\n");
+            var embed = {
+                title: "Analytics Coverage Health (24h)",
+                description: top,
+                color: summary.totalGaps > 1000 ? 0xe74c3c : 0xf1c40f,
+                fields: [
+                    { name: "Total gap rows", value: String(summary.totalGaps), inline: true },
+                    { name: "Distinct events", value: String(summary.distinctEvents), inline: true },
+                    { name: "Game", value: summary.gameId || "all", inline: true },
+                ],
+                footer: { text: "Phase 1A coverage report — see qv-insights-loop plan" },
+                timestamp: new Date().toISOString(),
+            };
+            nk.httpRequest(webhookUrl, "post", { "Content-Type": "application/json" }, JSON.stringify({ embeds: [embed] }), 5000);
+        }
+        catch (e) {
+            try {
+                logger.warn("[EventEnricher] maybePostDailyCoverageHealth failed: "
+                    + ((e && e.message) ? e.message : String(e)));
+            }
+            catch (_) { }
+        }
+    }
+    EventEnricher.maybePostDailyCoverageHealth = maybePostDailyCoverageHealth;
+    function scanCoverage(nk, logger) {
+        try {
+            // Bound the scan: 200 most recent rows is enough to surface the
+            // worst offenders without becoming a memory hazard.
+            var listRes = nk.storageList("", EventEnricher.GAP_COLLECTION, 200);
+            var entries = (listRes && listRes.objects) || [];
+            var totalGaps = 0;
+            var byEventGap = {};
+            var anyGameId = null;
+            for (var i = 0; i < entries.length; i++) {
+                var v = entries[i].value;
+                if (!v || !v.eventName)
+                    continue;
+                anyGameId = anyGameId || v.gameId || null;
+                totalGaps += v.count || 0;
+                var k = v.eventName + "::" + (v.gapKey || "");
+                if (!byEventGap[k]) {
+                    byEventGap[k] = { eventName: v.eventName, gaps: v.gaps || [], count: 0, hours: {} };
+                }
+                byEventGap[k].count += v.count || 0;
+                var hour = String(Math.floor((v.lastSeenMs || 0) / (60 * 60 * 1000)));
+                byEventGap[k].hours[hour] = true;
+            }
+            var arr = Object.keys(byEventGap).map(function (k) {
+                var rec = byEventGap[k];
+                return {
+                    eventName: rec.eventName,
+                    gaps: rec.gaps,
+                    count: rec.count,
+                    uniqueHours: Object.keys(rec.hours).length,
+                };
+            });
+            arr.sort(function (a, b) { return b.count - a.count; });
+            return {
+                totalGaps: totalGaps,
+                distinctEvents: arr.length,
+                gameId: anyGameId,
+                topGaps: arr,
+            };
+        }
+        catch (e) {
+            try {
+                logger.warn("[EventEnricher] scanCoverage failed: "
+                    + (e.message || String(e)));
+            }
+            catch (_) { }
+            return null;
+        }
+    }
+})(EventEnricher || (EventEnricher = {}));
+// Phase 2A (qv-insights-loop) — Insights aggregator.
+//
+// Hourly rollup that turns the raw `analytics_rpc_samples` ZSet (and the
+// per-event records persisted by analytics.js into `analytics_events`)
+// into compact per-cohort bundles, then POSTs them to the AI svc
+// `/insights/ingest` endpoint over HMAC-signed HTTP.
+//
+// Why hourly? Cheap enough to keep latency on the brief low (<= 1h
+// freshness) without overwhelming the AI svc when it falls behind.
+//
+// Why per-cohort? The downstream RAG analyst (Phase 2B) wants pre-
+// segmented signal — pushing raw rows means more tokens + more LLM cost
+// for the same conclusion. We aggregate "whale_d30_returning_ai_host_lover
+// on Android 14, weekly mythology card" once at the source.
+//
+// Failure modes handled:
+//   - AI svc unreachable      → bundle persisted to game_pending_bundles
+//   - HMAC misconfigured      → log WARN, skip post, persist to DLQ
+//   - Sample list incomplete  → emit partial bundle with `partial=true`
+//   - Bundle too large        → split per-cohort into smaller envelopes
+//
+// The aggregator is OPPORTUNISTIC: it runs from inside AnalyticsAlerts'
+// scheduler tick (same leader-elected path as the 3h Discord summary),
+// so we don't need a real cron facility. A separate manual RPC
+// (`insights_aggregator_tick`) is exposed for ops debugging.
+var InsightsAggregator;
+(function (InsightsAggregator) {
+    InsightsAggregator.EVENTS_COLLECTION = "analytics_events";
+    InsightsAggregator.SAMPLE_COLLECTION = "analytics_rpc_samples";
+    InsightsAggregator.STATE_KEY = "insights_aggregator_last_run";
+    InsightsAggregator.STATE_COLLECTION = "analytics_state";
+    // Hourly bucket — keep small so a single missed run can be replayed
+    // cheaply. Operators can dial via env IVX_INSIGHTS_BUCKET_MS.
+    InsightsAggregator.DEFAULT_BUCKET_MS = 60 * 60 * 1000;
+    InsightsAggregator.MAX_BUCKETS_PER_TICK = 6; // catch up at most 6h on each tick
+    InsightsAggregator.MIN_TICK_INTERVAL_MS = 10 * 60 * 1000;
+    // Bound how many sample rows we scan per bucket — protects the host
+    // RPC from a runaway storage scan if the buffer flush stalled.
+    InsightsAggregator.MAX_SAMPLES_PER_BUCKET = 5000;
+    InsightsAggregator.MAX_EVENTS_PER_BUCKET = 5000;
+    // Per-bundle size cap. Each cohort gets its own envelope; if the
+    // serialised bundle exceeds this, downstream insight quality suffers
+    // because we've stuffed too many distinct user paths into one. Split.
+    InsightsAggregator.MAX_BUNDLE_BYTES = 64 * 1024;
+    var moduleConfig = {
+        aiSvcBaseUrl: "",
+        insightsSecret: "",
+        qvOpsWebhookUrl: "",
+        bucketMs: InsightsAggregator.DEFAULT_BUCKET_MS,
+    };
+    /** Init from env — call from AnalyticsAlerts.init / InitModule. */
+    function init(ctx, logger) {
+        try {
+            moduleConfig.aiSvcBaseUrl = (ctx.env && ctx.env["IVX_AI_SVC_BASE_URL"]) || "";
+            moduleConfig.insightsSecret = (ctx.env && ctx.env["IVX_INSIGHTS_SHARED_SECRET"]) || "";
+            moduleConfig.qvOpsWebhookUrl = (ctx.env && ctx.env["DISCORD_QV_OPS_WEBHOOK_URL"])
+                || (ctx.env && ctx.env["DISCORD_NAKAMA_WEBHOOK_URL"]) || "";
+            var raw = (ctx.env && ctx.env["IVX_INSIGHTS_BUCKET_MS"]) || "";
+            var n = raw ? Number(raw) : 0;
+            moduleConfig.bucketMs = (Number.isFinite(n) && n > 60000) ? n : InsightsAggregator.DEFAULT_BUCKET_MS;
+            logger.info("[InsightsAggregator] init ai_svc=%s secret=%s bucket_ms=%s", moduleConfig.aiSvcBaseUrl ? "configured" : "MISSING (IVX_AI_SVC_BASE_URL)", moduleConfig.insightsSecret ? "configured" : "MISSING (IVX_INSIGHTS_SHARED_SECRET)", String(moduleConfig.bucketMs));
+        }
+        catch (e) {
+            logger.warn("[InsightsAggregator] init failed: " +
+                (e && e.message ? e.message : String(e)));
+        }
+    }
+    InsightsAggregator.init = init;
+    // ────────────────────────────────────────────────────────────────────
+    // Public entry point — called from AnalyticsAlerts scheduler tick.
+    // ────────────────────────────────────────────────────────────────────
+    function maybeRun(nk, logger) {
+        var bucketMs = moduleConfig.bucketMs || InsightsAggregator.DEFAULT_BUCKET_MS;
+        if (!moduleConfig.aiSvcBaseUrl) {
+            return { ran: false, bucketsProcessed: 0, bundlesEmitted: 0, reason: "ai_svc_url_unset" };
+        }
+        var lastRun = readLastRun(nk);
+        var now = Date.now();
+        if (lastRun > 0 && now - lastRun < InsightsAggregator.MIN_TICK_INTERVAL_MS) {
+            return { ran: false, bucketsProcessed: 0, bundlesEmitted: 0, reason: "cooldown" };
+        }
+        var lastBucketStart = bucketAlign(lastRun || (now - bucketMs * 2), bucketMs);
+        var nowAligned = bucketAlign(now, bucketMs);
+        var bucketsProcessed = 0;
+        var bundlesEmitted = 0;
+        // Process every CLOSED bucket since lastRun (cap MAX_BUCKETS_PER_TICK).
+        for (var b = lastBucketStart; b < nowAligned && bucketsProcessed < InsightsAggregator.MAX_BUCKETS_PER_TICK; b += bucketMs) {
+            try {
+                var emitted = processBucket(nk, logger, b, b + bucketMs);
+                bundlesEmitted += emitted;
+                bucketsProcessed++;
+            }
+            catch (e) {
+                logger.warn("[InsightsAggregator] bucket " + new Date(b).toISOString() +
+                    " failed: " + (e && e.message ? e.message : String(e)));
+            }
+        }
+        writeLastRun(nk, now);
+        return { ran: true, bucketsProcessed: bucketsProcessed, bundlesEmitted: bundlesEmitted, reason: "ok" };
+    }
+    InsightsAggregator.maybeRun = maybeRun;
+    /** Expose the active poster so PendingBundles.drain can replay using
+     * the same config (HMAC secret + base URL) without re-reading env. */
+    function postBundleNow(nk, logger, bundle) {
+        return postBundle(nk, logger, bundle);
+    }
+    InsightsAggregator.postBundleNow = postBundleNow;
+    function processBucket(nk, logger, bucketStart, bucketEnd) {
+        var aggregates = {};
+        var partial = false;
+        // Pull bounded slice of samples written into analytics_rpc_samples.
+        var sampleRows = [];
+        try {
+            var listRes = nk.storageList("", InsightsAggregator.SAMPLE_COLLECTION, InsightsAggregator.MAX_SAMPLES_PER_BUCKET);
+            var objs = (listRes && listRes.objects) || [];
+            if (objs.length >= InsightsAggregator.MAX_SAMPLES_PER_BUCKET)
+                partial = true;
+            for (var i = 0; i < objs.length; i++) {
+                var v = objs[i].value;
+                if (!v || !v.samples)
+                    continue;
+                for (var s = 0; s < v.samples.length; s++) {
+                    var row = v.samples[s];
+                    if (!row || row.ts < bucketStart || row.ts >= bucketEnd)
+                        continue;
+                    sampleRows.push(row);
+                }
+            }
+        }
+        catch (e) {
+            logger.warn("[InsightsAggregator] sample scan failed: " +
+                (e && e.message ? e.message : String(e)));
+            partial = true;
+        }
+        // Bucket events too — analytics.js writes one row per event under
+        // `analytics_events` (system user, key contains gameId + day + event
+        // name). We don't have a dense secondary index by ts so we sample
+        // the last MAX_EVENTS_PER_BUCKET keys, intersected with the bucket
+        // timestamp range. Aggregator's job is signal density, not exhaustive
+        // counts — the dashboard already does that.
+        var eventRows = [];
+        try {
+            var elRes = nk.storageList("", InsightsAggregator.EVENTS_COLLECTION, InsightsAggregator.MAX_EVENTS_PER_BUCKET);
+            var eObjs = (elRes && elRes.objects) || [];
+            if (eObjs.length >= InsightsAggregator.MAX_EVENTS_PER_BUCKET)
+                partial = true;
+            for (var ei = 0; ei < eObjs.length; ei++) {
+                var ev = eObjs[ei].value;
+                if (!ev || !ev.unixTimestamp)
+                    continue;
+                var tsMs = ev.unixTimestamp * 1000;
+                if (tsMs < bucketStart || tsMs >= bucketEnd)
+                    continue;
+                eventRows.push(ev);
+            }
+        }
+        catch (e) {
+            logger.warn("[InsightsAggregator] event scan failed: " +
+                (e && e.message ? e.message : String(e)));
+            partial = true;
+        }
+        // Aggregate samples by (gameId, cohortLabel, quizMode).
+        for (var rIdx = 0; rIdx < sampleRows.length; rIdx++) {
+            var sRow = sampleRows[rIdx];
+            // Without a gameId on the sample row we can't bucket — fall back
+            // to a synthetic group based on the rpc id prefix so we still
+            // surface the calls in a generic envelope.
+            var gid = inferGameIdFromRpc(sRow.rpc) || "unknown";
+            var cl = sRow.cohortLabel || "pending";
+            var qm = sRow.quizMode || "_none";
+            var key = gid + "::" + cl + "::" + qm;
+            var agg = aggregates[key] || newAggregate(gid, cl, qm);
+            agg.rpcCalls++;
+            if (sRow.ok)
+                agg.rpcOk++;
+            agg.rpcDurations.push(sRow.durMs);
+            if (!sRow.ok) {
+                agg.topErrors[sRow.rpc] = (agg.topErrors[sRow.rpc] || 0) + 1;
+            }
+            if (sRow.quizCardType)
+                agg.cards[sRow.quizCardType] = (agg.cards[sRow.quizCardType] || 0) + 1;
+            if (sRow.os)
+                agg.osBreakdown[sRow.os] = (agg.osBreakdown[sRow.os] || 0) + 1;
+            if (sRow.appVersion)
+                agg.appVersionBreakdown[sRow.appVersion] = (agg.appVersionBreakdown[sRow.appVersion] || 0) + 1;
+            if (sRow.country)
+                agg.countryBreakdown[sRow.country] = (agg.countryBreakdown[sRow.country] || 0) + 1;
+            if (sRow.tier)
+                agg.tierBreakdown[sRow.tier] = (agg.tierBreakdown[sRow.tier] || 0) + 1;
+            if (sRow.userIdHash)
+                agg.distinctUsers[sRow.userIdHash] = true;
+            if (typeof sRow.costUsd === "number") {
+                agg.llmCalls++;
+                agg.llmCostUsd += sRow.costUsd;
+                agg.llmTokensIn += sRow.tokensIn || 0;
+                agg.llmTokensOut += sRow.tokensOut || 0;
+            }
+            agg.sampleCount++;
+            aggregates[key] = agg;
+        }
+        // Aggregate events into the same (game, cohort, mode) buckets.
+        for (var ei2 = 0; ei2 < eventRows.length; ei2++) {
+            var ev = eventRows[ei2];
+            var gid2 = ev.gameId || "unknown";
+            var cl2 = (ev.eventData && ev.eventData.cohort_label) || "pending";
+            var qm2 = (ev.eventData && ev.eventData.quiz_mode) || "_none";
+            var key2 = gid2 + "::" + cl2 + "::" + qm2;
+            var agg2 = aggregates[key2] || newAggregate(gid2, cl2, qm2);
+            agg2.eventCounts[ev.eventName] = (agg2.eventCounts[ev.eventName] || 0) + 1;
+            if (ev.eventData && ev.eventData.quiz_card_type) {
+                agg2.cards[ev.eventData.quiz_card_type] = (agg2.cards[ev.eventData.quiz_card_type] || 0) + 1;
+            }
+            if (ev.sessionId)
+                agg2.distinctSessions[ev.sessionId] = true;
+            if (ev.userId) {
+                // We don't have userIdHash on the event row — use raw userId for
+                // the distinct count then drop it before serialising.
+                agg2.distinctUsers[ev.userId] = true;
+            }
+            agg2.eventCount++;
+            aggregates[key2] = agg2;
+        }
+        // Emit one bundle per cohort. INSIGHT_MIN_COHORT_N suppression is
+        // enforced AI-side (the analyst sees the row but knows not to make
+        // confident claims about cohorts with <25 distinct users).
+        // Phase 3 (qv-insights-loop): prefetch the per-game crash pattern
+        // summary once per processBucket so the per-cohort serialisation
+        // path can attach the top patterns to the (gameId, _global, _none)
+        // bundle without re-reading storage for every cohort.
+        var crashByGame = {};
+        if (typeof QvCrashHandler !== "undefined" && QvCrashHandler
+            && typeof QvCrashHandler.readPatternSummary === "function") {
+            var seenGids = {};
+            for (var bgk in aggregates) {
+                if (!aggregates.hasOwnProperty(bgk))
+                    continue;
+                var ggid = aggregates[bgk].key.gameId;
+                if (seenGids[ggid])
+                    continue;
+                seenGids[ggid] = true;
+                var sum = QvCrashHandler.readPatternSummary(nk, ggid);
+                if (sum && sum.patterns) {
+                    crashByGame[ggid] = sum.patterns;
+                }
+            }
+        }
+        var emitted = 0;
+        for (var bk in aggregates) {
+            if (!aggregates.hasOwnProperty(bk))
+                continue;
+            var aggForBundle = aggregates[bk];
+            var bundle = serialiseAggregate(aggForBundle, bucketStart, bucketEnd, partial);
+            // Attach crash patterns ONLY to the global/no-mode bundle per
+            // game to avoid duplicating ~25 rows × N cohorts.
+            if (aggForBundle.key.cohortLabel === "pending" && aggForBundle.key.quizMode === "_none") {
+                var patterns = crashByGame[aggForBundle.key.gameId];
+                if (patterns && patterns.length > 0) {
+                    bundle.aggregate.topCrashPatterns = patterns.slice(0, 8).map(function (p) {
+                        return {
+                            fingerprint: p.fingerprint,
+                            type: p.type,
+                            count: p.count,
+                            sampleMessage: (p.sampleMessage || "").slice(0, 240),
+                            firstSeenIso: new Date(p.firstSeenMs).toISOString(),
+                            lastSeenIso: new Date(p.lastSeenMs).toISOString(),
+                            topAppVersion: topKey(p.appVersions),
+                            topOs: topKey(p.osBreakdown),
+                        };
+                    });
+                }
+            }
+            if (postBundle(nk, logger, bundle)) {
+                emitted++;
+            }
+            else {
+                // Persist to DLQ on failure — Phase 6 drains.
+                if (typeof PendingBundles !== "undefined" && PendingBundles && typeof PendingBundles.enqueue === "function") {
+                    PendingBundles.enqueue(nk, logger, bundle);
+                }
+            }
+        }
+        return emitted;
+    }
+    function newAggregate(gameId, cohortLabel, quizMode) {
+        return {
+            key: { gameId: gameId, cohortLabel: cohortLabel, quizMode: quizMode },
+            rpcCalls: 0,
+            rpcOk: 0,
+            rpcDurations: [],
+            topErrors: {},
+            eventCounts: {},
+            cards: {},
+            osBreakdown: {},
+            appVersionBreakdown: {},
+            countryBreakdown: {},
+            tierBreakdown: {},
+            distinctUsers: {},
+            distinctSessions: {},
+            llmTokensIn: 0,
+            llmTokensOut: 0,
+            llmCostUsd: 0,
+            llmCalls: 0,
+            sampleCount: 0,
+            eventCount: 0,
+        };
+    }
+    function topNFromMap(m, n) {
+        var rows = [];
+        for (var k in m) {
+            if (m.hasOwnProperty(k))
+                rows.push({ key: k, count: m[k] });
+        }
+        rows.sort(function (a, b) { return b.count - a.count; });
+        return rows.slice(0, n);
+    }
+    function serialiseAggregate(agg, bucketStart, bucketEnd, partial) {
+        var sorted = agg.rpcDurations.slice().sort(function (a, b) { return a - b; });
+        var p = function (frac) {
+            if (sorted.length === 0)
+                return 0;
+            var idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * frac)));
+            return sorted[idx];
+        };
+        var bundleId = agg.key.gameId + "_" + agg.key.cohortLabel + "_" + agg.key.quizMode +
+            "_" + bucketStart;
+        return {
+            schemaVersion: 1,
+            bucketStartMs: bucketStart,
+            bucketEndMs: bucketEnd,
+            gameId: agg.key.gameId,
+            cohortLabel: agg.key.cohortLabel,
+            quizMode: agg.key.quizMode,
+            bucketStartIso: new Date(bucketStart).toISOString(),
+            bucketEndIso: new Date(bucketEnd).toISOString(),
+            sourceCitation: "storage://" + InsightsAggregator.SAMPLE_COLLECTION + "+" + InsightsAggregator.EVENTS_COLLECTION,
+            bundleId: bundleId,
+            aggregate: {
+                rpcCalls: agg.rpcCalls,
+                rpcSuccessRate: agg.rpcCalls > 0 ? (agg.rpcOk / agg.rpcCalls) : 1,
+                rpcP50Ms: p(0.5),
+                rpcP90Ms: p(0.9),
+                rpcP99Ms: p(0.99),
+                topErrors: topNFromMap(agg.topErrors, 8).map(function (r) {
+                    return { rpc: r.key, count: r.count };
+                }),
+                topEvents: topNFromMap(agg.eventCounts, 12).map(function (r) {
+                    return { event: r.key, count: r.count };
+                }),
+                topCards: topNFromMap(agg.cards, 8).map(function (r) {
+                    return { card: r.key, count: r.count };
+                }),
+                osBreakdown: topNFromMap(agg.osBreakdown, 6),
+                appVersionBreakdown: topNFromMap(agg.appVersionBreakdown, 6),
+                countryBreakdown: topNFromMap(agg.countryBreakdown, 8),
+                tierBreakdown: topNFromMap(agg.tierBreakdown, 6),
+                distinctUsers: Object.keys(agg.distinctUsers).length,
+                distinctSessions: Object.keys(agg.distinctSessions).length,
+                llmTokensIn: agg.llmTokensIn,
+                llmTokensOut: agg.llmTokensOut,
+                llmCostUsd: agg.llmCostUsd,
+                llmCalls: agg.llmCalls,
+                partial: partial,
+            },
+        };
+    }
+    function postBundle(nk, logger, bundle) {
+        if (!moduleConfig.aiSvcBaseUrl)
+            return false;
+        var body = JSON.stringify(bundle);
+        if (body.length > InsightsAggregator.MAX_BUNDLE_BYTES) {
+            // Hard cap — trim non-critical breakdown arrays in place.
+            bundle.aggregate.topEvents = (bundle.aggregate.topEvents || []).slice(0, 6);
+            bundle.aggregate.topCards = (bundle.aggregate.topCards || []).slice(0, 4);
+            bundle.aggregate.countryBreakdown = (bundle.aggregate.countryBreakdown || []).slice(0, 4);
+            body = JSON.stringify(bundle);
+        }
+        var url = moduleConfig.aiSvcBaseUrl.replace(/\/$/, "") + "/insights/ingest";
+        var ts = String(Date.now());
+        var sig = computeBundleHmac(nk, ts, "/insights/ingest", body, logger);
+        if (!sig) {
+            // No secret → can't authenticate; leave for DLQ.
+            return false;
+        }
+        try {
+            var resp = nk.httpRequest(url, "post", {
+                "Content-Type": "application/json",
+                "X-IVX-Service": "nakama",
+                "X-IVX-Timestamp": ts,
+                "X-IVX-Signature": sig,
+            }, body, 8000);
+            var code = (resp && resp.code) ? resp.code : 0;
+            if (code >= 200 && code < 300)
+                return true;
+            logger.warn("[InsightsAggregator] /insights/ingest non-2xx: code=" + code +
+                " body=" + ((resp && resp.body) ? String(resp.body).slice(0, 200) : ""));
+            return false;
+        }
+        catch (e) {
+            logger.warn("[InsightsAggregator] post failed: " +
+                (e && e.message ? e.message : String(e)));
+            return false;
+        }
+    }
+    function computeBundleHmac(nk, ts, path, body, logger) {
+        var secret = moduleConfig.insightsSecret;
+        if (!secret) {
+            logger.warn("[InsightsAggregator] IVX_INSIGHTS_SHARED_SECRET unset; skipping post");
+            return "";
+        }
+        try {
+            var raw = nk.hmacSha256Hash(ts + ":" + path + ":" + body, secret);
+            return nk.base16Encode(raw, false).toLowerCase();
+        }
+        catch (e) {
+            logger.warn("[InsightsAggregator] hmac failed: " +
+                (e && e.message ? e.message : String(e)));
+            return "";
+        }
+    }
+    /** Expose the qv-ops webhook for ops alerts (e.g. DLQ dead-letters). */
+    function getQvOpsWebhookUrl() {
+        return moduleConfig.qvOpsWebhookUrl;
+    }
+    InsightsAggregator.getQvOpsWebhookUrl = getQvOpsWebhookUrl;
+    function readLastRun(nk) {
+        try {
+            var rows = nk.storageRead([{ collection: InsightsAggregator.STATE_COLLECTION, key: InsightsAggregator.STATE_KEY, userId: "" }]);
+            if (rows && rows.length > 0 && rows[0].value && rows[0].value.ts) {
+                return rows[0].value.ts;
+            }
+        }
+        catch (_) { }
+        return 0;
+    }
+    function writeLastRun(nk, ts) {
+        try {
+            nk.storageWrite([{
+                    collection: InsightsAggregator.STATE_COLLECTION,
+                    key: InsightsAggregator.STATE_KEY,
+                    userId: "",
+                    value: { ts: ts },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (_) { }
+    }
+    function bucketAlign(t, bucketMs) {
+        return Math.floor(t / bucketMs) * bucketMs;
+    }
+    function topKey(m) {
+        if (!m)
+            return undefined;
+        var bestK;
+        var bestV = -1;
+        for (var k in m) {
+            if (!m.hasOwnProperty(k))
+                continue;
+            if (m[k] > bestV) {
+                bestV = m[k];
+                bestK = k;
+            }
+        }
+        return bestK;
+    }
+    /**
+     * Best-effort game-id inference for samples that lack the optional
+     * `cohortLabel` / metadata. Mirrors the slug aliases in analytics.js.
+     * Returns null when the rpc id doesn't match a known prefix.
+     */
+    function inferGameIdFromRpc(rpc) {
+        if (!rpc)
+            return null;
+        if (rpc.indexOf("quizverse_") === 0)
+            return "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+        if (rpc.indexOf("lasttolive_") === 0)
+            return "8f3b1c2a-5d6e-4f7a-9b8c-1d2e3f4a5b6c";
+        if (rpc.indexOf("cricket_") === 0)
+            return "cricket";
+        return null;
+    }
+    function rpcTick(ctx, logger, nk, _payload) {
+        // Allow ops-triggered re-init in case env got refreshed via secret rotation.
+        if (!moduleConfig.aiSvcBaseUrl || !moduleConfig.insightsSecret) {
+            init(ctx, logger);
+        }
+        var res = maybeRun(nk, logger);
+        return JSON.stringify({ success: true, data: res });
+    }
+    function register(initializer) {
+        __rpc_insights_aggregator_tick = rpcTick;
+    }
+    InsightsAggregator.register = register;
+    register();
+})(InsightsAggregator || (InsightsAggregator = {}));
+// Phase 2A (qv-insights-loop) — Pending bundles DLQ.
+//
+// When InsightsAggregator can't deliver a bundle to the AI svc (network
+// blip, AI svc down, HMAC misconfigured) we persist the envelope here so
+// it survives the next deploy / pod restart and can be re-driven by
+// `pending_bundles_drain` on the next aggregator tick (or manually via
+// the admin RPC).
+//
+// Storage layout:
+//   collection: pending_bundles
+//   userId:     "" (system-owned)
+//   key:        bundleId (idempotent — re-enqueue is a no-op replace)
+//   value:      { bundle, attempts, firstSeenMs, lastTriedMs, lastError }
+//
+// We cap retries at MAX_ATTEMPTS to stop a poison pill from chewing up
+// every tick forever. After cap, the row is moved to a `dead_bundles`
+// collection (still queryable, no longer auto-retried) and a Discord
+// warning is fired so a human can look at it.
+var PendingBundles;
+(function (PendingBundles) {
+    PendingBundles.COLLECTION = "pending_bundles";
+    PendingBundles.DEAD_COLLECTION = "dead_bundles";
+    PendingBundles.MAX_ATTEMPTS = 8;
+    PendingBundles.MAX_DRAIN_PER_TICK = 50;
+    PendingBundles.BACKOFF_BASE_MS = 60000; // 1 min, exponential
+    function enqueue(nk, logger, bundle) {
+        if (!bundle || !bundle.bundleId)
+            return;
+        var now = Date.now();
+        var existing = readOne(nk, bundle.bundleId);
+        var row = existing ? existing : {
+            bundle: bundle,
+            attempts: 0,
+            firstSeenMs: now,
+            lastTriedMs: 0,
+            lastError: "",
+        };
+        if (existing) {
+            row.bundle = bundle; // overwrite payload with latest snapshot
+            row.lastTriedMs = now;
+            row.attempts = (row.attempts || 0) + 1;
+        }
+        try {
+            nk.storageWrite([{
+                    collection: PendingBundles.COLLECTION,
+                    key: bundle.bundleId,
+                    userId: "",
+                    value: row,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (e) {
+            logger.warn("[PendingBundles] enqueue failed for " + bundle.bundleId + ": " +
+                (e && e.message ? e.message : String(e)));
+        }
+    }
+    PendingBundles.enqueue = enqueue;
+    function drain(nk, logger, poster) {
+        var drained = 0;
+        var deadLetters = 0;
+        try {
+            var listRes = nk.storageList("", PendingBundles.COLLECTION, PendingBundles.MAX_DRAIN_PER_TICK);
+            var objs = (listRes && listRes.objects) || [];
+            var now = Date.now();
+            for (var i = 0; i < objs.length; i++) {
+                var row = objs[i].value;
+                if (!row || !row.bundle)
+                    continue;
+                var attempts = row.attempts || 0;
+                var nextEligible = row.lastTriedMs + Math.min(60 * 60 * 1000, PendingBundles.BACKOFF_BASE_MS * Math.pow(2, attempts));
+                if (now < nextEligible)
+                    continue;
+                var ok = false;
+                try {
+                    ok = poster(row.bundle);
+                }
+                catch (e) {
+                    row.lastError = e && e.message ? e.message : String(e);
+                }
+                if (ok) {
+                    // Delete on success.
+                    try {
+                        nk.storageDelete([{ collection: PendingBundles.COLLECTION, key: objs[i].key, userId: "" }]);
+                        drained++;
+                    }
+                    catch (_) { }
+                    continue;
+                }
+                row.attempts = attempts + 1;
+                row.lastTriedMs = now;
+                if (row.attempts >= PendingBundles.MAX_ATTEMPTS) {
+                    try {
+                        nk.storageWrite([{
+                                collection: PendingBundles.DEAD_COLLECTION,
+                                key: objs[i].key,
+                                userId: "",
+                                value: row,
+                                permissionRead: 0,
+                                permissionWrite: 0,
+                            }]);
+                        nk.storageDelete([{ collection: PendingBundles.COLLECTION, key: objs[i].key, userId: "" }]);
+                    }
+                    catch (_) { }
+                    deadLetters++;
+                    fireDeadLetterAlert(nk, logger, row);
+                    continue;
+                }
+                try {
+                    nk.storageWrite([{
+                            collection: PendingBundles.COLLECTION,
+                            key: objs[i].key,
+                            userId: "",
+                            value: row,
+                            permissionRead: 0,
+                            permissionWrite: 0,
+                        }]);
+                }
+                catch (_) { }
+            }
+        }
+        catch (e) {
+            logger.warn("[PendingBundles] drain failed: " +
+                (e && e.message ? e.message : String(e)));
+        }
+        return { drained: drained, deadLetters: deadLetters };
+    }
+    PendingBundles.drain = drain;
+    function readOne(nk, key) {
+        try {
+            var rows = nk.storageRead([{ collection: PendingBundles.COLLECTION, key: key, userId: "" }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                return rows[0].value;
+            }
+        }
+        catch (_) { }
+        return null;
+    }
+    function fireDeadLetterAlert(nk, logger, row) {
+        var url = "";
+        try {
+            if (typeof InsightsAggregator !== "undefined" && InsightsAggregator
+                && typeof InsightsAggregator.getQvOpsWebhookUrl === "function") {
+                url = InsightsAggregator.getQvOpsWebhookUrl();
+            }
+        }
+        catch (_) { }
+        if (!url)
+            return;
+        var b = row.bundle || {};
+        var content = ":warning: DLQ-letter — persistent failure delivering insights bundle " +
+            "`" + (b.bundleId || "unknown") + "` after " + row.attempts +
+            " attempts. lastError=`" + (row.lastError || "n/a").slice(0, 200) + "`" +
+            " gameId=" + (b.gameId || "?") + " cohort=" + (b.cohortLabel || "?") +
+            " bucket=" + (b.bucketStartIso || "?");
+        try {
+            var payload = JSON.stringify({
+                username: "qv-insights-aggregator",
+                content: content.slice(0, 1900),
+            });
+            nk.httpRequest(url, "post", {
+                "Content-Type": "application/json",
+            }, payload, 5000);
+        }
+        catch (e) {
+            logger.warn("[PendingBundles] dead-letter alert failed: " +
+                (e && e.message ? e.message : String(e)));
+        }
+    }
+    function rpcAdminDrain(ctx, logger, nk, _payload) {
+        // System (no userId) or operator with the well-known admin token only.
+        if (typeof ctx.userId === "string" && ctx.userId !== "") {
+            return JSON.stringify({ success: false, error: "admin_only" });
+        }
+        var res = drain(nk, logger, function (bundle) {
+            if (typeof InsightsAggregator !== "undefined" && InsightsAggregator
+                && typeof InsightsAggregator.postBundleNow === "function") {
+                return InsightsAggregator.postBundleNow(nk, logger, bundle);
+            }
+            return false;
+        });
+        return JSON.stringify({ success: true, data: res });
+    }
+    function register(initializer) {
+        __rpc_pending_bundles_drain = rpcAdminDrain;
+    }
+    PendingBundles.register = register;
+    register();
+})(PendingBundles || (PendingBundles = {}));
+// Phase 4B (qv-insights-loop) — personalization_get + personalization_get_for_mode RPCs.
+//
+// SDK -> Nakama -> AI svc /personalization/*. The SDK never holds the
+// HMAC shared secret; Nakama signs every forward and stamps the
+// authenticated user id as the source of truth.
+//
+// Behaviour:
+//   personalization_get          — returns the full per-user bundle:
+//                                  smartNudge, todayFeed, pushSchedule,
+//                                  per-mode addenda, plus a "stale" flag
+//                                  the SDK can use to decide whether to
+//                                  fall back to a baked default.
+//   personalization_get_for_mode — returns ONLY the addendum for one
+//                                  mode (ai_host / voice / fortune /
+//                                  tutor / chat / classic). Cheaper to
+//                                  fetch frequently from a per-mode
+//                                  controller hot path.
+//
+// Cache strategy (server-side):
+//   - The AI svc owns the 6h Redis cache. Nakama is fire-and-forget;
+//     we don't double-cache here.
+//   - On AI svc failure (HTTP non-2xx, network), we return a soft
+//     "stale: true, addendum: null" envelope so the SDK code path can
+//     gracefully no-op without a try/catch chain.
+var QvPersonalization;
+(function (QvPersonalization) {
+    var ALLOWED_MODES = [
+        "ai_host",
+        "voice",
+        "fortune",
+        "tutor",
+        "chat",
+        "classic",
+    ];
+    function aiSvcBase(ctx, logger) {
+        var base = (ctx.env && ctx.env["IVX_AI_SVC_BASE_URL"]) || "";
+        if (!base) {
+            logger.warn("[QvPersonalization] IVX_AI_SVC_BASE_URL unset");
+            return null;
+        }
+        return base.replace(/\/$/, "");
+    }
+    function computeHmac(ctx, nk, ts, path, body, logger) {
+        var secret = (ctx.env && ctx.env["IVX_INSIGHTS_SHARED_SECRET"]) || "";
+        if (!secret) {
+            logger.warn("[QvPersonalization] IVX_INSIGHTS_SHARED_SECRET unset");
+            return "";
+        }
+        var msg = ts + ":" + path + ":" + body;
+        try {
+            var raw = nk.hmacSha256Hash(msg, secret);
+            return nk.base16Encode(raw, false).toLowerCase();
+        }
+        catch (e) {
+            logger.warn("[QvPersonalization] hmac failed: " + ((e && e.message) ? e.message : String(e)));
+            return "";
+        }
+    }
+    function getJson(ctx, nk, logger, path) {
+        var base = aiSvcBase(ctx, logger);
+        if (!base)
+            return null;
+        var ts = String(Date.now());
+        // For GET, body is empty string (HmacAuthGuard signs `ts:path:`).
+        var sig = computeHmac(ctx, nk, ts, path, "", logger);
+        try {
+            var resp = nk.httpRequest(base + path, "get", {
+                "Accept": "application/json",
+                "X-IVX-Service": "nakama",
+                "X-IVX-Timestamp": ts,
+                "X-IVX-Signature": sig,
+            }, "", 4500);
+            if (!resp)
+                return null;
+            return { code: resp.code, body: resp.body || "" };
+        }
+        catch (e) {
+            logger.warn("[QvPersonalization] get " + path + " threw: " + ((e && e.message) ? e.message : String(e)));
+            return null;
+        }
+    }
+    function rpcGet(ctx, logger, nk, payload) {
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ stale: true, error: "invalid_json" });
+        }
+        if (!data.game_id) {
+            return JSON.stringify({ stale: true, error: "missing_game_id" });
+        }
+        var userId = ctx.userId || "";
+        if (!userId) {
+            return JSON.stringify({ stale: true, error: "no_user" });
+        }
+        var qs = "?game_id=" + encodeURIComponent(data.game_id) +
+            "&user_id=" + encodeURIComponent(userId);
+        var resp = getJson(ctx, nk, logger, "/personalization/get" + qs);
+        if (!resp || resp.code < 200 || resp.code >= 300) {
+            return JSON.stringify({ stale: true });
+        }
+        // Pass-through; the SDK handles the bundle shape directly.
+        return resp.body;
+    }
+    function rpcGetForMode(ctx, logger, nk, payload) {
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ stale: true, error: "invalid_json" });
+        }
+        if (!data.game_id || !data.mode) {
+            return JSON.stringify({ stale: true, error: "missing_required_fields" });
+        }
+        var mode = data.mode;
+        var allowed = false;
+        for (var i = 0; i < ALLOWED_MODES.length; i++) {
+            if (ALLOWED_MODES[i] === mode) {
+                allowed = true;
+                break;
+            }
+        }
+        if (!allowed)
+            mode = "classic";
+        var userId = ctx.userId || "";
+        if (!userId) {
+            return JSON.stringify({ stale: true, error: "no_user" });
+        }
+        var qs = "?game_id=" + encodeURIComponent(data.game_id) +
+            "&user_id=" + encodeURIComponent(userId);
+        var resp = getJson(ctx, nk, logger, "/personalization/get-for-mode/" + encodeURIComponent(mode) + qs);
+        if (!resp || resp.code < 200 || resp.code >= 300) {
+            return JSON.stringify({ stale: true, mode: mode, addendum: null });
+        }
+        return resp.body;
+    }
+    function register(initializer) {
+        __rpc_personalization_get = rpcGet;
+        __rpc_personalization_get_for_mode = rpcGetForMode;
+    }
+    QvPersonalization.register = register;
+    register();
+})(QvPersonalization || (QvPersonalization = {}));
+// Phase 7 (qv-insights-loop) — privacy + consent forwarder RPCs.
+//
+// The Nakama orchestrator + Privacy team tooling call these RPCs to:
+//   - cascade-erase a user's footprint from the AI svc (GDPR Art.17 / CCPA)
+//   - update the AI svc's consent gate cache (COPPA / GDPR / CCPA)
+//   - invalidate the consent cache when a user changes settings
+//
+// Why route through Nakama?
+//   1. Same shared-secret HMAC chain as every other AI svc call —
+//      the AI svc has ONE trust anchor (IVX_INSIGHTS_SHARED_SECRET).
+//   2. Nakama owns the upstream consent record and underage flag.
+//   3. Audit trail lives in the Nakama session; AI svc only sees the
+//      derived gate decision.
+//
+// Behaviour:
+//   privacy_erase_user      → /privacy/erase
+//   privacy_erase_discord   → /privacy/erase-discord
+//   consent_upsert          → /consent/upsert  (called on every consent flip)
+//   consent_invalidate      → /consent/invalidate (drops the cache key)
+//
+// All four are admin-only — the SDK never invokes these directly. They
+// are called by:
+//   - Nakama-internal account-deletion handler (bound to the user's
+//     /v2/account DELETE webhook)
+//   - the consent-set Nakama RPC fired from the SDK whenever a user
+//     toggles a privacy / personalization / marketing / push setting
+//   - the Privacy team's admin tool for manual erasures.
+var QvPrivacy;
+(function (QvPrivacy) {
+    function aiSvcBase(ctx, logger) {
+        var base = (ctx.env && ctx.env["IVX_AI_SVC_BASE_URL"]) || "";
+        if (!base) {
+            logger.warn("[QvPrivacy] IVX_AI_SVC_BASE_URL unset");
+            return null;
+        }
+        return base.replace(/\/$/, "");
+    }
+    function computeHmac(ctx, nk, ts, path, body, logger) {
+        var secret = (ctx.env && ctx.env["IVX_INSIGHTS_SHARED_SECRET"]) || "";
+        if (!secret) {
+            logger.warn("[QvPrivacy] IVX_INSIGHTS_SHARED_SECRET unset");
+            return "";
+        }
+        var msg = ts + ":" + path + ":" + body;
+        try {
+            var raw = nk.hmacSha256Hash(msg, secret);
+            return nk.base16Encode(raw, false).toLowerCase();
+        }
+        catch (e) {
+            logger.warn("[QvPrivacy] hmac compute failed: " + ((e && e.message) ? e.message : String(e)));
+            return "";
+        }
+    }
+    function postJson(ctx, nk, logger, path, body) {
+        var base = aiSvcBase(ctx, logger);
+        if (!base)
+            return null;
+        var ts = String(Date.now());
+        var sig = computeHmac(ctx, nk, ts, path, body, logger);
+        try {
+            var resp = nk.httpRequest(base + path, "post", {
+                "Content-Type": "application/json",
+                "X-IVX-Service": "nakama",
+                "X-IVX-Timestamp": ts,
+                "X-IVX-Signature": sig,
+            }, body, 4500);
+            if (!resp || resp.code < 200 || resp.code >= 300) {
+                logger.warn("[QvPrivacy] post " + path + " HTTP " + (resp ? resp.code : "no_resp"));
+                return null;
+            }
+            return resp.body || "";
+        }
+        catch (e) {
+            logger.warn("[QvPrivacy] post " + path + " threw: " + ((e && e.message) ? e.message : String(e)));
+            return null;
+        }
+    }
+    function rpcEraseUser(ctx, logger, nk, payload) {
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ ok: false, error: "invalid_json" });
+        }
+        if (!data.game_id || !data.user_id) {
+            return JSON.stringify({ ok: false, error: "missing_required_fields" });
+        }
+        var body = JSON.stringify({
+            gameId: data.game_id,
+            userId: data.user_id,
+            reason: data.reason || "user_request",
+        });
+        var resp = postJson(ctx, nk, logger, "/privacy/erase", body);
+        if (resp == null)
+            return JSON.stringify({ ok: false, error: "ai_svc_unavailable" });
+        return resp;
+    }
+    function rpcEraseDiscord(ctx, logger, nk, payload) {
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ ok: false, error: "invalid_json" });
+        }
+        if (!data.discord_user_id) {
+            return JSON.stringify({ ok: false, error: "missing_required_fields" });
+        }
+        var body = JSON.stringify({
+            discordUserId: data.discord_user_id,
+            reason: data.reason || "user_request",
+        });
+        var resp = postJson(ctx, nk, logger, "/privacy/erase-discord", body);
+        if (resp == null)
+            return JSON.stringify({ ok: false, error: "ai_svc_unavailable" });
+        return resp;
+    }
+    function rpcConsentUpsert(ctx, logger, nk, payload) {
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ ok: false, error: "invalid_json" });
+        }
+        if (!data.game_id || !data.user_id) {
+            return JSON.stringify({ ok: false, error: "missing_required_fields" });
+        }
+        var body = JSON.stringify({
+            gameId: data.game_id,
+            userId: data.user_id,
+            underage: !!data.underage,
+            region: data.region || "OTHER",
+            analyticsConsent: !!data.analytics_consent,
+            personalizationConsent: !!data.personalization_consent,
+            marketingConsent: !!data.marketing_consent,
+            pushConsent: !!data.push_consent,
+            setAt: data.set_at || new Date().toISOString(),
+            source: data.source || "settings",
+        });
+        var resp = postJson(ctx, nk, logger, "/consent/upsert", body);
+        if (resp == null)
+            return JSON.stringify({ ok: false, error: "ai_svc_unavailable" });
+        return resp;
+    }
+    function rpcConsentInvalidate(ctx, logger, nk, payload) {
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ ok: false, error: "invalid_json" });
+        }
+        if (!data.game_id || !data.user_id) {
+            return JSON.stringify({ ok: false, error: "missing_required_fields" });
+        }
+        var body = JSON.stringify({
+            gameId: data.game_id,
+            userId: data.user_id,
+        });
+        var resp = postJson(ctx, nk, logger, "/consent/invalidate", body);
+        if (resp == null)
+            return JSON.stringify({ ok: false, error: "ai_svc_unavailable" });
+        return resp;
+    }
+    function register(initializer) {
+        __rpc_privacy_erase_user = rpcEraseUser;
+        __rpc_privacy_erase_discord = rpcEraseDiscord;
+        __rpc_consent_upsert = rpcConsentUpsert;
+        __rpc_consent_invalidate = rpcConsentInvalidate;
+    }
+    QvPrivacy.register = register;
+    register();
+})(QvPrivacy || (QvPrivacy = {}));
+// Phase 0.5 (qv-insights-loop) — product_changelog_append RPC.
+//
+// Any service that ships a product change (release, server deploy, satori
+// experiment flip, remote-config change, incident, content drop, economy
+// tweak, marketing campaign) calls this RPC with a small structured
+// payload. The Nakama runtime:
+//
+//   1. Validates the call (HMAC bearer header `x-ivx-svc-token`),
+//   2. Mirrors the entry into a Nakama storage object (audit copy that
+//      lives even if the AI svc is briefly unavailable), AND
+//   3. Forwards it to the AI svc `POST /insights/changelog` endpoint
+//      (HMAC-signed via shared secret) where it lands in
+//      `game_product_changelog_v1` for the analyst to cite.
+//
+// Why route through Nakama at all? Single shared secret per service
+// keeps the on-device clients out of the cred-rotation loop, and the
+// Nakama storage mirror gives us a recovery path if the AI svc DLQ is
+// ever drained without replay.
+//
+// On-call runbook: `docs/webhook-leak-response.md` covers HMAC rotation.
+var QvProductChangelog;
+(function (QvProductChangelog) {
+    QvProductChangelog.COLLECTION = "qv_product_changelog";
+    QvProductChangelog.ALLOWED_KINDS = [
+        "release",
+        "server",
+        "experiment",
+        "config",
+        "incident",
+        "content",
+        "economy",
+        "marketing",
+    ];
+    function isAllowedKind(k) {
+        for (var i = 0; i < QvProductChangelog.ALLOWED_KINDS.length; i++) {
+            if (QvProductChangelog.ALLOWED_KINDS[i] === k)
+                return true;
+        }
+        return false;
+    }
+    function validateBearer(ctx, logger) {
+        var expected = (ctx.env && ctx.env["IVX_PRODUCT_CHANGELOG_TOKEN"]) || "";
+        if (!expected) {
+            logger.warn("[QvProductChangelog] IVX_PRODUCT_CHANGELOG_TOKEN unset; rejecting all writes");
+            return false;
+        }
+        var hdrs = ctx.headers || {};
+        var token = hdrs["x-ivx-svc-token"] || hdrs["X-Ivx-Svc-Token"] || "";
+        if (typeof token !== "string" || !token)
+            return false;
+        // Constant-time-ish equality for short fixed-size tokens.
+        if (token.length !== expected.length)
+            return false;
+        var diff = 0;
+        for (var i = 0; i < expected.length; i++) {
+            diff |= expected.charCodeAt(i) ^ token.charCodeAt(i);
+        }
+        return diff === 0;
+    }
+    function rpcAppend(ctx, logger, nk, payload) {
+        if (!validateBearer(ctx, logger)) {
+            return JSON.stringify({ ok: false, error: "unauthorized" });
+        }
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        }
+        catch (e) {
+            return JSON.stringify({ ok: false, error: "invalid json" });
+        }
+        if (!data.game_id || !data.kind || !data.title || !data.source_system) {
+            return JSON.stringify({
+                ok: false,
+                error: "missing required fields: game_id, kind, title, source_system",
+            });
+        }
+        if (!isAllowedKind(data.kind)) {
+            return JSON.stringify({
+                ok: false,
+                error: "kind '" + data.kind + "' not in allow-list",
+            });
+        }
+        var tsMs = (typeof data.ts_ms === "number" && data.ts_ms > 0)
+            ? data.ts_ms
+            : Date.now();
+        // Mirror to Nakama storage (system-owned, write-only). Acts as an
+        // audit copy + replay source if the AI svc forward fails.
+        var storageKey = pad(tsMs) + "_" + data.game_id + "_" + nk.uuidv4().slice(0, 8);
+        try {
+            nk.storageWrite([{
+                    collection: QvProductChangelog.COLLECTION,
+                    key: storageKey,
+                    userId: "",
+                    value: data,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (e) {
+            logger.warn("[QvProductChangelog] storage mirror failed: " + ((e && e.message) ? e.message : String(e)));
+        }
+        // Best-effort forward to AI svc. Failures are logged but do NOT fail
+        // the RPC — the storage mirror lets us replay later via a small
+        // backfill script (Phase 6 DLQ drain).
+        try {
+            var aiBase = (ctx.env && ctx.env["IVX_AI_SVC_BASE_URL"]) || "";
+            if (!aiBase) {
+                logger.warn("[QvProductChangelog] IVX_AI_SVC_BASE_URL not set; skipping forward");
+            }
+            else {
+                var url = aiBase.replace(/\/$/, "") + "/insights/changelog";
+                var body = JSON.stringify(data);
+                var ts = String(Date.now());
+                var sig = computeHmac(ctx, nk, ts, "/insights/changelog", body, logger);
+                nk.httpRequest(url, "post", {
+                    "Content-Type": "application/json",
+                    "X-IVX-Service": "nakama",
+                    "X-IVX-Timestamp": ts,
+                    "X-IVX-Signature": sig,
+                }, body, 5000);
+            }
+        }
+        catch (e) {
+            logger.warn("[QvProductChangelog] AI svc forward failed: " + ((e && e.message) ? e.message : String(e)));
+        }
+        return JSON.stringify({ ok: true, storageKey: storageKey, ts_ms: tsMs });
+    }
+    function computeHmac(ctx, nk, ts, path, body, logger) {
+        var secret = (ctx.env && ctx.env["IVX_INSIGHTS_SHARED_SECRET"]) || "";
+        if (!secret) {
+            logger.warn("[QvProductChangelog] IVX_INSIGHTS_SHARED_SECRET unset; signature will be empty");
+            return "";
+        }
+        var msg = ts + ":" + path + ":" + body;
+        try {
+            var raw = nk.hmacSha256Hash(msg, secret);
+            // Lowercase hex matches what Node's crypto.createHmac(...).digest('hex')
+            // produces, which is what the AI svc HmacAuthGuard verifies against.
+            return nk.base16Encode(raw, false).toLowerCase();
+        }
+        catch (e) {
+            logger.warn("[QvProductChangelog] hmac compute failed: " + ((e && e.message) ? e.message : String(e)));
+            return "";
+        }
+    }
+    function pad(n) {
+        var s = String(n);
+        while (s.length < 16)
+            s = "0" + s;
+        return s;
+    }
+    function register(initializer) {
+        __rpc_product_changelog_append = rpcAppend;
+    }
+    QvProductChangelog.register = register;
+    register();
+})(QvProductChangelog || (QvProductChangelog = {}));
 /**
  * Cricket Auction — Nakama server module
  *
@@ -78535,21 +80660,28 @@ var MpKernelMatchResult;
         // Best-effort analytics emission. Mirrors the existing AnalyticsAlerts
         // shape so the same Discord summarizer / Grafana exporter pipeline
         // picks up multiplayer matches without a separate ingest.
+        //
+        // Phase 0 fix (qv-insights-loop): the previous call passed a single
+        // object literal but recordSample's actual signature is positional:
+        //   recordSample(nk, logger, rpc, durMs, ok, err?, userId?)
+        // (see data/modules/src/satori/analytics-alerts.ts line 145). The
+        // object-style call silently no-op'd because the buffered sample was
+        // never built. We now call the function correctly. Match-level context
+        // (game_id, template_id, region, player_count) is encoded into the
+        // rpc string until Phase 1A's universal enricher provides a richer
+        // shape.
         try {
             if (typeof AnalyticsAlerts !== "undefined" && AnalyticsAlerts && typeof AnalyticsAlerts.recordSample === "function") {
-                AnalyticsAlerts.recordSample({
-                    rpc_id: "mp_match_finished",
-                    duration_ms: result.duration_ms,
-                    ok: true,
-                    tag: result.template_id + ":" + result.game_id,
-                    extra: {
-                        match_id: result.match_id,
-                        game_id: result.game_id,
-                        template_id: result.template_id,
-                        player_count: result.outcomes.length,
-                        region: result.region || ""
+                var rpcId = "mp_match_finished:" + result.template_id + ":" + result.game_id;
+                // Best-effort owner attribution: pick the first non-agent outcome.
+                var ownerUserId = undefined;
+                for (var i = 0; i < result.outcomes.length; i++) {
+                    if (!result.outcomes[i].is_agent) {
+                        ownerUserId = result.outcomes[i].user_id;
+                        break;
                     }
-                });
+                }
+                AnalyticsAlerts.recordSample(nk, logger, rpcId, result.duration_ms, true, undefined, ownerUserId);
             }
         }
         catch (e) {
@@ -84398,6 +86530,22 @@ var AnalyticsAlerts;
                 webhookUrl = ctx.env[WEBHOOK_ENV] || "";
             }
             logger.info("[AnalyticsAlerts] init pod=%s webhook=%s interval=%sms", podId, webhookUrl ? "configured" : "MISSING (" + WEBHOOK_ENV + ")", String(SUMMARY_INTERVAL_MS));
+            // Phase 2A: bring up the InsightsAggregator with the same ctx
+            // so it can read IVX_AI_SVC_BASE_URL + IVX_INSIGHTS_SHARED_SECRET
+            // + DISCORD_QV_OPS_WEBHOOK_URL once and stash them. The aggregator
+            // itself runs on the same opportunistic scheduler tick so every
+            // recordSample() drives both the Discord summary and the bundle
+            // delivery loop without an additional CronJob being required.
+            try {
+                if (typeof InsightsAggregator !== "undefined" && InsightsAggregator
+                    && typeof InsightsAggregator.init === "function") {
+                    InsightsAggregator.init(ctx, logger);
+                }
+            }
+            catch (e) {
+                logger.warn("[AnalyticsAlerts] InsightsAggregator.init failed: " +
+                    (e && e.message ? e.message : String(e)));
+            }
         }
         catch (e) {
             logger.warn("[AnalyticsAlerts] init failed: " + (e && e.message ? e.message : String(e)));
@@ -84418,10 +86566,7 @@ var AnalyticsAlerts;
         return "Other";
     }
     AnalyticsAlerts.groupForRpc = groupForRpc;
-    // ---------------------------------------------------------------------------
-    // recordSample — buffered per replica, flushed on threshold/interval.
-    // ---------------------------------------------------------------------------
-    function recordSample(nk, logger, rpc, durMs, ok, err, userId) {
+    function recordSample(nk, logger, rpc, durMs, ok, err, userId, ext) {
         try {
             var s = {
                 ts: Date.now(),
@@ -84434,6 +86579,38 @@ var AnalyticsAlerts;
                 s.err = String(err).slice(0, 240);
             if (userId)
                 s.userId = userId;
+            if (ext) {
+                if (ext.userIdHash)
+                    s.userIdHash = ext.userIdHash;
+                if (ext.country)
+                    s.country = ext.country;
+                if (ext.tier)
+                    s.tier = ext.tier;
+                if (ext.appVersion)
+                    s.appVersion = ext.appVersion;
+                if (ext.os)
+                    s.os = ext.os;
+                if (ext.quizMode)
+                    s.quizMode = ext.quizMode;
+                if (ext.quizCardType)
+                    s.quizCardType = ext.quizCardType;
+                if (ext.screen)
+                    s.screen = ext.screen;
+                if (ext.sessionId)
+                    s.sessionId = ext.sessionId;
+                if (ext.cohortDefVersion !== undefined)
+                    s.cohortDefVersion = ext.cohortDefVersion;
+                if (ext.cohortLabel)
+                    s.cohortLabel = ext.cohortLabel;
+                if (ext.requestId)
+                    s.requestId = ext.requestId;
+                if (typeof ext.tokensIn === "number")
+                    s.tokensIn = ext.tokensIn;
+                if (typeof ext.tokensOut === "number")
+                    s.tokensOut = ext.tokensOut;
+                if (typeof ext.costUsd === "number")
+                    s.costUsd = ext.costUsd;
+            }
             buffer.push(s);
             totalRecorded++;
             var now = Date.now();
@@ -84876,6 +87053,102 @@ var AnalyticsAlerts;
                 inline: false,
             });
         }
+        // Phase 1B (qv-insights-loop): cohort × mode breakdown.
+        // Uses the optional dimensional fields stamped on RpcSample by the
+        // EventEnricher path. Cells with <5 samples are suppressed for
+        // k-anon (matches INSIGHT_MIN_COHORT_N hygiene baseline).
+        var cohortModeBuckets = {};
+        var hasCohortMode = false;
+        for (var cmI = 0; cmI < samples.length; cmI++) {
+            var cmS = samples[cmI];
+            var cohort = (cmS.cohortLabel && cmS.cohortLabel !== "pending") ? cmS.cohortLabel : null;
+            var mode = cmS.quizMode || null;
+            if (!cohort && !mode)
+                continue;
+            hasCohortMode = true;
+            var cmKey = (cohort || "?") + " × " + (mode || "?");
+            if (!cohortModeBuckets[cmKey])
+                cohortModeBuckets[cmKey] = { count: 0, ok: 0, durs: [] };
+            cohortModeBuckets[cmKey].count++;
+            if (cmS.ok)
+                cohortModeBuckets[cmKey].ok++;
+            cohortModeBuckets[cmKey].durs.push(cmS.durMs);
+        }
+        if (hasCohortMode) {
+            var cmRows = [];
+            for (var cmK in cohortModeBuckets) {
+                if (!cohortModeBuckets.hasOwnProperty(cmK))
+                    continue;
+                var bk = cohortModeBuckets[cmK];
+                if (bk.count < 5)
+                    continue; // k-anon suppression
+                var sorted = bk.durs.slice().sort(function (a, b) { return a - b; });
+                var p90 = sorted[Math.floor(sorted.length * 0.9)] || 0;
+                cmRows.push({ name: cmK, count: bk.count, ok: bk.ok, p90: p90 });
+            }
+            cmRows.sort(function (a, b) { return b.count - a.count; });
+            if (cmRows.length > 0) {
+                var lines = cmRows.slice(0, 8).map(function (row) {
+                    var sr = row.count > 0 ? Math.round((row.ok / row.count) * 1000) / 10 : 100;
+                    return "`" + row.name + "` " + row.count + " · " + sr + "% ok · p90 " + fmtMs(row.p90);
+                });
+                fields.push({
+                    name: "🎯 Cohort × Mode (Phase 1B)",
+                    value: lines.join("\n").slice(0, 1024),
+                    inline: false,
+                });
+            }
+        }
+        // Phase 1B: per-OS / per-app-version slice (counts only; helps spot
+        // regression localized to a single client build before the daily
+        // brief catches it).
+        var osBuckets = {};
+        var verBuckets = {};
+        for (var sI = 0; sI < samples.length; sI++) {
+            var ss = samples[sI];
+            if (ss.os)
+                osBuckets[ss.os] = (osBuckets[ss.os] || 0) + 1;
+            if (ss.appVersion)
+                verBuckets[ss.appVersion] = (verBuckets[ss.appVersion] || 0) + 1;
+        }
+        var osLine = Object.keys(osBuckets).map(function (k) { return "`" + k + "` " + osBuckets[k]; }).join(" · ");
+        var verLine = Object.keys(verBuckets).slice(0, 6).map(function (k) { return "`" + k + "` " + verBuckets[k]; }).join(" · ");
+        if (osLine || verLine) {
+            fields.push({
+                name: "📱 OS / app_version slice",
+                value: ((osLine ? "OS: " + osLine : "") + (osLine && verLine ? "\n" : "") + (verLine ? "App: " + verLine : "")).slice(0, 1024) || "—",
+                inline: false,
+            });
+        }
+        // Phase 1B: LLM cost roll-up if any sample carried it.
+        var totalTokensIn = 0, totalTokensOut = 0, totalCostUsd = 0, costSamples = 0;
+        for (var ci = 0; ci < samples.length; ci++) {
+            var cs = samples[ci];
+            if (typeof cs.costUsd === "number") {
+                totalCostUsd += cs.costUsd;
+                totalTokensIn += cs.tokensIn || 0;
+                totalTokensOut += cs.tokensOut || 0;
+                costSamples++;
+            }
+        }
+        if (costSamples > 0) {
+            fields.push({
+                name: "💸 LLM cost (window)",
+                value: "calls: **" + costSamples + "**\n" +
+                    "tokens in/out: **" + totalTokensIn + " / " + totalTokensOut + "**\n" +
+                    "spend: **$" + totalCostUsd.toFixed(4) + "**",
+                inline: false,
+            });
+        }
+        // Phase 1B: date-anchored citation pointer. Lets the analyst (and
+        // humans on call) jump from the embed straight to the source samples
+        // for this slot — collection key is deterministic.
+        fields.push({
+            name: "🔗 Source citation",
+            value: "`storage://" + SAMPLE_COLLECTION + "` window " +
+                new Date(slotStartMs).toISOString() + "..." + new Date(slotEndMs).toISOString(),
+            inline: false,
+        });
         var color = total === 0 ? 0x95a5a6
             : successRate >= 99 ? 0x2ecc71
                 : successRate >= 95 ? 0xf1c40f
@@ -84957,6 +87230,56 @@ var AnalyticsAlerts;
                     cleanupOldSamples(nk, logger);
                 }
                 catch (_) { }
+                // Phase 1A: piggyback on the same leader-elected tick to emit
+                // the daily coverage-health summary. EventEnricher rate-limits
+                // internally so this is safe to call on every successful slot
+                // post.
+                try {
+                    if (typeof EventEnricher !== "undefined" && EventEnricher && typeof EventEnricher.maybePostDailyCoverageHealth === "function") {
+                        EventEnricher.maybePostDailyCoverageHealth(nk, logger, webhookUrl);
+                    }
+                }
+                catch (_) { }
+                // Phase 2A: opportunistic insights bundle delivery + DLQ drain.
+                // Both run AT MOST every MIN_TICK_INTERVAL_MS / DLQ-backoff so
+                // they're effectively cheap on every successful slot post.
+                try {
+                    if (typeof InsightsAggregator !== "undefined" && InsightsAggregator
+                        && typeof InsightsAggregator.maybeRun === "function") {
+                        InsightsAggregator.maybeRun(nk, logger);
+                    }
+                }
+                catch (e) {
+                    logger.warn("[AnalyticsAlerts] InsightsAggregator.maybeRun failed: " +
+                        (e && e.message ? e.message : String(e)));
+                }
+                try {
+                    if (typeof PendingBundles !== "undefined" && PendingBundles
+                        && typeof PendingBundles.drain === "function"
+                        && typeof InsightsAggregator !== "undefined" && InsightsAggregator
+                        && typeof InsightsAggregator.postBundleNow === "function") {
+                        PendingBundles.drain(nk, logger, function (bundle) {
+                            return InsightsAggregator.postBundleNow(nk, logger, bundle);
+                        });
+                    }
+                }
+                catch (e) {
+                    logger.warn("[AnalyticsAlerts] PendingBundles.drain failed: " +
+                        (e && e.message ? e.message : String(e)));
+                }
+                // Phase 3 (qv-insights-loop): rebuild the crash pattern summary
+                // before the aggregator publishes its next bundle — keeps the
+                // crash patterns surfaced into the brief as fresh as possible.
+                try {
+                    if (typeof QvCrashHandler !== "undefined" && QvCrashHandler
+                        && typeof QvCrashHandler.maybeRunSummariser === "function") {
+                        QvCrashHandler.maybeRunSummariser(nk, logger);
+                    }
+                }
+                catch (e) {
+                    logger.warn("[AnalyticsAlerts] QvCrashHandler.maybeRunSummariser failed: " +
+                        (e && e.message ? e.message : String(e)));
+                }
             }
         }
         finally {
@@ -89411,6 +91734,18 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quizverse_get_server_config", __rpc_quizverse_get_server_config); } catch(e) {}
   try { initializer.registerRpc("quizverse_admin_grant_item", __rpc_quizverse_admin_grant_item); } catch(e) {}
   try { initializer.registerRpc("...", __rpc____); } catch(e) {}
+  try { initializer.registerRpc("crash_log_append", __rpc_crash_log_append); } catch(e) {}
+  try { initializer.registerRpc("xsell_pick", __rpc_xsell_pick); } catch(e) {}
+  try { initializer.registerRpc("xsell_record", __rpc_xsell_record); } catch(e) {}
+  try { initializer.registerRpc("insights_aggregator_tick", __rpc_insights_aggregator_tick); } catch(e) {}
+  try { initializer.registerRpc("pending_bundles_drain", __rpc_pending_bundles_drain); } catch(e) {}
+  try { initializer.registerRpc("personalization_get", __rpc_personalization_get); } catch(e) {}
+  try { initializer.registerRpc("personalization_get_for_mode", __rpc_personalization_get_for_mode); } catch(e) {}
+  try { initializer.registerRpc("privacy_erase_user", __rpc_privacy_erase_user); } catch(e) {}
+  try { initializer.registerRpc("privacy_erase_discord", __rpc_privacy_erase_discord); } catch(e) {}
+  try { initializer.registerRpc("consent_upsert", __rpc_consent_upsert); } catch(e) {}
+  try { initializer.registerRpc("consent_invalidate", __rpc_consent_invalidate); } catch(e) {}
+  try { initializer.registerRpc("product_changelog_append", __rpc_product_changelog_append); } catch(e) {}
   try { initializer.registerRpc("cricket_auction_create_room", __rpc_cricket_auction_create_room); } catch(e) {}
   try { initializer.registerRpc("cricket_auction_get_room", __rpc_cricket_auction_get_room); } catch(e) {}
   try { initializer.registerRpc("cricket_auction_place_bid", __rpc_cricket_auction_place_bid); } catch(e) {}
@@ -90045,5 +92380,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 687 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 699 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }

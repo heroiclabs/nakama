@@ -78,6 +78,28 @@ namespace AnalyticsAlerts {
     ok: boolean;         // success
     err?: string;        // truncated error message
     userId?: string;     // optional user id
+    // Phase 1B (qv-insights-loop): cohort + dimensional context lifted off
+    // the EventEnricher session index (when available) and forwarded into
+    // the per-RPC sample so the Discord embed can break down by cohort/
+    // mode without a follow-on storage scan. All fields are optional —
+    // missing values render as "?" in the breakdown table.
+    userIdHash?: string;       // SHA1 prefix of userId (for k-anon tables)
+    country?: string;
+    tier?: string;             // device tier or value tier (free/payer/whale)
+    appVersion?: string;
+    os?: string;               // android | ios | web | …
+    quizMode?: string;         // ai_host | fortune | tutor | chat | voice | classic | …
+    quizCardType?: string;     // weekly card kind when applicable
+    screen?: string;           // current_scene at call time
+    sessionId?: string;
+    cohortDefVersion?: number; // taxonomy version used to assign cohort
+    cohortLabel?: string;      // primary cohort label (or "pending")
+    requestId?: string;
+    // Phase 1B cost telemetry: when the wrapped RPC ran an LLM call, the
+    // host RPC may stamp these via AnalyticsAlerts.recordSampleExt(...).
+    tokensIn?: number;
+    tokensOut?: number;
+    costUsd?: number;
   }
 
   interface SlotState {
@@ -121,6 +143,21 @@ namespace AnalyticsAlerts {
         webhookUrl ? "configured" : "MISSING (" + WEBHOOK_ENV + ")",
         String(SUMMARY_INTERVAL_MS),
       );
+      // Phase 2A: bring up the InsightsAggregator with the same ctx
+      // so it can read IVX_AI_SVC_BASE_URL + IVX_INSIGHTS_SHARED_SECRET
+      // + DISCORD_QV_OPS_WEBHOOK_URL once and stash them. The aggregator
+      // itself runs on the same opportunistic scheduler tick so every
+      // recordSample() drives both the Discord summary and the bundle
+      // delivery loop without an additional CronJob being required.
+      try {
+        if (typeof InsightsAggregator !== "undefined" && InsightsAggregator
+          && typeof InsightsAggregator.init === "function") {
+          InsightsAggregator.init(ctx, logger);
+        }
+      } catch (e: any) {
+        logger.warn("[AnalyticsAlerts] InsightsAggregator.init failed: " +
+          (e && e.message ? e.message : String(e)));
+      }
     } catch (e: any) {
       logger.warn("[AnalyticsAlerts] init failed: " + (e && e.message ? e.message : String(e)));
     }
@@ -141,7 +178,29 @@ namespace AnalyticsAlerts {
 
   // ---------------------------------------------------------------------------
   // recordSample — buffered per replica, flushed on threshold/interval.
+  //
+  // Phase 1B (qv-insights-loop) added an optional `ext` parameter so call
+  // sites that have richer dimensional context (cohort, mode, cost) can
+  // attach it without changing the existing positional signature.
   // ---------------------------------------------------------------------------
+  export interface RpcSampleExt {
+    userIdHash?: string;
+    country?: string;
+    tier?: string;
+    appVersion?: string;
+    os?: string;
+    quizMode?: string;
+    quizCardType?: string;
+    screen?: string;
+    sessionId?: string;
+    cohortDefVersion?: number;
+    cohortLabel?: string;
+    requestId?: string;
+    tokensIn?: number;
+    tokensOut?: number;
+    costUsd?: number;
+  }
+
   export function recordSample(
     nk: nkruntime.Nakama,
     logger: nkruntime.Logger,
@@ -150,6 +209,7 @@ namespace AnalyticsAlerts {
     ok: boolean,
     err?: string,
     userId?: string,
+    ext?: RpcSampleExt,
   ): void {
     try {
       var s: RpcSample = {
@@ -161,6 +221,23 @@ namespace AnalyticsAlerts {
       };
       if (err) s.err = String(err).slice(0, 240);
       if (userId) s.userId = userId;
+      if (ext) {
+        if (ext.userIdHash) s.userIdHash = ext.userIdHash;
+        if (ext.country) s.country = ext.country;
+        if (ext.tier) s.tier = ext.tier;
+        if (ext.appVersion) s.appVersion = ext.appVersion;
+        if (ext.os) s.os = ext.os;
+        if (ext.quizMode) s.quizMode = ext.quizMode;
+        if (ext.quizCardType) s.quizCardType = ext.quizCardType;
+        if (ext.screen) s.screen = ext.screen;
+        if (ext.sessionId) s.sessionId = ext.sessionId;
+        if (ext.cohortDefVersion !== undefined) s.cohortDefVersion = ext.cohortDefVersion;
+        if (ext.cohortLabel) s.cohortLabel = ext.cohortLabel;
+        if (ext.requestId) s.requestId = ext.requestId;
+        if (typeof ext.tokensIn === "number") s.tokensIn = ext.tokensIn;
+        if (typeof ext.tokensOut === "number") s.tokensOut = ext.tokensOut;
+        if (typeof ext.costUsd === "number") s.costUsd = ext.costUsd;
+      }
       buffer.push(s);
       totalRecorded++;
 
@@ -599,6 +676,101 @@ namespace AnalyticsAlerts {
       });
     }
 
+    // Phase 1B (qv-insights-loop): cohort × mode breakdown.
+    // Uses the optional dimensional fields stamped on RpcSample by the
+    // EventEnricher path. Cells with <5 samples are suppressed for
+    // k-anon (matches INSIGHT_MIN_COHORT_N hygiene baseline).
+    var cohortModeBuckets: { [k: string]: { count: number; ok: number; durs: number[] } } = {};
+    var hasCohortMode = false;
+    for (var cmI = 0; cmI < samples.length; cmI++) {
+      var cmS = samples[cmI];
+      var cohort = (cmS.cohortLabel && cmS.cohortLabel !== "pending") ? cmS.cohortLabel : null;
+      var mode = cmS.quizMode || null;
+      if (!cohort && !mode) continue;
+      hasCohortMode = true;
+      var cmKey = (cohort || "?") + " × " + (mode || "?");
+      if (!cohortModeBuckets[cmKey]) cohortModeBuckets[cmKey] = { count: 0, ok: 0, durs: [] };
+      cohortModeBuckets[cmKey].count++;
+      if (cmS.ok) cohortModeBuckets[cmKey].ok++;
+      cohortModeBuckets[cmKey].durs.push(cmS.durMs);
+    }
+    if (hasCohortMode) {
+      var cmRows: { name: string; count: number; ok: number; p90: number }[] = [];
+      for (var cmK in cohortModeBuckets) {
+        if (!cohortModeBuckets.hasOwnProperty(cmK)) continue;
+        var bk = cohortModeBuckets[cmK];
+        if (bk.count < 5) continue; // k-anon suppression
+        var sorted = bk.durs.slice().sort(function (a, b) { return a - b; });
+        var p90 = sorted[Math.floor(sorted.length * 0.9)] || 0;
+        cmRows.push({ name: cmK, count: bk.count, ok: bk.ok, p90: p90 });
+      }
+      cmRows.sort(function (a, b) { return b.count - a.count; });
+      if (cmRows.length > 0) {
+        var lines = cmRows.slice(0, 8).map(function (row) {
+          var sr = row.count > 0 ? Math.round((row.ok / row.count) * 1000) / 10 : 100;
+          return "`" + row.name + "` " + row.count + " · " + sr + "% ok · p90 " + fmtMs(row.p90);
+        });
+        fields.push({
+          name: "🎯 Cohort × Mode (Phase 1B)",
+          value: lines.join("\n").slice(0, 1024),
+          inline: false,
+        });
+      }
+    }
+
+    // Phase 1B: per-OS / per-app-version slice (counts only; helps spot
+    // regression localized to a single client build before the daily
+    // brief catches it).
+    var osBuckets: { [os: string]: number } = {};
+    var verBuckets: { [v: string]: number } = {};
+    for (var sI = 0; sI < samples.length; sI++) {
+      var ss = samples[sI];
+      if (ss.os) osBuckets[ss.os] = (osBuckets[ss.os] || 0) + 1;
+      if (ss.appVersion) verBuckets[ss.appVersion] = (verBuckets[ss.appVersion] || 0) + 1;
+    }
+    var osLine = Object.keys(osBuckets).map(function (k) { return "`" + k + "` " + osBuckets[k]; }).join(" · ");
+    var verLine = Object.keys(verBuckets).slice(0, 6).map(function (k) { return "`" + k + "` " + verBuckets[k]; }).join(" · ");
+    if (osLine || verLine) {
+      fields.push({
+        name: "📱 OS / app_version slice",
+        value: ((osLine ? "OS: " + osLine : "") + (osLine && verLine ? "\n" : "") + (verLine ? "App: " + verLine : "")).slice(0, 1024) || "—",
+        inline: false,
+      });
+    }
+
+    // Phase 1B: LLM cost roll-up if any sample carried it.
+    var totalTokensIn = 0, totalTokensOut = 0, totalCostUsd = 0, costSamples = 0;
+    for (var ci = 0; ci < samples.length; ci++) {
+      var cs = samples[ci];
+      if (typeof cs.costUsd === "number") {
+        totalCostUsd += cs.costUsd;
+        totalTokensIn += cs.tokensIn || 0;
+        totalTokensOut += cs.tokensOut || 0;
+        costSamples++;
+      }
+    }
+    if (costSamples > 0) {
+      fields.push({
+        name: "💸 LLM cost (window)",
+        value:
+          "calls: **" + costSamples + "**\n" +
+          "tokens in/out: **" + totalTokensIn + " / " + totalTokensOut + "**\n" +
+          "spend: **$" + totalCostUsd.toFixed(4) + "**",
+        inline: false,
+      });
+    }
+
+    // Phase 1B: date-anchored citation pointer. Lets the analyst (and
+    // humans on call) jump from the embed straight to the source samples
+    // for this slot — collection key is deterministic.
+    fields.push({
+      name: "🔗 Source citation",
+      value:
+        "`storage://" + SAMPLE_COLLECTION + "` window " +
+        new Date(slotStartMs).toISOString() + "..." + new Date(slotEndMs).toISOString(),
+      inline: false,
+    });
+
     var color = total === 0 ? 0x95a5a6
       : successRate >= 99 ? 0x2ecc71
       : successRate >= 95 ? 0xf1c40f
@@ -689,6 +861,52 @@ namespace AnalyticsAlerts {
         recordLastPostedSlot(nk, slotIso);
         // Periodic cleanup (cheap, only one replica wins)
         try { cleanupOldSamples(nk, logger); } catch (_) {}
+        // Phase 1A: piggyback on the same leader-elected tick to emit
+        // the daily coverage-health summary. EventEnricher rate-limits
+        // internally so this is safe to call on every successful slot
+        // post.
+        try {
+          if (typeof EventEnricher !== "undefined" && EventEnricher && typeof EventEnricher.maybePostDailyCoverageHealth === "function") {
+            EventEnricher.maybePostDailyCoverageHealth(nk, logger, webhookUrl);
+          }
+        } catch (_) {}
+        // Phase 2A: opportunistic insights bundle delivery + DLQ drain.
+        // Both run AT MOST every MIN_TICK_INTERVAL_MS / DLQ-backoff so
+        // they're effectively cheap on every successful slot post.
+        try {
+          if (typeof InsightsAggregator !== "undefined" && InsightsAggregator
+            && typeof InsightsAggregator.maybeRun === "function") {
+            InsightsAggregator.maybeRun(nk, logger);
+          }
+        } catch (e: any) {
+          logger.warn("[AnalyticsAlerts] InsightsAggregator.maybeRun failed: " +
+            (e && e.message ? e.message : String(e)));
+        }
+        try {
+          if (typeof PendingBundles !== "undefined" && PendingBundles
+            && typeof PendingBundles.drain === "function"
+            && typeof InsightsAggregator !== "undefined" && InsightsAggregator
+            && typeof InsightsAggregator.postBundleNow === "function") {
+            PendingBundles.drain(nk, logger, function (bundle: any): boolean {
+              return InsightsAggregator.postBundleNow(nk, logger, bundle);
+            });
+          }
+        } catch (e: any) {
+          logger.warn("[AnalyticsAlerts] PendingBundles.drain failed: " +
+            (e && e.message ? e.message : String(e)));
+        }
+        // Phase 3 (qv-insights-loop): rebuild the crash pattern summary
+        // before the aggregator publishes its next bundle — keeps the
+        // crash patterns surfaced into the brief as fresh as possible.
+        try {
+          if (typeof QvCrashHandler !== "undefined" && QvCrashHandler
+            && typeof QvCrashHandler.maybeRunSummariser === "function") {
+            QvCrashHandler.maybeRunSummariser(nk, logger);
+          }
+        } catch (e: any) {
+          logger.warn("[AnalyticsAlerts] QvCrashHandler.maybeRunSummariser failed: " +
+            (e && e.message ? e.message : String(e)));
+        }
       }
     } finally {
       // Always release the lock so another replica can retry on failure.

@@ -31,6 +31,11 @@ import { cn } from "@/lib/utils";
 
 const REFETCH_MS = 15_000;
 
+function isHealthyStatus(status?: string) {
+  const normalized = String(status ?? "").toLowerCase();
+  return normalized === "ok" || normalized === "healthy";
+}
+
 // ─── Health Query ────────────────────────────────────────────────────
 function useHealth() {
   return useQuery({
@@ -208,7 +213,8 @@ export function DashboardPage() {
   const hiroStatus = useHiroStatus();
   const satoriStatus = useSatoriStatus();
 
-  const isOnline = health.data?.status === "OK" || health.data?.status === "ok";
+  const isOnline = health.isSuccess && (isHealthyStatus(health.data?.status) || health.data?.status === undefined);
+  const statusText = health.data?.status ?? (health.isSuccess ? "reachable" : "unknown");
   const matchList = matches.data?.matches ?? [];
   const totalPlayers = matchList.reduce((sum, m) => sum + (m.size ?? 0), 0);
 
@@ -266,11 +272,11 @@ export function DashboardPage() {
                 ? "Server unreachable"
                 : isOnline
                   ? "Server is healthy"
-                  : `Server status: ${health.data?.status ?? "unknown"}`}
+                  : `Server status: ${statusText}`}
           </p>
           {health.data && (
             <p className="text-xs text-muted-foreground">
-              Node: {health.data.node ?? "—"}
+              Node: {health.data.node ?? "Nakama REST healthcheck"}
             </p>
           )}
         </div>

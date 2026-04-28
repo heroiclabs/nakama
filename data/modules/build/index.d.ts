@@ -3,6 +3,184 @@ declare var __TS_OWNED_RPCS: {
     [id: string]: boolean;
 } | undefined;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
+declare namespace QvCrashHandler {
+    export var LOG_COLLECTION: string;
+    export var PATTERN_COLLECTION: string;
+    export var STATE_COLLECTION: string;
+    export var STATE_KEY_LAST_SUMMARY: string;
+    export var MAX_BACKLOG_PER_GAME: number;
+    export var SUMMARY_INTERVAL_MS: number;
+    export var RAW_RETENTION_MS: number;
+    export var MAX_MESSAGE_LEN: number;
+    export var MAX_STACK_LEN: number;
+    interface PatternRow {
+        fingerprint: string;
+        count: number;
+        severity: string;
+        type: string;
+        sampleMessage: string;
+        firstSeenMs: number;
+        lastSeenMs: number;
+        appVersions: {
+            [v: string]: number;
+        };
+        osBreakdown: {
+            [os: string]: number;
+        };
+    }
+    interface PatternSummary {
+        gameId: string;
+        builtAtMs: number;
+        windowMs: number;
+        rawRowsScanned: number;
+        patterns: PatternRow[];
+    }
+    export function maybeRunSummariser(nk: nkruntime.Nakama, logger: nkruntime.Logger): {
+        ran: boolean;
+        reason?: string;
+        perGame?: number;
+    };
+    /**
+     * Public read API used by InsightsAggregator (Phase 2A) to surface
+     * top patterns into per-cohort bundles.
+     */
+    export function readPatternSummary(nk: nkruntime.Nakama, gameId: string): PatternSummary | null;
+    export function register(initializer: nkruntime.Initializer): void;
+    export {};
+}
+declare namespace QvCrossSell {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace EventEnricher {
+    export var SESSION_COLLECTION: string;
+    export var GAP_COLLECTION: string;
+    export var SESSION_TTL_MS: number;
+    export var SESSION_LRU_MAX: number;
+    /**
+     * Required fields the analyst expects on EVERY event. Anything missing
+     * from this set after enrichment lands in the coverage-gap log.
+     */
+    export var REQUIRED_FIELDS: string[];
+    /**
+     * Per-event-name enrichment hints. Lets us require quiz_mode on quiz_*
+     * events without forcing it on, say, login_success.
+     */
+    export var EVENT_REQUIRED: {
+        [event: string]: string[];
+    };
+    interface SessionRecord {
+        sessionId: string;
+        gameId: string;
+        userId: string;
+        appVersion?: string;
+        sdkVersion?: string;
+        os?: string;
+        osVersion?: string;
+        country?: string;
+        locale?: string;
+        tier?: string;
+        deviceModel?: string;
+        installSource?: string;
+        consentState?: string;
+        attStatus?: string;
+        cohortLabel?: string;
+        cohortDefVersion?: number;
+        cohortHoldout?: boolean;
+        startedAt: number;
+        lastSeenAt: number;
+    }
+    /**
+     * Persist the session context emitted by session_start. Idempotent
+     * (writes are keyed by session_id; a re-emitted session_start updates
+     * the lastSeenAt timestamp without touching the immutable fields).
+     */
+    export function upsertSessionIndex(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, rec: Partial<SessionRecord> & {
+        sessionId: string;
+        gameId: string;
+    }): void;
+    /**
+     * Main entry point. Returns the enriched eventData PLUS the list of
+     * fields that were still missing after enrichment (so analytics.js
+     * can decide whether to record a coverage gap).
+     *
+     * Mutates eventData in place. The original analytics.js dimensional
+     * back-fill runs BEFORE this; we only fill what's still empty.
+     */
+    export function enrich(nk: nkruntime.Nakama, logger: nkruntime.Logger, eventName: string, eventData: {
+        [k: string]: any;
+    }, sessionId: string | undefined, gameId: string): {
+        gaps: string[];
+    };
+    /**
+     * Append a coverage-gap row. One row per (event, gap_set) per hour,
+     * keyed so re-emissions of the same gap collapse to a single row + a
+     * counter rather than spamming the table.
+     */
+    export function recordCoverageGap(nk: nkruntime.Nakama, logger: nkruntime.Logger, gameId: string, eventName: string, gaps: string[]): void;
+    export function maybePostDailyCoverageHealth(nk: nkruntime.Nakama, logger: nkruntime.Logger, webhookUrl: string): void;
+    export {};
+}
+declare namespace InsightsAggregator {
+    var EVENTS_COLLECTION: string;
+    var SAMPLE_COLLECTION: string;
+    var STATE_KEY: string;
+    var STATE_COLLECTION: string;
+    var DEFAULT_BUCKET_MS: number;
+    var MAX_BUCKETS_PER_TICK: number;
+    var MIN_TICK_INTERVAL_MS: number;
+    var MAX_SAMPLES_PER_BUCKET: number;
+    var MAX_EVENTS_PER_BUCKET: number;
+    var MAX_BUNDLE_BYTES: number;
+    /**
+     * Aggregator config — read once from env at module init and passed in
+     * so the per-tick path is ctx-free (the wrapped scheduler tick path
+     * doesn't have an nkruntime.Context).
+     */
+    interface AggregatorConfig {
+        aiSvcBaseUrl: string;
+        insightsSecret: string;
+        qvOpsWebhookUrl: string;
+        bucketMs?: number;
+    }
+    /** Init from env — call from AnalyticsAlerts.init / InitModule. */
+    function init(ctx: nkruntime.Context, logger: nkruntime.Logger): void;
+    function maybeRun(nk: nkruntime.Nakama, logger: nkruntime.Logger): {
+        ran: boolean;
+        bucketsProcessed: number;
+        bundlesEmitted: number;
+        reason: string;
+    };
+    /** Expose the active poster so PendingBundles.drain can replay using
+     * the same config (HMAC secret + base URL) without re-reading env. */
+    function postBundleNow(nk: nkruntime.Nakama, logger: nkruntime.Logger, bundle: any): boolean;
+    /** Expose the qv-ops webhook for ops alerts (e.g. DLQ dead-letters). */
+    function getQvOpsWebhookUrl(): string;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace PendingBundles {
+    var COLLECTION: string;
+    var DEAD_COLLECTION: string;
+    var MAX_ATTEMPTS: number;
+    var MAX_DRAIN_PER_TICK: number;
+    var BACKOFF_BASE_MS: number;
+    function enqueue(nk: nkruntime.Nakama, logger: nkruntime.Logger, bundle: any): void;
+    function drain(nk: nkruntime.Nakama, logger: nkruntime.Logger, poster: (bundle: any) => boolean): {
+        drained: number;
+        deadLetters: number;
+    };
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace QvPersonalization {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace QvPrivacy {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace QvProductChangelog {
+    var COLLECTION: string;
+    var ALLOWED_KINDS: string[];
+    function register(initializer: nkruntime.Initializer): void;
+}
 /**
  * Cricket Auction — Nakama server module
  *
@@ -455,8 +633,116 @@ declare namespace IntelliverseFriends {
 declare namespace IntelliverseFriendsList {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QuizVerseGenerator {
+    function registerNk(nk: nkruntime.Nakama): void;
+    function buildAll(): MpKernelSyncTurn.IGenerator[];
+}
+declare namespace QuizVersePlugin {
+    var RPC_CREATE_MATCH: string;
+    var RPC_LOAD_PACK: string;
+    var RPC_LIST_PACKS: string;
+    function register(initializer: nkruntime.Initializer, nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+}
+declare namespace QuizVersePackStore {
+    var COLLECTION: string;
+    function readPack(nk: nkruntime.Nakama, packId: string): QuizVerseGame.IPack;
+    function writePack(nk: nkruntime.Nakama, pack: QuizVerseGame.IPack): void;
+}
+declare namespace QuizVerseGame {
+    var Op: {
+        QUESTION_PROMPT: number;
+        ANSWER: number;
+        REVEAL: number;
+        LEADERBOARD: number;
+        LIFELINE_USE: number;
+        LIFELINE_RESULT: number;
+        AI_HOST_LINE: number;
+        VOICE_TOGGLE: number;
+        BOOST_APPLIED: number;
+        REMATCH_REQUEST: number;
+        REMATCH_ACCEPT: number;
+        TEAM_JOIN: number;
+        TEAM_STATE: number;
+        TEAM_SCORE_DELTA: number;
+        BATTLE_CONFIG: number;
+        TEAMS_READY: number;
+    };
+    var BattleMode: {
+        UNSPECIFIED: number;
+        ONE_VS_ONE: number;
+        TWO_VS_TWO: number;
+        THREE_VS_THREE: number;
+        FOUR_VS_FOUR: number;
+        FIVE_VS_FIVE: number;
+    };
+    var BattleTeam: {
+        NONE: number;
+        ONE: number;
+        TWO: number;
+    };
+    interface ITeamMember {
+        user_id: string;
+        display_name: string;
+        team: number;
+    }
+    interface ITeamState {
+        members: ITeamMember[];
+        team1_name: string;
+        team2_name: string;
+        team1_score: number;
+        team2_score: number;
+        teams_ready: boolean;
+        team_size: number;
+    }
+    interface IBattleConfig {
+        mode: number;
+        team1_name: string;
+        team2_name: string;
+        timeout_seconds: number;
+        room_code: string;
+        challenger_id: string;
+        challenger_name: string;
+        topics: string[];
+    }
+    function teamSizeForMode(mode: number): number;
+    function maxPlayersForMode(mode: number): number;
+    var Mode: {
+        CLASSIC: string;
+        FRIEND_BATTLE: string;
+        LINK_AND_PLAY: string;
+    };
+    interface IQuestion {
+        question_id: string;
+        text: string;
+        options: string[];
+        correct_index: number;
+        image_url?: string;
+        audio_url?: string;
+        category?: string;
+        difficulty?: number;
+        explanation?: string;
+    }
+    interface IPack {
+        pack_id: string;
+        questions: IQuestion[];
+        locale?: string;
+        revision?: number;
+    }
+    interface IInit {
+        mode: string;
+        pack_id: string;
+        questions_total: number;
+        per_question_ms: number;
+        room_code?: string;
+        ai_host_persona?: string;
+        enable_voice?: boolean;
+        battle?: IBattleConfig;
+    }
+    var DefaultInit: IInit;
+    var SEED_PACK: IPack;
+}
 declare namespace HiroAchievements {
-    function getConfig(nk: nkruntime.Nakama): Hiro.AchievementsConfig;
+    function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.AchievementsConfig;
     function addProgress(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, achievementId: string, amount: number, gameId?: string): Hiro.UserAchievementProgress | null;
     function register(initializer: nkruntime.Initializer): void;
     function registerEventHandlers(): void;
@@ -490,11 +776,11 @@ declare namespace HiroBase {
     export {};
 }
 declare namespace HiroChallenges {
-    function getConfig(nk: nkruntime.Nakama): Hiro.ChallengesConfig;
+    function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.ChallengesConfig;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HiroEconomy {
-    function getConfig(nk: nkruntime.Nakama): Hiro.EconomyConfig;
+    function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.EconomyConfig;
     function rpcDonationRequest(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcDonationGive(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcDonationClaim(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
@@ -509,15 +795,15 @@ declare namespace HiroEnergy {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HiroEventLeaderboards {
-    function getConfig(nk: nkruntime.Nakama): Hiro.EventLeaderboardConfig;
+    function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.EventLeaderboardConfig;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HiroIncentives {
-    function getConfig(nk: nkruntime.Nakama): Hiro.IncentivesConfig;
+    function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.IncentivesConfig;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HiroInventory {
-    function getConfig(nk: nkruntime.Nakama): Hiro.InventoryConfig;
+    function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.InventoryConfig;
     function grantItem(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, itemId: string, count: number, stringProps?: {
         [key: string]: string;
     }, numericProps?: {
@@ -571,11 +857,11 @@ declare namespace HiroStats {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HiroStore {
-    function getConfig(nk: nkruntime.Nakama): Hiro.StoreConfig;
+    function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.StoreConfig;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HiroStreaks {
-    function getConfig(nk: nkruntime.Nakama): Hiro.StreaksConfig;
+    function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.StreaksConfig;
     function updateStreak(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, streakId: string, gameId?: string): Hiro.UserStreakState;
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -666,6 +952,1580 @@ declare namespace LegacyWallet {
     function rpcUpdateGameRewardConfig(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace MpKernelAgent {
+    var Op: {
+        AGENT_JOINED: number;
+        AGENT_LEFT: number;
+        AGENT_THINKING: number;
+        AGENT_SPOKE: number;
+        AGENT_VISEME_STREAM: number;
+        AGENT_REQUEST_TURN: number;
+        AGENT_GRANT_TURN: number;
+        AGENT_DEGRADED: number;
+        AGENT_BUDGET_EXCEEDED: number;
+        AGENT_CONTEXT_RESET: number;
+        AGENT_TOOL_CALL: number;
+        AGENT_TOOL_RESULT: number;
+    };
+    interface IPersonaConstraints {
+        max_response_tokens: number;
+        max_responses_per_minute: number;
+        max_seconds_speaking_per_minute: number;
+        max_concurrent_matches: number;
+        allow_proactive_speak: boolean;
+        allow_tools: boolean;
+        cost_budget_usd_micros_per_match: number;
+        locale_allowlist_csv: string;
+    }
+    interface IAgentPersona {
+        persona_id: string;
+        display_name: string;
+        avatar_url: string;
+        voice_id: string;
+        llm_provider: string;
+        llm_model: string;
+        system_prompt_ref: string;
+        constraints: IPersonaConstraints;
+        version_major: number;
+        version_minor: number;
+    }
+    interface IAgentInstance {
+        agent_id: string;
+        persona_id: string;
+        display_name: string;
+        avatar_url: string;
+        spawned_by_user: string;
+        spawn_reason: string;
+        spawned_unix_ms: number;
+        match_id: string;
+        constraints: IPersonaConstraints;
+        cost_used_usd_micros: number;
+        speech_seconds_used: number;
+        response_count_window: {
+            unix_minute: number;
+            count: number;
+        };
+        speak_window: {
+            unix_minute: number;
+            seconds: number;
+        };
+        last_speak_unix_ms: number;
+        provider_state: "primary" | "fallback" | "silent";
+        persona_version_major: number;
+        persona_version_minor: number;
+    }
+    interface ISpeakRequest {
+        match_id: string;
+        agent_id: string;
+        text: string;
+        locale?: string;
+        is_proactive?: boolean;
+        /** Emit visemes only — no transcript. Used for greetings / sound effects. */
+        silent_transcript?: boolean;
+    }
+    interface ISpeakResult {
+        accepted: boolean;
+        rejected_reason?: string;
+        transcript_text?: string;
+        cost_usd_micros?: number;
+        ttfa_ms?: number;
+        moderated?: boolean;
+    }
+    function registerPersona(p: IAgentPersona): void;
+    function listPersonas(): IAgentPersona[];
+    function getPersona(id: string): IAgentPersona | null;
+    function isAgentId(userId: string): boolean;
+    function newAgentId(personaId: string, suffix?: string): string;
+    /**
+     * Spawn an agent into a match. The kernel injects the agent as a
+     * server-managed presence (no real socket); templates see it like any
+     * other player. Returns the agent_id (or "" + reason on failure).
+     */
+    function spawnIntoMatch(nk: nkruntime.Nakama, logger: nkruntime.Logger, matchId: string, personaId: string, opts?: {
+        spawned_by_user?: string;
+        spawn_reason?: string;
+        agent_id?: string;
+    }): {
+        agent_id: string;
+        rejected_reason?: string;
+    };
+    /**
+     * Despawn an agent from a match. Reason gets propagated as AgentLeft.
+     */
+    function despawnFromMatch(matchId: string, agentId: string, reason: string): void;
+    function getAgentsInMatch(matchId: string): IAgentInstance[];
+    function getAgent(matchId: string, agentId: string): IAgentInstance | null;
+    interface IIVXLLMProvider {
+        /** Return the response text for `prompt` and the cost in $-micros. */
+        complete(prompt: string, persona: IAgentPersona, locale?: string): {
+            text: string;
+            cost_usd_micros: number;
+            provider: string;
+        };
+        /** Quick health probe; updates providerHealth map. */
+        healthCheck(): boolean;
+    }
+    interface IIVXTTSProvider {
+        /** Return time-to-first-audio in ms and a viseme byte stream. */
+        speak(text: string, voiceId: string, locale: string): {
+            ttfa_ms: number;
+            visemes: number[];
+        };
+    }
+    function setLLMProvider(p: IIVXLLMProvider): void;
+    function setTTSProvider(p: IIVXTTSProvider): void;
+    /**
+     * Dummy fallback provider — returns a fixed string so the kernel can
+     * keep agents "alive" even when no real LLM is plugged in. Used by
+     * tests + first-boot smoke runs.
+     */
+    var ECHO_LLM_PROVIDER: IIVXLLMProvider;
+    var SILENT_TTS_PROVIDER: IIVXTTSProvider;
+    /**
+     * The single entry point for "make agent X say Y in match Z".
+     */
+    function enqueueSpeech(nk: nkruntime.Nakama, logger: nkruntime.Logger, req: ISpeakRequest): ISpeakResult;
+    /**
+     * Force a context reset on an agent (e.g. moderator action). Templates
+     * MAY broadcast OP_AGENT_CONTEXT_RESET when they call this.
+     */
+    function resetContext(matchId: string, agentId: string, reason: string): boolean;
+    /**
+     * Per-match cleanup hook. Templates call this from their match
+     * teardown path so the agent table doesn't leak across reloads.
+     */
+    function cleanupMatch(matchId: string): void;
+    function probeProviders(): {
+        [name: string]: boolean;
+    };
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
+declare namespace MpKernelClock {
+    interface IMatchClock {
+        matchStartUnixMs: number;
+        nextSeq: number;
+        lastClockSyncUnixMs: number;
+    }
+    function init(): IMatchClock;
+    function matchTimeMs(c: IMatchClock): number;
+    function nextSeq(c: IMatchClock): number;
+    function seqProvider(c: IMatchClock): {
+        next: () => number;
+    };
+    var CLOCK_SKEW_LIMIT_MS: number;
+    function isSkewExtreme(clientUnixMs: number): boolean;
+    var CLOCK_SYNC_INTERVAL_MS: number;
+    function shouldEmitClockSync(c: IMatchClock): boolean;
+    function buildClockSync(c: IMatchClock, clientEchoUnixMs: number): any;
+}
+declare namespace MpKernelCodeRegistry {
+    interface IRangeOwner {
+        name: string;
+        from: number;
+        to: number;
+        template_id?: string;
+    }
+    function register(owner: IRangeOwner): void;
+    function findOwner(op: number): IRangeOwner | null;
+    function listAll(): IRangeOwner[];
+    function bootstrapKernelRanges(): void;
+}
+declare namespace MpKernelError {
+    function build(code: number, detail?: string, retryAfterMs?: number, minRequiredVersion?: string): MpKernel.IError;
+    function send(dispatcher: nkruntime.MatchDispatcher, target: nkruntime.Presence | null, matchId: string, senderUserId: string, seqProvider: {
+        next: () => number;
+    }, matchTimeMs: number, err: MpKernel.IError): void;
+    function badPayload(detail: string): MpKernel.IError;
+    function unknownOpcode(op: number): MpKernel.IError;
+    function rateLimited(retryAfterMs: number): MpKernel.IError;
+    function notAuthorized(detail: string): MpKernel.IError;
+    function matchEnded(reason: string): MpKernel.IError;
+    function clockSkewExtreme(skewMs: number): MpKernel.IError;
+    function schemaTooOld(minRequired: string): MpKernel.IError;
+    function flapping(banSeconds: number): MpKernel.IError;
+    function persistenceDegraded(detail: string): MpKernel.IError;
+}
+declare namespace MpKernelIdempotency {
+    interface IPerSenderRing {
+        capacity: number;
+        nowSlot: number;
+        seen: {
+            [uuid: string]: number;
+        };
+        order: string[];
+    }
+    var DEDUP_WINDOW_MS: number;
+    var DEDUP_CAPACITY: number;
+    function newRing(): IPerSenderRing;
+    function admit(ring: IPerSenderRing, uuid: string, nowUnixMs: number): boolean;
+    function gc(ring: IPerSenderRing, nowUnixMs: number): void;
+}
+declare namespace MpKernelModule {
+    var TEMPLATE_IDS: {
+        SYNC_TURN_V1: string;
+        ASYNC_TURN_V1: string;
+        REALTIME_TICK_V1: string;
+        LOBBY_HANDOFF_V1: string;
+        TOURNAMENT_V1: string;
+        LIVE_EVENT_V1: string;
+        PERSISTENT_PARTY_V1: string;
+        AVATAR_REPLICATION_V1: string;
+        MR_ANCHOR_V1: string;
+        CONVERSATIONAL_PARTY_V1: string;
+    };
+    interface ICreateMatchRpcRequest {
+        template_id: string;
+        game_id: string;
+        region?: string;
+        template_init?: any;
+        label?: string;
+    }
+    interface ICreateMatchRpcResponse {
+        match_id: string;
+        template_id: string;
+        game_id: string;
+        region: string;
+        server_unix_ms: number;
+    }
+    function registerTemplateId(id: string): void;
+    function rpcCreateMatch(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcReadMatchResult(_ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcListTemplates(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _payload: string): string;
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
+declare namespace MpKernelInterest {
+    interface IMatchCfg {
+        cellMeters: number;
+        neighbourRadius: number;
+        idleMs: number;
+    }
+    var DEFAULT_CFG: IMatchCfg;
+    function configure(matchId: string, cfg: Partial<IMatchCfg>): void;
+    function getConfig(matchId: string): IMatchCfg;
+    /**
+     * Update a user's position. Returns the user's neighbour set so
+     * callers can decide to re-broadcast their join/state to new
+     * neighbours.
+     */
+    function update(matchId: string, userId: string, x: number, y: number, z: number, nowMs?: number): string[];
+    function remove(matchId: string, userId: string): void;
+    function getPosition(matchId: string, userId: string): {
+        x: number;
+        y: number;
+        z: number;
+    } | null;
+    /**
+     * Return the user_ids whose cell is within `neighbourRadius` cells
+     * of `userId`. Includes `userId` itself in the result for symmetry
+     * (callers usually drop the self-id).
+     */
+    function subscribers(matchId: string, userId: string): string[];
+    /**
+     * GC stale entries (presence dropped without remove()).
+     */
+    function reap(matchId: string, nowMs?: number): number;
+    function cleanupMatch(matchId: string): void;
+    function size(matchId: string): {
+        users: number;
+        cells: number;
+    };
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
+declare namespace MpKernelMatch {
+    var SEQ_GAP_THRESHOLD: number;
+    interface IKernelState<TS> {
+        template_id: string;
+        game_id: string;
+        region: string;
+        presence: MpKernelPresence.IPresenceTable;
+        clock: MpKernelClock.IMatchClock;
+        feature_flags: number;
+        counters: {
+            messages_in: number;
+            messages_in_dropped_dupe: number;
+            messages_in_dropped_unknown_op: number;
+            messages_in_dropped_seq_gap: number;
+            flap_kicks: number;
+            reconnects_inside_grace: number;
+        };
+        template_state: TS;
+        template: MpKernel.IMatchTemplate<TS>;
+        last_resync_seq: number;
+    }
+    function broadcastKernel<P>(state: IKernelState<any>, dispatcher: nkruntime.MatchDispatcher, matchId: string, op: number, payload: P, targets: nkruntime.Presence[] | null, senderUserId?: string): void;
+    function makeHandler<TS>(template: MpKernel.IMatchTemplate<TS>): nkruntime.MatchHandler<IKernelState<TS>>;
+    function registerTemplate<TS>(initializer: nkruntime.Initializer, template: MpKernel.IMatchTemplate<TS>, logger: nkruntime.Logger): void;
+}
+declare namespace MpKernelMatchResult {
+    var COLLECTION: string;
+    var DEFAULT_RETENTION_DAYS: number;
+    function setRetentionDays(days: number): void;
+    function persist(nk: nkruntime.Nakama, logger: nkruntime.Logger, result: MpKernel.IMatchResultEnvelope): {
+        ok: boolean;
+        error?: string;
+    };
+    function read(nk: nkruntime.Nakama, matchId: string): MpKernel.IMatchResultEnvelope | null;
+    function newOutcome(userId: string, isAgent: boolean): MpKernel.IPlayerOutcome;
+}
+declare namespace MpKernelModeration {
+    var Op: {
+        MOD_DECISION: number;
+        MOD_WARN: number;
+        MOD_MUTE: number;
+        MOD_KICK: number;
+        MOD_APPEAL_OPENED: number;
+        MOD_APPEAL_RESOLVED: number;
+    };
+    var Surface: {
+        UNSPECIFIED: number;
+        VOICE: number;
+        TEXT_CHAT: number;
+        AGENT_TTS: number;
+        USERNAME: number;
+        AVATAR: number;
+    };
+    var Action: {
+        UNSPECIFIED: number;
+        ALLOW: number;
+        WARN: number;
+        REDACT: number;
+        MUTE: number;
+        KICK: number;
+        BAN: number;
+        AGENT_CORRECT: number;
+    };
+    var Severity: {
+        UNSPECIFIED: number;
+        LOW: number;
+        MEDIUM: number;
+        HIGH: number;
+        CRITICAL: number;
+    };
+    interface IModerationParams {
+        enable_voice_asr: boolean;
+        enable_text: boolean;
+        enable_agent_pre_check: boolean;
+        voice_window_ms: number;
+        max_warnings_before_mute: number;
+        classifier_model: string;
+        asr_model: string;
+        strict_mode: boolean;
+        locale_allowlist_csv: string;
+    }
+    var DEFAULTS: IModerationParams;
+    function configure(p: Partial<IModerationParams>): void;
+    function getParams(): IModerationParams;
+    interface IClassifierResult {
+        severity: number;
+        categories: string[];
+        detail: string;
+        redacted_text?: string;
+    }
+    interface IClassifier {
+        /** Classify a single chunk. Synchronous, KEEP IT FAST (≤5 ms). */
+        classify(text: string, surface: number, locale: string): IClassifierResult;
+        /** Optional descriptive name surfaced into SafetyDecision. */
+        modelName(): string;
+    }
+    interface IActionPolicy {
+        /**
+         * Map a classifier verdict → action. Per-deployment override; e.g.
+         * stricter for kids titles, lighter for esports spectator chat.
+         */
+        decide(verdict: IClassifierResult, surface: number, prevWarnings: number): {
+            action: number;
+            detail: string;
+            appealable: boolean;
+        };
+    }
+    var BUILTIN_CLASSIFIER: IClassifier;
+    var BUILTIN_POLICY: IActionPolicy;
+    function setClassifier(c: IClassifier): void;
+    function setActionPolicy(p: IActionPolicy): void;
+    interface IModRequest {
+        match_id: string;
+        user_id: string;
+        is_agent: boolean;
+        surface: number;
+        text: string;
+        locale?: string;
+        region?: string;
+    }
+    interface IModResult {
+        action: number;
+        detail: string;
+        severity: number;
+        categories: string[];
+        redacted_text: string;
+        decision_id: string;
+        appealable: boolean;
+        classifier_model: string;
+    }
+    /**
+     * Synchronous moderation entry point. Returns the action + safe text.
+     * Templates fan-out the safe text instead of the raw text when
+     * action==REDACT|WARN; for MUTE|KICK they call the corresponding
+     * presence kick/mute helpers.
+     */
+    function moderate(nk: nkruntime.Nakama, logger: nkruntime.Logger, req: IModRequest): IModResult;
+    /**
+     * Convenience: classify + map only. Used by the agent service so it
+     * can short-circuit "block" without writing a log entry (the wrapper
+     * call in `agents.ts` will rewrite the moderation log with a richer
+     * surface=AGENT_TTS payload anyway).
+     */
+    function quickCheck(text: string, surface: number, locale?: string): {
+        action: number;
+        detail: string;
+        categories: string[];
+    };
+    /**
+     * Per-match cleanup hook.
+     */
+    function cleanupMatch(matchId: string): void;
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
+declare namespace MpKernelPresence {
+    interface ISeat {
+        user_id: string;
+        session_id: string;
+        is_agent: boolean;
+        is_host: boolean;
+        joined_unix_ms: number;
+        last_seen_unix_ms: number;
+        disconnected_at_unix_ms: number;
+        reconnect_count_in_window: number;
+        reconnect_count_window_start_unix_ms: number;
+        last_seq_in_from_client: number;
+        last_seq_out_to_client: number;
+        idem_ring: MpKernelIdempotency.IPerSenderRing;
+        display_name?: string;
+        presence_metadata?: any;
+    }
+    interface IPresenceTable {
+        seats: {
+            [user_id: string]: ISeat;
+        };
+        reconnect_grace_ms: number;
+        flap_threshold: number;
+        flap_window_ms: number;
+        flap_ban_seconds: number;
+    }
+    var DEFAULT_GRACE_MS: number;
+    var DEFAULT_FLAP_LIMIT: number;
+    var DEFAULT_FLAP_WINDOW: number;
+    var DEFAULT_FLAP_BAN_SEC: number;
+    function init(graceMs: number): IPresenceTable;
+    function recordJoin(table: IPresenceTable, p: nkruntime.Presence, nowUnixMs: number): {
+        seat: ISeat;
+        flapped: boolean;
+        resumed: boolean;
+    };
+    function recordLeave(table: IPresenceTable, p: nkruntime.Presence, nowUnixMs: number): ISeat | null;
+    function evictExpired(table: IPresenceTable, nowUnixMs: number): ISeat[];
+    function activeCount(table: IPresenceTable): number;
+    function totalCount(table: IPresenceTable): number;
+    function reconnectGraceRemainingMs(seat: ISeat, table: IPresenceTable, nowUnixMs: number): number;
+}
+declare namespace MpKernelSpatial {
+    var Kind: {
+        UNSPECIFIED: number;
+        KERNEL_WORLD: number;
+        CLOUD_ANCHOR: number;
+        QR_MARKER: number;
+        IMAGE_MARKER: number;
+        LOCAL_FLOOR: number;
+        PCVR_PSEUDO: number;
+    };
+    var FALLBACK_CHAIN: number[];
+    interface IFrame {
+        frame_id: string;
+        kind: number;
+        provider: string;
+        vendor_token: string;
+        payload?: string;
+        issued_ms: number;
+        region: string;
+        floor_height_m: number;
+        forward_yaw_deg: number;
+        relocalize_grace_ms: number;
+    }
+    interface ICapability {
+        supported_frames: number[];
+        can_publish_anchor: boolean;
+        can_resolve_cloud_anchor: boolean;
+        can_print_qr: boolean;
+        can_print_image_marker: boolean;
+        handedness: string;
+        up_axis: string;
+        forward_axis: string;
+    }
+    interface IRoomCapability {
+        common_frames: {
+            [k: number]: number;
+        };
+        member_count: number;
+    }
+    interface IFrameState {
+        current: IFrame;
+        pending?: IFrame;
+        pending_offered_by_user_id?: string;
+        pending_started_ms?: number;
+        pending_grace_ms?: number;
+        acks: {
+            [user_id: string]: {
+                ok: boolean;
+                detail: string;
+            };
+        };
+        capabilities: {
+            [user_id: string]: ICapability;
+        };
+    }
+    function buildKernelWorld(matchId: string, region: string): IFrame;
+    function buildPcvrPseudo(matchId: string, region: string, floor_m: number, yaw_deg: number): IFrame;
+    function negotiateInitialKind(requested: number, capabilities: ICapability[]): number;
+    function startOffer(state: IFrameState, offeredBy: string, frame: IFrame, graceMs: number): void;
+    function recordAck(state: IFrameState, userId: string, ok: boolean, detail: string): void;
+    function offerStatus(state: IFrameState, nowMs: number, minAcks: number): {
+        ready: boolean;
+        expired: boolean;
+        ok_count: number;
+        fail_count: number;
+    };
+    function commitPending(state: IFrameState): IFrame | null;
+    function abortPending(state: IFrameState): void;
+    function isFrameAcceptable(state: IFrameState, frameId: string, nowMs: number): boolean;
+}
+declare namespace MpKernel {
+    var OP_RANGE: {
+        KERNEL: {
+            from: number;
+            to: number;
+        };
+        SOCIAL: {
+            from: number;
+            to: number;
+        };
+        AGENTS: {
+            from: number;
+            to: number;
+        };
+        MODERATION: {
+            from: number;
+            to: number;
+        };
+        SYNC_TURN: {
+            from: number;
+            to: number;
+        };
+        ASYNC_TURN: {
+            from: number;
+            to: number;
+        };
+        REALTIME_TICK: {
+            from: number;
+            to: number;
+        };
+        LOBBY_HANDOFF: {
+            from: number;
+            to: number;
+        };
+        TOURNAMENT: {
+            from: number;
+            to: number;
+        };
+        LIVE_EVENT: {
+            from: number;
+            to: number;
+        };
+        PERSISTENT_PARTY: {
+            from: number;
+            to: number;
+        };
+        MR_ANCHOR: {
+            from: number;
+            to: number;
+        };
+        GAME_DEFINED: {
+            from: number;
+            to: number;
+        };
+        XR_POSE: {
+            from: number;
+            to: number;
+        };
+    };
+    var KernelOp: {
+        CLIENT_HELLO: number;
+        SERVER_HELLO: number;
+        HEARTBEAT: number;
+        PLAYER_JOINED: number;
+        PLAYER_LEFT: number;
+        PLAYER_KICKED: number;
+        MATCH_ENDED: number;
+        ERROR: number;
+        MATCH_RESUME: number;
+        MATCH_RESUME_ACK: number;
+        LATENCY_WARNING: number;
+        TICK_RATE_CHANGED: number;
+        VOICE_CAPABILITY_CHANGED: number;
+        VOICE_UNAVAILABLE: number;
+        VOICE_MODE_CHANGED: number;
+        LOW_BANDWIDTH_REQUEST: number;
+        NETWORK_CLOCK_PING: number;
+        NETWORK_CLOCK_PONG: number;
+        WARN_RATE_LIMITED: number;
+        WARN_TICK_OVERRUN: number;
+        WARN_MATCH_STATE_LARGE: number;
+        WARN_AVATAR_FALLBACK: number;
+        WARN_DEPRECATED_CLIENT: number;
+        WARN_STATE_REBUILT: number;
+        CLOCK_SYNC: number;
+        LEAVE: number;
+        WELCOME: number;
+        STATE_RESYNC: number;
+        WARN: number;
+    };
+    var LeaveReason: {
+        UNSPECIFIED: number;
+        VOLUNTARY: number;
+        DISCONNECT: number;
+        KICK: number;
+        BAN: number;
+        TIMEOUT: number;
+        FLAPPING: number;
+        MATCH_ENDED: number;
+    };
+    var EndReason: {
+        UNSPECIFIED: number;
+        COMPLETED: number;
+        TIMEOUT: number;
+        QUORUM_LOST: number;
+        HOST_DISBAND: number;
+        KICKED_ALL: number;
+        DURATION_EXCEEDED: number;
+        KERNEL_INTERNAL: number;
+        CANCELLED: number;
+    };
+    var ErrorCode: {
+        UNSPECIFIED: number;
+        SCHEMA_TOO_OLD: number;
+        SERVER_TOO_OLD: number;
+        BAD_PAYLOAD: number;
+        SEQ_GAP: number;
+        UNKNOWN_OPCODE: number;
+        DUPLICATE_OPCODE: number;
+        CLOCK_SKEW_EXTREME: number;
+        MATCH_STATE_LARGE: number;
+        MATCH_FULL: number;
+        MATCH_NOT_FOUND: number;
+        NOT_A_MEMBER: number;
+        RATE_LIMITED: number;
+        FLAPPING: number;
+        MATCH_ENDED: number;
+        SESSION_REPLACED: number;
+        PERMISSION_DENIED: number;
+        KICKED: number;
+        BANNED: number;
+        NOT_AUTHORIZED: number;
+        BAD_PERSONA: number;
+        BUDGET_EXCEEDED: number;
+        AGENT_PROVIDER_DOWN: number;
+        ANCHOR_INCOMPAT: number;
+        ANCHOR_LOST: number;
+        VOICE_UNAVAILABLE: number;
+        VOICE_PERMISSION_DENIED: number;
+        MODERATED: number;
+        TIMEOUT: number;
+        QUORUM_LOST: number;
+        DURATION_EXCEEDED: number;
+        STATE_OVERFLOW: number;
+        CAPABILITY_UNSUPPORTED: number;
+        OVERLOAD: number;
+        PERSISTENCE_DEGRADED: number;
+        TICK_OVERRUN_DEGRADED: number;
+        PROVIDER_UNAVAILABLE: number;
+        INTERNAL: number;
+    };
+    var WarningCode: {
+        UNSPECIFIED: number;
+        RATE_LIMITED: number;
+        TICK_OVERRUN: number;
+        MATCH_STATE_LARGE: number;
+        AVATAR_FALLBACK: number;
+        DEPRECATED_CLIENT: number;
+        STATE_REBUILT: number;
+        LOW_BANDWIDTH: number;
+        AGENT_DEGRADED: number;
+        CLOCK_REALIGN: number;
+    };
+    interface IHeader {
+        wire_version: number;
+        op: number;
+        seq: number;
+        match_time_ms: number;
+        sender_user_id: string;
+        match_id: string;
+        client_opcode_uuid: string;
+        quantization_profile?: number;
+        delta_base_seq?: number;
+        feature_flags?: number;
+        trace_parent?: string;
+    }
+    interface IEnvelope<P> {
+        h: IHeader;
+        p: P;
+    }
+    interface IError {
+        code: number;
+        detail?: string;
+        retry_after_ms?: number;
+        min_required_version?: string;
+    }
+    interface IMatchInitArgs {
+        template_id: string;
+        game_id: string;
+        region?: string;
+        template_init: any;
+        creator_user_id?: string;
+        flags?: {
+            [k: string]: string;
+        };
+    }
+    interface IMatchTemplate<TState> {
+        templateId: string;
+        opRange: {
+            from: number;
+            to: number;
+        };
+        defaultInit: any;
+        initState(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, params: IMatchInitArgs): {
+            state: TState;
+            tickRate: number;
+            label: string;
+        };
+        onJoinAttempt(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: TState, presence: nkruntime.Presence, metadata: {
+            [k: string]: string;
+        }): {
+            state: TState;
+            accept: boolean;
+            rejectMessage?: string;
+        };
+        onJoin(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: TState, presences: nkruntime.Presence[]): {
+            state: TState;
+        };
+        onLeave(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: TState, presences: nkruntime.Presence[]): {
+            state: TState;
+        };
+        onLoop(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: TState, messages: nkruntime.MatchMessage[]): {
+            state: TState;
+        } | null;
+        onTerminate(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: TState, graceSeconds: number): {
+            state: TState;
+        };
+        buildResult?(state: TState, reason: string): MpKernel.IMatchResultEnvelope | null;
+    }
+    interface IPlayerOutcome {
+        user_id: string;
+        is_agent: boolean;
+        placement: number;
+        score: number;
+        completed: boolean;
+        left_early: boolean;
+        game_payload?: any;
+    }
+    interface IMatchResultEnvelope {
+        match_id: string;
+        template_id: string;
+        game_id: string;
+        started_unix_ms: number;
+        ended_unix_ms: number;
+        duration_ms: number;
+        outcomes: IPlayerOutcome[];
+        game_payload?: any;
+        region?: string;
+    }
+}
+declare namespace MpKernelVoice {
+    var Provider: {
+        UNSPECIFIED: number;
+        LIVEKIT: number;
+        AGORA: number;
+        TWILIO: number;
+        DOLBY: number;
+        NONE: number;
+    };
+    var Mode: {
+        OFF: number;
+        BROADCAST: number;
+        SPATIAL: number;
+        PTT: number;
+    };
+    var Codec: {
+        UNSPECIFIED: number;
+        OPUS: number;
+        AAC: number;
+    };
+    var DEFAULT_TOKEN_TTL_MS: number;
+    var DEFAULT_FLOOR_SECONDS: number;
+    var DEFAULT_MAX_PUBLISHERS: number;
+    var DEFAULT_VAD_BROADCAST_HZ: number;
+    interface ISessionToken {
+        provider: number;
+        token: string;
+        room_id: string;
+        identity: string;
+        url: string;
+        expires_at_ms: number;
+        can_publish: boolean;
+        can_subscribe: boolean;
+        spatial: boolean;
+        region: string;
+        provider_opts?: {
+            [k: string]: string;
+        };
+    }
+    interface ICapability {
+        can_publish: boolean;
+        can_subscribe: boolean;
+        can_spatial: boolean;
+        codecs: number[];
+        max_publishers: number;
+        can_change_provider: boolean;
+        can_passthrough_external: boolean;
+        ptt_supported: boolean;
+        broadcast_supported: boolean;
+        spatial_supported: boolean;
+    }
+    function intersectCapabilities(caps: ICapability[]): ICapability;
+    function pickInitialMode(req: number, cap: ICapability): number;
+    interface IFloorState {
+        current_speaker_user_id: string;
+        started_ms: number;
+        floor_seconds: number;
+        queue: {
+            user_id: string;
+            topic_hint: string;
+            queued_ms: number;
+        }[];
+        queue_cap: number;
+    }
+    function newFloorState(queueCap: number): IFloorState;
+    function requestSpeaker(state: IFloorState, userId: string, topicHint: string, floorSeconds: number, nowMs: number): {
+        granted: boolean;
+        queued: boolean;
+        position: number;
+    };
+    function releaseSpeaker(state: IFloorState, userId: string, nowMs: number): {
+        newSpeaker: string;
+    };
+    function checkFloorExpiry(state: IFloorState, nowMs: number): {
+        expired: boolean;
+        user: string;
+    };
+    interface ITokenMinter {
+        name: string;
+        mint(args: {
+            roomId: string;
+            identity: string;
+            canPublish: boolean;
+            canSubscribe: boolean;
+            spatial: boolean;
+            ttlMs: number;
+            region: string;
+        }): {
+            token: string;
+            url: string;
+            opts?: {
+                [k: string]: string;
+            };
+        };
+    }
+    function mintToken(minter: ITokenMinter | null, matchId: string, userId: string, canPublish: boolean, canSubscribe: boolean, spatial: boolean, region: string, nowMs: number): ISessionToken;
+}
+declare namespace MpKernelAsyncTurn {
+    var Op: {
+        TURN_START: number;
+        TURN_SUBMIT: number;
+        TURN_END: number;
+        NOTIFY_OPPONENT: number;
+        FORFEIT: number;
+        RESIGN: number;
+    };
+    var DefaultInit: {
+        game_id: string;
+        move_timeout_ms: number;
+        max_match_duration_ms: number;
+        generator_id: string;
+        starting_actor: string;
+        game_label: string;
+    };
+    interface IAsyncTurnGenerator {
+        generatorId: string;
+        initState(initParams: any, persisted: any | null): {
+            state: any;
+            actor: string;
+            ended: boolean;
+            winner_user_id?: string;
+        };
+        applyMove(state: any, userId: string, payload: any): {
+            state: any;
+            actor: string;
+            ended: boolean;
+            winner_user_id?: string;
+            broadcast_payload: any;
+        } | null;
+        buildResult(state: any, actors: string[], winnerUserId: string, ended: boolean): any;
+    }
+    function registerGenerator(g: IAsyncTurnGenerator): void;
+    interface IState {
+        init: any;
+        game_id: string;
+        actors: string[];
+        online: {
+            [u: string]: boolean;
+        };
+        current_actor: string;
+        last_move_unix_ms: number;
+        state: any;
+        generator: IAsyncTurnGenerator | null;
+        ended: boolean;
+        winner_user_id: string;
+        started_unix_ms: number;
+        pending_end_reason: string;
+        outbound_seq: number;
+    }
+    var template: MpKernel.IMatchTemplate<IState>;
+}
+declare namespace MpKernelConvParty {
+    var Op: {
+        SPEAKER_REQUEST: number;
+        SPEAKER_GRANT: number;
+        SPEAKER_REVOKE: number;
+        MUTE_SELF: number;
+        REACTION: number;
+        TEXT_CHAT: number;
+        TOPIC_SET: number;
+        PIN_MESSAGE: number;
+        TRANSCRIPT_CHUNK: number;
+        VOICE_MODE: number;
+        HAND_LOWER: number;
+        ROOM_SNAPSHOT: number;
+    };
+    interface IRecentTranscript {
+        speaker_user_id: string;
+        is_agent: boolean;
+        text: string;
+        start_ts_ms: number;
+        end_ts_ms: number;
+        final: boolean;
+        locale: string;
+    }
+    interface IRoomSettings {
+        max_members: number;
+        speaker_floor_seconds: number;
+        speaker_queue_cap: number;
+        reaction_rate_per_sec: number;
+        chat_rate_per_sec: number;
+        allow_text_chat: boolean;
+        allow_agents: boolean;
+        max_agents: number;
+        moderation_enabled: boolean;
+        transcript_enabled: boolean;
+        default_voice_mode: string;
+        anyone_can_topic: boolean;
+        transcript_history: number;
+        voice_room_id: string;
+        voice_provider: string;
+    }
+    var DefaultInit: IRoomSettings;
+    interface IMember {
+        user_id: string;
+        is_agent: boolean;
+        role: "host" | "moderator" | "speaker" | "listener";
+        joined_unix_ms: number;
+        last_seen_unix_ms: number;
+        online: boolean;
+        muted_self: boolean;
+        muted_by_kernel: boolean;
+        hand_raised: boolean;
+        voice_mode: string;
+    }
+    interface IRateBucket {
+        bucket_unix_s: number;
+        count: number;
+    }
+    interface ISpeakerGrant {
+        user_id: string;
+        granted_unix_ms: number;
+        expires_unix_ms: number;
+    }
+    interface IState {
+        init: IRoomSettings;
+        members: {
+            [u: string]: IMember;
+        };
+        presences: {
+            [u: string]: {
+                online: boolean;
+                reaction_bucket: IRateBucket;
+                chat_bucket: IRateBucket;
+            };
+        };
+        speaker_queue: string[];
+        current_grant: ISpeakerGrant | null;
+        topic: string;
+        pinned_messages: string[];
+        transcript_history: IRecentTranscript[];
+        started_unix_ms: number;
+        last_idle_check_ms: number;
+        last_nonzero_presence_unix_ms: number;
+        creator_user_id: string;
+        pending_end_reason: string;
+        outbound_seq: number;
+        matchId: string;
+    }
+    var template: MpKernel.IMatchTemplate<IState>;
+}
+declare namespace MpKernelLiveEvent {
+    export var Op: {
+        PHASE_CHANGED: number;
+        REACTION: number;
+        DROP_AWARDED: number;
+        EVENT_PROGRESS: number;
+        PARTICIPATION_LOG: number;
+        EVENT_CHAT: number;
+        EVENT_SIGNAL: number;
+        QUEUED: number;
+        TIME_TO_START: number;
+    };
+    export interface IPhaseDef {
+        name: string;
+        duration_ms: number;
+        auto_advance: boolean;
+    }
+    export var DefaultInit: {
+        event_id: string;
+        shard_index: number;
+        max_attendees: number;
+        min_attendees_to_start: number;
+        waiting_room_ms: number;
+        phase_schedule: IPhaseDef[];
+        reactions_per_second: number;
+        chat_per_second: number;
+        chat_enabled: boolean;
+        drop_interval_ms: number;
+        drop_payload: any;
+        drop_target_strategy: string;
+        drop_target_n: number;
+        max_match_duration_ms: number;
+        host_can_advance: boolean;
+        crowd_meter_interval_ms: number;
+        persist_attendance: boolean;
+    };
+    enum Phase {
+        WAITING_ROOM = -1,
+        LIVE_PHASE_0 = 0,
+        DONE = 99
+    }
+    export interface IAttendee {
+        user_id: string;
+        is_agent: boolean;
+        joined_unix_ms: number;
+        left_unix_ms: number;
+        reactions: number;
+        chat_count: number;
+        drops_received: number;
+        participation_score: number;
+        reaction_bucket_unix_s: number;
+        reaction_bucket_count: number;
+        chat_bucket_unix_s: number;
+        chat_bucket_count: number;
+    }
+    export interface IState {
+        init: any;
+        phase_index: Phase;
+        phase_started_unix_ms: number;
+        waiting_room_until_unix_ms: number;
+        started_unix_ms: number;
+        attendees: {
+            [u: string]: IAttendee;
+        };
+        creator_user_id: string;
+        next_drop_at_unix_ms: number;
+        next_crowd_meter_at_unix_ms: number;
+        pending_end_reason: string;
+        outbound_seq: number;
+        peak_attendance: number;
+        reaction_total: number;
+        chat_total: number;
+        drops_total: number;
+    }
+    export var template: MpKernel.IMatchTemplate<IState>;
+    export {};
+}
+declare namespace MpKernelLobbyHandoff {
+    export var Op: {
+        READY: number;
+        FORM_UP_DONE: number;
+        HANDOFF_INFO: number;
+        DISBAND: number;
+    };
+    export var DefaultInit: {
+        target_template_id: string;
+        target_template_init: any;
+        target_game_id: string;
+        target_region: string;
+        min_players: number;
+        max_players: number;
+        form_up_timeout_ms: number;
+        handoff_grace_ms: number;
+        webrtc_signaling_url: string;
+        require_all_ready: boolean;
+        max_match_duration_ms: number;
+    };
+    enum Phase {
+        FORM_UP = 0,
+        HANDOFF = 1,
+        DONE = 2,
+        DISBANDED = 3
+    }
+    export interface IPlayer {
+        user_id: string;
+        is_agent: boolean;
+        ready: boolean;
+        ready_at_unix_ms: number;
+        loadout: any;
+    }
+    export interface IState {
+        init: any;
+        phase: Phase;
+        players: {
+            [u: string]: IPlayer;
+        };
+        started_unix_ms: number;
+        form_up_deadline_unix_ms: number;
+        handoff_at_unix_ms: number;
+        target_match_id: string;
+        pending_end_reason: string;
+        outbound_seq: number;
+    }
+    export var template: MpKernel.IMatchTemplate<IState>;
+    export {};
+}
+declare namespace MpKernelMrAnchor {
+    var Op: {
+        ANCHOR_OFFER: number;
+        ANCHOR_RESOLVED: number;
+        ANCHOR_LOST: number;
+        RELOCALIZED: number;
+        OBJECT_GRAB: number;
+        OBJECT_GRAB_REJECTED: number;
+        OBJECT_RELEASE: number;
+        OBJECT_TRANSFORM: number;
+        OBJECT_AUTHORITY: number;
+        PARTICIPANT_STATE: number;
+        HOST_REOFFER: number;
+        DOWNGRADED: number;
+    };
+    var AnchorProvider: {
+        UNSPECIFIED: number;
+        META_SHARED: number;
+        VISIONOS_SHARED: number;
+        ARKIT_COLLAB: number;
+        AZURE_SPATIAL: number;
+        QR_FALLBACK: number;
+        IMAGE_MARKER: number;
+        PCVR_FAKE: number;
+    };
+    interface IAnchorOffer {
+        anchor_id: string;
+        provider: number;
+        provider_anchor_token: string;
+        fallback_qr_b64: string;
+        fallback_marker_b64: string;
+        room_label: string;
+        ts_ms: number;
+        region: string;
+    }
+    interface IObject {
+        object_id: string;
+        holder_user_id: string;
+        authority_token: number;
+        last_pose_mm: {
+            px: number;
+            py: number;
+            pz: number;
+            rot_packed: number;
+        };
+        last_pub_ms: number;
+        grab_priority: number;
+        grab_arrived_ms: number;
+        frozen: boolean;
+    }
+    interface IParticipant {
+        user_id: string;
+        anchor_resolved: boolean;
+        anchor_provider: number;
+        anchor_resolve_ts_ms: number;
+        anchor_attempts: number;
+        anchor_failure_detail: string;
+        last_position_pub_ms: number;
+        downgraded: boolean;
+        is_host: boolean;
+    }
+    interface IInit {
+        max_users: number;
+        anchor_resolve_timeout_ms: number;
+        require_anchor_to_join: boolean;
+        allow_qr_fallback: boolean;
+        allow_marker_fallback: boolean;
+        allow_pcvr_fake_anchor: boolean;
+        grab_priority_window_ms: number;
+        cell_meters: number;
+        aoi_radius: number;
+        transform_rate_per_user: number;
+        pcvr_fake_anchor_id: string;
+    }
+    var DefaultInit: IInit;
+    interface IState {
+        init: IInit;
+        started_unix_ms: number;
+        host_user_id: string;
+        current_offer: IAnchorOffer | null;
+        participants: {
+            [u: string]: IParticipant;
+        };
+        objects: {
+            [oid: string]: IObject;
+        };
+        auth_token_seq: number;
+        last_grab_window_ms: number;
+        pending_grabs: {
+            [oid: string]: Array<{
+                user_id: string;
+                priority: number;
+                arrived_ms: number;
+            }>;
+        };
+        transform_buckets: {
+            [u: string]: {
+                unix_s: number;
+                count: number;
+            };
+        };
+        creator_user_id: string;
+        outbound_seq: number;
+    }
+    var template: MpKernel.IMatchTemplate<IState>;
+}
+declare namespace MpKernelPersistentParty {
+    var Op: {
+        PARTY_STATE: number;
+        INVITE: number;
+        INVITE_ACCEPT: number;
+        INVITE_DECLINE: number;
+        KICK: number;
+        PROMOTE: number;
+        DEMOTE: number;
+        TRANSFER_OWNER: number;
+        LEAVE_PARTY: number;
+        SETTING_UPDATED: number;
+        PARTY_CHAT: number;
+        MEMBER_PRESENCE: number;
+        READY_FOR_MATCH: number;
+        MATCH_QUEUE_INFO: number;
+    };
+    type Role = "owner" | "officer" | "member";
+    interface IMember {
+        user_id: string;
+        role: Role;
+        joined_unix_ms: number;
+        last_seen_unix_ms: number;
+        online: boolean;
+        ready_for_match: boolean;
+    }
+    interface IPartyDoc {
+        party_id: string;
+        name: string;
+        created_unix_ms: number;
+        owner_user_id: string;
+        members: {
+            [u: string]: IMember;
+        };
+        settings: {
+            visibility: "private" | "friends" | "public";
+            auto_kick_idle_ms: number;
+            max_members: number;
+            game_payload: any;
+        };
+        invites: {
+            [u: string]: {
+                invited_by: string;
+                at_unix_ms: number;
+                expires_unix_ms: number;
+            };
+        };
+        pinned_chat: string[];
+    }
+    var DefaultInit: {
+        party_id: string;
+        name: string;
+        visibility: string;
+        max_members: number;
+        auto_kick_idle_ms: number;
+        chat_per_second: number;
+        chat_enabled: boolean;
+        invite_ttl_ms: number;
+        idle_terminate_ms: number;
+        storage_flush_interval_ms: number;
+        max_match_duration_ms: number;
+        game_payload: any;
+    };
+    interface IState {
+        init: any;
+        party: IPartyDoc;
+        presences: {
+            [u: string]: {
+                online: boolean;
+                chat_bucket_unix_s: number;
+                chat_bucket_count: number;
+            };
+        };
+        started_unix_ms: number;
+        last_storage_flush_unix_ms: number;
+        last_nonzero_presence_unix_ms: number;
+        creator_user_id: string;
+        pending_end_reason: string;
+        outbound_seq: number;
+    }
+    var STORAGE_COLLECTION: string;
+    var template: MpKernel.IMatchTemplate<IState>;
+}
+declare namespace MpKernelSyncTurn {
+    export var Op: {
+        TURN_START: number;
+        TURN_INPUT_OPENED: number;
+        TURN_INPUT_CLOSED: number;
+        TURN_RESOLVED: number;
+        SCORE_UPDATE: number;
+        PLAYER_ELIMINATED: number;
+        ROUND_STARTED: number;
+        ROUND_ENDED: number;
+        TURN_INPUT_SUBMIT: number;
+        PLAYER_READY: number;
+        PLAYER_FORFEIT: number;
+    };
+    export var DefaultInit: {
+        min_players: number;
+        max_players: number;
+        default_input_window_ms: number;
+        max_match_duration_ms: number;
+        reconnect_grace_ms: number;
+        game_id: string;
+        agent_seat_count: number;
+        generator_id: string;
+    };
+    export interface IGenerator {
+        generatorId: string;
+        initBlob(initParams: any): any;
+        nextTurn(state: ITurnGenContext): {
+            turn_payload: any;
+            result_payload_for_correct: any;
+            score_for_correct_full: number;
+            score_for_wrong: number;
+            score_for_no_submit: number;
+            input_window_ms?: number;
+            is_final_turn?: boolean;
+        } | null;
+        scoreSubmission(submission: any, correctPayload: any, responseMs: number, baseReward: number): number;
+        buildResolvedPayload(correctPayload: any, verdicts: {
+            [u: string]: number;
+        }, responseMs: {
+            [u: string]: number;
+        }): any;
+    }
+    export interface ITurnGenContext {
+        blob: any;
+        turn_index: number;
+        round_index: number;
+        template_init: any;
+    }
+    export function registerGenerator(g: IGenerator): void;
+    enum Phase {
+        PRE_GAME = 0,
+        TURN_INPUT_OPEN = 1,
+        TURN_RESOLVING = 2,
+        POST_GAME = 3
+    }
+    export interface IPlayerStats {
+        user_id: string;
+        is_agent: boolean;
+        score: number;
+        correct_count: number;
+        wrong_count: number;
+        no_submit_count: number;
+        forfeited: boolean;
+    }
+    export interface IState {
+        init: any;
+        phase: Phase;
+        turn_index: number;
+        round_index: number;
+        input_opens_at_ms: number;
+        input_closes_at_ms: number;
+        current_turn_payload: any;
+        current_correct_payload: any;
+        current_base_reward: number;
+        current_wrong_penalty: number;
+        current_no_submit_penalty: number;
+        submissions: {
+            [user_id: string]: {
+                payload: any;
+                response_ms: number;
+                recv_match_ms: number;
+            };
+        };
+        ready: {
+            [user_id: string]: boolean;
+        };
+        forfeited: {
+            [user_id: string]: boolean;
+        };
+        stats: {
+            [user_id: string]: IPlayerStats;
+        };
+        match_started_unix_ms: number;
+        match_force_end_at_unix_ms: number;
+        pending_end_reason: string;
+        generator: IGenerator | null;
+        generator_blob: any;
+        is_final_turn: boolean;
+        outbound_seq: number;
+    }
+    export var template: MpKernel.IMatchTemplate<IState>;
+    export {};
+}
+declare namespace MpKernelTournament {
+    export var Op: {
+        REGISTER: number;
+        REGISTRATION_CLOSED: number;
+        BRACKET_UPDATED: number;
+        LEG_MATCH_INFO: number;
+        LEG_MATCH_RESULT: number;
+        TOURNAMENT_RESOLVED: number;
+        PLAYER_FORFEIT: number;
+        BYE_AWARDED: number;
+    };
+    export var DefaultInit: {
+        tournament_id: string;
+        max_players: number;
+        min_players: number;
+        registration_open_unix_ms: number;
+        registration_close_unix_ms: number;
+        leg_template_id: string;
+        leg_template_init: any;
+        leg_target_game_id: string;
+        leg_target_region: string;
+        leg_timeout_ms: number;
+        inter_round_grace_ms: number;
+        walkover_on_match_failure: boolean;
+        bracket_mode: string;
+        bracket_generator_id: string;
+        max_match_duration_ms: number;
+        allow_agents: boolean;
+        allow_byes: boolean;
+    };
+    export interface IBracketGenerator {
+        generatorId: string;
+        initBracket(state: IState): IBracket;
+        nextRoundLegs(state: IState, bracket: IBracket): ILeg[];
+        onLegResolved(bracket: IBracket, leg: ILeg, winnerUserId: string, loserUserId: string): IBracket;
+        isComplete(bracket: IBracket): boolean;
+        championOf(bracket: IBracket): string;
+    }
+    export interface ILeg {
+        leg_id: string;
+        round_index: number;
+        player_a: string;
+        player_b: string;
+        match_id: string;
+        started_unix_ms: number;
+        ended_unix_ms: number;
+        winner_user_id: string;
+        loser_user_id: string;
+        status: "pending" | "live" | "resolved" | "walkover" | "forfeited";
+        failure_reason: string;
+    }
+    export interface IBracket {
+        rounds: ILeg[][];
+        winners_path: string[][];
+    }
+    enum Phase {
+        REGISTRATION = 0,
+        SEEDING = 1,
+        LIVE = 2,
+        DONE = 3,
+        CANCELLED = 4
+    }
+    export interface IRegistrant {
+        user_id: string;
+        is_agent: boolean;
+        seed: number;
+        eliminated: boolean;
+        placement: number;
+    }
+    export interface IState {
+        init: any;
+        phase: Phase;
+        registrants: {
+            [u: string]: IRegistrant;
+        };
+        registration_close_unix_ms_effective: number;
+        started_unix_ms: number;
+        bracket: IBracket | null;
+        current_round_index: number;
+        current_round_started_unix_ms: number;
+        bracket_generator: IBracketGenerator | null;
+        pending_end_reason: string;
+        outbound_seq: number;
+        events: Array<{
+            at_unix_ms: number;
+            kind: string;
+            data: any;
+        }>;
+    }
+    export function registerGenerator(g: IBracketGenerator): void;
+    export var template: MpKernel.IMatchTemplate<IState>;
+    export {};
+}
+declare namespace MpKernelVoiceProviders {
+    function activeMinter(): MpKernelVoice.ITokenMinter | null;
+    function setActiveMinter(m: MpKernelVoice.ITokenMinter | null): void;
+    function b64url(input: string): string;
+    function hexToB64url(hex: string): string;
+    function installEnv(env: {
+        [k: string]: string;
+    }): void;
+    function rpcVoiceToken(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function register(initializer: nkruntime.Initializer, _logger: nkruntime.Logger): void;
+}
+declare namespace MpVoiceLiveKit {
+    interface IConfig {
+        apiKey: string;
+        apiSecret: string;
+        defaultUrl: string;
+        regionalUrls: {
+            [region: string]: string;
+        };
+    }
+    function loadConfig(env: {
+        [k: string]: string;
+    }): IConfig;
+    function urlFor(cfg: IConfig, region: string): string;
+    function makeMinter(cfg: IConfig, b64url: (s: string) => string, hmacSha256: (key: string, msg: string) => string): MpKernelVoice.ITokenMinter;
+}
 declare namespace AnalyticsAlerts {
     interface RpcSample {
         ts: number;
@@ -675,10 +2535,42 @@ declare namespace AnalyticsAlerts {
         ok: boolean;
         err?: string;
         userId?: string;
+        userIdHash?: string;
+        country?: string;
+        tier?: string;
+        appVersion?: string;
+        os?: string;
+        quizMode?: string;
+        quizCardType?: string;
+        screen?: string;
+        sessionId?: string;
+        cohortDefVersion?: number;
+        cohortLabel?: string;
+        requestId?: string;
+        tokensIn?: number;
+        tokensOut?: number;
+        costUsd?: number;
     }
     function init(ctx: nkruntime.Context, logger: nkruntime.Logger): void;
     function groupForRpc(rpcId: string): string;
-    function recordSample(nk: nkruntime.Nakama, logger: nkruntime.Logger, rpc: string, durMs: number, ok: boolean, err?: string, userId?: string): void;
+    interface RpcSampleExt {
+        userIdHash?: string;
+        country?: string;
+        tier?: string;
+        appVersion?: string;
+        os?: string;
+        quizMode?: string;
+        quizCardType?: string;
+        screen?: string;
+        sessionId?: string;
+        cohortDefVersion?: number;
+        cohortLabel?: string;
+        requestId?: string;
+        tokensIn?: number;
+        tokensOut?: number;
+        costUsd?: number;
+    }
+    function recordSample(nk: nkruntime.Nakama, logger: nkruntime.Logger, rpc: string, durMs: number, ok: boolean, err?: string, userId?: string, ext?: RpcSampleExt): void;
     function getSamplesInWindow(nk: nkruntime.Nakama, startMs: number, endMs: number, maxRecords?: number): RpcSample[];
     function cleanupOldSamples(nk: nkruntime.Nakama, logger: nkruntime.Logger): number;
     function tryAcquireSlotLock(nk: nkruntime.Nakama, slotIso: string): boolean;
@@ -702,8 +2594,8 @@ declare namespace AnalyticsAlerts {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriAudiences {
-    function isInAudience(nk: nkruntime.Nakama, userId: string, audienceId: string): boolean;
-    function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string): string[];
+    function isInAudience(nk: nkruntime.Nakama, userId: string, audienceId: string, gameId?: string): boolean;
+    function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string, gameId?: string): string[];
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriDataLake {
@@ -716,12 +2608,12 @@ declare namespace SatoriEventCapture {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriExperiments {
-    function getVariant(nk: nkruntime.Nakama, userId: string, experimentId: string): Satori.ExperimentVariant | null;
+    function getVariant(nk: nkruntime.Nakama, userId: string, experimentId: string, gameId?: string): Satori.ExperimentVariant | null;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriFeatureFlags {
-    function getFlag(nk: nkruntime.Nakama, userId: string, flagName: string, defaultValue?: string): Satori.Flag;
-    function getAllFlags(nk: nkruntime.Nakama, userId: string): Satori.Flag[];
+    function getFlag(nk: nkruntime.Nakama, userId: string, flagName: string, defaultValue?: string, gameId?: string): Satori.Flag;
+    function getAllFlags(nk: nkruntime.Nakama, userId: string, gameId?: string): Satori.Flag[];
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriIdentities {
@@ -737,9 +2629,9 @@ declare namespace SatoriLiveEvents {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriMessages {
-    function deliverMessage(nk: nkruntime.Nakama, userId: string, messageDef: Satori.MessageDefinition): void;
-    function deliverToAudience(nk: nkruntime.Nakama, logger: nkruntime.Logger, messageDef: Satori.MessageDefinition, audienceId: string): number;
-    function processScheduledMessages(nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+    function deliverMessage(nk: nkruntime.Nakama, userId: string, messageDef: Satori.MessageDefinition, gameId?: string): void;
+    function deliverToAudience(nk: nkruntime.Nakama, logger: nkruntime.Logger, messageDef: Satori.MessageDefinition, audienceId: string, gameId?: string): number;
+    function processScheduledMessages(nk: nkruntime.Nakama, logger: nkruntime.Logger, gameId?: string): void;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriMetrics {
@@ -768,9 +2660,12 @@ declare namespace SatoriWebhooks {
 }
 declare namespace ConfigLoader {
     function loadConfig<T>(nk: nkruntime.Nakama, configKey: string, defaultValue: T): T;
+    function loadConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T;
     function loadSatoriConfig<T>(nk: nkruntime.Nakama, configKey: string, defaultValue: T): T;
+    function loadSatoriConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T;
     function saveConfig(nk: nkruntime.Nakama, configKey: string, data: any): void;
     function saveSatoriConfig(nk: nkruntime.Nakama, configKey: string, data: any): void;
+    function saveSatoriConfigForGame(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, data: any): void;
     function invalidateCache(configKey?: string): void;
 }
 declare namespace Constants {
@@ -906,6 +2801,7 @@ declare namespace RpcHelpers {
     function successResponse(data: any): string;
     function errorResponse(message: string, code?: number): string;
     function parseRpcPayload(payload: string): any;
+    function gameId(data: any): string | undefined;
     function logRpcError(nk: nkruntime.Nakama, logger: nkruntime.Logger, rpcName: string, errorMessage: string, userId?: string, gameId?: string): void;
     function requireUserId(ctx: nkruntime.Context): string;
     function resolveUserId(ctx: nkruntime.Context, payload?: any): string;

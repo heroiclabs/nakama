@@ -99,7 +99,7 @@ function resolveEventTimestamp(rawEvent) {
  * Handles legacy casings (gameID, eventData=properties, etc.) so the dashboard
  * sees one consistent shape regardless of client version.
  */
-function normalizeInboundEvent(ctx, rawEvent) {
+function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
     if (!rawEvent || typeof rawEvent !== 'object') return null;
 
     var gameId = rawEvent.gameId || rawEvent.game_id || rawEvent.gameID || null;
@@ -142,6 +142,49 @@ function normalizeInboundEvent(ctx, rawEvent) {
     if (!userId) return { __invalid: "User not authenticated" };
 
     var unixTs = resolveEventTimestamp(rawEvent);
+
+    // Phase 1A (qv-insights-loop): universal event enricher. Back-fills
+    // any field still empty after the dimensional logic above by reading
+    // the per-session context from `game_session_index`. Anything still
+    // missing is recorded into `game_coverage_gap_log` so #qv-ops can
+    // surface the worst offenders in the daily coverage health embed.
+    // Defined in src/analytics/event-enricher.ts; concatenated at global
+    // scope by postbuild.js so this typeof check succeeds in production.
+    if (nk && typeof EventEnricher !== "undefined" && EventEnricher && typeof EventEnricher.enrich === "function") {
+        try {
+            var sid = eventData.session_id || null;
+            var enrichResult = EventEnricher.enrich(nk, logger, eventName, eventData, sid, gameId);
+            if (enrichResult && enrichResult.gaps && enrichResult.gaps.length > 0) {
+                EventEnricher.recordCoverageGap(nk, logger, gameId, eventName, enrichResult.gaps);
+            }
+            // session_start = upsert the session-context row. The full set
+            // of immutable session fields (app_version/os/country/tier) is
+            // captured here so every later event can back-fill against it.
+            if (eventName === "session_start" && sid) {
+                EventEnricher.upsertSessionIndex(nk, logger, ctx, {
+                    sessionId: sid,
+                    gameId: gameId,
+                    userId: ctx.userId,
+                    appVersion: eventData.app_version,
+                    sdkVersion: eventData.sdk_version,
+                    os: eventData.os,
+                    osVersion: eventData.os_version,
+                    country: eventData.country,
+                    locale: eventData.locale,
+                    tier: eventData.device_tier,
+                    deviceModel: eventData.device_model,
+                    installSource: eventData.install_source,
+                    consentState: eventData.consent_state,
+                    attStatus: eventData.att_status,
+                    cohortLabel: eventData.cohort_label,
+                    cohortDefVersion: eventData.cohort_def_version,
+                    cohortHoldout: eventData.cohort_holdout,
+                });
+            }
+        } catch (enrichErr) {
+            // never throw into the host RPC
+        }
+    }
 
     return {
         userId: userId,
@@ -263,7 +306,7 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     var errors = [];
 
     for (var i = 0; i < inbound.length; i++) {
-        var normalized = normalizeInboundEvent(ctx, inbound[i]);
+        var normalized = normalizeInboundEvent(ctx, inbound[i], nk, logger);
         if (!normalized || normalized.__invalid) {
             rejected++;
             errors.push({ index: i, reason: (normalized && normalized.__invalid) || "Invalid event" });

@@ -51,6 +51,12 @@ import {
 } from "lucide-react";
 
 const REFETCH_MS = 30_000;
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
 
 type Tab =
   | "overview"
@@ -118,11 +124,11 @@ function usePlayerList() {
   });
 }
 
-function useStreaks() {
+function useStreaks(gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "retention", "streaks"],
+    queryKey: ["admin", "retention", "streaks", gameScope],
     queryFn: () =>
-      hiro.getHiroConfig("streaks", serverKeyAuth()) as Promise<
+      hiro.getHiroConfig("streaks", serverKeyAuth(), rpcGameId(gameScope)) as Promise<
         Record<string, unknown>
       >,
     refetchInterval: 60_000,
@@ -130,11 +136,11 @@ function useStreaks() {
   });
 }
 
-function useIncentives() {
+function useIncentives(gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "retention", "incentives"],
+    queryKey: ["admin", "retention", "incentives", gameScope],
     queryFn: () =>
-      hiro.getHiroConfig("incentives", serverKeyAuth()) as Promise<
+      hiro.getHiroConfig("incentives", serverKeyAuth(), rpcGameId(gameScope)) as Promise<
         Record<string, unknown>
       >,
     refetchInterval: 60_000,
@@ -142,11 +148,11 @@ function useIncentives() {
   });
 }
 
-function useAudiences() {
+function useAudiences(gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "retention", "audiences"],
+    queryKey: ["admin", "retention", "audiences", gameScope],
     queryFn: () =>
-      satori.listAudiences(serverKeyAuth()) as Promise<{
+      satori.listAudiences(serverKeyAuth(), rpcGameId(gameScope)) as Promise<{
         audiences?: Audience[];
       }>,
     refetchInterval: 60_000,
@@ -154,11 +160,11 @@ function useAudiences() {
   });
 }
 
-function useMessages() {
+function useMessages(gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "retention", "messages"],
+    queryKey: ["admin", "retention", "messages", gameScope],
     queryFn: () =>
-      satori.listMessages(serverKeyAuth()) as Promise<{
+      satori.listMessages(serverKeyAuth(), rpcGameId(gameScope)) as Promise<{
         messages?: SatoriMessage[];
       }>,
     refetchInterval: 60_000,
@@ -166,19 +172,19 @@ function useMessages() {
   });
 }
 
-function useFlags() {
+function useFlags(gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "retention", "flags"],
-    queryFn: () => satori.getAllFlags(serverKeyAuth()),
+    queryKey: ["admin", "retention", "flags", gameScope],
+    queryFn: () => satori.getAllFlags(serverKeyAuth(), rpcGameId(gameScope)),
     refetchInterval: 60_000,
     retry: 1,
   });
 }
 
-function useLiveEvents() {
+function useLiveEvents(gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "retention", "live-events"],
-    queryFn: () => satori.listLiveEvents(serverKeyAuth()),
+    queryKey: ["admin", "retention", "live-events", gameScope],
+    queryFn: () => satori.listLiveEvents(serverKeyAuth(), rpcGameId(gameScope)),
     refetchInterval: 60_000,
     retry: 1,
   });
@@ -895,9 +901,11 @@ function StreaksTab({
 function CampaignsTab({
   messages,
   audiences,
+  gameScope,
 }: {
   messages: SatoriMessage[];
   audiences: Audience[];
+  gameScope: string;
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -911,12 +919,13 @@ function CampaignsTab({
           title,
           body: body || undefined,
           audience_id: audienceId || undefined,
+          game_id: rpcGameId(gameScope),
         },
         serverKeyAuth(),
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["admin", "retention", "messages"],
+        queryKey: ["admin", "retention", "messages", gameScope],
       });
       setTitle("");
       setBody("");
@@ -1071,18 +1080,18 @@ function CampaignsTab({
 
 // ─── Flags Tab ───────────────────────────────────────────────────────
 
-function FlagsTab({ flags }: { flags: FeatureFlag[] }) {
+function FlagsTab({ flags, gameScope }: { flags: FeatureFlag[]; gameScope: string }) {
   const queryClient = useQueryClient();
 
   const toggleMutation = useMutation({
     mutationFn: (flag: FeatureFlag) =>
       satori.toggleFlag(
-        { name: flag.name, enabled: !flag.enabled },
+        { name: flag.name, enabled: !flag.enabled, game_id: rpcGameId(gameScope) },
         serverKeyAuth(),
       ),
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: ["admin", "retention", "flags"],
+        queryKey: ["admin", "retention", "flags", gameScope],
       }),
   });
 
@@ -1173,7 +1182,7 @@ function FlagsTab({ flags }: { flags: FeatureFlag[] }) {
 
 // ─── Events Tab ──────────────────────────────────────────────────────
 
-function EventsTab({ liveEvents }: { liveEvents: LiveEvent[] }) {
+function EventsTab({ liveEvents, gameScope }: { liveEvents: LiveEvent[]; gameScope: string }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [durationHours, setDurationHours] = useState(24);
@@ -1190,13 +1199,14 @@ function EventsTab({ liveEvents }: { liveEvents: LiveEvent[] }) {
           start_time_sec: now,
           end_time_sec: now + durationHours * 3600,
           enabled: true,
+          game_id: rpcGameId(gameScope),
         },
         serverKeyAuth(),
       );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["admin", "retention", "live-events"],
+        queryKey: ["admin", "retention", "live-events", gameScope],
       });
       setName("");
       setDescription("");
@@ -1390,15 +1400,16 @@ function EventsTab({ liveEvents }: { liveEvents: LiveEvent[] }) {
 // ─── Main Page ───────────────────────────────────────────────────────
 
 export function RetentionPage() {
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
   const [tab, setTab] = useState<Tab>("overview");
 
   const players = usePlayerList();
-  const streakQ = useStreaks();
-  const incentiveQ = useIncentives();
-  const audienceQ = useAudiences();
-  const messageQ = useMessages();
-  const flagQ = useFlags();
-  const eventQ = useLiveEvents();
+  const streakQ = useStreaks(gameScope);
+  const incentiveQ = useIncentives(gameScope);
+  const audienceQ = useAudiences(gameScope);
+  const messageQ = useMessages(gameScope);
+  const flagQ = useFlags(gameScope);
+  const eventQ = useLiveEvents(gameScope);
 
   const riskPlayers = useMemo<PlayerRisk[]>(() => {
     const users = players.data?.users ?? [];
@@ -1454,16 +1465,27 @@ export function RetentionPage() {
             winback tooling.
           </p>
         </div>
-        <button
-          onClick={refetchAll}
-          disabled={isLoading}
-          className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-        >
-          <RefreshCw
-            className={cn("h-4 w-4", isLoading && "animate-spin")}
-          />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
+          <button
+            onClick={refetchAll}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshCw
+              className={cn("h-4 w-4", isLoading && "animate-spin")}
+            />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1544,10 +1566,10 @@ export function RetentionPage() {
         />
       )}
       {tab === "campaigns" && (
-        <CampaignsTab messages={messages} audiences={audiences} />
+        <CampaignsTab messages={messages} audiences={audiences} gameScope={gameScope} />
       )}
-      {tab === "flags" && <FlagsTab flags={flags} />}
-      {tab === "events" && <EventsTab liveEvents={liveEvents} />}
+      {tab === "flags" && <FlagsTab flags={flags} gameScope={gameScope} />}
+      {tab === "events" && <EventsTab liveEvents={liveEvents} gameScope={gameScope} />}
     </div>
   );
 }

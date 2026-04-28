@@ -67,6 +67,29 @@ RUN CGO_ENABLED=1 go build \
 # and we only notice because /metrics is empty.
 RUN test -s /build/analytics_metrics.so || (echo "Plugin build produced no output" && exit 1)
 
+# ─── Stage 1b : RealtimeTickMatch plugin (P6) ─────────────
+#
+# Built in its own working dir so the go.mod doesn't conflict with
+# analytics_metrics. ABI-coupled to the same nakama-common version.
+WORKDIR /build/realtime_tick
+COPY data/modules/realtime_tick/*.go ./
+RUN cat > go.mod <<'EOF'
+module github.com/ivx/nakama-realtime-tick
+
+go 1.25
+
+require (
+    github.com/heroiclabs/nakama-common v1.44.0
+)
+EOF
+RUN go mod tidy
+RUN CGO_ENABLED=1 go build \
+    --trimpath \
+    --buildmode=plugin \
+    -o /build/realtime_tick.so \
+    .
+RUN test -s /build/realtime_tick.so || (echo "realtime_tick plugin produced no output" && exit 1)
+
 # ─── Stage 2 : rebuild the JS runtime bundle ───────────────
 #
 # Every .js file under data/modules/ subfolders (analytics_admin, analytics,
@@ -98,6 +121,7 @@ FROM registry.heroiclabs.com/heroiclabs/nakama:3.35.0
 # and loads all .so files from this directory automatically alongside JS
 # modules.
 COPY --from=builder /build/analytics_metrics.so /nakama/data/modules/analytics_metrics.so
+COPY --from=builder /build/realtime_tick.so /nakama/data/modules/realtime_tick.so
 
 # For full-image mode, also bake the JS modules + runtime so the image is
 # self-contained without a host volume mount. The compose dev stack still

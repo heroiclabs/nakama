@@ -2,8 +2,8 @@ namespace HiroAchievements {
 
   var DEFAULT_CONFIG: Hiro.AchievementsConfig = { achievements: {} };
 
-  export function getConfig(nk: nkruntime.Nakama): Hiro.AchievementsConfig {
-    return ConfigLoader.loadConfig<Hiro.AchievementsConfig>(nk, "achievements", DEFAULT_CONFIG);
+  export function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.AchievementsConfig {
+    return ConfigLoader.loadConfigForGame<Hiro.AchievementsConfig>(nk, "achievements", gameId, DEFAULT_CONFIG);
   }
 
   function getUserAchievements(nk: nkruntime.Nakama, userId: string, gameId?: string): Hiro.UserAchievements {
@@ -16,7 +16,7 @@ namespace HiroAchievements {
   }
 
   export function addProgress(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, achievementId: string, amount: number, gameId?: string): Hiro.UserAchievementProgress | null {
-    var config = getConfig(nk);
+    var config = getConfig(nk, gameId);
     var def = config.achievements[achievementId];
     if (!def) return null;
 
@@ -118,8 +118,8 @@ namespace HiroAchievements {
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var gameId: string | undefined = data.gameId;
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var userAchievements = getUserAchievements(nk, userId, gameId);
 
     var result: any[] = [];
@@ -153,7 +153,7 @@ namespace HiroAchievements {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.achievementId) return RpcHelpers.errorResponse("achievementId required");
 
-    var progress = addProgress(nk, logger, ctx, userId, data.achievementId, data.amount || 1, data.gameId);
+    var progress = addProgress(nk, logger, ctx, userId, data.achievementId, data.amount || 1, RpcHelpers.gameId(data));
     if (!progress) return RpcHelpers.errorResponse("Achievement not found or preconditions not met");
     return RpcHelpers.successResponse({ progress: progress });
   }
@@ -163,11 +163,12 @@ namespace HiroAchievements {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.achievementId) return RpcHelpers.errorResponse("achievementId required");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var def = config.achievements[data.achievementId];
     if (!def) return RpcHelpers.errorResponse("Unknown achievement");
 
-    var ua = getUserAchievements(nk, userId, data.gameId);
+    var ua = getUserAchievements(nk, userId, gameId);
     var progress = ua.achievements[data.achievementId];
     if (!progress || !progress.completedAt) return RpcHelpers.errorResponse("Achievement not completed");
     if (progress.claimedAt) return RpcHelpers.errorResponse("Already claimed");
@@ -176,11 +177,11 @@ namespace HiroAchievements {
     var resolved: Hiro.ResolvedReward | null = null;
     if (def.reward) {
       resolved = RewardEngine.resolveReward(nk, def.reward);
-      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+      RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
     }
 
     ua.achievements[data.achievementId] = progress;
-    saveUserAchievements(nk, userId, ua, data.gameId);
+    saveUserAchievements(nk, userId, ua, gameId);
 
     EventBus.emit(nk, logger, ctx, EventBus.Events.ACHIEVEMENT_CLAIMED, {
       userId: userId, achievementId: data.achievementId, reward: resolved
@@ -198,7 +199,7 @@ namespace HiroAchievements {
   export function registerEventHandlers(): void {
     // Auto-track achievements from other system events
     EventBus.on(EventBus.Events.GAME_COMPLETED, function (nk, logger, ctx, data) {
-      var config = getConfig(nk);
+      var config = getConfig(nk, data.gameId);
       for (var id in config.achievements) {
         var def = config.achievements[id];
         if (def.category === "games_played") {
@@ -208,7 +209,7 @@ namespace HiroAchievements {
     });
 
     EventBus.on(EventBus.Events.SCORE_SUBMITTED, function (nk, logger, ctx, data) {
-      var config = getConfig(nk);
+      var config = getConfig(nk, data.gameId);
       for (var id in config.achievements) {
         var def = config.achievements[id];
         if (def.category === "score_threshold" && data.score >= def.count) {

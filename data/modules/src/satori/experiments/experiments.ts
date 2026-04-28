@@ -1,16 +1,16 @@
 namespace SatoriExperiments {
 
-  function getExperiments(nk: nkruntime.Nakama): { [id: string]: Satori.ExperimentDefinition } {
-    return ConfigLoader.loadSatoriConfig<{ [id: string]: Satori.ExperimentDefinition }>(nk, "experiments", {});
+  function getExperiments(nk: nkruntime.Nakama, gameId?: string): { [id: string]: Satori.ExperimentDefinition } {
+    return ConfigLoader.loadSatoriConfigForGame<{ [id: string]: Satori.ExperimentDefinition }>(nk, "experiments", gameId, {});
   }
 
-  function getUserExperiments(nk: nkruntime.Nakama, userId: string): Satori.UserExperiments {
-    var data = Storage.readJson<Satori.UserExperiments>(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, "assignments", userId);
+  function getUserExperiments(nk: nkruntime.Nakama, userId: string, gameId?: string): Satori.UserExperiments {
+    var data = Storage.readJson<Satori.UserExperiments>(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, Constants.gameKey(gameId, "assignments"), userId);
     return data || { assignments: {} };
   }
 
-  function saveUserExperiments(nk: nkruntime.Nakama, userId: string, data: Satori.UserExperiments): void {
-    Storage.writeJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, "assignments", userId, data);
+  function saveUserExperiments(nk: nkruntime.Nakama, userId: string, data: Satori.UserExperiments, gameId?: string): void {
+    Storage.writeJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, Constants.gameKey(gameId, "assignments"), userId, data);
   }
 
   function deterministicAssign(userId: string, experimentId: string, variants: Satori.ExperimentVariant[], splitKey?: string): string {
@@ -52,17 +52,17 @@ namespace SatoriExperiments {
     return Math.floor(Date.now() / 1000) <= def.admissionDeadline;
   }
 
-  export function getVariant(nk: nkruntime.Nakama, userId: string, experimentId: string): Satori.ExperimentVariant | null {
-    var experiments = getExperiments(nk);
+  export function getVariant(nk: nkruntime.Nakama, userId: string, experimentId: string, gameId?: string): Satori.ExperimentVariant | null {
+    var experiments = getExperiments(nk, gameId);
     var def = experiments[experimentId] as any;
     if (!def || !isExperimentActive(def)) return null;
     if (!def.variants || def.variants.length === 0) return null;
 
-    if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId)) {
+    if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId, gameId)) {
       return null;
     }
 
-    var userExp = getUserExperiments(nk, userId);
+    var userExp = getUserExperiments(nk, userId, gameId);
     var assignment = userExp.assignments[experimentId];
 
     if (!assignment) {
@@ -75,7 +75,7 @@ namespace SatoriExperiments {
         assignedAt: Math.floor(Date.now() / 1000)
       };
       userExp.assignments[experimentId] = assignment;
-      saveUserExperiments(nk, userId, userExp);
+      saveUserExperiments(nk, userId, userExp, gameId);
     }
 
     if (def.lockParticipation && assignment.locked) {
@@ -111,15 +111,17 @@ namespace SatoriExperiments {
 
   function rpcGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
-    var experiments = getExperiments(nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = RpcHelpers.gameId(data);
+    var experiments = getExperiments(nk, gameId);
 
     var result: any[] = [];
     for (var id in experiments) {
       var def = experiments[id] as any;
       if (!isExperimentActive(def)) continue;
-      if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId)) continue;
+      if (def.audienceId && !SatoriAudiences.isInAudience(nk, userId, def.audienceId, gameId)) continue;
 
-      var variant = getVariant(nk, userId, id);
+      var variant = getVariant(nk, userId, id, gameId);
       result.push({
         id: id,
         name: def.name,
@@ -140,7 +142,7 @@ namespace SatoriExperiments {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.experimentId) return RpcHelpers.errorResponse("experimentId required");
 
-    var variant = getVariant(nk, userId, data.experimentId);
+    var variant = getVariant(nk, userId, data.experimentId, RpcHelpers.gameId(data));
     return RpcHelpers.successResponse({ variant: variant });
   }
 

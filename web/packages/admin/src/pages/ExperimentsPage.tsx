@@ -30,25 +30,31 @@ import {
 import { cn } from "@/lib/utils";
 
 type FilterMode = "all" | "enabled" | "disabled";
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
 
 /* ── Queries / Mutations ──────────────────────────────────────────── */
 
-function useExperiments() {
+function useExperiments(gameScope: string) {
   return useQuery({
-    queryKey: ["satori", "experiments"],
-    queryFn: () => satori.getAllExperiments(serverKeyAuth()),
+    queryKey: ["satori", "experiments", gameScope],
+    queryFn: () => satori.getAllExperiments(serverKeyAuth(), rpcGameId(gameScope)),
     select: (d: { experiments?: Experiment[] }) => d.experiments ?? [],
     staleTime: 30_000,
   });
 }
 
-function useSetupExperiment() {
+function useSetupExperiment(gameScope: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (params: Parameters<typeof satori.setupExperiment>[0]) =>
-      satori.setupExperiment(params, serverKeyAuth()),
+      satori.setupExperiment({ ...params, game_id: rpcGameId(gameScope) }, serverKeyAuth()),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["satori", "experiments"] }),
+      qc.invalidateQueries({ queryKey: ["satori", "experiments", gameScope] }),
   });
 }
 
@@ -663,9 +669,9 @@ function StatPill({
 /* ── Main Page ─────────────────────────────────────────────────────── */
 
 export function ExperimentsPage() {
-  const experiments = useExperiments();
-  const setup = useSetupExperiment();
-
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const experiments = useExperiments(gameScope);
+  const setup = useSetupExperiment(gameScope);
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [showForm, setShowForm] = useState(false);
@@ -747,6 +753,15 @@ export function ExperimentsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
           {experiments.isFetching && (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           )}

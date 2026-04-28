@@ -19,12 +19,19 @@ import {
 import { serverKeyAuth, satori, type Audience } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
+
 /* ── Queries ──────────────────────────────────────────────────────── */
 
-function useAudiences() {
+function useAudiences(gameScope: string) {
   return useQuery({
-    queryKey: ["satori", "audiences"],
-    queryFn: () => satori.listAudiences(serverKeyAuth()),
+    queryKey: ["satori", "audiences", gameScope],
+    queryFn: () => satori.listAudiences(serverKeyAuth(), rpcGameId(gameScope)),
     select: (d: { audiences?: Audience[] }) => d.audiences ?? [],
     staleTime: 30_000,
   });
@@ -227,7 +234,8 @@ function ErrorState({
 /* ── Main Page ─────────────────────────────────────────────────────── */
 
 export function AudiencesPage() {
-  const audiences = useAudiences();
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const audiences = useAudiences(gameScope);
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -260,6 +268,15 @@ export function AudiencesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
           {audiences.isFetching && (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           )}

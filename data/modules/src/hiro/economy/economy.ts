@@ -10,8 +10,8 @@ namespace HiroEconomy {
     storeItems: {}
   };
 
-  export function getConfig(nk: nkruntime.Nakama): Hiro.EconomyConfig {
-    return ConfigLoader.loadConfig<Hiro.EconomyConfig>(nk, "economy", DEFAULT_CONFIG);
+  export function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.EconomyConfig {
+    return ConfigLoader.loadConfigForGame<Hiro.EconomyConfig>(nk, "economy", gameId, DEFAULT_CONFIG);
   }
 
   // ---- Donation System ----
@@ -62,11 +62,12 @@ namespace HiroEconomy {
     var donationId = data.donationId as string;
     if (!donationId) return RpcHelpers.errorResponse("donationId is required");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var donationDef = config.donations[donationId];
     if (!donationDef) return RpcHelpers.errorResponse("Unknown donation: " + donationId);
 
-    var donations = getUserDonations(nk, userId, data.gameId);
+    var donations = getUserDonations(nk, userId, gameId);
     var now = Math.floor(Date.now() / 1000);
 
     var newDonation: UserDonation = {
@@ -80,7 +81,7 @@ namespace HiroEconomy {
     };
 
     donations.outgoing.push(newDonation);
-    saveUserDonations(nk, userId, donations, data.gameId);
+    saveUserDonations(nk, userId, donations, gameId);
 
     return RpcHelpers.successResponse(newDonation);
   }
@@ -92,17 +93,18 @@ namespace HiroEconomy {
     var donationId = data.donationId as string;
     if (!targetUserId || !donationId) return RpcHelpers.errorResponse("userId and donationId required");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var donationDef = config.donations[donationId];
     if (!donationDef) return RpcHelpers.errorResponse("Unknown donation: " + donationId);
 
     if (donationDef.cost && donationDef.cost.currencies) {
       for (var cid in donationDef.cost.currencies) {
-        WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", cid, donationDef.cost.currencies[cid]);
+        WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId || "default", cid, donationDef.cost.currencies[cid]);
       }
     }
 
-    var targetDonations = getUserDonations(nk, targetUserId, data.gameId);
+    var targetDonations = getUserDonations(nk, targetUserId, gameId);
     var now = Math.floor(Date.now() / 1000);
 
     for (var i = 0; i < targetDonations.outgoing.length; i++) {
@@ -121,11 +123,11 @@ namespace HiroEconomy {
       }
     }
 
-    saveUserDonations(nk, targetUserId, targetDonations, data.gameId);
+    saveUserDonations(nk, targetUserId, targetDonations, gameId);
 
     if (donationDef.senderReward) {
       var senderResolved = RewardEngine.resolveReward(nk, donationDef.senderReward);
-      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", senderResolved);
+      RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", senderResolved);
     }
 
     return RpcHelpers.successResponse({ success: true });
@@ -137,8 +139,9 @@ namespace HiroEconomy {
     var donationIds = data.donationIds as string[];
     if (!donationIds || donationIds.length === 0) return RpcHelpers.errorResponse("donationIds required");
 
-    var config = getConfig(nk);
-    var donations = getUserDonations(nk, userId, data.gameId);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
+    var donations = getUserDonations(nk, userId, gameId);
     var now = Math.floor(Date.now() / 1000);
     var claimed: string[] = [];
 
@@ -149,20 +152,21 @@ namespace HiroEconomy {
         var donationDef = config.donations[d.donationId];
         if (donationDef && donationDef.reward) {
           var resolved = RewardEngine.resolveReward(nk, donationDef.reward);
-          RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+          RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
         }
         claimed.push(d.donationId);
       }
     }
 
-    saveUserDonations(nk, userId, donations, data.gameId);
+    saveUserDonations(nk, userId, donations, gameId);
     return RpcHelpers.successResponse({ claimed: claimed });
   }
 
   export function rpcRewardedVideoComplete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var state = getRewardedVideoState(nk, userId, data.gameId);
+    var gameId = RpcHelpers.gameId(data);
+    var state = getRewardedVideoState(nk, userId, gameId);
     var today = new Date().toISOString().slice(0, 10);
 
     if (state.lastViewDate !== today) {
@@ -172,11 +176,11 @@ namespace HiroEconomy {
     state.viewsToday++;
     state.totalViews++;
 
-    Storage.writeJson(nk, Constants.HIRO_CONFIGS_COLLECTION, Constants.gameKey(data.gameId, "rewarded_video_" + userId), userId, state);
+    Storage.writeJson(nk, Constants.HIRO_CONFIGS_COLLECTION, Constants.gameKey(gameId, "rewarded_video_" + userId), userId, state);
 
     if (data.reward) {
       var resolved = RewardEngine.resolveReward(nk, data.reward);
-      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+      RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
       return RpcHelpers.successResponse({ reward: resolved, state: state });
     }
 
@@ -192,7 +196,7 @@ namespace HiroEconomy {
       return RpcHelpers.errorResponse("currencyId and positive amount required");
     }
     try {
-      WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", currencyId, amount);
+      WalletHelpers.spendCurrency(nk, logger, ctx, userId, RpcHelpers.gameId(data) || "default", currencyId, amount);
       return RpcHelpers.successResponse({ success: true, currencyId: currencyId, amount: amount });
     } catch (e) {
       return RpcHelpers.errorResponse("Spend failed: " + (e as Error).message);

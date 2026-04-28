@@ -2,8 +2,8 @@ namespace HiroStreaks {
 
   var DEFAULT_CONFIG: Hiro.StreaksConfig = { streaks: {} };
 
-  export function getConfig(nk: nkruntime.Nakama): Hiro.StreaksConfig {
-    return ConfigLoader.loadConfig<Hiro.StreaksConfig>(nk, "streaks", DEFAULT_CONFIG);
+  export function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.StreaksConfig {
+    return ConfigLoader.loadConfigForGame<Hiro.StreaksConfig>(nk, "streaks", gameId, DEFAULT_CONFIG);
   }
 
   function getUserStreaks(nk: nkruntime.Nakama, userId: string, gameId?: string): Hiro.UserStreaks {
@@ -16,7 +16,7 @@ namespace HiroStreaks {
   }
 
   export function updateStreak(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, streakId: string, gameId?: string): Hiro.UserStreakState {
-    var config = getConfig(nk);
+    var config = getConfig(nk, gameId);
     var def = config.streaks[streakId];
     if (!def) throw new Error("Unknown streak: " + streakId);
 
@@ -58,8 +58,8 @@ namespace HiroStreaks {
   function rpcGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var gameId: string | undefined = data.gameId;
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var streaks = getUserStreaks(nk, userId, gameId);
 
     var result: any = {};
@@ -85,7 +85,7 @@ namespace HiroStreaks {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.streakId) return RpcHelpers.errorResponse("streakId required");
 
-    var state = updateStreak(nk, logger, ctx, userId, data.streakId, data.gameId);
+    var state = updateStreak(nk, logger, ctx, userId, data.streakId, RpcHelpers.gameId(data));
     return RpcHelpers.successResponse({ streak: state });
   }
 
@@ -94,7 +94,8 @@ namespace HiroStreaks {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.streakId || !data.milestone) return RpcHelpers.errorResponse("streakId and milestone required");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var def = config.streaks[data.streakId];
     if (!def) return RpcHelpers.errorResponse("Unknown streak");
 
@@ -102,17 +103,17 @@ namespace HiroStreaks {
     var reward = def.milestones[milestone];
     if (!reward) return RpcHelpers.errorResponse("Unknown milestone");
 
-    var streaks = getUserStreaks(nk, userId, data.gameId);
+    var streaks = getUserStreaks(nk, userId, gameId);
     var state = streaks.streaks[data.streakId];
     if (!state || state.count < parseInt(milestone)) return RpcHelpers.errorResponse("Milestone not reached");
     if (state.claimedMilestones.indexOf(milestone) >= 0) return RpcHelpers.errorResponse("Already claimed");
 
     var resolved = RewardEngine.resolveReward(nk, reward);
-    RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+    RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
 
     state.claimedMilestones.push(milestone);
     streaks.streaks[data.streakId] = state;
-    saveUserStreaks(nk, userId, streaks, data.gameId);
+    saveUserStreaks(nk, userId, streaks, gameId);
 
     return RpcHelpers.successResponse({ reward: resolved });
   }

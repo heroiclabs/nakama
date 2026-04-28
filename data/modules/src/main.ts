@@ -88,6 +88,53 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Legacy] Registering analytics RPCs...");
     LegacyAnalytics.register(initializer);
 
+    // Phase 0.5 (qv-insights-loop): product_changelog_append RPC. Lets any
+    // service (deploy pipeline, satori experiment flipper, on-call ops)
+    // log a step-change event that the AI-svc analyst will join into
+    // every brief as a date-anchored citation.
+    logger.info("[QvProductChangelog] Registering product_changelog_append RPC...");
+    QvProductChangelog.register(initializer);
+
+    // Phase 2A (qv-insights-loop): hourly InsightsAggregator + DLQ.
+    // The aggregator hooks into the AnalyticsAlerts scheduler tick so
+    // it runs opportunistically on every successful 3h slot post.
+    // We additionally expose `insights_aggregator_tick` (manual debug
+    // entry) and `pending_bundles_drain` (admin DLQ replay) here so an
+    // operator can hand-trigger them out-of-band when investigating.
+    logger.info("[InsightsAggregator] Registering insights_aggregator_tick + pending_bundles_drain RPCs...");
+    InsightsAggregator.register(initializer);
+    PendingBundles.register(initializer);
+
+    // Phase 3 (qv-insights-loop): client crash log RPC. The IVXCrashUploader
+    // (Unity SDK) batches & uploads exceptions/asserts/errors; we persist
+    // each as a `game_crash_log` row and the InsightsAggregator picks up
+    // the materialised `game_crash_pattern_summary[gameId]` blob to
+    // attach the top patterns into the per-game (_global) bundle.
+    logger.info("[QvCrashHandler] Registering crash_log_append RPC...");
+    QvCrashHandler.register(initializer);
+
+    // Phase 4 Cross-Sell Engine (qv-insights-loop): xsell_pick + xsell_record
+    // RPCs. SDK -> Nakama -> AI svc proxy. Nakama signs every forward with
+    // IVX_INSIGHTS_SHARED_SECRET and stamps the calling user's sha256-derived
+    // user_id_hash so the AI svc delivery cap is enforceable per user.
+    logger.info("[QvCrossSell] Registering xsell_pick + xsell_record RPCs...");
+    QvCrossSell.register(initializer);
+
+    // Phase 4B (qv-insights-loop): personalization_get + personalization_get_for_mode
+    // RPCs. SDK -> Nakama -> AI svc proxy. Returns the per-user
+    // smartNudge / todayFeed / pushSchedule / per-mode systemPromptAddenda
+    // so the SDK can render them and so per-mode AI surfaces (AI Host /
+    // Voice / Fortune / Tutor / Chat) can inject mode-specific addenda.
+    logger.info("[QvPersonalization] Registering personalization_get + personalization_get_for_mode RPCs...");
+    QvPersonalization.register(initializer);
+
+    // Phase 7 (qv-insights-loop): privacy + consent forwarder RPCs. Admin-only;
+    // bound to Nakama account-deletion webhook + the SDK consent-set RPC.
+    // Cascade-deletes a user's footprint from the AI svc (GDPR Art.17 / CCPA)
+    // and keeps the AI svc consent-gate cache in sync (COPPA / GDPR / CCPA).
+    logger.info("[QvPrivacy] Registering privacy_erase_user / privacy_erase_discord / consent_upsert / consent_invalidate RPCs...");
+    QvPrivacy.register(initializer);
+
     logger.info("[Legacy] Registering friends RPCs...");
     LegacyFriends.register(initializer);
 

@@ -75,6 +75,18 @@ export function getHealthcheck(
   return callHttpApi("/healthcheck", opts);
 }
 
+function unwrapRpcData<T>(value: unknown): T {
+  if (
+    value &&
+    typeof value === "object" &&
+    "success" in value &&
+    "data" in value
+  ) {
+    return (value as { data: T }).data;
+  }
+  return value as T;
+}
+
 export function listAccounts(
   optsOrFilter?: (RpcOptions & { limit?: number; cursor?: string; filter?: string }) | string,
   legacyLimit?: number,
@@ -88,48 +100,51 @@ export function listAccounts(
           limit: legacyLimit,
           filter: typeof optsOrFilter === "string" ? optsOrFilter : undefined,
         };
-  const params = new URLSearchParams();
-  if (opts.limit) params.set("limit", String(opts.limit));
-  if (opts.cursor) params.set("cursor", opts.cursor);
-  if (opts.filter) params.set("filter", opts.filter);
-  return callHttpApi(`/v2/console/account?${params}`, opts);
+  return callRpc(
+    "admin_accounts_list",
+    {
+      limit: opts.limit,
+      cursor: opts.cursor,
+      filter: opts.filter,
+    },
+    opts,
+  ).then(unwrapRpcData);
 }
 
 export function getAccountById(
   userId: string,
   opts: RpcOptions,
 ): Promise<ConsoleAccount> {
-  return callHttpApi(`/v2/console/account/${userId}`, opts);
+  return callRpc<Record<string, string>, ConsoleAccount>(
+    "admin_account_get",
+    { userId },
+    opts,
+  ).then((value) => unwrapRpcData<ConsoleAccount>(value));
 }
 
 export function banUser(userId: string, opts: RpcOptions) {
-  return callHttpApi(`/v2/console/account/${userId}/ban`, {
-    ...opts,
-    method: "POST",
-  });
+  return callRpc("admin_account_ban", { userId }, opts);
 }
 
 export function unbanUser(userId: string, opts: RpcOptions) {
-  return callHttpApi(`/v2/console/account/${userId}/unban`, {
-    ...opts,
-    method: "POST",
-  });
+  return callRpc("admin_account_unban", { userId }, opts);
 }
 
 export function deleteAccount(userId: string, opts: RpcOptions) {
-  return callHttpApi(`/v2/console/account/${userId}`, {
-    ...opts,
-    method: "DELETE",
-  });
+  return callRpc("admin_account_delete", { userId }, opts);
 }
 
 export function listMatches(
   opts: RpcOptions & { limit?: number; label?: string },
 ): Promise<any> {
-  const params = new URLSearchParams();
-  if (opts.limit) params.set("limit", String(opts.limit));
-  if (opts.label) params.set("label", opts.label);
-  return callHttpApi(`/v2/match?${params}`, opts);
+  return callRpc(
+    "admin_matches_list",
+    {
+      limit: opts.limit,
+      label: opts.label,
+    },
+    opts,
+  ).then(unwrapRpcData);
 }
 
 export function listStorageObjects(
@@ -148,14 +163,16 @@ export function listStorageObjects(
           cursor: legacyCursor,
           limit: legacyLimit,
         };
-  const params = new URLSearchParams();
-  if (opts.limit) params.set("limit", String(opts.limit));
-  if (opts.cursor) params.set("cursor", opts.cursor);
-  const userPath = opts.userId ? `/${opts.userId}` : "";
-  return callHttpApi(
-    `/v2/storage/${collection}${userPath}?${params}`,
+  return callRpc(
+    "admin_storage_list",
+    {
+      collection,
+      userId: opts.userId,
+      limit: opts.limit,
+      cursor: opts.cursor,
+    },
     opts,
-  );
+  ).then(unwrapRpcData);
 }
 
 export function writeStorageObject(
@@ -164,22 +181,19 @@ export function writeStorageObject(
   value: unknown,
   opts: RpcOptions & { userId?: string; version?: string },
 ) {
-  return callHttpApi("/v2/storage", {
-    ...opts,
-    method: "PUT",
-    body: {
-      objects: [
-        {
-          collection,
-          key,
-          value,
-          permission_read: 2,
-          permission_write: 1,
-          version: opts.version ?? "*",
-        },
-      ],
+  return callRpc(
+    "admin_storage_write",
+    {
+      collection,
+      key,
+      value,
+      userId: opts.userId,
+      version: opts.version ?? "*",
+      permissionRead: 2,
+      permissionWrite: 1,
     },
-  });
+    opts,
+  );
 }
 
 /* ---- Leaderboards ---- */
@@ -246,6 +260,18 @@ export function listTournaments(
     categoryEnd?: number;
   },
 ): Promise<TournamentList> {
+  if (opts.auth.type === "server-key") {
+    return callRpc(
+      "admin_tournaments_list",
+      {
+        limit: opts.limit,
+        cursor: opts.cursor,
+        categoryStart: opts.categoryStart,
+        categoryEnd: opts.categoryEnd,
+      },
+      opts,
+    ).then((value) => unwrapRpcData<TournamentList>(value));
+  }
   const params = new URLSearchParams();
   if (opts.limit) params.set("limit", String(opts.limit));
   if (opts.cursor) params.set("cursor", opts.cursor);
@@ -264,6 +290,18 @@ export function listTournamentRecords(
     ownerIds?: string[];
   },
 ): Promise<TournamentRecordList> {
+  if (opts.auth.type === "server-key") {
+    return callRpc(
+      "admin_tournament_records_list",
+      {
+        tournamentId,
+        limit: opts.limit,
+        cursor: opts.cursor,
+        ownerIds: opts.ownerIds,
+      },
+      opts,
+    ).then((value) => unwrapRpcData<TournamentRecordList>(value));
+  }
   const params = new URLSearchParams();
   if (opts.limit) params.set("limit", String(opts.limit));
   if (opts.cursor) params.set("cursor", opts.cursor);
@@ -278,6 +316,17 @@ export function listTournamentRecordsAroundOwner(
   ownerId: string,
   opts: RpcOptions & { limit?: number },
 ): Promise<TournamentRecordList> {
+  if (opts.auth.type === "server-key") {
+    return callRpc(
+      "admin_tournament_records_around_owner",
+      {
+        tournamentId,
+        ownerId,
+        limit: opts.limit,
+      },
+      opts,
+    ).then((value) => unwrapRpcData<TournamentRecordList>(value));
+  }
   const params = new URLSearchParams();
   if (opts.limit) params.set("limit", String(opts.limit));
   return callHttpApi(
@@ -301,6 +350,18 @@ export function writeTournamentRecord(
   body: { score: number; subscore?: number; metadata?: Record<string, unknown> },
   opts: RpcOptions,
 ): Promise<LeaderboardRecord> {
+  if (opts.auth.type === "server-key") {
+    return callRpc(
+      "admin_tournament_record_write",
+      {
+        tournamentId,
+        score: body.score,
+        subscore: body.subscore,
+        metadata: body.metadata,
+      },
+      opts,
+    ).then((value) => unwrapRpcData<LeaderboardRecord>(value));
+  }
   return callHttpApi(`/v2/tournament/${tournamentId}`, {
     ...opts,
     method: "PUT",

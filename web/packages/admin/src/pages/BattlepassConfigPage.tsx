@@ -34,6 +34,13 @@ import {
 import { serverKeyAuth, hiro, satori, type Audience } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
@@ -201,29 +208,29 @@ function getPremiumPrice(meta?: Record<string, unknown>): Record<string, number>
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
 
-function useIncentivesConfig() {
+function useIncentivesConfig(gameScope: string) {
   return useQuery({
-    queryKey: ["hiro", "config", "incentives"],
-    queryFn: () => hiro.getHiroConfig("incentives", serverKeyAuth()),
+    queryKey: ["hiro", "config", "incentives", gameScope],
+    queryFn: () => hiro.getHiroConfig("incentives", serverKeyAuth(), rpcGameId(gameScope)),
     staleTime: 30_000,
   });
 }
 
-function useSaveIncentivesConfig() {
+function useSaveIncentivesConfig(gameScope: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (config: IncentivesConfig) =>
-      hiro.setHiroConfig("incentives", config, serverKeyAuth()),
+      hiro.setHiroConfig("incentives", config, serverKeyAuth(), rpcGameId(gameScope)),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["hiro", "config", "incentives"] });
+      qc.invalidateQueries({ queryKey: ["hiro", "config", "incentives", gameScope] });
     },
   });
 }
 
-function useAudiences() {
+function useAudiences(gameScope: string) {
   return useQuery<Audience[]>({
-    queryKey: ["satori", "audiences"],
-    queryFn: () => satori.listAudiences(serverKeyAuth()),
+    queryKey: ["satori", "audiences", gameScope],
+    queryFn: () => satori.listAudiences(serverKeyAuth(), rpcGameId(gameScope)),
     staleTime: 60_000,
   });
 }
@@ -1009,6 +1016,7 @@ function SeasonRow({ season, onEdit, onDuplicate, onDelete, onToggle, isDeleting
 /* ------------------------------------------------------------------ */
 
 export function BattlepassConfigPage() {
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SeasonStatus>("all");
   const [showForm, setShowForm] = useState(false);
@@ -1016,9 +1024,9 @@ export function BattlepassConfigPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SeasonDef | null>(null);
 
-  const { data: rawConfig, isLoading, isError, error, refetch } = useIncentivesConfig();
-  const save = useSaveIncentivesConfig();
-  const { data: audiences = [] } = useAudiences();
+  const { data: rawConfig, isLoading, isError, error, refetch } = useIncentivesConfig(gameScope);
+  const save = useSaveIncentivesConfig(gameScope);
+  const { data: audiences = [] } = useAudiences(gameScope);
 
   const incentivesConfig = (rawConfig ?? {}) as IncentivesConfig;
   const seasons = useMemo(() => flattenSeasons(incentivesConfig), [incentivesConfig]);
@@ -1113,6 +1121,15 @@ export function BattlepassConfigPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
           <button
             onClick={() => refetch()}
             disabled={isLoading}

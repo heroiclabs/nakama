@@ -1,7 +1,7 @@
 namespace SatoriAudiences {
 
-  function getAudienceDefinitions(nk: nkruntime.Nakama): { [id: string]: Satori.AudienceDefinition } {
-    var custom = ConfigLoader.loadSatoriConfig<any>(nk, "audiences", {});
+  function getAudienceDefinitions(nk: nkruntime.Nakama, gameId?: string): { [id: string]: Satori.AudienceDefinition } {
+    var custom = ConfigLoader.loadSatoriConfigForGame<any>(nk, "audiences", gameId, {});
     return applyDefaults(normalizeAudienceDefinitions(custom));
   }
 
@@ -89,8 +89,8 @@ namespace SatoriAudiences {
     return audiences;
   }
 
-  export function isInAudience(nk: nkruntime.Nakama, userId: string, audienceId: string): boolean {
-    var audiences = getAudienceDefinitions(nk);
+  export function isInAudience(nk: nkruntime.Nakama, userId: string, audienceId: string, gameId?: string): boolean {
+    var audiences = getAudienceDefinitions(nk, gameId);
     var def = audiences[audienceId];
     if (!def) return false;
 
@@ -123,8 +123,8 @@ namespace SatoriAudiences {
     return evaluateRule(allProps, def.rule);
   }
 
-  export function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string): string[] {
-    var audiences = getAudienceDefinitions(nk);
+  export function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string, gameId?: string): string[] {
+    var audiences = getAudienceDefinitions(nk, gameId);
     var def = audiences[audienceId];
     if (!def || !def.includeIds) return [];
     return def.includeIds;
@@ -187,11 +187,13 @@ namespace SatoriAudiences {
 
   function rpcGetMemberships(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
-    var audiences = getAudienceDefinitions(nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = RpcHelpers.gameId(data);
+    var audiences = getAudienceDefinitions(nk, gameId);
     var memberships: string[] = [];
 
     for (var id in audiences) {
-      if (isInAudience(nk, userId, id)) {
+      if (isInAudience(nk, userId, id, gameId)) {
         memberships.push(id);
       }
     }
@@ -201,14 +203,15 @@ namespace SatoriAudiences {
 
   function rpcCompute(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = RpcHelpers.gameId(data);
     var targetUserId = data.userId || ctx.userId;
     if (!targetUserId) return RpcHelpers.errorResponse("userId required");
 
-    var audiences = getAudienceDefinitions(nk);
+    var audiences = getAudienceDefinitions(nk, gameId);
     var memberships: string[] = [];
 
     for (var id in audiences) {
-      if (isInAudience(nk, targetUserId, id)) {
+      if (isInAudience(nk, targetUserId, id, gameId)) {
         memberships.push(id);
       }
     }
@@ -217,7 +220,8 @@ namespace SatoriAudiences {
   }
 
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var audiences = getAudienceDefinitions(nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var audiences = getAudienceDefinitions(nk, RpcHelpers.gameId(data));
     var list: Satori.AudienceDefinition[] = [];
     for (var id in audiences) {
       list.push(audiences[id]);

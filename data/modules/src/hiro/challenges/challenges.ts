@@ -2,8 +2,8 @@ namespace HiroChallenges {
 
   var DEFAULT_CONFIG: Hiro.ChallengesConfig = { challenges: {} };
 
-  export function getConfig(nk: nkruntime.Nakama): Hiro.ChallengesConfig {
-    return ConfigLoader.loadConfig<Hiro.ChallengesConfig>(nk, "challenges", DEFAULT_CONFIG);
+  export function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.ChallengesConfig {
+    return ConfigLoader.loadConfigForGame<Hiro.ChallengesConfig>(nk, "challenges", gameId, DEFAULT_CONFIG);
   }
 
   interface ChallengeInstance {
@@ -30,13 +30,14 @@ namespace HiroChallenges {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.challengeId) return RpcHelpers.errorResponse("challengeId required");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var def = config.challenges[data.challengeId];
     if (!def) return RpcHelpers.errorResponse("Unknown challenge");
 
     if (def.entryCost && def.entryCost.currencies) {
       for (var cid in def.entryCost.currencies) {
-        WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", cid, def.entryCost.currencies[cid]);
+        WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId || "default", cid, def.entryCost.currencies[cid]);
       }
     }
 
@@ -72,7 +73,8 @@ namespace HiroChallenges {
     var instance = getChallengeInstance(nk, data.instanceId);
     if (!instance) return RpcHelpers.errorResponse("Challenge not found");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var def = config.challenges[instance.challengeId];
     if (!def) return RpcHelpers.errorResponse("Challenge config not found");
 
@@ -84,7 +86,7 @@ namespace HiroChallenges {
 
     if (def.entryCost && def.entryCost.currencies) {
       for (var cid in def.entryCost.currencies) {
-        WalletHelpers.spendCurrency(nk, logger, ctx, userId, data.gameId || "default", cid, def.entryCost.currencies[cid]);
+        WalletHelpers.spendCurrency(nk, logger, ctx, userId, gameId || "default", cid, def.entryCost.currencies[cid]);
       }
     }
 
@@ -122,7 +124,8 @@ namespace HiroChallenges {
     if (!instance) return RpcHelpers.errorResponse("Challenge not found");
     if (instance.claimedBy.indexOf(userId) >= 0) return RpcHelpers.errorResponse("Already claimed");
 
-    var config = getConfig(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var config = getConfig(nk, gameId);
     var def = config.challenges[instance.challengeId];
     if (!def) return RpcHelpers.errorResponse("Challenge config not found");
 
@@ -134,7 +137,7 @@ namespace HiroChallenges {
 
     if (rank === 1 && def.reward) {
       var resolved = RewardEngine.resolveReward(nk, def.reward);
-      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+      RewardEngine.grantReward(nk, logger, ctx, userId, gameId || "default", resolved);
 
       instance.claimedBy.push(userId);
       saveChallengeInstance(nk, instance);
@@ -152,7 +155,8 @@ namespace HiroChallenges {
   }
 
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var config = getConfig(nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var config = getConfig(nk, RpcHelpers.gameId(data));
     var defs = config.challenges || {};
     var list: any[] = [];
     for (var id in defs) {

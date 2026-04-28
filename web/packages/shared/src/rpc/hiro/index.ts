@@ -25,8 +25,9 @@ export function hiroRpc<P = Record<string, unknown>, R = unknown>(
 export function getHiroConfig(
   system: HiroSystem,
   opts: RpcOptions,
+  gameId?: string,
 ): Promise<Record<string, unknown>> {
-  return callRpc("admin_config_get", { system }, opts).then((value) => {
+  return callRpc("admin_config_get", { system, game_id: gameId }, opts).then((value) => {
     const data = unwrapData<{ config?: Record<string, unknown> }>(value);
     return data.config ?? (data as Record<string, unknown>);
   });
@@ -36,8 +37,9 @@ export function setHiroConfig(
   system: HiroSystem,
   config: Record<string, unknown>,
   opts: RpcOptions,
+  gameId?: string,
 ): Promise<void> {
-  return callRpc("admin_config_set", { system, config_json: JSON.stringify(config) }, opts);
+  return callRpc("admin_config_set", { system, game_id: gameId, config_json: JSON.stringify(config) }, opts);
 }
 
 export function listAchievements(opts: RpcOptions) {

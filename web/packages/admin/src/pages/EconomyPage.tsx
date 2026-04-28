@@ -46,6 +46,12 @@ import {
 } from "lucide-react";
 
 const REFETCH_MS = 30_000;
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
 
 type Tab = "overview" | "wallets" | "store" | "transactions" | "audit";
 
@@ -137,20 +143,20 @@ function useAccountById(userId: string | null) {
   });
 }
 
-function useEconomyConfig() {
+function useEconomyConfig(gameScope: string) {
   return useQuery({
-    queryKey: ["economy", "config"],
+    queryKey: ["economy", "config", gameScope],
     queryFn: () =>
-      hiro.getHiroConfig("economy", serverKeyAuth()) as Promise<EconomyConfig>,
+      hiro.getHiroConfig("economy", serverKeyAuth(), rpcGameId(gameScope)) as Promise<EconomyConfig>,
     staleTime: 30_000,
   });
 }
 
-function useStoreConfig() {
+function useStoreConfig(gameScope: string) {
   return useQuery({
-    queryKey: ["economy", "storeConfig"],
+    queryKey: ["economy", "storeConfig", gameScope],
     queryFn: () =>
-      hiro.getHiroConfig("store", serverKeyAuth()) as Promise<StoreConfig>,
+      hiro.getHiroConfig("store", serverKeyAuth(), rpcGameId(gameScope)) as Promise<StoreConfig>,
     staleTime: 30_000,
   });
 }
@@ -461,9 +467,11 @@ function OverviewTab({
 function WalletsTab({
   accounts,
   addAudit,
+  gameScope,
 }: {
   accounts: ConsoleAccount[];
   addAudit: (e: Omit<AuditEntry, "id" | "timestamp">) => void;
+  gameScope: string;
 }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -487,7 +495,7 @@ function WalletsTab({
       return hiro.hiroRpc(
         "economy",
         "grant",
-        { currencies: { [currency]: amount }, user_id: userId },
+        { currencies: { [currency]: amount }, user_id: userId, gameId: rpcGameId(gameScope) },
         serverKeyAuth(),
       );
     },
@@ -523,7 +531,7 @@ function WalletsTab({
       return hiro.hiroRpc(
         "economy",
         "grant",
-        { currencies: { [currency]: -amount }, user_id: userId },
+        { currencies: { [currency]: -amount }, user_id: userId, gameId: rpcGameId(gameScope) },
         serverKeyAuth(),
       );
     },
@@ -1100,12 +1108,13 @@ function AuditTab({ entries }: { entries: AuditEntry[] }) {
 /* ─── main page ─── */
 
 export function EconomyPage() {
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
   const [tab, setTab] = useState<Tab>("overview");
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
 
   const accountsQ = useAccountList();
-  const economyConfigQ = useEconomyConfig();
-  const storeConfigQ = useStoreConfig();
+  const economyConfigQ = useEconomyConfig(gameScope);
+  const storeConfigQ = useStoreConfig(gameScope);
   const storeItemsQ = useStoreItems();
   const qc = useQueryClient();
 
@@ -1142,13 +1151,24 @@ export function EconomyPage() {
             Wallet management, store config, IAP validation &amp; audit trail
           </p>
         </div>
-        <button
-          onClick={refresh}
-          className="flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 text-sm font-medium hover:bg-muted/80 transition-colors"
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
+          <button
+            onClick={refresh}
+            className="flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 text-sm font-medium hover:bg-muted/80 transition-colors"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* tabs */}
@@ -1191,7 +1211,7 @@ export function EconomyPage() {
               storeConfig={storeConfigQ.data}
             />
           )}
-          {tab === "wallets" && <WalletsTab accounts={accounts} addAudit={addAudit} />}
+          {tab === "wallets" && <WalletsTab accounts={accounts} addAudit={addAudit} gameScope={gameScope} />}
           {tab === "store" && (
             <StoreTab storeConfig={storeConfigQ.data} storeItems={storeItemsQ.data as { items?: StoreItem[] } | undefined} />
           )}

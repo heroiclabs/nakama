@@ -147,6 +147,11 @@ function fmtNum(n: number): string {
   return String(n);
 }
 
+function isHealthyStatus(status?: string) {
+  const normalized = String(status ?? "").toLowerCase();
+  return normalized === "ok" || normalized === "healthy";
+}
+
 function fmtAge(seconds?: number | null): string {
   if (seconds === null || seconds === undefined) return "No events";
   if (seconds < 60) return `${seconds}s ago`;
@@ -397,6 +402,9 @@ function OverviewTab() {
   const healthData = health.data as
     | { node?: string; session_count?: number; goroutine_count?: number; status?: string }
     | undefined;
+  const isHealthy =
+    health.isSuccess &&
+    (isHealthyStatus(healthData?.status) || healthData?.status === undefined);
 
   const now = Date.now();
   const activeToday = useMemo(() => {
@@ -477,7 +485,7 @@ function OverviewTab() {
           <div>
             <p className="text-sm font-medium">Node</p>
             <p className="text-xs text-muted-foreground">
-              {healthData?.node ?? "—"}
+              {healthData?.node ?? "Nakama REST healthcheck"}
             </p>
           </div>
         </div>
@@ -491,7 +499,7 @@ function OverviewTab() {
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
-          {healthData?.status === "OK" || healthData?.status === "ok" ? (
+          {isHealthy ? (
             <CheckCircle className="h-5 w-5 text-green-500" />
           ) : (
             <XCircle className="h-5 w-5 text-red-500" />
@@ -499,7 +507,7 @@ function OverviewTab() {
           <div>
             <p className="text-sm font-medium">Status</p>
             <p className="text-xs text-muted-foreground">
-              {healthData?.status ?? "—"}
+              {healthData?.status ?? (health.isSuccess ? "reachable" : "—")}
             </p>
           </div>
         </div>
@@ -1377,12 +1385,13 @@ function DataLakeTab() {
 }
 
 function GameIntelligenceTab() {
+  const [gameId, setGameId] = useState("quizverse");
   const report = useQuery({
-    queryKey: ["analytics", "quizverse-game-intelligence"],
+    queryKey: ["analytics", "game-intelligence", gameId],
     queryFn: () =>
       callRpc(
         "quizverse_game_intelligence_report",
-        { game_id: "quizverse", hours: 24, days: 7, sample_players: 25 },
+        { game_id: gameId.trim() || "quizverse", hours: 24, days: 7, sample_players: 25 },
         serverKeyAuth(),
       ),
     retry: 1,
@@ -1448,9 +1457,19 @@ function GameIntelligenceTab() {
   return (
     <div className="space-y-4">
       <SectionHeading
-        title="QuizVerse Game Intelligence"
+        title="Game Intelligence"
         description="Unified operator report for what is working, what is broken, and which LiveOps actions to run next."
       />
+
+      <label className="flex max-w-xs items-center gap-2 text-xs text-muted-foreground">
+        Game ID
+        <input
+          value={gameId}
+          onChange={(e) => setGameId(e.target.value)}
+          className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+          placeholder="quizverse"
+        />
+      </label>
 
       {reportData?.executive_summary && (
         <div className="grid gap-4 md:grid-cols-4">

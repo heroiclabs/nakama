@@ -66,6 +66,12 @@ interface StoreConfig {
 }
 
 type OfferStatus = "active" | "upcoming" | "expired" | "disabled" | "all";
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
 
 const PLACEMENTS = [
   "store_homepage",
@@ -184,27 +190,27 @@ function rebuildConfig(baseConfig: StoreConfig, offers: StoreOffer[]): StoreConf
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
 
-function useStoreConfig() {
+function useStoreConfig(gameScope: string) {
   return useQuery({
-    queryKey: ["hiro", "config", "store"],
-    queryFn: () => hiro.getHiroConfig("store", serverKeyAuth()),
+    queryKey: ["hiro", "config", "store", gameScope],
+    queryFn: () => hiro.getHiroConfig("store", serverKeyAuth(), rpcGameId(gameScope)),
     staleTime: 30_000,
   });
 }
 
-function useSaveStoreConfig() {
+function useSaveStoreConfig(gameScope: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (config: Record<string, unknown>) =>
-      hiro.setHiroConfig("store", config, serverKeyAuth()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiro", "config", "store"] }),
+      hiro.setHiroConfig("store", config, serverKeyAuth(), rpcGameId(gameScope)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiro", "config", "store", gameScope] }),
   });
 }
 
-function useAudiences() {
+function useAudiences(gameScope: string) {
   return useQuery({
-    queryKey: ["satori", "audiences"],
-    queryFn: () => satori.listAudiences(serverKeyAuth()),
+    queryKey: ["satori", "audiences", gameScope],
+    queryFn: () => satori.listAudiences(serverKeyAuth(), rpcGameId(gameScope)),
     select: (data: { audiences?: Audience[] }) => data?.audiences ?? [],
     staleTime: 60_000,
   });
@@ -721,6 +727,7 @@ function OfferRow({ offer, onEdit, onDuplicate, onDelete, onToggle, isDeleting }
 /* ------------------------------------------------------------------ */
 
 export function OffersPage() {
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<OfferStatus>("all");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -729,9 +736,9 @@ export function OffersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<StoreOffer | null>(null);
 
-  const { data: rawConfig, isLoading, isError, error, refetch } = useStoreConfig();
-  const save = useSaveStoreConfig();
-  const { data: audiences = [] } = useAudiences();
+  const { data: rawConfig, isLoading, isError, error, refetch } = useStoreConfig(gameScope);
+  const save = useSaveStoreConfig(gameScope);
+  const { data: audiences = [] } = useAudiences(gameScope);
 
   const storeConfig = (rawConfig ?? {}) as StoreConfig;
   const offers = useMemo(() => flattenOffers(storeConfig), [storeConfig]);
@@ -835,6 +842,15 @@ export function OffersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
           <button
             onClick={() => refetch()}
             disabled={isLoading}

@@ -65,10 +65,10 @@ namespace HiroPersonalizers {
   }
 
   // ---- Satori Personalizer (feature flags + experiments) ----
-  function applySatoriOverrides(nk: nkruntime.Nakama, userId: string, system: string, config: any): any {
+  function applySatoriOverrides(nk: nkruntime.Nakama, userId: string, system: string, config: any, gameId?: string): any {
     // Check feature flags for config overrides
     var flagName = "hiro_" + system + "_override";
-    var flag = SatoriFeatureFlags.getFlag(nk, userId, flagName);
+    var flag = SatoriFeatureFlags.getFlag(nk, userId, flagName, undefined, gameId);
     if (flag && flag.value) {
       try {
         var flagOverrides = JSON.parse(flag.value);
@@ -77,13 +77,13 @@ namespace HiroPersonalizers {
     }
 
     // Check experiment variants for config overrides
-    var experiments = ConfigLoader.loadSatoriConfig<{ [id: string]: any }>(nk, "experiments", {});
+    var experiments = ConfigLoader.loadSatoriConfigForGame<{ [id: string]: any }>(nk, "experiments", gameId, {});
     for (var expId in experiments) {
       var exp = experiments[expId];
       if (exp.status !== "running") continue;
       if (!exp.configSystem || exp.configSystem !== system) continue;
 
-      var variant = SatoriExperiments.getVariant(nk, userId, expId);
+      var variant = SatoriExperiments.getVariant(nk, userId, expId, gameId);
       if (variant && variant.config) {
         try {
           var variantOverrides: any = {};
@@ -107,7 +107,7 @@ namespace HiroPersonalizers {
   export function personalize<T>(nk: nkruntime.Nakama, userId: string, system: string, baseConfig: T, gameId?: string): T {
     var config = deepClone(baseConfig);
     config = applyStorageOverrides(nk, userId, system, config, gameId);
-    config = applySatoriOverrides(nk, userId, system, config);
+    config = applySatoriOverrides(nk, userId, system, config, gameId);
     return config as T;
   }
 
@@ -124,7 +124,8 @@ namespace HiroPersonalizers {
       return RpcHelpers.errorResponse("userId, system, and path required");
     }
 
-    var userOverrides = Storage.readJson<UserOverrides>(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId);
+    var gameId = RpcHelpers.gameId(data);
+    var userOverrides = Storage.readJson<UserOverrides>(nk, OVERRIDES_COLLECTION, Constants.gameKey(gameId, "overrides"), data.userId);
     if (!userOverrides) userOverrides = { overrides: {}, updatedAt: 0 };
     if (!userOverrides.overrides[data.system]) userOverrides.overrides[data.system] = [];
 
@@ -141,7 +142,7 @@ namespace HiroPersonalizers {
     }
 
     userOverrides.updatedAt = Math.floor(Date.now() / 1000);
-    Storage.writeJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId, userOverrides);
+    Storage.writeJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(gameId, "overrides"), data.userId, userOverrides);
     return RpcHelpers.successResponse({ saved: true, system: data.system, path: data.path });
   }
 
@@ -151,7 +152,8 @@ namespace HiroPersonalizers {
       return RpcHelpers.errorResponse("userId, system, and path required");
     }
 
-    var userOverrides = Storage.readJson<UserOverrides>(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId);
+    var gameId = RpcHelpers.gameId(data);
+    var userOverrides = Storage.readJson<UserOverrides>(nk, OVERRIDES_COLLECTION, Constants.gameKey(gameId, "overrides"), data.userId);
     if (!userOverrides || !userOverrides.overrides[data.system]) {
       return RpcHelpers.successResponse({ removed: false });
     }
@@ -160,7 +162,7 @@ namespace HiroPersonalizers {
       return o.path !== data.path;
     });
     userOverrides.updatedAt = Math.floor(Date.now() / 1000);
-    Storage.writeJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId, userOverrides);
+    Storage.writeJson(nk, OVERRIDES_COLLECTION, Constants.gameKey(gameId, "overrides"), data.userId, userOverrides);
     return RpcHelpers.successResponse({ removed: true });
   }
 
@@ -168,7 +170,7 @@ namespace HiroPersonalizers {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
 
-    var userOverrides = Storage.readJson<UserOverrides>(nk, OVERRIDES_COLLECTION, Constants.gameKey(data.gameId, "overrides"), data.userId);
+    var userOverrides = Storage.readJson<UserOverrides>(nk, OVERRIDES_COLLECTION, Constants.gameKey(RpcHelpers.gameId(data), "overrides"), data.userId);
     return RpcHelpers.successResponse({ overrides: userOverrides || { overrides: {} } });
   }
 
@@ -176,8 +178,9 @@ namespace HiroPersonalizers {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.userId || !data.system) return RpcHelpers.errorResponse("userId and system required");
 
-    var base = ConfigLoader.loadConfig<any>(nk, data.system, {});
-    var personalized = personalize(nk, data.userId, data.system, base, data.gameId);
+    var gameId = RpcHelpers.gameId(data);
+    var base = ConfigLoader.loadConfigForGame<any>(nk, data.system, gameId, {});
+    var personalized = personalize(nk, data.userId, data.system, base, gameId);
     return RpcHelpers.successResponse({ system: data.system, userId: data.userId, baseConfig: base, personalizedConfig: personalized });
   }
 

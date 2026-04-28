@@ -46,21 +46,36 @@ namespace MpKernelMatchResult {
     // Best-effort analytics emission. Mirrors the existing AnalyticsAlerts
     // shape so the same Discord summarizer / Grafana exporter pipeline
     // picks up multiplayer matches without a separate ingest.
+    //
+    // Phase 0 fix (qv-insights-loop): the previous call passed a single
+    // object literal but recordSample's actual signature is positional:
+    //   recordSample(nk, logger, rpc, durMs, ok, err?, userId?)
+    // (see data/modules/src/satori/analytics-alerts.ts line 145). The
+    // object-style call silently no-op'd because the buffered sample was
+    // never built. We now call the function correctly. Match-level context
+    // (game_id, template_id, region, player_count) is encoded into the
+    // rpc string until Phase 1A's universal enricher provides a richer
+    // shape.
     try {
       if (typeof AnalyticsAlerts !== "undefined" && AnalyticsAlerts && typeof (AnalyticsAlerts as any).recordSample === "function") {
-        (AnalyticsAlerts as any).recordSample({
-          rpc_id: "mp_match_finished",
-          duration_ms: result.duration_ms,
-          ok: true,
-          tag: result.template_id + ":" + result.game_id,
-          extra: {
-            match_id: result.match_id,
-            game_id: result.game_id,
-            template_id: result.template_id,
-            player_count: result.outcomes.length,
-            region: result.region || ""
+        var rpcId = "mp_match_finished:" + result.template_id + ":" + result.game_id;
+        // Best-effort owner attribution: pick the first non-agent outcome.
+        var ownerUserId: string | undefined = undefined;
+        for (var i = 0; i < result.outcomes.length; i++) {
+          if (!result.outcomes[i].is_agent) {
+            ownerUserId = result.outcomes[i].user_id;
+            break;
           }
-        });
+        }
+        AnalyticsAlerts.recordSample(
+          nk,
+          logger,
+          rpcId,
+          result.duration_ms,
+          true,
+          undefined,
+          ownerUserId,
+        );
       }
     } catch (e: any) {
       logger.warn("[MpKernelMatchResult] analytics record swallowed: %s",

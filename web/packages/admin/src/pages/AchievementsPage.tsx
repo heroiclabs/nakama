@@ -36,6 +36,13 @@ import {
 import { serverKeyAuth, hiro, satori, type Audience } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
@@ -186,27 +193,27 @@ function IconPreview({ icon }: { icon?: string }) {
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
 
-function useAchievementsConfig() {
+function useAchievementsConfig(gameScope: string) {
   return useQuery({
-    queryKey: ["hiro", "config", "achievements"],
-    queryFn: () => hiro.getHiroConfig("achievements", serverKeyAuth()),
+    queryKey: ["hiro", "config", "achievements", gameScope],
+    queryFn: () => hiro.getHiroConfig("achievements", serverKeyAuth(), rpcGameId(gameScope)),
     staleTime: 30_000,
   });
 }
 
-function useSaveAchievementsConfig() {
+function useSaveAchievementsConfig(gameScope: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (config: Record<string, unknown>) =>
-      hiro.setHiroConfig("achievements", config, serverKeyAuth()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiro", "config", "achievements"] }),
+      hiro.setHiroConfig("achievements", config, serverKeyAuth(), rpcGameId(gameScope)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiro", "config", "achievements", gameScope] }),
   });
 }
 
-function useAudiences() {
+function useAudiences(gameScope: string) {
   return useQuery({
-    queryKey: ["satori", "audiences"],
-    queryFn: () => satori.listAudiences(serverKeyAuth()),
+    queryKey: ["satori", "audiences", gameScope],
+    queryFn: () => satori.listAudiences(serverKeyAuth(), rpcGameId(gameScope)),
     select: (data: { audiences?: Audience[] }) => data?.audiences ?? [],
     staleTime: 60_000,
   });
@@ -728,9 +735,10 @@ function AchievementForm({
 /* ------------------------------------------------------------------ */
 
 export function AchievementsPage() {
-  const { data: rawConfig, isLoading, error, refetch } = useAchievementsConfig();
-  const saveMutation = useSaveAchievementsConfig();
-  const { data: audiences = [] } = useAudiences();
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const { data: rawConfig, isLoading, error, refetch } = useAchievementsConfig(gameScope);
+  const saveMutation = useSaveAchievementsConfig(gameScope);
+  const { data: audiences = [] } = useAudiences(gameScope);
 
   const config = (rawConfig ?? {}) as AchievementsConfig;
   const achievements = useMemo(() => flattenAchievements(config), [config]);
@@ -883,6 +891,15 @@ export function AchievementsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
           <button
             onClick={() => refetch()}
             className="rounded-md border border-border p-2 hover:bg-muted transition-colors"

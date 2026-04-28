@@ -87,6 +87,40 @@ function getBearerToken(req) {
   return header.startsWith(prefix) ? header.slice(prefix.length).trim() : "";
 }
 
+function decodeTokenRole(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8"));
+    return payload?.role ?? payload?.vars?.role ?? payload?.vrs?.role ?? "admin";
+  } catch {
+    return "admin";
+  }
+}
+
+function classifyRpcAccess(rpcId) {
+  if (/(_set|_delete|_grant|_reset|_toggle|_schedule|_setup|_broadcast|_send|_update|_import|_invalidate|define|set_alert)$/i.test(rpcId)) {
+    return "liveops_write";
+  }
+  if (/wallet|inventory|mailbox|account|storage|gift|player/i.test(rpcId) && /(grant|reset|send|delete|update|set)/i.test(rpcId)) {
+    return "admin_write";
+  }
+  if (/analytics|intelligence|metrics|taxonomy|cohort|retention|health|events_timeline/i.test(rpcId)) {
+    return "analytics_read";
+  }
+  return "liveops_read";
+}
+
+function roleCanAccess(role, access) {
+  const normalized = String(role ?? "viewer").toLowerCase();
+  if (normalized === "admin") return true;
+  if (normalized === "liveops" || normalized === "liveops_operator" || normalized === "operator") {
+    return access !== "admin_write";
+  }
+  if (normalized === "analyst") {
+    return access === "analytics_read" || access === "liveops_read";
+  }
+  return access === "analytics_read" || access === "liveops_read";
+}
+
 async function fetchNakamaRpc(rpcId, payload, auth) {
   const params = new URLSearchParams();
   const headers = { "Content-Type": "application/json" };
@@ -123,7 +157,10 @@ async function fetchNakamaRpc(rpcId, payload, auth) {
 async function validateAdminToken(token) {
   if (!token) return false;
   const result = await fetchNakamaRpc("admin_health_check", {}, { type: "bearer", token });
-  return result.ok && result.body && result.body.success !== false;
+  if (!result.ok || !result.body || result.body.success === false) return false;
+  return {
+    role: decodeTokenRole(token),
+  };
 }
 
 async function handleLogin(req, res) {
@@ -142,8 +179,14 @@ async function handleLogin(req, res) {
 
 async function handleRpc(req, res, rpcId) {
   const token = getBearerToken(req);
-  if (!(await validateAdminToken(token))) {
+  const adminSession = await validateAdminToken(token);
+  if (!adminSession) {
     sendJson(res, 401, { success: false, error: "admin authentication required" });
+    return;
+  }
+  const access = classifyRpcAccess(rpcId);
+  if (!roleCanAccess(adminSession.role, access)) {
+    sendJson(res, 403, { success: false, error: `role '${adminSession.role}' cannot perform ${access}` });
     return;
   }
 
@@ -157,8 +200,13 @@ async function handleRpc(req, res, rpcId) {
 
 async function handleHttpProxy(req, res, url) {
   const token = getBearerToken(req);
-  if (!(await validateAdminToken(token))) {
+  const adminSession = await validateAdminToken(token);
+  if (!adminSession) {
     sendJson(res, 401, { success: false, error: "admin authentication required" });
+    return;
+  }
+  if (req.method !== "GET" && !roleCanAccess(adminSession.role, "admin_write")) {
+    sendJson(res, 403, { success: false, error: `role '${adminSession.role}' cannot proxy Nakama console writes` });
     return;
   }
   if (!consoleAuth) {
@@ -225,9 +273,18 @@ function serveStatic(req, res, url) {
   }
   const candidate = resolve(distDir, relativePath || "index.html");
   const safeCandidate = isSafePath(distDir, candidate) ? candidate : join(distDir, "index.html");
-  const filePath = existsSync(safeCandidate) && statSync(safeCandidate).isFile()
-    ? safeCandidate
-    : join(distDir, "index.html");
+  let filePath = join(distDir, "index.html");
+  if (existsSync(safeCandidate)) {
+    const stat = statSync(safeCandidate);
+    if (stat.isFile()) {
+      filePath = safeCandidate;
+    } else if (stat.isDirectory()) {
+      const indexCandidate = join(safeCandidate, "index.html");
+      if (isSafePath(distDir, indexCandidate) && existsSync(indexCandidate) && statSync(indexCandidate).isFile()) {
+        filePath = indexCandidate;
+      }
+    }
+  }
 
   const ext = extname(filePath);
   res.writeHead(200, {

@@ -18,6 +18,15 @@ namespace ConfigLoader {
     return data;
   }
 
+  export function loadConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T {
+    var scopedKey = Constants.gameKey(gameId, configKey);
+    var data = loadConfig<T>(nk, scopedKey, defaultValue);
+    if (scopedKey !== configKey && data === defaultValue) {
+      return loadConfig<T>(nk, configKey, defaultValue);
+    }
+    return data;
+  }
+
   export function loadSatoriConfig<T>(nk: nkruntime.Nakama, configKey: string, defaultValue: T): T {
     var now = Date.now();
     var cacheKey = "satori_" + configKey;
@@ -34,6 +43,15 @@ namespace ConfigLoader {
     return data;
   }
 
+  export function loadSatoriConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T {
+    var scopedKey = Constants.gameKey(gameId, configKey);
+    var data = loadSatoriConfig<T>(nk, scopedKey, defaultValue);
+    if (scopedKey !== configKey && data === defaultValue) {
+      return loadSatoriConfig<T>(nk, configKey, defaultValue);
+    }
+    return data;
+  }
+
   export function saveConfig(nk: nkruntime.Nakama, configKey: string, data: any): void {
     Storage.writeSystemJson(nk, Constants.HIRO_CONFIGS_COLLECTION, configKey, data);
     delete configCache[configKey];
@@ -42,6 +60,10 @@ namespace ConfigLoader {
   export function saveSatoriConfig(nk: nkruntime.Nakama, configKey: string, data: any): void {
     Storage.writeSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, configKey, data);
     delete configCache["satori_" + configKey];
+  }
+
+  export function saveSatoriConfigForGame(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, data: any): void {
+    saveSatoriConfig(nk, Constants.gameKey(gameId, configKey), data);
   }
 
   export function invalidateCache(configKey?: string): void {

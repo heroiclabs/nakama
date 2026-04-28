@@ -26,6 +26,12 @@ import { serverKeyAuth, satori, type LiveEvent } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
 type EventStatus = "active" | "upcoming" | "ended" | "all";
+const GLOBAL_CONFIG_SCOPE = "global";
+
+function rpcGameId(scope: string) {
+  const trimmed = scope.trim();
+  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
+}
 
 function deriveStatus(ev: LiveEvent): Exclude<EventStatus, "all"> {
   const now = Math.floor(Date.now() / 1000);
@@ -105,22 +111,22 @@ function parseRewards(json?: string): { type: string; amount: number }[] {
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
 
-function useEvents() {
+function useEvents(gameScope: string) {
   return useQuery({
-    queryKey: ["satori", "live_events"],
-    queryFn: () => satori.listLiveEvents(serverKeyAuth()),
+    queryKey: ["satori", "live_events", gameScope],
+    queryFn: () => satori.listLiveEvents(serverKeyAuth(), rpcGameId(gameScope)),
     select: (data) => data?.events ?? [],
     staleTime: 30_000,
   });
 }
 
-function useScheduleEvent() {
+function useScheduleEvent(gameScope: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (
       ev: Parameters<typeof satori.scheduleLiveEvent>[0],
-    ) => satori.scheduleLiveEvent(ev, serverKeyAuth()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["satori", "live_events"] }),
+    ) => satori.scheduleLiveEvent({ ...ev, game_id: rpcGameId(gameScope) }, serverKeyAuth()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["satori", "live_events", gameScope] }),
   });
 }
 
@@ -437,13 +443,14 @@ function EventRow({ event, onEdit, onToggle, isToggling }: EventRowProps) {
 /* ------------------------------------------------------------------ */
 
 export function EventsPage() {
+  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<EventStatus>("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<LiveEvent | null>(null);
 
-  const { data: events = [], isLoading, isError, error, refetch } = useEvents();
-  const schedule = useScheduleEvent();
+  const { data: events = [], isLoading, isError, error, refetch } = useEvents(gameScope);
+  const schedule = useScheduleEvent(gameScope);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -512,6 +519,15 @@ export function EventsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Game ID
+            <input
+              value={gameScope}
+              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
+              placeholder="global or quizverse"
+              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+          </label>
           <button
             onClick={() => refetch()}
             disabled={isLoading}
