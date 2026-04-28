@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-28T03:56:01.614Z
+// Generated: 2026-04-28T08:19:32.830Z
 // RPC Count: 699
 // ============================================================
 
@@ -31048,7 +31048,7 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
         var walletResult = nk.walletUpdate(userId, { xut: globalPointsEarned }, {
             type: 'earn',
             source: 'game_to_global_conversion',
-            sourceId: gameId,
+        sourceId: gameId,
             description: 'Converted ' + actualCoinsBurned + ' game coins → ' + globalPointsEarned + ' XUT (ratio ' + ratio + ':1)',
         }, true);
 
@@ -31065,26 +31065,26 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
 
         var newGlobalBalance = (walletResult.updated && walletResult.updated.xut) || 0;
 
-        bridgeLogTransaction(nk, logger, userId, {
-            type: 'game_to_global_conversion',
-            gameId: gameId,
-            gameCoinsBurned: actualCoinsBurned,
-            globalPointsEarned: globalPointsEarned,
-            ratio: ratio,
-        });
+    bridgeLogTransaction(nk, logger, userId, {
+        type: 'game_to_global_conversion',
+        gameId: gameId,
+        gameCoinsBurned: actualCoinsBurned,
+        globalPointsEarned: globalPointsEarned,
+        ratio: ratio,
+    });
 
-        var newGameBalance = (gameWallet.currencies.game || gameWallet.currencies.tokens || 0);
+    var newGameBalance = (gameWallet.currencies.game || gameWallet.currencies.tokens || 0);
 
-        logger.info('[QuestsBridge] User ' + userId + ' converted ' + actualCoinsBurned + ' game coins → ' +
+    logger.info('[QuestsBridge] User ' + userId + ' converted ' + actualCoinsBurned + ' game coins → ' +
             globalPointsEarned + ' XUT (game ' + gameId + ')');
 
-        return JSON.stringify({
-            success: true,
-            gameId: gameId,
-            gameCoinsBurned: actualCoinsBurned,
-            globalPointsEarned: globalPointsEarned,
-            ratio: ratio,
-            newGameBalance: newGameBalance,
+    return JSON.stringify({
+        success: true,
+        gameId: gameId,
+        gameCoinsBurned: actualCoinsBurned,
+        globalPointsEarned: globalPointsEarned,
+        ratio: ratio,
+        newGameBalance: newGameBalance,
             newGlobalBalance: newGlobalBalance,
         });
     } catch (err) {
@@ -70672,7 +70672,6 @@ var QuizVersePlugin;
         logger.info("[QuizVerse] plugin registered; generators=" + gens.length + " modes=classic|friend_battle|link_and_play");
     }
     QuizVersePlugin.register = register;
-    register();
 })(QuizVersePlugin || (QuizVersePlugin = {}));
 // QuizVerse pack store — Nakama storage wrapper for question packs.
 //
@@ -79356,7 +79355,6 @@ var MpKernelAgent;
         logger.info("[IIVXAgent] kernel agent service registered; personas=%d", listPersonas().length);
     }
     MpKernelAgent.register = register;
-    register();
     // ---- RPC handlers (admin / authenticated game-plugin use) ----
     function rpcAgentSpawn(ctx, logger, nk, payload) {
         if (!isPrivileged(ctx))
@@ -79997,7 +79995,6 @@ var MpKernelModule;
         logger.info("[MpKernel] kernel registered; templates=%d generators=echo", MpKernelCodeRegistry.listAll().length);
     }
     MpKernelModule.register = register;
-    register();
 })(MpKernelModule || (MpKernelModule = {}));
 // IVX Multiplayer Kernel — server-side interest management.
 //
@@ -80216,7 +80213,6 @@ var MpKernelInterest;
         logger.info("[Interest] kernel interest-mgmt registered (default cell=%dm, radius=%d)", MpKernelInterest.DEFAULT_CFG.cellMeters, MpKernelInterest.DEFAULT_CFG.neighbourRadius);
     }
     MpKernelInterest.register = register;
-    register();
 })(MpKernelInterest || (MpKernelInterest = {}));
 // Generic Nakama MatchHandler that wraps an IMatchTemplate.
 //
@@ -81005,7 +81001,6 @@ var MpKernelModeration;
         logger.info("[Moderation] pipeline registered (text=%s voice_asr=%s agent_pre=%s)", String(params.enable_text), String(params.enable_voice_asr), String(params.enable_agent_pre_check));
     }
     MpKernelModeration.register = register;
-    register();
     function rpcGetParams(_ctx, _logger, _nk, _payload) {
         return JSON.stringify({ params: params });
     }
@@ -86348,7 +86343,6 @@ var MpKernelVoiceProviders;
         __rpc_mp_voice_token = rpcVoiceToken;
     }
     MpKernelVoiceProviders.register = register;
-    register();
 })(MpKernelVoiceProviders || (MpKernelVoiceProviders = {}));
 // LiveKit voice provider — server-side bearer-token minter.
 //
@@ -88924,23 +88918,92 @@ var SatoriCreatorEvents;
         var gameId = data.gameId || Constants.DEFAULT_GAME_ID;
         var tierReward = HiroCreatorEventRewards.getTierReward(nk, data.eventId, state.tierEarned);
         var grantedReward = null;
+        var xutGranted = 0;
         if (tierReward) {
             grantedReward = RewardEngine.resolveReward(nk, tierReward);
             RewardEngine.grantReward(nk, logger, ctx, userId, gameId, grantedReward);
+            // Extract actual XUT amount from resolved reward for response
+            if (grantedReward && grantedReward.currencies && grantedReward.currencies.xut) {
+                xutGranted = grantedReward.currencies.xut;
+            }
         }
         state.claimedAt = Math.floor(Date.now() / 1000);
         saveUserStates(nk, userId, userStates);
+        // Gift card fulfillment lookup
+        var giftCardTier = null;
+        if (def.giftCardPrizes && def.giftCardPrizes.tiers && def.giftCardPrizes.tiers.length > 0) {
+            var rankStr = state.rank === 1 ? "1st"
+                : state.rank === 2 ? "2nd"
+                    : state.rank === 3 ? "3rd"
+                        : (state.rank || 99) <= 10 ? "top_10"
+                            : "all";
+            for (var gti = 0; gti < def.giftCardPrizes.tiers.length; gti++) {
+                if (def.giftCardPrizes.tiers[gti].rank === rankStr) {
+                    giftCardTier = def.giftCardPrizes.tiers[gti];
+                    break;
+                }
+            }
+            if (!giftCardTier) {
+                for (var gti2 = 0; gti2 < def.giftCardPrizes.tiers.length; gti2++) {
+                    if (def.giftCardPrizes.tiers[gti2].rank === "all") {
+                        giftCardTier = def.giftCardPrizes.tiers[gti2];
+                        break;
+                    }
+                }
+            }
+        }
+        // Store pending gift card fulfillment record so admin/n8n can process it
+        if (giftCardTier && giftCardTier.fulfillment !== "nakama") {
+            var fulfillmentRecord = {
+                userId: userId,
+                eventId: data.eventId,
+                rank: state.rank || 0,
+                tier: state.tierEarned || "",
+                giftCard: giftCardTier,
+                status: "pending",
+                claimedAt: state.claimedAt,
+                eventTitle: def.title,
+                region: def.region,
+            };
+            try {
+                Storage.writeSystemJson(nk, "prize_fulfillments", data.eventId + ":" + userId, fulfillmentRecord);
+                logger.info("[CreatorEvent] Gift card fulfillment queued: userId=%s event=%s tier=%s gift=%s", userId, data.eventId, state.tierEarned, giftCardTier.prize);
+            }
+            catch (fErr) {
+                logger.warn("[CreatorEvent] Failed to store fulfillment record: %s", fErr.message || String(fErr));
+            }
+        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.REWARD_GRANTED, {
             userId: userId,
             eventId: data.eventId,
             tier: state.tierEarned,
             reward: grantedReward,
         });
+        EventBus.emit(nk, logger, ctx, EventBus.Events.PRIZE_FULFILLMENT_REQUESTED, {
+            userId: userId,
+            eventId: data.eventId,
+            rank: state.rank || 0,
+            tier: state.tierEarned || "",
+            xutGranted: xutGranted,
+            giftCard: giftCardTier,
+            claimedAt: state.claimedAt,
+            eventTitle: def.title,
+        });
         return RpcHelpers.successResponse({
             success: true,
             eventId: data.eventId,
             tier: state.tierEarned,
+            rank: state.rank || 0,
             reward: grantedReward,
+            xutGranted: xutGranted,
+            giftCard: giftCardTier ? {
+                prize: giftCardTier.prize,
+                brand: giftCardTier.brand,
+                value: giftCardTier.value,
+                currency: giftCardTier.currency,
+                fulfillment: giftCardTier.fulfillment,
+                status: "pending",
+            } : null,
         });
     }
     // ---- Creator RPCs ----
@@ -89082,6 +89145,18 @@ var SatoriCreatorEvents;
         var currentStatus = event.status || "draft";
         if (currentStatus !== "funded" && currentStatus !== "draft") {
             return RpcHelpers.errorResponse("Event must be in funded or draft status to publish (currently: " + currentStatus + ")");
+        }
+        // Debit creator wallet when funding method is 'coins' and pool > 0
+        if (event.prizeFunding && event.prizeFunding.method === "coins" && event.prizePool > 0) {
+            try {
+                nk.walletUpdate(userId, { xut: -event.prizePool }, { reason: "prize_pool_funded:" + event.id }, false);
+                logger.info("[CreatorEvent] Debited %d XUT from creator %s for event %s prize pool", event.prizePool, userId, event.id);
+                event.prizeFunding.status = "funded";
+            }
+            catch (walletErr) {
+                return RpcHelpers.errorResponse("Insufficient XUT balance to fund prize pool (" + event.prizePool + " XUT needed). " +
+                    "Earn or purchase more XUT, or choose a different funding method.");
+            }
         }
         event.status = "published";
         event.publishedAt = Math.floor(Date.now() / 1000);
@@ -90657,6 +90732,7 @@ var EventBus;
         EVENT_ENDED: "event_ended",
         EVENT_CANCELLED: "event_cancelled",
         QUIZ_COMPLETED: "quiz_completed",
+        PRIZE_FULFILLMENT_REQUESTED: "prize_fulfillment_requested",
     };
 })(EventBus || (EventBus = {}));
 // ──────────────────────────────────────────────────────────────────────────

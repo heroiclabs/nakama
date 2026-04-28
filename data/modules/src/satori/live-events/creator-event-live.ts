@@ -34,6 +34,14 @@ namespace SatoriCreatorEvents {
     totalCurrency: string;
   }
 
+  interface PrizeFunding {
+    method: "free" | "coins" | "pool" | "stripe";
+    amount?: number;
+    currency?: string;
+    status?: string;
+    stripeSessionId?: string;
+  }
+
   interface CreatorEventDefinition {
     id: string;
     creatorId: string;
@@ -50,6 +58,8 @@ namespace SatoriCreatorEvents {
     prizePool: number;
     prizes: CreatorEventPrizeTier[];
     giftCardPrizes?: GiftCardPrizes;
+    prizeFunding?: PrizeFunding;
+    creatorEmail?: string;
     questions: CreatorEventQuestion[];
     clues?: string[];
     answer?: string;
@@ -483,14 +493,65 @@ namespace SatoriCreatorEvents {
     var gameId = data.gameId || Constants.DEFAULT_GAME_ID;
     var tierReward = HiroCreatorEventRewards.getTierReward(nk, data.eventId, state.tierEarned);
     var grantedReward: Hiro.ResolvedReward | null = null;
+    var xutGranted = 0;
 
     if (tierReward) {
       grantedReward = RewardEngine.resolveReward(nk, tierReward);
       RewardEngine.grantReward(nk, logger, ctx, userId, gameId, grantedReward);
+      // Extract actual XUT amount from resolved reward for response
+      if (grantedReward && grantedReward.currencies && (grantedReward.currencies as any).xut) {
+        xutGranted = (grantedReward.currencies as any).xut as number;
+      }
     }
 
     state.claimedAt = Math.floor(Date.now() / 1000);
     saveUserStates(nk, userId, userStates);
+
+    // Gift card fulfillment lookup
+    var giftCardTier: GiftCardTier | null = null;
+    if (def.giftCardPrizes && def.giftCardPrizes.tiers && def.giftCardPrizes.tiers.length > 0) {
+      var rankStr = state.rank === 1 ? "1st"
+        : state.rank === 2 ? "2nd"
+        : state.rank === 3 ? "3rd"
+        : (state.rank || 99) <= 10 ? "top_10"
+        : "all";
+      for (var gti = 0; gti < def.giftCardPrizes.tiers.length; gti++) {
+        if (def.giftCardPrizes.tiers[gti].rank === rankStr) {
+          giftCardTier = def.giftCardPrizes.tiers[gti];
+          break;
+        }
+      }
+      if (!giftCardTier) {
+        for (var gti2 = 0; gti2 < def.giftCardPrizes.tiers.length; gti2++) {
+          if (def.giftCardPrizes.tiers[gti2].rank === "all") {
+            giftCardTier = def.giftCardPrizes.tiers[gti2];
+            break;
+          }
+        }
+      }
+    }
+
+    // Store pending gift card fulfillment record so admin/n8n can process it
+    if (giftCardTier && giftCardTier.fulfillment !== "nakama") {
+      var fulfillmentRecord = {
+        userId: userId,
+        eventId: data.eventId,
+        rank: state.rank || 0,
+        tier: state.tierEarned || "",
+        giftCard: giftCardTier,
+        status: "pending",
+        claimedAt: state.claimedAt,
+        eventTitle: def.title,
+        region: def.region,
+      };
+      try {
+        Storage.writeSystemJson(nk, "prize_fulfillments", data.eventId + ":" + userId, fulfillmentRecord);
+        logger.info("[CreatorEvent] Gift card fulfillment queued: userId=%s event=%s tier=%s gift=%s",
+          userId, data.eventId, state.tierEarned, giftCardTier.prize);
+      } catch (fErr: any) {
+        logger.warn("[CreatorEvent] Failed to store fulfillment record: %s", fErr.message || String(fErr));
+      }
+    }
 
     EventBus.emit(nk, logger, ctx, EventBus.Events.REWARD_GRANTED, {
       userId: userId,
@@ -499,11 +560,32 @@ namespace SatoriCreatorEvents {
       reward: grantedReward,
     });
 
+    EventBus.emit(nk, logger, ctx, EventBus.Events.PRIZE_FULFILLMENT_REQUESTED, {
+      userId: userId,
+      eventId: data.eventId,
+      rank: state.rank || 0,
+      tier: state.tierEarned || "",
+      xutGranted: xutGranted,
+      giftCard: giftCardTier,
+      claimedAt: state.claimedAt,
+      eventTitle: def.title,
+    });
+
     return RpcHelpers.successResponse({
       success: true,
       eventId: data.eventId,
       tier: state.tierEarned,
+      rank: state.rank || 0,
       reward: grantedReward,
+      xutGranted: xutGranted,
+      giftCard: giftCardTier ? {
+        prize: giftCardTier.prize,
+        brand: giftCardTier.brand,
+        value: giftCardTier.value,
+        currency: giftCardTier.currency,
+        fulfillment: giftCardTier.fulfillment,
+        status: "pending",
+      } : null,
     });
   }
 
@@ -646,6 +728,20 @@ namespace SatoriCreatorEvents {
     var currentStatus = event.status || "draft";
     if (currentStatus !== "funded" && currentStatus !== "draft") {
       return RpcHelpers.errorResponse("Event must be in funded or draft status to publish (currently: " + currentStatus + ")");
+    }
+
+    // Debit creator wallet when funding method is 'coins' and pool > 0
+    if (event.prizeFunding && event.prizeFunding.method === "coins" && event.prizePool > 0) {
+      try {
+        nk.walletUpdate(userId, { xut: -event.prizePool }, { reason: "prize_pool_funded:" + event.id }, false);
+        logger.info("[CreatorEvent] Debited %d XUT from creator %s for event %s prize pool", event.prizePool, userId, event.id);
+        event.prizeFunding.status = "funded";
+      } catch (walletErr: any) {
+        return RpcHelpers.errorResponse(
+          "Insufficient XUT balance to fund prize pool (" + event.prizePool + " XUT needed). " +
+          "Earn or purchase more XUT, or choose a different funding method."
+        );
+      }
     }
 
     event.status = "published";
