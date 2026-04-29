@@ -657,7 +657,7 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
         var walletResult = nk.walletUpdate(userId, { xut: globalPointsEarned }, {
             type: 'earn',
             source: 'game_to_global_conversion',
-            sourceId: gameId,
+        sourceId: gameId,
             description: 'Converted ' + actualCoinsBurned + ' game coins → ' + globalPointsEarned + ' XUT (ratio ' + ratio + ':1)',
         }, true);
 
@@ -674,26 +674,26 @@ function rpcGameToGlobalConvert(ctx, logger, nk, payload) {
 
         var newGlobalBalance = (walletResult.updated && walletResult.updated.xut) || 0;
 
-        bridgeLogTransaction(nk, logger, userId, {
-            type: 'game_to_global_conversion',
-            gameId: gameId,
-            gameCoinsBurned: actualCoinsBurned,
-            globalPointsEarned: globalPointsEarned,
-            ratio: ratio,
-        });
+    bridgeLogTransaction(nk, logger, userId, {
+        type: 'game_to_global_conversion',
+        gameId: gameId,
+        gameCoinsBurned: actualCoinsBurned,
+        globalPointsEarned: globalPointsEarned,
+        ratio: ratio,
+    });
 
-        var newGameBalance = (gameWallet.currencies.game || gameWallet.currencies.tokens || 0);
+    var newGameBalance = (gameWallet.currencies.game || gameWallet.currencies.tokens || 0);
 
-        logger.info('[QuestsBridge] User ' + userId + ' converted ' + actualCoinsBurned + ' game coins → ' +
+    logger.info('[QuestsBridge] User ' + userId + ' converted ' + actualCoinsBurned + ' game coins → ' +
             globalPointsEarned + ' XUT (game ' + gameId + ')');
 
-        return JSON.stringify({
-            success: true,
-            gameId: gameId,
-            gameCoinsBurned: actualCoinsBurned,
-            globalPointsEarned: globalPointsEarned,
-            ratio: ratio,
-            newGameBalance: newGameBalance,
+    return JSON.stringify({
+        success: true,
+        gameId: gameId,
+        gameCoinsBurned: actualCoinsBurned,
+        globalPointsEarned: globalPointsEarned,
+        ratio: ratio,
+        newGameBalance: newGameBalance,
             newGlobalBalance: newGlobalBalance,
         });
     } catch (err) {

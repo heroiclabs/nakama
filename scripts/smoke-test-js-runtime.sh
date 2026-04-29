@@ -163,7 +163,23 @@ EOF
         done
         [ "$STATUS" = "healthy" ] || fail "Nakama never became healthy (status=$STATUS)"
 
+        # Give the JS runtime a moment after the Go healthcheck turns green.
+        # Nakama's /healthcheck (port 7349) responds as soon as the HTTP server
+        # is up, but Goja (the JS engine) still needs a few seconds to finish
+        # executing InitModule for large bundles (600+ RPCs). Without this sleep
+        # the nakama_js_health probe lands too early and gets HTTP 404 even
+        # though the runtime is healthy — a false-negative that aborts the build.
+        # The cluster mode already has an equivalent sleep 5; mirror it here.
+        echo "[smoke] Waiting 10 s for JS runtime InitModule to complete…"
+        sleep 10
+
         LOGS=$( cd "$STACK_DIR" && docker compose logs nakama 2>&1 )
+
+        # Always print last 60 lines so CI has context without needing docker exec.
+        echo "--- Nakama boot log (last 60 lines) ---"
+        echo "$LOGS" | tail -60
+        echo "--- end boot log ---"
+
         assert_logs_clean "$LOGS"
         assert_health_rpc "http://127.0.0.1:57350" "defaultkey"
         assert_known_rpc_registered "http://127.0.0.1:57350" "defaultkey" "wallet_get_all"
@@ -177,11 +193,29 @@ EOF
         echo "[smoke] Waiting for rollout of $DEPLOY in $NS…"
         kubectl rollout status "deployment/$DEPLOY" -n "$NS" --timeout=10m
 
-        # Pick the newest pod (post-rollout).
-        POD=$(kubectl get pods -n "$NS" -l "app=$DEPLOY" \
+        # Pick the newest READY pod that belongs to the DEPLOYMENT (not a
+        # Job/CronJob). A previous version of this script used
+        #   kubectl get pods -l app=$DEPLOY --sort-by=creationTimestamp
+        # which matched both the deployment pods AND the
+        # nakama-analytics-tick CronJob pods (they inherit the same
+        # `app=intelliverse-nakama` label) — kubectl returned the cron pod
+        # because it had spawned a few seconds earlier than the rolled
+        # deployment pod. The cron pod runs a one-shot script, not the API
+        # server, so the in-pod nakama_js_health probe always failed →
+        # spurious auto-rollback.
+        #
+        # Two-prong filter:
+        #   1. `!job-name` — CronJob/Job pods always carry a job-name label
+        #      that long-running deployment pods never have. Drop them.
+        #   2. `--field-selector=status.phase=Running` — skip
+        #      Pending/Completed/Error pods so we don't probe a not-yet-
+        #      ready pod or a finished cron pod.
+        POD=$(kubectl get pods -n "$NS" \
+              -l "app=$DEPLOY,!job-name" \
+              --field-selector=status.phase=Running \
               --sort-by='.metadata.creationTimestamp' \
               -o jsonpath='{.items[-1:].metadata.name}')
-        [ -n "$POD" ] || fail "could not find any pod for app=$DEPLOY in $NS"
+        [ -n "$POD" ] || fail "could not find any Running deployment pod for app=$DEPLOY in $NS"
         echo "[smoke] using pod $POD"
 
         # Give the JS runtime a moment after Ready (Goja init can take a few seconds).

@@ -409,14 +409,83 @@ if (modulesContent) {
 // IIFE executes — which happens on EVERY Goja VM instance, not just the
 // initial VM that runs InitModule. This fixes the VM pooling issue where
 // pooled VMs never call InitModule and thus never populate stubs.
+//
+// IMPORTANT: ONLY auto-invoke register() functions that take ZERO
+// parameters. Some namespaces (e.g. QuizVersePlugin) define their
+// register as `function register(initializer, nk, logger)` — invoking
+// that with no args at IIFE-eval time crashes with "Cannot read property
+// of undefined" the moment the body touches one of those args. Those
+// real init helpers are already invoked correctly from src/main.ts with
+// the proper arguments, so we just need to skip them here.
+//
+// Build #217 (commit 7056b499 — qv-insights-loop): without this guard,
+// autoInvokeRegister wrapped QuizVersePlugin's parameterized register,
+// which then crashed in QuizVerseGenerator.buildAll() because
+// QuizVerseGame.Mode is declared in a sibling namespace IIFE that hadn't
+// run yet at the time register() fired. The crash aborted ALL JavaScript
+// runtime evaluation, so even nakama_js_health was never registered →
+// pre-push smoke test got HTTP 404 → image never reached ECR.
 
 function autoInvokeRegister(content) {
   var count = 0;
-  var result = content.replace(
-    /(\w+\.register\s*=\s*register\s*;)/g,
-    function(match) { count++; return match + '\n    register();'; }
-  );
-  return { content: result, count: count };
+  var skipped = [];
+  // Capture the function declaration's parameter list so we can decide.
+  // Pattern matches `Namespace.register = register;` and also captures
+  // the corresponding `function register(<params>)` declaration's args.
+  var re = /function\s+register\s*\(([^)]*)\)\s*\{[\s\S]*?\1\s*\.register\s*=\s*register\s*;/g;
+  // Simpler approach: scan for the assignment, then look back for the
+  // matching `function register(<params>)` within the same enclosing IIFE
+  // (we use the namespace name captured in the assignment as a hint).
+  var assignRe = /(\w+)\.register\s*=\s*register\s*;/g;
+  var m;
+  var insertions = [];
+  while ((m = assignRe.exec(content)) !== null) {
+    var nsName = m[1];
+    var assignIdx = m.index;
+    var assignEnd = assignIdx + m[0].length;
+    // Look back from the assignment for the most recent `function register(`
+    // declaration. Limit search window to ~16KB to keep this O(N).
+    var windowStart = Math.max(0, assignIdx - 16384);
+    var window = content.substring(windowStart, assignIdx);
+    var declRe = /function\s+register\s*\(([^)]*)\)/g;
+    var lastDecl = null;
+    var dm;
+    while ((dm = declRe.exec(window)) !== null) lastDecl = dm;
+    var paramList = lastDecl ? lastDecl[1].trim() : '';
+    // Auto-invoke is SAFE when:
+    //   • The function takes no parameters at all, OR
+    //   • The function takes ONLY `initializer` (single param, any name).
+    //     This is the classic stub-populator shape: postbuild's earlier
+    //     replacement step rewrites every `initializer.registerRpc(...)`
+    //     inside the body into `__rpc_X = handler`, so `initializer` is
+    //     never actually dereferenced — calling with `undefined` is fine.
+    // Auto-invoke is UNSAFE when the function takes 2+ parameters
+    // (e.g. `register(initializer, nk, logger)` in QuizVersePlugin):
+    // the extra params (`nk`, `logger`, etc.) are real objects whose
+    // members the body dereferences directly. Calling such a function
+    // with no args throws `Cannot read property X of undefined` and
+    // aborts the entire JS runtime evaluation. main.ts already invokes
+    // these helpers later with the proper arguments.
+    var paramCount = paramList.length === 0
+      ? 0
+      : paramList.split(',').filter(function(p){ return p.trim().length > 0; }).length;
+    if (paramCount > 1) {
+      skipped.push(nsName + '(' + paramList + ')');
+      continue;
+    }
+    insertions.push({ at: assignEnd, ns: nsName });
+  }
+  // Apply insertions back-to-front so earlier offsets stay valid.
+  insertions.sort(function(a, b) { return b.at - a.at; });
+  for (var i = 0; i < insertions.length; i++) {
+    var ins = insertions[i];
+    content = content.substring(0, ins.at) + '\n    register();' + content.substring(ins.at);
+    count++;
+  }
+  if (skipped.length > 0) {
+    console.log('[postbuild] Skipped auto-invoke for parameterized register(): ' + skipped.join(', '));
+  }
+  return { content: content, count: count };
 }
 
 var buildAutoResult = autoInvokeRegister(buildContent);

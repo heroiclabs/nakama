@@ -44,6 +44,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -252,13 +253,20 @@ type snapshotKey struct {
 }
 
 // snapshotState holds the previous tick's raw values so we can compute deltas.
+//
+// `lastReport` is the most recently published report from THIS pod's
+// perspective. The Auto-Insight panel diffs the new report against it to
+// produce volume / family / latency callouts. It's intentionally local
+// (not Postgres-backed): a leader handoff just means the new leader's
+// first post has no Δ row, which is acceptable.
 type snapshotState struct {
-	mu        sync.Mutex
-	counters  map[snapshotKey]float64
-	buckets   map[snapshotKey]float64
-	histSums  map[snapshotKey]float64
-	histCount map[snapshotKey]float64
-	taken     time.Time
+	mu         sync.Mutex
+	counters   map[snapshotKey]float64
+	buckets    map[snapshotKey]float64
+	histSums   map[snapshotKey]float64
+	histCount  map[snapshotKey]float64
+	taken      time.Time
+	lastReport *alertReport
 }
 
 func newSnapshotState() *snapshotState {
@@ -272,6 +280,13 @@ func newSnapshotState() *snapshotState {
 
 // alertConfig is resolved once at startup so we don't re-read the env on
 // every tick. Mutating env at runtime is unsupported.
+//
+// `DB` is the Nakama-owned Postgres handle (passed in from InitModule).
+// We use it ONLY to take a `pg_try_advisory_lock` keyed on the current
+// 6h window timestamp so multi-replica deployments emit exactly one
+// Discord post per window instead of N. If `DB` is nil (e.g. tests), the
+// scheduler fails open and posts unconditionally — preferring duplicates
+// over silence.
 type alertConfig struct {
 	WebhookURL    string
 	MetricsURL    string
@@ -280,6 +295,7 @@ type alertConfig struct {
 	LLMURL        string
 	LLMToken      string
 	InstanceLabel string
+	DB            *sql.DB
 }
 
 func loadAlertConfig() alertConfig {
@@ -323,16 +339,26 @@ func hostnameOr(fallback string) string {
 
 // startDiscordAlertScheduler is invoked from InitModule. It returns
 // immediately and runs the alert loop in a single background goroutine for
-// the lifetime of the plugin (Nakama process).
-func startDiscordAlertScheduler(ctx context.Context, logger nkruntime.Logger) {
+// the lifetime of the plugin (Nakama process). `db` is the same handle
+// Nakama passes into InitModule — used for cross-pod leader election.
+func startDiscordAlertScheduler(ctx context.Context, logger nkruntime.Logger, db *sql.DB) {
 	cfg := loadAlertConfig()
+	cfg.DB = db
 	if cfg.WebhookURL == "" {
 		logger.Warn("[discord_alerts] disabled — no webhook URL configured")
 		return
 	}
 
-	logger.Info("[discord_alerts] starting — interval=%s metrics=%s llm_enabled=%t",
-		cfg.Interval.String(), cfg.MetricsURL, cfg.LLMEnabled)
+	// Best-effort schema bootstrap for the leader-claim table. Idempotent
+	// (CREATE IF NOT EXISTS); failure is logged but does not block the
+	// scheduler — claimAlertLeader will fail-open and post regardless if
+	// the table is missing, preferring duplicates over silence.
+	if err := ensureAlertLeaderTable(ctx, db); err != nil {
+		logger.Warn("[discord_alerts] could not ensure leader-claim table: %v — will fail-open (may emit dupes)", err)
+	}
+
+	logger.Info("[discord_alerts] starting — interval=%s metrics=%s llm_enabled=%t leader_election=%t",
+		cfg.Interval.String(), cfg.MetricsURL, cfg.LLMEnabled, db != nil)
 
 	state := newSnapshotState()
 
@@ -367,9 +393,15 @@ func startDiscordAlertScheduler(ctx context.Context, logger nkruntime.Logger) {
 	}()
 }
 
-// runAlertCycle is the per-tick worker: scrape → diff → build report →
-// log → POST Discord → optional LLM follow-up. Every step is independently
-// guarded so a downstream failure can't suppress an upstream signal.
+// runAlertCycle is the per-tick worker:
+//
+//	scrape → build report → log → leader-claim → severity gate → POST
+//
+// Every replica scrapes + computes + logs locally so /metrics deltas
+// stay in sync across pods. Only the pod that wins the per-window
+// Postgres advisory lock posts to Discord; the rest just refresh their
+// local baseline. This eliminates the N-replica fan-out that produced
+// 5 identical posts per 6h window before this change was introduced.
 func runAlertCycle(ctx context.Context, logger nkruntime.Logger, cfg alertConfig, state *snapshotState) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -382,20 +414,66 @@ func runAlertCycle(ctx context.Context, logger nkruntime.Logger, cfg alertConfig
 	scraped, err := scrapeMetrics(ctx, cfg.MetricsURL)
 	if err != nil {
 		logger.Error("[discord_alerts] scrape failed: %v", err)
-		// Send a "scrape failed" alert so the channel never goes dark.
-		_ = postDiscord(ctx, cfg.WebhookURL, scrapeFailureEmbed(cfg, err))
+		// Only the leader posts the scrape-failure alert; otherwise a
+		// scrape outage that affects all pods would post N duplicates.
+		windowKey := windowLockKey(now, cfg.Interval)
+		isLeader, release := claimAlertLeader(ctx, cfg.DB, windowKey)
+		if isLeader {
+			defer release()
+			_ = postDiscord(ctx, cfg.WebhookURL, scrapeFailureEmbed(cfg, err))
+		}
 		return
 	}
 
 	report := buildReport(state, scraped, now, cfg)
 
-	// Server-side log: emit one structured line per RPC family (errors first
-	// for grep-ability) so Nakama logs themselves are searchable independent
-	// of Discord delivery.
+	// Server-side log: emit one structured line per RPC family on every
+	// pod (errors first for grep-ability) so Nakama logs themselves are
+	// searchable independent of Discord delivery / leader status.
 	logReportToServer(logger, report)
 
-	// Optional LLM-driven improvement suggestion. Best effort — never blocks
-	// the Discord post if the LLM is slow or unreachable.
+	// Always refresh the local snapshot baseline so the NEXT tick on this
+	// pod (whether or not it becomes leader) computes a correct delta.
+	defer applySnapshot(state, scraped, now)
+
+	// ── Leader election ────────────────────────────────────────────
+	// All pods scrape + log; exactly one pod posts to Discord. Lock key
+	// is the window-start unix timestamp so every pod within the same
+	// window tries the same key. Lock auto-releases on conn close at
+	// end of cycle (release() below).
+	windowKey := windowLockKey(now, cfg.Interval)
+	isLeader, release := claimAlertLeader(ctx, cfg.DB, windowKey)
+	if !isLeader {
+		logger.Info("[discord_alerts] follower — another replica is posting window=%d total_calls=%d errors=%d",
+			windowKey, report.TotalCalls, report.TotalErrors)
+		return
+	}
+	defer release()
+
+	// ── Severity gate / dead-window suppression ────────────────────
+	// If the window has zero traffic AND zero errors AND the prior
+	// window also had zero traffic, skip posting entirely — no signal
+	// worth alerting on. We still log + advance the snapshot above.
+	state.mu.Lock()
+	prior := state.lastReport
+	state.mu.Unlock()
+	if report.TotalCalls == 0 && report.TotalErrors == 0 && prior != nil && prior.TotalCalls == 0 {
+		logger.Info("[discord_alerts] dead-window suppressed — 0 calls + 0 errors + prior was also 0")
+		return
+	}
+
+	// ── Auto-insight (deterministic, no LLM) ───────────────────────
+	// Compute volume Δ, family hot/cold, latency regression, top-RPC
+	// churn, error/quiet callouts from prior report (if any). This
+	// runs even when the optional LLM suggestion is enabled, so the
+	// embed always carries actionable signal even if the LLM is
+	// unreachable.
+	insight := buildAutoInsight(prior, report)
+	report.AutoInsight = insight.Lines
+	report.Severity = insight.Severity
+
+	// Optional LLM-driven improvement suggestion. Best effort — never
+	// blocks the Discord post if the LLM is slow or unreachable.
 	if cfg.LLMEnabled && cfg.LLMURL != "" {
 		if suggestion, lerr := requestLLMSuggestion(ctx, cfg, report); lerr != nil {
 			logger.Warn("[discord_alerts] LLM suggestion failed: %v", lerr)
@@ -410,9 +488,132 @@ func runAlertCycle(ctx context.Context, logger nkruntime.Logger, cfg alertConfig
 		return
 	}
 
-	// Replace the snapshot baseline AFTER successful publish so a transient
-	// post failure means the next tick still has a valid delta window.
-	applySnapshot(state, scraped, now)
+	// Cache this report so the next leader-tick (could be us, could be
+	// another pod) has a prior to diff against. Stored only on the
+	// publishing pod; on leader handoff the new leader will skip the Δ
+	// row for one tick — acceptable trade-off for keeping the design
+	// fully local.
+	state.mu.Lock()
+	cp := report
+	state.lastReport = &cp
+	state.mu.Unlock()
+}
+
+// ─── Leader election (cross-pod single-poster) ───────────────
+//
+// Design: a tiny persistent claim table keyed on (alert_kind,
+// window_key) with INSERT … ON CONFLICT DO NOTHING semantics. The
+// pod whose insert returns a row "wins" the window; all others get
+// zero rows back and skip the post. The claim survives a
+// connection close (unlike pg_advisory_lock which only prevents
+// CONCURRENT holders), so two pods that tick five seconds apart
+// inside the same window will still emit exactly one Discord post.
+//
+// Fail-open: if the table cannot be ensured or the upsert fails, we
+// return claimed=true so the alert still publishes. Multi-replica
+// duplicates are noisy; total channel silence is worse.
+
+const alertKindRpcSummary = "rpc_summary"
+
+// ensureAlertLeaderTable creates the claim table if it does not
+// already exist. Idempotent and safe to invoke from every pod on
+// every startup — the CREATE IF NOT EXISTS races are resolved by
+// Postgres in the catalog. Bundled into ensureAlertLeaderTable
+// because we don't run a migration framework from inside the Go
+// plugin.
+func ensureAlertLeaderTable(ctx context.Context, db *sql.DB) error {
+	if db == nil {
+		return nil
+	}
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, err := db.ExecContext(cctx, `
+		CREATE TABLE IF NOT EXISTS nakama_alert_leader_v1 (
+			alert_kind  TEXT       NOT NULL,
+			window_key  BIGINT     NOT NULL,
+			leader_pod  TEXT,
+			posted_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (alert_kind, window_key)
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	// Best-effort GC: keep ~7 days of claims (enough for replay
+	// debugging) and drop the rest. Failure is non-fatal.
+	_, _ = db.ExecContext(cctx, `
+		DELETE FROM nakama_alert_leader_v1
+		 WHERE posted_at < NOW() - INTERVAL '7 days'
+	`)
+	return nil
+}
+
+// windowLockKey returns the deterministic per-window key all
+// replicas converge on. Truncating to the cron interval guarantees
+// every pod that ticks inside the same window computes the same
+// int64.
+func windowLockKey(now time.Time, interval time.Duration) int64 {
+	if interval <= 0 {
+		return now.Unix()
+	}
+	// XOR a fixed prefix so we don't collide with any other code
+	// that might key on plain unix timestamps in the same table.
+	const advisoryPrefix int64 = 0x71764E616B616D61 // "qvNakama"
+	return advisoryPrefix ^ now.Truncate(interval).Unix()
+}
+
+// claimAlertLeader tries to insert a sentinel row claiming this
+// (alert_kind, window_key) tuple. INSERT … ON CONFLICT DO NOTHING
+// returns 1 row only for the winning pod; everyone else gets 0
+// rows. Once claimed, the row sticks around (subject to GC) so
+// later same-window ticks from any pod cannot re-claim.
+//
+// The returned release closure exists only so the call site can
+// keep its `defer release()` line stable across the old advisory-
+// lock impl and this one. It is a no-op now — there is no lock to
+// release.
+//
+// Fail-open: any error path returns claimed=true so the alert
+// still publishes. The persistent claim is best-effort; channel
+// silence is the worse failure mode.
+func claimAlertLeader(ctx context.Context, db *sql.DB, windowKey int64) (bool, func()) {
+	if db == nil {
+		return true, func() {}
+	}
+	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	pod := podIdentity()
+	row := db.QueryRowContext(cctx, `
+		INSERT INTO nakama_alert_leader_v1 (alert_kind, window_key, leader_pod)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (alert_kind, window_key) DO NOTHING
+		RETURNING 1
+	`, alertKindRpcSummary, windowKey, pod)
+
+	var claimed int
+	if err := row.Scan(&claimed); err != nil {
+		if err == sql.ErrNoRows {
+			// Another pod already claimed this window.
+			return false, nil
+		}
+		// Schema missing / DB unreachable / something else — fail open.
+		return true, func() {}
+	}
+	return true, func() {}
+}
+
+// podIdentity returns a short label identifying this replica for
+// the leader-pod audit column. Falls back to "nakama" if HOSTNAME
+// is unset (it always is inside a kube container).
+func podIdentity() string {
+	if h := os.Getenv("HOSTNAME"); h != "" {
+		return h
+	}
+	if h, err := os.Hostname(); err == nil && h != "" {
+		return h
+	}
+	return "nakama"
 }
 
 // ─── Prometheus scraping & parsing ───────────────────────
@@ -660,6 +861,11 @@ type rpcStat struct {
 }
 
 // alertReport bundles everything the embed builder needs.
+//
+// `AutoInsight` and `Severity` are populated by buildAutoInsight()
+// after a successful scrape + leader claim. `Severity` drives the
+// embed colour + title prefix (green / yellow / red) so the channel
+// is no longer a wall of identical yellow banners.
 type alertReport struct {
 	WindowStart   time.Time
 	WindowEnd     time.Time
@@ -678,7 +884,20 @@ type alertReport struct {
 	ScrapeOK      bool
 	ScrapeErr     string
 	LLMSuggestion string
+	AutoInsight   []string
+	Severity      reportSeverity
 }
+
+// reportSeverity is the priority of the report — drives both the embed
+// colour and whether anyone gets paged. Determined by buildAutoInsight
+// from current vs prior window stats.
+type reportSeverity int
+
+const (
+	severityHealthy reportSeverity = iota // 🟢 — no errors + within ±50% volume
+	severityWatch                         // 🟡 — anomalies present, no errors
+	severityIssues                        // 🔴 — errors present OR latency regression
+)
 
 type familyAggregate struct {
 	Label  string
@@ -1262,24 +1481,286 @@ type discordEmbedFooter struct {
 	Text string `json:"text,omitempty"`
 }
 
+// ─── Auto-insight (deterministic local analyzer) ─────────
+
+// autoInsightResult is what buildAutoInsight returns: a small slice of
+// human-readable bullet points + the derived severity. No LLM, no
+// external calls — this runs every cycle so the channel always carries
+// a "what changed" signal even when the optional LLM enrichment is
+// disabled or unreachable.
+type autoInsightResult struct {
+	Lines    []string
+	Severity reportSeverity
+}
+
+// buildAutoInsight diffs `cur` against `prev` (prior window from the
+// same pod) and produces actionable bullets:
+//
+//   - volume change > ±25%
+//   - error spike (any errors at all bumps to severityIssues)
+//   - latency regression on any RPC (TP99 +50% w/ n>=20)
+//   - top-RPC churn (entered or fell out of top-3)
+//   - family hot/cold (largest absolute call-count Δ)
+//   - quiet-window callout (>70% drop in total calls)
+//
+// `prev` may be nil (first cycle, leader handoff). In that case we still
+// emit a minimum-viable insight ("first window, no comparison yet").
+func buildAutoInsight(prev *alertReport, cur alertReport) autoInsightResult {
+	out := autoInsightResult{Severity: severityHealthy}
+
+	// Errors are the strongest signal — always elevate to "issues".
+	if cur.TotalErrors > 0 {
+		out.Severity = severityIssues
+		errPct := 0.0
+		if cur.TotalCalls > 0 {
+			errPct = float64(cur.TotalErrors) / float64(cur.TotalCalls) * 100
+		}
+		out.Lines = append(out.Lines, fmt.Sprintf(
+			"❌ **%d errors** across %d calls (%.2f%% err-rate) — see Top Errors below",
+			cur.TotalErrors, cur.TotalCalls, errPct,
+		))
+	}
+
+	if prev == nil {
+		if len(out.Lines) == 0 {
+			out.Lines = append(out.Lines, "🆕 First observed window since pod start — no prior baseline to diff against.")
+		}
+		return out
+	}
+
+	// Volume change.
+	if prev.TotalCalls > 0 {
+		deltaPct := float64(cur.TotalCalls-prev.TotalCalls) / float64(prev.TotalCalls) * 100
+		switch {
+		case deltaPct >= 25:
+			arrow := "📈"
+			if deltaPct >= 100 {
+				arrow = "🚀"
+			}
+			out.Lines = append(out.Lines, fmt.Sprintf(
+				"%s Total volume **%+.0f%%** vs prior window (%d → %d calls)",
+				arrow, deltaPct, prev.TotalCalls, cur.TotalCalls,
+			))
+			if out.Severity == severityHealthy {
+				out.Severity = severityWatch
+			}
+		case deltaPct <= -25:
+			out.Lines = append(out.Lines, fmt.Sprintf(
+				"📉 Total volume **%.0f%%** vs prior window (%d → %d calls)",
+				deltaPct, prev.TotalCalls, cur.TotalCalls,
+			))
+			if deltaPct <= -70 {
+				out.Lines = append(out.Lines, "💤 Quiet window — likely off-hours or regional traffic dip. Monitor next cycle.")
+			}
+			if out.Severity == severityHealthy {
+				out.Severity = severityWatch
+			}
+		}
+	}
+
+	// Family hot/cold — biggest mover (by absolute Δ in calls).
+	if hot, cold := topFamilyMovers(prev.Families, cur.Families); hot != "" || cold != "" {
+		if hot != "" {
+			out.Lines = append(out.Lines, "🔥 Hottest family: "+hot)
+		}
+		if cold != "" {
+			out.Lines = append(out.Lines, "🧊 Coldest family: "+cold)
+		}
+	}
+
+	// Top-RPC churn — what's new in the top, what fell out.
+	if newcomer, vanished := topRpcChurn(prev.TopVolume, cur.TopVolume); newcomer != "" || vanished != "" {
+		if newcomer != "" {
+			out.Lines = append(out.Lines, "🆕 Entered top RPCs: "+newcomer)
+		}
+		if vanished != "" {
+			out.Lines = append(out.Lines, "🫥 Dropped out of top RPCs: "+vanished)
+		}
+	}
+
+	// Latency regression — any RPC whose TP99 jumped >=50% with n>=20.
+	if reg := latencyRegressions(prev.TopSlowest, cur.TopSlowest); reg != "" {
+		out.Lines = append(out.Lines, "⚠️ Latency regression: "+reg)
+		out.Severity = severityIssues
+	}
+
+	if len(out.Lines) == 0 {
+		out.Lines = append(out.Lines, "✅ Window healthy — volumes within ±25% of prior, no errors, no latency regressions.")
+	}
+	return out
+}
+
+// topFamilyMovers returns ("Family X +N% (a→b)", "Family Y −M% (c→d)")
+// for the largest positive and negative absolute-call-count Δ across
+// families that had non-trivial volume in either window.
+func topFamilyMovers(prev, cur []familyAggregate) (string, string) {
+	prevByLabel := map[string]familyAggregate{}
+	for _, f := range prev {
+		prevByLabel[f.Label] = f
+	}
+	type mover struct {
+		Label    string
+		Emoji    string
+		Prev     int64
+		Cur      int64
+		AbsDelta int64
+	}
+	movers := make([]mover, 0, len(cur))
+	for _, c := range cur {
+		p := prevByLabel[c.Label]
+		// Skip nano-traffic families to avoid noisy "X went from 1 to 3 calls (+200%)" callouts.
+		if c.Calls < 20 && p.Calls < 20 {
+			continue
+		}
+		d := c.Calls - p.Calls
+		ad := d
+		if ad < 0 {
+			ad = -ad
+		}
+		movers = append(movers, mover{Label: c.Label, Emoji: c.Emoji, Prev: p.Calls, Cur: c.Calls, AbsDelta: ad})
+	}
+	sort.Slice(movers, func(i, j int) bool { return movers[i].AbsDelta > movers[j].AbsDelta })
+
+	hot := ""
+	cold := ""
+	for _, m := range movers {
+		if m.Cur < m.Prev && cold == "" && m.Prev > 0 {
+			deltaPct := float64(m.Cur-m.Prev) / float64(m.Prev) * 100
+			cold = fmt.Sprintf("%s %s **%.0f%%** (%d → %d)", m.Emoji, m.Label, deltaPct, m.Prev, m.Cur)
+		}
+		if m.Cur > m.Prev && hot == "" {
+			deltaPct := 0.0
+			if m.Prev > 0 {
+				deltaPct = float64(m.Cur-m.Prev) / float64(m.Prev) * 100
+			} else {
+				deltaPct = 100.0
+			}
+			hot = fmt.Sprintf("%s %s **+%.0f%%** (%d → %d)", m.Emoji, m.Label, deltaPct, m.Prev, m.Cur)
+		}
+		if hot != "" && cold != "" {
+			break
+		}
+	}
+	return hot, cold
+}
+
+// topRpcChurn returns one comma-joined string of RPCs newly in the top-3
+// of `cur` (not present in prior top-10) and one of RPCs that fell from
+// prior top-3 out of the current top-10.
+func topRpcChurn(prev, cur []rpcStat) (string, string) {
+	prevSet := map[string]int{}
+	for i, r := range prev {
+		prevSet[r.Name] = i + 1 // rank, 1-indexed
+	}
+	curSet := map[string]int{}
+	for i, r := range cur {
+		curSet[r.Name] = i + 1
+	}
+	var newcomers, vanished []string
+	for i, r := range cur {
+		if i >= 3 {
+			break
+		}
+		if _, was := prevSet[r.Name]; !was {
+			newcomers = append(newcomers, fmt.Sprintf("`%s` (#%d, %d calls)", r.Name, i+1, r.Calls))
+		}
+	}
+	for i, r := range prev {
+		if i >= 3 {
+			break
+		}
+		if _, still := curSet[r.Name]; !still {
+			vanished = append(vanished, fmt.Sprintf("`%s` (was #%d w/ %d calls)", r.Name, i+1, r.Calls))
+		}
+	}
+	return strings.Join(newcomers, ", "), strings.Join(vanished, ", ")
+}
+
+// latencyRegressions returns a short summary of any RPC whose TP99
+// increased by >=50% AND was called at least 20 times in the new window.
+func latencyRegressions(prev, cur []rpcStat) string {
+	prevByName := map[string]rpcStat{}
+	for _, r := range prev {
+		prevByName[r.Name] = r
+	}
+	type reg struct {
+		Name   string
+		Was    float64
+		Now    float64
+		Pct    float64
+		Calls  int64
+		Family string
+	}
+	var regs []reg
+	for _, r := range cur {
+		if !r.HasLatency || r.Calls < 20 {
+			continue
+		}
+		p, ok := prevByName[r.Name]
+		if !ok || !p.HasLatency || p.P99 <= 0 {
+			continue
+		}
+		pct := (r.P99 - p.P99) / p.P99 * 100
+		if pct < 50 {
+			continue
+		}
+		regs = append(regs, reg{Name: r.Name, Was: p.P99, Now: r.P99, Pct: pct, Calls: r.Calls, Family: r.Family})
+	}
+	if len(regs) == 0 {
+		return ""
+	}
+	sort.Slice(regs, func(i, j int) bool { return regs[i].Pct > regs[j].Pct })
+	if len(regs) > 3 {
+		regs = regs[:3]
+	}
+	parts := make([]string, 0, len(regs))
+	for _, r := range regs {
+		parts = append(parts, fmt.Sprintf("`%s` TP99 **%+.0f%%** (%s → %s, n=%d)",
+			r.Name, r.Pct, formatMs(r.Was), formatMs(r.Now), r.Calls))
+	}
+	return strings.Join(parts, " · ")
+}
+
 func buildSummaryEmbed(cfg alertConfig, r alertReport) discordPayload {
 	successRate := 100.0
 	if r.TotalCalls > 0 {
 		successRate = float64(r.TotalCalls-r.TotalErrors) / float64(r.TotalCalls) * 100
 	}
 
-	desc := fmt.Sprintf("Window: **%s** (%s → %s UTC)\nQuizverse-relevant Nakama RPC activity.",
+	// Severity → emoji + color. Default to "watch/yellow" so old reports
+	// (severity zero-value=healthy) don't accidentally green-wash a bad
+	// report; the explicit healthy path below overrides this.
+	titleEmoji := "🟡"
+	titleSeverity := "Watch"
+	color := embedColor // gold/yellow
+	switch r.Severity {
+	case severityHealthy:
+		titleEmoji = "🟢"
+		titleSeverity = "Healthy"
+		color = 0x2ECC71 // green
+	case severityIssues:
+		titleEmoji = "🔴"
+		titleSeverity = "Issues"
+		color = 0xE74C3C // red
+	}
+
+	desc := fmt.Sprintf(
+		"Window: **%s** (%s → %s UTC) · severity **%s**\nQuizverse-relevant Nakama RPC activity from `%s`.",
 		r.WindowLabel,
 		r.WindowStart.UTC().Format("2006-01-02 15:04"),
-		r.WindowEnd.UTC().Format("2006-01-02 15:04"))
+		r.WindowEnd.UTC().Format("2006-01-02 15:04"),
+		titleSeverity,
+		cfg.InstanceLabel,
+	)
 
 	embed := discordEmbed{
-		Title:       fmt.Sprintf("🟡 Nakama %s Summary — Quizverse RPCs", r.WindowLabel),
+		Title:       fmt.Sprintf("%s Nakama %s Summary — Quizverse RPCs", titleEmoji, r.WindowLabel),
 		Description: desc,
-		Color:       embedColor,
+		Color:       color,
 		Timestamp:   r.WindowEnd.UTC().Format(time.RFC3339),
 		Footer: &discordEmbedFooter{
-			Text: fmt.Sprintf("nakama-analytics-metrics • %s • Go %s", cfg.InstanceLabel, runtime.Version()),
+			Text: fmt.Sprintf("nakama-analytics-metrics • %s • Go %s · single-leader posted via pg_advisory_lock",
+				cfg.InstanceLabel, runtime.Version()),
 		},
 	}
 
@@ -1293,6 +1774,18 @@ func buildSummaryEmbed(cfg alertConfig, r alertReport) discordPayload {
 		Value:  truncateField(headline),
 		Inline: false,
 	})
+
+	// Field 1.5: Auto-Insight — what changed vs prior window. Sits right
+	// after Overview so the eye lands on actionable signal first, before
+	// the detailed family/RPC tables. Always present (buildAutoInsight
+	// always returns at least one line).
+	if len(r.AutoInsight) > 0 {
+		embed.Fields = append(embed.Fields, discordEmbedField{
+			Name:   "🤖 Auto-Insight (vs prior window)",
+			Value:  truncateField("• " + strings.Join(r.AutoInsight, "\n• ")),
+			Inline: false,
+		})
+	}
 
 	// Field 2: Overall latency.
 	if r.HasOverallLat {

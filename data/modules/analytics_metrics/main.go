@@ -177,9 +177,11 @@ var (
 // doc comment). We just register metrics (done at package init() above with
 // the default Prometheus registry) and start the background freshness poller.
 //
-// The db and initializer args are unused but required by the Nakama plugin
-// contract; keeping them named for clarity.
-func InitModule(ctx context.Context, logger runtime.Logger, _ *sql.DB, nk runtime.NakamaModule, _ runtime.Initializer) error {
+// The initializer arg is unused but required by the Nakama plugin contract.
+// The db handle is threaded into the Discord alert scheduler so it can take
+// a Postgres advisory lock for cross-pod leader election (otherwise every
+// replica posts its own copy of the 6h summary — see discord_alerts.go).
+func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, _ runtime.Initializer) error {
 	logger.Info("[analytics_metrics_go] plugin loading — starting freshness loop")
 
 	// Background freshness poller. A single goroutine is cheap and means the
@@ -192,7 +194,9 @@ func InitModule(ctx context.Context, logger runtime.Logger, _ *sql.DB, nk runtim
 	// in discord_alerts.go and is fully self-contained: it scrapes our own
 	// :9100/metrics, diffs against the prior snapshot, and posts an embed.
 	// Best-effort: any failure is logged but never affects request handling.
-	startDiscordAlertScheduler(ctx, logger)
+	// `db` is used for Postgres advisory-lock leader election so multi-pod
+	// deployments don't fan-out duplicate posts.
+	startDiscordAlertScheduler(ctx, logger, db)
 
 	logger.Info("[analytics_metrics_go] plugin ready — metrics registered, freshness loop started, discord alerts scheduled")
 	return nil
