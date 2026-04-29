@@ -1,6 +1,13 @@
 // rewarded_ads.js - Server-validated Rewarded Ad System
 // Enforces user-triggered rewarded ads via token-based validation
 // Prevents auto-shown rewards, duplicate claims, and replay attacks
+//
+// PLAN-ADS-OPTIMIZATION-v2 §3/§4/§6:
+//   - Tier-aware daily caps (T1=conservative, T2=balanced, T3=volume)
+//   - 8 new placements (wager_boost_50, daily_bonus_2x, lucky_wheel_free_spin,
+//     double_xp_levelup, leaderboard_rank_boost, topic_complete_preview,
+//     friend_quest_progress, home_idle_powerup)
+//   - Server-side cap enforcement in rewarded_ad_request_token
 
 /**
  * REWARDED AD CLAIM FLOW:
@@ -16,6 +23,8 @@
 var TOKEN_EXPIRY_SECONDS = 300; // 5 minutes - tokens expire if not claimed
 var TOKEN_COLLECTION = "rewarded_ad_tokens";
 var CLAIMS_COLLECTION = "rewarded_ad_claims";
+var GEO_COLLECTION = "geo_tier";
+var GEO_CACHE_KEY = "resolved";
 
 // Reward configuration per placement
 var REWARD_CONFIG = {
@@ -52,8 +61,141 @@ var REWARD_CONFIG = {
         amount: 50,
         cooldownSeconds: 60,
         maxClaimsPerDay: 50
+    },
+    // ── NEW placements (PLAN-ADS-OPTIMIZATION-v2 §4) ──────────────────
+    "wager_boost_50": {
+        rewardType: "currency",
+        currency: "coins",
+        amount: 50,
+        cooldownSeconds: 60,
+        maxClaimsPerDay: 5,
+        tierGate: ["t2", "t3"]  // T1 disabled — premium feel
+    },
+    "daily_bonus_2x": {
+        rewardType: "score_multiplier",
+        multiplier: 2,
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 1,
+        tierGate: null  // all tiers
+    },
+    "lucky_wheel_free_spin": {
+        rewardType: "action",
+        action: "fortune_wheel_spin",
+        cooldownSeconds: 3600,  // 1 hour
+        maxClaimsPerDay: 3,
+        tierGate: ["t2", "t3"]  // T1 disabled — premium feel
+    },
+    "double_xp_levelup": {
+        rewardType: "score_multiplier",
+        multiplier: 2,
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 5,
+        tierGate: null  // all tiers — low intrusion
+    },
+    "leaderboard_rank_boost": {
+        rewardType: "currency",
+        currency: "coins",
+        amount: 75,
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 3,
+        tierGate: ["t2", "t3"]  // T1 disabled
+    },
+    "topic_complete_preview": {
+        rewardType: "action",
+        action: "unlock_topic_preview",
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 5,
+        tierGate: ["t3"]  // T3 only — strong engagement signal
+    },
+    "friend_quest_progress": {
+        rewardType: "action",
+        action: "add_quest_progress",
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 3,
+        tierGate: ["t3"]  // T3 only
+    },
+    "home_idle_powerup": {
+        rewardType: "currency",
+        currency: "powerups",
+        amount: 1,
+        cooldownSeconds: 3600,  // 1 hour
+        maxClaimsPerDay: 5,
+        tierGate: ["t2", "t3"]  // T1 disabled — too intrusive
     }
 };
+
+// ── Tier cap scaling factors (PLAN-ADS-OPTIMIZATION-v2 §3) ──────────
+// T1 users see fewer rewarded opportunities (push IAP instead).
+// T3 users see more (maximize ad volume where IAP ARPU is low).
+var TIER_CAP_FACTORS = {
+    "t1": 0.5,
+    "t2": 1.0,
+    "t3": 2.0
+};
+
+/**
+ * Read user's geo tier from GeoTier cache (written by geo-tier.ts).
+ * Returns "t1", "t2", or "t3". Defaults to "t3" if no cache (safe for ad volume).
+ */
+function getUserTier(nk, logger, userId) {
+    try {
+        var records = nk.storageRead([{
+            collection: GEO_COLLECTION,
+            key: GEO_CACHE_KEY,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value && records[0].value.tier) {
+            var tier = records[0].value.tier.toLowerCase();
+            if (tier === "t1" || tier === "t2" || tier === "t3") {
+                return tier;
+            }
+        }
+    } catch (err) {
+        if (logger) logger.warn("[RewardedAds] Failed to read user tier: " + err.message);
+    }
+    return "t3"; // Default — maximize ad volume for unknown geos
+}
+
+/**
+ * Get tier-aware config for a placement.
+ * Scales maxClaimsPerDay by the tier factor and enforces tierGate.
+ * Returns null if the placement is gated for this tier.
+ */
+function getTierAwareConfig(nk, logger, userId, placement) {
+    var config = REWARD_CONFIG[placement] || REWARD_CONFIG["default"];
+    var tier = getUserTier(nk, logger, userId);
+
+    // Check tier gate — if placement is restricted to certain tiers
+    if (config.tierGate && config.tierGate.length > 0) {
+        var allowed = false;
+        for (var i = 0; i < config.tierGate.length; i++) {
+            if (config.tierGate[i] === tier) {
+                allowed = true;
+                break;
+            }
+        }
+        if (!allowed) {
+            return null; // This placement is not available for this tier
+        }
+    }
+
+    // Scale maxClaimsPerDay by tier factor
+    var factor = TIER_CAP_FACTORS[tier] || 1.0;
+    var scaledMax = Math.max(1, Math.round(config.maxClaimsPerDay * factor));
+
+    // Return a copy with scaled cap
+    return {
+        rewardType: config.rewardType,
+        multiplier: config.multiplier,
+        currency: config.currency,
+        amount: config.amount,
+        action: config.action,
+        cooldownSeconds: config.cooldownSeconds,
+        maxClaimsPerDay: scaledMax,
+        tier: tier,
+        originalMaxClaimsPerDay: config.maxClaimsPerDay
+    };
+}
 
 /**
  * Generate a cryptographically secure token
@@ -224,18 +366,34 @@ function rpcRewardedAdRequestToken(ctx, logger, nk, payload) {
     var gameId = data.gameId || "unknown";
     var metadata = data.metadata || {};
     
-    // Get reward config for this placement
-    var config = REWARD_CONFIG[placement] || REWARD_CONFIG["default"];
+    // PLAN-ADS-OPTIMIZATION-v2 §3+§6: Get TIER-AWARE reward config.
+    // This checks the tier gate and scales maxClaimsPerDay by geo tier.
+    var config = getTierAwareConfig(nk, logger, userId, placement);
     
-    // Check daily claim limit
+    // Tier gate check — placement not available for this user's tier
+    if (!config) {
+        var userTier = getUserTier(nk, logger, userId);
+        logger.info("[RewardedAds] Placement '" + placement + "' gated for tier " + userTier + ", user: " + userId);
+        return JSON.stringify({
+            success: false,
+            error: "Placement not available for your region",
+            errorCode: "TIER_GATED",
+            tier: userTier,
+            placement: placement
+        });
+    }
+    
+    // Check daily claim limit (now tier-scaled)
     var dailyClaims = getDailyClaimCount(nk, logger, userId, placement);
     if (dailyClaims >= config.maxClaimsPerDay) {
-        logger.warn("[RewardedAds] Daily limit reached for user: " + userId + ", placement: " + placement);
+        logger.warn("[RewardedAds] Daily limit reached for user: " + userId + ", placement: " + placement + ", tier: " + config.tier + ", cap: " + config.maxClaimsPerDay);
         return JSON.stringify({
             success: false,
             error: "Daily limit reached",
+            errorCode: "DAILY_CAP",
             dailyClaims: dailyClaims,
             maxClaimsPerDay: config.maxClaimsPerDay,
+            tier: config.tier,
             resetAt: getStartOfDay() + 86400 // Next day UTC
         });
     }
@@ -291,11 +449,13 @@ function rpcRewardedAdRequestToken(ctx, logger, nk, payload) {
             expiresIn: TOKEN_EXPIRY_SECONDS,
             expiresAt: expiresAt,
             placement: placement,
+            tier: config.tier,
             rewardConfig: {
                 type: config.rewardType,
                 currency: config.currency,
                 amount: config.amount,
-                multiplier: config.multiplier
+                multiplier: config.multiplier,
+                action: config.action
             }
         });
         
@@ -495,9 +655,12 @@ function rpcRewardedAdClaim(ctx, logger, nk, payload) {
     // Log successful claim for analytics
     logger.info("[RewardedAds] Reward claimed successfully. User: " + userId + ", Placement: " + placement + ", Reward: " + JSON.stringify(rewardResult));
     
+    // Include tier info in claim response for client-side analytics
+    var claimTier = getUserTier(nk, logger, userId);
     return JSON.stringify({
         success: true,
         placement: placement,
+        tier: claimTier,
         reward: rewardResult,
         dailyClaims: getDailyClaimCount(nk, logger, userId, placement),
         maxClaimsPerDay: config.maxClaimsPerDay
@@ -694,22 +857,28 @@ function rpcGetRewardedAdStatus(ctx, logger, nk, payload) {
         var placement = placements[i];
         if (placement === "default" && !requestedPlacement) continue;
         
-        var config = REWARD_CONFIG[placement] || REWARD_CONFIG["default"];
+        // Use tier-aware config so status reflects actual availability
+        var config = getTierAwareConfig(nk, logger, userId, placement);
+        if (!config) continue; // Tier-gated — skip entirely
+        
         var dailyClaims = getDailyClaimCount(nk, logger, userId, placement);
         var lastClaim = getLastClaimTimestamp(nk, logger, userId, placement);
         var cooldownRemaining = Math.max(0, (lastClaim + config.cooldownSeconds) - now);
         
         statuses.push({
             placement: placement,
+            tier: config.tier,
             available: dailyClaims < config.maxClaimsPerDay && cooldownRemaining === 0,
             dailyClaims: dailyClaims,
             maxClaimsPerDay: config.maxClaimsPerDay,
+            originalMaxClaimsPerDay: config.originalMaxClaimsPerDay,
             cooldownRemaining: cooldownRemaining,
             canClaimAt: cooldownRemaining > 0 ? lastClaim + config.cooldownSeconds : now,
             rewardType: config.rewardType,
             rewardAmount: config.amount,
             rewardCurrency: config.currency,
-            multiplier: config.multiplier
+            multiplier: config.multiplier,
+            action: config.action
         });
     }
     

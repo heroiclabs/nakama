@@ -316,6 +316,33 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[Satori] Failed to register Satori systems: " + (err.message || String(err)));
   }
 
+  // ---- GeoTier IP-to-Country Resolution (PLAN-ADS-OPTIMIZATION-v2) ----
+  try {
+    logger.info("[GeoTier] Registering country_tier_get RPC...");
+    GeoTier.register(initializer);
+    logger.info("[GeoTier] GeoTier RPC registered successfully");
+  } catch (err: any) {
+    logger.error("[GeoTier] Failed to register GeoTier: " + (err.message || String(err)));
+  }
+
+  // ---- Ad Revenue Recording (PLAN-ADS-OPTIMIZATION-v2 §11) ----
+  try {
+    logger.info("[AdRevenueEvent] Registering ad_revenue_record RPC...");
+    AdRevenueEvent.register(initializer, logger);
+    logger.info("[AdRevenueEvent] Ad revenue recording registered successfully");
+  } catch (err: any) {
+    logger.error("[AdRevenueEvent] Failed to register: " + (err.message || String(err)));
+  }
+
+  // ---- Fortune Wheel Ad Spin (PLAN-ADS-OPTIMIZATION-v2 §4 #19) ----
+  try {
+    logger.info("[FortuneWheelAdSpin] Registering fortune_wheel_ad_spin RPC...");
+    FortuneWheelAdSpin.register(initializer, logger);
+    logger.info("[FortuneWheelAdSpin] Fortune wheel ad spin registered successfully");
+  } catch (err: any) {
+    logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));
+  }
+
   // ---- Fantasy Cricket RPCs ----
   try {
     logger.info("[Fantasy] Registering Team RPCs...");

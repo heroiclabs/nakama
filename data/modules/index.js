@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-28T03:56:01.614Z
-// RPC Count: 699
+// Generated: 2026-04-28T08:40:27.624Z
+// RPC Count: 700
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -451,6 +451,7 @@ var __rpc_satori_webhooks_list;
 var __rpc_satori_webhooks_upsert;
 var __rpc_satori_webhooks_delete;
 var __rpc_satori_webhooks_test;
+var __rpc_country_tier_get;
 var __rpc_nakama_js_health;
 var __rpc_storage_write;
 var __rpc_storage_read;
@@ -637,9 +638,10 @@ var __rpc_external_poll_appstore;
 var __rpc_external_poll_ugs;
 var __rpc_external_poll_all;
 var __rpc_external_poll_status;
-var __rpc_friend_quest_record_progress;
-var __rpc_friend_streak_get_broken_log;
-var __rpc_friend_streak_repair;
+var __rpc_friends_get_online_count;
+var __rpc_social_pressure_get_today_summary;
+var __rpc_friend_battle_create;
+var __rpc_friend_invite_with_reward;
 var __rpc_id;
 var __rpc_send_friend_challenge;
 var __rpc_friends_challenge_user;
@@ -653,10 +655,9 @@ var __rpc_accept_friend_invite;
 var __rpc_decline_friend_invite;
 var __rpc_cancel_friend_invite;
 var __rpc_list_pending_friend_invites;
-var __rpc_friends_get_online_count;
-var __rpc_social_pressure_get_today_summary;
-var __rpc_friend_battle_create;
-var __rpc_friend_invite_with_reward;
+var __rpc_friend_quest_record_progress;
+var __rpc_friend_streak_get_broken_log;
+var __rpc_friend_streak_repair;
 var __rpc_submit_score;
 var __rpc_ivx_quest_config;
 var __rpc_ivx_quest_get;
@@ -710,11 +711,11 @@ var __rpc_visual_path_get_schedule;
 var __rpc_visual_path_skip_day_with_ad;
 
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
-var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
+var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"country_tier_get":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
 // --- Discovered Modules (80 files) ---
 
-// --- Module: achievements/achievements.js ---
+// --- Module: achievements\achievements.js ---
 /**
  * Achievement System for Multi-Game Platform
  * Supports per-game achievements with unlock tracking and rewards
@@ -1303,7 +1304,7 @@ var rpcAchievementsBulkCreate = function(ctx, logger, nk, payload) {
 };
 
 
-// --- Module: ai_player/ai_player.js ---
+// --- Module: ai_player\ai_player.js ---
 // ai_player.js - Player-Facing AI Features powered by LLM
 // Supports: Claude (Anthropic), OpenAI (GPT), xAI (Grok)
 // RPCs: ai_coach_advice, ai_match_recap, ai_player_journey, ai_rival_taunt,
@@ -1970,7 +1971,7 @@ function rpcAiGroupHype(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: analytics/analytics.js ---
+// --- Module: analytics\analytics.js ---
 // analytics.js - Analytics System (Per gameId UUID)
 
 var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
@@ -2786,7 +2787,7 @@ function __ModuleInit_2(ctx, logger, nk, initializer) {
     logger.info("[Analytics] Module registered: 3 RPCs");
 }
 
-// --- Module: analytics_admin/analytics_admin.js ---
+// --- Module: analytics_admin\analytics_admin.js ---
 // analytics_admin.js — Admin-only RPCs for the Analytics Dashboard.
 //
 // Registers:
@@ -3309,7 +3310,7 @@ function __ModuleInit_3(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: analytics_extended/analytics_extended.js ---
+// --- Module: analytics_extended\analytics_extended.js ---
 /**
  * Analytics Extended Module
  * Implements 14 analytics RPCs for the dashboard.
@@ -5468,7 +5469,7 @@ function __ModuleInit_4(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: analytics_ops/analytics_ops.js ---
+// --- Module: analytics_ops\analytics_ops.js ---
 // analytics_ops.js — Phase 2.4 data-quality + ops tooling for analytics.
 //
 // Registered RPCs (all admin-gated):
@@ -5858,7 +5859,7 @@ function __ModuleInit_5(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: analytics_player_profile/analytics_player_profile.js ---
+// --- Module: analytics_player_profile\analytics_player_profile.js ---
 // analytics_player_profile.js
 // Per-player analytics snapshot — backs the AnalyticsManager.GetPlayerAnalyticsProfile
 // client call. Reads the player's first_seen marker, lifetime event counters from
@@ -6176,7 +6177,7 @@ function __ModuleInit_6(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: analytics_retention_curves/analytics_retention_curves.js ---
+// --- Module: analytics_retention_curves\analytics_retention_curves.js ---
 // analytics_retention_curves.js — Reads cohort docs produced by analytics_rollup
 // and returns retention curves & heatmap data shaped for the dashboard.
 //
@@ -6428,7 +6429,7 @@ function __ModuleInit_7(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: analytics_rollup/analytics_rollup.js ---
+// --- Module: analytics_rollup\analytics_rollup.js ---
 // analytics_rollup.js — Phase 2.1 nightly rollup + backfill.
 //
 // Problem it solves:
@@ -7290,7 +7291,7 @@ function __ModuleInit_8(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: analytics_v2/analytics_v2.js ---
+// --- Module: analytics_v2\analytics_v2.js ---
 // analytics_v2.js - Advanced Analytics RPCs for Nakama
 // Self-contained, ES5 compatible, no imports/exports
 
@@ -8301,150 +8302,7 @@ function rpcAnalyticsLogError(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: badges/badge_seed_definitions.js ---
-// badge_seed_definitions.js - Seed data for Legendary + Seasonal badges
-// Run once via admin RPC or directly call badges_bulk_create
-// Spec: MRS §12 Legendary (3 Phase-6 remaining) + §13 Seasonal (5)
-
-/**
- * Call this as a Nakama RPC: badges_bulk_create
- * Payload: { game_id: "quizverse", badges: [...] }
- */
-
-var LEGENDARY_AND_SEASONAL_BADGES = {
-    game_id: "quizverse",
-    badges: [
-        // ─── 3 REMAINING LEGENDARY BADGES (Phase 6) ───────────────────────
-        {
-            badge_id: "legend_topic_master",
-            title: "Topic Master",
-            description: "Master all 4 core topics with 90%+ accuracy in each",
-            icon_url: "badges/legendary/topic_master.png",
-            category: "special",
-            rarity: "legendary",
-            type: "tiered",
-            target: 4,
-            hidden: true,
-            points: 500,
-            order: 100,
-            rewards: { coins: 1000, xp: 500, collectables: ["frame_golden_brain"] },
-            unlock_criteria: { event: "topic_mastery", threshold: 4 }
-        },
-        {
-            badge_id: "legend_cross_topic",
-            title: "Cross-Topic Champion",
-            description: "Win 50 quizzes across at least 3 different topics",
-            icon_url: "badges/legendary/cross_topic.png",
-            category: "quiz",
-            rarity: "legendary",
-            type: "achievement",
-            target: 50,
-            hidden: false,
-            points: 400,
-            order: 101,
-            rewards: { coins: 750, xp: 400, collectables: ["title_champion"] },
-            unlock_criteria: { event: "quiz_complete", min_topics: 3 }
-        },
-        {
-            badge_id: "legend_polymath",
-            title: "Polymath",
-            description: "Answer 1000 questions correctly across Health, Love, Career & General",
-            icon_url: "badges/legendary/polymath.png",
-            category: "quiz",
-            rarity: "legendary",
-            type: "achievement",
-            target: 1000,
-            hidden: false,
-            points: 600,
-            order: 102,
-            rewards: { coins: 1500, xp: 750, collectables: ["border_rainbow", "title_polymath"] },
-            unlock_criteria: { event: "correct_answer", all_topics: true }
-        },
-
-        // ─── 5 SEASONAL BADGES ─────────────────────────────────────────────
-        {
-            badge_id: "seasonal_spring",
-            title: "Spring Bloom",
-            description: "Complete 10 quizzes during Spring season (Mar-May)",
-            icon_url: "badges/seasonal/spring.png",
-            category: "seasonal",
-            rarity: "epic",
-            type: "seasonal",
-            target: 10,
-            hidden: false,
-            points: 200,
-            order: 200,
-            rewards: { coins: 300, xp: 150 },
-            unlock_criteria: { event: "quiz_complete", season: "spring" }
-        },
-        {
-            badge_id: "seasonal_summer",
-            title: "Summer Heat",
-            description: "Win 5 multiplayer matches during Summer (Jun-Aug)",
-            icon_url: "badges/seasonal/summer.png",
-            category: "seasonal",
-            rarity: "epic",
-            type: "seasonal",
-            target: 5,
-            hidden: false,
-            points: 200,
-            order: 201,
-            rewards: { coins: 300, xp: 150 },
-            unlock_criteria: { event: "match_win", season: "summer" }
-        },
-        {
-            badge_id: "seasonal_monsoon",
-            title: "Monsoon Scholar",
-            description: "Complete 15 Smart Review sessions during Monsoon (Jul-Sep)",
-            icon_url: "badges/seasonal/monsoon.png",
-            category: "seasonal",
-            rarity: "epic",
-            type: "seasonal",
-            target: 15,
-            hidden: false,
-            points: 250,
-            order: 202,
-            rewards: { coins: 400, xp: 200 },
-            unlock_criteria: { event: "review_session", season: "monsoon" }
-        },
-        {
-            badge_id: "seasonal_autumn",
-            title: "Autumn Harvest",
-            description: "Maintain a 14-day streak during Autumn (Oct-Nov)",
-            icon_url: "badges/seasonal/autumn.png",
-            category: "seasonal",
-            rarity: "legendary",
-            type: "seasonal",
-            target: 14,
-            hidden: false,
-            points: 300,
-            order: 203,
-            rewards: { coins: 500, xp: 250 },
-            unlock_criteria: { event: "daily_login_streak", season: "autumn" }
-        },
-        {
-            badge_id: "seasonal_winter",
-            title: "Winter Warrior",
-            description: "Achieve 3 perfect quiz scores during Winter (Dec-Feb)",
-            icon_url: "badges/seasonal/winter.png",
-            category: "seasonal",
-            rarity: "legendary",
-            type: "seasonal",
-            target: 3,
-            hidden: false,
-            points: 300,
-            order: 204,
-            rewards: { coins: 500, xp: 250, collectables: ["frame_snowflake"] },
-            unlock_criteria: { event: "perfect_quiz", season: "winter" }
-        }
-    ]
-};
-
-// To seed: call badges_bulk_create RPC with the above payload
-// Example: nk.rpc("badges_bulk_create", JSON.stringify(LEGENDARY_AND_SEASONAL_BADGES))
-
-
-// --- Module: badges/badges.js ---
+// --- Module: badges\badges.js ---
 /**
  * Badge & Collectable System for Multi-Game Platform
  * Supports per-game badges and collectables with player tracking
@@ -9793,7 +9651,150 @@ if (typeof module !== 'undefined') {
 }
 
 
-// --- Module: characters/characters.js ---
+// --- Module: badges\badge_seed_definitions.js ---
+// badge_seed_definitions.js - Seed data for Legendary + Seasonal badges
+// Run once via admin RPC or directly call badges_bulk_create
+// Spec: MRS §12 Legendary (3 Phase-6 remaining) + §13 Seasonal (5)
+
+/**
+ * Call this as a Nakama RPC: badges_bulk_create
+ * Payload: { game_id: "quizverse", badges: [...] }
+ */
+
+var LEGENDARY_AND_SEASONAL_BADGES = {
+    game_id: "quizverse",
+    badges: [
+        // ─── 3 REMAINING LEGENDARY BADGES (Phase 6) ───────────────────────
+        {
+            badge_id: "legend_topic_master",
+            title: "Topic Master",
+            description: "Master all 4 core topics with 90%+ accuracy in each",
+            icon_url: "badges/legendary/topic_master.png",
+            category: "special",
+            rarity: "legendary",
+            type: "tiered",
+            target: 4,
+            hidden: true,
+            points: 500,
+            order: 100,
+            rewards: { coins: 1000, xp: 500, collectables: ["frame_golden_brain"] },
+            unlock_criteria: { event: "topic_mastery", threshold: 4 }
+        },
+        {
+            badge_id: "legend_cross_topic",
+            title: "Cross-Topic Champion",
+            description: "Win 50 quizzes across at least 3 different topics",
+            icon_url: "badges/legendary/cross_topic.png",
+            category: "quiz",
+            rarity: "legendary",
+            type: "achievement",
+            target: 50,
+            hidden: false,
+            points: 400,
+            order: 101,
+            rewards: { coins: 750, xp: 400, collectables: ["title_champion"] },
+            unlock_criteria: { event: "quiz_complete", min_topics: 3 }
+        },
+        {
+            badge_id: "legend_polymath",
+            title: "Polymath",
+            description: "Answer 1000 questions correctly across Health, Love, Career & General",
+            icon_url: "badges/legendary/polymath.png",
+            category: "quiz",
+            rarity: "legendary",
+            type: "achievement",
+            target: 1000,
+            hidden: false,
+            points: 600,
+            order: 102,
+            rewards: { coins: 1500, xp: 750, collectables: ["border_rainbow", "title_polymath"] },
+            unlock_criteria: { event: "correct_answer", all_topics: true }
+        },
+
+        // ─── 5 SEASONAL BADGES ─────────────────────────────────────────────
+        {
+            badge_id: "seasonal_spring",
+            title: "Spring Bloom",
+            description: "Complete 10 quizzes during Spring season (Mar-May)",
+            icon_url: "badges/seasonal/spring.png",
+            category: "seasonal",
+            rarity: "epic",
+            type: "seasonal",
+            target: 10,
+            hidden: false,
+            points: 200,
+            order: 200,
+            rewards: { coins: 300, xp: 150 },
+            unlock_criteria: { event: "quiz_complete", season: "spring" }
+        },
+        {
+            badge_id: "seasonal_summer",
+            title: "Summer Heat",
+            description: "Win 5 multiplayer matches during Summer (Jun-Aug)",
+            icon_url: "badges/seasonal/summer.png",
+            category: "seasonal",
+            rarity: "epic",
+            type: "seasonal",
+            target: 5,
+            hidden: false,
+            points: 200,
+            order: 201,
+            rewards: { coins: 300, xp: 150 },
+            unlock_criteria: { event: "match_win", season: "summer" }
+        },
+        {
+            badge_id: "seasonal_monsoon",
+            title: "Monsoon Scholar",
+            description: "Complete 15 Smart Review sessions during Monsoon (Jul-Sep)",
+            icon_url: "badges/seasonal/monsoon.png",
+            category: "seasonal",
+            rarity: "epic",
+            type: "seasonal",
+            target: 15,
+            hidden: false,
+            points: 250,
+            order: 202,
+            rewards: { coins: 400, xp: 200 },
+            unlock_criteria: { event: "review_session", season: "monsoon" }
+        },
+        {
+            badge_id: "seasonal_autumn",
+            title: "Autumn Harvest",
+            description: "Maintain a 14-day streak during Autumn (Oct-Nov)",
+            icon_url: "badges/seasonal/autumn.png",
+            category: "seasonal",
+            rarity: "legendary",
+            type: "seasonal",
+            target: 14,
+            hidden: false,
+            points: 300,
+            order: 203,
+            rewards: { coins: 500, xp: 250 },
+            unlock_criteria: { event: "daily_login_streak", season: "autumn" }
+        },
+        {
+            badge_id: "seasonal_winter",
+            title: "Winter Warrior",
+            description: "Achieve 3 perfect quiz scores during Winter (Dec-Feb)",
+            icon_url: "badges/seasonal/winter.png",
+            category: "seasonal",
+            rarity: "legendary",
+            type: "seasonal",
+            target: 3,
+            hidden: false,
+            points: 300,
+            order: 204,
+            rewards: { coins: 500, xp: 250, collectables: ["frame_snowflake"] },
+            unlock_criteria: { event: "perfect_quiz", season: "winter" }
+        }
+    ]
+};
+
+// To seed: call badges_bulk_create RPC with the above payload
+// Example: nk.rpc("badges_bulk_create", JSON.stringify(LEGENDARY_AND_SEASONAL_BADGES))
+
+
+// --- Module: characters\characters.js ---
 // characters.js - Character System for QuizVerse v3.0
 // RPCs: character_get_state, character_unlock, character_set_active
 
@@ -10261,7 +10262,7 @@ function rpcCharacterSetActive(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: chat_moderation/chat_moderation.js ---
+// --- Module: chat_moderation\chat_moderation.js ---
 // chat_moderation.js - Chat Moderation Pipeline
 // Storage collection: chat_reports, chat_filter_config
 // RPCs: chat_report_message, chat_moderation_review, chat_moderation_stats
@@ -10716,7 +10717,7 @@ function rpcChatFilterMessage(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/cognito_wallet_mapper.js ---
+// --- Module: copilot\cognito_wallet_mapper.js ---
 // cognito_wallet_mapper.js - Core RPC functions for Cognito ↔ Wallet mapping
 
 /**
@@ -10948,7 +10949,7 @@ function getWalletRegistry(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/leaderboard_aggregate.js ---
+// --- Module: copilot\leaderboard_aggregate.js ---
 // leaderboard_aggregate.js - Aggregate scores across all game leaderboards
 // ES5 compatible for Nakama goja runtime
 
@@ -11060,7 +11061,7 @@ function rpcSubmitScoreWithAggregate(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/leaderboard_friends.js ---
+// --- Module: copilot\leaderboard_friends.js ---
 // leaderboard_friends.js - Friend-specific leaderboard features
 // ES5 compatible for Nakama goja runtime
 
@@ -11235,7 +11236,7 @@ function rpcGetFriendLeaderboard(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/leaderboard_sync.js ---
+// --- Module: copilot\leaderboard_sync.js ---
 // leaderboard_sync.js - Score synchronization between per-game and global leaderboards
 // ES5 compatible for Nakama goja runtime
 
@@ -11310,7 +11311,7 @@ function rpcSubmitScoreSync(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: copilot/social_features.js ---
+// --- Module: copilot\social_features.js ---
 // ============================================================================
 // social_features.js — Social graph and notification features (DEPRECATED)
 // ============================================================================
@@ -11559,7 +11560,7 @@ function rpcGetNotifications(ctx, logger, nk, payload) {
 ─── END DISABLED CODE ──────────────────────────────────────────────────── */
 
 
-// --- Module: copilot/utils.js ---
+// --- Module: copilot\utils.js ---
 // utils.js - Shared helper functions for copilot leaderboard modules
 // ES5 compatible for Nakama goja runtime
 
@@ -11642,7 +11643,7 @@ var utils = {
 };
 
 
-// --- Module: copilot/wallet_registry.js ---
+// --- Module: copilot\wallet_registry.js ---
 // wallet_registry.js - CRUD operations for global wallet registry
 
 /**
@@ -11797,7 +11798,7 @@ function getAllWallets(nk, logger, limit) {
 }
 
 
-// --- Module: copilot/wallet_utils.js ---
+// --- Module: copilot\wallet_utils.js ---
 // wallet_utils.js - Helper utilities for Cognito JWT handling and validation
 
 /**
@@ -11903,7 +11904,7 @@ function handleWalletError(logger, operation, error) {
 
 
 
-// --- Module: cross_game/cross_game.js ---
+// --- Module: cross_game\cross_game.js ---
 // cross_game.js - Cross-game RPCs for multi-game ecosystem features
 // Compatible with Nakama V8 JavaScript runtime (no ES modules)
 
@@ -12384,7 +12385,7 @@ function registerCrossGameRPCs(initializer, logger) {
 }
 
 
-// --- Module: daily_missions/daily_missions.js ---
+// --- Module: daily_missions\daily_missions.js ---
 // daily_missions.js - Daily Missions System (Per gameId UUID)
 
 /**
@@ -12763,219 +12764,7 @@ function rpcClaimMissionReward(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: daily_rewards/daily_reward_calendar.js ---
-// daily_reward_calendar.js - 30-Day Daily Reward Calendar View
-// Extends the daily rewards system with a full calendar preview
-// RPC: daily_reward_get_calendar
-
-var CALENDAR_REWARD_CONFIGS = {
-    "default": [
-        { day: 1,  xp: 50,   tokens: 40,   name: "Welcome Back",         tier: "common",    icon: "coin_stack" },
-        { day: 2,  xp: 75,   tokens: 50,   name: "Steady Start",         tier: "common",    icon: "coin_stack" },
-        { day: 3,  xp: 100,  tokens: 65,   name: "Power-Up Day",         tier: "uncommon",  icon: "lightning" },
-        { day: 4,  xp: 150,  tokens: 80,   name: "Momentum Builder",     tier: "common",    icon: "coin_stack" },
-        { day: 5,  xp: 200,  tokens: 100,  name: "XP Boost",             tier: "uncommon",  icon: "star", multiplier: "2x XP" },
-        { day: 6,  xp: 275,  tokens: 125,  name: "Almost There",         tier: "uncommon",  icon: "fire" },
-        { day: 7,  xp: 400,  tokens: 200,  name: "Weekly Champion",      tier: "rare",      icon: "trophy",   bonus: "weekly_badge" },
-        { day: 8,  xp: 60,   tokens: 45,   name: "Fresh Week",           tier: "common",    icon: "sunrise" },
-        { day: 9,  xp: 90,   tokens: 55,   name: "Keeping It Up",        tier: "common",    icon: "thumbsup" },
-        { day: 10, xp: 150,  tokens: 75,   name: "Double Digits",        tier: "uncommon",  icon: "sparkles" },
-        { day: 11, xp: 175,  tokens: 90,   name: "Committed Player",     tier: "common",    icon: "muscle" },
-        { day: 12, xp: 225,  tokens: 110,  name: "Power Surge",          tier: "uncommon",  icon: "lightning", multiplier: "2x XP" },
-        { day: 13, xp: 300,  tokens: 140,  name: "Lucky 13",             tier: "uncommon",  icon: "clover" },
-        { day: 14, xp: 500,  tokens: 250,  name: "Two-Week Legend",      tier: "rare",      icon: "crown",    bonus: "biweekly_chest" },
-        { day: 15, xp: 75,   tokens: 50,   name: "Halfway Point",        tier: "common",    icon: "flag" },
-        { day: 16, xp: 100,  tokens: 60,   name: "Steady Grinder",       tier: "common",    icon: "pickaxe" },
-        { day: 17, xp: 175,  tokens: 85,   name: "Streak Fire",          tier: "uncommon",  icon: "fire" },
-        { day: 18, xp: 200,  tokens: 100,  name: "Bonus Round",          tier: "uncommon",  icon: "gift" },
-        { day: 19, xp: 250,  tokens: 120,  name: "XP Rush",              tier: "uncommon",  icon: "rocket",   multiplier: "3x XP" },
-        { day: 20, xp: 350,  tokens: 160,  name: "Dedication Reward",    tier: "rare",      icon: "medal" },
-        { day: 21, xp: 600,  tokens: 300,  name: "Three-Week Warrior",   tier: "epic",      icon: "shield",   bonus: "mystery_box" },
-        { day: 22, xp: 100,  tokens: 65,   name: "Final Stretch",        tier: "common",    icon: "runner" },
-        { day: 23, xp: 150,  tokens: 80,   name: "Almost Legendary",     tier: "common",    icon: "hourglass" },
-        { day: 24, xp: 200,  tokens: 100,  name: "Power Player",         tier: "uncommon",  icon: "lightning" },
-        { day: 25, xp: 275,  tokens: 130,  name: "Quarter Century",      tier: "uncommon",  icon: "sparkles" },
-        { day: 26, xp: 350,  tokens: 150,  name: "XP Mega Boost",        tier: "rare",      icon: "rocket",   multiplier: "4x XP" },
-        { day: 27, xp: 400,  tokens: 175,  name: "Penultimate Push",     tier: "rare",      icon: "fire" },
-        { day: 28, xp: 500,  tokens: 200,  name: "Four-Week Hero",       tier: "epic",      icon: "crown",    bonus: "exclusive_avatar" },
-        { day: 29, xp: 600,  tokens: 250,  name: "The Final Countdown",  tier: "epic",      icon: "alarm" },
-        { day: 30, xp: 1000, tokens: 500,  name: "LEGENDARY REWARD",     tier: "legendary", icon: "dragon",   bonus: "legendary_chest", multiplier: "5x XP" }
-    ]
-};
-
-/**
- * Get the full 30-day calendar config for a game, falling back to default.
- */
-function getCalendarConfig(gameId) {
-    return CALENDAR_REWARD_CONFIGS[gameId] || CALENDAR_REWARD_CONFIGS["default"];
-}
-
-/**
- * RPC: daily_reward_get_calendar
- * Returns the full 30-day reward calendar with claimed/unclaimed status per day.
- */
-function rpcDailyRewardGetCalendar(ctx, logger, nk, payload) {
-    logger.info('[DailyRewardCalendar] daily_reward_get_calendar called');
-
-    try {
-        if (!ctx.userId) {
-            return JSON.stringify({ success: false, error: 'Authentication required' });
-        }
-
-        var data = JSON.parse(payload || '{}');
-        var gameId = data.game_id || data.gameId || 'default';
-        var userId = ctx.userId;
-
-        // Get the player's current streak data from the daily_streaks collection
-        var streakData = null;
-        try {
-            var streakKey = gameId + '_user_daily_streak_' + userId;
-            var records = nk.storageRead([{
-                collection: 'daily_streaks',
-                key: streakKey,
-                userId: userId
-            }]);
-            if (records && records.length > 0) {
-                streakData = records[0].value;
-            }
-        } catch (e) {
-            logger.warn('[DailyRewardCalendar] Could not read streak data: ' + e.message);
-        }
-
-        // Also try the alternate key pattern
-        if (!streakData) {
-            try {
-                var altKey = 'user_daily_streak_' + userId + '_' + gameId;
-                var altRecords = nk.storageRead([{
-                    collection: 'daily_streaks',
-                    key: altKey,
-                    userId: userId
-                }]);
-                if (altRecords && altRecords.length > 0) {
-                    streakData = altRecords[0].value;
-                }
-            } catch (e) { /* no streak yet */ }
-        }
-
-        var currentStreak = streakData ? (streakData.currentStreak || 0) : 0;
-        var lastClaimTimestamp = streakData ? (streakData.lastClaimTimestamp || 0) : 0;
-        var totalClaims = streakData ? (streakData.totalClaims || 0) : 0;
-
-        // Check if they can claim today
-        var canClaimToday = true;
-        if (lastClaimTimestamp > 0) {
-            var lastClaimDate = new Date(lastClaimTimestamp * 1000);
-            var today = new Date();
-            lastClaimDate.setHours(0, 0, 0, 0);
-            today.setHours(0, 0, 0, 0);
-            if (lastClaimDate.getTime() === today.getTime()) {
-                canClaimToday = false;
-            }
-            // Check streak break (>48h)
-            var nowUnix = Math.floor(Date.now() / 1000);
-            if ((nowUnix - lastClaimTimestamp) > 48 * 3600) {
-                currentStreak = 0;
-            }
-        }
-
-        // Build 30-day calendar
-        var config = getCalendarConfig(gameId);
-        var calendar = [];
-        var totalTokens = 0;
-        var totalXp = 0;
-
-        for (var day = 1; day <= 30; day++) {
-            var dayConfig = null;
-            for (var c = 0; c < config.length; c++) {
-                if (config[c].day === day) {
-                    dayConfig = config[c];
-                    break;
-                }
-            }
-
-            if (!dayConfig) {
-                // Fallback: cycle week 1 rewards with scaling
-                var weekDay = ((day - 1) % 7);
-                dayConfig = config[weekDay] || config[0];
-                var weekNum = Math.floor((day - 1) / 7) + 1;
-                dayConfig = {
-                    day: day,
-                    xp: Math.round(dayConfig.xp * (1 + (weekNum - 1) * 0.15)),
-                    tokens: Math.round(dayConfig.tokens * (1 + (weekNum - 1) * 0.15)),
-                    name: dayConfig.name,
-                    tier: dayConfig.tier,
-                    icon: dayConfig.icon
-                };
-            }
-
-            totalTokens += dayConfig.tokens || 0;
-            totalXp += dayConfig.xp || 0;
-
-            var status = 'locked';
-            if (day <= currentStreak) {
-                status = 'claimed';
-            } else if (day === currentStreak + 1 && canClaimToday) {
-                status = 'available';
-            } else if (day === currentStreak + 1 && !canClaimToday) {
-                status = 'claimed_today';
-            }
-
-            calendar.push({
-                day: day,
-                name: dayConfig.name,
-                tier: dayConfig.tier || 'common',
-                icon: dayConfig.icon || 'coin_stack',
-                rewards: {
-                    xp: dayConfig.xp || 0,
-                    tokens: dayConfig.tokens || 0,
-                    multiplier: dayConfig.multiplier || null,
-                    bonus: dayConfig.bonus || null
-                },
-                status: status
-            });
-        }
-
-        // Milestones summary
-        var milestones = [];
-        for (var m = 0; m < config.length; m++) {
-            if (config[m].tier === 'rare' || config[m].tier === 'epic' || config[m].tier === 'legendary') {
-                milestones.push({
-                    day: config[m].day,
-                    name: config[m].name,
-                    tier: config[m].tier,
-                    reached: config[m].day <= currentStreak
-                });
-            }
-        }
-
-        return JSON.stringify({
-            success: true,
-            user_id: userId,
-            game_id: gameId,
-            current_streak: currentStreak,
-            total_claims: totalClaims,
-            can_claim_today: canClaimToday,
-            calendar: calendar,
-            milestones: milestones,
-            totals: {
-                total_tokens_30_days: totalTokens,
-                total_xp_30_days: totalXp,
-                claimed_tokens: 0,
-                claimed_xp: 0
-            },
-            streak_status: currentStreak === 0 ? 'new' : (canClaimToday ? 'active' : 'claimed_today'),
-            next_milestone: null
-        });
-
-    } catch (err) {
-        logger.error('[DailyRewardCalendar] Error: ' + err.message);
-        logRpcError(nk, logger, 'daily_reward_get_calendar', err.message, ctx.userId, null);
-        return JSON.stringify({ success: false, error: err.message });
-    }
-}
-
-
-// --- Module: daily_rewards/daily_rewards.js ---
+// --- Module: daily_rewards\daily_rewards.js ---
 // daily_rewards.js - Daily Rewards & Streak System (Per gameId UUID)
 
 /**
@@ -13290,7 +13079,219 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: event_pipeline/event_pipeline.js ---
+// --- Module: daily_rewards\daily_reward_calendar.js ---
+// daily_reward_calendar.js - 30-Day Daily Reward Calendar View
+// Extends the daily rewards system with a full calendar preview
+// RPC: daily_reward_get_calendar
+
+var CALENDAR_REWARD_CONFIGS = {
+    "default": [
+        { day: 1,  xp: 50,   tokens: 40,   name: "Welcome Back",         tier: "common",    icon: "coin_stack" },
+        { day: 2,  xp: 75,   tokens: 50,   name: "Steady Start",         tier: "common",    icon: "coin_stack" },
+        { day: 3,  xp: 100,  tokens: 65,   name: "Power-Up Day",         tier: "uncommon",  icon: "lightning" },
+        { day: 4,  xp: 150,  tokens: 80,   name: "Momentum Builder",     tier: "common",    icon: "coin_stack" },
+        { day: 5,  xp: 200,  tokens: 100,  name: "XP Boost",             tier: "uncommon",  icon: "star", multiplier: "2x XP" },
+        { day: 6,  xp: 275,  tokens: 125,  name: "Almost There",         tier: "uncommon",  icon: "fire" },
+        { day: 7,  xp: 400,  tokens: 200,  name: "Weekly Champion",      tier: "rare",      icon: "trophy",   bonus: "weekly_badge" },
+        { day: 8,  xp: 60,   tokens: 45,   name: "Fresh Week",           tier: "common",    icon: "sunrise" },
+        { day: 9,  xp: 90,   tokens: 55,   name: "Keeping It Up",        tier: "common",    icon: "thumbsup" },
+        { day: 10, xp: 150,  tokens: 75,   name: "Double Digits",        tier: "uncommon",  icon: "sparkles" },
+        { day: 11, xp: 175,  tokens: 90,   name: "Committed Player",     tier: "common",    icon: "muscle" },
+        { day: 12, xp: 225,  tokens: 110,  name: "Power Surge",          tier: "uncommon",  icon: "lightning", multiplier: "2x XP" },
+        { day: 13, xp: 300,  tokens: 140,  name: "Lucky 13",             tier: "uncommon",  icon: "clover" },
+        { day: 14, xp: 500,  tokens: 250,  name: "Two-Week Legend",      tier: "rare",      icon: "crown",    bonus: "biweekly_chest" },
+        { day: 15, xp: 75,   tokens: 50,   name: "Halfway Point",        tier: "common",    icon: "flag" },
+        { day: 16, xp: 100,  tokens: 60,   name: "Steady Grinder",       tier: "common",    icon: "pickaxe" },
+        { day: 17, xp: 175,  tokens: 85,   name: "Streak Fire",          tier: "uncommon",  icon: "fire" },
+        { day: 18, xp: 200,  tokens: 100,  name: "Bonus Round",          tier: "uncommon",  icon: "gift" },
+        { day: 19, xp: 250,  tokens: 120,  name: "XP Rush",              tier: "uncommon",  icon: "rocket",   multiplier: "3x XP" },
+        { day: 20, xp: 350,  tokens: 160,  name: "Dedication Reward",    tier: "rare",      icon: "medal" },
+        { day: 21, xp: 600,  tokens: 300,  name: "Three-Week Warrior",   tier: "epic",      icon: "shield",   bonus: "mystery_box" },
+        { day: 22, xp: 100,  tokens: 65,   name: "Final Stretch",        tier: "common",    icon: "runner" },
+        { day: 23, xp: 150,  tokens: 80,   name: "Almost Legendary",     tier: "common",    icon: "hourglass" },
+        { day: 24, xp: 200,  tokens: 100,  name: "Power Player",         tier: "uncommon",  icon: "lightning" },
+        { day: 25, xp: 275,  tokens: 130,  name: "Quarter Century",      tier: "uncommon",  icon: "sparkles" },
+        { day: 26, xp: 350,  tokens: 150,  name: "XP Mega Boost",        tier: "rare",      icon: "rocket",   multiplier: "4x XP" },
+        { day: 27, xp: 400,  tokens: 175,  name: "Penultimate Push",     tier: "rare",      icon: "fire" },
+        { day: 28, xp: 500,  tokens: 200,  name: "Four-Week Hero",       tier: "epic",      icon: "crown",    bonus: "exclusive_avatar" },
+        { day: 29, xp: 600,  tokens: 250,  name: "The Final Countdown",  tier: "epic",      icon: "alarm" },
+        { day: 30, xp: 1000, tokens: 500,  name: "LEGENDARY REWARD",     tier: "legendary", icon: "dragon",   bonus: "legendary_chest", multiplier: "5x XP" }
+    ]
+};
+
+/**
+ * Get the full 30-day calendar config for a game, falling back to default.
+ */
+function getCalendarConfig(gameId) {
+    return CALENDAR_REWARD_CONFIGS[gameId] || CALENDAR_REWARD_CONFIGS["default"];
+}
+
+/**
+ * RPC: daily_reward_get_calendar
+ * Returns the full 30-day reward calendar with claimed/unclaimed status per day.
+ */
+function rpcDailyRewardGetCalendar(ctx, logger, nk, payload) {
+    logger.info('[DailyRewardCalendar] daily_reward_get_calendar called');
+
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({ success: false, error: 'Authentication required' });
+        }
+
+        var data = JSON.parse(payload || '{}');
+        var gameId = data.game_id || data.gameId || 'default';
+        var userId = ctx.userId;
+
+        // Get the player's current streak data from the daily_streaks collection
+        var streakData = null;
+        try {
+            var streakKey = gameId + '_user_daily_streak_' + userId;
+            var records = nk.storageRead([{
+                collection: 'daily_streaks',
+                key: streakKey,
+                userId: userId
+            }]);
+            if (records && records.length > 0) {
+                streakData = records[0].value;
+            }
+        } catch (e) {
+            logger.warn('[DailyRewardCalendar] Could not read streak data: ' + e.message);
+        }
+
+        // Also try the alternate key pattern
+        if (!streakData) {
+            try {
+                var altKey = 'user_daily_streak_' + userId + '_' + gameId;
+                var altRecords = nk.storageRead([{
+                    collection: 'daily_streaks',
+                    key: altKey,
+                    userId: userId
+                }]);
+                if (altRecords && altRecords.length > 0) {
+                    streakData = altRecords[0].value;
+                }
+            } catch (e) { /* no streak yet */ }
+        }
+
+        var currentStreak = streakData ? (streakData.currentStreak || 0) : 0;
+        var lastClaimTimestamp = streakData ? (streakData.lastClaimTimestamp || 0) : 0;
+        var totalClaims = streakData ? (streakData.totalClaims || 0) : 0;
+
+        // Check if they can claim today
+        var canClaimToday = true;
+        if (lastClaimTimestamp > 0) {
+            var lastClaimDate = new Date(lastClaimTimestamp * 1000);
+            var today = new Date();
+            lastClaimDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+            if (lastClaimDate.getTime() === today.getTime()) {
+                canClaimToday = false;
+            }
+            // Check streak break (>48h)
+            var nowUnix = Math.floor(Date.now() / 1000);
+            if ((nowUnix - lastClaimTimestamp) > 48 * 3600) {
+                currentStreak = 0;
+            }
+        }
+
+        // Build 30-day calendar
+        var config = getCalendarConfig(gameId);
+        var calendar = [];
+        var totalTokens = 0;
+        var totalXp = 0;
+
+        for (var day = 1; day <= 30; day++) {
+            var dayConfig = null;
+            for (var c = 0; c < config.length; c++) {
+                if (config[c].day === day) {
+                    dayConfig = config[c];
+                    break;
+                }
+            }
+
+            if (!dayConfig) {
+                // Fallback: cycle week 1 rewards with scaling
+                var weekDay = ((day - 1) % 7);
+                dayConfig = config[weekDay] || config[0];
+                var weekNum = Math.floor((day - 1) / 7) + 1;
+                dayConfig = {
+                    day: day,
+                    xp: Math.round(dayConfig.xp * (1 + (weekNum - 1) * 0.15)),
+                    tokens: Math.round(dayConfig.tokens * (1 + (weekNum - 1) * 0.15)),
+                    name: dayConfig.name,
+                    tier: dayConfig.tier,
+                    icon: dayConfig.icon
+                };
+            }
+
+            totalTokens += dayConfig.tokens || 0;
+            totalXp += dayConfig.xp || 0;
+
+            var status = 'locked';
+            if (day <= currentStreak) {
+                status = 'claimed';
+            } else if (day === currentStreak + 1 && canClaimToday) {
+                status = 'available';
+            } else if (day === currentStreak + 1 && !canClaimToday) {
+                status = 'claimed_today';
+            }
+
+            calendar.push({
+                day: day,
+                name: dayConfig.name,
+                tier: dayConfig.tier || 'common',
+                icon: dayConfig.icon || 'coin_stack',
+                rewards: {
+                    xp: dayConfig.xp || 0,
+                    tokens: dayConfig.tokens || 0,
+                    multiplier: dayConfig.multiplier || null,
+                    bonus: dayConfig.bonus || null
+                },
+                status: status
+            });
+        }
+
+        // Milestones summary
+        var milestones = [];
+        for (var m = 0; m < config.length; m++) {
+            if (config[m].tier === 'rare' || config[m].tier === 'epic' || config[m].tier === 'legendary') {
+                milestones.push({
+                    day: config[m].day,
+                    name: config[m].name,
+                    tier: config[m].tier,
+                    reached: config[m].day <= currentStreak
+                });
+            }
+        }
+
+        return JSON.stringify({
+            success: true,
+            user_id: userId,
+            game_id: gameId,
+            current_streak: currentStreak,
+            total_claims: totalClaims,
+            can_claim_today: canClaimToday,
+            calendar: calendar,
+            milestones: milestones,
+            totals: {
+                total_tokens_30_days: totalTokens,
+                total_xp_30_days: totalXp,
+                claimed_tokens: 0,
+                claimed_xp: 0
+            },
+            streak_status: currentStreak === 0 ? 'new' : (canClaimToday ? 'active' : 'claimed_today'),
+            next_milestone: null
+        });
+
+    } catch (err) {
+        logger.error('[DailyRewardCalendar] Error: ' + err.message);
+        logRpcError(nk, logger, 'daily_reward_get_calendar', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+
+// --- Module: event_pipeline\event_pipeline.js ---
 // event_pipeline.js - Unified event ingestion and reward-pending checks
 // Compatible with Nakama JavaScript runtime (no ES modules)
 
@@ -13688,7 +13689,7 @@ function rpcRewardsPending(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: external_analytics/external_analytics.js ---
+// --- Module: external_analytics\external_analytics.js ---
 /**
  * External Analytics Integration Module
  * Fetches analytics data from Appodeal, Apple App Store Connect, and Unity.
@@ -14174,7 +14175,7 @@ function __ModuleInit_27(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: external_pollers/external_pollers.js ---
+// --- Module: external_pollers\external_pollers.js ---
 // external_pollers.js — Phase 2.2 scheduled external-provider pollers.
 //
 // Solves: Revenue tabs (Appodeal / Apple App Store / Unity Gaming Services)
@@ -14562,7 +14563,7 @@ function __ModuleInit_28(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: fortune_wheel/fortune_wheel.js ---
+// --- Module: fortune_wheel\fortune_wheel.js ---
 /**
  * fortune_wheel.js — Fortune Wheel Backend (every 3 days)
  * RPCs: fortune_wheel_get_state, fortune_wheel_spin
@@ -14800,1184 +14801,772 @@ function grantReward(nk, userId, rewardType, amount, logger) {
 }
 
 
-// --- Module: friend_quests/friend_quests.js ---
-// friend_quests.js - Friend Quest System for QuizVerse v4.0
-// RPCs: friend_quest_get_state, friend_quest_complete
-// Spec: MRS §31 — 10 quest types, server-authoritative generation
-// v4.0: Server generates quests from user's friends list
+// --- Module: friends\friends.js ---
+// ============================================================================
+// friends.js — Helper-only module (Phase-4 C2 cleanup)
+// ============================================================================
+// PRODUCTION-READY | ES5 (Goja runtime)
+//
+// HISTORY
+// -------
+// This file used to host SIX RPC handlers and SEVERAL helpers:
+//   * RPCs: friends_block, friends_unblock, friends_remove, friends_list,
+//          friends_challenge_user, friends_spectate
+//   * Helpers: isValidFriendUUID, isUserBlocked, areActualFriends,
+//              checkRateLimit, sendChallengePushNotification,
+//              sendChallengeChatMessage
+//
+// All six RPCs were silently shadowed by canonical replacements:
+//   * friends_block / friends_unblock / friends_remove → src/legacy/friends.ts
+//   * friends_list                                    → src/friends/friends_list.ts (Phase-4 C1)
+//   * friends_challenge_user / friends_spectate       → friends/friend_challenges.js (Phase-3a)
+//
+// Phase-4 C2 strips the dead RPC handlers AND their now-unused helpers
+// (isValidFriendUUID, isUserBlocked, areActualFriends, checkRateLimit) so
+// nobody can read this file and "fix" the wrong code path. The lone
+// `checkRateLimit` deletion also removes a name collision with
+// `infrastructure/rate_limiting.js` which defines a totally different
+// function with the same name (different signature) — the
+// rate_limiting.js version was silently overwriting friends.js's at
+// merge time, which is the kind of subtle global-scope bug we never
+// want to hit.
+//
+// What remains
+// ------------
+// Two helper functions that `friends/friend_challenges.js` still calls
+// at runtime (via `typeof X === 'function'` lookups so the module is
+// resilient to load-order changes — see line 483-495 of
+// friend_challenges.js):
+//
+//   sendChallengePushNotification(nk, logger, targetUserId, gameId,
+//                                 challengerName, quizModeName,
+//                                 challengeId, roomCode, isAsync)
+//      → fans out a push notification via the PUSH_SEND_URL Lambda
+//        endpoint to every push_endpoints row owned by `targetUserId`
+//        for the given `gameId`. Used by send_friend_challenge.
+//
+//   sendChallengeChatMessage(nk, logger, senderId, receiverId,
+//                            senderName, challengeData)
+//      → inserts a "friend challenge" message into the DM channel
+//        between sender and receiver so the challenge appears in their
+//        chat thread. Falls back to a `pending_chat_messages` storage
+//        row if the channel insert fails.
+//
+// Both helpers are intentionally kept in the legacy JS module rather
+// than ported to TypeScript because (a) the Phase-3a TS challenge
+// module already has the canonical RPC handler, (b) these helpers are
+// pure side-effect fan-outs the TS handler delegates to via dynamic
+// lookup, and (c) the dynamic lookup pattern is the safest way to
+// handle "host calls helper if it exists, otherwise no-op" without
+// hard-coupling the two files.
+//
+// If you need to add a NEW friend RPC, ADD IT TO ONE OF:
+//   - friends/friend_invites.js     (invite lifecycle)
+//   - friends/friend_challenges.js  (challenge lifecycle + spectate)
+//   - src/friends/friends_list.ts   (read-only roster RPCs)
+//   - src/legacy/friends.ts         (graph mutations)
+// NOT to this file. This file should never grow back to handler size.
+// ============================================================================
+
 
 /**
- * Friend Quest System — Server-Authoritative
+ * Send a push notification for a friend challenge.
+ * Calls the push notification Lambda endpoint.
  *
- * 10 quest types generated from user's real friends list.
- * Server is the source of truth — client only renders.
- * Tracks progress, grants rewards (wallet + notification), duplicate protection.
- *
- * Storage: collection="friend_quests", key="quest_state_{userId}"
+ * @param {object} nk
+ * @param {object} logger
+ * @param {string} targetUserId   - Recipient userId (the challenged player)
+ * @param {string} gameId         - Free-form game/mode id (used to filter push_endpoints)
+ * @param {string} challengerName - Display name shown in the push title
+ * @param {string} quizModeName   - Display name of the quiz mode for the body
+ * @param {string} challengeId    - Server-authoritative challenge id (echoed in data)
+ * @param {string} roomCode       - Room/share code (echoed in data)
+ * @param {boolean} isAsync       - True for async challenges, false for live
  */
+function sendChallengePushNotification(nk, logger, targetUserId, gameId, challengerName, quizModeName, challengeId, roomCode, isAsync) {
+    var LAMBDA_PUSH_URL = (typeof process!=="undefined"&&process.env?process.env.PUSH_SEND_URL:undefined) || "https://your-lambda-url.lambda-url.region.on.aws/send-push";
 
-// ─── CONSTANTS ──────────────────────────────────────────────────────────────
-
-var FQ_COLLECTION = 'friend_quests';
-var FQ_MAX_ACTIVE = 3;
-var FQ_REFRESH_HOURS = 8;
-
-// 10 quest types matching client-side QuestType enum
-var FQ_QUEST_TYPES = [
-    'PlayTogether',
-    'ChallengeFriend',
-    'StudyBuddy',
-    'GroupStreak',
-    'BeatInSpeedQuiz',
-    'DailyQuizDuo',
-    'PerfectRound',
-    'ExploreTogether',
-    'ShareScore',
-    'WinThreeQuizzes'
-];
-
-// Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
-var FQ_TEMPLATES = {
-    PlayTogether: {
-        title: 'Play with {0}',
-        desc: 'Complete a quiz while {0} is online',
-        target: 1, coins: 50, xp: 25
-    },
-    ChallengeFriend: {
-        title: 'Challenge {0}',
-        desc: 'Send a challenge to {0} and have them accept',
-        target: 1, coins: 75, xp: 40
-    },
-    StudyBuddy: {
-        title: 'Study with {0}',
-        desc: 'Both you and {0} complete a review session today',
-        target: 1, coins: 100, xp: 50
-    },
-    GroupStreak: {
-        title: '7-Day Streak with {0}',
-        desc: 'Maintain your friend streak with {0} for 7 days',
-        target: 7, coins: 200, xp: 100
-    },
-    BeatInSpeedQuiz: {
-        title: 'Beat {0} in Speed Quiz',
-        desc: 'Score higher than {0} in a Speed Quiz',
-        target: 1, coins: 75, xp: 40
-    },
-    DailyQuizDuo: {
-        title: 'Daily Quiz Duo with {0}',
-        desc: 'Both you and {0} complete the Daily Quiz today',
-        target: 1, coins: 60, xp: 30
-    },
-    PerfectRound: {
-        title: 'Perfect Round with {0}',
-        desc: 'Both answer 5 questions correctly in same session',
-        target: 5, coins: 100, xp: 50
-    },
-    ExploreTogether: {
-        title: 'Explore Together with {0}',
-        desc: 'Both play GeoExplore mode on the same day',
-        target: 1, coins: 75, xp: 40
-    },
-    ShareScore: {
-        title: 'Share a Score with {0}',
-        desc: 'Share your quiz result with {0}',
-        target: 1, coins: 50, xp: 25
-    },
-    WinThreeQuizzes: {
-        title: 'Win 3 Quizzes with {0}',
-        desc: 'Win 3 quizzes while {0} is online',
-        target: 3, coins: 150, xp: 75
-    }
-};
-
-// ─── HELPERS ────────────────────────────────────────────────────────────────
-
-function fqStorageKey(userId) {
-    return 'quest_state_' + userId;
-}
-
-function fqReadData(nk, logger, userId) {
+    var endpoints = [];
     try {
-        var records = nk.storageRead([{
-            collection: FQ_COLLECTION,
-            key: fqStorageKey(userId),
-            userId: userId
-        }]);
-        if (records && records.length > 0 && records[0].value) {
-            return records[0].value;
+        var records = nk.storageList(targetUserId, "push_endpoints", 100);
+        for (var i = 0; i < records.length; i++) {
+            var value = records[i].value;
+            if (value.gameId === gameId) {
+                endpoints.push(value);
+            }
         }
     } catch (err) {
-        logger.warn('[FriendQuests] Storage read failed: ' + err.message);
+        utils.logWarn(logger, "Could not list push endpoints: " + err.message);
+        return;
     }
-    return null;
-}
 
-function fqWriteData(nk, logger, userId, data) {
-    try {
-        nk.storageWrite([{
-            collection: FQ_COLLECTION,
-            key: fqStorageKey(userId),
-            userId: userId,
-            value: data,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-        return true;
-    } catch (err) {
-        logger.error('[FriendQuests] Storage write failed: ' + err.message);
-        return false;
+    if (endpoints.length === 0) {
+        utils.logInfo(logger, "No push endpoints for user " + targetUserId);
+        return;
+    }
+
+    var challengeType = isAsync ? "Async Challenge" : "Live Challenge";
+    var title = "🎮 " + challengerName + " challenged you!";
+    var body  = "Accept the " + quizModeName + " " + challengeType + " now!";
+
+    for (var j = 0; j < endpoints.length; j++) {
+        var endpoint = endpoints[j];
+
+        var pushPayload = {
+            endpointArn: endpoint.endpointArn,
+            platform:    endpoint.platform,
+            title:       title,
+            body:        body,
+            data: {
+                type:         "friend_challenge",
+                challengeId:  challengeId,
+                roomCode:     roomCode,
+                isAsync:      isAsync,
+                click_action: "OPEN_CHALLENGE"
+            },
+            gameId:    gameId,
+            eventType: "friend_challenge"
+        };
+
+        try {
+            var response = nk.httpRequest(
+                LAMBDA_PUSH_URL,
+                "post",
+                { "Content-Type": "application/json", "Accept": "application/json" },
+                JSON.stringify(pushPayload)
+            );
+            if (response.code === 200 || response.code === 201) {
+                utils.logInfo(logger, "Push sent to " + endpoint.platform + " for challenge " + challengeId);
+            }
+        } catch (pushErr) {
+            utils.logWarn(logger, "Push to " + endpoint.platform + " failed: " + pushErr.message);
+        }
     }
 }
-
-function fqInitData() {
-    return {
-        quests: [],
-        completedIds: [],
-        lastRefresh: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
-}
-
-function fqError(msg) {
-    return JSON.stringify({ success: false, error: msg });
-}
-
-function fqGenerateId() {
-    // 8-char hex ID
-    var chars = '0123456789abcdef';
-    var id = '';
-    for (var i = 0; i < 8; i++) {
-        id += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return id;
-}
-
-function fqFormatString(template, friendName) {
-    return template.replace(/\{0\}/g, friendName);
-}
-
-// ─── SERVER-SIDE QUEST GENERATION ───────────────────────────────────────────
 
 /**
- * Generate quests from user's Nakama friends list.
- * Called by friend_quest_get_state when no active quests exist or they've expired.
+ * Send a friend challenge as a chat message so it appears in the conversation
+ * thread between the two users.
+ *
+ * @param {object} nk
+ * @param {object} logger
+ * @param {string} senderId      - Challenger userId
+ * @param {string} receiverId    - Challenged userId
+ * @param {string} senderName    - Challenger display name
+ * @param {object} challengeData - { challengeId, roomCode, quizModeName, isAsync,
+ *                                   fromUserId, fromDisplayName, expiresAt }
  */
-function fqGenerateQuests(nk, logger, userId, existingData) {
-    // Get user's friends list
-    var friends = [];
+function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, challengeData) {
+    var channelId = null;
     try {
-        var friendsResult = nk.friendsList(userId, null, null, null);
-        if (friendsResult && friendsResult.friends) {
-            for (var i = 0; i < friendsResult.friends.length; i++) {
-                var f = friendsResult.friends[i];
-                if (f && f.user && f.user.id) {
-                    var displayName = f.user.displayName || f.user.username || 'Friend';
-                    friends.push({ id: f.user.id, name: displayName });
+        // Sort user IDs so both sides resolve to the same DM channel
+        var sortedIds = [senderId, receiverId].sort();
+        channelId = "dm_" + sortedIds[0] + "_" + sortedIds[1];
+    } catch (err) {
+        utils.logWarn(logger, "Could not create channel ID: " + err.message);
+        return;
+    }
+
+    var messageContent = {
+        type: "friend_challenge",
+        text: "🎮 " + senderName + " challenged you to " + challengeData.quizModeName + "!",
+        challenge: {
+            challengeId:     challengeData.challengeId,
+            roomCode:        challengeData.roomCode,
+            shareCode:       challengeData.roomCode,
+            quizModeName:    challengeData.quizModeName,
+            isAsync:         challengeData.isAsync,
+            fromUserId:      challengeData.fromUserId,
+            fromDisplayName: challengeData.fromDisplayName,
+            expiresAt:       challengeData.expiresAt,
+            status:          "pending"
+        }
+    };
+
+    try {
+        nk.channelMessageSend(
+            channelId,
+            JSON.stringify(messageContent),
+            senderId,
+            senderName,
+            true  // persistent
+        );
+        utils.logInfo(logger, "Challenge chat message sent to channel " + channelId);
+    } catch (chatErr) {
+        // Fallback: if the DM channel doesn't exist yet, persist the message
+        // so it can be replayed when the channel is later opened.
+        utils.logWarn(logger, "Channel message failed, using storage fallback: " + chatErr.message);
+
+        var msgKey = "pending_chat_" + receiverId + "_" + Date.now();
+        utils.writeStorage(nk, logger, "pending_chat_messages", msgKey, senderId, {
+            senderId:    senderId,
+            senderName:  senderName,
+            receiverId:  receiverId,
+            content:     messageContent,
+            timestamp:   utils.getCurrentTimestamp()
+        });
+    }
+}
+
+
+// --- Module: friends\friends_extras.js ---
+// ============================================================================
+// friends_extras.js — Social Pressure / Online Count / Battle / Invite-Reward
+// ============================================================================
+// PRODUCTION-READY | ES5 (Goja runtime)
+//
+// Houses 4 RPCs that PLAN-ENGAGEMENT_SYSTEM_07_FRIENDS_SOCIAL.md (V11/V17/V20)
+// requires the server to expose:
+//
+//   friends_get_online_count
+//       -> count of caller's mutual friends currently online (Nakama presence)
+//
+//   social_pressure_get_today_summary
+//       -> aggregates "friends played today / friends ahead of me / streak at
+//          risk" data into a single response so the client doesn't need to
+//          stitch 4 separate reads.
+//
+//   friend_battle_create
+//       -> server-mints a battleId/roomCode, persists the lobby record under
+//          friend_battles/<battleId>, fans out invitations + push notifications
+//          to each invited friend. Atomic: if any non-friend is invited the
+//          whole call fails before any side-effect.
+//
+//   friend_invite_with_reward
+//       -> sends a friend invite (Nakama friendsAdd) AND tags it with a
+//          reward bundle that's claimable when the recipient accepts. The
+//          claim happens in send_friend_invite/accept_friend_invite already;
+//          this RPC is a thin wrapper that records the reward intent so the
+//          accept-handler can grant it.
+//
+// SECURITY: every RPC requires an authenticated caller (ctx.userId set), and
+// every "target" is verified as a confirmed mutual friend (Nakama state == 0)
+// before any side-effect.
+// ============================================================================
+
+var FX_BATTLE_COLLECTION = 'friend_battles';
+var FX_INVITE_REWARD_COL = 'friend_invite_rewards';
+var FX_BATTLE_MAX_INVITES = 8;
+var FX_BATTLE_MAX_DATA_BYTES = 4096;
+
+// ─── Tiny self-contained helpers ────────────────────────────────────────────
+// Same defensive pattern as friend_challenges.js — no `utils` dependency so
+// load-order can't break this module.
+
+function _fxUuidValid(id) {
+    if (!id || typeof id !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function _fxNowIso() { return new Date().toISOString(); }
+
+function _fxOk(extra) {
+    var out = { success: true };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+function _fxErr(message, errorCode, extra) {
+    var out = { success: false, error: message, errorCode: errorCode || 'unknown' };
+    if (extra) {
+        for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+function _fxParse(payload) {
+    if (!payload || payload === '') return { ok: true, data: {} };
+    try { return { ok: true, data: JSON.parse(payload) }; }
+    catch (e)  { return { ok: false, error: 'Invalid JSON payload: ' + e.message }; }
+}
+
+function _fxMintBattleId(nk) {
+    try {
+        if (nk && typeof nk.uuidv4 === 'function') {
+            return 'fbat_' + nk.uuidv4().replace(/-/g, '');
+        }
+    } catch (_) {}
+    var hex = '0123456789abcdef';
+    var rand = '';
+    for (var i = 0; i < 24; i++) rand += hex.charAt(Math.floor(Math.random() * 16));
+    return 'fbat_' + Date.now().toString(36) + '_' + rand;
+}
+
+// Returns array of confirmed-friend objects: [{ id, displayName, online }]
+function _fxLoadFriends(nk) {
+    var out = [];
+    try {
+        var page = nk.friendsList(null, 1000, 0, null); // state=0 (FRIEND)
+        if (page && page.friends) {
+            for (var i = 0; i < page.friends.length; i++) {
+                var fr = page.friends[i];
+                if (fr && fr.user && fr.user.id) {
+                    out.push({
+                        id:          fr.user.id,
+                        displayName: fr.user.displayName || fr.user.username || 'Friend',
+                        online:      !!fr.user.online
+                    });
                 }
             }
         }
-    } catch (err) {
-        logger.warn('[FriendQuests] Could not fetch friends list: ' + err.message);
-    }
-
-    if (friends.length === 0) {
-        logger.info('[FriendQuests] No friends found for user ' + userId + ' — no quests generated');
-        return [];
-    }
-
-    // Determine how many quests to generate
-    var activeCount = 0;
-    var now = new Date();
-    if (existingData && existingData.quests) {
-        for (var j = 0; j < existingData.quests.length; j++) {
-            var q = existingData.quests[j];
-            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) {
-                activeCount++;
-            }
-        }
-    }
-
-    var toGenerate = FQ_MAX_ACTIVE - activeCount;
-    if (toGenerate <= 0) return existingData ? existingData.quests : [];
-
-    // Shuffle quest types to get random selection
-    var shuffledTypes = FQ_QUEST_TYPES.slice();
-    for (var s = shuffledTypes.length - 1; s > 0; s--) {
-        var r = Math.floor(Math.random() * (s + 1));
-        var tmp = shuffledTypes[s];
-        shuffledTypes[s] = shuffledTypes[r];
-        shuffledTypes[r] = tmp;
-    }
-
-    var newQuests = [];
-    var expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString();
-    var createdAt = now.toISOString();
-
-    for (var k = 0; k < toGenerate; k++) {
-        var friend = friends[k % friends.length];
-        var questType = shuffledTypes[k % shuffledTypes.length];
-        var template = FQ_TEMPLATES[questType];
-
-        if (!template) continue;
-
-        newQuests.push({
-            questId: fqGenerateId(),
-            type: questType,
-            friendId: friend.id,
-            friendDisplayName: friend.name,
-            title: fqFormatString(template.title, friend.name),
-            description: fqFormatString(template.desc, friend.name),
-            currentProgress: 0,
-            targetProgress: template.target,
-            isCompleted: false,
-            coinReward: template.coins,
-            xpReward: template.xp,
-            createdAt: createdAt,
-            expiresAt: expiresAt
-        });
-    }
-
-    logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests from ' +
-                friends.length + ' friends for user ' + userId);
-    return newQuests;
+    } catch (_) {}
+    return out;
 }
 
-// ─── RPC: friend_quest_get_state ────────────────────────────────────────────
-
-function rpcFriendQuestGetState(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var data = fqReadData(nk, logger, ctx.userId);
-    if (!data) data = fqInitData();
-
-    // Check if we need to generate new quests
-    var now = new Date();
-    var needsRefresh = false;
-
-    // Filter active non-expired quests
-    var activeQuests = [];
-    var expiredOrCompleted = [];
-    if (data.quests && data.quests.length > 0) {
-        for (var i = 0; i < data.quests.length; i++) {
-            var q = data.quests[i];
-            if (q.isCompleted) {
-                expiredOrCompleted.push(q);
-            } else if (q.expiresAt && new Date(q.expiresAt) <= now) {
-                // Expired — don't include
-                expiredOrCompleted.push(q);
-            } else {
-                activeQuests.push(q);
-            }
-        }
-    }
-
-    // Check refresh timer
-    if (data.lastRefresh) {
-        var lastRefreshDate = new Date(data.lastRefresh);
-        var hoursSince = (now.getTime() - lastRefreshDate.getTime()) / (1000 * 60 * 60);
-        if (hoursSince >= FQ_REFRESH_HOURS) {
-            needsRefresh = true;
-        }
-    } else {
-        needsRefresh = true;
-    }
-
-    // Generate new quests if needed
-    if (activeQuests.length < FQ_MAX_ACTIVE && needsRefresh) {
-        // Keep completed quests for history, replace active with fresh
-        data.quests = activeQuests; // Keep valid active ones
-        var newQuests = fqGenerateQuests(nk, logger, ctx.userId, data);
-
-        // Merge new quests
-        for (var j = 0; j < newQuests.length; j++) {
-            data.quests.push(newQuests[j]);
-        }
-
-        data.lastRefresh = now.toISOString();
-        data.updatedAt = now.toISOString();
-        fqWriteData(nk, logger, ctx.userId, data);
-
-        activeQuests = [];
-        for (var k = 0; k < data.quests.length; k++) {
-            if (!data.quests[k].isCompleted) {
-                activeQuests.push(data.quests[k]);
-            }
-        }
-    }
-
-    return JSON.stringify({
-        success: true,
-        quests: activeQuests,
-        completedIds: data.completedIds || [],
-        lastRefresh: data.lastRefresh || null,
-        timestamp: now.toISOString()
-    });
-}
-
-// ─── RPC: friend_quest_complete ─────────────────────────────────────────────
-
-function rpcFriendQuestComplete(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var input;
-    try { input = JSON.parse(payload); } catch (e) { return fqError('Invalid JSON'); }
-
-    var questId = input.questId;
-    var questType = input.questType;
-    var friendId = input.friendId;
-    var coinReward = input.coinReward || 50;
-    var xpReward = input.xpReward || 25;
-
-    if (!questId || !questType) return fqError('Missing questId or questType');
-
-    var data = fqReadData(nk, logger, ctx.userId) || fqInitData();
-
-    // Duplicate protection
-    if (!data.completedIds) data.completedIds = [];
-    for (var i = 0; i < data.completedIds.length; i++) {
-        if (data.completedIds[i] === questId) {
-            return JSON.stringify({
-                success: false,
-                error: 'Quest already completed',
-                already_completed: true
-            });
-        }
-    }
-
-    // Mark completed
-    data.completedIds.push(questId);
-
-    // Update quest record if exists — use server-stored rewards for authority
-    if (data.quests) {
-        for (var j = 0; j < data.quests.length; j++) {
-            if (data.quests[j].questId === questId) {
-                data.quests[j].isCompleted = true;
-                // Use server-stored reward values (authoritative)
-                if (data.quests[j].coinReward) coinReward = data.quests[j].coinReward;
-                if (data.quests[j].xpReward) xpReward = data.quests[j].xpReward;
-                break;
-            }
-        }
-    }
-
-    // Grant rewards via wallet — coins + XP
-    try {
-        var changeset = {};
-        changeset['coins'] = coinReward;
-        changeset['xp'] = xpReward;
-        nk.walletUpdate(ctx.userId, changeset, {
-            source: 'friend_quest_' + questType
-        }, true);
-    } catch (walletErr) {
-        logger.warn('[FriendQuests] Wallet update failed: ' + walletErr.message);
-    }
-
-    // Save state
-    data.updatedAt = new Date().toISOString();
-    fqWriteData(nk, logger, ctx.userId, data);
-
-    // Notify friend about completion
-    if (friendId) {
-        try {
-            nk.notificationsSend([{
-                userId: friendId,
-                subject: 'Friend Quest Completed!',
-                content: {
-                    type: 'friend_quest_complete',
-                    quest_type: questType,
-                    friend_id: ctx.userId
-                },
-                code: 102,
-                persistent: true
-            }]);
-        } catch (notifErr) {
-            logger.warn('[FriendQuests] Friend notification failed: ' + notifErr.message);
-        }
-    }
-
-    logger.info('[FriendQuests] Quest completed: ' + questId + ' type=' + questType +
-                ' coins=' + coinReward + ' xp=' + xpReward +
-                ' user=' + ctx.userId);
-
-    return JSON.stringify({
-        success: true,
-        questId: questId,
-        coinReward: coinReward,
-        xpReward: xpReward,
-        timestamp: new Date().toISOString()
-    });
-}
-
-// ─── RPC: friend_quest_record_progress ──────────────────────────────────────
+// ============================================================================
+// RPC: friends_get_online_count
+// ============================================================================
 //
-// Server-authoritative progress increment. Closes the
-// "client-trusted friend_quest_complete" exploit (PLAN-07 §V4) by making the
-// server the owner of `quest.currentProgress`. Client only reports the
-// interaction event; server validates type ↔ event compatibility and bumps.
-//
-// Payload: {
-//   questId: <string>,
-//   eventType: 'quiz_win' | 'quiz_complete' | 'review_session' | 'speed_quiz_win' |
-//              'daily_quiz_complete' | 'perfect_round' | 'geo_explore_play' |
-//              'share_score' | 'challenge_accepted' | 'play_with_friend',
-//   amount?: <number, default 1>
+// Payload: {}  (no inputs)
+// Response: {
+//   success: true,
+//   onlineCount: <int>,
+//   totalFriends: <int>,
+//   onlineFriendIds: [<UUID>...],   // capped at 50 for response-size sanity
+//   timestamp: <iso>
 // }
 //
-// Returns the updated quest record (or completion notification if it just
-// crossed the targetProgress threshold). NEVER auto-grants rewards — caller
-// must follow up with friend_quest_complete (which now also re-validates).
-//
-// Validation rules: each questType has an allow-list of compatible eventTypes;
-// foreign event types are silently ignored (return success:true, applied:0).
-var FQ_EVENT_RULES = {
-    PlayTogether:    { events: ['quiz_complete','play_with_friend'] },
-    ChallengeFriend: { events: ['challenge_accepted'] },
-    StudyBuddy:      { events: ['review_session'] },
-    GroupStreak:     { events: ['streak_advanced'] },
-    BeatInSpeedQuiz: { events: ['speed_quiz_win'] },
-    DailyQuizDuo:    { events: ['daily_quiz_complete'] },
-    PerfectRound:    { events: ['perfect_round','quiz_complete'] },
-    ExploreTogether: { events: ['geo_explore_play'] },
-    ShareScore:      { events: ['share_score'] },
-    WinThreeQuizzes: { events: ['quiz_win'] }
-};
+// Reads via nk.friendsList(state=0) which already includes the `online` flag
+// from Nakama presence — no extra round-trip needed.
+function rpcFriendsGetOnlineCount(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
 
-function rpcFriendQuestRecordProgress(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fqError('User not authenticated');
-
-    var input;
-    try { input = JSON.parse(payload || '{}'); } catch (e) { return fqError('Invalid JSON'); }
-
-    var questId   = input.questId;
-    var eventType = input.eventType;
-    var amount    = parseInt(input.amount) || 1;
-    if (!questId || !eventType) return fqError('Missing questId or eventType');
-    if (amount < 1 || amount > 100) return fqError('Invalid amount (1..100)');
-
-    var data = fqReadData(nk, logger, ctx.userId);
-    if (!data || !data.quests) return fqError('No quest state — call friend_quest_get_state first');
-
-    var found = null;
-    for (var i = 0; i < data.quests.length; i++) {
-        if (data.quests[i].questId === questId) { found = data.quests[i]; break; }
-    }
-    if (!found) return fqError('Quest not found: ' + questId);
-
-    // Refuse to mutate completed/expired quests
-    if (found.isCompleted) {
-        return JSON.stringify({
-            success: true,
-            applied: 0,
-            quest: found,
-            message: 'Quest already completed',
-            timestamp: new Date().toISOString()
-        });
-    }
-    if (found.expiresAt && new Date(found.expiresAt) <= new Date()) {
-        return JSON.stringify({
-            success: true,
-            applied: 0,
-            quest: found,
-            message: 'Quest expired',
-            timestamp: new Date().toISOString()
-        });
+    var friends = [];
+    try {
+        var page = nk.friendsList(ctx.userId, 1000, 0, null);
+        if (page && page.friends) friends = page.friends;
+    } catch (e) {
+        logger.warn('[FriendsExtras] friendsList failed: ' + e.message);
+        return _fxErr('Failed to load friends list', 'friends_list_failed');
     }
 
-    // Event-type ↔ quest-type compatibility check
-    var rule = FQ_EVENT_RULES[found.type];
-    if (!rule) return fqError('Unknown quest type: ' + found.type);
-    var allowed = false;
-    for (var e = 0; e < rule.events.length; e++) {
-        if (rule.events[e] === eventType) { allowed = true; break; }
-    }
-    if (!allowed) {
-        return JSON.stringify({
-            success: true,
-            applied: 0,
-            quest: found,
-            message: 'Event type ' + eventType + ' not applicable to quest type ' + found.type,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    // Apply progress (clamped at target)
-    var prevProgress = found.currentProgress || 0;
-    var target       = found.targetProgress || 1;
-    var newProgress  = Math.min(target, prevProgress + amount);
-    var applied      = newProgress - prevProgress;
-    found.currentProgress = newProgress;
-
-    // Auto-complete server-side when threshold reached
-    var justCompleted = false;
-    if (newProgress >= target && !found.isCompleted) {
-        found.isCompleted = true;
-        justCompleted = true;
-        if (!data.completedIds) data.completedIds = [];
-        // De-dup completedIds
-        var alreadyCompleted = false;
-        for (var c = 0; c < data.completedIds.length; c++) {
-            if (data.completedIds[c] === questId) { alreadyCompleted = true; break; }
+    var onlineIds = [];
+    for (var i = 0; i < friends.length; i++) {
+        var fr = friends[i];
+        if (fr && fr.user && fr.user.id && fr.user.online === true) {
+            if (onlineIds.length < 50) onlineIds.push(fr.user.id);
         }
-        if (!alreadyCompleted) data.completedIds.push(questId);
     }
 
-    data.updatedAt = new Date().toISOString();
-    if (!fqWriteData(nk, logger, ctx.userId, data)) {
-        return fqError('Failed to save quest progress');
-    }
-
-    logger.info('[FriendQuests] record_progress questId=' + questId +
-                ' type=' + found.type + ' eventType=' + eventType +
-                ' applied=' + applied + ' newProgress=' + newProgress + '/' + target +
-                (justCompleted ? ' COMPLETED' : ''));
-
-    return JSON.stringify({
-        success: true,
-        questId: questId,
-        applied: applied,
-        currentProgress: newProgress,
-        targetProgress: target,
-        isCompleted: found.isCompleted,
-        justCompleted: justCompleted,
-        // When justCompleted, the client should call friend_quest_complete to
-        // claim the reward — but server already marks isCompleted so the
-        // claim is purely a wallet transaction at that point.
-        coinReward: justCompleted ? (found.coinReward || 0) : undefined,
-        xpReward:   justCompleted ? (found.xpReward || 0)   : undefined,
-        timestamp: new Date().toISOString()
+    return _fxOk({
+        onlineCount:     onlineIds.length,
+        totalFriends:    friends.length,
+        onlineFriendIds: onlineIds,
+        timestamp:       _fxNowIso()
     });
 }
 
 // ============================================================================
-// Module Init — register Friend Quest RPCs
+// RPC: social_pressure_get_today_summary
 // ============================================================================
-function __ModuleInit_30(ctx, logger, nk, initializer) {
-    __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState);
-    __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete);
-    __rpc_friend_quest_record_progress = __rpc_friend_quest_record_progress || (rpcFriendQuestRecordProgress);
-    if (logger && logger.info) {
-        logger.info('[FriendQuests] Registered 3 RPCs (get_state, complete, record_progress)');
-    }
-}
-
-
-// --- Module: friend_streaks/friend_streaks.js ---
-// friend_streaks.js - Bilateral Friend Streak System for QuizVerse v3.0
-// RPCs: friend_streak_get_state, friend_streak_record_contribution, friend_streak_send_nudge
-// Spec: MRS §29-§31 — Snapchat-style bilateral daily streaks
-
-/**
- * Friend Streak System — Production-Ready
- *
- * Tracks bilateral daily streaks between friends (both must play each day).
- * Max 5 concurrent streaks per player. Unlocks at Day 14.
- * Nudge system: 3 nudges/day with 4h cooldown per friend.
- *
- * Storage: collection="friend_streaks", key="streaks_{userId}"
- */
-
-// ─── CONSTANTS ──────────────────────────────────────────────────────────────
-
-var FS_COLLECTION = 'friend_streaks';
-var FS_MAX_CONCURRENT = 5;
-var FS_NUDGES_PER_DAY = 3;
-var FS_NUDGE_COOLDOWN_HOURS = 4;
-var FS_STREAK_BREAK_HOURS = 48; // 2 days without bilateral contribution = broken
-
-// ─── HELPERS ────────────────────────────────────────────────────────────────
-
-function fsStorageKey(userId) {
-    return 'streaks_' + userId;
-}
-
-function fsReadData(nk, logger, userId) {
-    try {
-        var records = nk.storageRead([{
-            collection: FS_COLLECTION,
-            key: fsStorageKey(userId),
-            userId: userId
-        }]);
-        if (records && records.length > 0 && records[0].value) {
-            return records[0].value;
-        }
-    } catch (err) {
-        logger.warn('[FriendStreaks] Storage read failed: ' + err.message);
-    }
-    return null;
-}
-
-function fsWriteData(nk, logger, userId, data) {
-    try {
-        nk.storageWrite([{
-            collection: FS_COLLECTION,
-            key: fsStorageKey(userId),
-            userId: userId,
-            value: data,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-        return true;
-    } catch (err) {
-        logger.error('[FriendStreaks] Storage write failed: ' + err.message);
-        return false;
-    }
-}
-
-function fsInitData() {
-    return {
-        streaks: {},
-        nudgesSentToday: 0,
-        nudgeDateKey: '',
-        lastNudgeTimes: {},
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
-}
-
-function fsError(msg) {
-    return JSON.stringify({ success: false, error: msg });
-}
-
-function fsTodayKey() {
-    return new Date().toISOString().slice(0, 10).replace(/-/g, '');
-}
-
-function fsHoursSince(isoDate) {
-    if (!isoDate) return 9999;
-    return (Date.now() - new Date(isoDate).getTime()) / 3600000;
-}
-
-// Clean up broken streaks. When a streak is broken we also persist a
-// rolling "broken log" entry under collection=friend_streaks key=broken_log_{userId}
-// so the player's UI can later surface "you lost a 30-day streak with X" even
-// if they weren't online when the prune happened (V23 in PLAN-07).
-var FS_BROKEN_LOG_MAX = 50;
-
-function fsAppendBrokenLog(nk, logger, userId, brokenList) {
-    if (!brokenList || brokenList.length === 0) return;
-    try {
-        var existing = [];
-        try {
-            var rows = nk.storageRead([{
-                collection: FS_COLLECTION,
-                key: 'broken_log_' + userId,
-                userId: userId
-            }]);
-            if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
-                existing = rows[0].value.entries;
-            }
-        } catch (_) {}
-
-        var now = new Date().toISOString();
-        for (var i = 0; i < brokenList.length; i++) {
-            var b = brokenList[i];
-            existing.unshift({
-                friendId:  b.friendId,
-                streakDays: b.days || 0,
-                brokenAt:  now,
-                repaired:  false
-            });
-        }
-        if (existing.length > FS_BROKEN_LOG_MAX) {
-            existing = existing.slice(0, FS_BROKEN_LOG_MAX);
-        }
-
-        nk.storageWrite([{
-            collection: FS_COLLECTION,
-            key: 'broken_log_' + userId,
-            userId: userId,
-            value: { entries: existing, updatedAt: now },
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-    } catch (err) {
-        if (logger && logger.warn) logger.warn('[FriendStreaks] broken-log persist failed: ' + err.message);
-    }
-}
-
-function fsPruneStreaks(data) {
-    var pruned = [];
-    for (var fid in data.streaks) {
-        var s = data.streaks[fid];
-        if (fsHoursSince(s.lastInteractionAt) > FS_STREAK_BREAK_HOURS) {
-            pruned.push({ friendId: fid, days: s.streakDays, friendDisplayName: s.friendDisplayName || '' });
-            delete data.streaks[fid];
-        }
-    }
-    return pruned;
-}
-
-// Reset daily nudge counter if new day
-function fsRefreshNudges(data) {
-    var today = fsTodayKey();
-    if (data.nudgeDateKey !== today) {
-        data.nudgesSentToday = 0;
-        data.nudgeDateKey = today;
-        data.lastNudgeTimes = {};
-    }
-}
-
-// ─── RPC: friend_streak_get_state ───────────────────────────────────────────
-
-function rpcFriendStreakGetState(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fsError('User not authenticated');
-
-    var data = fsReadData(nk, logger, ctx.userId);
-    if (!data) data = fsInitData();
-
-    // Prune broken streaks
-    var broken = fsPruneStreaks(data);
-    fsRefreshNudges(data);
-
-    if (broken.length > 0) {
-        fsWriteData(nk, logger, ctx.userId, data);
-        fsAppendBrokenLog(nk, logger, ctx.userId, broken);
-    }
-
-    // Build response
-    var streakList = [];
-    for (var fid in data.streaks) {
-        var s = data.streaks[fid];
-        var hoursLeft = FS_STREAK_BREAK_HOURS - fsHoursSince(s.lastInteractionAt);
-        streakList.push({
-            friendId: fid,
-            friendDisplayName: s.friendDisplayName || '',
-            streakDays: s.streakDays || 0,
-            myContributionToday: s.myContributionToday || false,
-            friendContributionToday: s.friendContributionToday || false,
-            isAtRisk: hoursLeft < 4 && hoursLeft > 0,
-            hoursUntilBreak: Math.max(0, Math.round(hoursLeft)),
-            startedAt: s.startedAt || null
-        });
-    }
-
-    return JSON.stringify({
-        success: true,
-        streaks: streakList,
-        totalActive: streakList.length,
-        maxStreaks: FS_MAX_CONCURRENT,
-        nudgesRemaining: Math.max(0, FS_NUDGES_PER_DAY - (data.nudgesSentToday || 0)),
-        brokenStreaks: broken,
-        timestamp: new Date().toISOString()
-    });
-}
-
-// ─── RPC: friend_streak_record_contribution ─────────────────────────────────
-
-function rpcFriendStreakRecordContribution(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fsError('User not authenticated');
-
-    var input;
-    try { input = JSON.parse(payload); } catch (e) { return fsError('Invalid JSON'); }
-
-    var friendId = input.friendId;
-    if (!friendId) return fsError('Missing friendId');
-
-    // --- My data ---
-    var myData = fsReadData(nk, logger, ctx.userId) || fsInitData();
-    fsPruneStreaks(myData);
-
-    // Auto-create streak if not exists (within limits)
-    if (!myData.streaks[friendId]) {
-        if (Object.keys(myData.streaks).length >= FS_MAX_CONCURRENT) {
-            return fsError('Max concurrent streaks reached (' + FS_MAX_CONCURRENT + ')');
-        }
-        myData.streaks[friendId] = {
-            friendDisplayName: input.friendDisplayName || '',
-            streakDays: 0,
-            myContributionToday: false,
-            friendContributionToday: false,
-            lastInteractionAt: new Date().toISOString(),
-            startedAt: new Date().toISOString()
-        };
-    }
-
-    var myStreak = myData.streaks[friendId];
-    myStreak.myContributionToday = true;
-    myStreak.lastInteractionAt = new Date().toISOString();
-
-    // --- Friend's data (mirror the contribution) ---
-    var friendData = fsReadData(nk, logger, friendId) || fsInitData();
-    fsPruneStreaks(friendData);
-
-    if (!friendData.streaks[ctx.userId]) {
-        if (Object.keys(friendData.streaks).length >= FS_MAX_CONCURRENT) {
-            logger.warn('[FriendStreaks] Friend ' + friendId + ' at max streaks, cannot mirror');
-        } else {
-            friendData.streaks[ctx.userId] = {
-                friendDisplayName: input.myDisplayName || '',
-                streakDays: 0,
-                myContributionToday: false,
-                friendContributionToday: false,
-                lastInteractionAt: new Date().toISOString(),
-                startedAt: new Date().toISOString()
-            };
-        }
-    }
-
-    if (friendData.streaks[ctx.userId]) {
-        friendData.streaks[ctx.userId].friendContributionToday = true;
-        friendData.streaks[ctx.userId].lastInteractionAt = new Date().toISOString();
-
-        // Check bilateral completion on friend side
-        if (friendData.streaks[ctx.userId].myContributionToday &&
-            friendData.streaks[ctx.userId].friendContributionToday) {
-            friendData.streaks[ctx.userId].streakDays =
-                (friendData.streaks[ctx.userId].streakDays || 0) + 1;
-            friendData.streaks[ctx.userId].myContributionToday = false;
-            friendData.streaks[ctx.userId].friendContributionToday = false;
-        }
-        friendData.updatedAt = new Date().toISOString();
-        fsWriteData(nk, logger, friendId, friendData);
-    }
-
-    // Check bilateral completion on my side
-    var advanced = false;
-    if (myStreak.myContributionToday && myStreak.friendContributionToday) {
-        myStreak.streakDays = (myStreak.streakDays || 0) + 1;
-        myStreak.myContributionToday = false;
-        myStreak.friendContributionToday = false;
-        advanced = true;
-    }
-
-    myData.updatedAt = new Date().toISOString();
-    if (!fsWriteData(nk, logger, ctx.userId, myData)) {
-        return fsError('Failed to save streak data');
-    }
-
-    logger.info('[FriendStreaks] ' + ctx.userId + ' contributed to streak with ' +
-                friendId + (advanced ? ' — ADVANCED to day ' + myStreak.streakDays : ''));
-
-    return JSON.stringify({
-        success: true,
-        friendId: friendId,
-        streakDays: myStreak.streakDays,
-        advanced: advanced,
-        myContributionToday: myStreak.myContributionToday,
-        friendContributionToday: myStreak.friendContributionToday,
-        timestamp: new Date().toISOString()
-    });
-}
-
-// ─── RPC: friend_streak_send_nudge ──────────────────────────────────────────
-
-function rpcFriendStreakSendNudge(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fsError('User not authenticated');
-
-    var input;
-    try { input = JSON.parse(payload); } catch (e) { return fsError('Invalid JSON'); }
-
-    var friendId = input.friendId;
-    if (!friendId) return fsError('Missing friendId');
-
-    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
-    fsRefreshNudges(data);
-
-    // Check daily limit
-    if ((data.nudgesSentToday || 0) >= FS_NUDGES_PER_DAY) {
-        return fsError('Daily nudge limit reached (' + FS_NUDGES_PER_DAY + ')');
-    }
-
-    // Check cooldown per friend
-    var lastNudge = data.lastNudgeTimes ? data.lastNudgeTimes[friendId] : null;
-    if (lastNudge && fsHoursSince(lastNudge) < FS_NUDGE_COOLDOWN_HOURS) {
-        var remaining = Math.ceil(FS_NUDGE_COOLDOWN_HOURS - fsHoursSince(lastNudge));
-        return fsError('Nudge cooldown: ' + remaining + 'h remaining');
-    }
-
-    // Send notification to friend
-    try {
-        nk.notificationsSend([{
-            userId: friendId,
-            subject: 'Streak Nudge! 🔥',
-            content: {
-                type: 'friend_streak_nudge',
-                senderId: ctx.userId,
-                senderName: input.myDisplayName || 'A friend'
-            },
-            code: 101, // Custom notification code for streak nudges
-            persistent: true
-        }]);
-    } catch (err) {
-        logger.warn('[FriendStreaks] Failed to send nudge notification: ' + err.message);
-        // Continue anyway — nudge is counted even if notification fails
-    }
-
-    // Update nudge state
-    data.nudgesSentToday = (data.nudgesSentToday || 0) + 1;
-    if (!data.lastNudgeTimes) data.lastNudgeTimes = {};
-    data.lastNudgeTimes[friendId] = new Date().toISOString();
-    data.updatedAt = new Date().toISOString();
-
-    fsWriteData(nk, logger, ctx.userId, data);
-
-    var remaining = FS_NUDGES_PER_DAY - data.nudgesSentToday;
-    logger.info('[FriendStreaks] Nudge sent from ' + ctx.userId + ' to ' + friendId +
-                '. Remaining: ' + remaining);
-
-    return JSON.stringify({
-        success: true,
-        friendId: friendId,
-        nudgesRemaining: remaining,
-        cooldownHours: FS_NUDGE_COOLDOWN_HOURS,
-        timestamp: new Date().toISOString()
-    });
-}
-
-// ─── RPC: friend_streak_get_broken_log ──────────────────────────────────────
 //
-// Returns the rolling log of streaks that broke while the player was offline,
-// so the client can show a "you lost a 30-day streak with X" banner. Also
-// runs a fresh prune so the log is always up to date at read time.
+// Single-shot aggregator for the "Social Pressure" home-screen card. Returns:
+//   {
+//     friendsPlayedToday:      <int>,    // friends with quiz_complete today
+//     friendsPassedMe:         <int>,    // friends whose XP > my XP today
+//     friendsAboveMeInLeague:  [{ id, displayName, points, tier }],
+//     friendsStreakAtRisk:     [{ id, displayName, streakDays, hoursLeft }],
+//     timestamp: <iso>
+//   }
+//
+// Read-only — never mutates state. Best-effort: any sub-source that fails is
+// returned as 0 / [] rather than failing the whole call.
+function rpcSocialPressureGetTodaySummary(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
 
-function rpcFriendStreakGetBrokenLog(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fsError('User not authenticated');
+    var friends = _fxLoadFriends(nk);
+    var todayKey = _fxNowIso().slice(0, 10).replace(/-/g, '');
 
-    var input = {};
-    if (payload && payload !== '') {
-        try { input = JSON.parse(payload); } catch (e) { /* ignore — empty filter */ }
-    }
-    var limit = parseInt(input.limit) || 20;
-    if (limit < 1)  limit = 1;
-    if (limit > FS_BROKEN_LOG_MAX) limit = FS_BROKEN_LOG_MAX;
-    var includeRepaired = input.includeRepaired === true;
+    // ── friendsPlayedToday + friendsPassedMe ──────────────────────────────
+    // Reads friend's `daily_play_log/{userId}_{YYYYMMDD}` if present (set by
+    // the existing daily_missions / quiz pipeline). Best-effort.
+    var playedToday = 0;
+    var passedMe = 0;
+    var myXpToday = 0;
 
-    // Fresh prune so the log is always current at read time
-    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
-    var fresh = fsPruneStreaks(data);
-    if (fresh.length > 0) {
-        fsWriteData(nk, logger, ctx.userId, data);
-        fsAppendBrokenLog(nk, logger, ctx.userId, fresh);
-    }
-
-    var entries = [];
     try {
-        var rows = nk.storageRead([{
-            collection: FS_COLLECTION,
-            key: 'broken_log_' + ctx.userId,
+        var myLog = nk.storageRead([{
+            collection: 'daily_play_log',
+            key: ctx.userId + '_' + todayKey,
             userId: ctx.userId
         }]);
-        if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
-            entries = rows[0].value.entries;
+        if (myLog && myLog.length > 0 && myLog[0].value) {
+            myXpToday = myLog[0].value.xpToday || 0;
         }
-    } catch (err) {
-        logger.warn('[FriendStreaks] broken-log read failed: ' + err.message);
-    }
-
-    if (!includeRepaired) {
-        var filtered = [];
-        for (var i = 0; i < entries.length; i++) {
-            if (!entries[i].repaired) filtered.push(entries[i]);
-        }
-        entries = filtered;
-    }
-    if (entries.length > limit) entries = entries.slice(0, limit);
-
-    return JSON.stringify({
-        success: true,
-        entries: entries,
-        totalEntries: entries.length,
-        timestamp: new Date().toISOString()
-    });
-}
-
-// ─── RPC: friend_streak_repair ──────────────────────────────────────────────
-//
-// Spend a "Streak Saver" (gem cost) to restore a broken bilateral streak.
-// Server-authoritative: validates the broken-log entry exists, debits the
-// wallet, restores the streak with its previous day count, marks the entry
-// repaired, and notifies the friend so their state can mirror.
-//
-// Schema: { friendId: <UUID>, idempotencyKey?: <string> }
-
-var FS_REPAIR_GEM_COST = 50;
-
-function rpcFriendStreakRepair(ctx, logger, nk, payload) {
-    if (!ctx.userId) return fsError('User not authenticated');
-
-    var input;
-    try { input = JSON.parse(payload || '{}'); } catch (e) { return fsError('Invalid JSON'); }
-
-    var friendId = input.friendId;
-    if (!friendId) return fsError('Missing friendId');
-    var idempotencyKey = input.idempotencyKey || ('fs_repair_' + friendId + '_' + Date.now());
-
-    // Idempotency check — refuse double-spend on the same key
-    try {
-        var idemRows = nk.storageRead([{
-            collection: FS_COLLECTION,
-            key: 'repair_idem_' + ctx.userId + '_' + idempotencyKey,
-            userId: ctx.userId
-        }]);
-        if (idemRows && idemRows.length > 0 && idemRows[0].value) {
-            return JSON.stringify({
-                success: true,
-                idempotent: true,
-                friendId: friendId,
-                streakDays: idemRows[0].value.restoredDays || 0,
-                timestamp: new Date().toISOString()
-            });
-        }
-    } catch (_) { /* fall-through */ }
-
-    // Find the broken-log entry for this friend (most recent unrepaired)
-    var brokenEntry = null;
-    var brokenLog = null;
-    try {
-        var rows = nk.storageRead([{
-            collection: FS_COLLECTION,
-            key: 'broken_log_' + ctx.userId,
-            userId: ctx.userId
-        }]);
-        if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
-            brokenLog = rows[0].value;
-            for (var i = 0; i < brokenLog.entries.length; i++) {
-                if (brokenLog.entries[i].friendId === friendId && !brokenLog.entries[i].repaired) {
-                    brokenEntry = brokenLog.entries[i];
-                    break;
-                }
-            }
-        }
-    } catch (err) {
-        logger.warn('[FriendStreaks] repair read broken-log failed: ' + err.message);
-    }
-
-    if (!brokenEntry) {
-        return fsError('No broken streak found for friend ' + friendId);
-    }
-
-    // Repair window: only repair if the streak broke within last 7 days
-    var brokenAtMs = new Date(brokenEntry.brokenAt).getTime();
-    if ((Date.now() - brokenAtMs) > (7 * 86400000)) {
-        return fsError('Streak broken more than 7 days ago — too late to repair');
-    }
-
-    // Debit gems
-    try {
-        nk.walletUpdate(ctx.userId, { gems: -FS_REPAIR_GEM_COST }, {
-            source: 'friend_streak_repair',
-            friendId: friendId,
-            idempotencyKey: idempotencyKey
-        }, true);
-    } catch (walletErr) {
-        return fsError('Insufficient gems: ' + walletErr.message);
-    }
-
-    // Restore the streak on caller's side
-    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
-    if (Object.keys(data.streaks).length >= FS_MAX_CONCURRENT) {
-        // Refund gems
-        try {
-            nk.walletUpdate(ctx.userId, { gems: FS_REPAIR_GEM_COST }, {
-                source: 'friend_streak_repair_refund',
-                friendId: friendId
-            }, true);
-        } catch (_) {}
-        return fsError('Max concurrent streaks reached — cannot restore');
-    }
-    data.streaks[friendId] = {
-        friendDisplayName: brokenEntry.friendDisplayName || '',
-        streakDays: brokenEntry.streakDays || 0,
-        myContributionToday: false,
-        friendContributionToday: false,
-        lastInteractionAt: new Date().toISOString(),
-        startedAt: new Date().toISOString(),
-        repairedAt: new Date().toISOString()
-    };
-    data.updatedAt = new Date().toISOString();
-    fsWriteData(nk, logger, ctx.userId, data);
-
-    // Mark broken-log entry as repaired
-    try {
-        if (brokenLog && brokenLog.entries) {
-            for (var j = 0; j < brokenLog.entries.length; j++) {
-                if (brokenLog.entries[j] === brokenEntry) {
-                    brokenLog.entries[j].repaired = true;
-                    brokenLog.entries[j].repairedAt = new Date().toISOString();
-                    break;
-                }
-            }
-            nk.storageWrite([{
-                collection: FS_COLLECTION,
-                key: 'broken_log_' + ctx.userId,
-                userId: ctx.userId,
-                value: brokenLog,
-                permissionRead: 1,
-                permissionWrite: 0
-            }]);
-        }
-    } catch (err) {
-        logger.warn('[FriendStreaks] repair mark-log failed: ' + err.message);
-    }
-
-    // Persist idempotency record (24h TTL via Nakama isn't supported in JS
-    // runtime, so we just persist forever — keys are scoped per-user and small)
-    try {
-        nk.storageWrite([{
-            collection: FS_COLLECTION,
-            key: 'repair_idem_' + ctx.userId + '_' + idempotencyKey,
-            userId: ctx.userId,
-            value: {
-                friendId: friendId,
-                restoredDays: brokenEntry.streakDays || 0,
-                gemCost: FS_REPAIR_GEM_COST,
-                repairedAt: new Date().toISOString()
-            },
-            permissionRead: 0,
-            permissionWrite: 0
-        }]);
     } catch (_) {}
 
-    // Notify the friend
-    try {
-        nk.notificationsSend([{
-            userId: friendId,
-            subject: 'Streak Restored! 🔥',
-            content: {
-                type: 'friend_streak_repaired',
-                fromUserId: ctx.userId,
-                streakDays: brokenEntry.streakDays || 0
-            },
-            code: 102,
-            persistent: true
-        }]);
-    } catch (err) {
-        logger.warn('[FriendStreaks] repair notify failed: ' + err.message);
+    for (var i = 0; i < friends.length; i++) {
+        var fid = friends[i].id;
+        try {
+            var rows = nk.storageRead([{
+                collection: 'daily_play_log',
+                key: fid + '_' + todayKey,
+                userId: fid
+            }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                playedToday++;
+                var fxp = rows[0].value.xpToday || 0;
+                if (fxp > myXpToday) passedMe++;
+            }
+        } catch (_) { /* friend may have permission 0 — skip silently */ }
     }
 
-    logger.info('[FriendStreaks] Repaired streak ' + ctx.userId + ' ↔ ' + friendId +
-                ' restoredDays=' + (brokenEntry.streakDays || 0) + ' gemCost=' + FS_REPAIR_GEM_COST);
+    // ── friendsAboveMeInLeague ────────────────────────────────────────────
+    // Reads friend's league record from the legacy leagues collection.
+    var aboveInLeague = [];
+    var myLeague = null;
+    try {
+        var myL = nk.storageRead([{
+            collection: 'leagues_named',
+            key: 'state_quizverse',
+            userId: ctx.userId
+        }]);
+        if (myL && myL.length > 0 && myL[0].value) myLeague = myL[0].value;
+    } catch (_) {}
 
-    return JSON.stringify({
-        success: true,
-        friendId: friendId,
-        streakDays: brokenEntry.streakDays || 0,
-        gemCost: FS_REPAIR_GEM_COST,
-        idempotencyKey: idempotencyKey,
-        timestamp: new Date().toISOString()
+    if (myLeague) {
+        for (var j = 0; j < friends.length; j++) {
+            var fr = friends[j];
+            try {
+                var fL = nk.storageRead([{
+                    collection: 'leagues_named',
+                    key: 'state_quizverse',
+                    userId: fr.id
+                }]);
+                if (fL && fL.length > 0 && fL[0].value) {
+                    var lv = fL[0].value;
+                    if (lv.tier === myLeague.tier && (lv.points || 0) > (myLeague.points || 0)) {
+                        aboveInLeague.push({
+                            id:          fr.id,
+                            displayName: fr.displayName,
+                            points:      lv.points || 0,
+                            tier:        lv.tier
+                        });
+                    }
+                }
+            } catch (_) {}
+        }
+        aboveInLeague.sort(function(a, b) { return b.points - a.points; });
+        if (aboveInLeague.length > 10) aboveInLeague = aboveInLeague.slice(0, 10);
+    }
+
+    // ── friendsStreakAtRisk ───────────────────────────────────────────────
+    // Reads MY friend_streaks record (where I am one party of the streak).
+    // "At risk" = bilateral streak with <8 hours until break.
+    var atRisk = [];
+    try {
+        var myStreaks = nk.storageRead([{
+            collection: 'friend_streaks',
+            key: 'streaks_' + ctx.userId,
+            userId: ctx.userId
+        }]);
+        if (myStreaks && myStreaks.length > 0 && myStreaks[0].value &&
+            myStreaks[0].value.streaks) {
+            var streaks = myStreaks[0].value.streaks;
+            var nowMs = Date.now();
+            for (var fid2 in streaks) {
+                if (!Object.prototype.hasOwnProperty.call(streaks, fid2)) continue;
+                var s = streaks[fid2];
+                if (!s || !s.lastInteractionAt) continue;
+                var hoursSince = (nowMs - new Date(s.lastInteractionAt).getTime()) / 3600000;
+                var hoursLeft = 48 - hoursSince;
+                if (hoursLeft > 0 && hoursLeft < 8) {
+                    atRisk.push({
+                        id:          fid2,
+                        displayName: s.friendDisplayName || '',
+                        streakDays:  s.streakDays || 0,
+                        hoursLeft:   Math.max(0, Math.round(hoursLeft))
+                    });
+                }
+            }
+            atRisk.sort(function(a, b) { return a.hoursLeft - b.hoursLeft; });
+        }
+    } catch (e) {
+        logger.warn('[FriendsExtras] streak read failed: ' + e.message);
+    }
+
+    return _fxOk({
+        friendsPlayedToday:     playedToday,
+        friendsPassedMe:        passedMe,
+        friendsAboveMeInLeague: aboveInLeague,
+        friendsStreakAtRisk:    atRisk,
+        totalFriends:           friends.length,
+        timestamp:              _fxNowIso()
     });
 }
 
 // ============================================================================
-// Module Init — register Friend Streak RPCs
+// RPC: friend_battle_create
 // ============================================================================
-// Registers all 5 friend-streak RPCs. Existing 3 (get_state, record_contribution,
-// send_nudge) are also registered by legacy_runtime.js; postbuild's `||` guard
-// + module-first concat order means our handler wins.
+//
+// Server-mints a friend battle / lobby and atomically:
+//   1) verifies every invited friend is a confirmed mutual friend
+//   2) persists the lobby record (friend_battles/<battleId>)
+//   3) sends a Nakama notification to each invitee (code 110)
+//
+// Photon room creation is owned by the client; this RPC just guarantees the
+// invite fan-out is consistent (nobody gets a notification for a battle that
+// failed validation).
+//
+// Payload: {
+//   mode:           <string, e.g. 'speed_quiz' | 'classic'>,
+//   roomCode:       <string ≤ 64>,
+//   invitedFriendIds: [<UUID>...],   // 1..FX_BATTLE_MAX_INVITES
+//   metadata?:      <object ≤ 4 KB>
+// }
+function rpcFriendBattleCreate(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
+
+    var p = _fxParse(payload);
+    if (!p.ok) return _fxErr(p.error, 'invalid_payload');
+
+    var data = p.data || {};
+    var mode = data.mode;
+    var roomCode = data.roomCode;
+    var invited = data.invitedFriendIds || [];
+    var meta = data.metadata || {};
+
+    if (!mode || typeof mode !== 'string' || mode.length > 64) {
+        return _fxErr('mode is required (string ≤ 64)', 'invalid_payload');
+    }
+    if (!roomCode || typeof roomCode !== 'string' || roomCode.length > 64) {
+        return _fxErr('roomCode is required (string ≤ 64)', 'invalid_payload');
+    }
+    if (!Array.isArray(invited) || invited.length === 0) {
+        return _fxErr('invitedFriendIds must be non-empty array', 'invalid_payload');
+    }
+    if (invited.length > FX_BATTLE_MAX_INVITES) {
+        return _fxErr('Too many invites (max ' + FX_BATTLE_MAX_INVITES + ')', 'too_many_invites');
+    }
+    var metaStr;
+    try { metaStr = JSON.stringify(meta); }
+    catch (e) { return _fxErr('metadata not serialisable: ' + e.message, 'invalid_payload'); }
+    if (metaStr.length > FX_BATTLE_MAX_DATA_BYTES) {
+        return _fxErr('metadata too large', 'data_too_large');
+    }
+
+    // Validate every invitee is a mutual friend BEFORE any side-effect
+    var mutualFriends = {};
+    var friends = _fxLoadFriends(nk);
+    for (var i = 0; i < friends.length; i++) mutualFriends[friends[i].id] = friends[i];
+
+    var rejected = [];
+    for (var j = 0; j < invited.length; j++) {
+        var inv = invited[j];
+        if (!_fxUuidValid(inv)) {
+            rejected.push({ id: inv, reason: 'invalid_uuid' });
+        } else if (inv === ctx.userId) {
+            rejected.push({ id: inv, reason: 'self_invite' });
+        } else if (!mutualFriends[inv]) {
+            rejected.push({ id: inv, reason: 'not_mutual_friend' });
+        }
+    }
+    if (rejected.length > 0) {
+        return _fxErr('Some invitees are not mutual friends', 'invitees_not_mutual',
+                      { rejected: rejected });
+    }
+
+    var battleId = _fxMintBattleId(nk);
+    var nowIso = _fxNowIso();
+    var senderName = ctx.username || ctx.userId;
+
+    var battleRecord = {
+        battleId:     battleId,
+        creatorId:    ctx.userId,
+        creatorName:  senderName,
+        mode:         mode,
+        roomCode:     roomCode,
+        status:       'pending',
+        invitedIds:   invited,
+        acceptedIds:  [],
+        declinedIds:  [],
+        metadata:     meta,
+        createdAt:    nowIso,
+        expiresAt:    new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 min
+    };
+
+    // Persist lobby (owner = creator, owner-readable)
+    try {
+        nk.storageWrite([{
+            collection:      FX_BATTLE_COLLECTION,
+            key:             battleId,
+            userId:          ctx.userId,
+            value:           battleRecord,
+            permissionRead:  1,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        logger.error('[FriendsExtras] battle persist failed: ' + e.message);
+        return _fxErr('Failed to persist battle', 'storage_write_failed');
+    }
+
+    // Fan out notifications (best-effort — but battle record exists already)
+    var notifs = [];
+    for (var k = 0; k < invited.length; k++) {
+        notifs.push({
+            userId:     invited[k],
+            subject:    senderName + ' invited you to a battle!',
+            content: {
+                type:        'friend_battle_invite',
+                battleId:    battleId,
+                fromUserId:  ctx.userId,
+                fromName:    senderName,
+                mode:        mode,
+                roomCode:    roomCode,
+                expiresAt:   battleRecord.expiresAt
+            },
+            code:       110,
+            persistent: true,
+            senderId:   ctx.userId
+        });
+    }
+    try {
+        if (notifs.length > 0) nk.notificationsSend(notifs);
+    } catch (e) {
+        logger.warn('[FriendsExtras] battle notify failed: ' + e.message);
+    }
+
+    return _fxOk({
+        battleId:        battleId,
+        roomCode:        roomCode,
+        mode:            mode,
+        invitedIds:      invited,
+        invitedCount:    invited.length,
+        expiresAt:       battleRecord.expiresAt,
+        timestamp:       nowIso
+    });
+}
+
+// ============================================================================
+// RPC: friend_invite_with_reward
+// ============================================================================
+//
+// Sends a friend invite (Nakama friendsAdd) AND records a reward bundle that
+// will be granted to BOTH parties on accept. The actual grant happens in
+// the existing accept_friend_invite handler — this RPC just stores the intent.
+//
+// Payload: {
+//   targetUserId: <UUID>,
+//   rewardBundle?: { coins?: int, gems?: int, xp?: int }   // capped server-side
+// }
+//
+// Caps: coins ≤ 200, gems ≤ 10, xp ≤ 100 per invite (anti-griefing).
+var FX_REWARD_CAP = { coins: 200, gems: 10, xp: 100 };
+
+function rpcFriendInviteWithReward(ctx, logger, nk, payload) {
+    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
+
+    var p = _fxParse(payload);
+    if (!p.ok) return _fxErr(p.error, 'invalid_payload');
+
+    var data = p.data || {};
+    var target = data.targetUserId;
+    if (!_fxUuidValid(target)) {
+        return _fxErr('Invalid targetUserId (UUID required)', 'invalid_target');
+    }
+    if (target === ctx.userId) {
+        return _fxErr('Cannot invite yourself', 'self_invite');
+    }
+
+    var raw = data.rewardBundle || {};
+    var bundle = {
+        coins: Math.min(FX_REWARD_CAP.coins, Math.max(0, parseInt(raw.coins) || 0)),
+        gems:  Math.min(FX_REWARD_CAP.gems,  Math.max(0, parseInt(raw.gems)  || 0)),
+        xp:    Math.min(FX_REWARD_CAP.xp,    Math.max(0, parseInt(raw.xp)    || 0))
+    };
+
+    // Send the friend request via Nakama's native graph
+    try {
+        nk.friendsAdd(ctx.userId, ctx.username || '', [target], null);
+    } catch (e) {
+        return _fxErr('friendsAdd failed: ' + e.message, 'friends_add_failed');
+    }
+
+    // Persist the reward intent under both parties so accept_friend_invite
+    // (in src/legacy/friends.ts) can find and grant it.
+    var nowIso = _fxNowIso();
+    var rewardKey = 'invite_reward_' + ctx.userId + '_' + target;
+    var rewardRecord = {
+        senderId:       ctx.userId,
+        recipientId:    target,
+        rewardBundle:   bundle,
+        status:         'pending',
+        createdAt:      nowIso,
+        expiresAt:      new Date(Date.now() + 7 * 86400000).toISOString() // 7 days
+    };
+    try {
+        nk.storageWrite([
+            {
+                collection:      FX_INVITE_REWARD_COL,
+                key:             rewardKey,
+                userId:          ctx.userId,
+                value:           rewardRecord,
+                permissionRead:  0,
+                permissionWrite: 0
+            },
+            {
+                collection:      FX_INVITE_REWARD_COL,
+                key:             rewardKey,
+                userId:          target,
+                value:           rewardRecord,
+                permissionRead:  0,
+                permissionWrite: 0
+            }
+        ]);
+    } catch (e) {
+        logger.warn('[FriendsExtras] invite-reward persist failed: ' + e.message);
+        // Non-fatal — friend invite already went out
+    }
+
+    // Notify the recipient
+    try {
+        nk.notificationsSend([{
+            userId:     target,
+            subject:    'Friend Invite + Reward',
+            content: {
+                type:         'friend_invite_with_reward',
+                fromUserId:   ctx.userId,
+                fromName:     ctx.username || ctx.userId,
+                rewardBundle: bundle
+            },
+            code:       111,
+            persistent: true,
+            senderId:   ctx.userId
+        }]);
+    } catch (e) {
+        logger.warn('[FriendsExtras] invite notify failed: ' + e.message);
+    }
+
+    return _fxOk({
+        targetUserId:   target,
+        rewardBundle:   bundle,
+        rewardKey:      rewardKey,
+        expiresAt:      rewardRecord.expiresAt,
+        timestamp:      nowIso
+    });
+}
+
+// ============================================================================
+// Module Init — register Friends Extras RPCs
+// ============================================================================
 function __ModuleInit_31(ctx, logger, nk, initializer) {
-    __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState);
-    __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution);
-    __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge);
-    __rpc_friend_streak_get_broken_log = __rpc_friend_streak_get_broken_log || (rpcFriendStreakGetBrokenLog);
-    __rpc_friend_streak_repair = __rpc_friend_streak_repair || (rpcFriendStreakRepair);
+    __rpc_friends_get_online_count = __rpc_friends_get_online_count || (rpcFriendsGetOnlineCount);
+    __rpc_social_pressure_get_today_summary = __rpc_social_pressure_get_today_summary || (rpcSocialPressureGetTodaySummary);
+    __rpc_friend_battle_create = __rpc_friend_battle_create || (rpcFriendBattleCreate);
+    __rpc_friend_invite_with_reward = __rpc_friend_invite_with_reward || (rpcFriendInviteWithReward);
     if (logger && logger.info) {
-        logger.info('[FriendStreaks] Registered 5 RPCs (get_state, record_contribution, send_nudge, get_broken_log, repair)');
+        logger.info('[FriendsExtras] Registered 4 RPCs (online_count, social_pressure, battle_create, invite_with_reward)');
     }
 }
 
 
-// --- Module: friends/friend_challenges.js ---
+// --- Module: friends\friend_challenges.js ---
 // ============================================================================
 // friend_challenges.js - Canonical Friend Challenge Lifecycle RPCs
 // ============================================================================
@@ -17029,7 +16618,7 @@ function __ModuleInit_32(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: friends/friend_invites.js ---
+// --- Module: friends\friend_invites.js ---
 // ============================================================================
 // friend_invites.js - Canonical Friend Invite RPCs (Split-Brain Fix)
 // ============================================================================
@@ -17805,772 +17394,7 @@ function __ModuleInit_33(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: friends/friends.js ---
-// ============================================================================
-// friends.js — Helper-only module (Phase-4 C2 cleanup)
-// ============================================================================
-// PRODUCTION-READY | ES5 (Goja runtime)
-//
-// HISTORY
-// -------
-// This file used to host SIX RPC handlers and SEVERAL helpers:
-//   * RPCs: friends_block, friends_unblock, friends_remove, friends_list,
-//          friends_challenge_user, friends_spectate
-//   * Helpers: isValidFriendUUID, isUserBlocked, areActualFriends,
-//              checkRateLimit, sendChallengePushNotification,
-//              sendChallengeChatMessage
-//
-// All six RPCs were silently shadowed by canonical replacements:
-//   * friends_block / friends_unblock / friends_remove → src/legacy/friends.ts
-//   * friends_list                                    → src/friends/friends_list.ts (Phase-4 C1)
-//   * friends_challenge_user / friends_spectate       → friends/friend_challenges.js (Phase-3a)
-//
-// Phase-4 C2 strips the dead RPC handlers AND their now-unused helpers
-// (isValidFriendUUID, isUserBlocked, areActualFriends, checkRateLimit) so
-// nobody can read this file and "fix" the wrong code path. The lone
-// `checkRateLimit` deletion also removes a name collision with
-// `infrastructure/rate_limiting.js` which defines a totally different
-// function with the same name (different signature) — the
-// rate_limiting.js version was silently overwriting friends.js's at
-// merge time, which is the kind of subtle global-scope bug we never
-// want to hit.
-//
-// What remains
-// ------------
-// Two helper functions that `friends/friend_challenges.js` still calls
-// at runtime (via `typeof X === 'function'` lookups so the module is
-// resilient to load-order changes — see line 483-495 of
-// friend_challenges.js):
-//
-//   sendChallengePushNotification(nk, logger, targetUserId, gameId,
-//                                 challengerName, quizModeName,
-//                                 challengeId, roomCode, isAsync)
-//      → fans out a push notification via the PUSH_SEND_URL Lambda
-//        endpoint to every push_endpoints row owned by `targetUserId`
-//        for the given `gameId`. Used by send_friend_challenge.
-//
-//   sendChallengeChatMessage(nk, logger, senderId, receiverId,
-//                            senderName, challengeData)
-//      → inserts a "friend challenge" message into the DM channel
-//        between sender and receiver so the challenge appears in their
-//        chat thread. Falls back to a `pending_chat_messages` storage
-//        row if the channel insert fails.
-//
-// Both helpers are intentionally kept in the legacy JS module rather
-// than ported to TypeScript because (a) the Phase-3a TS challenge
-// module already has the canonical RPC handler, (b) these helpers are
-// pure side-effect fan-outs the TS handler delegates to via dynamic
-// lookup, and (c) the dynamic lookup pattern is the safest way to
-// handle "host calls helper if it exists, otherwise no-op" without
-// hard-coupling the two files.
-//
-// If you need to add a NEW friend RPC, ADD IT TO ONE OF:
-//   - friends/friend_invites.js     (invite lifecycle)
-//   - friends/friend_challenges.js  (challenge lifecycle + spectate)
-//   - src/friends/friends_list.ts   (read-only roster RPCs)
-//   - src/legacy/friends.ts         (graph mutations)
-// NOT to this file. This file should never grow back to handler size.
-// ============================================================================
-
-
-/**
- * Send a push notification for a friend challenge.
- * Calls the push notification Lambda endpoint.
- *
- * @param {object} nk
- * @param {object} logger
- * @param {string} targetUserId   - Recipient userId (the challenged player)
- * @param {string} gameId         - Free-form game/mode id (used to filter push_endpoints)
- * @param {string} challengerName - Display name shown in the push title
- * @param {string} quizModeName   - Display name of the quiz mode for the body
- * @param {string} challengeId    - Server-authoritative challenge id (echoed in data)
- * @param {string} roomCode       - Room/share code (echoed in data)
- * @param {boolean} isAsync       - True for async challenges, false for live
- */
-function sendChallengePushNotification(nk, logger, targetUserId, gameId, challengerName, quizModeName, challengeId, roomCode, isAsync) {
-    var LAMBDA_PUSH_URL = (typeof process!=="undefined"&&process.env?process.env.PUSH_SEND_URL:undefined) || "https://your-lambda-url.lambda-url.region.on.aws/send-push";
-
-    var endpoints = [];
-    try {
-        var records = nk.storageList(targetUserId, "push_endpoints", 100);
-        for (var i = 0; i < records.length; i++) {
-            var value = records[i].value;
-            if (value.gameId === gameId) {
-                endpoints.push(value);
-            }
-        }
-    } catch (err) {
-        utils.logWarn(logger, "Could not list push endpoints: " + err.message);
-        return;
-    }
-
-    if (endpoints.length === 0) {
-        utils.logInfo(logger, "No push endpoints for user " + targetUserId);
-        return;
-    }
-
-    var challengeType = isAsync ? "Async Challenge" : "Live Challenge";
-    var title = "🎮 " + challengerName + " challenged you!";
-    var body  = "Accept the " + quizModeName + " " + challengeType + " now!";
-
-    for (var j = 0; j < endpoints.length; j++) {
-        var endpoint = endpoints[j];
-
-        var pushPayload = {
-            endpointArn: endpoint.endpointArn,
-            platform:    endpoint.platform,
-            title:       title,
-            body:        body,
-            data: {
-                type:         "friend_challenge",
-                challengeId:  challengeId,
-                roomCode:     roomCode,
-                isAsync:      isAsync,
-                click_action: "OPEN_CHALLENGE"
-            },
-            gameId:    gameId,
-            eventType: "friend_challenge"
-        };
-
-        try {
-            var response = nk.httpRequest(
-                LAMBDA_PUSH_URL,
-                "post",
-                { "Content-Type": "application/json", "Accept": "application/json" },
-                JSON.stringify(pushPayload)
-            );
-            if (response.code === 200 || response.code === 201) {
-                utils.logInfo(logger, "Push sent to " + endpoint.platform + " for challenge " + challengeId);
-            }
-        } catch (pushErr) {
-            utils.logWarn(logger, "Push to " + endpoint.platform + " failed: " + pushErr.message);
-        }
-    }
-}
-
-/**
- * Send a friend challenge as a chat message so it appears in the conversation
- * thread between the two users.
- *
- * @param {object} nk
- * @param {object} logger
- * @param {string} senderId      - Challenger userId
- * @param {string} receiverId    - Challenged userId
- * @param {string} senderName    - Challenger display name
- * @param {object} challengeData - { challengeId, roomCode, quizModeName, isAsync,
- *                                   fromUserId, fromDisplayName, expiresAt }
- */
-function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, challengeData) {
-    var channelId = null;
-    try {
-        // Sort user IDs so both sides resolve to the same DM channel
-        var sortedIds = [senderId, receiverId].sort();
-        channelId = "dm_" + sortedIds[0] + "_" + sortedIds[1];
-    } catch (err) {
-        utils.logWarn(logger, "Could not create channel ID: " + err.message);
-        return;
-    }
-
-    var messageContent = {
-        type: "friend_challenge",
-        text: "🎮 " + senderName + " challenged you to " + challengeData.quizModeName + "!",
-        challenge: {
-            challengeId:     challengeData.challengeId,
-            roomCode:        challengeData.roomCode,
-            shareCode:       challengeData.roomCode,
-            quizModeName:    challengeData.quizModeName,
-            isAsync:         challengeData.isAsync,
-            fromUserId:      challengeData.fromUserId,
-            fromDisplayName: challengeData.fromDisplayName,
-            expiresAt:       challengeData.expiresAt,
-            status:          "pending"
-        }
-    };
-
-    try {
-        nk.channelMessageSend(
-            channelId,
-            JSON.stringify(messageContent),
-            senderId,
-            senderName,
-            true  // persistent
-        );
-        utils.logInfo(logger, "Challenge chat message sent to channel " + channelId);
-    } catch (chatErr) {
-        // Fallback: if the DM channel doesn't exist yet, persist the message
-        // so it can be replayed when the channel is later opened.
-        utils.logWarn(logger, "Channel message failed, using storage fallback: " + chatErr.message);
-
-        var msgKey = "pending_chat_" + receiverId + "_" + Date.now();
-        utils.writeStorage(nk, logger, "pending_chat_messages", msgKey, senderId, {
-            senderId:    senderId,
-            senderName:  senderName,
-            receiverId:  receiverId,
-            content:     messageContent,
-            timestamp:   utils.getCurrentTimestamp()
-        });
-    }
-}
-
-
-// --- Module: friends/friends_extras.js ---
-// ============================================================================
-// friends_extras.js — Social Pressure / Online Count / Battle / Invite-Reward
-// ============================================================================
-// PRODUCTION-READY | ES5 (Goja runtime)
-//
-// Houses 4 RPCs that PLAN-ENGAGEMENT_SYSTEM_07_FRIENDS_SOCIAL.md (V11/V17/V20)
-// requires the server to expose:
-//
-//   friends_get_online_count
-//       -> count of caller's mutual friends currently online (Nakama presence)
-//
-//   social_pressure_get_today_summary
-//       -> aggregates "friends played today / friends ahead of me / streak at
-//          risk" data into a single response so the client doesn't need to
-//          stitch 4 separate reads.
-//
-//   friend_battle_create
-//       -> server-mints a battleId/roomCode, persists the lobby record under
-//          friend_battles/<battleId>, fans out invitations + push notifications
-//          to each invited friend. Atomic: if any non-friend is invited the
-//          whole call fails before any side-effect.
-//
-//   friend_invite_with_reward
-//       -> sends a friend invite (Nakama friendsAdd) AND tags it with a
-//          reward bundle that's claimable when the recipient accepts. The
-//          claim happens in send_friend_invite/accept_friend_invite already;
-//          this RPC is a thin wrapper that records the reward intent so the
-//          accept-handler can grant it.
-//
-// SECURITY: every RPC requires an authenticated caller (ctx.userId set), and
-// every "target" is verified as a confirmed mutual friend (Nakama state == 0)
-// before any side-effect.
-// ============================================================================
-
-var FX_BATTLE_COLLECTION = 'friend_battles';
-var FX_INVITE_REWARD_COL = 'friend_invite_rewards';
-var FX_BATTLE_MAX_INVITES = 8;
-var FX_BATTLE_MAX_DATA_BYTES = 4096;
-
-// ─── Tiny self-contained helpers ────────────────────────────────────────────
-// Same defensive pattern as friend_challenges.js — no `utils` dependency so
-// load-order can't break this module.
-
-function _fxUuidValid(id) {
-    if (!id || typeof id !== 'string') return false;
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-}
-
-function _fxNowIso() { return new Date().toISOString(); }
-
-function _fxOk(extra) {
-    var out = { success: true };
-    if (extra) {
-        for (var k in extra) {
-            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
-        }
-    }
-    return JSON.stringify(out);
-}
-
-function _fxErr(message, errorCode, extra) {
-    var out = { success: false, error: message, errorCode: errorCode || 'unknown' };
-    if (extra) {
-        for (var k in extra) {
-            if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
-        }
-    }
-    return JSON.stringify(out);
-}
-
-function _fxParse(payload) {
-    if (!payload || payload === '') return { ok: true, data: {} };
-    try { return { ok: true, data: JSON.parse(payload) }; }
-    catch (e)  { return { ok: false, error: 'Invalid JSON payload: ' + e.message }; }
-}
-
-function _fxMintBattleId(nk) {
-    try {
-        if (nk && typeof nk.uuidv4 === 'function') {
-            return 'fbat_' + nk.uuidv4().replace(/-/g, '');
-        }
-    } catch (_) {}
-    var hex = '0123456789abcdef';
-    var rand = '';
-    for (var i = 0; i < 24; i++) rand += hex.charAt(Math.floor(Math.random() * 16));
-    return 'fbat_' + Date.now().toString(36) + '_' + rand;
-}
-
-// Returns array of confirmed-friend objects: [{ id, displayName, online }]
-function _fxLoadFriends(nk) {
-    var out = [];
-    try {
-        var page = nk.friendsList(null, 1000, 0, null); // state=0 (FRIEND)
-        if (page && page.friends) {
-            for (var i = 0; i < page.friends.length; i++) {
-                var fr = page.friends[i];
-                if (fr && fr.user && fr.user.id) {
-                    out.push({
-                        id:          fr.user.id,
-                        displayName: fr.user.displayName || fr.user.username || 'Friend',
-                        online:      !!fr.user.online
-                    });
-                }
-            }
-        }
-    } catch (_) {}
-    return out;
-}
-
-// ============================================================================
-// RPC: friends_get_online_count
-// ============================================================================
-//
-// Payload: {}  (no inputs)
-// Response: {
-//   success: true,
-//   onlineCount: <int>,
-//   totalFriends: <int>,
-//   onlineFriendIds: [<UUID>...],   // capped at 50 for response-size sanity
-//   timestamp: <iso>
-// }
-//
-// Reads via nk.friendsList(state=0) which already includes the `online` flag
-// from Nakama presence — no extra round-trip needed.
-function rpcFriendsGetOnlineCount(ctx, logger, nk, payload) {
-    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
-
-    var friends = [];
-    try {
-        var page = nk.friendsList(ctx.userId, 1000, 0, null);
-        if (page && page.friends) friends = page.friends;
-    } catch (e) {
-        logger.warn('[FriendsExtras] friendsList failed: ' + e.message);
-        return _fxErr('Failed to load friends list', 'friends_list_failed');
-    }
-
-    var onlineIds = [];
-    for (var i = 0; i < friends.length; i++) {
-        var fr = friends[i];
-        if (fr && fr.user && fr.user.id && fr.user.online === true) {
-            if (onlineIds.length < 50) onlineIds.push(fr.user.id);
-        }
-    }
-
-    return _fxOk({
-        onlineCount:     onlineIds.length,
-        totalFriends:    friends.length,
-        onlineFriendIds: onlineIds,
-        timestamp:       _fxNowIso()
-    });
-}
-
-// ============================================================================
-// RPC: social_pressure_get_today_summary
-// ============================================================================
-//
-// Single-shot aggregator for the "Social Pressure" home-screen card. Returns:
-//   {
-//     friendsPlayedToday:      <int>,    // friends with quiz_complete today
-//     friendsPassedMe:         <int>,    // friends whose XP > my XP today
-//     friendsAboveMeInLeague:  [{ id, displayName, points, tier }],
-//     friendsStreakAtRisk:     [{ id, displayName, streakDays, hoursLeft }],
-//     timestamp: <iso>
-//   }
-//
-// Read-only — never mutates state. Best-effort: any sub-source that fails is
-// returned as 0 / [] rather than failing the whole call.
-function rpcSocialPressureGetTodaySummary(ctx, logger, nk, payload) {
-    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
-
-    var friends = _fxLoadFriends(nk);
-    var todayKey = _fxNowIso().slice(0, 10).replace(/-/g, '');
-
-    // ── friendsPlayedToday + friendsPassedMe ──────────────────────────────
-    // Reads friend's `daily_play_log/{userId}_{YYYYMMDD}` if present (set by
-    // the existing daily_missions / quiz pipeline). Best-effort.
-    var playedToday = 0;
-    var passedMe = 0;
-    var myXpToday = 0;
-
-    try {
-        var myLog = nk.storageRead([{
-            collection: 'daily_play_log',
-            key: ctx.userId + '_' + todayKey,
-            userId: ctx.userId
-        }]);
-        if (myLog && myLog.length > 0 && myLog[0].value) {
-            myXpToday = myLog[0].value.xpToday || 0;
-        }
-    } catch (_) {}
-
-    for (var i = 0; i < friends.length; i++) {
-        var fid = friends[i].id;
-        try {
-            var rows = nk.storageRead([{
-                collection: 'daily_play_log',
-                key: fid + '_' + todayKey,
-                userId: fid
-            }]);
-            if (rows && rows.length > 0 && rows[0].value) {
-                playedToday++;
-                var fxp = rows[0].value.xpToday || 0;
-                if (fxp > myXpToday) passedMe++;
-            }
-        } catch (_) { /* friend may have permission 0 — skip silently */ }
-    }
-
-    // ── friendsAboveMeInLeague ────────────────────────────────────────────
-    // Reads friend's league record from the legacy leagues collection.
-    var aboveInLeague = [];
-    var myLeague = null;
-    try {
-        var myL = nk.storageRead([{
-            collection: 'leagues_named',
-            key: 'state_quizverse',
-            userId: ctx.userId
-        }]);
-        if (myL && myL.length > 0 && myL[0].value) myLeague = myL[0].value;
-    } catch (_) {}
-
-    if (myLeague) {
-        for (var j = 0; j < friends.length; j++) {
-            var fr = friends[j];
-            try {
-                var fL = nk.storageRead([{
-                    collection: 'leagues_named',
-                    key: 'state_quizverse',
-                    userId: fr.id
-                }]);
-                if (fL && fL.length > 0 && fL[0].value) {
-                    var lv = fL[0].value;
-                    if (lv.tier === myLeague.tier && (lv.points || 0) > (myLeague.points || 0)) {
-                        aboveInLeague.push({
-                            id:          fr.id,
-                            displayName: fr.displayName,
-                            points:      lv.points || 0,
-                            tier:        lv.tier
-                        });
-                    }
-                }
-            } catch (_) {}
-        }
-        aboveInLeague.sort(function(a, b) { return b.points - a.points; });
-        if (aboveInLeague.length > 10) aboveInLeague = aboveInLeague.slice(0, 10);
-    }
-
-    // ── friendsStreakAtRisk ───────────────────────────────────────────────
-    // Reads MY friend_streaks record (where I am one party of the streak).
-    // "At risk" = bilateral streak with <8 hours until break.
-    var atRisk = [];
-    try {
-        var myStreaks = nk.storageRead([{
-            collection: 'friend_streaks',
-            key: 'streaks_' + ctx.userId,
-            userId: ctx.userId
-        }]);
-        if (myStreaks && myStreaks.length > 0 && myStreaks[0].value &&
-            myStreaks[0].value.streaks) {
-            var streaks = myStreaks[0].value.streaks;
-            var nowMs = Date.now();
-            for (var fid2 in streaks) {
-                if (!Object.prototype.hasOwnProperty.call(streaks, fid2)) continue;
-                var s = streaks[fid2];
-                if (!s || !s.lastInteractionAt) continue;
-                var hoursSince = (nowMs - new Date(s.lastInteractionAt).getTime()) / 3600000;
-                var hoursLeft = 48 - hoursSince;
-                if (hoursLeft > 0 && hoursLeft < 8) {
-                    atRisk.push({
-                        id:          fid2,
-                        displayName: s.friendDisplayName || '',
-                        streakDays:  s.streakDays || 0,
-                        hoursLeft:   Math.max(0, Math.round(hoursLeft))
-                    });
-                }
-            }
-            atRisk.sort(function(a, b) { return a.hoursLeft - b.hoursLeft; });
-        }
-    } catch (e) {
-        logger.warn('[FriendsExtras] streak read failed: ' + e.message);
-    }
-
-    return _fxOk({
-        friendsPlayedToday:     playedToday,
-        friendsPassedMe:        passedMe,
-        friendsAboveMeInLeague: aboveInLeague,
-        friendsStreakAtRisk:    atRisk,
-        totalFriends:           friends.length,
-        timestamp:              _fxNowIso()
-    });
-}
-
-// ============================================================================
-// RPC: friend_battle_create
-// ============================================================================
-//
-// Server-mints a friend battle / lobby and atomically:
-//   1) verifies every invited friend is a confirmed mutual friend
-//   2) persists the lobby record (friend_battles/<battleId>)
-//   3) sends a Nakama notification to each invitee (code 110)
-//
-// Photon room creation is owned by the client; this RPC just guarantees the
-// invite fan-out is consistent (nobody gets a notification for a battle that
-// failed validation).
-//
-// Payload: {
-//   mode:           <string, e.g. 'speed_quiz' | 'classic'>,
-//   roomCode:       <string ≤ 64>,
-//   invitedFriendIds: [<UUID>...],   // 1..FX_BATTLE_MAX_INVITES
-//   metadata?:      <object ≤ 4 KB>
-// }
-function rpcFriendBattleCreate(ctx, logger, nk, payload) {
-    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
-
-    var p = _fxParse(payload);
-    if (!p.ok) return _fxErr(p.error, 'invalid_payload');
-
-    var data = p.data || {};
-    var mode = data.mode;
-    var roomCode = data.roomCode;
-    var invited = data.invitedFriendIds || [];
-    var meta = data.metadata || {};
-
-    if (!mode || typeof mode !== 'string' || mode.length > 64) {
-        return _fxErr('mode is required (string ≤ 64)', 'invalid_payload');
-    }
-    if (!roomCode || typeof roomCode !== 'string' || roomCode.length > 64) {
-        return _fxErr('roomCode is required (string ≤ 64)', 'invalid_payload');
-    }
-    if (!Array.isArray(invited) || invited.length === 0) {
-        return _fxErr('invitedFriendIds must be non-empty array', 'invalid_payload');
-    }
-    if (invited.length > FX_BATTLE_MAX_INVITES) {
-        return _fxErr('Too many invites (max ' + FX_BATTLE_MAX_INVITES + ')', 'too_many_invites');
-    }
-    var metaStr;
-    try { metaStr = JSON.stringify(meta); }
-    catch (e) { return _fxErr('metadata not serialisable: ' + e.message, 'invalid_payload'); }
-    if (metaStr.length > FX_BATTLE_MAX_DATA_BYTES) {
-        return _fxErr('metadata too large', 'data_too_large');
-    }
-
-    // Validate every invitee is a mutual friend BEFORE any side-effect
-    var mutualFriends = {};
-    var friends = _fxLoadFriends(nk);
-    for (var i = 0; i < friends.length; i++) mutualFriends[friends[i].id] = friends[i];
-
-    var rejected = [];
-    for (var j = 0; j < invited.length; j++) {
-        var inv = invited[j];
-        if (!_fxUuidValid(inv)) {
-            rejected.push({ id: inv, reason: 'invalid_uuid' });
-        } else if (inv === ctx.userId) {
-            rejected.push({ id: inv, reason: 'self_invite' });
-        } else if (!mutualFriends[inv]) {
-            rejected.push({ id: inv, reason: 'not_mutual_friend' });
-        }
-    }
-    if (rejected.length > 0) {
-        return _fxErr('Some invitees are not mutual friends', 'invitees_not_mutual',
-                      { rejected: rejected });
-    }
-
-    var battleId = _fxMintBattleId(nk);
-    var nowIso = _fxNowIso();
-    var senderName = ctx.username || ctx.userId;
-
-    var battleRecord = {
-        battleId:     battleId,
-        creatorId:    ctx.userId,
-        creatorName:  senderName,
-        mode:         mode,
-        roomCode:     roomCode,
-        status:       'pending',
-        invitedIds:   invited,
-        acceptedIds:  [],
-        declinedIds:  [],
-        metadata:     meta,
-        createdAt:    nowIso,
-        expiresAt:    new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 min
-    };
-
-    // Persist lobby (owner = creator, owner-readable)
-    try {
-        nk.storageWrite([{
-            collection:      FX_BATTLE_COLLECTION,
-            key:             battleId,
-            userId:          ctx.userId,
-            value:           battleRecord,
-            permissionRead:  1,
-            permissionWrite: 0
-        }]);
-    } catch (e) {
-        logger.error('[FriendsExtras] battle persist failed: ' + e.message);
-        return _fxErr('Failed to persist battle', 'storage_write_failed');
-    }
-
-    // Fan out notifications (best-effort — but battle record exists already)
-    var notifs = [];
-    for (var k = 0; k < invited.length; k++) {
-        notifs.push({
-            userId:     invited[k],
-            subject:    senderName + ' invited you to a battle!',
-            content: {
-                type:        'friend_battle_invite',
-                battleId:    battleId,
-                fromUserId:  ctx.userId,
-                fromName:    senderName,
-                mode:        mode,
-                roomCode:    roomCode,
-                expiresAt:   battleRecord.expiresAt
-            },
-            code:       110,
-            persistent: true,
-            senderId:   ctx.userId
-        });
-    }
-    try {
-        if (notifs.length > 0) nk.notificationsSend(notifs);
-    } catch (e) {
-        logger.warn('[FriendsExtras] battle notify failed: ' + e.message);
-    }
-
-    return _fxOk({
-        battleId:        battleId,
-        roomCode:        roomCode,
-        mode:            mode,
-        invitedIds:      invited,
-        invitedCount:    invited.length,
-        expiresAt:       battleRecord.expiresAt,
-        timestamp:       nowIso
-    });
-}
-
-// ============================================================================
-// RPC: friend_invite_with_reward
-// ============================================================================
-//
-// Sends a friend invite (Nakama friendsAdd) AND records a reward bundle that
-// will be granted to BOTH parties on accept. The actual grant happens in
-// the existing accept_friend_invite handler — this RPC just stores the intent.
-//
-// Payload: {
-//   targetUserId: <UUID>,
-//   rewardBundle?: { coins?: int, gems?: int, xp?: int }   // capped server-side
-// }
-//
-// Caps: coins ≤ 200, gems ≤ 10, xp ≤ 100 per invite (anti-griefing).
-var FX_REWARD_CAP = { coins: 200, gems: 10, xp: 100 };
-
-function rpcFriendInviteWithReward(ctx, logger, nk, payload) {
-    if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
-
-    var p = _fxParse(payload);
-    if (!p.ok) return _fxErr(p.error, 'invalid_payload');
-
-    var data = p.data || {};
-    var target = data.targetUserId;
-    if (!_fxUuidValid(target)) {
-        return _fxErr('Invalid targetUserId (UUID required)', 'invalid_target');
-    }
-    if (target === ctx.userId) {
-        return _fxErr('Cannot invite yourself', 'self_invite');
-    }
-
-    var raw = data.rewardBundle || {};
-    var bundle = {
-        coins: Math.min(FX_REWARD_CAP.coins, Math.max(0, parseInt(raw.coins) || 0)),
-        gems:  Math.min(FX_REWARD_CAP.gems,  Math.max(0, parseInt(raw.gems)  || 0)),
-        xp:    Math.min(FX_REWARD_CAP.xp,    Math.max(0, parseInt(raw.xp)    || 0))
-    };
-
-    // Send the friend request via Nakama's native graph
-    try {
-        nk.friendsAdd(ctx.userId, ctx.username || '', [target], null);
-    } catch (e) {
-        return _fxErr('friendsAdd failed: ' + e.message, 'friends_add_failed');
-    }
-
-    // Persist the reward intent under both parties so accept_friend_invite
-    // (in src/legacy/friends.ts) can find and grant it.
-    var nowIso = _fxNowIso();
-    var rewardKey = 'invite_reward_' + ctx.userId + '_' + target;
-    var rewardRecord = {
-        senderId:       ctx.userId,
-        recipientId:    target,
-        rewardBundle:   bundle,
-        status:         'pending',
-        createdAt:      nowIso,
-        expiresAt:      new Date(Date.now() + 7 * 86400000).toISOString() // 7 days
-    };
-    try {
-        nk.storageWrite([
-            {
-                collection:      FX_INVITE_REWARD_COL,
-                key:             rewardKey,
-                userId:          ctx.userId,
-                value:           rewardRecord,
-                permissionRead:  0,
-                permissionWrite: 0
-            },
-            {
-                collection:      FX_INVITE_REWARD_COL,
-                key:             rewardKey,
-                userId:          target,
-                value:           rewardRecord,
-                permissionRead:  0,
-                permissionWrite: 0
-            }
-        ]);
-    } catch (e) {
-        logger.warn('[FriendsExtras] invite-reward persist failed: ' + e.message);
-        // Non-fatal — friend invite already went out
-    }
-
-    // Notify the recipient
-    try {
-        nk.notificationsSend([{
-            userId:     target,
-            subject:    'Friend Invite + Reward',
-            content: {
-                type:         'friend_invite_with_reward',
-                fromUserId:   ctx.userId,
-                fromName:     ctx.username || ctx.userId,
-                rewardBundle: bundle
-            },
-            code:       111,
-            persistent: true,
-            senderId:   ctx.userId
-        }]);
-    } catch (e) {
-        logger.warn('[FriendsExtras] invite notify failed: ' + e.message);
-    }
-
-    return _fxOk({
-        targetUserId:   target,
-        rewardBundle:   bundle,
-        rewardKey:      rewardKey,
-        expiresAt:      rewardRecord.expiresAt,
-        timestamp:      nowIso
-    });
-}
-
-// ============================================================================
-// Module Init — register Friends Extras RPCs
-// ============================================================================
-function __ModuleInit_35(ctx, logger, nk, initializer) {
-    __rpc_friends_get_online_count = __rpc_friends_get_online_count || (rpcFriendsGetOnlineCount);
-    __rpc_social_pressure_get_today_summary = __rpc_social_pressure_get_today_summary || (rpcSocialPressureGetTodaySummary);
-    __rpc_friend_battle_create = __rpc_friend_battle_create || (rpcFriendBattleCreate);
-    __rpc_friend_invite_with_reward = __rpc_friend_invite_with_reward || (rpcFriendInviteWithReward);
-    if (logger && logger.info) {
-        logger.info('[FriendsExtras] Registered 4 RPCs (online_count, social_pressure, battle_create, invite_with_reward)');
-    }
-}
-
-
-// --- Module: friends/notification_codes.js ---
+// --- Module: friends\notification_codes.js ---
 // ============================================================================
 // notification_codes.js - Canonical Friends Notification Constants
 // ============================================================================
@@ -18723,7 +17547,1184 @@ function sendFriendsNotification(nk, logger, subjectKey, userId, payload, sender
 }
 
 
-// --- Module: game_metrics/game_metrics.js ---
+// --- Module: friend_quests\friend_quests.js ---
+// friend_quests.js - Friend Quest System for QuizVerse v4.0
+// RPCs: friend_quest_get_state, friend_quest_complete
+// Spec: MRS §31 — 10 quest types, server-authoritative generation
+// v4.0: Server generates quests from user's friends list
+
+/**
+ * Friend Quest System — Server-Authoritative
+ *
+ * 10 quest types generated from user's real friends list.
+ * Server is the source of truth — client only renders.
+ * Tracks progress, grants rewards (wallet + notification), duplicate protection.
+ *
+ * Storage: collection="friend_quests", key="quest_state_{userId}"
+ */
+
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+
+var FQ_COLLECTION = 'friend_quests';
+var FQ_MAX_ACTIVE = 3;
+var FQ_REFRESH_HOURS = 8;
+
+// 10 quest types matching client-side QuestType enum
+var FQ_QUEST_TYPES = [
+    'PlayTogether',
+    'ChallengeFriend',
+    'StudyBuddy',
+    'GroupStreak',
+    'BeatInSpeedQuiz',
+    'DailyQuizDuo',
+    'PerfectRound',
+    'ExploreTogether',
+    'ShareScore',
+    'WinThreeQuizzes'
+];
+
+// Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
+var FQ_TEMPLATES = {
+    PlayTogether: {
+        title: 'Play with {0}',
+        desc: 'Complete a quiz while {0} is online',
+        target: 1, coins: 50, xp: 25
+    },
+    ChallengeFriend: {
+        title: 'Challenge {0}',
+        desc: 'Send a challenge to {0} and have them accept',
+        target: 1, coins: 75, xp: 40
+    },
+    StudyBuddy: {
+        title: 'Study with {0}',
+        desc: 'Both you and {0} complete a review session today',
+        target: 1, coins: 100, xp: 50
+    },
+    GroupStreak: {
+        title: '7-Day Streak with {0}',
+        desc: 'Maintain your friend streak with {0} for 7 days',
+        target: 7, coins: 200, xp: 100
+    },
+    BeatInSpeedQuiz: {
+        title: 'Beat {0} in Speed Quiz',
+        desc: 'Score higher than {0} in a Speed Quiz',
+        target: 1, coins: 75, xp: 40
+    },
+    DailyQuizDuo: {
+        title: 'Daily Quiz Duo with {0}',
+        desc: 'Both you and {0} complete the Daily Quiz today',
+        target: 1, coins: 60, xp: 30
+    },
+    PerfectRound: {
+        title: 'Perfect Round with {0}',
+        desc: 'Both answer 5 questions correctly in same session',
+        target: 5, coins: 100, xp: 50
+    },
+    ExploreTogether: {
+        title: 'Explore Together with {0}',
+        desc: 'Both play GeoExplore mode on the same day',
+        target: 1, coins: 75, xp: 40
+    },
+    ShareScore: {
+        title: 'Share a Score with {0}',
+        desc: 'Share your quiz result with {0}',
+        target: 1, coins: 50, xp: 25
+    },
+    WinThreeQuizzes: {
+        title: 'Win 3 Quizzes with {0}',
+        desc: 'Win 3 quizzes while {0} is online',
+        target: 3, coins: 150, xp: 75
+    }
+};
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+function fqStorageKey(userId) {
+    return 'quest_state_' + userId;
+}
+
+function fqReadData(nk, logger, userId) {
+    try {
+        var records = nk.storageRead([{
+            collection: FQ_COLLECTION,
+            key: fqStorageKey(userId),
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value;
+        }
+    } catch (err) {
+        logger.warn('[FriendQuests] Storage read failed: ' + err.message);
+    }
+    return null;
+}
+
+function fqWriteData(nk, logger, userId, data) {
+    try {
+        nk.storageWrite([{
+            collection: FQ_COLLECTION,
+            key: fqStorageKey(userId),
+            userId: userId,
+            value: data,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        logger.error('[FriendQuests] Storage write failed: ' + err.message);
+        return false;
+    }
+}
+
+function fqInitData() {
+    return {
+        quests: [],
+        completedIds: [],
+        lastRefresh: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function fqError(msg) {
+    return JSON.stringify({ success: false, error: msg });
+}
+
+function fqGenerateId() {
+    // 8-char hex ID
+    var chars = '0123456789abcdef';
+    var id = '';
+    for (var i = 0; i < 8; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
+}
+
+function fqFormatString(template, friendName) {
+    return template.replace(/\{0\}/g, friendName);
+}
+
+// ─── SERVER-SIDE QUEST GENERATION ───────────────────────────────────────────
+
+/**
+ * Generate quests from user's Nakama friends list.
+ * Called by friend_quest_get_state when no active quests exist or they've expired.
+ */
+function fqGenerateQuests(nk, logger, userId, existingData) {
+    // Get user's friends list
+    var friends = [];
+    try {
+        var friendsResult = nk.friendsList(userId, null, null, null);
+        if (friendsResult && friendsResult.friends) {
+            for (var i = 0; i < friendsResult.friends.length; i++) {
+                var f = friendsResult.friends[i];
+                if (f && f.user && f.user.id) {
+                    var displayName = f.user.displayName || f.user.username || 'Friend';
+                    friends.push({ id: f.user.id, name: displayName });
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn('[FriendQuests] Could not fetch friends list: ' + err.message);
+    }
+
+    if (friends.length === 0) {
+        logger.info('[FriendQuests] No friends found for user ' + userId + ' — no quests generated');
+        return [];
+    }
+
+    // Determine how many quests to generate
+    var activeCount = 0;
+    var now = new Date();
+    if (existingData && existingData.quests) {
+        for (var j = 0; j < existingData.quests.length; j++) {
+            var q = existingData.quests[j];
+            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) {
+                activeCount++;
+            }
+        }
+    }
+
+    var toGenerate = FQ_MAX_ACTIVE - activeCount;
+    if (toGenerate <= 0) return existingData ? existingData.quests : [];
+
+    // Shuffle quest types to get random selection
+    var shuffledTypes = FQ_QUEST_TYPES.slice();
+    for (var s = shuffledTypes.length - 1; s > 0; s--) {
+        var r = Math.floor(Math.random() * (s + 1));
+        var tmp = shuffledTypes[s];
+        shuffledTypes[s] = shuffledTypes[r];
+        shuffledTypes[r] = tmp;
+    }
+
+    var newQuests = [];
+    var expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString();
+    var createdAt = now.toISOString();
+
+    for (var k = 0; k < toGenerate; k++) {
+        var friend = friends[k % friends.length];
+        var questType = shuffledTypes[k % shuffledTypes.length];
+        var template = FQ_TEMPLATES[questType];
+
+        if (!template) continue;
+
+        newQuests.push({
+            questId: fqGenerateId(),
+            type: questType,
+            friendId: friend.id,
+            friendDisplayName: friend.name,
+            title: fqFormatString(template.title, friend.name),
+            description: fqFormatString(template.desc, friend.name),
+            currentProgress: 0,
+            targetProgress: template.target,
+            isCompleted: false,
+            coinReward: template.coins,
+            xpReward: template.xp,
+            createdAt: createdAt,
+            expiresAt: expiresAt
+        });
+    }
+
+    logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests from ' +
+                friends.length + ' friends for user ' + userId);
+    return newQuests;
+}
+
+// ─── RPC: friend_quest_get_state ────────────────────────────────────────────
+
+function rpcFriendQuestGetState(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fqError('User not authenticated');
+
+    var data = fqReadData(nk, logger, ctx.userId);
+    if (!data) data = fqInitData();
+
+    // Check if we need to generate new quests
+    var now = new Date();
+    var needsRefresh = false;
+
+    // Filter active non-expired quests
+    var activeQuests = [];
+    var expiredOrCompleted = [];
+    if (data.quests && data.quests.length > 0) {
+        for (var i = 0; i < data.quests.length; i++) {
+            var q = data.quests[i];
+            if (q.isCompleted) {
+                expiredOrCompleted.push(q);
+            } else if (q.expiresAt && new Date(q.expiresAt) <= now) {
+                // Expired — don't include
+                expiredOrCompleted.push(q);
+            } else {
+                activeQuests.push(q);
+            }
+        }
+    }
+
+    // Check refresh timer
+    if (data.lastRefresh) {
+        var lastRefreshDate = new Date(data.lastRefresh);
+        var hoursSince = (now.getTime() - lastRefreshDate.getTime()) / (1000 * 60 * 60);
+        if (hoursSince >= FQ_REFRESH_HOURS) {
+            needsRefresh = true;
+        }
+    } else {
+        needsRefresh = true;
+    }
+
+    // Generate new quests if needed
+    if (activeQuests.length < FQ_MAX_ACTIVE && needsRefresh) {
+        // Keep completed quests for history, replace active with fresh
+        data.quests = activeQuests; // Keep valid active ones
+        var newQuests = fqGenerateQuests(nk, logger, ctx.userId, data);
+
+        // Merge new quests
+        for (var j = 0; j < newQuests.length; j++) {
+            data.quests.push(newQuests[j]);
+        }
+
+        data.lastRefresh = now.toISOString();
+        data.updatedAt = now.toISOString();
+        fqWriteData(nk, logger, ctx.userId, data);
+
+        activeQuests = [];
+        for (var k = 0; k < data.quests.length; k++) {
+            if (!data.quests[k].isCompleted) {
+                activeQuests.push(data.quests[k]);
+            }
+        }
+    }
+
+    return JSON.stringify({
+        success: true,
+        quests: activeQuests,
+        completedIds: data.completedIds || [],
+        lastRefresh: data.lastRefresh || null,
+        timestamp: now.toISOString()
+    });
+}
+
+// ─── RPC: friend_quest_complete ─────────────────────────────────────────────
+
+function rpcFriendQuestComplete(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fqError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload); } catch (e) { return fqError('Invalid JSON'); }
+
+    var questId = input.questId;
+    var questType = input.questType;
+    var friendId = input.friendId;
+    var coinReward = input.coinReward || 50;
+    var xpReward = input.xpReward || 25;
+
+    if (!questId || !questType) return fqError('Missing questId or questType');
+
+    var data = fqReadData(nk, logger, ctx.userId) || fqInitData();
+
+    // Duplicate protection
+    if (!data.completedIds) data.completedIds = [];
+    for (var i = 0; i < data.completedIds.length; i++) {
+        if (data.completedIds[i] === questId) {
+            return JSON.stringify({
+                success: false,
+                error: 'Quest already completed',
+                already_completed: true
+            });
+        }
+    }
+
+    // Mark completed
+    data.completedIds.push(questId);
+
+    // Update quest record if exists — use server-stored rewards for authority
+    if (data.quests) {
+        for (var j = 0; j < data.quests.length; j++) {
+            if (data.quests[j].questId === questId) {
+                data.quests[j].isCompleted = true;
+                // Use server-stored reward values (authoritative)
+                if (data.quests[j].coinReward) coinReward = data.quests[j].coinReward;
+                if (data.quests[j].xpReward) xpReward = data.quests[j].xpReward;
+                break;
+            }
+        }
+    }
+
+    // Grant rewards via wallet — coins + XP
+    try {
+        var changeset = {};
+        changeset['coins'] = coinReward;
+        changeset['xp'] = xpReward;
+        nk.walletUpdate(ctx.userId, changeset, {
+            source: 'friend_quest_' + questType
+        }, true);
+    } catch (walletErr) {
+        logger.warn('[FriendQuests] Wallet update failed: ' + walletErr.message);
+    }
+
+    // Save state
+    data.updatedAt = new Date().toISOString();
+    fqWriteData(nk, logger, ctx.userId, data);
+
+    // Notify friend about completion
+    if (friendId) {
+        try {
+            nk.notificationsSend([{
+                userId: friendId,
+                subject: 'Friend Quest Completed!',
+                content: {
+                    type: 'friend_quest_complete',
+                    quest_type: questType,
+                    friend_id: ctx.userId
+                },
+                code: 102,
+                persistent: true
+            }]);
+        } catch (notifErr) {
+            logger.warn('[FriendQuests] Friend notification failed: ' + notifErr.message);
+        }
+    }
+
+    logger.info('[FriendQuests] Quest completed: ' + questId + ' type=' + questType +
+                ' coins=' + coinReward + ' xp=' + xpReward +
+                ' user=' + ctx.userId);
+
+    return JSON.stringify({
+        success: true,
+        questId: questId,
+        coinReward: coinReward,
+        xpReward: xpReward,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_quest_record_progress ──────────────────────────────────────
+//
+// Server-authoritative progress increment. Closes the
+// "client-trusted friend_quest_complete" exploit (PLAN-07 §V4) by making the
+// server the owner of `quest.currentProgress`. Client only reports the
+// interaction event; server validates type ↔ event compatibility and bumps.
+//
+// Payload: {
+//   questId: <string>,
+//   eventType: 'quiz_win' | 'quiz_complete' | 'review_session' | 'speed_quiz_win' |
+//              'daily_quiz_complete' | 'perfect_round' | 'geo_explore_play' |
+//              'share_score' | 'challenge_accepted' | 'play_with_friend',
+//   amount?: <number, default 1>
+// }
+//
+// Returns the updated quest record (or completion notification if it just
+// crossed the targetProgress threshold). NEVER auto-grants rewards — caller
+// must follow up with friend_quest_complete (which now also re-validates).
+//
+// Validation rules: each questType has an allow-list of compatible eventTypes;
+// foreign event types are silently ignored (return success:true, applied:0).
+var FQ_EVENT_RULES = {
+    PlayTogether:    { events: ['quiz_complete','play_with_friend'] },
+    ChallengeFriend: { events: ['challenge_accepted'] },
+    StudyBuddy:      { events: ['review_session'] },
+    GroupStreak:     { events: ['streak_advanced'] },
+    BeatInSpeedQuiz: { events: ['speed_quiz_win'] },
+    DailyQuizDuo:    { events: ['daily_quiz_complete'] },
+    PerfectRound:    { events: ['perfect_round','quiz_complete'] },
+    ExploreTogether: { events: ['geo_explore_play'] },
+    ShareScore:      { events: ['share_score'] },
+    WinThreeQuizzes: { events: ['quiz_win'] }
+};
+
+function rpcFriendQuestRecordProgress(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fqError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload || '{}'); } catch (e) { return fqError('Invalid JSON'); }
+
+    var questId   = input.questId;
+    var eventType = input.eventType;
+    var amount    = parseInt(input.amount) || 1;
+    if (!questId || !eventType) return fqError('Missing questId or eventType');
+    if (amount < 1 || amount > 100) return fqError('Invalid amount (1..100)');
+
+    var data = fqReadData(nk, logger, ctx.userId);
+    if (!data || !data.quests) return fqError('No quest state — call friend_quest_get_state first');
+
+    var found = null;
+    for (var i = 0; i < data.quests.length; i++) {
+        if (data.quests[i].questId === questId) { found = data.quests[i]; break; }
+    }
+    if (!found) return fqError('Quest not found: ' + questId);
+
+    // Refuse to mutate completed/expired quests
+    if (found.isCompleted) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Quest already completed',
+            timestamp: new Date().toISOString()
+        });
+    }
+    if (found.expiresAt && new Date(found.expiresAt) <= new Date()) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Quest expired',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Event-type ↔ quest-type compatibility check
+    var rule = FQ_EVENT_RULES[found.type];
+    if (!rule) return fqError('Unknown quest type: ' + found.type);
+    var allowed = false;
+    for (var e = 0; e < rule.events.length; e++) {
+        if (rule.events[e] === eventType) { allowed = true; break; }
+    }
+    if (!allowed) {
+        return JSON.stringify({
+            success: true,
+            applied: 0,
+            quest: found,
+            message: 'Event type ' + eventType + ' not applicable to quest type ' + found.type,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Apply progress (clamped at target)
+    var prevProgress = found.currentProgress || 0;
+    var target       = found.targetProgress || 1;
+    var newProgress  = Math.min(target, prevProgress + amount);
+    var applied      = newProgress - prevProgress;
+    found.currentProgress = newProgress;
+
+    // Auto-complete server-side when threshold reached
+    var justCompleted = false;
+    if (newProgress >= target && !found.isCompleted) {
+        found.isCompleted = true;
+        justCompleted = true;
+        if (!data.completedIds) data.completedIds = [];
+        // De-dup completedIds
+        var alreadyCompleted = false;
+        for (var c = 0; c < data.completedIds.length; c++) {
+            if (data.completedIds[c] === questId) { alreadyCompleted = true; break; }
+        }
+        if (!alreadyCompleted) data.completedIds.push(questId);
+    }
+
+    data.updatedAt = new Date().toISOString();
+    if (!fqWriteData(nk, logger, ctx.userId, data)) {
+        return fqError('Failed to save quest progress');
+    }
+
+    logger.info('[FriendQuests] record_progress questId=' + questId +
+                ' type=' + found.type + ' eventType=' + eventType +
+                ' applied=' + applied + ' newProgress=' + newProgress + '/' + target +
+                (justCompleted ? ' COMPLETED' : ''));
+
+    return JSON.stringify({
+        success: true,
+        questId: questId,
+        applied: applied,
+        currentProgress: newProgress,
+        targetProgress: target,
+        isCompleted: found.isCompleted,
+        justCompleted: justCompleted,
+        // When justCompleted, the client should call friend_quest_complete to
+        // claim the reward — but server already marks isCompleted so the
+        // claim is purely a wallet transaction at that point.
+        coinReward: justCompleted ? (found.coinReward || 0) : undefined,
+        xpReward:   justCompleted ? (found.xpReward || 0)   : undefined,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ============================================================================
+// Module Init — register Friend Quest RPCs
+// ============================================================================
+function __ModuleInit_35(ctx, logger, nk, initializer) {
+    __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState);
+    __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete);
+    __rpc_friend_quest_record_progress = __rpc_friend_quest_record_progress || (rpcFriendQuestRecordProgress);
+    if (logger && logger.info) {
+        logger.info('[FriendQuests] Registered 3 RPCs (get_state, complete, record_progress)');
+    }
+}
+
+
+// --- Module: friend_streaks\friend_streaks.js ---
+// friend_streaks.js - Bilateral Friend Streak System for QuizVerse v3.0
+// RPCs: friend_streak_get_state, friend_streak_record_contribution, friend_streak_send_nudge
+// Spec: MRS §29-§31 — Snapchat-style bilateral daily streaks
+
+/**
+ * Friend Streak System — Production-Ready
+ *
+ * Tracks bilateral daily streaks between friends (both must play each day).
+ * Max 5 concurrent streaks per player. Unlocks at Day 14.
+ * Nudge system: 3 nudges/day with 4h cooldown per friend.
+ *
+ * Storage: collection="friend_streaks", key="streaks_{userId}"
+ */
+
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+
+var FS_COLLECTION = 'friend_streaks';
+var FS_MAX_CONCURRENT = 5;
+var FS_NUDGES_PER_DAY = 3;
+var FS_NUDGE_COOLDOWN_HOURS = 4;
+var FS_STREAK_BREAK_HOURS = 48; // 2 days without bilateral contribution = broken
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+function fsStorageKey(userId) {
+    return 'streaks_' + userId;
+}
+
+function fsReadData(nk, logger, userId) {
+    try {
+        var records = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: fsStorageKey(userId),
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value;
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] Storage read failed: ' + err.message);
+    }
+    return null;
+}
+
+function fsWriteData(nk, logger, userId, data) {
+    try {
+        nk.storageWrite([{
+            collection: FS_COLLECTION,
+            key: fsStorageKey(userId),
+            userId: userId,
+            value: data,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        logger.error('[FriendStreaks] Storage write failed: ' + err.message);
+        return false;
+    }
+}
+
+function fsInitData() {
+    return {
+        streaks: {},
+        nudgesSentToday: 0,
+        nudgeDateKey: '',
+        lastNudgeTimes: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function fsError(msg) {
+    return JSON.stringify({ success: false, error: msg });
+}
+
+function fsTodayKey() {
+    return new Date().toISOString().slice(0, 10).replace(/-/g, '');
+}
+
+function fsHoursSince(isoDate) {
+    if (!isoDate) return 9999;
+    return (Date.now() - new Date(isoDate).getTime()) / 3600000;
+}
+
+// Clean up broken streaks. When a streak is broken we also persist a
+// rolling "broken log" entry under collection=friend_streaks key=broken_log_{userId}
+// so the player's UI can later surface "you lost a 30-day streak with X" even
+// if they weren't online when the prune happened (V23 in PLAN-07).
+var FS_BROKEN_LOG_MAX = 50;
+
+function fsAppendBrokenLog(nk, logger, userId, brokenList) {
+    if (!brokenList || brokenList.length === 0) return;
+    try {
+        var existing = [];
+        try {
+            var rows = nk.storageRead([{
+                collection: FS_COLLECTION,
+                key: 'broken_log_' + userId,
+                userId: userId
+            }]);
+            if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+                existing = rows[0].value.entries;
+            }
+        } catch (_) {}
+
+        var now = new Date().toISOString();
+        for (var i = 0; i < brokenList.length; i++) {
+            var b = brokenList[i];
+            existing.unshift({
+                friendId:  b.friendId,
+                streakDays: b.days || 0,
+                brokenAt:  now,
+                repaired:  false
+            });
+        }
+        if (existing.length > FS_BROKEN_LOG_MAX) {
+            existing = existing.slice(0, FS_BROKEN_LOG_MAX);
+        }
+
+        nk.storageWrite([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + userId,
+            userId: userId,
+            value: { entries: existing, updatedAt: now },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        if (logger && logger.warn) logger.warn('[FriendStreaks] broken-log persist failed: ' + err.message);
+    }
+}
+
+function fsPruneStreaks(data) {
+    var pruned = [];
+    for (var fid in data.streaks) {
+        var s = data.streaks[fid];
+        if (fsHoursSince(s.lastInteractionAt) > FS_STREAK_BREAK_HOURS) {
+            pruned.push({ friendId: fid, days: s.streakDays, friendDisplayName: s.friendDisplayName || '' });
+            delete data.streaks[fid];
+        }
+    }
+    return pruned;
+}
+
+// Reset daily nudge counter if new day
+function fsRefreshNudges(data) {
+    var today = fsTodayKey();
+    if (data.nudgeDateKey !== today) {
+        data.nudgesSentToday = 0;
+        data.nudgeDateKey = today;
+        data.lastNudgeTimes = {};
+    }
+}
+
+// ─── RPC: friend_streak_get_state ───────────────────────────────────────────
+
+function rpcFriendStreakGetState(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var data = fsReadData(nk, logger, ctx.userId);
+    if (!data) data = fsInitData();
+
+    // Prune broken streaks
+    var broken = fsPruneStreaks(data);
+    fsRefreshNudges(data);
+
+    if (broken.length > 0) {
+        fsWriteData(nk, logger, ctx.userId, data);
+        fsAppendBrokenLog(nk, logger, ctx.userId, broken);
+    }
+
+    // Build response
+    var streakList = [];
+    for (var fid in data.streaks) {
+        var s = data.streaks[fid];
+        var hoursLeft = FS_STREAK_BREAK_HOURS - fsHoursSince(s.lastInteractionAt);
+        streakList.push({
+            friendId: fid,
+            friendDisplayName: s.friendDisplayName || '',
+            streakDays: s.streakDays || 0,
+            myContributionToday: s.myContributionToday || false,
+            friendContributionToday: s.friendContributionToday || false,
+            isAtRisk: hoursLeft < 4 && hoursLeft > 0,
+            hoursUntilBreak: Math.max(0, Math.round(hoursLeft)),
+            startedAt: s.startedAt || null
+        });
+    }
+
+    return JSON.stringify({
+        success: true,
+        streaks: streakList,
+        totalActive: streakList.length,
+        maxStreaks: FS_MAX_CONCURRENT,
+        nudgesRemaining: Math.max(0, FS_NUDGES_PER_DAY - (data.nudgesSentToday || 0)),
+        brokenStreaks: broken,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_streak_record_contribution ─────────────────────────────────
+
+function rpcFriendStreakRecordContribution(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload); } catch (e) { return fsError('Invalid JSON'); }
+
+    var friendId = input.friendId;
+    if (!friendId) return fsError('Missing friendId');
+
+    // --- My data ---
+    var myData = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    fsPruneStreaks(myData);
+
+    // Auto-create streak if not exists (within limits)
+    if (!myData.streaks[friendId]) {
+        if (Object.keys(myData.streaks).length >= FS_MAX_CONCURRENT) {
+            return fsError('Max concurrent streaks reached (' + FS_MAX_CONCURRENT + ')');
+        }
+        myData.streaks[friendId] = {
+            friendDisplayName: input.friendDisplayName || '',
+            streakDays: 0,
+            myContributionToday: false,
+            friendContributionToday: false,
+            lastInteractionAt: new Date().toISOString(),
+            startedAt: new Date().toISOString()
+        };
+    }
+
+    var myStreak = myData.streaks[friendId];
+    myStreak.myContributionToday = true;
+    myStreak.lastInteractionAt = new Date().toISOString();
+
+    // --- Friend's data (mirror the contribution) ---
+    var friendData = fsReadData(nk, logger, friendId) || fsInitData();
+    fsPruneStreaks(friendData);
+
+    if (!friendData.streaks[ctx.userId]) {
+        if (Object.keys(friendData.streaks).length >= FS_MAX_CONCURRENT) {
+            logger.warn('[FriendStreaks] Friend ' + friendId + ' at max streaks, cannot mirror');
+        } else {
+            friendData.streaks[ctx.userId] = {
+                friendDisplayName: input.myDisplayName || '',
+                streakDays: 0,
+                myContributionToday: false,
+                friendContributionToday: false,
+                lastInteractionAt: new Date().toISOString(),
+                startedAt: new Date().toISOString()
+            };
+        }
+    }
+
+    if (friendData.streaks[ctx.userId]) {
+        friendData.streaks[ctx.userId].friendContributionToday = true;
+        friendData.streaks[ctx.userId].lastInteractionAt = new Date().toISOString();
+
+        // Check bilateral completion on friend side
+        if (friendData.streaks[ctx.userId].myContributionToday &&
+            friendData.streaks[ctx.userId].friendContributionToday) {
+            friendData.streaks[ctx.userId].streakDays =
+                (friendData.streaks[ctx.userId].streakDays || 0) + 1;
+            friendData.streaks[ctx.userId].myContributionToday = false;
+            friendData.streaks[ctx.userId].friendContributionToday = false;
+        }
+        friendData.updatedAt = new Date().toISOString();
+        fsWriteData(nk, logger, friendId, friendData);
+    }
+
+    // Check bilateral completion on my side
+    var advanced = false;
+    if (myStreak.myContributionToday && myStreak.friendContributionToday) {
+        myStreak.streakDays = (myStreak.streakDays || 0) + 1;
+        myStreak.myContributionToday = false;
+        myStreak.friendContributionToday = false;
+        advanced = true;
+    }
+
+    myData.updatedAt = new Date().toISOString();
+    if (!fsWriteData(nk, logger, ctx.userId, myData)) {
+        return fsError('Failed to save streak data');
+    }
+
+    logger.info('[FriendStreaks] ' + ctx.userId + ' contributed to streak with ' +
+                friendId + (advanced ? ' — ADVANCED to day ' + myStreak.streakDays : ''));
+
+    return JSON.stringify({
+        success: true,
+        friendId: friendId,
+        streakDays: myStreak.streakDays,
+        advanced: advanced,
+        myContributionToday: myStreak.myContributionToday,
+        friendContributionToday: myStreak.friendContributionToday,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_streak_send_nudge ──────────────────────────────────────────
+
+function rpcFriendStreakSendNudge(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload); } catch (e) { return fsError('Invalid JSON'); }
+
+    var friendId = input.friendId;
+    if (!friendId) return fsError('Missing friendId');
+
+    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    fsRefreshNudges(data);
+
+    // Check daily limit
+    if ((data.nudgesSentToday || 0) >= FS_NUDGES_PER_DAY) {
+        return fsError('Daily nudge limit reached (' + FS_NUDGES_PER_DAY + ')');
+    }
+
+    // Check cooldown per friend
+    var lastNudge = data.lastNudgeTimes ? data.lastNudgeTimes[friendId] : null;
+    if (lastNudge && fsHoursSince(lastNudge) < FS_NUDGE_COOLDOWN_HOURS) {
+        var remaining = Math.ceil(FS_NUDGE_COOLDOWN_HOURS - fsHoursSince(lastNudge));
+        return fsError('Nudge cooldown: ' + remaining + 'h remaining');
+    }
+
+    // Send notification to friend
+    try {
+        nk.notificationsSend([{
+            userId: friendId,
+            subject: 'Streak Nudge! 🔥',
+            content: {
+                type: 'friend_streak_nudge',
+                senderId: ctx.userId,
+                senderName: input.myDisplayName || 'A friend'
+            },
+            code: 101, // Custom notification code for streak nudges
+            persistent: true
+        }]);
+    } catch (err) {
+        logger.warn('[FriendStreaks] Failed to send nudge notification: ' + err.message);
+        // Continue anyway — nudge is counted even if notification fails
+    }
+
+    // Update nudge state
+    data.nudgesSentToday = (data.nudgesSentToday || 0) + 1;
+    if (!data.lastNudgeTimes) data.lastNudgeTimes = {};
+    data.lastNudgeTimes[friendId] = new Date().toISOString();
+    data.updatedAt = new Date().toISOString();
+
+    fsWriteData(nk, logger, ctx.userId, data);
+
+    var remaining = FS_NUDGES_PER_DAY - data.nudgesSentToday;
+    logger.info('[FriendStreaks] Nudge sent from ' + ctx.userId + ' to ' + friendId +
+                '. Remaining: ' + remaining);
+
+    return JSON.stringify({
+        success: true,
+        friendId: friendId,
+        nudgesRemaining: remaining,
+        cooldownHours: FS_NUDGE_COOLDOWN_HOURS,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_streak_get_broken_log ──────────────────────────────────────
+//
+// Returns the rolling log of streaks that broke while the player was offline,
+// so the client can show a "you lost a 30-day streak with X" banner. Also
+// runs a fresh prune so the log is always up to date at read time.
+
+function rpcFriendStreakGetBrokenLog(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input = {};
+    if (payload && payload !== '') {
+        try { input = JSON.parse(payload); } catch (e) { /* ignore — empty filter */ }
+    }
+    var limit = parseInt(input.limit) || 20;
+    if (limit < 1)  limit = 1;
+    if (limit > FS_BROKEN_LOG_MAX) limit = FS_BROKEN_LOG_MAX;
+    var includeRepaired = input.includeRepaired === true;
+
+    // Fresh prune so the log is always current at read time
+    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    var fresh = fsPruneStreaks(data);
+    if (fresh.length > 0) {
+        fsWriteData(nk, logger, ctx.userId, data);
+        fsAppendBrokenLog(nk, logger, ctx.userId, fresh);
+    }
+
+    var entries = [];
+    try {
+        var rows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + ctx.userId,
+            userId: ctx.userId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+            entries = rows[0].value.entries;
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] broken-log read failed: ' + err.message);
+    }
+
+    if (!includeRepaired) {
+        var filtered = [];
+        for (var i = 0; i < entries.length; i++) {
+            if (!entries[i].repaired) filtered.push(entries[i]);
+        }
+        entries = filtered;
+    }
+    if (entries.length > limit) entries = entries.slice(0, limit);
+
+    return JSON.stringify({
+        success: true,
+        entries: entries,
+        totalEntries: entries.length,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ─── RPC: friend_streak_repair ──────────────────────────────────────────────
+//
+// Spend a "Streak Saver" (gem cost) to restore a broken bilateral streak.
+// Server-authoritative: validates the broken-log entry exists, debits the
+// wallet, restores the streak with its previous day count, marks the entry
+// repaired, and notifies the friend so their state can mirror.
+//
+// Schema: { friendId: <UUID>, idempotencyKey?: <string> }
+
+var FS_REPAIR_GEM_COST = 50;
+
+function rpcFriendStreakRepair(ctx, logger, nk, payload) {
+    if (!ctx.userId) return fsError('User not authenticated');
+
+    var input;
+    try { input = JSON.parse(payload || '{}'); } catch (e) { return fsError('Invalid JSON'); }
+
+    var friendId = input.friendId;
+    if (!friendId) return fsError('Missing friendId');
+    var idempotencyKey = input.idempotencyKey || ('fs_repair_' + friendId + '_' + Date.now());
+
+    // Idempotency check — refuse double-spend on the same key
+    try {
+        var idemRows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'repair_idem_' + ctx.userId + '_' + idempotencyKey,
+            userId: ctx.userId
+        }]);
+        if (idemRows && idemRows.length > 0 && idemRows[0].value) {
+            return JSON.stringify({
+                success: true,
+                idempotent: true,
+                friendId: friendId,
+                streakDays: idemRows[0].value.restoredDays || 0,
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (_) { /* fall-through */ }
+
+    // Find the broken-log entry for this friend (most recent unrepaired)
+    var brokenEntry = null;
+    var brokenLog = null;
+    try {
+        var rows = nk.storageRead([{
+            collection: FS_COLLECTION,
+            key: 'broken_log_' + ctx.userId,
+            userId: ctx.userId
+        }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+            brokenLog = rows[0].value;
+            for (var i = 0; i < brokenLog.entries.length; i++) {
+                if (brokenLog.entries[i].friendId === friendId && !brokenLog.entries[i].repaired) {
+                    brokenEntry = brokenLog.entries[i];
+                    break;
+                }
+            }
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair read broken-log failed: ' + err.message);
+    }
+
+    if (!brokenEntry) {
+        return fsError('No broken streak found for friend ' + friendId);
+    }
+
+    // Repair window: only repair if the streak broke within last 7 days
+    var brokenAtMs = new Date(brokenEntry.brokenAt).getTime();
+    if ((Date.now() - brokenAtMs) > (7 * 86400000)) {
+        return fsError('Streak broken more than 7 days ago — too late to repair');
+    }
+
+    // Debit gems
+    try {
+        nk.walletUpdate(ctx.userId, { gems: -FS_REPAIR_GEM_COST }, {
+            source: 'friend_streak_repair',
+            friendId: friendId,
+            idempotencyKey: idempotencyKey
+        }, true);
+    } catch (walletErr) {
+        return fsError('Insufficient gems: ' + walletErr.message);
+    }
+
+    // Restore the streak on caller's side
+    var data = fsReadData(nk, logger, ctx.userId) || fsInitData();
+    if (Object.keys(data.streaks).length >= FS_MAX_CONCURRENT) {
+        // Refund gems
+        try {
+            nk.walletUpdate(ctx.userId, { gems: FS_REPAIR_GEM_COST }, {
+                source: 'friend_streak_repair_refund',
+                friendId: friendId
+            }, true);
+        } catch (_) {}
+        return fsError('Max concurrent streaks reached — cannot restore');
+    }
+    data.streaks[friendId] = {
+        friendDisplayName: brokenEntry.friendDisplayName || '',
+        streakDays: brokenEntry.streakDays || 0,
+        myContributionToday: false,
+        friendContributionToday: false,
+        lastInteractionAt: new Date().toISOString(),
+        startedAt: new Date().toISOString(),
+        repairedAt: new Date().toISOString()
+    };
+    data.updatedAt = new Date().toISOString();
+    fsWriteData(nk, logger, ctx.userId, data);
+
+    // Mark broken-log entry as repaired
+    try {
+        if (brokenLog && brokenLog.entries) {
+            for (var j = 0; j < brokenLog.entries.length; j++) {
+                if (brokenLog.entries[j] === brokenEntry) {
+                    brokenLog.entries[j].repaired = true;
+                    brokenLog.entries[j].repairedAt = new Date().toISOString();
+                    break;
+                }
+            }
+            nk.storageWrite([{
+                collection: FS_COLLECTION,
+                key: 'broken_log_' + ctx.userId,
+                userId: ctx.userId,
+                value: brokenLog,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+        }
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair mark-log failed: ' + err.message);
+    }
+
+    // Persist idempotency record (24h TTL via Nakama isn't supported in JS
+    // runtime, so we just persist forever — keys are scoped per-user and small)
+    try {
+        nk.storageWrite([{
+            collection: FS_COLLECTION,
+            key: 'repair_idem_' + ctx.userId + '_' + idempotencyKey,
+            userId: ctx.userId,
+            value: {
+                friendId: friendId,
+                restoredDays: brokenEntry.streakDays || 0,
+                gemCost: FS_REPAIR_GEM_COST,
+                repairedAt: new Date().toISOString()
+            },
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (_) {}
+
+    // Notify the friend
+    try {
+        nk.notificationsSend([{
+            userId: friendId,
+            subject: 'Streak Restored! 🔥',
+            content: {
+                type: 'friend_streak_repaired',
+                fromUserId: ctx.userId,
+                streakDays: brokenEntry.streakDays || 0
+            },
+            code: 102,
+            persistent: true
+        }]);
+    } catch (err) {
+        logger.warn('[FriendStreaks] repair notify failed: ' + err.message);
+    }
+
+    logger.info('[FriendStreaks] Repaired streak ' + ctx.userId + ' ↔ ' + friendId +
+                ' restoredDays=' + (brokenEntry.streakDays || 0) + ' gemCost=' + FS_REPAIR_GEM_COST);
+
+    return JSON.stringify({
+        success: true,
+        friendId: friendId,
+        streakDays: brokenEntry.streakDays || 0,
+        gemCost: FS_REPAIR_GEM_COST,
+        idempotencyKey: idempotencyKey,
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ============================================================================
+// Module Init — register Friend Streak RPCs
+// ============================================================================
+// Registers all 5 friend-streak RPCs. Existing 3 (get_state, record_contribution,
+// send_nudge) are also registered by legacy_runtime.js; postbuild's `||` guard
+// + module-first concat order means our handler wins.
+function __ModuleInit_36(ctx, logger, nk, initializer) {
+    __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState);
+    __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution);
+    __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge);
+    __rpc_friend_streak_get_broken_log = __rpc_friend_streak_get_broken_log || (rpcFriendStreakGetBrokenLog);
+    __rpc_friend_streak_repair = __rpc_friend_streak_repair || (rpcFriendStreakRepair);
+    if (logger && logger.info) {
+        logger.info('[FriendStreaks] Registered 5 RPCs (get_state, record_contribution, send_nudge, get_broken_log, repair)');
+    }
+}
+
+
+// --- Module: game_metrics\game_metrics.js ---
 // game_metrics.js — Universal game metrics capture, query, and aggregation
 //
 // Collections:
@@ -19104,7 +19105,7 @@ function rpcGameMetricsAggregate(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: groups/groups.js ---
+// --- Module: groups\groups.js ---
 // groups.js - Groups/Clans/Guilds system for multi-game backend
 // Provides comprehensive group management with roles, shared wallets, and group challenges
 
@@ -19850,7 +19851,7 @@ function updateNakamaUsername(nk, logger, userId, username) {
 }
 
 
-// --- Module: infrastructure/batch_operations.js ---
+// --- Module: infrastructure\batch_operations.js ---
 /**
  * Batch Operations for Multi-Game Platform
  * Execute multiple RPCs in a single call for improved performance
@@ -20112,7 +20113,7 @@ var rpcBatchAchievementProgress = function(ctx, logger, nk, payload) {
 };
 
 
-// --- Module: infrastructure/caching.js ---
+// --- Module: infrastructure\caching.js ---
 /**
  * Caching Layer for Multi-Game Platform
  * Improve performance for frequently accessed data
@@ -20350,7 +20351,7 @@ var rpcCacheClear = function(ctx, logger, nk, payload) {
 // setInterval(cacheCleanup, 300000);
 
 
-// --- Module: infrastructure/rate_limiting.js ---
+// --- Module: infrastructure\rate_limiting.js ---
 /**
  * Rate Limiting System for Multi-Game Platform
  * Prevent RPC abuse and spam
@@ -20528,7 +20529,7 @@ var withPresetRateLimit = function(rpcFunction, rpcName, preset) {
 // __rpc_submit_score = __rpc_submit_score || (withPresetRateLimit(rpcSubmitScore, "submit_score", "WRITE"));
 
 
-// --- Module: ivx_quest/ivx_quest.js ---
+// --- Module: ivx_quest\ivx_quest.js ---
 // data/modules/ivx_quest/ivx_quest.js
 //
 // IVX cross-game quest layer (distinct from QuizVerse's friend_quest_*).
@@ -20838,7 +20839,7 @@ function __ModuleInit_43(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: lasttolive_depth/lasttolive_depth.js ---
+// --- Module: lasttolive_depth\lasttolive_depth.js ---
 // lasttolive_depth.js - Deep LastToLive RPCs: Weapon Mastery, Nemesis, Bounties, and more
 // Nakama V8 JavaScript runtime (No ES Modules)
 
@@ -22558,7 +22559,7 @@ function scheduledSyncGameRegistry(ctx, logger, nk) {
 // No ES module exports - Nakama V8 runtime uses global function registration
 
 
-// --- Module: leagues/leagues.js ---
+// --- Module: leagues\leagues.js ---
 // leagues.js - Weekly League System for QuizVerse v3.0
 // Provides tier-based competitive ranking with weekly promotion/demotion
 // RPCs: league_get_state, league_submit_points, league_process_season, league_get_leaderboard
@@ -23181,7 +23182,7 @@ function rpcLeagueGetLeaderboard(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: live_ops/live_ops.js ---
+// --- Module: live_ops\live_ops.js ---
 // Live Ops module for Nakama game server
 // Flash events, mystery boxes, daily spotlights, streaks, comeback rewards, lucky draws, happy hour
 
@@ -23814,7 +23815,7 @@ var rpcHappyHourStatus = function (ctx, logger, nk, payload) {
 };
 
 
-// --- Module: manifest/manifest.js ---
+// --- Module: manifest\manifest.js ---
 // manifest.js - Asset Manifest Version Check for QuizVerse v3.0
 // RPC: manifest_get_version
 
@@ -23926,7 +23927,7 @@ function rpcManifestGetVersion(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: matchmaking/matchmaking.js ---
+// --- Module: matchmaking\matchmaking.js ---
 /**
  * Matchmaking System for Multi-Game Platform
  * Supports skill-based matching, party queues, and game modes
@@ -25626,7 +25627,7 @@ function registerMultiGameRPCs(initializer, logger) {
 }
 
 
-// --- Module: notifications/notification_gate.js ---
+// --- Module: notifications\notification_gate.js ---
 // notification_gate.js - Notification Budget Gate for QuizVerse v3.0
 // RPC: notification_gate_get_state
 
@@ -25786,7 +25787,7 @@ function rpcNotifGateGetState(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: notifications/notification_inbox.js ---
+// --- Module: notifications\notification_inbox.js ---
 // notification_inbox.js - Notification Inbox System for QuizVerse v3.0
 // RPCs: list_notification_inbox, mark_notifications_read
 // Nakama is the source of truth for all notification state.
@@ -26205,7 +26206,7 @@ function rpcMarkNotificationsRead(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: onboarding/onboarding.js ---
+// --- Module: onboarding\onboarding.js ---
 /**
  * Nakama Onboarding Module
  * Handles user onboarding state, preferences, and first-session hooks
@@ -27279,7 +27280,7 @@ function updateSessionStats(nk, logger, userId, stats) {
 
 
 
-// --- Module: personalization/personalization.js ---
+// --- Module: personalization\personalization.js ---
 // Personalization module for Nakama game server
 // Smart missions and recommendations based on player behavior
 
@@ -27886,7 +27887,7 @@ var rpcGetSmartRecommendations = function (ctx, logger, nk, payload) {
 };
 
 
-// --- Module: player/player_full_profile.js ---
+// --- Module: player\player_full_profile.js ---
 // player_full_profile.js - Aggregate Player Profile for QuizVerse v3.0
 // RPC: player_get_full_profile
 
@@ -28101,7 +28102,7 @@ function rpcPlayerGetFullProfile(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: player_gifts/player_gifts.js ---
+// --- Module: player_gifts\player_gifts.js ---
 // player_gifts.js - Player-to-Player Gifting System
 // Storage collection: player_gifts
 // RPCs: gift_send, gift_claim, gift_inbox
@@ -28970,7 +28971,7 @@ function rpcGetLeaderboard(ctx, logger, nk, payload) {
 // These will be registered in the main index.js
 
 
-// --- Module: progression/mastery_system.js ---
+// --- Module: progression\mastery_system.js ---
 /**
  * Prestige & Category Mastery System
  * Rewards deep engagement with specific categories and long-term progression
@@ -29306,7 +29307,7 @@ module.exports = {
 
 
 
-// --- Module: progression/progressive_unlocks.js ---
+// --- Module: progression\progressive_unlocks.js ---
 /**
  * Progressive Content Unlocks Module
  * Unlocks game features over the first 7 days to maintain engagement
@@ -29749,7 +29750,7 @@ module.exports = {
 
 
 
-// --- Module: push_notifications/push_notifications.js ---
+// --- Module: push_notifications\push_notifications.js ---
 // push_notifications.js - Push Notification System (AWS SNS + Pinpoint + Lambda)
 // Unity does NOT use AWS SDK - Unity only sends raw push tokens
 // Nakama forwards to AWS Lambda Function URL for endpoint creation
@@ -31237,663 +31238,7 @@ function rpcIntelliDrawsPast(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: quiz_results/quiz_results.js ---
-// quiz_results.js - Quiz Results Tracking & Analytics System
-// Stores ALL quiz results from ALL game modes for analytics, history, and leaderboards
-
-/**
- * Quiz Result Schema
- * Captures comprehensive data about each quiz attempt
- */
-var QUIZ_RESULT_SCHEMA = {
-    // Required fields
-    gameId: "string",           // Game UUID
-    gameMode: "string",         // QuickPlay, DailyChallenge, Championship, etc.
-    
-    // Score data
-    score: "number",            // Final score
-    correctAnswers: "number",   // Number of correct answers
-    totalQuestions: "number",   // Total questions in quiz
-    
-    // Timing
-    timeTakenSeconds: "number", // Total time taken
-    
-    // Win/Loss
-    won: "boolean",             // Did user win?
-    
-    // Optional fields
-    difficulty: "string",       // easy, medium, hard
-    categoryId: "string",       // Category/topic ID
-    categoryName: "string",     // Category/topic name
-    opponentId: "string",       // For multiplayer
-    opponentName: "string",     // Opponent display name
-    tournamentId: "string",     // If part of tournament
-    matchId: "string",          // Match ID for multiplayer
-    hintsUsed: "number",        // Power-ups used
-    skipsUsed: "number",
-    extraTimeUsed: "number",
-    extraLivesUsed: "number",
-    coinsSpent: "number",       // Coins spent on power-ups
-    coinsEarned: "number",      // Coins earned from this quiz
-    xpEarned: "number",         // XP earned
-    streakDay: "number",        // Daily streak day
-    perfectScore: "boolean",    // 100% accuracy
-    metadata: "object"          // Any additional game-specific data
-};
-
-/**
- * Get collection name for quiz results
- */
-function getResultsCollection(gameId) {
-    return "quiz_results_" + gameId;
-}
-
-/**
- * Get user stats collection
- */
-function getUserStatsCollection(gameId) {
-    return "quiz_user_stats_" + gameId;
-}
-
-/**
- * Generate unique result key
- */
-function generateResultKey(userId, timestamp) {
-    return "result_" + userId + "_" + timestamp;
-}
-
-/**
- * Calculate performance metrics
- */
-function calculateMetrics(result) {
-    var accuracy = result.totalQuestions > 0 
-        ? (result.correctAnswers / result.totalQuestions) * 100 
-        : 0;
-    
-    var avgTimePerQuestion = result.totalQuestions > 0 
-        ? result.timeTakenSeconds / result.totalQuestions 
-        : 0;
-    
-    var isPerfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
-    
-    return {
-        accuracy: Math.round(accuracy * 100) / 100,
-        avgTimePerQuestion: Math.round(avgTimePerQuestion * 100) / 100,
-        isPerfect: isPerfect,
-        performanceRating: calculatePerformanceRating(accuracy, avgTimePerQuestion, result.won)
-    };
-}
-
-/**
- * Calculate performance rating (1-5 stars)
- */
-function calculatePerformanceRating(accuracy, avgTime, won) {
-    var rating = 0;
-    
-    // Accuracy contribution (0-2.5 stars)
-    if (accuracy >= 90) rating += 2.5;
-    else if (accuracy >= 70) rating += 2.0;
-    else if (accuracy >= 50) rating += 1.5;
-    else if (accuracy >= 30) rating += 1.0;
-    else rating += 0.5;
-    
-    // Speed contribution (0-1.5 stars)
-    if (avgTime <= 5) rating += 1.5;
-    else if (avgTime <= 10) rating += 1.0;
-    else if (avgTime <= 15) rating += 0.5;
-    
-    // Win bonus (0-1 star)
-    if (won) rating += 1.0;
-    
-    return Math.min(5, Math.round(rating * 10) / 10);
-}
-
-/**
- * Update user's aggregate statistics
- */
-function updateUserStats(nk, logger, userId, gameId, result, metrics) {
-    var collection = getUserStatsCollection(gameId);
-    var key = "stats_" + userId;
-    
-    // Get existing stats
-    var stats = utils.readStorage(nk, logger, collection, key, userId);
-    
-    if (!stats) {
-        stats = {
-            userId: userId,
-            gameId: gameId,
-            totalGames: 0,
-            totalWins: 0,
-            totalScore: 0,
-            totalCorrect: 0,
-            totalQuestions: 0,
-            totalTimePlayed: 0,
-            perfectGames: 0,
-            highestScore: 0,
-            longestStreak: 0,
-            currentStreak: 0,
-            lastPlayedAt: null,
-            modeStats: {},
-            createdAt: utils.getCurrentTimestamp()
-        };
-    }
-    
-    // Update totals
-    stats.totalGames++;
-    stats.totalScore += result.score || 0;
-    stats.totalCorrect += result.correctAnswers || 0;
-    stats.totalQuestions += result.totalQuestions || 0;
-    stats.totalTimePlayed += result.timeTakenSeconds || 0;
-    
-    if (result.won) {
-        stats.totalWins++;
-        stats.currentStreak++;
-        stats.longestStreak = Math.max(stats.longestStreak, stats.currentStreak);
-    } else {
-        stats.currentStreak = 0;
-    }
-    
-    if (metrics.isPerfect) {
-        stats.perfectGames++;
-    }
-    
-    stats.highestScore = Math.max(stats.highestScore, result.score || 0);
-    stats.lastPlayedAt = utils.getCurrentTimestamp();
-    
-    // Update per-mode stats
-    var mode = result.gameMode || "unknown";
-    if (!stats.modeStats[mode]) {
-        stats.modeStats[mode] = {
-            games: 0,
-            wins: 0,
-            totalScore: 0,
-            highestScore: 0
-        };
-    }
-    stats.modeStats[mode].games++;
-    if (result.won) stats.modeStats[mode].wins++;
-    stats.modeStats[mode].totalScore += result.score || 0;
-    stats.modeStats[mode].highestScore = Math.max(
-        stats.modeStats[mode].highestScore, 
-        result.score || 0
-    );
-    
-    stats.updatedAt = utils.getCurrentTimestamp();
-    
-    // Save stats
-    utils.writeStorage(nk, logger, collection, key, userId, stats);
-    
-    return stats;
-}
-
-/**
- * RPC: quiz_submit_result
- * Submit quiz result from any game mode
- * 
- * Required payload:
- * {
- *   gameId: "uuid",
- *   gameMode: "QuickPlay",
- *   score: 850,
- *   correctAnswers: 8,
- *   totalQuestions: 10,
- *   timeTakenSeconds: 120,
- *   won: true
- * }
- * 
- * Optional fields: difficulty, categoryId, categoryName, opponentId,
- *   tournamentId, matchId, hintsUsed, skipsUsed, coinsSpent, coinsEarned, etc.
- */
-function rpcQuizSubmitResult(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC quiz_submit_result called");
-    
-    // Parse payload
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    
-    // Validate required fields
-    var required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
-    var validation = utils.validatePayload(data, required);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    // Validate gameId UUID
-    if (!utils.isValidUUID(data.gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var username = ctx.username || "unknown";
-    var timestamp = utils.getUnixTimestamp();
-    
-    // Build result object
-    var result = {
-        id: generateResultKey(userId, timestamp),
-        userId: userId,
-        username: username,
-        gameId: data.gameId,
-        gameMode: data.gameMode,
-        score: parseInt(data.score) || 0,
-        correctAnswers: parseInt(data.correctAnswers) || 0,
-        totalQuestions: parseInt(data.totalQuestions) || 0,
-        timeTakenSeconds: parseFloat(data.timeTakenSeconds) || 0,
-        won: data.won === true || data.won === "true",
-        
-        // Optional fields
-        difficulty: data.difficulty || "normal",
-        categoryId: data.categoryId || null,
-        categoryName: data.categoryName || null,
-        opponentId: data.opponentId || null,
-        opponentName: data.opponentName || null,
-        tournamentId: data.tournamentId || null,
-        matchId: data.matchId || null,
-        hintsUsed: parseInt(data.hintsUsed) || 0,
-        skipsUsed: parseInt(data.skipsUsed) || 0,
-        extraTimeUsed: parseInt(data.extraTimeUsed) || 0,
-        extraLivesUsed: parseInt(data.extraLivesUsed) || 0,
-        coinsSpent: parseInt(data.coinsSpent) || 0,
-        coinsEarned: parseInt(data.coinsEarned) || 0,
-        xpEarned: parseInt(data.xpEarned) || 0,
-        streakDay: parseInt(data.streakDay) || 0,
-        metadata: data.metadata || {},
-        
-        // Server-generated
-        timestamp: timestamp,
-        submittedAt: utils.getCurrentTimestamp()
-    };
-    
-    // Calculate metrics
-    var metrics = calculateMetrics(result);
-    result.metrics = metrics;
-    result.perfectScore = metrics.isPerfect;
-    
-    try {
-        // 1. Store the result
-        var collection = getResultsCollection(data.gameId);
-        var resultKey = result.id;
-        utils.writeStorage(nk, logger, collection, resultKey, userId, result);
-        utils.logInfo(logger, "Stored quiz result: " + resultKey);
-        
-        // 2. Update user stats
-        var updatedStats = updateUserStats(nk, logger, userId, data.gameId, result, metrics);
-        
-        // 3. Update leaderboard if score > 0
-        if (result.score > 0) {
-            try {
-                var leaderboardId = "leaderboard_" + data.gameId;
-                var leaderboardMetadata = {
-                    gameMode: result.gameMode,
-                    accuracy: metrics.accuracy,
-                    submittedAt: result.submittedAt
-                };
-                
-                nk.leaderboardRecordWrite(
-                    leaderboardId,
-                    userId,
-                    username,
-                    result.score,
-                    0, // subscore
-                    JSON.stringify(leaderboardMetadata),
-                    null // operator - use default (best)
-                );
-                utils.logInfo(logger, "Updated leaderboard: " + leaderboardId);
-            } catch (lbErr) {
-                utils.logWarning(logger, "Leaderboard update failed (non-critical): " + lbErr.message);
-            }
-        }
-        
-        // 4. Store in transaction log for analytics
-        var transactionKey = "quiz_result_" + userId + "_" + timestamp;
-        utils.writeStorage(nk, logger, "transaction_logs", transactionKey, userId, {
-            type: "quiz_result",
-            resultId: result.id,
-            gameMode: result.gameMode,
-            score: result.score,
-            won: result.won,
-            timestamp: result.submittedAt
-        });
-        
-        utils.logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
-        
-        return JSON.stringify({
-            success: true,
-            resultId: result.id,
-            metrics: metrics,
-            stats: {
-                totalGames: updatedStats.totalGames,
-                totalWins: updatedStats.totalWins,
-                currentStreak: updatedStats.currentStreak,
-                highestScore: updatedStats.highestScore
-            }
-        });
-        
-    } catch (err) {
-        utils.logError(logger, "Failed to submit quiz result: " + err.message);
-        return JSON.stringify({
-            success: false,
-            error: "Failed to submit result: " + err.message
-        });
-    }
-}
-
-/**
- * RPC: quiz_get_history
- * Get quiz history for a user
- * 
- * Payload:
- * {
- *   gameId: "uuid",
- *   gameMode: "QuickPlay" (optional, filter by mode),
- *   limit: 20,
- *   cursor: "..." (for pagination)
- * }
- */
-function rpcQuizGetHistory(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC quiz_get_history called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing gameId");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var collection = getResultsCollection(data.gameId);
-    var limit = Math.min(parseInt(data.limit) || 20, 100);
-    
-    try {
-        // List storage objects for this user
-        var objects = nk.storageList(userId, collection, limit, data.cursor || "");
-        
-        var results = [];
-        for (var obj of objects.objects || []) {
-            var result = JSON.parse(obj.value);
-            
-            // Filter by gameMode if specified
-            if (data.gameMode && result.gameMode !== data.gameMode) {
-                continue;
-            }
-            
-            results.push({
-                id: result.id,
-                gameMode: result.gameMode,
-                score: result.score,
-                correctAnswers: result.correctAnswers,
-                totalQuestions: result.totalQuestions,
-                won: result.won,
-                metrics: result.metrics,
-                categoryName: result.categoryName,
-                submittedAt: result.submittedAt
-            });
-        }
-        
-        return JSON.stringify({
-            success: true,
-            results: results,
-            cursor: objects.cursor || null,
-            count: results.length
-        });
-        
-    } catch (err) {
-        utils.logError(logger, "Failed to get quiz history: " + err.message);
-        return JSON.stringify({
-            success: false,
-            error: "Failed to get history: " + err.message
-        });
-    }
-}
-
-/**
- * RPC: quiz_get_stats
- * Get user's aggregate quiz statistics
- */
-function rpcQuizGetStats(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC quiz_get_stats called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing gameId");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    var collection = getUserStatsCollection(data.gameId);
-    var key = "stats_" + userId;
-    
-    var stats = utils.readStorage(nk, logger, collection, key, userId);
-    
-    if (!stats) {
-        return JSON.stringify({
-            success: true,
-            stats: {
-                totalGames: 0,
-                totalWins: 0,
-                winRate: 0,
-                totalScore: 0,
-                averageScore: 0,
-                accuracy: 0,
-                highestScore: 0,
-                currentStreak: 0,
-                longestStreak: 0,
-                perfectGames: 0,
-                modeStats: {}
-            }
-        });
-    }
-    
-    // Calculate derived stats
-    var winRate = stats.totalGames > 0 
-        ? Math.round((stats.totalWins / stats.totalGames) * 100) 
-        : 0;
-    
-    var averageScore = stats.totalGames > 0 
-        ? Math.round(stats.totalScore / stats.totalGames) 
-        : 0;
-    
-    var accuracy = stats.totalQuestions > 0 
-        ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100) 
-        : 0;
-    
-    return JSON.stringify({
-        success: true,
-        stats: {
-            totalGames: stats.totalGames,
-            totalWins: stats.totalWins,
-            winRate: winRate,
-            totalScore: stats.totalScore,
-            averageScore: averageScore,
-            accuracy: accuracy,
-            highestScore: stats.highestScore,
-            currentStreak: stats.currentStreak,
-            longestStreak: stats.longestStreak,
-            perfectGames: stats.perfectGames,
-            totalTimePlayed: stats.totalTimePlayed,
-            modeStats: stats.modeStats,
-            lastPlayedAt: stats.lastPlayedAt
-        }
-    });
-}
-
-/**
- * RPC: quiz_check_daily_completion
- * Check if user has completed a quiz for a specific game mode today
- * Based on user UUID - queries across all quiz result collections for the user
- * 
- * Payload:
- * {
- *   gameMode: "DailyChallenge" | "DailyPremiumQuiz"
- *   gameId: "uuid" (optional - if provided, only checks that specific game)
- * }
- * 
- * Returns:
- * {
- *   success: true,
- *   completed: boolean,
- *   gameMode: "DailyChallenge",
- *   date: "2025-01-15" (YYYY-MM-DD format)
- * }
- */
-function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC quiz_check_daily_completion called");
-    
-    // Parse payload
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    
-    // Validate required fields (only gameMode is required now)
-    var validation = utils.validatePayload(data, ['gameMode']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    // Validate gameMode
-    var validModes = ['DailyChallenge', 'DailyPremiumQuiz'];
-    if (validModes.indexOf(data.gameMode) === -1) {
-        return utils.handleError(ctx, null, "Invalid gameMode. Must be 'DailyChallenge' or 'DailyPremiumQuiz'");
-    }
-    
-    // Validate gameId if provided (optional)
-    if (data.gameId && !utils.isValidUUID(data.gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    try {
-        // Get today's start timestamp (00:00:00 UTC)
-        var todayStart = utils.getStartOfDay();
-        var todayEnd = todayStart + 86400; // End of day (24 hours later)
-        
-        // Get current date string for response (YYYY-MM-DD)
-        var today = new Date();
-        var dateString = today.getUTCFullYear() + "-" + 
-                          String(today.getUTCMonth() + 1).padStart(2, '0') + "-" + 
-                          String(today.getUTCDate()).padStart(2, '0');
-        
-        var completed = false;
-        
-        // If gameId is provided, only check that specific collection
-        if (data.gameId) {
-            var collection = getResultsCollection(data.gameId);
-            var limit = 100; // Check last 100 results (should be enough for daily check)
-            
-            var objects = nk.storageList(userId, collection, limit, "");
-            
-            // Check if any result matches gameMode and was submitted today
-            for (var obj of objects.objects || []) {
-                var result = JSON.parse(obj.value);
-                
-                // Check if gameMode matches
-                if (result.gameMode !== data.gameMode) {
-                    continue;
-                }
-                
-                // Check if submitted today
-                // result.timestamp is Unix timestamp in seconds
-                if (result.timestamp >= todayStart && result.timestamp < todayEnd) {
-                    completed = true;
-                    utils.logInfo(logger, `User ${userId} completed ${data.gameMode} today (timestamp: ${result.timestamp})`);
-                    break;
-                }
-            }
-        } else {
-            // No gameId provided - query transaction_logs which stores all quiz results
-            var transactionCollection = "transaction_logs";
-            var limit = 1000; // Higher limit to check more results
-            var transactionObjects = nk.storageList(userId, transactionCollection, limit, "");
-            
-            // Check transaction logs for quiz results submitted today
-            for (var obj of transactionObjects.objects || []) {
-                var transaction = JSON.parse(obj.value);
-                
-                // Check if this is a quiz result transaction
-                if (transaction.type === "quiz_result" && 
-                    transaction.gameMode === data.gameMode) {
-                    
-                    // Parse timestamp from submittedAt (ISO string) or use timestamp if available
-                    var transactionTimestamp = null;
-                    if (transaction.timestamp) {
-                        // If timestamp is a Unix timestamp (seconds)
-                        if (typeof transaction.timestamp === 'number') {
-                            transactionTimestamp = transaction.timestamp;
-                        } else if (typeof transaction.timestamp === 'string') {
-                            // If it's an ISO string, convert to Unix timestamp
-                            var dateObj = new Date(transaction.timestamp);
-                            if (!isNaN(dateObj.getTime())) {
-                                transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
-                            }
-                        }
-                    } else if (transaction.submittedAt) {
-                        // Fallback to submittedAt if timestamp not available
-                        var dateObj = new Date(transaction.submittedAt);
-                        if (!isNaN(dateObj.getTime())) {
-                            transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
-                        }
-                    }
-                    
-                    // Check if submitted today
-                    if (transactionTimestamp && transactionTimestamp >= todayStart && transactionTimestamp < todayEnd) {
-                        completed = true;
-                        utils.logInfo(logger, `User ${userId} completed ${data.gameMode} today (from transaction log, timestamp: ${transactionTimestamp})`);
-                        break;
-                    }
-                }
-            }
-        }
-        
-        return JSON.stringify({
-            success: true,
-            completed: completed,
-            gameMode: data.gameMode,
-            date: dateString
-        });
-        
-    } catch (err) {
-        utils.logError(logger, "Failed to check daily completion: " + err.message);
-        return JSON.stringify({
-            success: false,
-            error: "Failed to check completion: " + err.message,
-            completed: false
-        });
-    }
-}
-
-
-// --- Module: quizverse_depth/quizverse_depth.js ---
+// --- Module: quizverse_depth\quizverse_depth.js ---
 // quizverse_depth.js - Deep QuizVerse RPCs: Knowledge Maps, Streaks, Adaptive Difficulty, and more
 // Nakama V8 JavaScript runtime (No ES Modules)
 
@@ -32779,7 +32124,663 @@ function registerQuizverseDepthRPCs(initializer, logger) {
 }
 
 
-// --- Module: retention/collections.js ---
+// --- Module: quiz_results\quiz_results.js ---
+// quiz_results.js - Quiz Results Tracking & Analytics System
+// Stores ALL quiz results from ALL game modes for analytics, history, and leaderboards
+
+/**
+ * Quiz Result Schema
+ * Captures comprehensive data about each quiz attempt
+ */
+var QUIZ_RESULT_SCHEMA = {
+    // Required fields
+    gameId: "string",           // Game UUID
+    gameMode: "string",         // QuickPlay, DailyChallenge, Championship, etc.
+    
+    // Score data
+    score: "number",            // Final score
+    correctAnswers: "number",   // Number of correct answers
+    totalQuestions: "number",   // Total questions in quiz
+    
+    // Timing
+    timeTakenSeconds: "number", // Total time taken
+    
+    // Win/Loss
+    won: "boolean",             // Did user win?
+    
+    // Optional fields
+    difficulty: "string",       // easy, medium, hard
+    categoryId: "string",       // Category/topic ID
+    categoryName: "string",     // Category/topic name
+    opponentId: "string",       // For multiplayer
+    opponentName: "string",     // Opponent display name
+    tournamentId: "string",     // If part of tournament
+    matchId: "string",          // Match ID for multiplayer
+    hintsUsed: "number",        // Power-ups used
+    skipsUsed: "number",
+    extraTimeUsed: "number",
+    extraLivesUsed: "number",
+    coinsSpent: "number",       // Coins spent on power-ups
+    coinsEarned: "number",      // Coins earned from this quiz
+    xpEarned: "number",         // XP earned
+    streakDay: "number",        // Daily streak day
+    perfectScore: "boolean",    // 100% accuracy
+    metadata: "object"          // Any additional game-specific data
+};
+
+/**
+ * Get collection name for quiz results
+ */
+function getResultsCollection(gameId) {
+    return "quiz_results_" + gameId;
+}
+
+/**
+ * Get user stats collection
+ */
+function getUserStatsCollection(gameId) {
+    return "quiz_user_stats_" + gameId;
+}
+
+/**
+ * Generate unique result key
+ */
+function generateResultKey(userId, timestamp) {
+    return "result_" + userId + "_" + timestamp;
+}
+
+/**
+ * Calculate performance metrics
+ */
+function calculateMetrics(result) {
+    var accuracy = result.totalQuestions > 0 
+        ? (result.correctAnswers / result.totalQuestions) * 100 
+        : 0;
+    
+    var avgTimePerQuestion = result.totalQuestions > 0 
+        ? result.timeTakenSeconds / result.totalQuestions 
+        : 0;
+    
+    var isPerfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
+    
+    return {
+        accuracy: Math.round(accuracy * 100) / 100,
+        avgTimePerQuestion: Math.round(avgTimePerQuestion * 100) / 100,
+        isPerfect: isPerfect,
+        performanceRating: calculatePerformanceRating(accuracy, avgTimePerQuestion, result.won)
+    };
+}
+
+/**
+ * Calculate performance rating (1-5 stars)
+ */
+function calculatePerformanceRating(accuracy, avgTime, won) {
+    var rating = 0;
+    
+    // Accuracy contribution (0-2.5 stars)
+    if (accuracy >= 90) rating += 2.5;
+    else if (accuracy >= 70) rating += 2.0;
+    else if (accuracy >= 50) rating += 1.5;
+    else if (accuracy >= 30) rating += 1.0;
+    else rating += 0.5;
+    
+    // Speed contribution (0-1.5 stars)
+    if (avgTime <= 5) rating += 1.5;
+    else if (avgTime <= 10) rating += 1.0;
+    else if (avgTime <= 15) rating += 0.5;
+    
+    // Win bonus (0-1 star)
+    if (won) rating += 1.0;
+    
+    return Math.min(5, Math.round(rating * 10) / 10);
+}
+
+/**
+ * Update user's aggregate statistics
+ */
+function updateUserStats(nk, logger, userId, gameId, result, metrics) {
+    var collection = getUserStatsCollection(gameId);
+    var key = "stats_" + userId;
+    
+    // Get existing stats
+    var stats = utils.readStorage(nk, logger, collection, key, userId);
+    
+    if (!stats) {
+        stats = {
+            userId: userId,
+            gameId: gameId,
+            totalGames: 0,
+            totalWins: 0,
+            totalScore: 0,
+            totalCorrect: 0,
+            totalQuestions: 0,
+            totalTimePlayed: 0,
+            perfectGames: 0,
+            highestScore: 0,
+            longestStreak: 0,
+            currentStreak: 0,
+            lastPlayedAt: null,
+            modeStats: {},
+            createdAt: utils.getCurrentTimestamp()
+        };
+    }
+    
+    // Update totals
+    stats.totalGames++;
+    stats.totalScore += result.score || 0;
+    stats.totalCorrect += result.correctAnswers || 0;
+    stats.totalQuestions += result.totalQuestions || 0;
+    stats.totalTimePlayed += result.timeTakenSeconds || 0;
+    
+    if (result.won) {
+        stats.totalWins++;
+        stats.currentStreak++;
+        stats.longestStreak = Math.max(stats.longestStreak, stats.currentStreak);
+    } else {
+        stats.currentStreak = 0;
+    }
+    
+    if (metrics.isPerfect) {
+        stats.perfectGames++;
+    }
+    
+    stats.highestScore = Math.max(stats.highestScore, result.score || 0);
+    stats.lastPlayedAt = utils.getCurrentTimestamp();
+    
+    // Update per-mode stats
+    var mode = result.gameMode || "unknown";
+    if (!stats.modeStats[mode]) {
+        stats.modeStats[mode] = {
+            games: 0,
+            wins: 0,
+            totalScore: 0,
+            highestScore: 0
+        };
+    }
+    stats.modeStats[mode].games++;
+    if (result.won) stats.modeStats[mode].wins++;
+    stats.modeStats[mode].totalScore += result.score || 0;
+    stats.modeStats[mode].highestScore = Math.max(
+        stats.modeStats[mode].highestScore, 
+        result.score || 0
+    );
+    
+    stats.updatedAt = utils.getCurrentTimestamp();
+    
+    // Save stats
+    utils.writeStorage(nk, logger, collection, key, userId, stats);
+    
+    return stats;
+}
+
+/**
+ * RPC: quiz_submit_result
+ * Submit quiz result from any game mode
+ * 
+ * Required payload:
+ * {
+ *   gameId: "uuid",
+ *   gameMode: "QuickPlay",
+ *   score: 850,
+ *   correctAnswers: 8,
+ *   totalQuestions: 10,
+ *   timeTakenSeconds: 120,
+ *   won: true
+ * }
+ * 
+ * Optional fields: difficulty, categoryId, categoryName, opponentId,
+ *   tournamentId, matchId, hintsUsed, skipsUsed, coinsSpent, coinsEarned, etc.
+ */
+function rpcQuizSubmitResult(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC quiz_submit_result called");
+    
+    // Parse payload
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    
+    // Validate required fields
+    var required = ['gameId', 'gameMode', 'score', 'correctAnswers', 'totalQuestions', 'timeTakenSeconds'];
+    var validation = utils.validatePayload(data, required);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+    
+    // Validate gameId UUID
+    if (!utils.isValidUUID(data.gameId)) {
+        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+    
+    var username = ctx.username || "unknown";
+    var timestamp = utils.getUnixTimestamp();
+    
+    // Build result object
+    var result = {
+        id: generateResultKey(userId, timestamp),
+        userId: userId,
+        username: username,
+        gameId: data.gameId,
+        gameMode: data.gameMode,
+        score: parseInt(data.score) || 0,
+        correctAnswers: parseInt(data.correctAnswers) || 0,
+        totalQuestions: parseInt(data.totalQuestions) || 0,
+        timeTakenSeconds: parseFloat(data.timeTakenSeconds) || 0,
+        won: data.won === true || data.won === "true",
+        
+        // Optional fields
+        difficulty: data.difficulty || "normal",
+        categoryId: data.categoryId || null,
+        categoryName: data.categoryName || null,
+        opponentId: data.opponentId || null,
+        opponentName: data.opponentName || null,
+        tournamentId: data.tournamentId || null,
+        matchId: data.matchId || null,
+        hintsUsed: parseInt(data.hintsUsed) || 0,
+        skipsUsed: parseInt(data.skipsUsed) || 0,
+        extraTimeUsed: parseInt(data.extraTimeUsed) || 0,
+        extraLivesUsed: parseInt(data.extraLivesUsed) || 0,
+        coinsSpent: parseInt(data.coinsSpent) || 0,
+        coinsEarned: parseInt(data.coinsEarned) || 0,
+        xpEarned: parseInt(data.xpEarned) || 0,
+        streakDay: parseInt(data.streakDay) || 0,
+        metadata: data.metadata || {},
+        
+        // Server-generated
+        timestamp: timestamp,
+        submittedAt: utils.getCurrentTimestamp()
+    };
+    
+    // Calculate metrics
+    var metrics = calculateMetrics(result);
+    result.metrics = metrics;
+    result.perfectScore = metrics.isPerfect;
+    
+    try {
+        // 1. Store the result
+        var collection = getResultsCollection(data.gameId);
+        var resultKey = result.id;
+        utils.writeStorage(nk, logger, collection, resultKey, userId, result);
+        utils.logInfo(logger, "Stored quiz result: " + resultKey);
+        
+        // 2. Update user stats
+        var updatedStats = updateUserStats(nk, logger, userId, data.gameId, result, metrics);
+        
+        // 3. Update leaderboard if score > 0
+        if (result.score > 0) {
+            try {
+                var leaderboardId = "leaderboard_" + data.gameId;
+                var leaderboardMetadata = {
+                    gameMode: result.gameMode,
+                    accuracy: metrics.accuracy,
+                    submittedAt: result.submittedAt
+                };
+                
+                nk.leaderboardRecordWrite(
+                    leaderboardId,
+                    userId,
+                    username,
+                    result.score,
+                    0, // subscore
+                    JSON.stringify(leaderboardMetadata),
+                    null // operator - use default (best)
+                );
+                utils.logInfo(logger, "Updated leaderboard: " + leaderboardId);
+            } catch (lbErr) {
+                utils.logWarning(logger, "Leaderboard update failed (non-critical): " + lbErr.message);
+            }
+        }
+        
+        // 4. Store in transaction log for analytics
+        var transactionKey = "quiz_result_" + userId + "_" + timestamp;
+        utils.writeStorage(nk, logger, "transaction_logs", transactionKey, userId, {
+            type: "quiz_result",
+            resultId: result.id,
+            gameMode: result.gameMode,
+            score: result.score,
+            won: result.won,
+            timestamp: result.submittedAt
+        });
+        
+        utils.logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
+        
+        return JSON.stringify({
+            success: true,
+            resultId: result.id,
+            metrics: metrics,
+            stats: {
+                totalGames: updatedStats.totalGames,
+                totalWins: updatedStats.totalWins,
+                currentStreak: updatedStats.currentStreak,
+                highestScore: updatedStats.highestScore
+            }
+        });
+        
+    } catch (err) {
+        utils.logError(logger, "Failed to submit quiz result: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to submit result: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: quiz_get_history
+ * Get quiz history for a user
+ * 
+ * Payload:
+ * {
+ *   gameId: "uuid",
+ *   gameMode: "QuickPlay" (optional, filter by mode),
+ *   limit: 20,
+ *   cursor: "..." (for pagination)
+ * }
+ */
+function rpcQuizGetHistory(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC quiz_get_history called");
+    
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing gameId");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+    
+    var collection = getResultsCollection(data.gameId);
+    var limit = Math.min(parseInt(data.limit) || 20, 100);
+    
+    try {
+        // List storage objects for this user
+        var objects = nk.storageList(userId, collection, limit, data.cursor || "");
+        
+        var results = [];
+        for (var obj of objects.objects || []) {
+            var result = JSON.parse(obj.value);
+            
+            // Filter by gameMode if specified
+            if (data.gameMode && result.gameMode !== data.gameMode) {
+                continue;
+            }
+            
+            results.push({
+                id: result.id,
+                gameMode: result.gameMode,
+                score: result.score,
+                correctAnswers: result.correctAnswers,
+                totalQuestions: result.totalQuestions,
+                won: result.won,
+                metrics: result.metrics,
+                categoryName: result.categoryName,
+                submittedAt: result.submittedAt
+            });
+        }
+        
+        return JSON.stringify({
+            success: true,
+            results: results,
+            cursor: objects.cursor || null,
+            count: results.length
+        });
+        
+    } catch (err) {
+        utils.logError(logger, "Failed to get quiz history: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to get history: " + err.message
+        });
+    }
+}
+
+/**
+ * RPC: quiz_get_stats
+ * Get user's aggregate quiz statistics
+ */
+function rpcQuizGetStats(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC quiz_get_stats called");
+    
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing gameId");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+    
+    var collection = getUserStatsCollection(data.gameId);
+    var key = "stats_" + userId;
+    
+    var stats = utils.readStorage(nk, logger, collection, key, userId);
+    
+    if (!stats) {
+        return JSON.stringify({
+            success: true,
+            stats: {
+                totalGames: 0,
+                totalWins: 0,
+                winRate: 0,
+                totalScore: 0,
+                averageScore: 0,
+                accuracy: 0,
+                highestScore: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                perfectGames: 0,
+                modeStats: {}
+            }
+        });
+    }
+    
+    // Calculate derived stats
+    var winRate = stats.totalGames > 0 
+        ? Math.round((stats.totalWins / stats.totalGames) * 100) 
+        : 0;
+    
+    var averageScore = stats.totalGames > 0 
+        ? Math.round(stats.totalScore / stats.totalGames) 
+        : 0;
+    
+    var accuracy = stats.totalQuestions > 0 
+        ? Math.round((stats.totalCorrect / stats.totalQuestions) * 100) 
+        : 0;
+    
+    return JSON.stringify({
+        success: true,
+        stats: {
+            totalGames: stats.totalGames,
+            totalWins: stats.totalWins,
+            winRate: winRate,
+            totalScore: stats.totalScore,
+            averageScore: averageScore,
+            accuracy: accuracy,
+            highestScore: stats.highestScore,
+            currentStreak: stats.currentStreak,
+            longestStreak: stats.longestStreak,
+            perfectGames: stats.perfectGames,
+            totalTimePlayed: stats.totalTimePlayed,
+            modeStats: stats.modeStats,
+            lastPlayedAt: stats.lastPlayedAt
+        }
+    });
+}
+
+/**
+ * RPC: quiz_check_daily_completion
+ * Check if user has completed a quiz for a specific game mode today
+ * Based on user UUID - queries across all quiz result collections for the user
+ * 
+ * Payload:
+ * {
+ *   gameMode: "DailyChallenge" | "DailyPremiumQuiz"
+ *   gameId: "uuid" (optional - if provided, only checks that specific game)
+ * }
+ * 
+ * Returns:
+ * {
+ *   success: true,
+ *   completed: boolean,
+ *   gameMode: "DailyChallenge",
+ *   date: "2025-01-15" (YYYY-MM-DD format)
+ * }
+ */
+function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC quiz_check_daily_completion called");
+    
+    // Parse payload
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+    
+    var data = parsed.data;
+    
+    // Validate required fields (only gameMode is required now)
+    var validation = utils.validatePayload(data, ['gameMode']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+    
+    // Validate gameMode
+    var validModes = ['DailyChallenge', 'DailyPremiumQuiz'];
+    if (validModes.indexOf(data.gameMode) === -1) {
+        return utils.handleError(ctx, null, "Invalid gameMode. Must be 'DailyChallenge' or 'DailyPremiumQuiz'");
+    }
+    
+    // Validate gameId if provided (optional)
+    if (data.gameId && !utils.isValidUUID(data.gameId)) {
+        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    }
+    
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+    
+    try {
+        // Get today's start timestamp (00:00:00 UTC)
+        var todayStart = utils.getStartOfDay();
+        var todayEnd = todayStart + 86400; // End of day (24 hours later)
+        
+        // Get current date string for response (YYYY-MM-DD)
+        var today = new Date();
+        var dateString = today.getUTCFullYear() + "-" + 
+                          String(today.getUTCMonth() + 1).padStart(2, '0') + "-" + 
+                          String(today.getUTCDate()).padStart(2, '0');
+        
+        var completed = false;
+        
+        // If gameId is provided, only check that specific collection
+        if (data.gameId) {
+            var collection = getResultsCollection(data.gameId);
+            var limit = 100; // Check last 100 results (should be enough for daily check)
+            
+            var objects = nk.storageList(userId, collection, limit, "");
+            
+            // Check if any result matches gameMode and was submitted today
+            for (var obj of objects.objects || []) {
+                var result = JSON.parse(obj.value);
+                
+                // Check if gameMode matches
+                if (result.gameMode !== data.gameMode) {
+                    continue;
+                }
+                
+                // Check if submitted today
+                // result.timestamp is Unix timestamp in seconds
+                if (result.timestamp >= todayStart && result.timestamp < todayEnd) {
+                    completed = true;
+                    utils.logInfo(logger, `User ${userId} completed ${data.gameMode} today (timestamp: ${result.timestamp})`);
+                    break;
+                }
+            }
+        } else {
+            // No gameId provided - query transaction_logs which stores all quiz results
+            var transactionCollection = "transaction_logs";
+            var limit = 1000; // Higher limit to check more results
+            var transactionObjects = nk.storageList(userId, transactionCollection, limit, "");
+            
+            // Check transaction logs for quiz results submitted today
+            for (var obj of transactionObjects.objects || []) {
+                var transaction = JSON.parse(obj.value);
+                
+                // Check if this is a quiz result transaction
+                if (transaction.type === "quiz_result" && 
+                    transaction.gameMode === data.gameMode) {
+                    
+                    // Parse timestamp from submittedAt (ISO string) or use timestamp if available
+                    var transactionTimestamp = null;
+                    if (transaction.timestamp) {
+                        // If timestamp is a Unix timestamp (seconds)
+                        if (typeof transaction.timestamp === 'number') {
+                            transactionTimestamp = transaction.timestamp;
+                        } else if (typeof transaction.timestamp === 'string') {
+                            // If it's an ISO string, convert to Unix timestamp
+                            var dateObj = new Date(transaction.timestamp);
+                            if (!isNaN(dateObj.getTime())) {
+                                transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
+                            }
+                        }
+                    } else if (transaction.submittedAt) {
+                        // Fallback to submittedAt if timestamp not available
+                        var dateObj = new Date(transaction.submittedAt);
+                        if (!isNaN(dateObj.getTime())) {
+                            transactionTimestamp = Math.floor(dateObj.getTime() / 1000);
+                        }
+                    }
+                    
+                    // Check if submitted today
+                    if (transactionTimestamp && transactionTimestamp >= todayStart && transactionTimestamp < todayEnd) {
+                        completed = true;
+                        utils.logInfo(logger, `User ${userId} completed ${data.gameMode} today (from transaction log, timestamp: ${transactionTimestamp})`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return JSON.stringify({
+            success: true,
+            completed: completed,
+            gameMode: data.gameMode,
+            date: dateString
+        });
+        
+    } catch (err) {
+        utils.logError(logger, "Failed to check daily completion: " + err.message);
+        return JSON.stringify({
+            success: false,
+            error: "Failed to check completion: " + err.message,
+            completed: false
+        });
+    }
+}
+
+
+// --- Module: retention\collections.js ---
 // collections.js - Collection & Prestige System for D30 Retention
 // Provides long-term collectible goals and prestige progression
 
@@ -33293,7 +33294,7 @@ function rpcCollectionsAddMasteryXP(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/monthly_milestones.js ---
+// --- Module: retention\monthly_milestones.js ---
 // monthly_milestones.js - Monthly Milestones System for D30 Retention
 // Provides long-term goals that reset monthly
 
@@ -33741,7 +33742,7 @@ function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/retention_v2.js ---
+// --- Module: retention\retention_v2.js ---
 // retention_v2.js - Streak Repair & Wager System for QuizVerse v3.0
 // Extends existing retention module with 2 new RPCs (does NOT modify existing retention RPCs)
 // RPCs: streak_repair, streak_wager
@@ -34148,7 +34149,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/season_pass.js ---
+// --- Module: retention\season_pass.js ---
 // season_pass.js - Season Pass / Battle Pass System for D7/D30 Retention
 // Provides 30-day season with free and premium tracks
 
@@ -34810,7 +34811,7 @@ function rpcSeasonPassPurchasePremium(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/weekly_goals.js ---
+// --- Module: retention\weekly_goals.js ---
 // weekly_goals.js - Weekly Goals System for D7 Retention
 // Provides progressive daily goals that reset weekly
 
@@ -35349,7 +35350,7 @@ function rpcWeeklyGoalsClaimBonus(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: retention/winback.js ---
+// --- Module: retention\winback.js ---
 // winback.js - Win-back System for Churned Users
 // Re-engages users who haven't played in 7+ days
 
@@ -35910,7 +35911,7 @@ function rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: rewarded_ads/rewarded_ads.js ---
+// --- Module: rewarded_ads\rewarded_ads.js ---
 // rewarded_ads.js - Server-validated Rewarded Ad System
 // Enforces user-triggered rewarded ads via token-based validation
 // Prevents auto-shown rewards, duplicate claims, and replay attacks
@@ -36642,7 +36643,7 @@ var rewardedAdsModule = {
 };
 
 
-// --- Module: sdk_aliases/sdk_aliases.js ---
+// --- Module: sdk_aliases\sdk_aliases.js ---
 // data/modules/sdk_aliases/sdk_aliases.js
 //
 // Closes 28 of the 36 standalone-SDK gaps documented in
@@ -36769,7 +36770,7 @@ function __ModuleInit_73(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: smart_review/smart_review.js ---
+// --- Module: smart_review\smart_review.js ---
 // smart_review.js - Spaced Repetition (SM-2) Review System for QuizVerse v3.0
 // RPCs: smart_review_get_cards, smart_review_rate_card
 
@@ -37562,7 +37563,7 @@ function __ModuleInit_74(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: social_v2/social_v2.js ---
+// --- Module: social_v2\social_v2.js ---
 // social_v2.js - Social features: challenges, rivalries, teams, duos, group quests
 // Compatible with Nakama JavaScript runtime (no ES modules)
 
@@ -38212,7 +38213,7 @@ function rpcGroupActivityFeed(ctx, logger, nk, payload) {
 }
 
 
-// --- Module: tournaments/tournaments.js ---
+// --- Module: tournaments\tournaments.js ---
 /**
  * Tournament System for Multi-Game Platform
  * Supports scheduled tournaments with brackets and prizes
@@ -38765,7 +38766,7 @@ var rpcTournamentClaimRewards = function(ctx, logger, nk, payload) {
 };
 
 
-// --- Module: visual_path/visual_path.js ---
+// --- Module: visual_path\visual_path.js ---
 // ============================================================================
 // visual_path.js — Visual Path / Milestone System
 // ============================================================================
@@ -39116,7 +39117,7 @@ function __ModuleInit_77(ctx, logger, nk, initializer) {
 }
 
 
-// --- Module: wallet/wallet.js ---
+// --- Module: wallet\wallet.js ---
 // wallet.js - Enhanced Wallet System (Global + Per-Game Sub-Wallets)
 
 /**
@@ -64856,6 +64857,15 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     }
     catch (err) {
         logger.error("[Satori] Failed to register Satori systems: " + (err.message || String(err)));
+    }
+    // ---- GeoTier IP-to-Country Resolution (PLAN-ADS-OPTIMIZATION-v2) ----
+    try {
+        logger.info("[GeoTier] Registering country_tier_get RPC...");
+        GeoTier.register(initializer);
+        logger.info("[GeoTier] GeoTier RPC registered successfully");
+    }
+    catch (err) {
+        logger.error("[GeoTier] Failed to register GeoTier: " + (err.message || String(err)));
     }
     // ---- Fantasy Cricket RPCs ----
     try {
@@ -90659,6 +90669,227 @@ var EventBus;
         QUIZ_COMPLETED: "quiz_completed",
     };
 })(EventBus || (EventBus = {}));
+// geo-tier.ts — Server-side IP → Country → Ad Tier resolution
+// PLAN-ADS-OPTIMIZATION-v2 §6.3
+//
+// RPC: country_tier_get
+//   - Checks per-user 30-day cache first
+//   - Falls back to ip-api.com HTTP lookup
+//   - Returns { tier, countryCode, source, cached }
+//   - Defaults to T3 on any failure (maximize ad volume for unknown geos)
+var GeoTier;
+(function (GeoTier) {
+    // ─── Constants ───────────────────────────────────────────────────────
+    var GEO_COLLECTION = "geo_tier";
+    var GEO_CACHE_KEY = "resolved";
+    var CACHE_TTL_DAYS = 30;
+    var CACHE_TTL_MS = CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
+    // ip-api.com — free tier, 45 req/min, HTTP only
+    var IP_API_URL = "http://ip-api.com/json/";
+    // ─── Tier Enum (matches Unity TierService.Tier) ──────────────────────
+    var TIER_T1 = "t1"; // Low-volume premium (US, UK, CA, AU, etc.)
+    var TIER_T2 = "t2"; // Mid-volume (EU, LATAM, SEA)
+    var TIER_T3 = "t3"; // High-volume emerging (IN, PK, BD, NG, etc.)
+    // ─── Country → Tier Mapping ──────────────────────────────────────────
+    // From PLAN-ADS-OPTIMIZATION-v2 §2.4
+    var T1_COUNTRIES = {
+        "US": true, "GB": true, "CA": true, "AU": true, "NZ": true,
+        "DE": true, "FR": true, "JP": true, "KR": true, "NO": true,
+        "SE": true, "DK": true, "FI": true, "CH": true, "AT": true,
+        "NL": true, "BE": true, "IE": true, "SG": true, "HK": true,
+        "TW": true, "IL": true
+    };
+    var T2_COUNTRIES = {
+        "ES": true, "IT": true, "PT": true, "PL": true, "CZ": true,
+        "RO": true, "HU": true, "GR": true, "HR": true, "SK": true,
+        "BG": true, "RS": true,
+        "MX": true, "BR": true, "AR": true, "CL": true, "CO": true,
+        "PE": true, "EC": true,
+        "TH": true, "MY": true, "PH": true, "VN": true, "ID": true,
+        "TR": true, "SA": true, "AE": true, "QA": true, "KW": true,
+        "ZA": true, "KE": true, "EG": true, "MA": true,
+        "RU": true, "UA": true, "KZ": true,
+        "CN": true
+    };
+    // ─── Core Logic ──────────────────────────────────────────────────────
+    function countryToTier(countryCode) {
+        var cc = countryCode.toUpperCase();
+        if (T1_COUNTRIES[cc])
+            return TIER_T1;
+        if (T2_COUNTRIES[cc])
+            return TIER_T2;
+        return TIER_T3;
+    }
+    function readCache(nk, userId) {
+        try {
+            var records = nk.storageRead([{
+                    collection: GEO_COLLECTION,
+                    key: GEO_CACHE_KEY,
+                    userId: userId
+                }]);
+            if (records && records.length > 0 && records[0].value) {
+                var cached = records[0].value;
+                // Check expiry
+                if (cached.expiresAt && cached.expiresAt > Date.now()) {
+                    return cached;
+                }
+            }
+        }
+        catch (_) {
+            // Cache miss — continue to API
+        }
+        return null;
+    }
+    function writeCache(nk, userId, tier, countryCode, source) {
+        var now = Date.now();
+        var cache = {
+            tier: tier,
+            countryCode: countryCode,
+            source: source,
+            resolvedAt: new Date(now).toISOString(),
+            expiresAt: now + CACHE_TTL_MS
+        };
+        try {
+            nk.storageWrite([{
+                    collection: GEO_COLLECTION,
+                    key: GEO_CACHE_KEY,
+                    userId: userId,
+                    value: cache,
+                    permissionRead: 1, // user can read own tier
+                    permissionWrite: 0 // only server can write
+                }]);
+        }
+        catch (_) {
+            // Non-fatal — will just re-resolve on next call
+        }
+    }
+    function resolveFromIpApi(nk, logger, clientIp) {
+        try {
+            // ip-api.com accepts the IP as a path segment
+            // Fields filter: only request what we need (reduces response size)
+            var url = IP_API_URL + clientIp + "?fields=status,countryCode,message";
+            var resp = HttpClient.get(nk, url);
+            if (resp.code !== 200) {
+                logger.warn("[GeoTier] ip-api.com returned HTTP " + resp.code);
+                return null;
+            }
+            var data;
+            try {
+                data = JSON.parse(resp.body);
+            }
+            catch (_) {
+                logger.warn("[GeoTier] ip-api.com returned invalid JSON");
+                return null;
+            }
+            if (data.status !== "success") {
+                logger.warn("[GeoTier] ip-api.com lookup failed: " + (data.message || "unknown"));
+                return null;
+            }
+            if (!data.countryCode || typeof data.countryCode !== "string") {
+                logger.warn("[GeoTier] ip-api.com returned no countryCode");
+                return null;
+            }
+            return { countryCode: data.countryCode.toUpperCase() };
+        }
+        catch (err) {
+            logger.error("[GeoTier] ip-api.com request failed: " + (err.message || String(err)));
+            return null;
+        }
+    }
+    function resolve(ctx, logger, nk, userId) {
+        // 1. Check cache
+        var cached = readCache(nk, userId);
+        if (cached) {
+            return {
+                tier: cached.tier,
+                countryCode: cached.countryCode,
+                source: cached.source,
+                cached: true
+            };
+        }
+        // 2. Resolve via IP API
+        var clientIp = ctx.clientIp || "";
+        if (clientIp) {
+            var geoResult = resolveFromIpApi(nk, logger, clientIp);
+            if (geoResult) {
+                var tier = countryToTier(geoResult.countryCode);
+                // Cache for 30 days
+                writeCache(nk, userId, tier, geoResult.countryCode, "server_ip_geo");
+                logger.info("[GeoTier] Resolved user " + userId + " → " + geoResult.countryCode + " → " + tier);
+                return {
+                    tier: tier,
+                    countryCode: geoResult.countryCode,
+                    source: "server_ip_geo",
+                    cached: false
+                };
+            }
+        }
+        else {
+            logger.warn("[GeoTier] No client IP available for user " + userId);
+        }
+        // 3. Fallback: T3 (maximize ad volume for unknown geos)
+        var fallbackTier = TIER_T3;
+        // Cache fallback too — prevents hammering API on every request
+        writeCache(nk, userId, fallbackTier, "XX", "fallback");
+        logger.info("[GeoTier] Fallback for user " + userId + " → " + fallbackTier);
+        return {
+            tier: fallbackTier,
+            countryCode: "XX",
+            source: "fallback",
+            cached: false
+        };
+    }
+    // ─── RPC Handler ────────────────────────────────────────────────────
+    /**
+     * RPC: country_tier_get
+     *
+     * Payload (optional): { force_refresh?: boolean }
+     *   - force_refresh: if true, bypasses cache and re-resolves from IP API
+     *
+     * Response: { success: true, data: { tier, countryCode, source, cached } }
+     */
+    function rpcCountryTierGet(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = {};
+        if (payload && payload !== "") {
+            data = RpcHelpers.parseRpcPayload(payload);
+        }
+        // Optional force refresh — invalidates cache
+        if (data.force_refresh === true) {
+            try {
+                nk.storageDelete([{
+                        collection: GEO_COLLECTION,
+                        key: GEO_CACHE_KEY,
+                        userId: userId
+                    }]);
+                logger.info("[GeoTier] Cache cleared for user " + userId + " (force_refresh)");
+            }
+            catch (_) {
+                // Non-fatal
+            }
+        }
+        var result = resolve(ctx, logger, nk, userId);
+        return RpcHelpers.successResponse(result);
+    }
+    // ─── Public API (for other server modules) ──────────────────────────
+    /**
+     * Called by rewarded_ads.js to get the user's tier for cap scaling.
+     * Returns the tier string (t1/t2/t3). Uses cache, never blocks on API.
+     */
+    function getUserTier(nk, userId) {
+        var cached = readCache(nk, userId);
+        if (cached)
+            return cached.tier;
+        return TIER_T3; // Default if no cache — safe for ad volume
+    }
+    GeoTier.getUserTier = getUserTier;
+    // ─── Registration ───────────────────────────────────────────────────
+    function register(initializer) {
+        __rpc_country_tier_get = rpcCountryTierGet;
+    }
+    GeoTier.register = register;
+    register();
+})(GeoTier || (GeoTier = {}));
 // ──────────────────────────────────────────────────────────────────────────
 // JS-runtime health probe RPC (`nakama_js_health`).
 //
@@ -91280,14 +91511,10 @@ try { __rpc_external_poll_appstore = __rpc_external_poll_appstore || (rpcExterna
 try { __rpc_external_poll_ugs = __rpc_external_poll_ugs || (rpcExternalPollUgs); } catch(e) {}
 try { __rpc_external_poll_all = __rpc_external_poll_all || (rpcExternalPollAll); } catch(e) {}
 try { __rpc_external_poll_status = __rpc_external_poll_status || (rpcExternalPollStatus); } catch(e) {}
-try { __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState); } catch(e) {}
-try { __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete); } catch(e) {}
-try { __rpc_friend_quest_record_progress = __rpc_friend_quest_record_progress || (rpcFriendQuestRecordProgress); } catch(e) {}
-try { __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState); } catch(e) {}
-try { __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution); } catch(e) {}
-try { __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge); } catch(e) {}
-try { __rpc_friend_streak_get_broken_log = __rpc_friend_streak_get_broken_log || (rpcFriendStreakGetBrokenLog); } catch(e) {}
-try { __rpc_friend_streak_repair = __rpc_friend_streak_repair || (rpcFriendStreakRepair); } catch(e) {}
+try { __rpc_friends_get_online_count = __rpc_friends_get_online_count || (rpcFriendsGetOnlineCount); } catch(e) {}
+try { __rpc_social_pressure_get_today_summary = __rpc_social_pressure_get_today_summary || (rpcSocialPressureGetTodaySummary); } catch(e) {}
+try { __rpc_friend_battle_create = __rpc_friend_battle_create || (rpcFriendBattleCreate); } catch(e) {}
+try { __rpc_friend_invite_with_reward = __rpc_friend_invite_with_reward || (rpcFriendInviteWithReward); } catch(e) {}
 try { __rpc_id = __rpc_id || (handler); } catch(e) {}
 try { __rpc_send_friend_challenge = __rpc_send_friend_challenge || (rpcSendFriendChallenge); } catch(e) {}
 try { __rpc_friends_challenge_user = __rpc_friends_challenge_user || (rpcSendFriendChallenge); } catch(e) {}
@@ -91302,10 +91529,14 @@ try { __rpc_accept_friend_invite = __rpc_accept_friend_invite || (rpcFriendsAcce
 try { __rpc_decline_friend_invite = __rpc_decline_friend_invite || (rpcFriendsDeclineInvite); } catch(e) {}
 try { __rpc_cancel_friend_invite = __rpc_cancel_friend_invite || (rpcFriendsCancelInvite); } catch(e) {}
 try { __rpc_list_pending_friend_invites = __rpc_list_pending_friend_invites || (rpcFriendsListPendingInvites); } catch(e) {}
-try { __rpc_friends_get_online_count = __rpc_friends_get_online_count || (rpcFriendsGetOnlineCount); } catch(e) {}
-try { __rpc_social_pressure_get_today_summary = __rpc_social_pressure_get_today_summary || (rpcSocialPressureGetTodaySummary); } catch(e) {}
-try { __rpc_friend_battle_create = __rpc_friend_battle_create || (rpcFriendBattleCreate); } catch(e) {}
-try { __rpc_friend_invite_with_reward = __rpc_friend_invite_with_reward || (rpcFriendInviteWithReward); } catch(e) {}
+try { __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState); } catch(e) {}
+try { __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete); } catch(e) {}
+try { __rpc_friend_quest_record_progress = __rpc_friend_quest_record_progress || (rpcFriendQuestRecordProgress); } catch(e) {}
+try { __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState); } catch(e) {}
+try { __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution); } catch(e) {}
+try { __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge); } catch(e) {}
+try { __rpc_friend_streak_get_broken_log = __rpc_friend_streak_get_broken_log || (rpcFriendStreakGetBrokenLog); } catch(e) {}
+try { __rpc_friend_streak_repair = __rpc_friend_streak_repair || (rpcFriendStreakRepair); } catch(e) {}
 try { __rpc_ivx_quest_config = __rpc_ivx_quest_config || (rpcIvxQuestConfig); } catch(e) {}
 try { __rpc_ivx_quest_get = __rpc_ivx_quest_get || (rpcIvxQuestGet); } catch(e) {}
 try { __rpc_ivx_quest_progress = __rpc_ivx_quest_progress || (rpcIvxQuestProgress); } catch(e) {}
@@ -92123,6 +92354,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("satori_webhooks_upsert", __rpc_satori_webhooks_upsert); } catch(e) {}
   try { initializer.registerRpc("satori_webhooks_delete", __rpc_satori_webhooks_delete); } catch(e) {}
   try { initializer.registerRpc("satori_webhooks_test", __rpc_satori_webhooks_test); } catch(e) {}
+  try { initializer.registerRpc("country_tier_get", __rpc_country_tier_get); } catch(e) {}
   try { initializer.registerRpc("nakama_js_health", __rpc_nakama_js_health); } catch(e) {}
   try { initializer.registerRpc("storage_write", __rpc_storage_write); } catch(e) {}
   try { initializer.registerRpc("storage_read", __rpc_storage_read); } catch(e) {}
@@ -92309,9 +92541,10 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("external_poll_ugs", __rpc_external_poll_ugs); } catch(e) {}
   try { initializer.registerRpc("external_poll_all", __rpc_external_poll_all); } catch(e) {}
   try { initializer.registerRpc("external_poll_status", __rpc_external_poll_status); } catch(e) {}
-  try { initializer.registerRpc("friend_quest_record_progress", __rpc_friend_quest_record_progress); } catch(e) {}
-  try { initializer.registerRpc("friend_streak_get_broken_log", __rpc_friend_streak_get_broken_log); } catch(e) {}
-  try { initializer.registerRpc("friend_streak_repair", __rpc_friend_streak_repair); } catch(e) {}
+  try { initializer.registerRpc("friends_get_online_count", __rpc_friends_get_online_count); } catch(e) {}
+  try { initializer.registerRpc("social_pressure_get_today_summary", __rpc_social_pressure_get_today_summary); } catch(e) {}
+  try { initializer.registerRpc("friend_battle_create", __rpc_friend_battle_create); } catch(e) {}
+  try { initializer.registerRpc("friend_invite_with_reward", __rpc_friend_invite_with_reward); } catch(e) {}
   try { initializer.registerRpc("id", __rpc_id); } catch(e) {}
   try { initializer.registerRpc("send_friend_challenge", __rpc_send_friend_challenge); } catch(e) {}
   try { initializer.registerRpc("friends_challenge_user", __rpc_friends_challenge_user); } catch(e) {}
@@ -92325,10 +92558,9 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("decline_friend_invite", __rpc_decline_friend_invite); } catch(e) {}
   try { initializer.registerRpc("cancel_friend_invite", __rpc_cancel_friend_invite); } catch(e) {}
   try { initializer.registerRpc("list_pending_friend_invites", __rpc_list_pending_friend_invites); } catch(e) {}
-  try { initializer.registerRpc("friends_get_online_count", __rpc_friends_get_online_count); } catch(e) {}
-  try { initializer.registerRpc("social_pressure_get_today_summary", __rpc_social_pressure_get_today_summary); } catch(e) {}
-  try { initializer.registerRpc("friend_battle_create", __rpc_friend_battle_create); } catch(e) {}
-  try { initializer.registerRpc("friend_invite_with_reward", __rpc_friend_invite_with_reward); } catch(e) {}
+  try { initializer.registerRpc("friend_quest_record_progress", __rpc_friend_quest_record_progress); } catch(e) {}
+  try { initializer.registerRpc("friend_streak_get_broken_log", __rpc_friend_streak_get_broken_log); } catch(e) {}
+  try { initializer.registerRpc("friend_streak_repair", __rpc_friend_streak_repair); } catch(e) {}
   try { initializer.registerRpc("submit_score", __rpc_submit_score); } catch(e) {}
   try { initializer.registerRpc("ivx_quest_config", __rpc_ivx_quest_config); } catch(e) {}
   try { initializer.registerRpc("ivx_quest_get", __rpc_ivx_quest_get); } catch(e) {}
@@ -92380,5 +92612,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 699 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 700 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }

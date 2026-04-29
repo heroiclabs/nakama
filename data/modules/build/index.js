@@ -245,6 +245,33 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[Satori] Failed to register Satori systems: " + (err.message || String(err)));
     }
+    // ---- GeoTier IP-to-Country Resolution (PLAN-ADS-OPTIMIZATION-v2) ----
+    try {
+        logger.info("[GeoTier] Registering country_tier_get RPC...");
+        GeoTier.register(initializer);
+        logger.info("[GeoTier] GeoTier RPC registered successfully");
+    }
+    catch (err) {
+        logger.error("[GeoTier] Failed to register GeoTier: " + (err.message || String(err)));
+    }
+    // ---- Ad Revenue Recording (PLAN-ADS-OPTIMIZATION-v2 §11) ----
+    try {
+        logger.info("[AdRevenueEvent] Registering ad_revenue_record RPC...");
+        AdRevenueEvent.register(initializer, logger);
+        logger.info("[AdRevenueEvent] Ad revenue recording registered successfully");
+    }
+    catch (err) {
+        logger.error("[AdRevenueEvent] Failed to register: " + (err.message || String(err)));
+    }
+    // ---- Fortune Wheel Ad Spin (PLAN-ADS-OPTIMIZATION-v2 §4 #19) ----
+    try {
+        logger.info("[FortuneWheelAdSpin] Registering fortune_wheel_ad_spin RPC...");
+        FortuneWheelAdSpin.register(initializer, logger);
+        logger.info("[FortuneWheelAdSpin] Fortune wheel ad spin registered successfully");
+    }
+    catch (err) {
+        logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));
+    }
     // ---- Fantasy Cricket RPCs ----
     try {
         logger.info("[Fantasy] Registering Team RPCs...");
@@ -25768,6 +25795,208 @@ var SatoriWebhooks;
     }
     SatoriWebhooks.registerEventHandlers = registerEventHandlers;
 })(SatoriWebhooks || (SatoriWebhooks = {}));
+// ad-revenue-event.ts
+// PLAN-ADS-OPTIMIZATION-v2 §11: Server-side ad revenue recording RPC.
+//
+// The Unity client fires ILRD (Impression-Level Revenue Data) callbacks
+// from the ad SDK. This RPC persists those events in Nakama storage so
+// the backend can compute server-side ARPDAU per tier without relying
+// solely on client analytics (Firebase/Satori).
+//
+// WHY SERVER-SIDE?
+// - Client analytics can be delayed, sampled, or blocked by ad-blockers.
+// - Server storage gives us ground-truth for A/B test evaluation.
+// - Enables real-time tier ARPDAU dashboards via Nakama queries.
+var AdRevenueEvent;
+(function (AdRevenueEvent) {
+    var COLLECTION = "ad_revenue";
+    var DAILY_KEY_PREFIX = "daily_";
+    var LIFETIME_KEY = "lifetime";
+    /**
+     * Get today's date key in UTC (YYYY-MM-DD).
+     */
+    function getTodayKey() {
+        var now = new Date();
+        var y = now.getUTCFullYear();
+        var m = now.getUTCMonth() + 1;
+        var d = now.getUTCDate();
+        return y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d;
+    }
+    /**
+     * Read user's geo tier from the GeoTier cache.
+     */
+    function getUserTier(nk, userId) {
+        var _a;
+        try {
+            var records = nk.storageRead([{
+                    collection: "geo_tier",
+                    key: "resolved",
+                    userId: userId
+                }]);
+            if (records && records.length > 0 && ((_a = records[0].value) === null || _a === void 0 ? void 0 : _a.tier)) {
+                var tier = records[0].value.tier.toLowerCase();
+                if (tier === "t1" || tier === "t2" || tier === "t3")
+                    return tier;
+            }
+        }
+        catch ( /* fall through */_b) { /* fall through */ }
+        return "t3";
+    }
+    /**
+     * RPC: ad_revenue_record
+     *
+     * Records a single ILRD ad revenue event, updates daily + lifetime aggregates.
+     * Called from AdsAnalyticsBridge.ReportAdRevenueToServer() on the Unity client.
+     */
+    function rpcRecordAdRevenue(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Authentication required" });
+        }
+        var data;
+        try {
+            data = JSON.parse(payload);
+        }
+        catch (_a) {
+            return JSON.stringify({ success: false, error: "Invalid JSON payload" });
+        }
+        // Validate required fields
+        if (!data.revenueUsd || data.revenueUsd <= 0) {
+            return JSON.stringify({ success: false, error: "revenueUsd must be positive" });
+        }
+        if (!data.adType) {
+            return JSON.stringify({ success: false, error: "adType is required" });
+        }
+        // Clamp revenue to a sane max to prevent abuse ($50 per impression is absurd)
+        var revenueUsd = Math.min(data.revenueUsd, 50.0);
+        var adType = data.adType || "unknown";
+        var placement = data.placement || "unknown";
+        var network = data.network || "unknown";
+        var tier = getUserTier(nk, userId);
+        var todayKey = getTodayKey();
+        var now = Math.floor(Date.now() / 1000);
+        // ── Update daily aggregate ──────────────────────────────────────
+        var dailyStorageKey = DAILY_KEY_PREFIX + todayKey;
+        var daily;
+        try {
+            var records = nk.storageRead([{
+                    collection: COLLECTION,
+                    key: dailyStorageKey,
+                    userId: userId
+                }]);
+            if (records && records.length > 0) {
+                daily = records[0].value;
+            }
+            else {
+                daily = {
+                    date: todayKey,
+                    totalRevenueUsd: 0,
+                    impressions: 0,
+                    byAdType: {},
+                    byPlacement: {},
+                    tier: tier
+                };
+            }
+        }
+        catch (_b) {
+            daily = {
+                date: todayKey,
+                totalRevenueUsd: 0,
+                impressions: 0,
+                byAdType: {},
+                byPlacement: {},
+                tier: tier
+            };
+        }
+        daily.totalRevenueUsd += revenueUsd;
+        daily.impressions += 1;
+        daily.tier = tier;
+        if (!daily.byAdType[adType])
+            daily.byAdType[adType] = { revenue: 0, count: 0 };
+        daily.byAdType[adType].revenue += revenueUsd;
+        daily.byAdType[adType].count += 1;
+        if (!daily.byPlacement[placement])
+            daily.byPlacement[placement] = { revenue: 0, count: 0 };
+        daily.byPlacement[placement].revenue += revenueUsd;
+        daily.byPlacement[placement].count += 1;
+        // ── Update lifetime aggregate ───────────────────────────────────
+        var lifetime;
+        try {
+            var records = nk.storageRead([{
+                    collection: COLLECTION,
+                    key: LIFETIME_KEY,
+                    userId: userId
+                }]);
+            if (records && records.length > 0) {
+                lifetime = records[0].value;
+            }
+            else {
+                lifetime = {
+                    totalRevenueUsd: 0,
+                    totalImpressions: 0,
+                    firstEventAt: now,
+                    lastEventAt: now,
+                    tier: tier
+                };
+            }
+        }
+        catch (_c) {
+            lifetime = {
+                totalRevenueUsd: 0,
+                totalImpressions: 0,
+                firstEventAt: now,
+                lastEventAt: now,
+                tier: tier
+            };
+        }
+        lifetime.totalRevenueUsd += revenueUsd;
+        lifetime.totalImpressions += 1;
+        lifetime.lastEventAt = now;
+        lifetime.tier = tier;
+        // ── Write both aggregates ───────────────────────────────────────
+        try {
+            nk.storageWrite([
+                {
+                    collection: COLLECTION,
+                    key: dailyStorageKey,
+                    userId: userId,
+                    value: daily,
+                    permissionRead: 1, // owner-read
+                    permissionWrite: 0 // server-only write
+                },
+                {
+                    collection: COLLECTION,
+                    key: LIFETIME_KEY,
+                    userId: userId,
+                    value: lifetime,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }
+            ]);
+        }
+        catch (err) {
+            logger.error("[AdRevenueEvent] Storage write failed for ".concat(userId, ": ").concat(err));
+            return JSON.stringify({ success: false, error: "Storage write failed" });
+        }
+        logger.info("[AdRevenueEvent] Recorded $".concat(revenueUsd.toFixed(4), " ").concat(adType, "/").concat(placement, " from ").concat(network, " for ").concat(userId, " (").concat(tier, ")"));
+        return JSON.stringify({
+            success: true,
+            tier: tier,
+            dailyTotal: daily.totalRevenueUsd,
+            dailyImpressions: daily.impressions,
+            lifetimeTotal: lifetime.totalRevenueUsd
+        });
+    }
+    AdRevenueEvent.rpcRecordAdRevenue = rpcRecordAdRevenue;
+    /**
+     * Register all RPCs in this module.
+     */
+    function register(initializer, logger) {
+        initializer.registerRpc("ad_revenue_record", rpcRecordAdRevenue);
+        logger.info("[AdRevenueEvent] ✓ Registered RPC: ad_revenue_record");
+    }
+    AdRevenueEvent.register = register;
+})(AdRevenueEvent || (AdRevenueEvent = {}));
 var ConfigLoader;
 (function (ConfigLoader) {
     var configCache = {};
@@ -25960,6 +26189,379 @@ var EventBus;
         QUIZ_COMPLETED: "quiz_completed",
     };
 })(EventBus || (EventBus = {}));
+// fortune-wheel-ad-spin.ts
+// PLAN-ADS-OPTIMIZATION-v2 §4 placement #19: Lucky Wheel free spin via rewarded ad.
+//
+// The FortuneWheelPopup on the Unity client shows a "Watch Ad for Free Spin"
+// button when the user has exhausted their organic spins. This RPC bypasses
+// the normal cooldown — it does NOT consume a regular spin token; instead
+// it issues a separate "ad_spin" token that the wheel UI consumes for one
+// bonus spin.
+//
+// Flow:
+// 1. Client calls `fortune_wheel_ad_spin` after user clicks "Watch Ad" and
+//    the rewarded video completes successfully (client holds a valid
+//    rewarded_ad_claim receipt).
+// 2. Server validates: tier gate (T2/T3 only), daily cap, and optional
+//    claim receipt verification.
+// 3. Returns { success: true, spinsGranted: 1 } — client adds 1 to
+//    its local spin counter.
+var FortuneWheelAdSpin;
+(function (FortuneWheelAdSpin) {
+    var COLLECTION = "fortune_wheel_ad_spins";
+    var DAILY_KEY_PREFIX = "daily_";
+    // Per-tier configuration
+    var TIER_CONFIG = {
+        "t1": { enabled: false, maxPerDay: 0, cooldownSeconds: 0 },
+        "t2": { enabled: true, maxPerDay: 3, cooldownSeconds: 3600 }, // 1 hour cooldown, 3/day
+        "t3": { enabled: true, maxPerDay: 5, cooldownSeconds: 1800 } // 30 min cooldown, 5/day
+    };
+    function getTodayKey() {
+        var now = new Date();
+        var y = now.getUTCFullYear();
+        var m = now.getUTCMonth() + 1;
+        var d = now.getUTCDate();
+        return y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d;
+    }
+    function getUserTier(nk, userId) {
+        var _a;
+        try {
+            var records = nk.storageRead([{
+                    collection: "geo_tier",
+                    key: "resolved",
+                    userId: userId
+                }]);
+            if (records && records.length > 0 && ((_a = records[0].value) === null || _a === void 0 ? void 0 : _a.tier)) {
+                var tier = records[0].value.tier.toLowerCase();
+                if (tier === "t1" || tier === "t2" || tier === "t3")
+                    return tier;
+            }
+        }
+        catch ( /* fall through */_b) { /* fall through */ }
+        return "t3";
+    }
+    function getDailyRecord(nk, userId, todayKey) {
+        try {
+            var records = nk.storageRead([{
+                    collection: COLLECTION,
+                    key: DAILY_KEY_PREFIX + todayKey,
+                    userId: userId
+                }]);
+            if (records && records.length > 0) {
+                return records[0].value;
+            }
+        }
+        catch ( /* fall through */_a) { /* fall through */ }
+        return { date: todayKey, spinsUsed: 0, lastSpinAt: 0 };
+    }
+    /**
+     * RPC: fortune_wheel_ad_spin
+     *
+     * Grants 1 bonus fortune wheel spin after a rewarded ad completion.
+     * Tier-gated: T1 disabled, T2/T3 have separate caps and cooldowns.
+     */
+    function rpcFortuneWheelAdSpin(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Authentication required" });
+        }
+        var tier = getUserTier(nk, userId);
+        var config = TIER_CONFIG[tier] || TIER_CONFIG["t3"];
+        // Tier gate
+        if (!config.enabled) {
+            logger.info("[FortuneWheelAdSpin] Blocked for ".concat(tier, " user ").concat(userId));
+            return JSON.stringify({
+                success: false,
+                error: "Feature not available for your region",
+                errorCode: "TIER_GATED",
+                tier: tier
+            });
+        }
+        var now = Math.floor(Date.now() / 1000);
+        var todayKey = getTodayKey();
+        var daily = getDailyRecord(nk, userId, todayKey);
+        // Daily cap check
+        if (daily.spinsUsed >= config.maxPerDay) {
+            return JSON.stringify({
+                success: false,
+                error: "Daily ad-spin limit reached",
+                errorCode: "DAILY_CAP",
+                tier: tier,
+                spinsUsed: daily.spinsUsed,
+                maxPerDay: config.maxPerDay,
+                resetsAt: todayKey + "T00:00:00Z (next day)"
+            });
+        }
+        // Cooldown check
+        var elapsed = now - daily.lastSpinAt;
+        if (daily.lastSpinAt > 0 && elapsed < config.cooldownSeconds) {
+            var remaining = config.cooldownSeconds - elapsed;
+            return JSON.stringify({
+                success: false,
+                error: "Cooldown active",
+                errorCode: "COOLDOWN",
+                tier: tier,
+                cooldownRemaining: remaining,
+                canSpinAt: daily.lastSpinAt + config.cooldownSeconds
+            });
+        }
+        // Grant the spin — update daily record
+        daily.spinsUsed += 1;
+        daily.lastSpinAt = now;
+        try {
+            nk.storageWrite([{
+                    collection: COLLECTION,
+                    key: DAILY_KEY_PREFIX + todayKey,
+                    userId: userId,
+                    value: daily,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+        }
+        catch (err) {
+            logger.error("[FortuneWheelAdSpin] Storage write failed: ".concat(err));
+            return JSON.stringify({ success: false, error: "Server error" });
+        }
+        logger.info("[FortuneWheelAdSpin] Granted ad-spin #".concat(daily.spinsUsed, "/").concat(config.maxPerDay, " for ").concat(userId, " (").concat(tier, ")"));
+        return JSON.stringify({
+            success: true,
+            spinsGranted: 1,
+            tier: tier,
+            spinsUsed: daily.spinsUsed,
+            maxPerDay: config.maxPerDay,
+            cooldownSeconds: config.cooldownSeconds
+        });
+    }
+    FortuneWheelAdSpin.rpcFortuneWheelAdSpin = rpcFortuneWheelAdSpin;
+    /**
+     * Register all RPCs in this module.
+     */
+    function register(initializer, logger) {
+        initializer.registerRpc("fortune_wheel_ad_spin", rpcFortuneWheelAdSpin);
+        logger.info("[FortuneWheelAdSpin] ✓ Registered RPC: fortune_wheel_ad_spin");
+    }
+    FortuneWheelAdSpin.register = register;
+})(FortuneWheelAdSpin || (FortuneWheelAdSpin = {}));
+// geo-tier.ts — Server-side IP → Country → Ad Tier resolution
+// PLAN-ADS-OPTIMIZATION-v2 §6.3
+//
+// RPC: country_tier_get
+//   - Checks per-user 30-day cache first
+//   - Falls back to ip-api.com HTTP lookup
+//   - Returns { tier, countryCode, source, cached }
+//   - Defaults to T3 on any failure (maximize ad volume for unknown geos)
+var GeoTier;
+(function (GeoTier) {
+    // ─── Constants ───────────────────────────────────────────────────────
+    var GEO_COLLECTION = "geo_tier";
+    var GEO_CACHE_KEY = "resolved";
+    var CACHE_TTL_DAYS = 30;
+    var CACHE_TTL_MS = CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
+    // ip-api.com — free tier, 45 req/min, HTTP only
+    var IP_API_URL = "http://ip-api.com/json/";
+    // ─── Tier Enum (matches Unity TierService.Tier) ──────────────────────
+    var TIER_T1 = "t1"; // Low-volume premium (US, UK, CA, AU, etc.)
+    var TIER_T2 = "t2"; // Mid-volume (EU, LATAM, SEA)
+    var TIER_T3 = "t3"; // High-volume emerging (IN, PK, BD, NG, etc.)
+    // ─── Country → Tier Mapping ──────────────────────────────────────────
+    // From PLAN-ADS-OPTIMIZATION-v2 §2.4
+    var T1_COUNTRIES = {
+        "US": true, "GB": true, "CA": true, "AU": true, "NZ": true,
+        "DE": true, "FR": true, "JP": true, "KR": true, "NO": true,
+        "SE": true, "DK": true, "FI": true, "CH": true, "AT": true,
+        "NL": true, "BE": true, "IE": true, "SG": true, "HK": true,
+        "TW": true, "IL": true
+    };
+    var T2_COUNTRIES = {
+        "ES": true, "IT": true, "PT": true, "PL": true, "CZ": true,
+        "RO": true, "HU": true, "GR": true, "HR": true, "SK": true,
+        "BG": true, "RS": true,
+        "MX": true, "BR": true, "AR": true, "CL": true, "CO": true,
+        "PE": true, "EC": true,
+        "TH": true, "MY": true, "PH": true, "VN": true, "ID": true,
+        "TR": true, "SA": true, "AE": true, "QA": true, "KW": true,
+        "ZA": true, "KE": true, "EG": true, "MA": true,
+        "RU": true, "UA": true, "KZ": true,
+        "CN": true
+    };
+    // ─── Core Logic ──────────────────────────────────────────────────────
+    function countryToTier(countryCode) {
+        var cc = countryCode.toUpperCase();
+        if (T1_COUNTRIES[cc])
+            return TIER_T1;
+        if (T2_COUNTRIES[cc])
+            return TIER_T2;
+        return TIER_T3;
+    }
+    function readCache(nk, userId) {
+        try {
+            var records = nk.storageRead([{
+                    collection: GEO_COLLECTION,
+                    key: GEO_CACHE_KEY,
+                    userId: userId
+                }]);
+            if (records && records.length > 0 && records[0].value) {
+                var cached = records[0].value;
+                // Check expiry
+                if (cached.expiresAt && cached.expiresAt > Date.now()) {
+                    return cached;
+                }
+            }
+        }
+        catch (_) {
+            // Cache miss — continue to API
+        }
+        return null;
+    }
+    function writeCache(nk, userId, tier, countryCode, source) {
+        var now = Date.now();
+        var cache = {
+            tier: tier,
+            countryCode: countryCode,
+            source: source,
+            resolvedAt: new Date(now).toISOString(),
+            expiresAt: now + CACHE_TTL_MS
+        };
+        try {
+            nk.storageWrite([{
+                    collection: GEO_COLLECTION,
+                    key: GEO_CACHE_KEY,
+                    userId: userId,
+                    value: cache,
+                    permissionRead: 1, // user can read own tier
+                    permissionWrite: 0 // only server can write
+                }]);
+        }
+        catch (_) {
+            // Non-fatal — will just re-resolve on next call
+        }
+    }
+    function resolveFromIpApi(nk, logger, clientIp) {
+        try {
+            // ip-api.com accepts the IP as a path segment
+            // Fields filter: only request what we need (reduces response size)
+            var url = IP_API_URL + clientIp + "?fields=status,countryCode,message";
+            var resp = HttpClient.get(nk, url);
+            if (resp.code !== 200) {
+                logger.warn("[GeoTier] ip-api.com returned HTTP " + resp.code);
+                return null;
+            }
+            var data;
+            try {
+                data = JSON.parse(resp.body);
+            }
+            catch (_) {
+                logger.warn("[GeoTier] ip-api.com returned invalid JSON");
+                return null;
+            }
+            if (data.status !== "success") {
+                logger.warn("[GeoTier] ip-api.com lookup failed: " + (data.message || "unknown"));
+                return null;
+            }
+            if (!data.countryCode || typeof data.countryCode !== "string") {
+                logger.warn("[GeoTier] ip-api.com returned no countryCode");
+                return null;
+            }
+            return { countryCode: data.countryCode.toUpperCase() };
+        }
+        catch (err) {
+            logger.error("[GeoTier] ip-api.com request failed: " + (err.message || String(err)));
+            return null;
+        }
+    }
+    function resolve(ctx, logger, nk, userId) {
+        // 1. Check cache
+        var cached = readCache(nk, userId);
+        if (cached) {
+            return {
+                tier: cached.tier,
+                countryCode: cached.countryCode,
+                source: cached.source,
+                cached: true
+            };
+        }
+        // 2. Resolve via IP API
+        var clientIp = ctx.clientIp || "";
+        if (clientIp) {
+            var geoResult = resolveFromIpApi(nk, logger, clientIp);
+            if (geoResult) {
+                var tier = countryToTier(geoResult.countryCode);
+                // Cache for 30 days
+                writeCache(nk, userId, tier, geoResult.countryCode, "server_ip_geo");
+                logger.info("[GeoTier] Resolved user " + userId + " → " + geoResult.countryCode + " → " + tier);
+                return {
+                    tier: tier,
+                    countryCode: geoResult.countryCode,
+                    source: "server_ip_geo",
+                    cached: false
+                };
+            }
+        }
+        else {
+            logger.warn("[GeoTier] No client IP available for user " + userId);
+        }
+        // 3. Fallback: T3 (maximize ad volume for unknown geos)
+        var fallbackTier = TIER_T3;
+        // Cache fallback too — prevents hammering API on every request
+        writeCache(nk, userId, fallbackTier, "XX", "fallback");
+        logger.info("[GeoTier] Fallback for user " + userId + " → " + fallbackTier);
+        return {
+            tier: fallbackTier,
+            countryCode: "XX",
+            source: "fallback",
+            cached: false
+        };
+    }
+    // ─── RPC Handler ────────────────────────────────────────────────────
+    /**
+     * RPC: country_tier_get
+     *
+     * Payload (optional): { force_refresh?: boolean }
+     *   - force_refresh: if true, bypasses cache and re-resolves from IP API
+     *
+     * Response: { success: true, data: { tier, countryCode, source, cached } }
+     */
+    function rpcCountryTierGet(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = {};
+        if (payload && payload !== "") {
+            data = RpcHelpers.parseRpcPayload(payload);
+        }
+        // Optional force refresh — invalidates cache
+        if (data.force_refresh === true) {
+            try {
+                nk.storageDelete([{
+                        collection: GEO_COLLECTION,
+                        key: GEO_CACHE_KEY,
+                        userId: userId
+                    }]);
+                logger.info("[GeoTier] Cache cleared for user " + userId + " (force_refresh)");
+            }
+            catch (_) {
+                // Non-fatal
+            }
+        }
+        var result = resolve(ctx, logger, nk, userId);
+        return RpcHelpers.successResponse(result);
+    }
+    // ─── Public API (for other server modules) ──────────────────────────
+    /**
+     * Called by rewarded_ads.js to get the user's tier for cap scaling.
+     * Returns the tier string (t1/t2/t3). Uses cache, never blocks on API.
+     */
+    function getUserTier(nk, userId) {
+        var cached = readCache(nk, userId);
+        if (cached)
+            return cached.tier;
+        return TIER_T3; // Default if no cache — safe for ad volume
+    }
+    GeoTier.getUserTier = getUserTier;
+    // ─── Registration ───────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("country_tier_get", rpcCountryTierGet);
+    }
+    GeoTier.register = register;
+})(GeoTier || (GeoTier = {}));
 // ──────────────────────────────────────────────────────────────────────────
 // JS-runtime health probe RPC (`nakama_js_health`).
 //

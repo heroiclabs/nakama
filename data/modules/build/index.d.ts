@@ -2658,6 +2658,19 @@ declare namespace SatoriWebhooks {
     function register(initializer: nkruntime.Initializer): void;
     function registerEventHandlers(): void;
 }
+declare namespace AdRevenueEvent {
+    /**
+     * RPC: ad_revenue_record
+     *
+     * Records a single ILRD ad revenue event, updates daily + lifetime aggregates.
+     * Called from AdsAnalyticsBridge.ReportAdRevenueToServer() on the Unity client.
+     */
+    function rpcRecordAdRevenue(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    /**
+     * Register all RPCs in this module.
+     */
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
 declare namespace ConfigLoader {
     function loadConfig<T>(nk: nkruntime.Nakama, configKey: string, defaultValue: T): T;
     function loadConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T;
@@ -2743,6 +2756,27 @@ declare namespace EventBus {
         QUIZ_COMPLETED: string;
     };
     export {};
+}
+declare namespace FortuneWheelAdSpin {
+    /**
+     * RPC: fortune_wheel_ad_spin
+     *
+     * Grants 1 bonus fortune wheel spin after a rewarded ad completion.
+     * Tier-gated: T1 disabled, T2/T3 have separate caps and cooldowns.
+     */
+    function rpcFortuneWheelAdSpin(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    /**
+     * Register all RPCs in this module.
+     */
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
+declare namespace GeoTier {
+    /**
+     * Called by rewarded_ads.js to get the user's tier for cap scaling.
+     * Returns the tier string (t1/t2/t3). Uses cache, never blocks on API.
+     */
+    function getUserTier(nk: nkruntime.Nakama, userId: string): string;
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace JsRuntimeHealth {
     function register(initializer: nkruntime.Initializer): void;
