@@ -277,6 +277,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
 		"purchase_validate_facebook_instant":        n.purchaseValidateFacebookInstant,
+		"purchase_validate_amazon":                  n.purchaseValidateAmazon,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
 		"subscription_validate_apple":               n.subscriptionValidateApple,
@@ -7911,6 +7912,55 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateFacebookInstant(l *lua.LState) 
 	validation, err := ValidatePurchaseFacebookInstant(l.Context(), n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
 	if err != nil {
 		l.RaiseError("error validating Facebook Instant receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(purchaseValidationToLuaTable(l, validation))
+	return 1
+}
+
+// @group purchases
+// @summary Validates and stores a purchase receipt from the Amazon Appstore.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receiptId(type=string) The receipt ID returned by the Amazon Appstore SDK PurchaseResponse.
+// @param amazonUserId(type=string) The user ID returned by the Amazon Appstore SDK UserDataResponse.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) purchaseValidateAmazon(l *lua.LState) int {
+	if n.config.GetIAP().Amazon.DeveloperSecret == "" {
+		l.RaiseError("Amazon IAP is not configured.")
+		return 0
+	}
+
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	receiptId := l.CheckString(2)
+	if receiptId == "" {
+		l.ArgError(2, "expects receiptId")
+		return 0
+	}
+
+	amazonUserId := l.CheckString(3)
+	if amazonUserId == "" {
+		l.ArgError(3, "expects amazonUserId")
+		return 0
+	}
+
+	persist := l.OptBool(4, true)
+
+	validation, err := ValidatePurchaseAmazon(l.Context(), n.logger, n.db, uid, n.config.GetIAP().Amazon, receiptId, amazonUserId, persist)
+	if err != nil {
+		l.RaiseError("error validating Amazon receipt: %v", err.Error())
 		return 0
 	}
 

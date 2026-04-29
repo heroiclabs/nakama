@@ -52,6 +52,8 @@ const (
 	StoreProvider_HUAWEI_APP_GALLERY StoreProvider = 2
 	// Facebook Instant Store
 	StoreProvider_FACEBOOK_INSTANT_STORE StoreProvider = 3
+	// Amazon App Store
+	StoreProvider_AMAZON_APP_STORE StoreProvider = 4
 )
 
 // Enum value maps for StoreProvider.
@@ -61,12 +63,14 @@ var (
 		1: "GOOGLE_PLAY_STORE",
 		2: "HUAWEI_APP_GALLERY",
 		3: "FACEBOOK_INSTANT_STORE",
+		4: "AMAZON_APP_STORE",
 	}
 	StoreProvider_value = map[string]int32{
 		"APPLE_APP_STORE":        0,
 		"GOOGLE_PLAY_STORE":      1,
 		"HUAWEI_APP_GALLERY":     2,
 		"FACEBOOK_INSTANT_STORE": 3,
+		"AMAZON_APP_STORE":       4,
 	}
 )
 
@@ -7520,6 +7524,44 @@ func (x *ValidatePurchaseFacebookInstantRequest) GetSignedRequest() string {
 }
 
 func (x *ValidatePurchaseFacebookInstantRequest) GetPersist() *wrapperspb.BoolValue {
+	if x != nil {
+		return x.Persist
+	}
+	return nil
+}
+
+// Amazon IAP Purchase validation request.
+type ValidatePurchaseAmazonRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The receipt ID returned by the Amazon Appstore SDK PurchaseResponse.
+	ReceiptId string `protobuf:"bytes,1,opt,name=receipt_id,json=receiptId,proto3" json:"receipt_id,omitempty"`
+	// The user ID returned by the Amazon Appstore SDK UserDataResponse.
+	AmazonUserId string `protobuf:"bytes,2,opt,name=amazon_user_id,json=amazonUserId,proto3" json:"amazon_user_id,omitempty"`
+	// Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+	Persist       *wrapperspb.BoolValue `protobuf:"bytes,3,opt,name=persist,proto3" json:"persist,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidatePurchaseAmazonRequest) Reset()         {}
+func (x *ValidatePurchaseAmazonRequest) String() string { return protoimpl.X.MessageStringOf(x) }
+func (*ValidatePurchaseAmazonRequest) ProtoMessage()    {}
+
+func (x *ValidatePurchaseAmazonRequest) GetReceiptId() string {
+	if x != nil {
+		return x.ReceiptId
+	}
+	return ""
+}
+
+func (x *ValidatePurchaseAmazonRequest) GetAmazonUserId() string {
+	if x != nil {
+		return x.AmazonUserId
+	}
+	return ""
+}
+
+func (x *ValidatePurchaseAmazonRequest) GetPersist() *wrapperspb.BoolValue {
 	if x != nil {
 		return x.Persist
 	}

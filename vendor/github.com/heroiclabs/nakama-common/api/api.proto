@@ -1239,6 +1239,16 @@ message ValidatePurchaseFacebookInstantRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
+// Amazon IAP Purchase validation request.
+message ValidatePurchaseAmazonRequest {
+  // The receipt ID returned by the Amazon Appstore SDK PurchaseResponse.
+  string receipt_id = 1;
+  // The user ID returned by the Amazon Appstore SDK UserDataResponse.
+  string amazon_user_id = 2;
+  // Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+  google.protobuf.BoolValue persist = 3;
+}
+
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.
@@ -1286,6 +1296,8 @@ enum StoreProvider {
   HUAWEI_APP_GALLERY = 2;
   // Facebook Instant Store
   FACEBOOK_INSTANT_STORE = 3;
+  // Amazon App Store
+  AMAZON_APP_STORE = 4;
 }
 
 // Environment where a purchase/subscription took place,

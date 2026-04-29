@@ -483,6 +483,92 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 	}, nil
 }
 
+func ValidatePurchaseAmazon(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPAmazonConfig, receiptId, amazonUserId string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	if config.DeveloperSecret == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Amazon IAP is not configured.")
+	}
+
+	rvsResp, raw, err := iap.ValidateReceiptAmazon(ctx, httpc, config.DeveloperSecret, receiptId, amazonUserId, config.Sandbox)
+	if err != nil {
+		if err != context.Canceled {
+			var vErr *iap.ValidationError
+			if errors.As(err, &vErr) {
+				logger.Debug("Error validating Amazon receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				return nil, vErr
+			} else {
+				logger.Error("Error validating Amazon receipt", zap.Error(err))
+			}
+		}
+		return nil, err
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if rvsResp.TestTransaction {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	sPurchase := &storagePurchase{
+		userID:        userID,
+		store:         api.StoreProvider_AMAZON_APP_STORE,
+		productId:     rvsResp.ProductId,
+		transactionId: rvsResp.ReceiptId,
+		rawResponse:   string(raw),
+		purchaseTime:  parseMillisecondUnixTimestamp(rvsResp.PurchaseDate),
+		environment:   env,
+	}
+
+	if rvsResp.CancelDate != nil {
+		sPurchase.refundTime = parseMillisecondUnixTimestamp(*rvsResp.CancelDate)
+	}
+
+	if !persist {
+		return &api.ValidatePurchaseResponse{
+			ValidatedPurchases: []*api.ValidatedPurchase{
+				{
+					ProductId:        sPurchase.productId,
+					TransactionId:    sPurchase.transactionId,
+					Store:            sPurchase.store,
+					PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
+					ProviderResponse: string(raw),
+					Environment:      sPurchase.environment,
+				},
+			},
+		}, nil
+	}
+
+	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	if err != nil {
+		if err != context.Canceled {
+			logger.Error("Error storing Amazon receipt", zap.Error(err))
+		}
+		return nil, err
+	}
+
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
+		suid := p.userID.String()
+		if p.userID.IsNil() {
+			suid = ""
+		}
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           suid,
+			ProductId:        p.productId,
+			TransactionId:    p.transactionId,
+			Store:            p.store,
+			PurchaseTime:     timestamppb.New(p.purchaseTime),
+			CreateTime:       timestamppb.New(p.createTime),
+			UpdateTime:       timestamppb.New(p.updateTime),
+			ProviderResponse: string(raw),
+			SeenBefore:       p.seenBefore,
+			Environment:      p.environment,
+		})
+	}
+
+	return &api.ValidatePurchaseResponse{
+		ValidatedPurchases: validatedPurchases,
+	}, nil
+}
+
 func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (*api.ValidatedPurchase, error) {
 	var (
 		dbTransactionId string

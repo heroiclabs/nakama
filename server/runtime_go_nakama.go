@@ -3330,6 +3330,41 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateFacebookInstant(ctx context.Cont
 }
 
 // @group purchases
+// @summary Validates and stores a purchase receipt from the Amazon Appstore.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receiptId(type=string) The receipt ID returned by the Amazon Appstore SDK PurchaseResponse.
+// @param amazonUserId(type=string) The user ID returned by the Amazon Appstore SDK UserDataResponse.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) PurchaseValidateAmazon(ctx context.Context, userID, receiptId, amazonUserId string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	if n.config.GetIAP().Amazon.DeveloperSecret == "" {
+		return nil, errors.New("amazon IAP is not configured")
+	}
+
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(receiptId) < 1 {
+		return nil, errors.New("receiptId cannot be empty string")
+	}
+
+	if len(amazonUserId) < 1 {
+		return nil, errors.New("amazonUserId cannot be empty string")
+	}
+
+	validation, err := ValidatePurchaseAmazon(ctx, n.logger, n.db, uid, n.config.GetIAP().Amazon, receiptId, amazonUserId, persist)
+	if err != nil {
+		return nil, err
+	}
+
+	return validation, nil
+}
+
+// @group purchases
 // @summary List stored validated purchase receipts.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) Filter by user ID. Can be an empty string to list purchases for all users.
