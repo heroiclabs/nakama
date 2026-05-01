@@ -195,6 +195,20 @@ function _fiUserDisplayName(nk, userId, fallback) {
 }
 
 /**
+ * Fetch a user's username by ID. Returns userId as fallback so the result
+ * is never empty (nk.friendsAdd/Delete require a non-empty username string).
+ */
+function _fiUserUsername(nk, userId) {
+    try {
+        var users = nk.usersGetId([userId]);
+        if (users && users.length > 0 && users[0]) {
+            return users[0].username || userId;
+        }
+    } catch (_) {}
+    return userId;
+}
+
+/**
  * Read an existing invite row stored under either user. We always store
  * the row under the TARGET user (so they can read their own inbox), but
  * during a re-send the caller is the SENDER and may not have read access.
@@ -309,7 +323,7 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
     }
     if (callerRel === FR_STATE_INVITE_RECEIVED) {
         // Target already invited caller. Auto-accept.
-        try { nk.friendsAdd(fromUserId, [targetUserId], null); }
+        try { nk.friendsAdd(fromUserId, ctx.username || fromUserId, [targetUserId], null, {}); }
         catch (e) {
             return _fiErr('Failed to auto-accept reciprocal invite: ' + e.message,
                           'autoaccept_failed');
@@ -355,7 +369,7 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
     // friends_challenge_user mutual-friend check, find_friends relationship
     // enrichment) sees the wrong picture.
     try {
-        nk.friendsAdd(fromUserId, [targetUserId], null);
+        nk.friendsAdd(fromUserId, ctx.username || fromUserId, [targetUserId], null, {});
     } catch (e) {
         // If Nakama refuses (e.g. target re-blocked between our check and
         // the call) we MUST roll back the storage write to keep the two
@@ -444,7 +458,7 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     // Add the reciprocal friend edge. Combined with the INVITE_SENT
     // edge created at send-time this transitions BOTH users to FRIEND.
     try {
-        nk.friendsAdd(userId, [invite.fromUserId], null);
+        nk.friendsAdd(userId, ctx.username || userId, [invite.fromUserId], null, {});
     } catch (e) {
         logger.error('[FriendInvites] accept nk.friendsAdd failed: ' + e.message);
         return _fiErr('Failed to add friend: ' + e.message, 'friends_add_failed');
@@ -545,7 +559,7 @@ function rpcFriendsDeclineInvite(ctx, logger, nk, payload) {
     // from the SENDER's list (decline = "they no longer have a sent
     // invite to me"). nk.friendsDelete is idempotent.
     try {
-        nk.friendsDelete(invite.fromUserId, [userId]);
+        nk.friendsDelete(invite.fromUserId, invite.fromUsername || _fiUserUsername(nk, invite.fromUserId), [userId], null);
     } catch (e) {
         logger.warn('[FriendInvites] decline nk.friendsDelete failed (non-fatal): ' + e.message);
     }
@@ -638,7 +652,7 @@ function rpcFriendsCancelInvite(ctx, logger, nk, payload) {
 
     // Delete the INVITE_SENT relation in Nakama's graph regardless.
     try {
-        nk.friendsDelete(userId, [targetUserId]);
+        nk.friendsDelete(userId, ctx.username || _fiUserUsername(nk, userId), [targetUserId], null);
     } catch (e) {
         logger.warn('[FriendInvites] cancel nk.friendsDelete failed: ' + e.message);
     }
