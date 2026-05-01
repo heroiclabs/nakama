@@ -79,13 +79,22 @@ namespace LegacyPlayer {
   function rpcChangeUsername(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
-    if (!data.username) return RpcHelpers.errorResponse("username required");
+    if (!data.username) return JSON.stringify({ success: false, error: "username required", error_code: "USERNAME_INVALID" });
+
+    var username = String(data.username).toLowerCase().trim();
+    if (username.length < 3) return JSON.stringify({ success: false, error: "Username must be at least 3 characters", error_code: "USERNAME_TOO_SHORT" });
+    if (username.length > 20) return JSON.stringify({ success: false, error: "Username must be at most 20 characters", error_code: "USERNAME_TOO_LONG" });
+    if (!/^[a-z0-9_]+$/.test(username)) return JSON.stringify({ success: false, error: "Use only letters, numbers, and underscores", error_code: "USERNAME_INVALID" });
 
     try {
-      nk.accountUpdateId(userId, data.username, null, null, null, null, null);
-      return RpcHelpers.successResponse({ username: data.username });
+      nk.accountUpdateId(userId, username, null, null, null, null, null);
+      return RpcHelpers.successResponse({ username: username });
     } catch (err: any) {
-      return RpcHelpers.errorResponse("Failed to change username: " + err.message);
+      var msg = err.message || "";
+      if (msg.indexOf("unique") !== -1 || msg.indexOf("exists") !== -1 || msg.indexOf("taken") !== -1) {
+        return JSON.stringify({ success: false, error: "That username is already taken", error_code: "USERNAME_TAKEN" });
+      }
+      return JSON.stringify({ success: false, error: "Failed to change username: " + msg, error_code: "UPDATE_FAILED" });
     }
   }
 

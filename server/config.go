@@ -808,6 +808,9 @@ func NewSessionConfig() *SessionConfig {
 		TokenExpirySec:        60,
 		RefreshEncryptionKey:  "defaultrefreshencryptionkey",
 		RefreshTokenExpirySec: 3600,
+		SingleSocket:          true,
+		SingleMatch:           true,
+		SingleParty:           true,
 	}
 }
 

@@ -19267,6 +19267,7 @@ function asyncChallengeSessionToUnityFormat(session) {
         quizModeType: session.quizModeType || 0,
         quizModeName: session.quizModeName || 'Quiz',
         quizConfig: session.quizConfig || {},
+        questions: session.questions || null,
         gameId: session.gameId || '',
         status: status,
         createdAt: session.createdAt || 0,
@@ -19373,6 +19374,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
             quizModeName: quizModeName,
             quizConfig: quizConfig,
             gameId: quizConfig.gameId || '',
+            questions: null,
             creatorId: userId,
             creatorName: creatorName,
             opponentId: null,
@@ -20814,6 +20816,75 @@ function rpcAsyncChallengeLeaderboard(ctx, logger, nk, payload) {
     }
 }
 
+// ============================================================================
+// RPC: async_challenge_store_questions - Host stores fetched questions
+// ============================================================================
+function rpcAsyncChallengeStoreQuestions(ctx, logger, nk, payload) {
+    var request;
+    try { request = JSON.parse(payload || '{}'); }
+    catch (e) { return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null }); }
+
+    try {
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({ success: false, message: userValidation.error, data: null });
+        }
+        var userId = userValidation.userId;
+
+        var sessionId = request.sessionId || request.SessionId;
+        if (!sessionId) {
+            return JSON.stringify({ success: false, message: 'sessionId required', data: null });
+        }
+
+        var questions = request.questions;
+        if (!questions || !Array.isArray(questions) || questions.length === 0) {
+            return JSON.stringify({ success: false, message: 'questions array required', data: null });
+        }
+
+        // Read session — only creator (host) can store questions
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: userId
+        }]);
+
+        if (sessionResults.length === 0) {
+            return JSON.stringify({ success: false, message: 'Session not found or not owner', data: null });
+        }
+
+        var session = sessionResults[0].value;
+
+        // Authorization: only creator can store questions
+        if (session.creatorId !== userId) {
+            return JSON.stringify({ success: false, message: 'Only the challenge creator can store questions', data: null });
+        }
+
+        // Don't overwrite if already stored (idempotency guard)
+        if (session.questions && session.questions.length > 0) {
+            logger.debug('[AsyncChallenge] Questions already stored for session: ' + sessionId);
+            return JSON.stringify({ success: true, message: 'Questions already stored', data: { count: session.questions.length } });
+        }
+
+        // Store questions in session
+        session.questions = questions;
+
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: userId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+
+        logger.info('[AsyncChallenge] Stored ' + questions.length + ' questions for session: ' + sessionId);
+        return JSON.stringify({ success: true, message: 'Questions stored', data: { count: questions.length } });
+    } catch (err) {
+        logger.error('[AsyncChallenge] StoreQuestions error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_store_questions', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
 
 // ============================================================================
 // BADGES & COLLECTABLES SYSTEM
@@ -24097,7 +24168,9 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_rematch');
         initializer.registerRpc('async_challenge_leaderboard', rpcAsyncChallengeLeaderboard);
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_leaderboard');
-        logger.info('[AsyncChallenge] Successfully registered 9 Async Challenge RPCs');
+        initializer.registerRpc('async_challenge_store_questions', rpcAsyncChallengeStoreQuestions);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_store_questions');
+        logger.info('[AsyncChallenge] Successfully registered 10 Async Challenge RPCs');
     } catch (err) {
         logger.error('[AsyncChallenge] Failed to initialize: ' + err.message);
     }
