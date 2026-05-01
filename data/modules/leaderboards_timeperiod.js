@@ -80,7 +80,8 @@ function createGameLeaderboards(nk, logger, gameId, gameTitle) {
                 LEADERBOARD_CONFIG.sort,
                 LEADERBOARD_CONFIG.operator,
                 resetSchedule,
-                metadata
+                metadata,
+                true  // enableRanks (QV_Bug_A8)
             );
 
             logger.info("[Leaderboards] Created " + period + " leaderboard: " + leaderboardId);
@@ -160,7 +161,8 @@ function createGlobalLeaderboards(nk, logger) {
                 LEADERBOARD_CONFIG.sort,
                 LEADERBOARD_CONFIG.operator,
                 resetSchedule,
-                metadata
+                metadata,
+                true  // enableRanks (QV_Bug_A8)
             );
 
             logger.info("[Leaderboards] Created global " + period + " leaderboard: " + leaderboardId);
@@ -206,7 +208,8 @@ function createGlobalLeaderboards(nk, logger) {
                     scope: "unified_global",
                     timePeriod: "alltime",
                     description: "QuizVerse unified global leaderboard (all-time)"
-                }
+                },
+                true  // enableRanks (QV_Bug_A8)
             );
             logger.info("[Leaderboards] Created unified global leaderboard: " + unifiedId);
             created.push({ leaderboardId: unifiedId, period: "alltime", scope: "unified_global", resetSchedule: "" });

@@ -63,7 +63,8 @@ function ensureLeaderboardExists(nk, logger, leaderboardId, resetSchedule, metad
             LEADERBOARD_CONFIG.sort,
             LEADERBOARD_CONFIG.operator,
             resetSchedule || "",
-            metadata || {}
+            metadata || {},
+            true  // enableRanks — required for rank computation (QV_Bug_A8)
         );
         logger.info("[NAKAMA] Created leaderboard: " + leaderboardId);
         return true;

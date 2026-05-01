@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-04-28T23:44:44.961Z
-// RPC Count: 701
+// Generated: 2026-05-01T06:25:35.830Z
+// RPC Count: 704
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -453,6 +453,8 @@ var __rpc_satori_webhooks_list;
 var __rpc_satori_webhooks_upsert;
 var __rpc_satori_webhooks_delete;
 var __rpc_satori_webhooks_test;
+var __rpc_ad_revenue_record;
+var __rpc_fortune_wheel_ad_spin;
 var __rpc_country_tier_get;
 var __rpc_nakama_js_health;
 var __rpc_storage_write;
@@ -713,7 +715,7 @@ var __rpc_visual_path_get_schedule;
 var __rpc_visual_path_skip_day_with_ad;
 
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
-var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"creator_event_fund_pool":true,"creator_event_spa_claim":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"country_tier_get":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
+var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"creator_event_fund_pool":true,"creator_event_spa_claim":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"ad_revenue_record":true,"fortune_wheel_ad_spin":true,"country_tier_get":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
 // --- Discovered Modules (80 files) ---
 
@@ -11085,7 +11087,8 @@ function rpcCreateAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
         try {
             nk.leaderboardCreate(
                 globalFriendsId, true, sort, operator, resetSchedule,
-                { scope: "friends_global", desc: "Global Friends Leaderboard" }
+                { scope: "friends_global", desc: "Global Friends Leaderboard" },
+                true  // enableRanks (QV_Bug_A8)
             );
             created.push(globalFriendsId);
         } catch (err) {
@@ -11101,7 +11104,8 @@ function rpcCreateAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
                 try {
                     nk.leaderboardCreate(
                         friendsLeaderboardId, true, sort, operator, resetSchedule,
-                        { scope: "friends_game", gameId: record.gameId }
+                        { scope: "friends_game", gameId: record.gameId },
+                        true  // enableRanks (QV_Bug_A8)
                     );
                     created.push(friendsLeaderboardId);
                 } catch (err) {
@@ -21387,7 +21391,8 @@ function ensureLeaderboardExists(nk, logger, leaderboardId, resetSchedule, metad
             LEADERBOARD_CONFIG.sort,
             LEADERBOARD_CONFIG.operator,
             resetSchedule || "",
-            metadata || {}
+            metadata || {},
+            true  // enableRanks — required for rank computation (QV_Bug_A8)
         );
         logger.info("[NAKAMA] Created leaderboard: " + leaderboardId);
         return true;
@@ -21662,7 +21667,8 @@ function createGameLeaderboards(nk, logger, gameId, gameTitle) {
                 LEADERBOARD_CONFIG.sort,
                 LEADERBOARD_CONFIG.operator,
                 resetSchedule,
-                metadata
+                metadata,
+                true  // enableRanks (QV_Bug_A8)
             );
 
             logger.info("[Leaderboards] Created " + period + " leaderboard: " + leaderboardId);
@@ -21742,7 +21748,8 @@ function createGlobalLeaderboards(nk, logger) {
                 LEADERBOARD_CONFIG.sort,
                 LEADERBOARD_CONFIG.operator,
                 resetSchedule,
-                metadata
+                metadata,
+                true  // enableRanks (QV_Bug_A8)
             );
 
             logger.info("[Leaderboards] Created global " + period + " leaderboard: " + leaderboardId);
@@ -21788,7 +21795,8 @@ function createGlobalLeaderboards(nk, logger) {
                     scope: "unified_global",
                     timePeriod: "alltime",
                     description: "QuizVerse unified global leaderboard (all-time)"
-                }
+                },
+                true  // enableRanks (QV_Bug_A8)
             );
             logger.info("[Leaderboards] Created unified global leaderboard: " + unifiedId);
             created.push({ leaderboardId: unifiedId, period: "alltime", scope: "unified_global", resetSchedule: "" });
@@ -35917,6 +35925,13 @@ function rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
 // rewarded_ads.js - Server-validated Rewarded Ad System
 // Enforces user-triggered rewarded ads via token-based validation
 // Prevents auto-shown rewards, duplicate claims, and replay attacks
+//
+// PLAN-ADS-OPTIMIZATION-v2 §3/§4/§6:
+//   - Tier-aware daily caps (T1=conservative, T2=balanced, T3=volume)
+//   - 8 new placements (wager_boost_50, daily_bonus_2x, lucky_wheel_free_spin,
+//     double_xp_levelup, leaderboard_rank_boost, topic_complete_preview,
+//     friend_quest_progress, home_idle_powerup)
+//   - Server-side cap enforcement in rewarded_ad_request_token
 
 /**
  * REWARDED AD CLAIM FLOW:
@@ -35932,6 +35947,8 @@ function rpcWinbackScheduleReengagement(ctx, logger, nk, payload) {
 var TOKEN_EXPIRY_SECONDS = 300; // 5 minutes - tokens expire if not claimed
 var TOKEN_COLLECTION = "rewarded_ad_tokens";
 var CLAIMS_COLLECTION = "rewarded_ad_claims";
+var GEO_COLLECTION = "geo_tier";
+var GEO_CACHE_KEY = "resolved";
 
 // Reward configuration per placement
 var REWARD_CONFIG = {
@@ -35968,8 +35985,141 @@ var REWARD_CONFIG = {
         amount: 50,
         cooldownSeconds: 60,
         maxClaimsPerDay: 50
+    },
+    // ── NEW placements (PLAN-ADS-OPTIMIZATION-v2 §4) ──────────────────
+    "wager_boost_50": {
+        rewardType: "currency",
+        currency: "coins",
+        amount: 50,
+        cooldownSeconds: 60,
+        maxClaimsPerDay: 5,
+        tierGate: ["t2", "t3"]  // T1 disabled — premium feel
+    },
+    "daily_bonus_2x": {
+        rewardType: "score_multiplier",
+        multiplier: 2,
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 1,
+        tierGate: null  // all tiers
+    },
+    "lucky_wheel_free_spin": {
+        rewardType: "action",
+        action: "fortune_wheel_spin",
+        cooldownSeconds: 3600,  // 1 hour
+        maxClaimsPerDay: 3,
+        tierGate: ["t2", "t3"]  // T1 disabled — premium feel
+    },
+    "double_xp_levelup": {
+        rewardType: "score_multiplier",
+        multiplier: 2,
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 5,
+        tierGate: null  // all tiers — low intrusion
+    },
+    "leaderboard_rank_boost": {
+        rewardType: "currency",
+        currency: "coins",
+        amount: 75,
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 3,
+        tierGate: ["t2", "t3"]  // T1 disabled
+    },
+    "topic_complete_preview": {
+        rewardType: "action",
+        action: "unlock_topic_preview",
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 5,
+        tierGate: ["t3"]  // T3 only — strong engagement signal
+    },
+    "friend_quest_progress": {
+        rewardType: "action",
+        action: "add_quest_progress",
+        cooldownSeconds: 0,
+        maxClaimsPerDay: 3,
+        tierGate: ["t3"]  // T3 only
+    },
+    "home_idle_powerup": {
+        rewardType: "currency",
+        currency: "powerups",
+        amount: 1,
+        cooldownSeconds: 3600,  // 1 hour
+        maxClaimsPerDay: 5,
+        tierGate: ["t2", "t3"]  // T1 disabled — too intrusive
     }
 };
+
+// ── Tier cap scaling factors (PLAN-ADS-OPTIMIZATION-v2 §3) ──────────
+// T1 users see fewer rewarded opportunities (push IAP instead).
+// T3 users see more (maximize ad volume where IAP ARPU is low).
+var TIER_CAP_FACTORS = {
+    "t1": 0.5,
+    "t2": 1.0,
+    "t3": 2.0
+};
+
+/**
+ * Read user's geo tier from GeoTier cache (written by geo-tier.ts).
+ * Returns "t1", "t2", or "t3". Defaults to "t3" if no cache (safe for ad volume).
+ */
+function getUserTier(nk, logger, userId) {
+    try {
+        var records = nk.storageRead([{
+            collection: GEO_COLLECTION,
+            key: GEO_CACHE_KEY,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value && records[0].value.tier) {
+            var tier = records[0].value.tier.toLowerCase();
+            if (tier === "t1" || tier === "t2" || tier === "t3") {
+                return tier;
+            }
+        }
+    } catch (err) {
+        if (logger) logger.warn("[RewardedAds] Failed to read user tier: " + err.message);
+    }
+    return "t3"; // Default — maximize ad volume for unknown geos
+}
+
+/**
+ * Get tier-aware config for a placement.
+ * Scales maxClaimsPerDay by the tier factor and enforces tierGate.
+ * Returns null if the placement is gated for this tier.
+ */
+function getTierAwareConfig(nk, logger, userId, placement) {
+    var config = REWARD_CONFIG[placement] || REWARD_CONFIG["default"];
+    var tier = getUserTier(nk, logger, userId);
+
+    // Check tier gate — if placement is restricted to certain tiers
+    if (config.tierGate && config.tierGate.length > 0) {
+        var allowed = false;
+        for (var i = 0; i < config.tierGate.length; i++) {
+            if (config.tierGate[i] === tier) {
+                allowed = true;
+                break;
+            }
+        }
+        if (!allowed) {
+            return null; // This placement is not available for this tier
+        }
+    }
+
+    // Scale maxClaimsPerDay by tier factor
+    var factor = TIER_CAP_FACTORS[tier] || 1.0;
+    var scaledMax = Math.max(1, Math.round(config.maxClaimsPerDay * factor));
+
+    // Return a copy with scaled cap
+    return {
+        rewardType: config.rewardType,
+        multiplier: config.multiplier,
+        currency: config.currency,
+        amount: config.amount,
+        action: config.action,
+        cooldownSeconds: config.cooldownSeconds,
+        maxClaimsPerDay: scaledMax,
+        tier: tier,
+        originalMaxClaimsPerDay: config.maxClaimsPerDay
+    };
+}
 
 /**
  * Generate a cryptographically secure token
@@ -36140,18 +36290,34 @@ function rpcRewardedAdRequestToken(ctx, logger, nk, payload) {
     var gameId = data.gameId || "unknown";
     var metadata = data.metadata || {};
     
-    // Get reward config for this placement
-    var config = REWARD_CONFIG[placement] || REWARD_CONFIG["default"];
+    // PLAN-ADS-OPTIMIZATION-v2 §3+§6: Get TIER-AWARE reward config.
+    // This checks the tier gate and scales maxClaimsPerDay by geo tier.
+    var config = getTierAwareConfig(nk, logger, userId, placement);
     
-    // Check daily claim limit
+    // Tier gate check — placement not available for this user's tier
+    if (!config) {
+        var userTier = getUserTier(nk, logger, userId);
+        logger.info("[RewardedAds] Placement '" + placement + "' gated for tier " + userTier + ", user: " + userId);
+        return JSON.stringify({
+            success: false,
+            error: "Placement not available for your region",
+            errorCode: "TIER_GATED",
+            tier: userTier,
+            placement: placement
+        });
+    }
+    
+    // Check daily claim limit (now tier-scaled)
     var dailyClaims = getDailyClaimCount(nk, logger, userId, placement);
     if (dailyClaims >= config.maxClaimsPerDay) {
-        logger.warn("[RewardedAds] Daily limit reached for user: " + userId + ", placement: " + placement);
+        logger.warn("[RewardedAds] Daily limit reached for user: " + userId + ", placement: " + placement + ", tier: " + config.tier + ", cap: " + config.maxClaimsPerDay);
         return JSON.stringify({
             success: false,
             error: "Daily limit reached",
+            errorCode: "DAILY_CAP",
             dailyClaims: dailyClaims,
             maxClaimsPerDay: config.maxClaimsPerDay,
+            tier: config.tier,
             resetAt: getStartOfDay() + 86400 // Next day UTC
         });
     }
@@ -36207,11 +36373,13 @@ function rpcRewardedAdRequestToken(ctx, logger, nk, payload) {
             expiresIn: TOKEN_EXPIRY_SECONDS,
             expiresAt: expiresAt,
             placement: placement,
+            tier: config.tier,
             rewardConfig: {
                 type: config.rewardType,
                 currency: config.currency,
                 amount: config.amount,
-                multiplier: config.multiplier
+                multiplier: config.multiplier,
+                action: config.action
             }
         });
         
@@ -36411,9 +36579,12 @@ function rpcRewardedAdClaim(ctx, logger, nk, payload) {
     // Log successful claim for analytics
     logger.info("[RewardedAds] Reward claimed successfully. User: " + userId + ", Placement: " + placement + ", Reward: " + JSON.stringify(rewardResult));
     
+    // Include tier info in claim response for client-side analytics
+    var claimTier = getUserTier(nk, logger, userId);
     return JSON.stringify({
         success: true,
         placement: placement,
+        tier: claimTier,
         reward: rewardResult,
         dailyClaims: getDailyClaimCount(nk, logger, userId, placement),
         maxClaimsPerDay: config.maxClaimsPerDay
@@ -36610,22 +36781,28 @@ function rpcGetRewardedAdStatus(ctx, logger, nk, payload) {
         var placement = placements[i];
         if (placement === "default" && !requestedPlacement) continue;
         
-        var config = REWARD_CONFIG[placement] || REWARD_CONFIG["default"];
+        // Use tier-aware config so status reflects actual availability
+        var config = getTierAwareConfig(nk, logger, userId, placement);
+        if (!config) continue; // Tier-gated — skip entirely
+        
         var dailyClaims = getDailyClaimCount(nk, logger, userId, placement);
         var lastClaim = getLastClaimTimestamp(nk, logger, userId, placement);
         var cooldownRemaining = Math.max(0, (lastClaim + config.cooldownSeconds) - now);
         
         statuses.push({
             placement: placement,
+            tier: config.tier,
             available: dailyClaims < config.maxClaimsPerDay && cooldownRemaining === 0,
             dailyClaims: dailyClaims,
             maxClaimsPerDay: config.maxClaimsPerDay,
+            originalMaxClaimsPerDay: config.originalMaxClaimsPerDay,
             cooldownRemaining: cooldownRemaining,
             canClaimAt: cooldownRemaining > 0 ? lastClaim + config.cooldownSeconds : now,
             rewardType: config.rewardType,
             rewardAmount: config.amount,
             rewardCurrency: config.currency,
-            multiplier: config.multiplier
+            multiplier: config.multiplier,
+            action: config.action
         });
     }
     
@@ -64869,6 +65046,24 @@ function __OriginalInitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[GeoTier] Failed to register GeoTier: " + (err.message || String(err)));
     }
+    // ---- Ad Revenue Recording (PLAN-ADS-OPTIMIZATION-v2 §11) ----
+    try {
+        logger.info("[AdRevenueEvent] Registering ad_revenue_record RPC...");
+        AdRevenueEvent.register(initializer, logger);
+        logger.info("[AdRevenueEvent] Ad revenue recording registered successfully");
+    }
+    catch (err) {
+        logger.error("[AdRevenueEvent] Failed to register: " + (err.message || String(err)));
+    }
+    // ---- Fortune Wheel Ad Spin (PLAN-ADS-OPTIMIZATION-v2 §4 #19) ----
+    try {
+        logger.info("[FortuneWheelAdSpin] Registering fortune_wheel_ad_spin RPC...");
+        FortuneWheelAdSpin.register(initializer, logger);
+        logger.info("[FortuneWheelAdSpin] Fortune wheel ad spin registered successfully");
+    }
+    catch (err) {
+        logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));
+    }
     // ---- Fantasy Cricket RPCs ----
     try {
         logger.info("[Fantasy] Registering Team RPCs...");
@@ -91016,6 +91211,208 @@ var SatoriWebhooks;
     }
     SatoriWebhooks.registerEventHandlers = registerEventHandlers;
 })(SatoriWebhooks || (SatoriWebhooks = {}));
+// ad-revenue-event.ts
+// PLAN-ADS-OPTIMIZATION-v2 §11: Server-side ad revenue recording RPC.
+//
+// The Unity client fires ILRD (Impression-Level Revenue Data) callbacks
+// from the ad SDK. This RPC persists those events in Nakama storage so
+// the backend can compute server-side ARPDAU per tier without relying
+// solely on client analytics (Firebase/Satori).
+//
+// WHY SERVER-SIDE?
+// - Client analytics can be delayed, sampled, or blocked by ad-blockers.
+// - Server storage gives us ground-truth for A/B test evaluation.
+// - Enables real-time tier ARPDAU dashboards via Nakama queries.
+var AdRevenueEvent;
+(function (AdRevenueEvent) {
+    var COLLECTION = "ad_revenue";
+    var DAILY_KEY_PREFIX = "daily_";
+    var LIFETIME_KEY = "lifetime";
+    /**
+     * Get today's date key in UTC (YYYY-MM-DD).
+     */
+    function getTodayKey() {
+        var now = new Date();
+        var y = now.getUTCFullYear();
+        var m = now.getUTCMonth() + 1;
+        var d = now.getUTCDate();
+        return y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d;
+    }
+    /**
+     * Read user's geo tier from the GeoTier cache.
+     */
+    function getUserTier(nk, userId) {
+        var _a;
+        try {
+            var records = nk.storageRead([{
+                    collection: "geo_tier",
+                    key: "resolved",
+                    userId: userId
+                }]);
+            if (records && records.length > 0 && ((_a = records[0].value) === null || _a === void 0 ? void 0 : _a.tier)) {
+                var tier = records[0].value.tier.toLowerCase();
+                if (tier === "t1" || tier === "t2" || tier === "t3")
+                    return tier;
+            }
+        }
+        catch ( /* fall through */_b) { /* fall through */ }
+        return "t3";
+    }
+    /**
+     * RPC: ad_revenue_record
+     *
+     * Records a single ILRD ad revenue event, updates daily + lifetime aggregates.
+     * Called from AdsAnalyticsBridge.ReportAdRevenueToServer() on the Unity client.
+     */
+    function rpcRecordAdRevenue(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Authentication required" });
+        }
+        var data;
+        try {
+            data = JSON.parse(payload);
+        }
+        catch (_a) {
+            return JSON.stringify({ success: false, error: "Invalid JSON payload" });
+        }
+        // Validate required fields
+        if (!data.revenueUsd || data.revenueUsd <= 0) {
+            return JSON.stringify({ success: false, error: "revenueUsd must be positive" });
+        }
+        if (!data.adType) {
+            return JSON.stringify({ success: false, error: "adType is required" });
+        }
+        // Clamp revenue to a sane max to prevent abuse ($50 per impression is absurd)
+        var revenueUsd = Math.min(data.revenueUsd, 50.0);
+        var adType = data.adType || "unknown";
+        var placement = data.placement || "unknown";
+        var network = data.network || "unknown";
+        var tier = getUserTier(nk, userId);
+        var todayKey = getTodayKey();
+        var now = Math.floor(Date.now() / 1000);
+        // ── Update daily aggregate ──────────────────────────────────────
+        var dailyStorageKey = DAILY_KEY_PREFIX + todayKey;
+        var daily;
+        try {
+            var records = nk.storageRead([{
+                    collection: COLLECTION,
+                    key: dailyStorageKey,
+                    userId: userId
+                }]);
+            if (records && records.length > 0) {
+                daily = records[0].value;
+            }
+            else {
+                daily = {
+                    date: todayKey,
+                    totalRevenueUsd: 0,
+                    impressions: 0,
+                    byAdType: {},
+                    byPlacement: {},
+                    tier: tier
+                };
+            }
+        }
+        catch (_b) {
+            daily = {
+                date: todayKey,
+                totalRevenueUsd: 0,
+                impressions: 0,
+                byAdType: {},
+                byPlacement: {},
+                tier: tier
+            };
+        }
+        daily.totalRevenueUsd += revenueUsd;
+        daily.impressions += 1;
+        daily.tier = tier;
+        if (!daily.byAdType[adType])
+            daily.byAdType[adType] = { revenue: 0, count: 0 };
+        daily.byAdType[adType].revenue += revenueUsd;
+        daily.byAdType[adType].count += 1;
+        if (!daily.byPlacement[placement])
+            daily.byPlacement[placement] = { revenue: 0, count: 0 };
+        daily.byPlacement[placement].revenue += revenueUsd;
+        daily.byPlacement[placement].count += 1;
+        // ── Update lifetime aggregate ───────────────────────────────────
+        var lifetime;
+        try {
+            var records = nk.storageRead([{
+                    collection: COLLECTION,
+                    key: LIFETIME_KEY,
+                    userId: userId
+                }]);
+            if (records && records.length > 0) {
+                lifetime = records[0].value;
+            }
+            else {
+                lifetime = {
+                    totalRevenueUsd: 0,
+                    totalImpressions: 0,
+                    firstEventAt: now,
+                    lastEventAt: now,
+                    tier: tier
+                };
+            }
+        }
+        catch (_c) {
+            lifetime = {
+                totalRevenueUsd: 0,
+                totalImpressions: 0,
+                firstEventAt: now,
+                lastEventAt: now,
+                tier: tier
+            };
+        }
+        lifetime.totalRevenueUsd += revenueUsd;
+        lifetime.totalImpressions += 1;
+        lifetime.lastEventAt = now;
+        lifetime.tier = tier;
+        // ── Write both aggregates ───────────────────────────────────────
+        try {
+            nk.storageWrite([
+                {
+                    collection: COLLECTION,
+                    key: dailyStorageKey,
+                    userId: userId,
+                    value: daily,
+                    permissionRead: 1, // owner-read
+                    permissionWrite: 0 // server-only write
+                },
+                {
+                    collection: COLLECTION,
+                    key: LIFETIME_KEY,
+                    userId: userId,
+                    value: lifetime,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }
+            ]);
+        }
+        catch (err) {
+            logger.error("[AdRevenueEvent] Storage write failed for ".concat(userId, ": ").concat(err));
+            return JSON.stringify({ success: false, error: "Storage write failed" });
+        }
+        logger.info("[AdRevenueEvent] Recorded $".concat(revenueUsd.toFixed(4), " ").concat(adType, "/").concat(placement, " from ").concat(network, " for ").concat(userId, " (").concat(tier, ")"));
+        return JSON.stringify({
+            success: true,
+            tier: tier,
+            dailyTotal: daily.totalRevenueUsd,
+            dailyImpressions: daily.impressions,
+            lifetimeTotal: lifetime.totalRevenueUsd
+        });
+    }
+    AdRevenueEvent.rpcRecordAdRevenue = rpcRecordAdRevenue;
+    /**
+     * Register all RPCs in this module.
+     */
+    function register(initializer, logger) {
+        __rpc_ad_revenue_record = rpcRecordAdRevenue;
+        logger.info("[AdRevenueEvent] ✓ Registered RPC: ad_revenue_record");
+    }
+    AdRevenueEvent.register = register;
+})(AdRevenueEvent || (AdRevenueEvent = {}));
 var ConfigLoader;
 (function (ConfigLoader) {
     var configCache = {};
@@ -91209,6 +91606,159 @@ var EventBus;
         PRIZE_FULFILLMENT_REQUESTED: "prize_fulfillment_requested",
     };
 })(EventBus || (EventBus = {}));
+// fortune-wheel-ad-spin.ts
+// PLAN-ADS-OPTIMIZATION-v2 §4 placement #19: Lucky Wheel free spin via rewarded ad.
+//
+// The FortuneWheelPopup on the Unity client shows a "Watch Ad for Free Spin"
+// button when the user has exhausted their organic spins. This RPC bypasses
+// the normal cooldown — it does NOT consume a regular spin token; instead
+// it issues a separate "ad_spin" token that the wheel UI consumes for one
+// bonus spin.
+//
+// Flow:
+// 1. Client calls `fortune_wheel_ad_spin` after user clicks "Watch Ad" and
+//    the rewarded video completes successfully (client holds a valid
+//    rewarded_ad_claim receipt).
+// 2. Server validates: tier gate (T2/T3 only), daily cap, and optional
+//    claim receipt verification.
+// 3. Returns { success: true, spinsGranted: 1 } — client adds 1 to
+//    its local spin counter.
+var FortuneWheelAdSpin;
+(function (FortuneWheelAdSpin) {
+    var COLLECTION = "fortune_wheel_ad_spins";
+    var DAILY_KEY_PREFIX = "daily_";
+    // Per-tier configuration
+    var TIER_CONFIG = {
+        "t1": { enabled: false, maxPerDay: 0, cooldownSeconds: 0 },
+        "t2": { enabled: true, maxPerDay: 3, cooldownSeconds: 3600 }, // 1 hour cooldown, 3/day
+        "t3": { enabled: true, maxPerDay: 5, cooldownSeconds: 1800 } // 30 min cooldown, 5/day
+    };
+    function getTodayKey() {
+        var now = new Date();
+        var y = now.getUTCFullYear();
+        var m = now.getUTCMonth() + 1;
+        var d = now.getUTCDate();
+        return y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d;
+    }
+    function getUserTier(nk, userId) {
+        var _a;
+        try {
+            var records = nk.storageRead([{
+                    collection: "geo_tier",
+                    key: "resolved",
+                    userId: userId
+                }]);
+            if (records && records.length > 0 && ((_a = records[0].value) === null || _a === void 0 ? void 0 : _a.tier)) {
+                var tier = records[0].value.tier.toLowerCase();
+                if (tier === "t1" || tier === "t2" || tier === "t3")
+                    return tier;
+            }
+        }
+        catch ( /* fall through */_b) { /* fall through */ }
+        return "t3";
+    }
+    function getDailyRecord(nk, userId, todayKey) {
+        try {
+            var records = nk.storageRead([{
+                    collection: COLLECTION,
+                    key: DAILY_KEY_PREFIX + todayKey,
+                    userId: userId
+                }]);
+            if (records && records.length > 0) {
+                return records[0].value;
+            }
+        }
+        catch ( /* fall through */_a) { /* fall through */ }
+        return { date: todayKey, spinsUsed: 0, lastSpinAt: 0 };
+    }
+    /**
+     * RPC: fortune_wheel_ad_spin
+     *
+     * Grants 1 bonus fortune wheel spin after a rewarded ad completion.
+     * Tier-gated: T1 disabled, T2/T3 have separate caps and cooldowns.
+     */
+    function rpcFortuneWheelAdSpin(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Authentication required" });
+        }
+        var tier = getUserTier(nk, userId);
+        var config = TIER_CONFIG[tier] || TIER_CONFIG["t3"];
+        // Tier gate
+        if (!config.enabled) {
+            logger.info("[FortuneWheelAdSpin] Blocked for ".concat(tier, " user ").concat(userId));
+            return JSON.stringify({
+                success: false,
+                error: "Feature not available for your region",
+                errorCode: "TIER_GATED",
+                tier: tier
+            });
+        }
+        var now = Math.floor(Date.now() / 1000);
+        var todayKey = getTodayKey();
+        var daily = getDailyRecord(nk, userId, todayKey);
+        // Daily cap check
+        if (daily.spinsUsed >= config.maxPerDay) {
+            return JSON.stringify({
+                success: false,
+                error: "Daily ad-spin limit reached",
+                errorCode: "DAILY_CAP",
+                tier: tier,
+                spinsUsed: daily.spinsUsed,
+                maxPerDay: config.maxPerDay,
+                resetsAt: todayKey + "T00:00:00Z (next day)"
+            });
+        }
+        // Cooldown check
+        var elapsed = now - daily.lastSpinAt;
+        if (daily.lastSpinAt > 0 && elapsed < config.cooldownSeconds) {
+            var remaining = config.cooldownSeconds - elapsed;
+            return JSON.stringify({
+                success: false,
+                error: "Cooldown active",
+                errorCode: "COOLDOWN",
+                tier: tier,
+                cooldownRemaining: remaining,
+                canSpinAt: daily.lastSpinAt + config.cooldownSeconds
+            });
+        }
+        // Grant the spin — update daily record
+        daily.spinsUsed += 1;
+        daily.lastSpinAt = now;
+        try {
+            nk.storageWrite([{
+                    collection: COLLECTION,
+                    key: DAILY_KEY_PREFIX + todayKey,
+                    userId: userId,
+                    value: daily,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+        }
+        catch (err) {
+            logger.error("[FortuneWheelAdSpin] Storage write failed: ".concat(err));
+            return JSON.stringify({ success: false, error: "Server error" });
+        }
+        logger.info("[FortuneWheelAdSpin] Granted ad-spin #".concat(daily.spinsUsed, "/").concat(config.maxPerDay, " for ").concat(userId, " (").concat(tier, ")"));
+        return JSON.stringify({
+            success: true,
+            spinsGranted: 1,
+            tier: tier,
+            spinsUsed: daily.spinsUsed,
+            maxPerDay: config.maxPerDay,
+            cooldownSeconds: config.cooldownSeconds
+        });
+    }
+    FortuneWheelAdSpin.rpcFortuneWheelAdSpin = rpcFortuneWheelAdSpin;
+    /**
+     * Register all RPCs in this module.
+     */
+    function register(initializer, logger) {
+        __rpc_fortune_wheel_ad_spin = rpcFortuneWheelAdSpin;
+        logger.info("[FortuneWheelAdSpin] ✓ Registered RPC: fortune_wheel_ad_spin");
+    }
+    FortuneWheelAdSpin.register = register;
+})(FortuneWheelAdSpin || (FortuneWheelAdSpin = {}));
 // geo-tier.ts — Server-side IP → Country → Ad Tier resolution
 // PLAN-ADS-OPTIMIZATION-v2 §6.3
 //
@@ -92896,6 +93446,8 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("satori_webhooks_upsert", __rpc_satori_webhooks_upsert); } catch(e) {}
   try { initializer.registerRpc("satori_webhooks_delete", __rpc_satori_webhooks_delete); } catch(e) {}
   try { initializer.registerRpc("satori_webhooks_test", __rpc_satori_webhooks_test); } catch(e) {}
+  try { initializer.registerRpc("ad_revenue_record", __rpc_ad_revenue_record); } catch(e) {}
+  try { initializer.registerRpc("fortune_wheel_ad_spin", __rpc_fortune_wheel_ad_spin); } catch(e) {}
   try { initializer.registerRpc("country_tier_get", __rpc_country_tier_get); } catch(e) {}
   try { initializer.registerRpc("nakama_js_health", __rpc_nakama_js_health); } catch(e) {}
   try { initializer.registerRpc("storage_write", __rpc_storage_write); } catch(e) {}
@@ -93154,5 +93706,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 701 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 704 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }

@@ -19,7 +19,8 @@ function rpcCreateAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
         try {
             nk.leaderboardCreate(
                 globalFriendsId, true, sort, operator, resetSchedule,
-                { scope: "friends_global", desc: "Global Friends Leaderboard" }
+                { scope: "friends_global", desc: "Global Friends Leaderboard" },
+                true  // enableRanks (QV_Bug_A8)
             );
             created.push(globalFriendsId);
         } catch (err) {
@@ -35,7 +36,8 @@ function rpcCreateAllLeaderboardsWithFriends(ctx, logger, nk, payload) {
                 try {
                     nk.leaderboardCreate(
                         friendsLeaderboardId, true, sort, operator, resetSchedule,
-                        { scope: "friends_game", gameId: record.gameId }
+                        { scope: "friends_game", gameId: record.gameId },
+                        true  // enableRanks (QV_Bug_A8)
                     );
                     created.push(friendsLeaderboardId);
                 } catch (err) {
