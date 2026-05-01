@@ -87,10 +87,12 @@ function _fxMintBattleId(nk) {
 }
 
 // Returns array of confirmed-friend objects: [{ id, displayName, online }]
-function _fxLoadFriends(nk) {
+// MUST pass the caller's userId — passing null runs under SYSTEM context.
+function _fxLoadFriends(nk, userId) {
+    if (!userId) return [];
     var out = [];
     try {
-        var page = nk.friendsList(null, 1000, 0, null); // state=0 (FRIEND)
+        var page = nk.friendsList(userId, 1000, 0, null); // state=0 (FRIEND)
         if (page && page.friends) {
             for (var i = 0; i < page.friends.length; i++) {
                 var fr = page.friends[i];
@@ -168,7 +170,7 @@ function rpcFriendsGetOnlineCount(ctx, logger, nk, payload) {
 function rpcSocialPressureGetTodaySummary(ctx, logger, nk, payload) {
     if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
 
-    var friends = _fxLoadFriends(nk);
+    var friends = _fxLoadFriends(nk, ctx.userId);
     var todayKey = _fxNowIso().slice(0, 10).replace(/-/g, '');
 
     // ── friendsPlayedToday + friendsPassedMe ──────────────────────────────
@@ -341,7 +343,7 @@ function rpcFriendBattleCreate(ctx, logger, nk, payload) {
 
     // Validate every invitee is a mutual friend BEFORE any side-effect
     var mutualFriends = {};
-    var friends = _fxLoadFriends(nk);
+    var friends = _fxLoadFriends(nk, ctx.userId);
     for (var i = 0; i < friends.length; i++) mutualFriends[friends[i].id] = friends[i];
 
     var rejected = [];
@@ -411,7 +413,7 @@ function rpcFriendBattleCreate(ctx, logger, nk, payload) {
             },
             code:       110,
             persistent: true,
-            senderId:   ctx.userId
+            sender:     ctx.userId
         });
     }
     try {
@@ -525,7 +527,7 @@ function rpcFriendInviteWithReward(ctx, logger, nk, payload) {
             },
             code:       111,
             persistent: true,
-            senderId:   ctx.userId
+            sender:     ctx.userId
         }]);
     } catch (e) {
         logger.warn('[FriendsExtras] invite notify failed: ' + e.message);

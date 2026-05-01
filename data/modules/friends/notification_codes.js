@@ -125,7 +125,7 @@ function buildFriendsNotification(subjectKey, userId, payload, senderId) {
     return {
         userId:     userId,
         subject:    subject,
-        content:    JSON.stringify(content),
+        content:    content,
         code:       code,
         sender:     senderId || null,
         persistent: true
