@@ -294,6 +294,143 @@ function gpaUpsertEvent(nk, logger, ev) {
             if (!doc.eng) doc.eng = {};
             doc.eng.last_mode = ed.quiz_mode;
         }
+        // ── Play type counts (Solo / SyncMultiplayer / AsyncMultiplayer / LocalBattle / PartyTrivia / AIMode) ──
+        if (ed.play_category) {
+            if (!doc.play_type_counts) doc.play_type_counts = {};
+            var ptKey = ("" + ed.play_category).substring(0, 30);
+            doc.play_type_counts[ptKey] = (doc.play_type_counts[ptKey] || 0) + 1;
+            // Derive most-played play type
+            var maxPT = "", maxPTN = 0;
+            for (var ptk in doc.play_type_counts) {
+                if (Object.prototype.hasOwnProperty.call(doc.play_type_counts, ptk) &&
+                    doc.play_type_counts[ptk] > maxPTN) {
+                    maxPTN = doc.play_type_counts[ptk]; maxPT = ptk;
+                }
+            }
+            if (!doc.eng) doc.eng = {};
+            doc.eng.fav_play_type = maxPT;
+            doc.eng.fav_play_type_n = maxPTN;
+        }
+        // ── Per-quiz ID counts (which specific quiz was taken how many times) ──
+        var evName = ev.eventName || "";
+        if ((evName === "quiz_completed" || evName === "quiz_session_started" ||
+             evName === "daily_quiz_completed" || evName === "compatibility_quiz_completed") && ed.quiz_id) {
+            if (!doc.quiz_id_counts) doc.quiz_id_counts = {};
+            var qid = ("" + ed.quiz_id).substring(0, 80);
+            doc.quiz_id_counts[qid] = (doc.quiz_id_counts[qid] || 0) + 1;
+            // Cap at 50 entries (keep top by count, evict lowest)
+            var qKeys = Object.keys(doc.quiz_id_counts);
+            if (qKeys.length > 50) {
+                var minQK = qKeys[0], minQV = doc.quiz_id_counts[qKeys[0]] || 0;
+                for (var qi = 1; qi < qKeys.length; qi++) {
+                    if ((doc.quiz_id_counts[qKeys[qi]] || 0) < minQV) {
+                        minQV = doc.quiz_id_counts[qKeys[qi]]; minQK = qKeys[qi];
+                    }
+                }
+                delete doc.quiz_id_counts[minQK];
+            }
+            // Derive most-played quiz
+            var maxQID = "", maxQN = 0;
+            for (var qk in doc.quiz_id_counts) {
+                if (Object.prototype.hasOwnProperty.call(doc.quiz_id_counts, qk) &&
+                    doc.quiz_id_counts[qk] > maxQN) {
+                    maxQN = doc.quiz_id_counts[qk]; maxQID = qk;
+                }
+            }
+            if (!doc.eng) doc.eng = {};
+            doc.eng.fav_quiz_id = maxQID;
+            doc.eng.fav_quiz_id_n = maxQN;
+        }
+        // ── Identity: populate from session_start (no extra server read) ──
+        if (evName === "session_start") {
+            if (ed.display_name) doc.display_name = ("" + ed.display_name).substring(0, 100);
+            if (ed.avatar_url) doc.avatar_url = ("" + ed.avatar_url).substring(0, 500);
+        }
+        // ── Monetization: ad events ──────────────────────────────────
+        if (!doc.money) doc.money = {};
+        if (evName === "ad_shown" || evName === "ad_impression") {
+            doc.money.ad_views = (doc.money.ad_views || 0) + 1;
+        }
+        if (evName === "ad_clicked") {
+            doc.money.ad_clicks = (doc.money.ad_clicks || 0) + 1;
+        }
+        if (evName === "ad_reward_granted" || evName === "ad_completed") {
+            doc.money.rewarded_ads = (doc.money.rewarded_ads || 0) + 1;
+        }
+        // ── Monetization: IAP events ─────────────────────────────────
+        if (evName === "iap_completed" || evName === "purchase_completed") {
+            doc.money.iap_count = (doc.money.iap_count || 0) + 1;
+            doc.money.last_iap_utc = ev.unixTimestamp || nowUtc;
+            var priceVal = parseFloat(ed.price || ed.revenue_usd || 0);
+            if (priceVal > 0 && priceVal < 100000) {
+                doc.money.spend_usd = (doc.money.spend_usd || 0) + priceVal;
+            }
+            // Tier upgrade based on total spend
+            var spend = doc.money.spend_usd || 0;
+            if (spend >= 100) doc.money.reward_tier = "gold";
+            else if (spend >= 25) doc.money.reward_tier = "silver";
+            else doc.money.reward_tier = "bronze";
+        }
+        // ── Coin economy ─────────────────────────────────────────────
+        if (ed.coins_earned) {
+            var ce = parseInt(ed.coins_earned, 10) || 0;
+            if (ce > 0) doc.money.coins_earned = (doc.money.coins_earned || 0) + ce;
+        }
+        if (ed.coins_spent) {
+            var cs = parseInt(ed.coins_spent, 10) || 0;
+            if (cs > 0) doc.money.coins_spent = (doc.money.coins_spent || 0) + cs;
+        }
+        // ── Crash fingerprinting ─────────────────────────────────────
+        if (evName === "app_exception" || evName === "crash" || evName === "crash_report") {
+            if (!Array.isArray(doc.crashes)) doc.crashes = [];
+            var crashMsg = ("" + (ed.message || ed.error || ed.reason || "unknown")).substring(0, 200);
+            // Fingerprint by first 80 chars
+            var fingerprint = crashMsg.substring(0, 80);
+            var found = false;
+            for (var ci = 0; ci < doc.crashes.length; ci++) {
+                if (doc.crashes[ci].fp === fingerprint) {
+                    doc.crashes[ci].n = (doc.crashes[ci].n || 1) + 1;
+                    doc.crashes[ci].last = ev.unixTimestamp || nowUtc;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                doc.crashes.push({
+                    fp: fingerprint,
+                    msg: crashMsg,
+                    n: 1,
+                    first: ev.unixTimestamp || nowUtc,
+                    last: ev.unixTimestamp || nowUtc
+                });
+                // Keep top N by count
+                while (doc.crashes.length > GPA_MAX_CRASHES) {
+                    // Remove the entry with lowest count
+                    var minIdx = 0, minN = doc.crashes[0].n || 0;
+                    for (var cj = 1; cj < doc.crashes.length; cj++) {
+                        if ((doc.crashes[cj].n || 0) < minN) { minN = doc.crashes[cj].n; minIdx = cj; }
+                    }
+                    doc.crashes.splice(minIdx, 1);
+                }
+            }
+        }
+        // ── Quiz accuracy: update on quiz_completed / daily_quiz_completed ──
+        if (evName === "quiz_completed" || evName === "daily_quiz_completed" ||
+            evName === "compatibility_quiz_completed") {
+            if (!doc.eng) doc.eng = {};
+            var correct = parseInt(ed.correct_count, 10) || 0;
+            var total = parseInt(ed.total_questions, 10) || 0;
+            if (total > 0 && total <= 1000 && correct >= 0 && correct <= total) {
+                doc.eng.total_correct = (doc.eng.total_correct || 0) + correct;
+                doc.eng.total_answered = (doc.eng.total_answered || 0) + total;
+                doc.eng.avg_accuracy = doc.eng.total_answered > 0
+                    ? Math.round((doc.eng.total_correct / doc.eng.total_answered) * 100)
+                    : 0;
+            }
+            if (ed.score !== undefined) {
+                doc.eng.last_score = parseInt(ed.score, 10) || 0;
+            }
+        }
         // Append to rolling buffer
         var compressedEvent = {
             n: ev.eventName,
@@ -305,7 +442,9 @@ function gpaUpsertEvent(nk, logger, ev) {
             var slim = {};
             var skipFields = { platform: 1, country: 1, locale: 1, device_tier: 1,
                 device_model: 1, os_version: 1, app_version: 1, install_source: 1,
-                consent_state: 1, att_status: 1, session_id: 1, session_number: 1 };
+                consent_state: 1, att_status: 1, session_id: 1, session_number: 1,
+                display_name: 1, avatar_url: 1, schema_version: 1,
+                play_category: 1, quiz_mode: 1, quiz_session_id: 1, quiz_mode_name: 1 };
             for (var dk in ed) {
                 if (Object.prototype.hasOwnProperty.call(ed, dk) && !skipFields[dk]) {
                     slim[dk] = ed[dk];
