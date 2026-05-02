@@ -56,58 +56,15 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "no_session" });
         }
 
-        var firstSeenUtc = 0;
-        try {
-            var fsObjs = nk.storageRead([{
-                collection: FIRST_SEEN_COLLECTION,
-                key: gameId + "_" + userId,
-                userId: "00000000-0000-0000-0000-000000000000"
-            }]);
-            if (fsObjs && fsObjs.length > 0 && fsObjs[0].value && fsObjs[0].value.firstSeenUtc) {
-                firstSeenUtc = parseInt(fsObjs[0].value.firstSeenUtc, 10) || 0;
-            }
-        } catch (e) { /* missing first_seen is fine — treat as new */ }
+        // Single-read from unified game_player_analytics collection
+        var profile = gpaReadProfile(nk, gameId, userId);
 
         var nowUtc = Math.floor(Date.now() / 1000);
-        if (!firstSeenUtc) firstSeenUtc = nowUtc;
+        var firstSeenUtc = profile.first_seen_utc || nowUtc;
         var daysSinceInstall = Math.floor((nowUtc - firstSeenUtc) / 86400);
 
-        var lifetimeEvents = 0;
-        var lifetimeSessions = 0;
-        var lastEventUtc = 0;
-        var modeCounts = {};
-        var totalQuizPlays = 0;
-        var favoriteMode = "";
-        var favoriteModeCount = 0;
-        try {
-            var rollup = nk.storageRead([{
-                collection: EVENT_INDEX_COLLECTION,
-                key: gameId + "_" + userId,
-                userId: "00000000-0000-0000-0000-000000000000"
-            }]);
-            if (rollup && rollup.length > 0 && rollup[0].value) {
-                lifetimeEvents = rollup[0].value.eventCount || 0;
-                lifetimeSessions = rollup[0].value.sessionCount || 0;
-                lastEventUtc = rollup[0].value.lastEventUtc || 0;
-                if (rollup[0].value.modeCounts && typeof rollup[0].value.modeCounts === "object") {
-                    modeCounts = rollup[0].value.modeCounts;
-                    // Derive total + favorite mode for cheap dashboard usage
-                    for (var k in modeCounts) {
-                        if (Object.prototype.hasOwnProperty.call(modeCounts, k)) {
-                            var v = parseInt(modeCounts[k], 10) || 0;
-                            totalQuizPlays += v;
-                            if (v > favoriteModeCount) {
-                                favoriteModeCount = v;
-                                favoriteMode = k;
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (e) { /* no rollup yet — return zero counts */ }
-
-        var country = (ctx.vars && ctx.vars.country) || "??";
-        var platform = (ctx.vars && ctx.vars.platform) || "unknown";
+        var country = profile.country || (ctx.vars && ctx.vars.country) || "??";
+        var platform = profile.platform || (ctx.vars && ctx.vars.platform) || "unknown";
 
         return JSON.stringify({
             success: true,
@@ -116,16 +73,21 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
                 game_id: gameId,
                 first_seen_utc: firstSeenUtc,
                 days_since_install: daysSinceInstall,
-                lifetime_event_count: lifetimeEvents,
-                lifetime_session_count: lifetimeSessions,
-                last_event_utc: lastEventUtc,
-                mode_counts: modeCounts,
-                lifetime_quiz_plays: totalQuizPlays,
-                favorite_mode: favoriteMode,
-                favorite_mode_count: favoriteModeCount,
+                lifetime_event_count: profile.lt_events,
+                lifetime_session_count: profile.lt_sessions,
+                last_event_utc: profile.last_active_utc,
+                mode_counts: profile.mode_counts,
+                lifetime_quiz_plays: profile.lt_quiz_plays,
+                favorite_mode: profile.fav_mode,
+                favorite_mode_count: profile.fav_mode_n,
+                engagement: profile.eng,
+                money: profile.money,
                 tier_signals: {
                     country: country,
-                    platform: platform
+                    platform: platform,
+                    device_tier: profile.device_tier,
+                    device_model: profile.device_model,
+                    app_version: profile.app_version
                 }
             }
         });
@@ -198,47 +160,11 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
 
         var nowUtc = Math.floor(Date.now() / 1000);
         var lastEventUtc = parseInt(data.last_event_utc || data.lastEventUtc || nowUtc, 10) || nowUtc;
-        if (lastEventUtc > nowUtc + 300) lastEventUtc = nowUtc; // clamp clock-skew
+        if (lastEventUtc > nowUtc + 300) lastEventUtc = nowUtc;
 
-        var storageKey = gameId + "_" + userId;
-
-        var existing = {
-            eventCount: 0,
-            sessionCount: 0,
-            lastEventUtc: 0,
-            lastIdempotencyKey: "",
-            updatedUtc: 0,
-            modeCounts: {}
-        };
-        try {
-            var prev = nk.storageRead([{
-                collection: EVENT_INDEX_COLLECTION,
-                key: storageKey,
-                userId: SYSTEM_USER_ID
-            }]);
-            if (prev && prev.length > 0 && prev[0].value) {
-                existing.eventCount = parseInt(prev[0].value.eventCount || 0, 10) || 0;
-                existing.sessionCount = parseInt(prev[0].value.sessionCount || 0, 10) || 0;
-                existing.lastEventUtc = parseInt(prev[0].value.lastEventUtc || 0, 10) || 0;
-                existing.lastIdempotencyKey = (prev[0].value.lastIdempotencyKey || "").toString();
-                existing.updatedUtc = parseInt(prev[0].value.updatedUtc || 0, 10) || 0;
-                if (prev[0].value.modeCounts && typeof prev[0].value.modeCounts === "object") {
-                    existing.modeCounts = prev[0].value.modeCounts;
-                }
-            }
-        } catch (e) { /* no prior rollup — start fresh */ }
-
-        // Sanitize incoming mode_counts. Treated as an *absolute* snapshot
-        // of lifetime per-mode plays; we max-merge with the prior snapshot
-        // so a temporarily-cleared client cache can never decrement totals.
+        // Sanitize incoming mode_counts
         var incomingMode = (data.mode_counts || data.modeCounts) || null;
-        var mergedModeCounts = {};
-        // Seed with prior values
-        for (var pk in existing.modeCounts) {
-            if (Object.prototype.hasOwnProperty.call(existing.modeCounts, pk)) {
-                mergedModeCounts[pk] = parseInt(existing.modeCounts[pk], 10) || 0;
-            }
-        }
+        var sanitizedModes = {};
         if (incomingMode && typeof incomingMode === "object") {
             var entries = 0;
             for (var ik in incomingMode) {
@@ -248,58 +174,34 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
                 var iv = parseInt(incomingMode[ik], 10) || 0;
                 if (iv < 0) iv = 0;
                 if (iv > MAX_MODE_COUNT) iv = MAX_MODE_COUNT;
-                var prevV = mergedModeCounts[key] || 0;
-                mergedModeCounts[key] = (iv > prevV) ? iv : prevV;
+                sanitizedModes[key] = iv;
                 entries++;
             }
         }
 
-        // Idempotency: replay of the same key returns current totals
-        // unchanged. Client should pick a key like "YYYY-MM-DD" so retries
-        // within the same day are silent no-ops.
-        if (idempotencyKey && existing.lastIdempotencyKey === idempotencyKey) {
-            return JSON.stringify({
-                success: true,
-                data: {
-                    event_count: existing.eventCount,
-                    session_count: existing.sessionCount,
-                    last_event_utc: existing.lastEventUtc,
-                    accepted: false,
-                    replayed: true
-                }
-            });
-        }
+        // Write to unified game_player_analytics via CAS
+        var rollupData = {
+            eventsDelta: eventsDelta,
+            sessionsDelta: sessionsDelta,
+            lastEventUtc: lastEventUtc,
+            idempotencyKey: idempotencyKey,
+            modeCounts: sanitizedModes
+        };
 
-        var newEventCount   = existing.eventCount + eventsDelta;
-        var newSessionCount = existing.sessionCount + sessionsDelta;
-        var newLastEventUtc = Math.max(existing.lastEventUtc, lastEventUtc);
+        var success = gpaUpsertRollup(nk, logger, userId, gameId, rollupData);
 
-        nk.storageWrite([{
-            collection: EVENT_INDEX_COLLECTION,
-            key: storageKey,
-            userId: SYSTEM_USER_ID,
-            value: {
-                eventCount: newEventCount,
-                sessionCount: newSessionCount,
-                lastEventUtc: newLastEventUtc,
-                lastIdempotencyKey: idempotencyKey,
-                updatedUtc: nowUtc,
-                gameId: gameId,
-                modeCounts: mergedModeCounts
-            },
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
+        // Read back for response
+        var profile = gpaReadProfile(nk, gameId, userId);
 
         return JSON.stringify({
             success: true,
             data: {
-                event_count: newEventCount,
-                session_count: newSessionCount,
-                last_event_utc: newLastEventUtc,
-                mode_counts: mergedModeCounts,
-                accepted: true,
-                replayed: false
+                event_count: profile.lt_events,
+                session_count: profile.lt_sessions,
+                last_event_utc: profile.last_active_utc,
+                mode_counts: profile.mode_counts,
+                accepted: success,
+                replayed: !success
             }
         });
     } catch (err) {

@@ -234,33 +234,26 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
  * Returns null on success, or a string error.
  */
 function persistNormalizedEvent(nk, logger, ev) {
-    var userKey = "event_" + ev.userId + "_" + ev.gameId + "_" + ev.unixTimestamp +
-                  "_" + Math.floor(Math.random() * 10000);
-    if (!utils.writeStorage(nk, logger, "analytics_events", userKey, ev.userId, ev)) {
-        return "Failed to write user event";
+    // ── Unified player analytics store (game_player_analytics) ──
+    // All per-player event data goes to a single doc keyed {gameId}:{userId}.
+    // Dashboard aggregate queries are handled by Satori — no per-event dashboard
+    // copy is written anymore.
+    try {
+        gpaUpsertEvent(nk, logger, ev);
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[analytics] gpaUpsertEvent failed: " + (e.message || e));
+        }
+        return "Failed to write player analytics";
     }
-
-    // Dashboard-aggregation copy under SYSTEM_USER so scans don't need cross-user lookups.
-    // Key day bucket off the event's unixTimestamp (honors client offline replay),
-    // not server wall-clock, so the rollup's date-bucket scan sees it correctly.
-    //
-    // IMPORTANT: gameId is embedded as the SECOND field so analytics_extended.js's
-    // extractGameIdFromKey() can recover it for per-game filtering. Earlier the
-    // key omitted gameId entirely, which forced extScanEvents to rely solely on
-    // val.gameId — and any aggregated/legacy event missing that field could not
-    // be filtered to a specific game (the audience/retention/platform RPCs all
-    // returned empty results for QuizVerse as a result).
-    var eventDay = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
-    var dashboardKey = "dash_" + ev.gameId + "_" + eventDay + "_" + ev.eventName +
-                       "_" + ev.unixTimestamp + "_" + Math.floor(Math.random() * 10000);
-    utils.writeStorage(nk, logger, "analytics_events", dashboardKey, SYSTEM_USER, ev);
 
     // First-seen → daily active users. isNew only bumps newUsers on the day
     // where the creator "won" the atomic storageWrite above.
     var isNew = trackFirstSeen(nk, logger, ev.userId, ev.gameId, ev.unixTimestamp);
     trackDAU(nk, logger, ev.userId, ev.gameId, isNew);
 
-    // Session lifecycle.
+    // Session lifecycle — writes to game_player_analytics.sessions[]
+    // and still feeds system-level aggregateSessionStats.
     if (ev.eventName === "session_start" || ev.eventName === "session_end") {
         trackSession(nk, logger, ev.userId, ev.gameId, ev.eventName, ev.eventData);
     }
@@ -469,47 +462,20 @@ function trackDAU(nk, logger, userId, gameId, isNewUser) {
  * prior session's duration entirely.
  */
 function trackSession(nk, logger, userId, gameId, eventName, eventData) {
-    var collection = "analytics_sessions";
-    var key = utils.makeGameStorageKey("analytics_session", userId, gameId);
-
-    if (eventName === "session_start") {
-        var existing = utils.readStorage(nk, logger, collection, key, userId);
-        if (existing && existing.active && existing.startTime) {
-            // Close out the dangling session with a best-effort end time.
-            var nowUnix = utils.getUnixTimestamp();
-            var duration = nowUnix - existing.startTime;
-            if (duration > 0 && duration < 86400) {
-                existing.endTime = nowUnix;
-                existing.endTimestamp = new Date(nowUnix * 1000).toISOString();
-                existing.duration = duration;
-                existing.active = false;
-                existing.closedBy = "session_start_double_fire";
-                var staleSummaryKey = "session_summary_" + userId + "_" + gameId + "_" + existing.startTime;
-                utils.writeStorage(nk, logger, "analytics_session_summaries", staleSummaryKey, userId, existing);
-                aggregateSessionStats(nk, logger, duration, gameId);
-            }
+    // ── Per-player session data → game_player_analytics.sessions[] ──
+    // System-level aggregateSessionStats is still called for dashboard rollups.
+    try {
+        var sessionResult = gpaUpsertSession(nk, logger, userId, gameId, eventName, eventData);
+        // Feed system-level session stats aggregator
+        if (sessionResult.staleDuration > 0) {
+            aggregateSessionStats(nk, logger, sessionResult.staleDuration, gameId);
         }
-        var sessionData = {
-            userId: userId,
-            gameId: gameId,
-            startTime: utils.getUnixTimestamp(),
-            startTimestamp: utils.getCurrentTimestamp(),
-            active: true
-        };
-        utils.writeStorage(nk, logger, collection, key, userId, sessionData);
-    } else if (eventName === "session_end") {
-        var sessionData = utils.readStorage(nk, logger, collection, key, userId);
-        if (sessionData && sessionData.active) {
-            sessionData.endTime = utils.getUnixTimestamp();
-            sessionData.endTimestamp = utils.getCurrentTimestamp();
-            sessionData.duration = sessionData.endTime - sessionData.startTime;
-            sessionData.active = false;
-
-            var summaryKey = "session_summary_" + userId + "_" + gameId + "_" + sessionData.startTime;
-            utils.writeStorage(nk, logger, "analytics_session_summaries", summaryKey, userId, sessionData);
-            utils.writeStorage(nk, logger, collection, key, userId, { active: false });
-
-            aggregateSessionStats(nk, logger, sessionData.duration, gameId);
+        if (sessionResult.endedDuration > 0) {
+            aggregateSessionStats(nk, logger, sessionResult.endedDuration, gameId);
+        }
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[analytics] gpaUpsertSession failed: " + (e.message || e));
         }
     }
 }

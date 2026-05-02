@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-05-01T06:25:35.830Z
-// RPC Count: 704
+// Generated: 2026-05-02T18:59:36.452Z
+// RPC Count: 705
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -553,6 +553,7 @@ var __rpc_async_challenge_cancel;
 var __rpc_async_challenge_stats;
 var __rpc_async_challenge_rematch;
 var __rpc_async_challenge_leaderboard;
+var __rpc_async_challenge_store_questions;
 var __rpc_badges_get_all;
 var __rpc_badges_update_progress;
 var __rpc_badges_check_event;
@@ -717,7 +718,7 @@ var __rpc_visual_path_skip_day_with_ad;
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
 var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"creator_event_fund_pool":true,"creator_event_spa_claim":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"ad_revenue_record":true,"fortune_wheel_ad_spin":true,"country_tier_get":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
-// --- Discovered Modules (80 files) ---
+// --- Discovered Modules (81 files) ---
 
 // --- Module: achievements\achievements.js ---
 /**
@@ -2212,33 +2213,26 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
  * Returns null on success, or a string error.
  */
 function persistNormalizedEvent(nk, logger, ev) {
-    var userKey = "event_" + ev.userId + "_" + ev.gameId + "_" + ev.unixTimestamp +
-                  "_" + Math.floor(Math.random() * 10000);
-    if (!utils.writeStorage(nk, logger, "analytics_events", userKey, ev.userId, ev)) {
-        return "Failed to write user event";
+    // ── Unified player analytics store (game_player_analytics) ──
+    // All per-player event data goes to a single doc keyed {gameId}:{userId}.
+    // Dashboard aggregate queries are handled by Satori — no per-event dashboard
+    // copy is written anymore.
+    try {
+        gpaUpsertEvent(nk, logger, ev);
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[analytics] gpaUpsertEvent failed: " + (e.message || e));
+        }
+        return "Failed to write player analytics";
     }
-
-    // Dashboard-aggregation copy under SYSTEM_USER so scans don't need cross-user lookups.
-    // Key day bucket off the event's unixTimestamp (honors client offline replay),
-    // not server wall-clock, so the rollup's date-bucket scan sees it correctly.
-    //
-    // IMPORTANT: gameId is embedded as the SECOND field so analytics_extended.js's
-    // extractGameIdFromKey() can recover it for per-game filtering. Earlier the
-    // key omitted gameId entirely, which forced extScanEvents to rely solely on
-    // val.gameId — and any aggregated/legacy event missing that field could not
-    // be filtered to a specific game (the audience/retention/platform RPCs all
-    // returned empty results for QuizVerse as a result).
-    var eventDay = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
-    var dashboardKey = "dash_" + ev.gameId + "_" + eventDay + "_" + ev.eventName +
-                       "_" + ev.unixTimestamp + "_" + Math.floor(Math.random() * 10000);
-    utils.writeStorage(nk, logger, "analytics_events", dashboardKey, SYSTEM_USER, ev);
 
     // First-seen → daily active users. isNew only bumps newUsers on the day
     // where the creator "won" the atomic storageWrite above.
     var isNew = trackFirstSeen(nk, logger, ev.userId, ev.gameId, ev.unixTimestamp);
     trackDAU(nk, logger, ev.userId, ev.gameId, isNew);
 
-    // Session lifecycle.
+    // Session lifecycle — writes to game_player_analytics.sessions[]
+    // and still feeds system-level aggregateSessionStats.
     if (ev.eventName === "session_start" || ev.eventName === "session_end") {
         trackSession(nk, logger, ev.userId, ev.gameId, ev.eventName, ev.eventData);
     }
@@ -2447,47 +2441,20 @@ function trackDAU(nk, logger, userId, gameId, isNewUser) {
  * prior session's duration entirely.
  */
 function trackSession(nk, logger, userId, gameId, eventName, eventData) {
-    var collection = "analytics_sessions";
-    var key = utils.makeGameStorageKey("analytics_session", userId, gameId);
-
-    if (eventName === "session_start") {
-        var existing = utils.readStorage(nk, logger, collection, key, userId);
-        if (existing && existing.active && existing.startTime) {
-            // Close out the dangling session with a best-effort end time.
-            var nowUnix = utils.getUnixTimestamp();
-            var duration = nowUnix - existing.startTime;
-            if (duration > 0 && duration < 86400) {
-                existing.endTime = nowUnix;
-                existing.endTimestamp = new Date(nowUnix * 1000).toISOString();
-                existing.duration = duration;
-                existing.active = false;
-                existing.closedBy = "session_start_double_fire";
-                var staleSummaryKey = "session_summary_" + userId + "_" + gameId + "_" + existing.startTime;
-                utils.writeStorage(nk, logger, "analytics_session_summaries", staleSummaryKey, userId, existing);
-                aggregateSessionStats(nk, logger, duration, gameId);
-            }
+    // ── Per-player session data → game_player_analytics.sessions[] ──
+    // System-level aggregateSessionStats is still called for dashboard rollups.
+    try {
+        var sessionResult = gpaUpsertSession(nk, logger, userId, gameId, eventName, eventData);
+        // Feed system-level session stats aggregator
+        if (sessionResult.staleDuration > 0) {
+            aggregateSessionStats(nk, logger, sessionResult.staleDuration, gameId);
         }
-        var sessionData = {
-            userId: userId,
-            gameId: gameId,
-            startTime: utils.getUnixTimestamp(),
-            startTimestamp: utils.getCurrentTimestamp(),
-            active: true
-        };
-        utils.writeStorage(nk, logger, collection, key, userId, sessionData);
-    } else if (eventName === "session_end") {
-        var sessionData = utils.readStorage(nk, logger, collection, key, userId);
-        if (sessionData && sessionData.active) {
-            sessionData.endTime = utils.getUnixTimestamp();
-            sessionData.endTimestamp = utils.getCurrentTimestamp();
-            sessionData.duration = sessionData.endTime - sessionData.startTime;
-            sessionData.active = false;
-
-            var summaryKey = "session_summary_" + userId + "_" + gameId + "_" + sessionData.startTime;
-            utils.writeStorage(nk, logger, "analytics_session_summaries", summaryKey, userId, sessionData);
-            utils.writeStorage(nk, logger, collection, key, userId, { active: false });
-
-            aggregateSessionStats(nk, logger, sessionData.duration, gameId);
+        if (sessionResult.endedDuration > 0) {
+            aggregateSessionStats(nk, logger, sessionResult.endedDuration, gameId);
+        }
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[analytics] gpaUpsertSession failed: " + (e.message || e));
         }
     }
 }
@@ -2790,6 +2757,467 @@ function __ModuleInit_2(ctx, logger, nk, initializer) {
     __rpc_analytics_dashboard_summary = __rpc_analytics_dashboard_summary || (rpcAnalyticsDashboardSummary);
     logger.info("[Analytics] Module registered: 3 RPCs");
 }
+
+// --- Module: analytics\player_analytics_store.js ---
+// player_analytics_store.js — Unified per-player per-game analytics storage
+//
+// Collection: game_player_analytics
+// Key:        {gameId}:{userId}
+// Owner:      userId
+//
+// One document per player per game. Supports cross-game player profiles
+// via storageList by userId. All functions prefixed with `gpa` to avoid
+// global naming collisions in the concatenated Nakama bundle.
+
+var GPA_COLLECTION       = "game_player_analytics";
+var GPA_MAX_EVENTS       = 500;
+var GPA_MAX_SESSIONS     = 10;
+var GPA_MAX_CRASHES      = 5;
+var GPA_MAX_DOC_BYTES    = 450000;
+var GPA_CAS_MAX_RETRIES  = 5;
+var GPA_SCHEMA_VERSION   = 1;
+var GPA_MAX_MODE_COUNT   = 1000000;
+var GPA_MAX_MODE_KEY_LEN = 64;
+var GPA_MAX_MODE_ENTRIES = 64;
+var GPA_MAX_EVENT_FIELD  = 500;
+
+// ─── Empty doc factory ────────────────────────────────────────────
+
+function gpaCreateEmptyDoc(gameId, userId) {
+    return {
+        v: GPA_SCHEMA_VERSION,
+        user_id: userId,
+        game_id: gameId,
+        display_name: "",
+        avatar_url: "",
+        platform: "unknown",
+        country: "??",
+        locale: "en",
+        device_tier: "unknown",
+        device_model: "",
+        os_version: "",
+        app_version: "",
+        install_source: "",
+        first_seen_utc: 0,
+        last_active_utc: 0,
+        days_since_install: 0,
+        lt_events: 0,
+        lt_sessions: 0,
+        lt_quiz_plays: 0,
+        fav_mode: "",
+        fav_mode_n: 0,
+        mode_counts: {},
+        events: [],
+        sessions: [],
+        crashes: [],
+        eng: {
+            d1: false, d7: false, d30: false,
+            streak: 0, streak_max: 0,
+            last_mode: "", last_score: 0,
+            avg_accuracy: 0, total_correct: 0, total_answered: 0
+        },
+        money: {
+            spend_usd: 0, last_iap_utc: 0, iap_count: 0,
+            ad_views: 0, ad_clicks: 0, rewarded_ads: 0,
+            reward_tier: "bronze",
+            coins_earned: 0, coins_spent: 0
+        },
+        consent: "unknown",
+        att_status: "unknown",
+        idem_key: "",
+        updated_utc: 0
+    };
+}
+
+// ─── Schema upgrade ───────────────────────────────────────────────
+
+function gpaUpgradeDoc(doc) {
+    if (!doc) return gpaCreateEmptyDoc("", "");
+    if (!doc.v || doc.v < 1) {
+        doc.v = GPA_SCHEMA_VERSION;
+        if (!doc.eng || typeof doc.eng !== "object") {
+            doc.eng = { d1: false, d7: false, d30: false, streak: 0, streak_max: 0,
+                        last_mode: "", last_score: 0, avg_accuracy: 0, total_correct: 0, total_answered: 0 };
+        }
+        if (!doc.money || typeof doc.money !== "object") {
+            doc.money = { spend_usd: 0, last_iap_utc: 0, iap_count: 0, ad_views: 0,
+                          ad_clicks: 0, rewarded_ads: 0, reward_tier: "bronze", coins_earned: 0, coins_spent: 0 };
+        }
+        if (!Array.isArray(doc.crashes)) doc.crashes = [];
+        if (!Array.isArray(doc.sessions)) doc.sessions = [];
+        if (!Array.isArray(doc.events)) doc.events = [];
+        if (!doc.mode_counts || typeof doc.mode_counts !== "object") doc.mode_counts = {};
+    }
+    return doc;
+}
+
+// ─── Safe read with defaults ──────────────────────────────────────
+
+function gpaSafeRead(doc) {
+    if (!doc) doc = {};
+    return {
+        v:                 doc.v || GPA_SCHEMA_VERSION,
+        user_id:           doc.user_id || "",
+        game_id:           doc.game_id || "",
+        display_name:      doc.display_name || "",
+        avatar_url:        doc.avatar_url || "",
+        platform:          doc.platform || "unknown",
+        country:           doc.country || "??",
+        locale:            doc.locale || "en",
+        device_tier:       doc.device_tier || "unknown",
+        device_model:      doc.device_model || "",
+        os_version:        doc.os_version || "",
+        app_version:       doc.app_version || "",
+        install_source:    doc.install_source || "",
+        first_seen_utc:    parseInt(doc.first_seen_utc, 10) || 0,
+        last_active_utc:   parseInt(doc.last_active_utc, 10) || 0,
+        days_since_install:parseInt(doc.days_since_install, 10) || 0,
+        lt_events:         parseInt(doc.lt_events, 10) || 0,
+        lt_sessions:       parseInt(doc.lt_sessions, 10) || 0,
+        lt_quiz_plays:     parseInt(doc.lt_quiz_plays, 10) || 0,
+        fav_mode:          doc.fav_mode || "",
+        fav_mode_n:        parseInt(doc.fav_mode_n, 10) || 0,
+        mode_counts:       (doc.mode_counts && typeof doc.mode_counts === "object") ? doc.mode_counts : {},
+        events:            Array.isArray(doc.events) ? doc.events : [],
+        sessions:          Array.isArray(doc.sessions) ? doc.sessions : [],
+        crashes:           Array.isArray(doc.crashes) ? doc.crashes : [],
+        eng:               (doc.eng && typeof doc.eng === "object") ? doc.eng : {},
+        money:             (doc.money && typeof doc.money === "object") ? doc.money : {},
+        consent:           doc.consent || "unknown",
+        att_status:        doc.att_status || "unknown",
+        idem_key:          doc.idem_key || "",
+        updated_utc:       parseInt(doc.updated_utc, 10) || 0
+    };
+}
+
+// ─── CAS upsert ───────────────────────────────────────────────────
+
+function gpaCasUpsert(nk, logger, gameId, userId, mutateFn) {
+    var key = gameId + ":" + userId;
+    for (var attempt = 0; attempt < GPA_CAS_MAX_RETRIES; attempt++) {
+        var existing = null;
+        var version = null;
+        try {
+            var objs = nk.storageRead([{
+                collection: GPA_COLLECTION, key: key, userId: userId
+            }]);
+            if (objs && objs.length > 0) {
+                existing = objs[0].value || null;
+                version = objs[0].version || null;
+            }
+        } catch (e) { /* treat as not-exists */ }
+
+        var isCreate = !existing;
+        var doc = existing ? JSON.parse(JSON.stringify(existing)) : gpaCreateEmptyDoc(gameId, userId);
+        doc = gpaUpgradeDoc(doc);
+
+        var modified = mutateFn(doc, isCreate);
+        if (!modified) return true; // no change needed
+
+        modified.updated_utc = Math.floor(Date.now() / 1000);
+
+        try {
+            nk.storageWrite([{
+                collection: GPA_COLLECTION,
+                key: key,
+                userId: userId,
+                value: modified,
+                permissionRead: 1,
+                permissionWrite: 0,
+                version: isCreate ? "*" : version
+            }]);
+            return true;
+        } catch (e) {
+            if (attempt === GPA_CAS_MAX_RETRIES - 1 && logger && logger.warn) {
+                logger.warn("[game_player_analytics] CAS failed after " +
+                    GPA_CAS_MAX_RETRIES + " retries: " + key + " (" + e.message + ")");
+            }
+        }
+    }
+    return false;
+}
+
+// ─── Event buffer append ──────────────────────────────────────────
+
+function gpaAppendEvent(doc, event) {
+    if (!event) return doc;
+    // Truncate large string fields in event data
+    if (event.d && typeof event.d === "object") {
+        for (var k in event.d) {
+            if (Object.prototype.hasOwnProperty.call(event.d, k)) {
+                if (typeof event.d[k] === "string" && event.d[k].length > GPA_MAX_EVENT_FIELD) {
+                    event.d[k] = event.d[k].substring(0, GPA_MAX_EVENT_FIELD);
+                }
+            }
+        }
+    }
+    doc.events.push(event);
+    // FIFO eviction at cap
+    while (doc.events.length > GPA_MAX_EVENTS) {
+        doc.events.shift();
+    }
+    // Safety: if doc is still huge, trim aggressively
+    var docStr = JSON.stringify(doc);
+    while (docStr.length > GPA_MAX_DOC_BYTES && doc.events.length > 50) {
+        doc.events.splice(0, 50);
+        docStr = JSON.stringify(doc);
+    }
+    return doc;
+}
+
+// ─── Retention & streak update ────────────────────────────────────
+
+function gpaUpdateRetention(doc) {
+    if (!doc.first_seen_utc) return doc;
+    var nowUtc = Math.floor(Date.now() / 1000);
+    var daysSince = Math.floor((nowUtc - doc.first_seen_utc) / 86400);
+    doc.days_since_install = daysSince;
+    if (!doc.eng) doc.eng = {};
+    // Monotonic — once true, never revert
+    if (daysSince >= 1 && !doc.eng.d1) doc.eng.d1 = true;
+    if (daysSince >= 7 && !doc.eng.d7) doc.eng.d7 = true;
+    if (daysSince >= 30 && !doc.eng.d30) doc.eng.d30 = true;
+    // Streak: check if last_active was yesterday
+    var lastDay = Math.floor((doc.last_active_utc || 0) / 86400);
+    var today = Math.floor(nowUtc / 86400);
+    if (today === lastDay + 1) {
+        doc.eng.streak = (doc.eng.streak || 0) + 1;
+        doc.eng.streak_max = Math.max(doc.eng.streak_max || 0, doc.eng.streak);
+    } else if (today > lastDay + 1 && lastDay > 0) {
+        doc.eng.streak = 1;
+    }
+    return doc;
+}
+
+// ─── Mode counts monotonic merge ──────────────────────────────────
+
+function gpaMergeModeCounts(doc, incoming) {
+    if (!incoming || typeof incoming !== "object") return doc;
+    var entries = 0;
+    for (var k in incoming) {
+        if (!Object.prototype.hasOwnProperty.call(incoming, k)) continue;
+        if (entries >= GPA_MAX_MODE_ENTRIES) break;
+        var key = ("" + k).substring(0, GPA_MAX_MODE_KEY_LEN);
+        var iv = parseInt(incoming[k], 10) || 0;
+        if (iv < 0) iv = 0;
+        if (iv > GPA_MAX_MODE_COUNT) iv = GPA_MAX_MODE_COUNT;
+        var prev = doc.mode_counts[key] || 0;
+        doc.mode_counts[key] = Math.max(prev, iv);
+        entries++;
+    }
+    // Recompute favorite
+    var maxN = 0, maxK = "";
+    for (var m in doc.mode_counts) {
+        if (Object.prototype.hasOwnProperty.call(doc.mode_counts, m)) {
+            if (doc.mode_counts[m] > maxN) { maxN = doc.mode_counts[m]; maxK = m; }
+        }
+    }
+    doc.fav_mode = maxK;
+    doc.fav_mode_n = maxN;
+    // Sum for lt_quiz_plays
+    var total = 0;
+    for (var q in doc.mode_counts) {
+        if (Object.prototype.hasOwnProperty.call(doc.mode_counts, q)) {
+            total += doc.mode_counts[q];
+        }
+    }
+    doc.lt_quiz_plays = total;
+    return doc;
+}
+
+// ─── PUBLIC: Upsert from event ────────────────────────────────────
+// Called from persistNormalizedEvent in analytics.js
+
+function gpaUpsertEvent(nk, logger, ev) {
+    if (!ev || !ev.gameId || !ev.userId) return false;
+    return gpaCasUpsert(nk, logger, ev.gameId, ev.userId, function (doc, isCreate) {
+        var nowUtc = Math.floor(Date.now() / 1000);
+        // First seen (immutable after first set)
+        if (!doc.first_seen_utc || doc.first_seen_utc === 0) {
+            doc.first_seen_utc = ev.unixTimestamp || nowUtc;
+        }
+        doc.last_active_utc = ev.unixTimestamp || nowUtc;
+        doc.lt_events = (doc.lt_events || 0) + 1;
+        // Device context from event data (update on every event to stay fresh)
+        var ed = ev.eventData || {};
+        if (ed.platform) doc.platform = ed.platform;
+        if (ed.country) doc.country = ed.country;
+        if (ed.locale) doc.locale = ed.locale;
+        if (ed.device_tier) doc.device_tier = ed.device_tier;
+        if (ed.device_model) doc.device_model = ed.device_model;
+        if (ed.os_version) doc.os_version = ed.os_version;
+        if (ed.app_version) doc.app_version = ed.app_version;
+        if (ed.install_source) doc.install_source = ed.install_source;
+        if (ed.consent_state) doc.consent = ed.consent_state;
+        if (ed.att_status) doc.att_status = ed.att_status;
+        // Quiz mode tracking
+        if (ed.quiz_mode) {
+            if (!doc.eng) doc.eng = {};
+            doc.eng.last_mode = ed.quiz_mode;
+        }
+        // Append to rolling buffer
+        var compressedEvent = {
+            n: ev.eventName,
+            t: ev.unixTimestamp || nowUtc
+        };
+        // Only store non-empty event data
+        if (ed && Object.keys(ed).length > 0) {
+            // Strip heavy fields that are already in the doc root
+            var slim = {};
+            var skipFields = { platform: 1, country: 1, locale: 1, device_tier: 1,
+                device_model: 1, os_version: 1, app_version: 1, install_source: 1,
+                consent_state: 1, att_status: 1, session_id: 1, session_number: 1 };
+            for (var dk in ed) {
+                if (Object.prototype.hasOwnProperty.call(ed, dk) && !skipFields[dk]) {
+                    slim[dk] = ed[dk];
+                }
+            }
+            if (Object.keys(slim).length > 0) {
+                compressedEvent.d = slim;
+            }
+        }
+        gpaAppendEvent(doc, compressedEvent);
+        gpaUpdateRetention(doc);
+        return doc;
+    });
+}
+
+// ─── PUBLIC: Upsert from session ──────────────────────────────────
+// Called from trackSession in analytics.js. Returns { staleDuration, endedDuration }
+// so the caller can still feed aggregateSessionStats.
+
+function gpaUpsertSession(nk, logger, userId, gameId, eventName, eventData) {
+    var result = { staleDuration: 0, endedDuration: 0 };
+    gpaCasUpsert(nk, logger, gameId, userId, function (doc) {
+        var nowUtc = Math.floor(Date.now() / 1000);
+        if (eventName === "session_start") {
+            // Close any dangling active session
+            for (var i = 0; i < doc.sessions.length; i++) {
+                if (doc.sessions[i].active) {
+                    var dur = nowUtc - (doc.sessions[i].start || nowUtc);
+                    if (dur > 0 && dur < 86400) {
+                        doc.sessions[i].active = false;
+                        doc.sessions[i].end = nowUtc;
+                        doc.sessions[i].dur = dur;
+                        result.staleDuration = dur;
+                    } else {
+                        doc.sessions[i].active = false;
+                    }
+                }
+            }
+            // Add new session
+            doc.sessions.push({
+                sid: (eventData && eventData.session_id) || ("s_" + nowUtc),
+                start: nowUtc,
+                end: 0,
+                dur: 0,
+                evts: 0,
+                active: true
+            });
+            doc.lt_sessions = (doc.lt_sessions || 0) + 1;
+            // Trim to max
+            while (doc.sessions.length > GPA_MAX_SESSIONS) {
+                doc.sessions.shift();
+            }
+            gpaUpdateRetention(doc);
+        } else if (eventName === "session_end") {
+            // Find and close the active session
+            for (var j = doc.sessions.length - 1; j >= 0; j--) {
+                if (doc.sessions[j].active) {
+                    doc.sessions[j].end = nowUtc;
+                    doc.sessions[j].dur = nowUtc - doc.sessions[j].start;
+                    doc.sessions[j].active = false;
+                    result.endedDuration = doc.sessions[j].dur;
+                    break;
+                }
+            }
+        }
+        doc.last_active_utc = nowUtc;
+        return doc;
+    });
+    return result;
+}
+
+// ─── PUBLIC: Upsert from rollup ───────────────────────────────────
+// Called from rpcAnalyticsRecordUserRollup in analytics_player_profile.js
+
+function gpaUpsertRollup(nk, logger, userId, gameId, rollupData) {
+    if (!userId || !gameId) return false;
+    return gpaCasUpsert(nk, logger, gameId, userId, function (doc) {
+        // Idempotency check
+        var idemKey = rollupData.idempotencyKey || "";
+        if (idemKey && doc.idem_key === idemKey) {
+            return null; // no-op
+        }
+        // Additive merge for lifetime counters
+        var ed = parseInt(rollupData.eventsDelta, 10) || 0;
+        var sd = parseInt(rollupData.sessionsDelta, 10) || 0;
+        if (ed < 0) ed = 0;
+        if (sd < 0) sd = 0;
+        if (ed > 10000) ed = 10000;
+        if (sd > 50) sd = 50;
+        doc.lt_events = (doc.lt_events || 0) + ed;
+        doc.lt_sessions = (doc.lt_sessions || 0) + sd;
+        // Last event UTC
+        var lastUtc = parseInt(rollupData.lastEventUtc, 10) || 0;
+        var nowUtc = Math.floor(Date.now() / 1000);
+        if (lastUtc > nowUtc + 300) lastUtc = nowUtc;
+        if (lastUtc > (doc.last_active_utc || 0)) doc.last_active_utc = lastUtc;
+        // Mode counts: monotonic max-merge
+        if (rollupData.modeCounts) {
+            gpaMergeModeCounts(doc, rollupData.modeCounts);
+        }
+        doc.idem_key = idemKey;
+        gpaUpdateRetention(doc);
+        return doc;
+    });
+}
+
+// ─── PUBLIC: Read profile ─────────────────────────────────────────
+// Single read for full player profile
+
+function gpaReadProfile(nk, gameId, userId) {
+    if (!gameId || !userId) return gpaSafeRead(null);
+    var key = gameId + ":" + userId;
+    try {
+        var objs = nk.storageRead([{
+            collection: GPA_COLLECTION, key: key, userId: userId
+        }]);
+        if (objs && objs.length > 0 && objs[0].value) {
+            return gpaSafeRead(gpaUpgradeDoc(objs[0].value));
+        }
+    } catch (e) { /* not found */ }
+    return gpaSafeRead(null);
+}
+
+// ─── PUBLIC: GDPR purge ───────────────────────────────────────────
+
+function gpaPurgePlayer(nk, logger, userId) {
+    if (!userId) return 0;
+    var deleted = 0;
+    try {
+        var cursor = "";
+        do {
+            var list = nk.storageList(userId, GPA_COLLECTION, 100, cursor);
+            if (!list || !list.objects || list.objects.length === 0) break;
+            var deletes = [];
+            for (var i = 0; i < list.objects.length; i++) {
+                deletes.push({
+                    collection: GPA_COLLECTION,
+                    key: list.objects[i].key,
+                    userId: userId
+                });
+            }
+            nk.storageDelete(deletes);
+            deleted += deletes.length;
+            cursor = list.cursor || "";
+        } while (cursor);
+    } catch (e) {
+        if (logger) logger.warn("[game_player_analytics] purge error: " + e.message);
+    }
+    return deleted;
+}
+
 
 // --- Module: analytics_admin\analytics_admin.js ---
 // analytics_admin.js — Admin-only RPCs for the Analytics Dashboard.
@@ -3305,7 +3733,7 @@ function rpcDashboardStorageList(ctx, logger, nk, payload) {
 // ─── Registration ─────────────────────────────────────────
 // postbuild.js scans for registerRpc calls in InitModule and rewires them.
 
-function __ModuleInit_3(ctx, logger, nk, initializer) {
+function __ModuleInit_4(ctx, logger, nk, initializer) {
     __rpc_admin_login = __rpc_admin_login || (rpcAdminLogin);
     __rpc_admin_diagnose_env = __rpc_admin_diagnose_env || (rpcAdminDiagnoseEnv);
     __rpc_dashboard_events_timeline = __rpc_dashboard_events_timeline || (rpcDashboardEventsTimeline);
@@ -5450,7 +5878,7 @@ function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_4(ctx, logger, nk, initializer) {
+function __ModuleInit_5(ctx, logger, nk, initializer) {
     __rpc_analytics_session_stats = __rpc_analytics_session_stats || (rpcAnalyticsSessionStats);
     __rpc_analytics_quiz_performance = __rpc_analytics_quiz_performance || (rpcAnalyticsQuizPerformance);
     __rpc_analytics_funnel = __rpc_analytics_funnel || (rpcAnalyticsFunnel);
@@ -5854,7 +6282,7 @@ function rpcAnalyticsMetrics(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_5(ctx, logger, nk, initializer) {
+function __ModuleInit_6(ctx, logger, nk, initializer) {
     __rpc_analytics_schema_check = __rpc_analytics_schema_check || (rpcAnalyticsSchemaCheck);
     __rpc_analytics_backfill_events = __rpc_analytics_backfill_events || (rpcAnalyticsBackfillEvents);
     __rpc_analytics_feature_flags = __rpc_analytics_feature_flags || (rpcAnalyticsFeatureFlags);
@@ -5922,58 +6350,15 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "no_session" });
         }
 
-        var firstSeenUtc = 0;
-        try {
-            var fsObjs = nk.storageRead([{
-                collection: FIRST_SEEN_COLLECTION,
-                key: gameId + "_" + userId,
-                userId: "00000000-0000-0000-0000-000000000000"
-            }]);
-            if (fsObjs && fsObjs.length > 0 && fsObjs[0].value && fsObjs[0].value.firstSeenUtc) {
-                firstSeenUtc = parseInt(fsObjs[0].value.firstSeenUtc, 10) || 0;
-            }
-        } catch (e) { /* missing first_seen is fine — treat as new */ }
+        // Single-read from unified game_player_analytics collection
+        var profile = gpaReadProfile(nk, gameId, userId);
 
         var nowUtc = Math.floor(Date.now() / 1000);
-        if (!firstSeenUtc) firstSeenUtc = nowUtc;
+        var firstSeenUtc = profile.first_seen_utc || nowUtc;
         var daysSinceInstall = Math.floor((nowUtc - firstSeenUtc) / 86400);
 
-        var lifetimeEvents = 0;
-        var lifetimeSessions = 0;
-        var lastEventUtc = 0;
-        var modeCounts = {};
-        var totalQuizPlays = 0;
-        var favoriteMode = "";
-        var favoriteModeCount = 0;
-        try {
-            var rollup = nk.storageRead([{
-                collection: EVENT_INDEX_COLLECTION,
-                key: gameId + "_" + userId,
-                userId: "00000000-0000-0000-0000-000000000000"
-            }]);
-            if (rollup && rollup.length > 0 && rollup[0].value) {
-                lifetimeEvents = rollup[0].value.eventCount || 0;
-                lifetimeSessions = rollup[0].value.sessionCount || 0;
-                lastEventUtc = rollup[0].value.lastEventUtc || 0;
-                if (rollup[0].value.modeCounts && typeof rollup[0].value.modeCounts === "object") {
-                    modeCounts = rollup[0].value.modeCounts;
-                    // Derive total + favorite mode for cheap dashboard usage
-                    for (var k in modeCounts) {
-                        if (Object.prototype.hasOwnProperty.call(modeCounts, k)) {
-                            var v = parseInt(modeCounts[k], 10) || 0;
-                            totalQuizPlays += v;
-                            if (v > favoriteModeCount) {
-                                favoriteModeCount = v;
-                                favoriteMode = k;
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (e) { /* no rollup yet — return zero counts */ }
-
-        var country = (ctx.vars && ctx.vars.country) || "??";
-        var platform = (ctx.vars && ctx.vars.platform) || "unknown";
+        var country = profile.country || (ctx.vars && ctx.vars.country) || "??";
+        var platform = profile.platform || (ctx.vars && ctx.vars.platform) || "unknown";
 
         return JSON.stringify({
             success: true,
@@ -5982,16 +6367,21 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
                 game_id: gameId,
                 first_seen_utc: firstSeenUtc,
                 days_since_install: daysSinceInstall,
-                lifetime_event_count: lifetimeEvents,
-                lifetime_session_count: lifetimeSessions,
-                last_event_utc: lastEventUtc,
-                mode_counts: modeCounts,
-                lifetime_quiz_plays: totalQuizPlays,
-                favorite_mode: favoriteMode,
-                favorite_mode_count: favoriteModeCount,
+                lifetime_event_count: profile.lt_events,
+                lifetime_session_count: profile.lt_sessions,
+                last_event_utc: profile.last_active_utc,
+                mode_counts: profile.mode_counts,
+                lifetime_quiz_plays: profile.lt_quiz_plays,
+                favorite_mode: profile.fav_mode,
+                favorite_mode_count: profile.fav_mode_n,
+                engagement: profile.eng,
+                money: profile.money,
                 tier_signals: {
                     country: country,
-                    platform: platform
+                    platform: platform,
+                    device_tier: profile.device_tier,
+                    device_model: profile.device_model,
+                    app_version: profile.app_version
                 }
             }
         });
@@ -6064,47 +6454,11 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
 
         var nowUtc = Math.floor(Date.now() / 1000);
         var lastEventUtc = parseInt(data.last_event_utc || data.lastEventUtc || nowUtc, 10) || nowUtc;
-        if (lastEventUtc > nowUtc + 300) lastEventUtc = nowUtc; // clamp clock-skew
+        if (lastEventUtc > nowUtc + 300) lastEventUtc = nowUtc;
 
-        var storageKey = gameId + "_" + userId;
-
-        var existing = {
-            eventCount: 0,
-            sessionCount: 0,
-            lastEventUtc: 0,
-            lastIdempotencyKey: "",
-            updatedUtc: 0,
-            modeCounts: {}
-        };
-        try {
-            var prev = nk.storageRead([{
-                collection: EVENT_INDEX_COLLECTION,
-                key: storageKey,
-                userId: SYSTEM_USER_ID
-            }]);
-            if (prev && prev.length > 0 && prev[0].value) {
-                existing.eventCount = parseInt(prev[0].value.eventCount || 0, 10) || 0;
-                existing.sessionCount = parseInt(prev[0].value.sessionCount || 0, 10) || 0;
-                existing.lastEventUtc = parseInt(prev[0].value.lastEventUtc || 0, 10) || 0;
-                existing.lastIdempotencyKey = (prev[0].value.lastIdempotencyKey || "").toString();
-                existing.updatedUtc = parseInt(prev[0].value.updatedUtc || 0, 10) || 0;
-                if (prev[0].value.modeCounts && typeof prev[0].value.modeCounts === "object") {
-                    existing.modeCounts = prev[0].value.modeCounts;
-                }
-            }
-        } catch (e) { /* no prior rollup — start fresh */ }
-
-        // Sanitize incoming mode_counts. Treated as an *absolute* snapshot
-        // of lifetime per-mode plays; we max-merge with the prior snapshot
-        // so a temporarily-cleared client cache can never decrement totals.
+        // Sanitize incoming mode_counts
         var incomingMode = (data.mode_counts || data.modeCounts) || null;
-        var mergedModeCounts = {};
-        // Seed with prior values
-        for (var pk in existing.modeCounts) {
-            if (Object.prototype.hasOwnProperty.call(existing.modeCounts, pk)) {
-                mergedModeCounts[pk] = parseInt(existing.modeCounts[pk], 10) || 0;
-            }
-        }
+        var sanitizedModes = {};
         if (incomingMode && typeof incomingMode === "object") {
             var entries = 0;
             for (var ik in incomingMode) {
@@ -6114,58 +6468,34 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
                 var iv = parseInt(incomingMode[ik], 10) || 0;
                 if (iv < 0) iv = 0;
                 if (iv > MAX_MODE_COUNT) iv = MAX_MODE_COUNT;
-                var prevV = mergedModeCounts[key] || 0;
-                mergedModeCounts[key] = (iv > prevV) ? iv : prevV;
+                sanitizedModes[key] = iv;
                 entries++;
             }
         }
 
-        // Idempotency: replay of the same key returns current totals
-        // unchanged. Client should pick a key like "YYYY-MM-DD" so retries
-        // within the same day are silent no-ops.
-        if (idempotencyKey && existing.lastIdempotencyKey === idempotencyKey) {
-            return JSON.stringify({
-                success: true,
-                data: {
-                    event_count: existing.eventCount,
-                    session_count: existing.sessionCount,
-                    last_event_utc: existing.lastEventUtc,
-                    accepted: false,
-                    replayed: true
-                }
-            });
-        }
+        // Write to unified game_player_analytics via CAS
+        var rollupData = {
+            eventsDelta: eventsDelta,
+            sessionsDelta: sessionsDelta,
+            lastEventUtc: lastEventUtc,
+            idempotencyKey: idempotencyKey,
+            modeCounts: sanitizedModes
+        };
 
-        var newEventCount   = existing.eventCount + eventsDelta;
-        var newSessionCount = existing.sessionCount + sessionsDelta;
-        var newLastEventUtc = Math.max(existing.lastEventUtc, lastEventUtc);
+        var success = gpaUpsertRollup(nk, logger, userId, gameId, rollupData);
 
-        nk.storageWrite([{
-            collection: EVENT_INDEX_COLLECTION,
-            key: storageKey,
-            userId: SYSTEM_USER_ID,
-            value: {
-                eventCount: newEventCount,
-                sessionCount: newSessionCount,
-                lastEventUtc: newLastEventUtc,
-                lastIdempotencyKey: idempotencyKey,
-                updatedUtc: nowUtc,
-                gameId: gameId,
-                modeCounts: mergedModeCounts
-            },
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
+        // Read back for response
+        var profile = gpaReadProfile(nk, gameId, userId);
 
         return JSON.stringify({
             success: true,
             data: {
-                event_count: newEventCount,
-                session_count: newSessionCount,
-                last_event_utc: newLastEventUtc,
-                mode_counts: mergedModeCounts,
-                accepted: true,
-                replayed: false
+                event_count: profile.lt_events,
+                session_count: profile.lt_sessions,
+                last_event_utc: profile.last_active_utc,
+                mode_counts: profile.mode_counts,
+                accepted: success,
+                replayed: !success
             }
         });
     } catch (err) {
@@ -6174,7 +6504,7 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
     }
 }
 
-function __ModuleInit_6(ctx, logger, nk, initializer) {
+function __ModuleInit_7(ctx, logger, nk, initializer) {
     __rpc_analytics_get_player_profile = __rpc_analytics_get_player_profile || (rpcAnalyticsGetPlayerProfile);
     __rpc_analytics_record_user_rollup = __rpc_analytics_record_user_rollup || (rpcAnalyticsRecordUserRollup);
     logger.info("[analytics_player_profile] Module registered: 2 RPCs");
@@ -6427,7 +6757,7 @@ function rpcAnalyticsRetentionCurves(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_7(ctx, logger, nk, initializer) {
+function __ModuleInit_8(ctx, logger, nk, initializer) {
     __rpc_analytics_retention_curves = __rpc_analytics_retention_curves || (rpcAnalyticsRetentionCurves);
     logger.info("[analytics_retention_curves] Module registered: 1 RPC");
 }
@@ -7287,7 +7617,7 @@ function rpcAnalyticsRollupStatus(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_8(ctx, logger, nk, initializer) {
+function __ModuleInit_9(ctx, logger, nk, initializer) {
     __rpc_analytics_rollup_run = __rpc_analytics_rollup_run || (rpcAnalyticsRollupRun);
     __rpc_analytics_rollup_backfill = __rpc_analytics_rollup_backfill || (rpcAnalyticsRollupBackfill);
     __rpc_analytics_rollup_status = __rpc_analytics_rollup_status || (rpcAnalyticsRollupStatus);
@@ -14171,7 +14501,7 @@ function rpcUnityAnalyticsImport(ctx, logger, nk, payload) {
 // ─── Registration ─────────────────────────────────────────
 // postbuild.js scans for initializer.registerRpc() calls
 
-function __ModuleInit_27(ctx, logger, nk, initializer) {
+function __ModuleInit_28(ctx, logger, nk, initializer) {
     __rpc_analytics_appodeal = __rpc_analytics_appodeal || (rpcAnalyticsAppodeal);
     __rpc_analytics_apple_appstore = __rpc_analytics_apple_appstore || (rpcAnalyticsAppleAppstore);
     __rpc_apple_appstore_import = __rpc_apple_appstore_import || (rpcAppleImport);
@@ -14559,7 +14889,7 @@ function rpcExternalPollStatus(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_28(ctx, logger, nk, initializer) {
+function __ModuleInit_29(ctx, logger, nk, initializer) {
     __rpc_external_poll_appodeal = __rpc_external_poll_appodeal || (rpcExternalPollAppodeal);
     __rpc_external_poll_appstore = __rpc_external_poll_appstore || (rpcExternalPollAppstore);
     __rpc_external_poll_ugs = __rpc_external_poll_ugs || (rpcExternalPollUgs);
@@ -15105,10 +15435,12 @@ function _fxMintBattleId(nk) {
 }
 
 // Returns array of confirmed-friend objects: [{ id, displayName, online }]
-function _fxLoadFriends(nk) {
+// MUST pass the caller's userId — passing null runs under SYSTEM context.
+function _fxLoadFriends(nk, userId) {
+    if (!userId) return [];
     var out = [];
     try {
-        var page = nk.friendsList(null, 1000, 0, null); // state=0 (FRIEND)
+        var page = nk.friendsList(userId, 1000, 0, null); // state=0 (FRIEND)
         if (page && page.friends) {
             for (var i = 0; i < page.friends.length; i++) {
                 var fr = page.friends[i];
@@ -15186,7 +15518,7 @@ function rpcFriendsGetOnlineCount(ctx, logger, nk, payload) {
 function rpcSocialPressureGetTodaySummary(ctx, logger, nk, payload) {
     if (!ctx.userId) return _fxErr('Authentication required', 'unauthenticated');
 
-    var friends = _fxLoadFriends(nk);
+    var friends = _fxLoadFriends(nk, ctx.userId);
     var todayKey = _fxNowIso().slice(0, 10).replace(/-/g, '');
 
     // ── friendsPlayedToday + friendsPassedMe ──────────────────────────────
@@ -15359,7 +15691,7 @@ function rpcFriendBattleCreate(ctx, logger, nk, payload) {
 
     // Validate every invitee is a mutual friend BEFORE any side-effect
     var mutualFriends = {};
-    var friends = _fxLoadFriends(nk);
+    var friends = _fxLoadFriends(nk, ctx.userId);
     for (var i = 0; i < friends.length; i++) mutualFriends[friends[i].id] = friends[i];
 
     var rejected = [];
@@ -15429,7 +15761,7 @@ function rpcFriendBattleCreate(ctx, logger, nk, payload) {
             },
             code:       110,
             persistent: true,
-            senderId:   ctx.userId
+            sender:     ctx.userId
         });
     }
     try {
@@ -15543,7 +15875,7 @@ function rpcFriendInviteWithReward(ctx, logger, nk, payload) {
             },
             code:       111,
             persistent: true,
-            senderId:   ctx.userId
+            sender:     ctx.userId
         }]);
     } catch (e) {
         logger.warn('[FriendsExtras] invite notify failed: ' + e.message);
@@ -15561,7 +15893,7 @@ function rpcFriendInviteWithReward(ctx, logger, nk, payload) {
 // ============================================================================
 // Module Init — register Friends Extras RPCs
 // ============================================================================
-function __ModuleInit_31(ctx, logger, nk, initializer) {
+function __ModuleInit_32(ctx, logger, nk, initializer) {
     __rpc_friends_get_online_count = __rpc_friends_get_online_count || (rpcFriendsGetOnlineCount);
     __rpc_social_pressure_get_today_summary = __rpc_social_pressure_get_today_summary || (rpcSocialPressureGetTodaySummary);
     __rpc_friend_battle_create = __rpc_friend_battle_create || (rpcFriendBattleCreate);
@@ -16609,7 +16941,7 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
 //
 // IMPORTANT: legacy_runtime.js's `friends_challenge_user` registration must
 // stay removed / commented so it doesn't compete with our handler.
-function __ModuleInit_32(ctx, logger, nk, initializer) {
+function __ModuleInit_33(ctx, logger, nk, initializer) {
     __rpc_send_friend_challenge = __rpc_send_friend_challenge || (rpcSendFriendChallenge);
     __rpc_friends_challenge_user = __rpc_friends_challenge_user || (rpcSendFriendChallenge); // legacy alias
     __rpc_accept_friend_challenge = __rpc_accept_friend_challenge || (rpcAcceptFriendChallenge);
@@ -16822,6 +17154,20 @@ function _fiUserDisplayName(nk, userId, fallback) {
 }
 
 /**
+ * Fetch a user's username by ID. Returns userId as fallback so the result
+ * is never empty (nk.friendsAdd/Delete require a non-empty username string).
+ */
+function _fiUserUsername(nk, userId) {
+    try {
+        var users = nk.usersGetId([userId]);
+        if (users && users.length > 0 && users[0]) {
+            return users[0].username || userId;
+        }
+    } catch (_) {}
+    return userId;
+}
+
+/**
  * Read an existing invite row stored under either user. We always store
  * the row under the TARGET user (so they can read their own inbox), but
  * during a re-send the caller is the SENDER and may not have read access.
@@ -16936,7 +17282,7 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
     }
     if (callerRel === FR_STATE_INVITE_RECEIVED) {
         // Target already invited caller. Auto-accept.
-        try { nk.friendsAdd(fromUserId, [targetUserId], null); }
+        try { nk.friendsAdd(fromUserId, ctx.username || fromUserId, [targetUserId], null, {}); }
         catch (e) {
             return _fiErr('Failed to auto-accept reciprocal invite: ' + e.message,
                           'autoaccept_failed');
@@ -16982,7 +17328,7 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
     // friends_challenge_user mutual-friend check, find_friends relationship
     // enrichment) sees the wrong picture.
     try {
-        nk.friendsAdd(fromUserId, [targetUserId], null);
+        nk.friendsAdd(fromUserId, ctx.username || fromUserId, [targetUserId], null, {});
     } catch (e) {
         // If Nakama refuses (e.g. target re-blocked between our check and
         // the call) we MUST roll back the storage write to keep the two
@@ -17071,7 +17417,7 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     // Add the reciprocal friend edge. Combined with the INVITE_SENT
     // edge created at send-time this transitions BOTH users to FRIEND.
     try {
-        nk.friendsAdd(userId, [invite.fromUserId], null);
+        nk.friendsAdd(userId, ctx.username || userId, [invite.fromUserId], null, {});
     } catch (e) {
         logger.error('[FriendInvites] accept nk.friendsAdd failed: ' + e.message);
         return _fiErr('Failed to add friend: ' + e.message, 'friends_add_failed');
@@ -17172,7 +17518,7 @@ function rpcFriendsDeclineInvite(ctx, logger, nk, payload) {
     // from the SENDER's list (decline = "they no longer have a sent
     // invite to me"). nk.friendsDelete is idempotent.
     try {
-        nk.friendsDelete(invite.fromUserId, [userId]);
+        nk.friendsDelete(invite.fromUserId, invite.fromUsername || _fiUserUsername(nk, invite.fromUserId), [userId], null);
     } catch (e) {
         logger.warn('[FriendInvites] decline nk.friendsDelete failed (non-fatal): ' + e.message);
     }
@@ -17265,7 +17611,7 @@ function rpcFriendsCancelInvite(ctx, logger, nk, payload) {
 
     // Delete the INVITE_SENT relation in Nakama's graph regardless.
     try {
-        nk.friendsDelete(userId, [targetUserId]);
+        nk.friendsDelete(userId, ctx.username || _fiUserUsername(nk, userId), [targetUserId], null);
     } catch (e) {
         logger.warn('[FriendInvites] cancel nk.friendsDelete failed: ' + e.message);
     }
@@ -17387,7 +17733,7 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
 // assignment, then replays it at module-load time. The legacy
 // registrations for these same RPC ids in legacy_runtime.js have been
 // commented out so this module wins the "first to set the stub" race.
-function __ModuleInit_33(ctx, logger, nk, initializer) {
+function __ModuleInit_34(ctx, logger, nk, initializer) {
     __rpc_send_friend_invite = __rpc_send_friend_invite || (rpcFriendsSendInvite);
     __rpc_accept_friend_invite = __rpc_accept_friend_invite || (rpcFriendsAcceptInvite);
     __rpc_decline_friend_invite = __rpc_decline_friend_invite || (rpcFriendsDeclineInvite);
@@ -17528,7 +17874,7 @@ function buildFriendsNotification(subjectKey, userId, payload, senderId) {
     return {
         userId:     userId,
         subject:    subject,
-        content:    JSON.stringify(content),
+        content:    content,
         code:       code,
         sender:     senderId || null,
         persistent: true
@@ -18105,7 +18451,7 @@ function rpcFriendQuestRecordProgress(ctx, logger, nk, payload) {
 // ============================================================================
 // Module Init — register Friend Quest RPCs
 // ============================================================================
-function __ModuleInit_35(ctx, logger, nk, initializer) {
+function __ModuleInit_36(ctx, logger, nk, initializer) {
     __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState);
     __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete);
     __rpc_friend_quest_record_progress = __rpc_friend_quest_record_progress || (rpcFriendQuestRecordProgress);
@@ -18718,7 +19064,7 @@ function rpcFriendStreakRepair(ctx, logger, nk, payload) {
 // Registers all 5 friend-streak RPCs. Existing 3 (get_state, record_contribution,
 // send_nudge) are also registered by legacy_runtime.js; postbuild's `||` guard
 // + module-first concat order means our handler wins.
-function __ModuleInit_36(ctx, logger, nk, initializer) {
+function __ModuleInit_37(ctx, logger, nk, initializer) {
     __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState);
     __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution);
     __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge);
@@ -20836,7 +21182,7 @@ function rpcIvxQuestClaim(ctx, logger, nk, payload) {
 
 // ── Module init ───────────────────────────────────────────────────
 
-function __ModuleInit_43(ctx, logger, nk, initializer) {
+function __ModuleInit_44(ctx, logger, nk, initializer) {
     __rpc_ivx_quest_config = __rpc_ivx_quest_config || (rpcIvxQuestConfig);
     __rpc_ivx_quest_get = __rpc_ivx_quest_get || (rpcIvxQuestGet);
     __rpc_ivx_quest_progress = __rpc_ivx_quest_progress || (rpcIvxQuestProgress);
@@ -36907,7 +37253,7 @@ function _stubFriendBattlesGetActive() { return JSON.stringify({ success: true, 
 
 // ── Module init ───────────────────────────────────────────────────
 
-function __ModuleInit_73(ctx, logger, nk, initializer) {
+function __ModuleInit_74(ctx, logger, nk, initializer) {
     // ─── Hiro naming aliases (singular/plural + verb-position swaps) ──
     __rpc_hiro_get_streaks = __rpc_hiro_get_streaks || (__rpc_hiro_streaks_get);
     __rpc_hiro_streak_get = __rpc_hiro_streak_get || (__rpc_hiro_streaks_get);
@@ -37728,7 +38074,7 @@ function rpcSmartReviewGetForecast(ctx, logger, nk, payload) {
 // legacy_runtime.js, the module-level handler wins — even if legacy still
 // has its own registration for `smart_review_get_cards` /
 // `smart_review_rate_card`, our handler is what actually fires.
-function __ModuleInit_74(ctx, logger, nk, initializer) {
+function __ModuleInit_75(ctx, logger, nk, initializer) {
     __rpc_smart_review_get_cards = __rpc_smart_review_get_cards || (rpcSmartReviewGetCards);
     __rpc_smart_review_rate_card = __rpc_smart_review_rate_card || (rpcSmartReviewRateCard);
     __rpc_smart_review_add_card = __rpc_smart_review_add_card || (rpcSmartReviewAddCard);
@@ -39286,7 +39632,7 @@ function rpcVisualPathSkipDayWithAd(ctx, logger, nk, payload) {
 // ============================================================================
 // Module Init — register Visual Path RPCs
 // ============================================================================
-function __ModuleInit_77(ctx, logger, nk, initializer) {
+function __ModuleInit_78(ctx, logger, nk, initializer) {
     __rpc_visual_path_get_state = __rpc_visual_path_get_state || (rpcVisualPathGetState);
     __rpc_visual_path_get_schedule = __rpc_visual_path_get_schedule || (rpcVisualPathGetSchedule);
     __rpc_visual_path_skip_day_with_ad = __rpc_visual_path_skip_day_with_ad || (rpcVisualPathSkipDayWithAd);
@@ -59367,6 +59713,7 @@ function asyncChallengeSessionToUnityFormat(session) {
         quizModeType: session.quizModeType || 0,
         quizModeName: session.quizModeName || 'Quiz',
         quizConfig: session.quizConfig || {},
+        questions: session.questions || null,
         gameId: session.gameId || '',
         status: status,
         createdAt: session.createdAt || 0,
@@ -59473,6 +59820,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
             quizModeName: quizModeName,
             quizConfig: quizConfig,
             gameId: quizConfig.gameId || '',
+            questions: null,
             creatorId: userId,
             creatorName: creatorName,
             opponentId: null,
@@ -60914,6 +61262,75 @@ function rpcAsyncChallengeLeaderboard(ctx, logger, nk, payload) {
     }
 }
 
+// ============================================================================
+// RPC: async_challenge_store_questions - Host stores fetched questions
+// ============================================================================
+function rpcAsyncChallengeStoreQuestions(ctx, logger, nk, payload) {
+    var request;
+    try { request = JSON.parse(payload || '{}'); }
+    catch (e) { return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null }); }
+
+    try {
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({ success: false, message: userValidation.error, data: null });
+        }
+        var userId = userValidation.userId;
+
+        var sessionId = request.sessionId || request.SessionId;
+        if (!sessionId) {
+            return JSON.stringify({ success: false, message: 'sessionId required', data: null });
+        }
+
+        var questions = request.questions;
+        if (!questions || !Array.isArray(questions) || questions.length === 0) {
+            return JSON.stringify({ success: false, message: 'questions array required', data: null });
+        }
+
+        // Read session — only creator (host) can store questions
+        var sessionResults = nk.storageRead([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: userId
+        }]);
+
+        if (sessionResults.length === 0) {
+            return JSON.stringify({ success: false, message: 'Session not found or not owner', data: null });
+        }
+
+        var session = sessionResults[0].value;
+
+        // Authorization: only creator can store questions
+        if (session.creatorId !== userId) {
+            return JSON.stringify({ success: false, message: 'Only the challenge creator can store questions', data: null });
+        }
+
+        // Don't overwrite if already stored (idempotency guard)
+        if (session.questions && session.questions.length > 0) {
+            logger.debug('[AsyncChallenge] Questions already stored for session: ' + sessionId);
+            return JSON.stringify({ success: true, message: 'Questions already stored', data: { count: session.questions.length } });
+        }
+
+        // Store questions in session
+        session.questions = questions;
+
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: userId,
+            value: session,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+
+        logger.info('[AsyncChallenge] Stored ' + questions.length + ' questions for session: ' + sessionId);
+        return JSON.stringify({ success: true, message: 'Questions stored', data: { count: questions.length } });
+    } catch (err) {
+        logger.error('[AsyncChallenge] StoreQuestions error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_store_questions', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
 
 // ============================================================================
 // BADGES & COLLECTABLES SYSTEM
@@ -64197,7 +64614,9 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_rematch');
         __rpc_async_challenge_leaderboard = __rpc_async_challenge_leaderboard || (rpcAsyncChallengeLeaderboard);
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_leaderboard');
-        logger.info('[AsyncChallenge] Successfully registered 9 Async Challenge RPCs');
+        __rpc_async_challenge_store_questions = __rpc_async_challenge_store_questions || (rpcAsyncChallengeStoreQuestions);
+        logger.info('[AsyncChallenge] Registered RPC: async_challenge_store_questions');
+        logger.info('[AsyncChallenge] Successfully registered 10 Async Challenge RPCs');
     } catch (err) {
         logger.error('[AsyncChallenge] Failed to initialize: ' + err.message);
     }
@@ -92923,6 +93342,7 @@ try { __rpc_async_challenge_cancel = __rpc_async_challenge_cancel || (rpcAsyncCh
 try { __rpc_async_challenge_stats = __rpc_async_challenge_stats || (rpcAsyncChallengeStats); } catch(e) {}
 try { __rpc_async_challenge_rematch = __rpc_async_challenge_rematch || (rpcAsyncChallengeRematch); } catch(e) {}
 try { __rpc_async_challenge_leaderboard = __rpc_async_challenge_leaderboard || (rpcAsyncChallengeLeaderboard); } catch(e) {}
+try { __rpc_async_challenge_store_questions = __rpc_async_challenge_store_questions || (rpcAsyncChallengeStoreQuestions); } catch(e) {}
 try { __rpc_badges_get_all = __rpc_badges_get_all || (rpcBadgesGetAll); } catch(e) {}
 try { __rpc_badges_update_progress = __rpc_badges_update_progress || (rpcBadgesUpdateProgress); } catch(e) {}
 try { __rpc_badges_check_event = __rpc_badges_check_event || (rpcBadgesCheckEvent); } catch(e) {}
@@ -93546,6 +93966,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("async_challenge_stats", __rpc_async_challenge_stats); } catch(e) {}
   try { initializer.registerRpc("async_challenge_rematch", __rpc_async_challenge_rematch); } catch(e) {}
   try { initializer.registerRpc("async_challenge_leaderboard", __rpc_async_challenge_leaderboard); } catch(e) {}
+  try { initializer.registerRpc("async_challenge_store_questions", __rpc_async_challenge_store_questions); } catch(e) {}
   try { initializer.registerRpc("badges_get_all", __rpc_badges_get_all); } catch(e) {}
   try { initializer.registerRpc("badges_update_progress", __rpc_badges_update_progress); } catch(e) {}
   try { initializer.registerRpc("badges_check_event", __rpc_badges_check_event); } catch(e) {}
@@ -93706,5 +94127,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 704 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 705 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }
