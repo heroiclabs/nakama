@@ -393,3 +393,23 @@ function registerQuizverseSeenRPCs(initializer, logger) {
 
     logger.info("[QuizverseSeen] Registration complete: " + registered + " registered, " + skipped + " skipped");
 }
+
+// ============================================================================
+// MODULE INIT (postbuild AST hook)
+// ----------------------------------------------------------------------------
+// postbuild.js renames this `InitModule` -> `__ModuleInit_N` so it never
+// executes directly. Its purpose is to expose literal registerRpc calls so
+// the bundler can:
+//   1) Generate `var __rpc_<id>;` stub declarations at the top of index.js
+//   2) Rewrite the literal calls below into guarded `__rpc_<id> = __rpc_<id> || (handler)`
+//   3) Replay those assignments at IIFE/global scope so every Goja VM has them
+//   4) Emit `initializer.registerRpc("<id>", __rpc_<id>)` inside the master InitModule
+// ============================================================================
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc("quizverse_seen_get",   rpcQuizverseSeenGet);
+    initializer.registerRpc("quizverse_seen_merge", rpcQuizverseSeenMerge);
+    initializer.registerRpc("quizverse_seen_purge", rpcQuizverseSeenPurge);
+    initializer.registerRpc("quizverse_seen_reset", rpcQuizverseSeenReset);
+    initializer.registerRpc("quizverse_seen_stats", rpcQuizverseSeenStats);
+    logger.info("[QuizverseSeen] Module InitModule registered: 5 RPCs");
+}

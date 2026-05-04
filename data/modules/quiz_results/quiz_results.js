@@ -720,3 +720,20 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
         });
     }
 }
+
+// ============================================================================
+// MODULE INIT (postbuild AST hook)
+// ----------------------------------------------------------------------------
+// Registers the harmonized `rpcQuizSubmitResult` (with qv_seen ledger merge)
+// over the legacy_runtime.js copy. postbuild's collision-rename pass renames
+// the legacy declaration to `__legacy_rpcQuizSubmitResult`, so the modules
+// version wins at the global scope when the guarded `||` assignments are
+// replayed (modules first, legacy fallback second).
+// ============================================================================
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc("quiz_submit_result",         rpcQuizSubmitResult);
+    initializer.registerRpc("quiz_get_history",           rpcQuizGetHistory);
+    initializer.registerRpc("quiz_get_stats",             rpcQuizGetStats);
+    initializer.registerRpc("quiz_check_daily_completion", rpcQuizCheckDailyCompletion);
+    logger.info("[QuizResults] Module InitModule registered: 4 RPCs");
+}

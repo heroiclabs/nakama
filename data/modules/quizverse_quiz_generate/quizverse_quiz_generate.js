@@ -527,3 +527,11 @@ function registerQuizverseQuizGenerateRPCs(initializer, logger) {
 
     logger.info("[QuizGen] Registration complete: " + registered + " registered, " + skipped + " skipped");
 }
+
+// ============================================================================
+// MODULE INIT (postbuild AST hook — see quizverse_seen.js for full rationale)
+// ============================================================================
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc("quizverse_quiz_generate", rpcQuizverseQuizGenerate);
+    logger.info("[QuizGen] Module InitModule registered: 1 RPC");
+}
