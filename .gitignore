@@ -258,8 +258,6 @@ jspm_packages/
 .yarn-integrity
 
 # dotenv environment variables file
-.env
-.env.test
 .env*.local
 
 # parcel-bundler cache (https://parceljs.org/)
@@ -751,3 +749,4 @@ data/modules/_tmp_*
 scripts/node_modules
 scripts/apple_data_cache.json
 .local-secrets/
+config.bat
