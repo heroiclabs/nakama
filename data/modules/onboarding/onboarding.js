@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Nakama Onboarding Module
  * Handles user onboarding state, preferences, and first-session hooks
  * 
@@ -207,7 +207,7 @@ function initializeNewUser(nk, logger, userId) {
         userId: userId,
         createdAt: now,
         currentStep: 1,
-        totalSteps: 9,  // #QVVBS54 FIX: Match Unity's 9-step onboarding flow
+        totalSteps: 5,  // V2 Onboarding has 5 steps
         completedSteps: [],
         welcomeBonusClaimed: false,
         firstQuizCompleted: false,
@@ -422,13 +422,13 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
             var hasGameActivity = checkUserHasGameActivity(nk, logger, userId);
             
             if (hasGameActivity) {
-                logger.info(`[Onboarding] #QVVBS54: User ${userId} has game activity but no onboarding state - marking complete`);
+                logger.info(`[Onboarding] User ${userId} has game activity but no onboarding state - marking complete`);
                 var completedState = {
                     userId: userId,
                     createdAt: Date.now(),
-                    currentStep: 10,
-                    totalSteps: 9,
-                    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    currentStep: 6,
+                    totalSteps: 5,
+                    completedSteps: [1, 2, 3, 4, 5],
                     welcomeBonusClaimed: true,
                     firstQuizCompleted: true,
                     onboardingComplete: true,
@@ -458,7 +458,7 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
                 isNewUser: true,
                 state: {
                     currentStep: 1,
-                    totalSteps: 9,  // #QVVBS54 FIX: Match Unity's 9-step flow
+                    totalSteps: 5,  // V2 Onboarding has 5 steps
                     completedSteps: [],
                     welcomeBonusClaimed: false,
                     firstQuizCompleted: false,
@@ -480,8 +480,8 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
                 if (checkUserHasGameActivity(nk, logger, userId)) {
                     logger.info(`[Onboarding] #QVVBS52: User ${userId} has row with onboardingComplete=false but verified game activity - auto-healing to complete`);
                     storedState.onboardingComplete = true;
-                    storedState.currentStep = Math.max(storedState.currentStep || 0, (storedState.totalSteps || 9) + 1);
-                    storedState.completedSteps = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+                    storedState.currentStep = Math.max(storedState.currentStep || 0, (storedState.totalSteps || 5) + 1);
+                    storedState.completedSteps = [1, 2, 3, 4, 5];
                     storedState.welcomeBonusClaimed = true;
                     storedState.firstQuizCompleted = true;
                     storedState.recoveredFromActivity = true;
@@ -561,7 +561,7 @@ function rpcUpdateOnboardingState(ctx, logger, nk, payload) {
 
 /**
  * RPC: Complete a specific onboarding step
- * #QVVBS54 FIX: Also marks complete if stepId >= 9 (final step)
+ * V2 Onboarding has 5 steps; marks complete when stepId >= 5
  */
 function rpcCompleteStep(ctx, logger, nk, payload) {
     var userId = ctx.userId;
@@ -578,15 +578,15 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
         // #QVVBS54 FIX: If no state exists, create it and mark complete
         // This handles edge case where user completed onboarding but state was lost
         if (result.length === 0) {
-            if (stepId >= 9) {
+            if (stepId >= 5) {
                 // User is trying to complete final step - they've done onboarding
-                logger.info(`[Onboarding] #QVVBS54: Creating completed state for user ${userId} (step ${stepId})`);
+                logger.info(`[Onboarding] Creating completed state for user ${userId} (step ${stepId})`);
                 var completedState = {
                     userId: userId,
                     createdAt: Date.now(),
-                    currentStep: 10,
-                    totalSteps: 9,
-                    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    currentStep: 6,
+                    totalSteps: 5,
+                    completedSteps: [1, 2, 3, 4, 5],
                     welcomeBonusClaimed: true,
                     firstQuizCompleted: true,
                     onboardingComplete: true,
@@ -618,7 +618,7 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
         }
 
         // #QVVBS54 FIX: Mark complete if step 9 is completed OR if all steps are done
-        if (stepId >= 9 || state.completedSteps.length >= state.totalSteps) {
+        if (stepId >= 5 || state.completedSteps.length >= state.totalSteps) {
             state.onboardingComplete = true;
             logger.info(`[Onboarding] User ${userId} completed onboarding!`);
         }

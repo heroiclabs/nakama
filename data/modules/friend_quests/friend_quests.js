@@ -1,12 +1,13 @@
-// friend_quests.js - Friend Quest System for QuizVerse v4.0
-// RPCs: friend_quest_get_state, friend_quest_complete
-// Spec: MRS §31 — 10 quest types, server-authoritative generation
-// v4.0: Server generates quests from user's friends list
+// friend_quests.js - Friend Quest System for QuizVerse v4.1
+// RPCs: friend_quest_get_state, friend_quest_complete, friend_quest_record_progress
+// Spec: MRS §31 — 10 friend quest types + 3 solo quest types, server-authoritative generation
+// v4.1: Solo/starter quests when user has no friends — ensures every user always sees quests
 
 /**
  * Friend Quest System — Server-Authoritative
  *
- * 10 quest types generated from user's real friends list.
+ * 10 friend quest types generated from user's real friends list.
+ * 3 solo/starter quest types for users with no friends.
  * Server is the source of truth — client only renders.
  * Tracks progress, grants rewards (wallet + notification), duplicate protection.
  *
@@ -19,7 +20,7 @@ var FQ_COLLECTION = 'friend_quests';
 var FQ_MAX_ACTIVE = 3;
 var FQ_REFRESH_HOURS = 8;
 
-// 10 quest types matching client-side QuestType enum
+// 10 friend quest types matching client-side QuestType enum
 var FQ_QUEST_TYPES = [
     'PlayTogether',
     'ChallengeFriend',
@@ -32,6 +33,32 @@ var FQ_QUEST_TYPES = [
     'ShareScore',
     'WinThreeQuizzes'
 ];
+
+// 3 solo/starter quest types for users with no friends
+var FQ_SOLO_QUEST_TYPES = [
+    'CompleteQuiz',
+    'DailyChallenge',
+    'ScoreTarget'
+];
+
+// Solo quest templates — no friend required
+var FQ_SOLO_TEMPLATES = {
+    CompleteQuiz: {
+        title: 'Complete a Quiz',
+        desc: 'Finish any quiz to earn your first quest reward!',
+        target: 1, coins: 30, xp: 15
+    },
+    DailyChallenge: {
+        title: 'Daily Challenge',
+        desc: 'Complete the Daily Quiz today',
+        target: 1, coins: 50, xp: 25
+    },
+    ScoreTarget: {
+        title: 'Score Champion',
+        desc: 'Score 80% or higher in any quiz',
+        target: 1, coins: 60, xp: 30
+    }
+};
 
 // Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
 var FQ_TEMPLATES = {
@@ -179,8 +206,8 @@ function fqGenerateQuests(nk, logger, userId, existingData) {
     }
 
     if (friends.length === 0) {
-        logger.info('[FriendQuests] No friends found for user ' + userId + ' — no quests generated');
-        return [];
+        logger.info('[FriendQuests] No friends found for user ' + userId + ' — generating solo starter quests');
+        return fqGenerateSoloQuests(nk, logger, userId, existingData);
     }
 
     // Determine how many quests to generate
@@ -237,6 +264,55 @@ function fqGenerateQuests(nk, logger, userId, existingData) {
 
     logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests from ' +
                 friends.length + ' friends for user ' + userId);
+    return newQuests;
+}
+
+/**
+ * Generate solo/starter quests for users with no friends.
+ * Keeps the feature visible and actionable even without a social graph.
+ */
+function fqGenerateSoloQuests(nk, logger, userId, existingData) {
+    var activeCount = 0;
+    var now = new Date();
+    if (existingData && existingData.quests) {
+        for (var j = 0; j < existingData.quests.length; j++) {
+            var q = existingData.quests[j];
+            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) {
+                activeCount++;
+            }
+        }
+    }
+
+    var toGenerate = FQ_MAX_ACTIVE - activeCount;
+    if (toGenerate <= 0) return existingData ? existingData.quests : [];
+
+    var newQuests = [];
+    var expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString();
+    var createdAt = now.toISOString();
+
+    for (var k = 0; k < toGenerate; k++) {
+        var questType = FQ_SOLO_QUEST_TYPES[k % FQ_SOLO_QUEST_TYPES.length];
+        var template = FQ_SOLO_TEMPLATES[questType];
+        if (!template) continue;
+
+        newQuests.push({
+            questId: fqGenerateId(),
+            type: questType,
+            friendId: '',
+            friendDisplayName: '',
+            title: template.title,
+            description: template.desc,
+            currentProgress: 0,
+            targetProgress: template.target,
+            isCompleted: false,
+            coinReward: template.coins,
+            xpReward: template.xp,
+            createdAt: createdAt,
+            expiresAt: expiresAt
+        });
+    }
+
+    logger.info('[FriendQuests] Generated ' + newQuests.length + ' solo starter quests for user ' + userId);
     return newQuests;
 }
 
@@ -437,7 +513,11 @@ var FQ_EVENT_RULES = {
     PerfectRound:    { events: ['perfect_round','quiz_complete'] },
     ExploreTogether: { events: ['geo_explore_play'] },
     ShareScore:      { events: ['share_score'] },
-    WinThreeQuizzes: { events: ['quiz_win'] }
+    WinThreeQuizzes: { events: ['quiz_win'] },
+    // Solo quest event rules
+    CompleteQuiz:    { events: ['quiz_complete'] },
+    DailyChallenge:  { events: ['daily_quiz_complete'] },
+    ScoreTarget:     { events: ['quiz_complete','quiz_win'] }
 };
 
 function rpcFriendQuestRecordProgress(ctx, logger, nk, payload) {

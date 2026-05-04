@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-05-02T19:22:14.269Z
-// RPC Count: 705
+// Generated: 2026-05-04T11:33:13.473Z
+// RPC Count: 713
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -678,6 +678,14 @@ var __rpc_quests_wallet_earn;
 var __rpc_quests_wallet_spend;
 var __rpc_quests_wallet_history;
 var __rpc_quests_wallet_migrate_from_postgres;
+var __rpc_quizverse_fetch_news_quiz;
+var __rpc_quizverse_quiz_generate;
+var __rpc__id_;
+var __rpc_quizverse_seen_get;
+var __rpc_quizverse_seen_merge;
+var __rpc_quizverse_seen_purge;
+var __rpc_quizverse_seen_reset;
+var __rpc_quizverse_seen_stats;
 var __rpc_hiro_get_streaks;
 var __rpc_hiro_streak_get;
 var __rpc_hiro_claim_streak;
@@ -718,7 +726,7 @@ var __rpc_visual_path_skip_day_with_ad;
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
 var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"creator_event_fund_pool":true,"creator_event_spa_claim":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"ad_revenue_record":true,"fortune_wheel_ad_spin":true,"country_tier_get":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
-// --- Discovered Modules (81 files) ---
+// --- Discovered Modules (84 files) ---
 
 // --- Module: achievements\achievements.js ---
 /**
@@ -26702,7 +26710,7 @@ function rpcMarkNotificationsRead(ctx, logger, nk, payload) {
 
 
 // --- Module: onboarding\onboarding.js ---
-/**
+﻿/**
  * Nakama Onboarding Module
  * Handles user onboarding state, preferences, and first-session hooks
  * 
@@ -26911,7 +26919,7 @@ function initializeNewUser(nk, logger, userId) {
         userId: userId,
         createdAt: now,
         currentStep: 1,
-        totalSteps: 9,  // #QVVBS54 FIX: Match Unity's 9-step onboarding flow
+        totalSteps: 5,  // V2 Onboarding has 5 steps
         completedSteps: [],
         welcomeBonusClaimed: false,
         firstQuizCompleted: false,
@@ -27126,13 +27134,13 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
             var hasGameActivity = checkUserHasGameActivity(nk, logger, userId);
             
             if (hasGameActivity) {
-                logger.info(`[Onboarding] #QVVBS54: User ${userId} has game activity but no onboarding state - marking complete`);
+                logger.info(`[Onboarding] User ${userId} has game activity but no onboarding state - marking complete`);
                 var completedState = {
                     userId: userId,
                     createdAt: Date.now(),
-                    currentStep: 10,
-                    totalSteps: 9,
-                    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    currentStep: 6,
+                    totalSteps: 5,
+                    completedSteps: [1, 2, 3, 4, 5],
                     welcomeBonusClaimed: true,
                     firstQuizCompleted: true,
                     onboardingComplete: true,
@@ -27162,7 +27170,7 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
                 isNewUser: true,
                 state: {
                     currentStep: 1,
-                    totalSteps: 9,  // #QVVBS54 FIX: Match Unity's 9-step flow
+                    totalSteps: 5,  // V2 Onboarding has 5 steps
                     completedSteps: [],
                     welcomeBonusClaimed: false,
                     firstQuizCompleted: false,
@@ -27184,8 +27192,8 @@ function rpcGetOnboardingState(ctx, logger, nk, payload) {
                 if (checkUserHasGameActivity(nk, logger, userId)) {
                     logger.info(`[Onboarding] #QVVBS52: User ${userId} has row with onboardingComplete=false but verified game activity - auto-healing to complete`);
                     storedState.onboardingComplete = true;
-                    storedState.currentStep = Math.max(storedState.currentStep || 0, (storedState.totalSteps || 9) + 1);
-                    storedState.completedSteps = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+                    storedState.currentStep = Math.max(storedState.currentStep || 0, (storedState.totalSteps || 5) + 1);
+                    storedState.completedSteps = [1, 2, 3, 4, 5];
                     storedState.welcomeBonusClaimed = true;
                     storedState.firstQuizCompleted = true;
                     storedState.recoveredFromActivity = true;
@@ -27265,7 +27273,7 @@ function rpcUpdateOnboardingState(ctx, logger, nk, payload) {
 
 /**
  * RPC: Complete a specific onboarding step
- * #QVVBS54 FIX: Also marks complete if stepId >= 9 (final step)
+ * V2 Onboarding has 5 steps; marks complete when stepId >= 5
  */
 function rpcCompleteStep(ctx, logger, nk, payload) {
     var userId = ctx.userId;
@@ -27282,15 +27290,15 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
         // #QVVBS54 FIX: If no state exists, create it and mark complete
         // This handles edge case where user completed onboarding but state was lost
         if (result.length === 0) {
-            if (stepId >= 9) {
+            if (stepId >= 5) {
                 // User is trying to complete final step - they've done onboarding
-                logger.info(`[Onboarding] #QVVBS54: Creating completed state for user ${userId} (step ${stepId})`);
+                logger.info(`[Onboarding] Creating completed state for user ${userId} (step ${stepId})`);
                 var completedState = {
                     userId: userId,
                     createdAt: Date.now(),
-                    currentStep: 10,
-                    totalSteps: 9,
-                    completedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    currentStep: 6,
+                    totalSteps: 5,
+                    completedSteps: [1, 2, 3, 4, 5],
                     welcomeBonusClaimed: true,
                     firstQuizCompleted: true,
                     onboardingComplete: true,
@@ -27322,7 +27330,7 @@ function rpcCompleteStep(ctx, logger, nk, payload) {
         }
 
         // #QVVBS54 FIX: Mark complete if step 9 is completed OR if all steps are done
-        if (stepId >= 9 || state.completedSteps.length >= state.totalSteps) {
+        if (stepId >= 5 || state.completedSteps.length >= state.totalSteps) {
             state.onboardingComplete = true;
             logger.info(`[Onboarding] User ${userId} completed onboarding!`);
         }
@@ -32619,9 +32627,1274 @@ function registerQuizverseDepthRPCs(initializer, logger) {
 }
 
 
+// --- Module: quizverse_news_quiz\quizverse_news_quiz.js ---
+// quizverse_news_quiz.js — Server-side news fetching for QuizVerse News Quiz
+// Nakama V8 JavaScript runtime (No ES Modules)
+//
+// RPC: quizverse_fetch_news_quiz
+//   Fetches news articles from GNews API (+ NewsAPI fallback), caches results
+//   in Nakama storage for 6 hours so the shared API key is never exhausted.
+//   API keys live in server env vars — never in client code.
+//
+// Required env vars:
+//   GNEWS_API_KEY   — GNews.io API key (100 req/day free tier)
+//   NEWSAPI_API_KEY — NewsAPI.org API key (fallback)
+//
+// Response JSON:
+//   { success: true, articles: [{title, description, imageUrl, sourceName, category, publishedAt}],
+//     count: N, source: "gnews"|"newsapi"|"gnews+newsapi"|"*_cached"|"stale_cache", cached: bool }
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+var NQ_COLLECTION = "qv_news_cache";
+var NQ_KEY = "articles_v1";
+var NQ_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+var NQ_CACHE_TTL_SECONDS = 6 * 60 * 60; // 6 hours — keeps within 100 req/day limit
+var NQ_HTTP_TIMEOUT_MS = 15000;
+var NQ_MIN_ARTICLES = 8;
+var NQ_MAX_PER_CATEGORY = 10;
+
+var NQ_GNEWS_BASE_URL = "https://gnews.io/api/v4";
+var NQ_NEWSAPI_BASE_URL = "https://newsapi.org/v2";
+
+var NQ_GNEWS_CATEGORIES = [
+    "general", "world", "technology", "entertainment", "sports", "science", "health", "business"
+];
+
+var NQ_SERVER_USER_AGENT = "Mozilla/5.0 (compatible; QuizVerseServer/1.0)";
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function nqEnv(ctx, key) {
+    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
+        return String(ctx.env[key]);
+    }
+    return "";
+}
+
+function nqNowUnix() {
+    return Math.floor(Date.now() / 1000);
+}
+
+function nqOk(data) {
+    var out = { success: true };
+    if (data) {
+        for (var k in data) {
+            if (Object.prototype.hasOwnProperty.call(data, k)) out[k] = data[k];
+        }
+    }
+    return JSON.stringify(out);
+}
+
+function nqErr(msg) {
+    return JSON.stringify({ success: false, error: msg || "internal error" });
+}
+
+// Fisher-Yates shuffle
+function nqShuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+}
+
+// ============================================================================
+// STORAGE CACHE
+// ============================================================================
+
+function nqReadCache(nk) {
+    try {
+        var records = nk.storageRead([{
+            collection: NQ_COLLECTION,
+            key: NQ_KEY,
+            userId: NQ_SYSTEM_USER
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value;
+        }
+    } catch (e) { /* cache miss */ }
+    return null;
+}
+
+function nqWriteCache(nk, articles, source) {
+    try {
+        nk.storageWrite([{
+            collection: NQ_COLLECTION,
+            key: NQ_KEY,
+            userId: NQ_SYSTEM_USER,
+            value: {
+                articles: articles,
+                source: source,
+                cachedAt: nqNowUnix()
+            },
+            permissionRead: 2,  // Public read so any authenticated user can hit it
+            permissionWrite: 0  // Server-only write
+        }]);
+    } catch (e) { /* best-effort */ }
+}
+
+// ============================================================================
+// GNEWS FETCH (primary)
+// ============================================================================
+
+function nqFetchFromGNews(nk, logger, apiKey) {
+    var articles = [];
+    if (!apiKey) {
+        logger.warn("[NewsQuiz] GNEWS_API_KEY not set in env vars");
+        return articles;
+    }
+
+    var cats = nqShuffle(NQ_GNEWS_CATEGORIES.slice()).slice(0, 3);
+
+    for (var ci = 0; ci < cats.length; ci++) {
+        var cat = cats[ci];
+        var url = NQ_GNEWS_BASE_URL + "/top-headlines?category=" + cat +
+                  "&lang=en&country=us&max=" + NQ_MAX_PER_CATEGORY +
+                  "&apikey=" + apiKey;
+        try {
+            var resp = nk.httpRequest(url, "get", {
+                "User-Agent": NQ_SERVER_USER_AGENT,
+                "Accept": "application/json"
+            }, null, NQ_HTTP_TIMEOUT_MS);
+
+            if (resp.code !== 200) {
+                logger.warn("[NewsQuiz] GNews '" + cat + "' HTTP " + resp.code);
+                if (resp.code === 403 || resp.code === 429) break; // key exhausted or rate-limited
+                continue;
+            }
+
+            var data = JSON.parse(resp.body || "{}");
+            if (!data.articles) continue;
+
+            for (var ai = 0; ai < data.articles.length; ai++) {
+                var a = data.articles[ai];
+                if (!a.title || !a.image) continue;
+                if (a.title.indexOf("[Removed]") >= 0) continue;
+                articles.push({
+                    title: a.title,
+                    description: a.description || a.title,
+                    imageUrl: a.image,
+                    sourceName: (a.source && a.source.name) ? a.source.name : "Unknown",
+                    category: cat.charAt(0).toUpperCase() + cat.slice(1),
+                    publishedAt: a.publishedAt || ""
+                });
+            }
+            logger.info("[NewsQuiz] GNews '" + cat + "': " + articles.length + " articles so far");
+        } catch (e) {
+            logger.error("[NewsQuiz] GNews '" + cat + "' error: " + e.message);
+        }
+    }
+
+    return articles;
+}
+
+// ============================================================================
+// NEWSAPI FALLBACK
+// ============================================================================
+
+function nqFetchFromNewsApi(nk, logger, apiKey) {
+    var articles = [];
+    if (!apiKey) {
+        logger.warn("[NewsQuiz] NEWSAPI_API_KEY not set in env vars");
+        return articles;
+    }
+
+    var url = NQ_NEWSAPI_BASE_URL + "/top-headlines?country=us&pageSize=30&apiKey=" + apiKey;
+    try {
+        var resp = nk.httpRequest(url, "get", {
+            "User-Agent": NQ_SERVER_USER_AGENT,
+            "Accept": "application/json",
+            "X-Api-Key": apiKey
+        }, null, NQ_HTTP_TIMEOUT_MS);
+
+        if (resp.code !== 200) {
+            logger.warn("[NewsQuiz] NewsAPI HTTP " + resp.code);
+            return articles;
+        }
+
+        var data = JSON.parse(resp.body || "{}");
+        if (!data.articles) return articles;
+
+        for (var ai = 0; ai < data.articles.length; ai++) {
+            var a = data.articles[ai];
+            if (!a.title || !a.urlToImage) continue;
+            if (a.title.indexOf("[Removed]") >= 0) continue;
+            articles.push({
+                title: a.title,
+                description: a.description || a.title,
+                imageUrl: a.urlToImage,
+                sourceName: (a.source && a.source.name) ? a.source.name : "Unknown",
+                category: "News",
+                publishedAt: a.publishedAt || ""
+            });
+        }
+        logger.info("[NewsQuiz] NewsAPI: " + articles.length + " articles");
+    } catch (e) {
+        logger.error("[NewsQuiz] NewsAPI error: " + e.message);
+    }
+
+    return articles;
+}
+
+// ============================================================================
+// RPC HANDLER
+// ============================================================================
+
+/**
+ * quizverse_fetch_news_quiz
+ *
+ * Returns cached or freshly fetched news articles for the News Quiz mode.
+ * Request payload: {} (no parameters needed)
+ * Response: { success: true, articles: [...], count: N, source: "...", cached: bool }
+ */
+function rpcQuizverseFetchNewsQuiz(ctx, logger, nk, payload) {
+    // 1. Serve from storage cache if still fresh
+    var cached = nqReadCache(nk);
+    if (cached && cached.articles && cached.articles.length >= NQ_MIN_ARTICLES) {
+        var ageSeconds = nqNowUnix() - (cached.cachedAt || 0);
+        if (ageSeconds < NQ_CACHE_TTL_SECONDS) {
+            logger.info("[NewsQuiz] Cache hit: " + cached.articles.length + " articles, age=" + ageSeconds + "s");
+            return nqOk({
+                articles: cached.articles,
+                count: cached.articles.length,
+                source: (cached.source || "unknown") + "_cached",
+                cached: true
+            });
+        }
+        logger.info("[NewsQuiz] Cache stale (age=" + ageSeconds + "s) — refreshing");
+    }
+
+    // 2. Fetch fresh data
+    var gnewsKey = nqEnv(ctx, "GNEWS_API_KEY");
+    var newsApiKey = nqEnv(ctx, "NEWSAPI_API_KEY");
+
+    var articles = nqFetchFromGNews(nk, logger, gnewsKey);
+    var source = "gnews";
+
+    if (articles.length < NQ_MIN_ARTICLES) {
+        logger.warn("[NewsQuiz] GNews returned only " + articles.length + " articles, trying NewsAPI fallback...");
+        var fallback = nqFetchFromNewsApi(nk, logger, newsApiKey);
+        if (fallback.length > 0) {
+            articles = articles.concat(fallback);
+            source = articles.length > 0 ? "gnews+newsapi" : source;
+        }
+    }
+
+    // 3. Handle empty response — return stale cache rather than nothing
+    if (articles.length === 0) {
+        logger.error("[NewsQuiz] All sources returned 0 articles");
+        if (cached && cached.articles && cached.articles.length > 0) {
+            logger.warn("[NewsQuiz] Returning stale cache (" + cached.articles.length + " articles)");
+            return nqOk({
+                articles: cached.articles,
+                count: cached.articles.length,
+                source: "stale_cache",
+                cached: true
+            });
+        }
+        return nqErr("No news articles available — check GNEWS_API_KEY and NEWSAPI_API_KEY env vars");
+    }
+
+    // 4. Write to storage cache
+    nqWriteCache(nk, articles, source);
+
+    logger.info("[NewsQuiz] Fetched " + articles.length + " articles from " + source + " — cached for 6h");
+    return nqOk({
+        articles: articles,
+        count: articles.length,
+        source: source,
+        cached: false
+    });
+}
+
+// ============================================================================
+// MODULE INIT
+// ============================================================================
+
+function __ModuleInit_66(ctx, logger, nk, initializer) {
+    __rpc_quizverse_fetch_news_quiz = __rpc_quizverse_fetch_news_quiz || (rpcQuizverseFetchNewsQuiz);
+    logger.info("[NewsQuiz] Registered RPC: quizverse_fetch_news_quiz");
+}
+
+
+// --- Module: quizverse_quiz_generate\quizverse_quiz_generate.js ---
+// quizverse_quiz_generate.js - Server-authoritative question delivery RPC
+// Nakama V8 JavaScript runtime (No ES Modules)
+//
+// Fetches the question pool (from S3 URL), filters out seen questions using
+// the qv_seen ledger, handles exhaustion (purge stale → backfill oldest),
+// and returns a fresh, deduplicated set of questions.
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+var QQG_COLLECTION = "qv_seen";
+var QQG_DEFAULT_COUNT = 10;
+var QQG_DEFAULT_REPEAT_AFTER_DAYS = 30;
+var QQG_MAX_COUNT = 50;
+var QQG_HTTP_TIMEOUT_MS = 10000;
+
+// ============================================================================
+// UTILITY HELPERS (self-contained, no cross-module deps)
+// ============================================================================
+
+function qqgParsePayload(payload, requiredFields) {
+    var data = {};
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (e) {
+        throw Error("Invalid JSON payload");
+    }
+    for (var i = 0; i < requiredFields.length; i++) {
+        if (data[requiredFields[i]] === undefined || data[requiredFields[i]] === null) {
+            throw Error("Missing required field: " + requiredFields[i]);
+        }
+    }
+    return data;
+}
+
+function qqgStorageRead(nk, collection, key, userId) {
+    var records = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+    if (records && records.length > 0 && records[0].value) {
+        return records[0].value;
+    }
+    return null;
+}
+
+function qqgStorageWrite(nk, collection, key, userId, value) {
+    nk.storageWrite([{
+        collection: collection,
+        key: key,
+        userId: userId,
+        value: value,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function qqgNowUnix() {
+    return Math.floor(Date.now() / 1000);
+}
+
+function qqgSlugify(str) {
+    if (!str) return "unknown";
+    return str.trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+        .substring(0, 64);
+}
+
+function qqgBuildStorageKey(scope, topic) {
+    var slug = qqgSlugify(topic);
+    return (scope || "global") + "_" + slug;
+}
+
+// ============================================================================
+// QUESTION ID HASHING (must match Unity QuestionIdHasher.cs)
+// ============================================================================
+
+/**
+ * Compute a stable question ID.
+ * Algorithm: SHA-256 of normalized(question + "|" + sorted_options), take first 12 hex chars.
+ * Result: prefix_topicSlug_hash12
+ *
+ * @param {string} prefix - e.g., "s3", "ai", "ext"
+ * @param {string} topic - e.g., "science"
+ * @param {string} question - the question text
+ * @param {string[]} options - the answer options
+ * @returns {string} stable question ID
+ */
+function qqgComputeQuestionId(nk, prefix, topic, question, options) {
+    // Normalize
+    var normalizedQ = (question || "").trim().toLowerCase();
+    var normalizedOpts = [];
+    if (options && options.length > 0) {
+        for (var i = 0; i < options.length; i++) {
+            normalizedOpts.push((options[i] || "").trim().toLowerCase());
+        }
+        normalizedOpts.sort();
+    }
+
+    var raw = normalizedQ;
+    for (var j = 0; j < normalizedOpts.length; j++) {
+        raw += "|" + normalizedOpts[j];
+    }
+
+    // SHA-256 hash → first 12 hex chars
+    var hashBytes = nk.sha256Hash(raw); // returns hex string
+    var hash12 = hashBytes.substring(0, 12);
+
+    var slug = qqgSlugify(topic);
+    return prefix + "_" + slug + "_" + hash12;
+}
+
+// ============================================================================
+// SEEN LEDGER HELPERS (read-through, no external module dependency)
+// ============================================================================
+
+function qqgSeenRead(nk, userId, scope, topic) {
+    var key = qqgBuildStorageKey(scope, topic);
+    var data = qqgStorageRead(nk, QQG_COLLECTION, key, userId);
+    if (!data || !data.ids) {
+        return { ids: {} };
+    }
+    return data;
+}
+
+function qqgSeenMerge(nk, userId, scope, topic, questionIds) {
+    if (!questionIds || questionIds.length === 0) return;
+    var key = qqgBuildStorageKey(scope, topic);
+    var data = qqgStorageRead(nk, QQG_COLLECTION, key, userId);
+    if (!data || !data.ids) {
+        data = { ids: {}, version: 1 };
+    }
+    var now = qqgNowUnix();
+    for (var i = 0; i < questionIds.length; i++) {
+        if (questionIds[i]) data.ids[questionIds[i]] = now;
+    }
+    data.version = 1;
+    qqgStorageWrite(nk, QQG_COLLECTION, key, userId, data);
+}
+
+function qqgSeenPurgeStale(nk, userId, scope, topic, repeatAfterDays) {
+    var key = qqgBuildStorageKey(scope, topic);
+    var data = qqgStorageRead(nk, QQG_COLLECTION, key, userId);
+    if (!data || !data.ids) return 0;
+    var cutoff = qqgNowUnix() - (repeatAfterDays * 86400);
+    var purged = 0;
+    var keys = Object.keys(data.ids);
+    for (var i = 0; i < keys.length; i++) {
+        if (data.ids[keys[i]] < cutoff) {
+            delete data.ids[keys[i]];
+            purged++;
+        }
+    }
+    if (purged > 0) {
+        data.version = 1;
+        qqgStorageWrite(nk, QQG_COLLECTION, key, userId, data);
+    }
+    return purged;
+}
+
+// ============================================================================
+// POOL FETCHING
+// ============================================================================
+
+/**
+ * Fetch question pool from an S3 URL via HTTP GET.
+ * Returns the parsed JSON array of questions, or null on failure.
+ */
+function qqgFetchPool(nk, logger, url) {
+    if (!url) return null;
+
+    try {
+        var response = nk.httpRequest(url, "get", {}, null, QQG_HTTP_TIMEOUT_MS);
+        if (response.code !== 200) {
+            logger.warn("[QuizGen] HTTP " + response.code + " from " + url);
+            return null;
+        }
+
+        var body = response.body;
+        if (!body) return null;
+
+        var parsed = JSON.parse(body);
+
+        // Handle different S3 JSON formats
+        // Format 1: { questions: [...] }
+        if (parsed.questions && Array.isArray(parsed.questions)) {
+            return parsed.questions;
+        }
+        // Format 2: { topics: { science: { questions: [...] } } }
+        if (parsed.topics && typeof parsed.topics === "object") {
+            return parsed;  // Return the whole object, topic extraction done later
+        }
+        // Format 3: Direct array
+        if (Array.isArray(parsed)) {
+            return parsed;
+        }
+
+        logger.warn("[QuizGen] Unexpected JSON structure from " + url);
+        return null;
+
+    } catch (err) {
+        logger.error("[QuizGen] Failed to fetch pool from " + url + ": " + err.message);
+        return null;
+    }
+}
+
+/**
+ * Extract questions for a specific topic from the pool data.
+ * Handles both flat arrays and nested topic structures.
+ */
+function qqgExtractTopicQuestions(poolData, topic) {
+    if (!poolData) return [];
+
+    // If it's a direct array, return all (no topic filtering needed)
+    if (Array.isArray(poolData)) {
+        return poolData;
+    }
+
+    // If it has topics, extract the specific topic
+    if (poolData.topics && typeof poolData.topics === "object") {
+        var topicSlug = qqgSlugify(topic);
+        // Try exact match first, then slug match
+        for (var key in poolData.topics) {
+            if (key === topic || qqgSlugify(key) === topicSlug) {
+                var topicData = poolData.topics[key];
+                if (topicData.questions && Array.isArray(topicData.questions)) {
+                    return topicData.questions;
+                }
+                if (Array.isArray(topicData)) {
+                    return topicData;
+                }
+            }
+        }
+    }
+
+    // If it has a questions array at root
+    if (poolData.questions && Array.isArray(poolData.questions)) {
+        return poolData.questions;
+    }
+
+    return [];
+}
+
+// ============================================================================
+// FILTERING & SAMPLING
+// ============================================================================
+
+/**
+ * Fisher-Yates shuffle (in-place).
+ */
+function qqgShuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+    return arr;
+}
+
+/**
+ * Compute IDs for all questions in the pool and filter out seen ones.
+ *
+ * @returns {{ unseen: Array, seen: Array, allWithIds: Array }}
+ */
+function qqgFilterPool(nk, questions, seenIdSet, prefix, topic) {
+    var unseen = [];
+    var seen = [];
+    var allWithIds = [];
+
+    for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var qText = q.question || q.Question || q.text || "";
+        var qOpts = q.options || q.Options || q.answers || [];
+
+        // Ensure options is an array of strings
+        if (!Array.isArray(qOpts)) qOpts = [];
+        var strOpts = [];
+        for (var oi = 0; oi < qOpts.length; oi++) {
+            strOpts.push(String(qOpts[oi] || ""));
+        }
+
+        var qid = qqgComputeQuestionId(nk, prefix, topic, qText, strOpts);
+        q._qid = qid;  // Attach the ID to the question object
+        allWithIds.push(q);
+
+        if (seenIdSet[qid]) {
+            seen.push(q);
+        } else {
+            unseen.push(q);
+        }
+    }
+
+    return { unseen: unseen, seen: seen, allWithIds: allWithIds };
+}
+
+/**
+ * Backfill from oldest-seen questions when pool is exhausted.
+ * Sorts the seen questions by timestamp (oldest first) and takes the needed count.
+ */
+function qqgBackfillFromOldest(seenQuestions, seenLedger, needed) {
+    if (!seenQuestions || seenQuestions.length === 0 || needed <= 0) return [];
+
+    // Sort by their seen timestamp (oldest first)
+    seenQuestions.sort(function(a, b) {
+        var tsA = seenLedger.ids[a._qid] || 0;
+        var tsB = seenLedger.ids[b._qid] || 0;
+        return tsA - tsB;
+    });
+
+    return seenQuestions.slice(0, needed);
+}
+
+// ============================================================================
+// MAIN RPC
+// ============================================================================
+
+/**
+ * RPC: quizverse_quiz_generate
+ *
+ * Server-authoritative question delivery.
+ * Fetches pool → filters seen → handles exhaustion → returns fresh questions.
+ *
+ * Request:
+ * {
+ *   "mode": "PickATopic",           // Quiz mode name (for logging)
+ *   "scope": "global",              // Ledger scope
+ *   "topic": "science",             // Topic name
+ *   "count": 10,                    // Number of questions requested
+ *   "lang": "en",                   // Language code
+ *   "question_bank_url": "https://...",  // S3 URL to fetch pool from
+ *   "repeat_after_days": 30,        // Optional: days before recycling
+ *   "id_prefix": "s3",              // Optional: prefix for question IDs (default "s3")
+ *   "questions": [...]              // Optional: pre-fetched questions (skip HTTP fetch)
+ * }
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "questions": [...],
+ *   "question_ids": ["s3_science_abc123", ...],
+ *   "meta": {
+ *     "total_pool": 200,
+ *     "unseen_pool": 185,
+ *     "stale_recycled": 0,
+ *     "backfilled": 0,
+ *     "pool_exhaustion_pct": 7.5,
+ *     "source": "s3_filtered"
+ *   }
+ * }
+ */
+function rpcQuizverseQuizGenerate(ctx, logger, nk, payload) {
+    try {
+        var data = qqgParsePayload(payload, ["scope", "topic"]);
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "User not authenticated" });
+        }
+
+        var mode = data.mode || "unknown";
+        var scope = data.scope || "global";
+        var topic = data.topic;
+        var count = Math.min(parseInt(data.count) || QQG_DEFAULT_COUNT, QQG_MAX_COUNT);
+        var repeatAfterDays = parseInt(data.repeat_after_days) || QQG_DEFAULT_REPEAT_AFTER_DAYS;
+        var idPrefix = data.id_prefix || "s3";
+
+        logger.info("[QuizGen] Request: mode=" + mode + " scope=" + scope +
+            " topic=" + topic + " count=" + count + " user=" + userId);
+
+        // ── Step 1: Get the question pool ──
+        var questions = null;
+
+        // Option A: Questions passed inline (client already fetched)
+        if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+            questions = data.questions;
+            logger.info("[QuizGen] Using " + questions.length + " inline questions");
+        }
+        // Option B: Fetch from S3 URL
+        else if (data.question_bank_url) {
+            var poolData = qqgFetchPool(nk, logger, data.question_bank_url);
+            if (poolData) {
+                questions = qqgExtractTopicQuestions(poolData, topic);
+                logger.info("[QuizGen] Fetched " + questions.length + " questions from S3 for topic=" + topic);
+            }
+        }
+
+        if (!questions || questions.length === 0) {
+            return JSON.stringify({
+                success: false,
+                error: "No questions available",
+                meta: { source: "empty_pool" }
+            });
+        }
+
+        // ── Step 2: Read the seen ledger ──
+        var seenLedger = qqgSeenRead(nk, userId, scope, topic);
+        var seenIdSet = {};
+        var seenKeys = Object.keys(seenLedger.ids);
+        for (var si = 0; si < seenKeys.length; si++) {
+            seenIdSet[seenKeys[si]] = true;
+        }
+
+        // ── Step 3: Filter pool ──
+        var filtered = qqgFilterPool(nk, questions, seenIdSet, idPrefix, topic);
+        var totalPool = filtered.allWithIds.length;
+        var unseenPool = filtered.unseen.length;
+        var staleRecycled = 0;
+        var backfilled = 0;
+
+        // ── Step 4: Handle exhaustion ──
+        var available = filtered.unseen;
+
+        if (available.length < count) {
+            // Try purging stale entries first
+            var purged = qqgSeenPurgeStale(nk, userId, scope, topic, repeatAfterDays);
+            if (purged > 0) {
+                staleRecycled = purged;
+                logger.info("[QuizGen] Purged " + purged + " stale entries, re-filtering...");
+
+                // Re-read the ledger and re-filter
+                seenLedger = qqgSeenRead(nk, userId, scope, topic);
+                seenIdSet = {};
+                seenKeys = Object.keys(seenLedger.ids);
+                for (var si2 = 0; si2 < seenKeys.length; si2++) {
+                    seenIdSet[seenKeys[si2]] = true;
+                }
+                filtered = qqgFilterPool(nk, questions, seenIdSet, idPrefix, topic);
+                available = filtered.unseen;
+                unseenPool = available.length;
+            }
+        }
+
+        if (available.length < count) {
+            // Backfill from oldest-seen
+            var needed = count - available.length;
+            var backfillItems = qqgBackfillFromOldest(filtered.seen, seenLedger, needed);
+            backfilled = backfillItems.length;
+            available = available.concat(backfillItems);
+            logger.info("[QuizGen] Backfilled " + backfilled + " from oldest-seen");
+        }
+
+        // ── Step 5: Random sample ──
+        qqgShuffle(available);
+        var selected = available.slice(0, count);
+
+        // ── Step 6: Build response ──
+        var questionIds = [];
+        var responseQuestions = [];
+
+        for (var qi = 0; qi < selected.length; qi++) {
+            var q = selected[qi];
+            questionIds.push(q._qid);
+
+            // Clean up internal field before returning
+            var cleanQ = {};
+            for (var qk in q) {
+                if (qk !== "_qid") {
+                    cleanQ[qk] = q[qk];
+                }
+            }
+            cleanQ.id = q._qid;
+            responseQuestions.push(cleanQ);
+        }
+
+        var exhaustionPct = totalPool > 0
+            ? Math.round(((totalPool - unseenPool) / totalPool) * 1000) / 10
+            : 0;
+
+        logger.info("[QuizGen] Delivered " + selected.length + " questions: " +
+            "pool=" + totalPool + " unseen=" + unseenPool +
+            " stale_recycled=" + staleRecycled + " backfilled=" + backfilled +
+            " exhaustion=" + exhaustionPct + "%");
+
+        return JSON.stringify({
+            success: true,
+            questions: responseQuestions,
+            question_ids: questionIds,
+            meta: {
+                total_pool: totalPool,
+                unseen_pool: unseenPool,
+                stale_recycled: staleRecycled,
+                backfilled: backfilled,
+                pool_exhaustion_pct: exhaustionPct,
+                source: idPrefix + "_filtered"
+            }
+        });
+
+    } catch (err) {
+        logger.error("[QuizGen] rpcQuizverseQuizGenerate error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// REGISTRATION
+// ============================================================================
+
+function registerQuizverseQuizGenerateRPCs(initializer, logger) {
+    logger.info("[QuizGen] Initializing QuizVerse Quiz Generate RPCs...");
+
+    if (!globalThis.__registeredRPCs) {
+        globalThis.__registeredRPCs = new Set();
+    }
+
+    var rpcs = [
+        { id: "quizverse_quiz_generate", handler: rpcQuizverseQuizGenerate }
+    ];
+
+    var registered = 0;
+    var skipped = 0;
+
+    for (var i = 0; i < rpcs.length; i++) {
+        var rpc = rpcs[i];
+        if (!globalThis.__registeredRPCs.has(rpc.id)) {
+            try {
+                initializer.registerRpc(rpc.id, rpc.handler);
+                globalThis.__registeredRPCs.add(rpc.id);
+                logger.info("[QuizGen] Registered RPC: " + rpc.id);
+                registered++;
+            } catch (err) {
+                logger.error("[QuizGen] Failed to register " + rpc.id + ": " + err.message);
+            }
+        } else {
+            logger.info("[QuizGen] Skipped (already registered): " + rpc.id);
+            skipped++;
+        }
+    }
+
+    logger.info("[QuizGen] Registration complete: " + registered + " registered, " + skipped + " skipped");
+}
+
+// ============================================================================
+// MODULE INIT (postbuild AST hook — see quizverse_seen.js for full rationale)
+// ============================================================================
+function __ModuleInit_67(ctx, logger, nk, initializer) {
+    __rpc_quizverse_quiz_generate = __rpc_quizverse_quiz_generate || (rpcQuizverseQuizGenerate);
+    logger.info("[QuizGen] Module InitModule registered: 1 RPC");
+}
+
+
+// --- Module: quizverse_seen\quizverse_seen.js ---
+// quizverse_seen.js - Per-user "seen question" ledger for zero-repetition quiz delivery
+// Nakama V8 JavaScript runtime (No ES Modules)
+// Collection: qv_seen | Key: {scope}_{topic_slug} | User-owned
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+var QVS_COLLECTION = "qv_seen";
+var QVS_VERSION = 1;
+var QVS_DEFAULT_REPEAT_AFTER_DAYS = 30;
+var QVS_MAX_LEDGER_SIZE = 10000; // Safety cap per key
+
+// ============================================================================
+// UTILITY HELPERS
+// ============================================================================
+
+function qvsParsePayload(payload, requiredFields) {
+    var data = {};
+    try {
+        data = JSON.parse(payload || "{}");
+    } catch (e) {
+        throw Error("Invalid JSON payload");
+    }
+    for (var i = 0; i < requiredFields.length; i++) {
+        if (data[requiredFields[i]] === undefined || data[requiredFields[i]] === null) {
+            throw Error("Missing required field: " + requiredFields[i]);
+        }
+    }
+    return data;
+}
+
+function qvsStorageRead(nk, collection, key, userId) {
+    var records = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+    if (records && records.length > 0 && records[0].value) {
+        return records[0].value;
+    }
+    return null;
+}
+
+function qvsStorageWrite(nk, collection, key, userId, value) {
+    nk.storageWrite([{
+        collection: collection,
+        key: key,
+        userId: userId,
+        value: value,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+function qvsNowUnix() {
+    return Math.floor(Date.now() / 1000);
+}
+
+function qvsSlugify(str) {
+    if (!str) return "unknown";
+    return str.trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+        .substring(0, 64);
+}
+
+function qvsBuildStorageKey(scope, topic) {
+    var slug = qvsSlugify(topic);
+    return (scope || "global") + "_" + slug;
+}
+
+// ============================================================================
+// CORE LEDGER OPERATIONS
+// ============================================================================
+
+/**
+ * Read the seen ledger for a given scope+topic.
+ * Returns { ids: { questionId: unixTimestamp, ... }, version: 1 }
+ */
+function qvsSeenRead(nk, userId, scope, topic) {
+    var key = qvsBuildStorageKey(scope, topic);
+    var data = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
+    if (!data || !data.ids) {
+        return { ids: {}, version: QVS_VERSION };
+    }
+    return data;
+}
+
+/**
+ * Merge new question IDs into the existing ledger.
+ * Each ID gets the current Unix timestamp.
+ */
+function qvsSeenMerge(nk, userId, scope, topic, questionIds) {
+    if (!questionIds || questionIds.length === 0) return;
+
+    var key = qvsBuildStorageKey(scope, topic);
+    var data = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
+    if (!data || !data.ids) {
+        data = { ids: {}, version: QVS_VERSION };
+    }
+
+    var now = qvsNowUnix();
+    for (var i = 0; i < questionIds.length; i++) {
+        var qid = questionIds[i];
+        if (qid && typeof qid === "string") {
+            data.ids[qid] = now;
+        }
+    }
+
+    // Safety: cap ledger size by removing oldest entries
+    var idKeys = Object.keys(data.ids);
+    if (idKeys.length > QVS_MAX_LEDGER_SIZE) {
+        // Sort by timestamp ascending, remove oldest
+        var sorted = idKeys.sort(function(a, b) { return data.ids[a] - data.ids[b]; });
+        var toRemove = sorted.length - QVS_MAX_LEDGER_SIZE;
+        for (var r = 0; r < toRemove; r++) {
+            delete data.ids[sorted[r]];
+        }
+    }
+
+    data.version = QVS_VERSION;
+    qvsStorageWrite(nk, QVS_COLLECTION, key, userId, data);
+}
+
+/**
+ * Purge stale entries older than repeatAfterDays.
+ * Returns the number of entries purged.
+ */
+function qvsSeenPurgeStale(nk, userId, scope, topic, repeatAfterDays) {
+    var key = qvsBuildStorageKey(scope, topic);
+    var data = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
+    if (!data || !data.ids) return 0;
+
+    var cutoff = qvsNowUnix() - (repeatAfterDays * 86400);
+    var purged = 0;
+    var ids = data.ids;
+    var keys = Object.keys(ids);
+
+    for (var i = 0; i < keys.length; i++) {
+        if (ids[keys[i]] < cutoff) {
+            delete ids[keys[i]];
+            purged++;
+        }
+    }
+
+    if (purged > 0) {
+        data.version = QVS_VERSION;
+        qvsStorageWrite(nk, QVS_COLLECTION, key, userId, data);
+    }
+
+    return purged;
+}
+
+/**
+ * Get the set of seen IDs (keys only) for filtering.
+ */
+function qvsSeenGetIdSet(nk, userId, scope, topic) {
+    var data = qvsSeenRead(nk, userId, scope, topic);
+    var idSet = {};
+    var keys = Object.keys(data.ids);
+    for (var i = 0; i < keys.length; i++) {
+        idSet[keys[i]] = true;
+    }
+    return idSet;
+}
+
+// ============================================================================
+// RPC HANDLERS
+// ============================================================================
+
+/**
+ * RPC: quizverse_seen_get
+ * Get a user's seen ledger for a given scope+topic.
+ *
+ * Request: { "scope": "global", "topic": "science" }
+ * Response: { "success": true, "seen_count": 150, "ids": {...}, "storage_key": "global_science" }
+ */
+function rpcQuizverseSeenGet(ctx, logger, nk, payload) {
+    try {
+        var data = qvsParsePayload(payload, ["scope", "topic"]);
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "User not authenticated" });
+        }
+
+        var ledger = qvsSeenRead(nk, userId, data.scope, data.topic);
+        var idKeys = Object.keys(ledger.ids);
+
+        return JSON.stringify({
+            success: true,
+            seen_count: idKeys.length,
+            ids: ledger.ids,
+            storage_key: qvsBuildStorageKey(data.scope, data.topic),
+            version: ledger.version
+        });
+
+    } catch (err) {
+        logger.error("rpcQuizverseSeenGet error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quizverse_seen_merge
+ * Merge a batch of question IDs into the user's seen ledger.
+ * Called by quiz_submit_result or directly after a quiz session.
+ *
+ * Request: { "scope": "global", "topic": "science", "question_ids": ["id1", "id2"] }
+ * Response: { "success": true, "merged_count": 10, "total_seen": 160 }
+ */
+function rpcQuizverseSeenMerge(ctx, logger, nk, payload) {
+    try {
+        var data = qvsParsePayload(payload, ["scope", "topic", "question_ids"]);
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "User not authenticated" });
+        }
+
+        if (!Array.isArray(data.question_ids)) {
+            return JSON.stringify({ success: false, error: "question_ids must be an array" });
+        }
+
+        qvsSeenMerge(nk, userId, data.scope, data.topic, data.question_ids);
+        var ledger = qvsSeenRead(nk, userId, data.scope, data.topic);
+
+        logger.info("[QuizverseSeen] Merged " + data.question_ids.length +
+            " IDs for user " + userId + ", scope=" + data.scope + "_" + data.topic +
+            ", total=" + Object.keys(ledger.ids).length);
+
+        return JSON.stringify({
+            success: true,
+            merged_count: data.question_ids.length,
+            total_seen: Object.keys(ledger.ids).length
+        });
+
+    } catch (err) {
+        logger.error("rpcQuizverseSeenMerge error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quizverse_seen_purge
+ * Purge stale entries older than N days.
+ *
+ * Request: { "scope": "global", "topic": "science", "repeat_after_days": 30 }
+ * Response: { "success": true, "purged_count": 5, "remaining": 145 }
+ */
+function rpcQuizverseSeenPurge(ctx, logger, nk, payload) {
+    try {
+        var data = qvsParsePayload(payload, ["scope", "topic"]);
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "User not authenticated" });
+        }
+
+        var days = parseInt(data.repeat_after_days) || QVS_DEFAULT_REPEAT_AFTER_DAYS;
+        var purged = qvsSeenPurgeStale(nk, userId, data.scope, data.topic, days);
+        var ledger = qvsSeenRead(nk, userId, data.scope, data.topic);
+
+        logger.info("[QuizverseSeen] Purged " + purged + " stale entries for user " +
+            userId + ", scope=" + data.scope + "_" + data.topic);
+
+        return JSON.stringify({
+            success: true,
+            purged_count: purged,
+            remaining: Object.keys(ledger.ids).length
+        });
+
+    } catch (err) {
+        logger.error("rpcQuizverseSeenPurge error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quizverse_seen_reset
+ * Reset (clear) a user's seen ledger for a scope+topic. Debug/admin use.
+ *
+ * Request: { "scope": "global", "topic": "science" }
+ * Response: { "success": true, "cleared_count": 150 }
+ */
+function rpcQuizverseSeenReset(ctx, logger, nk, payload) {
+    try {
+        var data = qvsParsePayload(payload, ["scope", "topic"]);
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "User not authenticated" });
+        }
+
+        var ledger = qvsSeenRead(nk, userId, data.scope, data.topic);
+        var clearedCount = Object.keys(ledger.ids).length;
+
+        var key = qvsBuildStorageKey(data.scope, data.topic);
+        qvsStorageWrite(nk, QVS_COLLECTION, key, userId, { ids: {}, version: QVS_VERSION });
+
+        logger.info("[QuizverseSeen] Reset ledger for user " + userId +
+            ", scope=" + data.scope + "_" + data.topic + ", cleared=" + clearedCount);
+
+        return JSON.stringify({
+            success: true,
+            cleared_count: clearedCount
+        });
+
+    } catch (err) {
+        logger.error("rpcQuizverseSeenReset error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: quizverse_seen_stats
+ * Get aggregated stats across all ledger scopes for a user.
+ *
+ * Request: {} (no params needed)
+ * Response: { "success": true, "scopes": { "global_science": 150, ... }, "total": 500 }
+ */
+function rpcQuizverseSeenStats(ctx, logger, nk, payload) {
+    try {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "User not authenticated" });
+        }
+
+        // List all objects in the qv_seen collection for this user
+        var cursor = "";
+        var allScopes = {};
+        var total = 0;
+
+        do {
+            var result = nk.storageList(userId, QVS_COLLECTION, 100, cursor);
+            if (result && result.objects) {
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    var count = 0;
+                    if (obj.value && obj.value.ids) {
+                        count = Object.keys(obj.value.ids).length;
+                    }
+                    allScopes[obj.key] = count;
+                    total += count;
+                }
+            }
+            cursor = (result && result.cursor) ? result.cursor : "";
+        } while (cursor && cursor.length > 0);
+
+        return JSON.stringify({
+            success: true,
+            scopes: allScopes,
+            total: total
+        });
+
+    } catch (err) {
+        logger.error("rpcQuizverseSeenStats error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
+// REGISTRATION
+// ============================================================================
+
+function registerQuizverseSeenRPCs(initializer, logger) {
+    logger.info("[QuizverseSeen] Initializing QuizVerse Seen Ledger RPCs...");
+
+    if (!globalThis.__registeredRPCs) {
+        globalThis.__registeredRPCs = new Set();
+    }
+
+    var rpcs = [
+        { id: "quizverse_seen_get", handler: rpcQuizverseSeenGet },
+        { id: "quizverse_seen_merge", handler: rpcQuizverseSeenMerge },
+        { id: "quizverse_seen_purge", handler: rpcQuizverseSeenPurge },
+        { id: "quizverse_seen_reset", handler: rpcQuizverseSeenReset },
+        { id: "quizverse_seen_stats", handler: rpcQuizverseSeenStats }
+    ];
+
+    var registered = 0;
+    var skipped = 0;
+
+    for (var i = 0; i < rpcs.length; i++) {
+        var rpc = rpcs[i];
+        if (!globalThis.__registeredRPCs.has(rpc.id)) {
+            try {
+                initializer.registerRpc(rpc.id, rpc.handler);
+                globalThis.__registeredRPCs.add(rpc.id);
+                logger.info("[QuizverseSeen] Registered RPC: " + rpc.id);
+                registered++;
+            } catch (err) {
+                logger.error("[QuizverseSeen] Failed to register " + rpc.id + ": " + err.message);
+            }
+        } else {
+            logger.info("[QuizverseSeen] Skipped (already registered): " + rpc.id);
+            skipped++;
+        }
+    }
+
+    logger.info("[QuizverseSeen] Registration complete: " + registered + " registered, " + skipped + " skipped");
+}
+
+// ============================================================================
+// MODULE INIT (postbuild AST hook)
+// ----------------------------------------------------------------------------
+// postbuild.js renames this `InitModule` -> `__ModuleInit_N` so it never
+// executes directly. Its purpose is to expose literal registerRpc calls so
+// the bundler can:
+//   1) Generate `var __rpc_<id>;` stub declarations at the top of index.js
+//   2) Rewrite the literal calls below into guarded `__rpc_<id> = __rpc_<id> || (handler)`
+//   3) Replay those assignments at IIFE/global scope so every Goja VM has them
+//   4) Emit `__rpc__id_ = __rpc__id_ || (__rpc_<id>)` inside the master InitModule
+// ============================================================================
+function __ModuleInit_68(ctx, logger, nk, initializer) {
+    __rpc_quizverse_seen_get = __rpc_quizverse_seen_get || (rpcQuizverseSeenGet);
+    __rpc_quizverse_seen_merge = __rpc_quizverse_seen_merge || (rpcQuizverseSeenMerge);
+    __rpc_quizverse_seen_purge = __rpc_quizverse_seen_purge || (rpcQuizverseSeenPurge);
+    __rpc_quizverse_seen_reset = __rpc_quizverse_seen_reset || (rpcQuizverseSeenReset);
+    __rpc_quizverse_seen_stats = __rpc_quizverse_seen_stats || (rpcQuizverseSeenStats);
+    logger.info("[QuizverseSeen] Module InitModule registered: 5 RPCs");
+}
+
+
 // --- Module: quiz_results\quiz_results.js ---
 // quiz_results.js - Quiz Results Tracking & Analytics System
 // Stores ALL quiz results from ALL game modes for analytics, history, and leaderboards
+
+// ---- Slugify (must match qvsSlugify in quizverse_seen.js exactly) ----
+function qrSlugify(str) {
+    if (!str) return "unknown";
+    return str.trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+        .substring(0, 64) || "unknown";
+}
+function qrBuildSeenKey(scope, topic) {
+    return (scope || "global") + "_" + qrSlugify(topic);
+}
 
 /**
  * Quiz Result Schema
@@ -32944,6 +34217,63 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
             timestamp: result.submittedAt
         });
         
+        // 5. Merge seen question IDs into the qv_seen ledger (if provided)
+        // Check both top-level and metadata.seenQuestionIds (Unity SDK nests metadata as a sub-object)
+        var seenIds = null;
+        var seenScopeRaw = null;
+        var seenTopicRaw = null;
+        if (data.seenQuestionIds && Array.isArray(data.seenQuestionIds) && data.seenQuestionIds.length > 0) {
+            seenIds = data.seenQuestionIds;
+            seenScopeRaw = data.seenScope;
+            seenTopicRaw = data.seenTopic;
+        } else if (data.metadata && data.metadata.seenQuestionIds && Array.isArray(data.metadata.seenQuestionIds) && data.metadata.seenQuestionIds.length > 0) {
+            seenIds = data.metadata.seenQuestionIds;
+            seenScopeRaw = data.metadata.seenScope;
+            seenTopicRaw = data.metadata.seenTopic;
+        }
+        if (seenIds && seenIds.length > 0) {
+            try {
+                var seenScope = seenScopeRaw || "global";
+                var seenTopic = seenTopicRaw || data.categoryName || "general";
+                var seenKey = qrBuildSeenKey(seenScope, seenTopic);
+
+                var seenData = null;
+                try {
+                    var seenRecords = nk.storageRead([{ collection: "qv_seen", key: seenKey, userId: userId }]);
+                    if (seenRecords && seenRecords.length > 0 && seenRecords[0].value) {
+                        seenData = seenRecords[0].value;
+                    }
+                } catch (e) { /* first write */ }
+
+                if (!seenData || !seenData.ids) {
+                    seenData = { ids: {}, version: 1 };
+                }
+
+                var now = Math.floor(Date.now() / 1000);
+                for (var si = 0; si < seenIds.length; si++) {
+                    var sqid = seenIds[si];
+                    if (sqid && typeof sqid === "string") {
+                        seenData.ids[sqid] = now;
+                    }
+                }
+                seenData.version = 1;
+
+                nk.storageWrite([{
+                    collection: "qv_seen",
+                    key: seenKey,
+                    userId: userId,
+                    value: seenData,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+
+                utils.logInfo(logger, "Merged " + seenIds.length +
+                    " seen IDs into qv_seen/" + seenKey + " for user " + userId);
+            } catch (seenErr) {
+                utils.logWarning(logger, "Seen ledger merge failed (non-critical): " + seenErr.message);
+            }
+        }
+
         utils.logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
         
         return JSON.stringify({
@@ -33272,6 +34602,23 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
             completed: false
         });
     }
+}
+
+// ============================================================================
+// MODULE INIT (postbuild AST hook)
+// ----------------------------------------------------------------------------
+// Registers the harmonized `rpcQuizSubmitResult` (with qv_seen ledger merge)
+// over the legacy_runtime.js copy. postbuild's collision-rename pass renames
+// the legacy declaration to `__legacy_rpcQuizSubmitResult`, so the modules
+// version wins at the global scope when the guarded `||` assignments are
+// replayed (modules first, legacy fallback second).
+// ============================================================================
+function __ModuleInit_69(ctx, logger, nk, initializer) {
+    __rpc_quiz_submit_result = __rpc_quiz_submit_result || (rpcQuizSubmitResult);
+    __rpc_quiz_get_history = __rpc_quiz_get_history || (rpcQuizGetHistory);
+    __rpc_quiz_get_stats = __rpc_quiz_get_stats || (rpcQuizGetStats);
+    __rpc_quiz_check_daily_completion = __rpc_quiz_check_daily_completion || (rpcQuizCheckDailyCompletion);
+    logger.info("[QuizResults] Module InitModule registered: 4 RPCs");
 }
 
 
@@ -37392,7 +38739,7 @@ function _stubFriendBattlesGetActive() { return JSON.stringify({ success: true, 
 
 // ── Module init ───────────────────────────────────────────────────
 
-function __ModuleInit_74(ctx, logger, nk, initializer) {
+function __ModuleInit_77(ctx, logger, nk, initializer) {
     // ─── Hiro naming aliases (singular/plural + verb-position swaps) ──
     __rpc_hiro_get_streaks = __rpc_hiro_get_streaks || (__rpc_hiro_streaks_get);
     __rpc_hiro_streak_get = __rpc_hiro_streak_get || (__rpc_hiro_streaks_get);
@@ -38213,7 +39560,7 @@ function rpcSmartReviewGetForecast(ctx, logger, nk, payload) {
 // legacy_runtime.js, the module-level handler wins — even if legacy still
 // has its own registration for `smart_review_get_cards` /
 // `smart_review_rate_card`, our handler is what actually fires.
-function __ModuleInit_75(ctx, logger, nk, initializer) {
+function __ModuleInit_78(ctx, logger, nk, initializer) {
     __rpc_smart_review_get_cards = __rpc_smart_review_get_cards || (rpcSmartReviewGetCards);
     __rpc_smart_review_rate_card = __rpc_smart_review_rate_card || (rpcSmartReviewRateCard);
     __rpc_smart_review_add_card = __rpc_smart_review_add_card || (rpcSmartReviewAddCard);
@@ -39771,7 +41118,7 @@ function rpcVisualPathSkipDayWithAd(ctx, logger, nk, payload) {
 // ============================================================================
 // Module Init — register Visual Path RPCs
 // ============================================================================
-function __ModuleInit_78(ctx, logger, nk, initializer) {
+function __ModuleInit_81(ctx, logger, nk, initializer) {
     __rpc_visual_path_get_state = __rpc_visual_path_get_state || (rpcVisualPathGetState);
     __rpc_visual_path_get_schedule = __rpc_visual_path_get_schedule || (rpcVisualPathGetSchedule);
     __rpc_visual_path_skip_day_with_ad = __rpc_visual_path_skip_day_with_ad || (rpcVisualPathSkipDayWithAd);
@@ -93221,6 +94568,17 @@ try { __rpc_intellidraws_list = __rpc_intellidraws_list || (rpcIntelliDrawsList)
 try { __rpc_intellidraws_winners = __rpc_intellidraws_winners || (rpcIntelliDrawsWinners); } catch(e) {}
 try { __rpc_intellidraws_enter = __rpc_intellidraws_enter || (rpcIntelliDrawsEnter); } catch(e) {}
 try { __rpc_intellidraws_past = __rpc_intellidraws_past || (rpcIntelliDrawsPast); } catch(e) {}
+try { __rpc_quizverse_fetch_news_quiz = __rpc_quizverse_fetch_news_quiz || (rpcQuizverseFetchNewsQuiz); } catch(e) {}
+try { __rpc_quizverse_quiz_generate = __rpc_quizverse_quiz_generate || (rpcQuizverseQuizGenerate); } catch(e) {}
+try { __rpc_quizverse_seen_get = __rpc_quizverse_seen_get || (rpcQuizverseSeenGet); } catch(e) {}
+try { __rpc_quizverse_seen_merge = __rpc_quizverse_seen_merge || (rpcQuizverseSeenMerge); } catch(e) {}
+try { __rpc_quizverse_seen_purge = __rpc_quizverse_seen_purge || (rpcQuizverseSeenPurge); } catch(e) {}
+try { __rpc_quizverse_seen_reset = __rpc_quizverse_seen_reset || (rpcQuizverseSeenReset); } catch(e) {}
+try { __rpc_quizverse_seen_stats = __rpc_quizverse_seen_stats || (rpcQuizverseSeenStats); } catch(e) {}
+try { __rpc_quiz_submit_result = __rpc_quiz_submit_result || (rpcQuizSubmitResult); } catch(e) {}
+try { __rpc_quiz_get_history = __rpc_quiz_get_history || (rpcQuizGetHistory); } catch(e) {}
+try { __rpc_quiz_get_stats = __rpc_quiz_get_stats || (rpcQuizGetStats); } catch(e) {}
+try { __rpc_quiz_check_daily_completion = __rpc_quiz_check_daily_completion || (rpcQuizCheckDailyCompletion); } catch(e) {}
 try { __rpc_hiro_get_streaks = __rpc_hiro_get_streaks || (__rpc_hiro_streaks_get); } catch(e) {}
 try { __rpc_hiro_streak_get = __rpc_hiro_streak_get || (__rpc_hiro_streaks_get); } catch(e) {}
 try { __rpc_hiro_claim_streak = __rpc_hiro_claim_streak || (__rpc_hiro_streaks_claim); } catch(e) {}
@@ -94230,6 +95588,14 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quests_wallet_spend", __rpc_quests_wallet_spend); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_history", __rpc_quests_wallet_history); } catch(e) {}
   try { initializer.registerRpc("quests_wallet_migrate_from_postgres", __rpc_quests_wallet_migrate_from_postgres); } catch(e) {}
+  try { initializer.registerRpc("quizverse_fetch_news_quiz", __rpc_quizverse_fetch_news_quiz); } catch(e) {}
+  try { initializer.registerRpc("quizverse_quiz_generate", __rpc_quizverse_quiz_generate); } catch(e) {}
+  try { initializer.registerRpc("<id>", __rpc__id_); } catch(e) {}
+  try { initializer.registerRpc("quizverse_seen_get", __rpc_quizverse_seen_get); } catch(e) {}
+  try { initializer.registerRpc("quizverse_seen_merge", __rpc_quizverse_seen_merge); } catch(e) {}
+  try { initializer.registerRpc("quizverse_seen_purge", __rpc_quizverse_seen_purge); } catch(e) {}
+  try { initializer.registerRpc("quizverse_seen_reset", __rpc_quizverse_seen_reset); } catch(e) {}
+  try { initializer.registerRpc("quizverse_seen_stats", __rpc_quizverse_seen_stats); } catch(e) {}
   try { initializer.registerRpc("hiro_get_streaks", __rpc_hiro_get_streaks); } catch(e) {}
   try { initializer.registerRpc("hiro_streak_get", __rpc_hiro_streak_get); } catch(e) {}
   try { initializer.registerRpc("hiro_claim_streak", __rpc_hiro_claim_streak); } catch(e) {}
@@ -94266,5 +95632,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 705 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 713 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }
