@@ -14639,9 +14639,15 @@ function rpcOnboardingCompleteStep(ctx, logger, nk, payload) {
             state.currentStep = stepId + 1;
         }
 
-        if (state.completedSteps.length >= state.totalSteps) {
+        // Flip complete when EITHER all steps are individually marked OR the final step
+        // was just reported. The latter covers clients that mark only the terminal step
+        // (e.g. OnboardingManagerV2 used to call CompleteStep(5) only) — prevents users
+        // from being stuck in onboardingComplete=false forever.
+        if (state.completedSteps.length >= state.totalSteps || stepId >= state.totalSteps) {
+            if (!state.onboardingComplete) {
+                logger.info("[Onboarding] User " + userId + " completed onboarding! (stepId=" + stepId + ", completedSteps=" + state.completedSteps.length + "/" + state.totalSteps + ")");
+            }
             state.onboardingComplete = true;
-            logger.info("[Onboarding] User " + userId + " completed onboarding!");
         }
 
         state.lastUpdated = Date.now();
