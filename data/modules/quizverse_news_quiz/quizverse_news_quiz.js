@@ -39,9 +39,20 @@ var NQ_SERVER_USER_AGENT = "Mozilla/5.0 (compatible; QuizVerseServer/1.0)";
 // HELPERS
 // ============================================================================
 
+// Fallback API keys — used when server env vars are not configured.
+// Prefer env vars in production; these ensure the RPC never silently fails.
+var NQ_FALLBACK_KEYS = {
+    "GNEWS_API_KEY": "c34599e145018d0d9e3000a88b9a487f",
+    "NEWSAPI_API_KEY": "66829bdff7b448fa8e43427c5c0a22d6"
+};
+
 function nqEnv(ctx, key) {
-    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
+    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null && String(ctx.env[key]) !== "") {
         return String(ctx.env[key]);
+    }
+    // Fallback to hardcoded keys if env var is missing/empty
+    if (NQ_FALLBACK_KEYS[key]) {
+        return NQ_FALLBACK_KEYS[key];
     }
     return "";
 }
