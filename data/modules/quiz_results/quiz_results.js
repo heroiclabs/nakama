@@ -1,6 +1,18 @@
 // quiz_results.js - Quiz Results Tracking & Analytics System
 // Stores ALL quiz results from ALL game modes for analytics, history, and leaderboards
 
+// ---- Slugify (must match qvsSlugify in quizverse_seen.js exactly) ----
+function qrSlugify(str) {
+    if (!str) return "unknown";
+    return str.trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+        .substring(0, 64) || "unknown";
+}
+function qrBuildSeenKey(scope, topic) {
+    return (scope || "global") + "_" + qrSlugify(topic);
+}
+
 /**
  * Quiz Result Schema
  * Captures comprehensive data about each quiz attempt
@@ -322,6 +334,63 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
             timestamp: result.submittedAt
         });
         
+        // 5. Merge seen question IDs into the qv_seen ledger (if provided)
+        // Check both top-level and metadata.seenQuestionIds (Unity SDK nests metadata as a sub-object)
+        var seenIds = null;
+        var seenScopeRaw = null;
+        var seenTopicRaw = null;
+        if (data.seenQuestionIds && Array.isArray(data.seenQuestionIds) && data.seenQuestionIds.length > 0) {
+            seenIds = data.seenQuestionIds;
+            seenScopeRaw = data.seenScope;
+            seenTopicRaw = data.seenTopic;
+        } else if (data.metadata && data.metadata.seenQuestionIds && Array.isArray(data.metadata.seenQuestionIds) && data.metadata.seenQuestionIds.length > 0) {
+            seenIds = data.metadata.seenQuestionIds;
+            seenScopeRaw = data.metadata.seenScope;
+            seenTopicRaw = data.metadata.seenTopic;
+        }
+        if (seenIds && seenIds.length > 0) {
+            try {
+                var seenScope = seenScopeRaw || "global";
+                var seenTopic = seenTopicRaw || data.categoryName || "general";
+                var seenKey = qrBuildSeenKey(seenScope, seenTopic);
+
+                var seenData = null;
+                try {
+                    var seenRecords = nk.storageRead([{ collection: "qv_seen", key: seenKey, userId: userId }]);
+                    if (seenRecords && seenRecords.length > 0 && seenRecords[0].value) {
+                        seenData = seenRecords[0].value;
+                    }
+                } catch (e) { /* first write */ }
+
+                if (!seenData || !seenData.ids) {
+                    seenData = { ids: {}, version: 1 };
+                }
+
+                var now = Math.floor(Date.now() / 1000);
+                for (var si = 0; si < seenIds.length; si++) {
+                    var sqid = seenIds[si];
+                    if (sqid && typeof sqid === "string") {
+                        seenData.ids[sqid] = now;
+                    }
+                }
+                seenData.version = 1;
+
+                nk.storageWrite([{
+                    collection: "qv_seen",
+                    key: seenKey,
+                    userId: userId,
+                    value: seenData,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+
+                utils.logInfo(logger, "Merged " + seenIds.length +
+                    " seen IDs into qv_seen/" + seenKey + " for user " + userId);
+            } catch (seenErr) {
+                utils.logWarning(logger, "Seen ledger merge failed (non-critical): " + seenErr.message);
+            }
+        }
+
         utils.logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
         
         return JSON.stringify({
