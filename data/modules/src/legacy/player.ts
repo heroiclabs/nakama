@@ -66,7 +66,8 @@ namespace LegacyPlayer {
 
     if (data.displayName || data.avatarUrl) {
       try {
-        nk.accountUpdateId(userId, null, data.displayName || null, data.avatarUrl || null, null, null, null);
+        // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
+        nk.accountUpdateId(userId, null, data.displayName || null, null, null, null, data.avatarUrl || null, null);
       } catch (err: any) {
         logger.warn("[Player] Failed to update account: " + err.message);
       }
