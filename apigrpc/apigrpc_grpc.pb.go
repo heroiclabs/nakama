@@ -85,6 +85,7 @@ const (
 	Nakama_ListChannelMessages_FullMethodName               = "/nakama.api.Nakama/ListChannelMessages"
 	Nakama_ListFriends_FullMethodName                       = "/nakama.api.Nakama/ListFriends"
 	Nakama_ListFriendsOfFriends_FullMethodName              = "/nakama.api.Nakama/ListFriendsOfFriends"
+	Nakama_ListFriendsStatus_FullMethodName                 = "/nakama.api.Nakama/ListFriendsStatus"
 	Nakama_ListGroups_FullMethodName                        = "/nakama.api.Nakama/ListGroups"
 	Nakama_ListGroupUsers_FullMethodName                    = "/nakama.api.Nakama/ListGroupUsers"
 	Nakama_ListLeaderboardRecords_FullMethodName            = "/nakama.api.Nakama/ListLeaderboardRecords"
@@ -225,6 +226,8 @@ type NakamaClient interface {
 	ListFriends(ctx context.Context, in *api.ListFriendsRequest, opts ...grpc.CallOption) (*api.FriendList, error)
 	// List friends of friends for the current user.
 	ListFriendsOfFriends(ctx context.Context, in *api.ListFriendsOfFriendsRequest, opts ...grpc.CallOption) (*api.FriendsOfFriendsList, error)
+	// Get the friendship status of a set of users relative to the current user.
+	ListFriendsStatus(ctx context.Context, in *api.ListFriendsStatusRequest, opts ...grpc.CallOption) (*api.FriendStatusList, error)
 	// List groups based on given filters.
 	ListGroups(ctx context.Context, in *api.ListGroupsRequest, opts ...grpc.CallOption) (*api.GroupList, error)
 	// List all users that are part of a group.
@@ -779,6 +782,16 @@ func (c *nakamaClient) ListFriendsOfFriends(ctx context.Context, in *api.ListFri
 	return out, nil
 }
 
+func (c *nakamaClient) ListFriendsStatus(ctx context.Context, in *api.ListFriendsStatusRequest, opts ...grpc.CallOption) (*api.FriendStatusList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(api.FriendStatusList)
+	err := c.cc.Invoke(ctx, Nakama_ListFriendsStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nakamaClient) ListGroups(ctx context.Context, in *api.ListGroupsRequest, opts ...grpc.CallOption) (*api.GroupList, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.GroupList)
@@ -1250,6 +1263,8 @@ type NakamaServer interface {
 	ListFriends(context.Context, *api.ListFriendsRequest) (*api.FriendList, error)
 	// List friends of friends for the current user.
 	ListFriendsOfFriends(context.Context, *api.ListFriendsOfFriendsRequest) (*api.FriendsOfFriendsList, error)
+	// Get the friendship status of a set of users relative to the current user.
+	ListFriendsStatus(context.Context, *api.ListFriendsStatusRequest) (*api.FriendStatusList, error)
 	// List groups based on given filters.
 	ListGroups(context.Context, *api.ListGroupsRequest) (*api.GroupList, error)
 	// List all users that are part of a group.
@@ -1474,6 +1489,9 @@ func (UnimplementedNakamaServer) ListFriends(context.Context, *api.ListFriendsRe
 }
 func (UnimplementedNakamaServer) ListFriendsOfFriends(context.Context, *api.ListFriendsOfFriendsRequest) (*api.FriendsOfFriendsList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListFriendsOfFriends not implemented")
+}
+func (UnimplementedNakamaServer) ListFriendsStatus(context.Context, *api.ListFriendsStatusRequest) (*api.FriendStatusList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFriendsStatus not implemented")
 }
 func (UnimplementedNakamaServer) ListGroups(context.Context, *api.ListGroupsRequest) (*api.GroupList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGroups not implemented")
@@ -2453,6 +2471,24 @@ func _Nakama_ListFriendsOfFriends_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Nakama_ListFriendsStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.ListFriendsStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).ListFriendsStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Nakama_ListFriendsStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).ListFriendsStatus(ctx, req.(*api.ListFriendsStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Nakama_ListGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.ListGroupsRequest)
 	if err := dec(in); err != nil {
@@ -3313,6 +3349,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListFriendsOfFriends",
 			Handler:    _Nakama_ListFriendsOfFriends_Handler,
+		},
+		{
+			MethodName: "ListFriendsStatus",
+			Handler:    _Nakama_ListFriendsStatus_Handler,
 		},
 		{
 			MethodName: "ListGroups",
