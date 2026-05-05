@@ -1215,6 +1215,7 @@ type NakamaModule interface {
 
 	FriendMetadataUpdate(ctx context.Context, userID string, friendUserId string, metadata map[string]any) error
 	FriendsList(ctx context.Context, userID string, limit int, state *int, cursor string) ([]*api.Friend, string, error)
+	FriendsStatus(ctx context.Context, userID string, ids []string) (map[string]int32, error)
 	FriendsOfFriendsList(ctx context.Context, userID string, limit int, cursor string) ([]*api.FriendsOfFriendsList_FriendOfFriend, string, error)
 	FriendsAdd(ctx context.Context, userID string, username string, ids []string, usernames []string, metadata map[string]any) error
 	FriendsDelete(ctx context.Context, userID string, username string, ids []string, usernames []string) error

@@ -479,6 +479,13 @@ service Nakama {
     option (google.api.http).get = "/v2/friend/friends";
   }
 
+  // Get the friendship status of a set of users relative to the current user.
+  rpc ListFriendsStatus(api.ListFriendsStatusRequest) returns (api.FriendStatusList) {
+    option (google.api.http) = {
+      get: "/v2/friend/status"
+    };
+  }
+
   // List groups based on given filters.
   rpc ListGroups (api.ListGroupsRequest) returns (api.GroupList) {
     option (google.api.http).get = "/v2/group";

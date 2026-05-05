@@ -86,6 +86,56 @@ FROM users, user_edge WHERE id = destination_id AND source_id = $1`
 	return &api.FriendList{Friends: friends}, nil
 }
 
+// GetFriendsStatus returns the friendship state (see api.Friend_State) keyed by
+// destination user ID for each ID in userIDs that has an edge from userID.
+func GetFriendsStatus(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, userIDs []uuid.UUID) (map[string]int32, error) {
+	if len(userIDs) == 0 {
+		return map[string]int32{}, nil
+	}
+
+	placeholders := make([]string, len(userIDs))
+	uids := make([]any, len(userIDs)+1)
+	uids[0] = userID
+	for i, uid := range userIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		uids[i+1] = uid
+	}
+
+	query := fmt.Sprintf(`SELECT destination_id, state FROM user_edge WHERE source_id = $1 AND destination_id IN (%s)`, strings.Join(placeholders, ","))
+
+	rows, err := db.QueryContext(ctx, query, uids...)
+	if err != nil {
+		logger.Error("Error retrieving friends status.", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int32, len(userIDs))
+	for _, uid := range userIDs {
+		result[uid.String()] = -1
+	}
+
+	for rows.Next() {
+		var id string
+		var state sql.NullInt64
+		if err = rows.Scan(&id, &state); err != nil {
+			logger.Error("Error scanning friend status row.", zap.Error(err))
+			return nil, err
+		}
+		s := int32(state.Int64)
+		if s == int32(api.Friend_BLOCKED) {
+			continue
+		}
+		result[id] = s
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error("Error retrieving friends status.", zap.Error(err))
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func GetFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegistry StatusRegistry, userID uuid.UUID, userIDs []uuid.UUID) ([]*api.Friend, error) {
 	if len(userIDs) == 0 {
 		return []*api.Friend{}, nil

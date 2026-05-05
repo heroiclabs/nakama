@@ -681,6 +681,19 @@ message ListFriendsRequest {
   string cursor = 3;
 }
 
+
+// Get the friendship status of a set of users relative to the current user.
+message ListFriendsStatusRequest {
+  // The Nakama user IDs to check friendship status for.
+  repeated string ids = 1;
+}
+
+// Friendship status for a set of users.
+message FriendStatusList {
+  // Map of user ID to friend status (one of Friend.State values).
+  map<string, int32> friends_status = 1;
+}
+
 message ListFriendsOfFriendsRequest {
   // Max number of records to return. Between 1 and 100.
   google.protobuf.Int32Value limit = 1;

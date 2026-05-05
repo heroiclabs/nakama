@@ -4081,6 +4081,38 @@ func (n *RuntimeGoNakamaModule) FriendsList(ctx context.Context, userID string, 
 }
 
 // @group friends
+// @summary Get the friendship status of a set of users relative to a given user.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) The ID of the user whose friendship status to look up.
+// @param ids(type=[]string) The Nakama user IDs to check friendship status for.
+// @return statuses(map[string]int32) Map of user ID to api.Friend.State value.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) FriendsStatus(ctx context.Context, userID string, ids []string) (map[string]int32, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("expects user ID to be a valid identifier")
+	}
+
+	if len(ids) == 0 {
+		return map[string]int32{}, nil
+	}
+
+	uids := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		parsed, err := uuid.FromString(id)
+		if err != nil {
+			return nil, errors.New("expects each id to be a valid user identifier")
+		}
+		if parsed == uid {
+			return nil, errors.New("cannot check friendship status against self")
+		}
+		uids = append(uids, parsed)
+	}
+
+	return GetFriendsStatus(ctx, n.logger, n.db, uid, uids)
+}
+
+// @group friends
 // @summary List friends of friends.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The ID of the user whose friends of friends you want to list.
@@ -4486,3 +4518,4 @@ func (n *RuntimeGoNakamaModule) GetSatori() runtime.Satori {
 func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
 	return n.fleetManager
 }
+

@@ -90,6 +90,38 @@ func (s *ApiServer) ListFriends(ctx context.Context, in *api.ListFriendsRequest)
 	return friends, nil
 }
 
+func (s *ApiServer) ListFriendsStatus(ctx context.Context, in *api.ListFriendsStatusRequest) (*api.FriendStatusList, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
+
+	ids := in.GetIds()
+	if len(ids) == 0 {
+		return &api.FriendStatusList{FriendsStatus: map[string]int32{}}, nil
+	}
+	if len(ids) > 100 {
+		return nil, status.Error(codes.InvalidArgument, "Cannot check more than 100 user IDs at once.")
+	}
+
+	uids := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		parsed, err := uuid.FromString(id)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Each id must be a valid user identifier.")
+		}
+		if parsed == userID {
+			return nil, status.Error(codes.InvalidArgument, "Cannot check friendship status against self.")
+		}
+		uids = append(uids, parsed)
+	}
+
+	statuses, err := GetFriendsStatus(ctx, logger, s.db, userID, uids)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Error while trying to get friends status.")
+	}
+
+	return &api.FriendStatusList{FriendsStatus: statuses}, nil
+}
+
 func (s *ApiServer) ListFriendsOfFriends(ctx context.Context, in *api.ListFriendsOfFriendsRequest) (*api.FriendsOfFriendsList, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
