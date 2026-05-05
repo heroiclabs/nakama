@@ -47,12 +47,18 @@ namespace LegacyMissions {
     Storage.writeJson(nk, Constants.MISSIONS_COLLECTION, key, userId, data);
   }
 
+  function getNextUTCResetTime(): string {
+    var d = new Date();
+    d.setUTCHours(24, 0, 0, 0);
+    return d.toISOString();
+  }
+
   function rpcGetDailyMissions(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var today = getTodayDateString();
     var data = getMissionsForUser(nk, userId, today);
 
-    return RpcHelpers.successResponse({ missions: data.missions, date: data.date });
+    return RpcHelpers.successResponse({ missions: data.missions, date: data.date, resetTime: getNextUTCResetTime() });
   }
 
   function rpcSubmitProgress(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {

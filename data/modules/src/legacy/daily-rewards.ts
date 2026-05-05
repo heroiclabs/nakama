@@ -26,6 +26,12 @@ namespace LegacyDailyRewards {
     Storage.writeJson(nk, Constants.DAILY_REWARDS_COLLECTION, "status_" + userId, userId, status);
   }
 
+  function getNextUTCResetTime(): string {
+    var d = new Date();
+    d.setUTCHours(24, 0, 0, 0);
+    return d.toISOString();
+  }
+
   function rpcGetStatus(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var status = getStatus(nk, userId);
@@ -35,12 +41,20 @@ namespace LegacyDailyRewards {
       status = { day: 0, lastClaimDate: "", streak: 0, rewards: [] };
     }
 
+    var canClaim = status.lastClaimDate !== today;
+    var nextDay = ((status.day || 0) % CYCLE_DAYS) + 1;
+    var nextRewardConfig = nextDay <= 7
+      ? { day: nextDay, game: 50 * nextDay, tokens: 10 * nextDay, xp: 5 * nextDay }
+      : { day: nextDay, game: 100, tokens: 20, xp: 10 };
+
     return RpcHelpers.successResponse({
       day: status.day,
       lastClaimDate: status.lastClaimDate,
       streak: status.streak,
       rewards: status.rewards,
-      canClaim: status.lastClaimDate !== today
+      canClaim: canClaim,
+      nextReward: nextRewardConfig,
+      resetTime: getNextUTCResetTime()
     });
   }
 

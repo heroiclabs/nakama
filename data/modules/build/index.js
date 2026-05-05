@@ -11181,6 +11181,11 @@ var LegacyDailyRewards;
     function saveStatus(nk, userId, status) {
         Storage.writeJson(nk, Constants.DAILY_REWARDS_COLLECTION, "status_" + userId, userId, status);
     }
+    function getNextUTCResetTime() {
+        var d = new Date();
+        d.setUTCHours(24, 0, 0, 0);
+        return d.toISOString();
+    }
     function rpcGetStatus(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var status = getStatus(nk, userId);
@@ -11188,12 +11193,19 @@ var LegacyDailyRewards;
         if (!status) {
             status = { day: 0, lastClaimDate: "", streak: 0, rewards: [] };
         }
+        var canClaim = status.lastClaimDate !== today;
+        var nextDay = ((status.day || 0) % CYCLE_DAYS) + 1;
+        var nextRewardConfig = nextDay <= 7
+            ? { day: nextDay, game: 50 * nextDay, tokens: 10 * nextDay, xp: 5 * nextDay }
+            : { day: nextDay, game: 100, tokens: 20, xp: 10 };
         return RpcHelpers.successResponse({
             day: status.day,
             lastClaimDate: status.lastClaimDate,
             streak: status.streak,
             rewards: status.rewards,
-            canClaim: status.lastClaimDate !== today
+            canClaim: canClaim,
+            nextReward: nextRewardConfig,
+            resetTime: getNextUTCResetTime()
         });
     }
     function rpcClaim(ctx, logger, nk, payload) {
@@ -12329,11 +12341,16 @@ var LegacyMissions;
         var key = "daily_" + userId + "_" + data.date;
         Storage.writeJson(nk, Constants.MISSIONS_COLLECTION, key, userId, data);
     }
+    function getNextUTCResetTime() {
+        var d = new Date();
+        d.setUTCHours(24, 0, 0, 0);
+        return d.toISOString();
+    }
     function rpcGetDailyMissions(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var today = getTodayDateString();
         var data = getMissionsForUser(nk, userId, today);
-        return RpcHelpers.successResponse({ missions: data.missions, date: data.date });
+        return RpcHelpers.successResponse({ missions: data.missions, date: data.date, resetTime: getNextUTCResetTime() });
     }
     function rpcSubmitProgress(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -12997,7 +13014,8 @@ var LegacyPlayer;
         }
         if (data.displayName || data.avatarUrl) {
             try {
-                nk.accountUpdateId(userId, null, data.displayName || null, data.avatarUrl || null, null, null, null);
+                // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
+                nk.accountUpdateId(userId, null, data.displayName || null, null, null, null, data.avatarUrl || null, null);
             }
             catch (err) {
                 logger.warn("[Player] Failed to update account: " + err.message);
@@ -13010,13 +13028,24 @@ var LegacyPlayer;
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.username)
-            return RpcHelpers.errorResponse("username required");
+            return JSON.stringify({ success: false, error: "username required", error_code: "USERNAME_INVALID" });
+        var username = String(data.username).toLowerCase().trim();
+        if (username.length < 3)
+            return JSON.stringify({ success: false, error: "Username must be at least 3 characters", error_code: "USERNAME_TOO_SHORT" });
+        if (username.length > 20)
+            return JSON.stringify({ success: false, error: "Username must be at most 20 characters", error_code: "USERNAME_TOO_LONG" });
+        if (!/^[a-z0-9_]+$/.test(username))
+            return JSON.stringify({ success: false, error: "Use only letters, numbers, and underscores", error_code: "USERNAME_INVALID" });
         try {
-            nk.accountUpdateId(userId, data.username, null, null, null, null, null);
-            return RpcHelpers.successResponse({ username: data.username });
+            nk.accountUpdateId(userId, username, null, null, null, null, null);
+            return RpcHelpers.successResponse({ username: username });
         }
         catch (err) {
-            return RpcHelpers.errorResponse("Failed to change username: " + err.message);
+            var msg = err.message || "";
+            if (msg.indexOf("unique") !== -1 || msg.indexOf("exists") !== -1 || msg.indexOf("taken") !== -1) {
+                return JSON.stringify({ success: false, error: "That username is already taken", error_code: "USERNAME_TAKEN" });
+            }
+            return JSON.stringify({ success: false, error: "Failed to change username: " + msg, error_code: "UPDATE_FAILED" });
         }
     }
     function rpcGetPlayerMetadata(ctx, logger, nk, payload) {
