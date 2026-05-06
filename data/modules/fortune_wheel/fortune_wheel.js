@@ -1,13 +1,20 @@
 /**
- * fortune_wheel.js — Fortune Wheel Backend (every 3 days)
+ * fortune_wheel.js — Fortune Wheel Backend V2 (every 3 days)
  * RPCs: fortune_wheel_get_state, fortune_wheel_spin
  * 
  * SERVER-AUTHORITATIVE: Server picks the random reward — client only animates.
  * Storage: fortune_wheel/state per user
- * Rewards: XP, Coins (wallet), AudiobookToken (storage), Shield (storage), Gems (wallet)
+ * Rewards: XP, Coins (wallet), AudiobookToken (storage), Shield (storage)
+ * 
+ * V2 CHANGES:
+ *   - fortune_wheel_get_state now returns ad-spin state (organicSpinDone, adSpinsUsed, etc.)
+ *   - fortune_wheel_spin now sets organicSpinDone flag in state
+ *   - Ad spins are tracked in fortune_wheel_ad_spins collection (managed by fortune-wheel-ad-spin.ts)
  */
 
 var COOLDOWN_DAYS = 3;
+var AD_SPINS_MAX = 3;
+var AD_COOLDOWN_SECONDS = 10800; // 3 hours between ad spins
 
 // Wheel segments with probability weights — SERVER is source of truth
 var SEGMENTS = [
@@ -23,7 +30,7 @@ var SEGMENTS = [
 
 // ===== RPCs =====
 
-// fortune_wheel_get_state — Get current wheel state + segments for client rendering
+// fortune_wheel_get_state — Get current wheel state + segments + ad-spin info
 var fortuneWheelGetState = function(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
@@ -34,6 +41,27 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
         var state = getWheelState(nk, userId);
         var canSpin = canUserSpin(state);
 
+        // --- V2: Read ad-spin daily record ---
+        var adState = getAdSpinState(nk, userId);
+        var now = Math.floor(Date.now() / 1000);
+        var nextAdSpinTime = 0;
+        if (adState.lastSpinAt > 0) {
+            nextAdSpinTime = adState.lastSpinAt + AD_COOLDOWN_SECONDS;
+        }
+
+        // Determine if organic spin was done in current cycle
+        var organicSpinDone = false;
+        if (state.organicSpinDone === true) {
+            // Check if the cycle is still active (cooldown hasn't expired)
+            if (state.nextSpinTime) {
+                var nextSpin = new Date(state.nextSpinTime);
+                if (new Date() < nextSpin) {
+                    organicSpinDone = true;
+                }
+                // If cooldown expired, organic spin resets
+            }
+        }
+
         return JSON.stringify({
             success: true,
             canSpin: canSpin,
@@ -41,6 +69,13 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
             totalSpins: state.totalSpins || 0,
             lastReward: state.lastReward || null,
             cooldownDays: COOLDOWN_DAYS,
+            // V2 fields
+            organicSpinDone: organicSpinDone,
+            adSpinsUsed: adState.spinsUsed,
+            adSpinsMax: AD_SPINS_MAX,
+            adCooldownSeconds: AD_COOLDOWN_SECONDS,
+            nextAdSpinTime: nextAdSpinTime > now ? nextAdSpinTime : 0,
+            cycleEndsAt: state.nextSpinTime || null,
             segments: SEGMENTS.map(function(s) {
                 return { type: s.type, amount: s.amount, label: s.label };
             })
@@ -81,6 +116,7 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
 
         state.nextSpinTime = nextSpin.toISOString();
         state.totalSpins = (state.totalSpins || 0) + 1;
+        state.organicSpinDone = true; // V2: Mark organic spin as done
         state.lastReward = {
             type: reward.type,
             amount: reward.amount,
@@ -158,6 +194,30 @@ function canUserSpin(state) {
     if (!state.nextSpinTime) return true;
     var nextSpin = new Date(state.nextSpinTime);
     return new Date() >= nextSpin;
+}
+
+/**
+ * V2: Read the current-cycle ad-spin record.
+ * Returns { spinsUsed: number, lastSpinAt: number (unix epoch seconds) }
+ */
+function getAdSpinState(nk, userId) {
+    try {
+        // Ad spins are tracked per cycle, not per day in V2.
+        // We use a single "cycle_state" key that gets reset when the organic cycle resets.
+        var records = nk.storageRead([{
+            collection: "fortune_wheel_ad_spins",
+            key: "cycle_state",
+            userId: userId
+        }]);
+        if (records && records.length > 0) {
+            var val = records[0].value || {};
+            return {
+                spinsUsed: val.spinsUsed || 0,
+                lastSpinAt: val.lastSpinAt || 0
+            };
+        }
+    } catch(e) { /* no record yet */ }
+    return { spinsUsed: 0, lastSpinAt: 0 };
 }
 
 /**
