@@ -17,8 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// ConnConfig contains all the options used to establish a connection. It must be created by ParseConfig and
-// then it can be modified. A manually initialized ConnConfig will cause ConnectConfig to panic.
+// ConnConfig contains all the options used to establish a connection. It must be created by [ParseConfig] and
+// then it can be modified. A manually initialized ConnConfig will cause [ConnectConfig] to panic.
 type ConnConfig struct {
 	pgconn.Config
 
@@ -37,8 +37,8 @@ type ConnConfig struct {
 
 	// DefaultQueryExecMode controls the default mode for executing queries. By default pgx uses the extended protocol
 	// and automatically prepares and caches prepared statements. However, this may be incompatible with proxies such as
-	// PGBouncer. In this case it may be preferable to use QueryExecModeExec or QueryExecModeSimpleProtocol. The same
-	// functionality can be controlled on a per query basis by passing a QueryExecMode as the first query argument.
+	// PGBouncer. In this case it may be preferable to use [QueryExecModeExec] or [QueryExecModeSimpleProtocol]. The same
+	// functionality can be controlled on a per query basis by passing a [QueryExecMode] as the first query argument.
 	DefaultQueryExecMode QueryExecMode
 
 	createdByParseConfig bool // Used to enforce created by ParseConfig rule.
@@ -131,7 +131,7 @@ var (
 )
 
 // Connect establishes a connection with a PostgreSQL server with a connection string. See
-// pgconn.Connect for details.
+// [pgconn.Connect] for details.
 func Connect(ctx context.Context, connString string) (*Conn, error) {
 	connConfig, err := ParseConfig(connString)
 	if err != nil {
@@ -141,7 +141,7 @@ func Connect(ctx context.Context, connString string) (*Conn, error) {
 }
 
 // ConnectWithOptions behaves exactly like Connect with the addition of options. At the present options is only used to
-// provide a GetSSLPassword function.
+// provide a [pgconn.GetSSLPasswordFunc] function.
 func ConnectWithOptions(ctx context.Context, connString string, options ParseConfigOptions) (*Conn, error) {
 	connConfig, err := ParseConfigWithOptions(connString, options)
 	if err != nil {
@@ -151,7 +151,7 @@ func ConnectWithOptions(ctx context.Context, connString string, options ParseCon
 }
 
 // ConnectConfig establishes a connection with a PostgreSQL server with a configuration struct.
-// connConfig must have been created by ParseConfig.
+// connConfig must have been created by [ParseConfig].
 func ConnectConfig(ctx context.Context, connConfig *ConnConfig) (*Conn, error) {
 	// In general this improves safety. In particular avoid the config.Config.OnNotification mutation from affecting other
 	// connections with the same config. See https://github.com/jackc/pgx/issues/618.
@@ -160,8 +160,8 @@ func ConnectConfig(ctx context.Context, connConfig *ConnConfig) (*Conn, error) {
 	return connect(ctx, connConfig)
 }
 
-// ParseConfigWithOptions behaves exactly as ParseConfig does with the addition of options. At the present options is
-// only used to provide a GetSSLPassword function.
+// ParseConfigWithOptions behaves exactly as [ParseConfig] does with the addition of options. At the present options is
+// only used to provide a [pgconn.GetSSLPasswordFunc] function.
 func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*ConnConfig, error) {
 	config, err := pgconn.ParseConfigWithOptions(connString, options.ParseConfigOptions)
 	if err != nil {
@@ -203,7 +203,9 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 		case "simple_protocol":
 			defaultQueryExecMode = QueryExecModeSimpleProtocol
 		default:
-			return nil, pgconn.NewParseConfigError(connString, "invalid default_query_exec_mode", err)
+			return nil, pgconn.NewParseConfigError(
+				connString, "invalid default_query_exec_mode", fmt.Errorf("unknown value %q", s),
+			)
 		}
 	}
 
@@ -306,8 +308,8 @@ func (c *Conn) Close(ctx context.Context) error {
 }
 
 // Prepare creates a prepared statement with name and sql. sql can contain placeholders for bound parameters. These
-// placeholders are referenced positionally as $1, $2, etc. name can be used instead of sql with Query, QueryRow, and
-// Exec to execute the statement. It can also be used with Batch.Queue.
+// placeholders are referenced positionally as $1, $2, etc. name can be used instead of sql with [Conn.Query],
+// [Conn.QueryRow], and [Conn.Exec] to execute the statement. It can also be used with [Batch.Queue].
 //
 // The underlying PostgreSQL identifier for the prepared statement will be name if name != sql or a digest of sql if
 // name == sql.
@@ -608,7 +610,7 @@ func (c *Conn) execPrepared(ctx context.Context, sd *pgconn.StatementDescription
 		return pgconn.CommandTag{}, err
 	}
 
-	result := c.pgConn.ExecPrepared(ctx, sd.Name, c.eqb.ParamValues, c.eqb.ParamFormats, c.eqb.ResultFormats).Read()
+	result := c.pgConn.ExecStatement(ctx, sd, c.eqb.ParamValues, c.eqb.ParamFormats, c.eqb.ResultFormats).Read()
 	c.eqb.reset() // Allow c.eqb internal memory to be GC'ed as soon as possible.
 	return result.CommandTag, result.Err
 }
@@ -842,7 +844,7 @@ optionLoop:
 		if !explicitPreparedStatement && mode == QueryExecModeCacheDescribe {
 			rows.resultReader = c.pgConn.ExecParams(ctx, sql, c.eqb.ParamValues, sd.ParamOIDs, c.eqb.ParamFormats, resultFormats)
 		} else {
-			rows.resultReader = c.pgConn.ExecPrepared(ctx, sd.Name, c.eqb.ParamValues, c.eqb.ParamFormats, resultFormats)
+			rows.resultReader = c.pgConn.ExecStatement(ctx, sd, c.eqb.ParamValues, c.eqb.ParamFormats, resultFormats)
 		}
 	} else if mode == QueryExecModeExec {
 		err := c.eqb.Build(c.typeMap, nil, args)
@@ -931,7 +933,7 @@ func (c *Conn) QueryRow(ctx context.Context, sql string, args ...any) Row {
 }
 
 // SendBatch sends all queued queries to the server at once. All queries are run in an implicit transaction unless
-// explicit transaction control statements are executed. The returned BatchResults must be closed before the connection
+// explicit transaction control statements are executed. The returned [BatchResults] must be closed before the connection
 // is used again.
 //
 // Depending on the QueryExecMode, all queries may be prepared before any are executed. This means that creating a table
@@ -1192,7 +1194,7 @@ func (c *Conn) sendBatchExtendedWithDescription(ctx context.Context, b *Batch, d
 			for _, sd := range distinctNewQueries {
 				results, err := pipeline.GetResults()
 				if err != nil {
-					return err
+					return newErrPreprocessingBatch("prepare", sd.SQL, err)
 				}
 
 				resultSD, ok := results.(*pgconn.StatementDescription)
@@ -1226,15 +1228,18 @@ func (c *Conn) sendBatchExtendedWithDescription(ctx context.Context, b *Batch, d
 	for _, bi := range b.QueuedQueries {
 		err := c.eqb.Build(c.typeMap, bi.sd, bi.Arguments)
 		if err != nil {
-			// we wrap the error so we the user can understand which query failed inside the batch
-			err = fmt.Errorf("error building query %s: %w", bi.SQL, err)
+			err = newErrPreprocessingBatch("build", bi.SQL, err)
 			return &pipelineBatchResults{ctx: ctx, conn: c, err: err, closed: true}
 		}
 
 		if bi.sd.Name == "" {
 			pipeline.SendQueryParams(bi.sd.SQL, c.eqb.ParamValues, bi.sd.ParamOIDs, c.eqb.ParamFormats, c.eqb.ResultFormats)
 		} else {
-			pipeline.SendQueryPrepared(bi.sd.Name, c.eqb.ParamValues, c.eqb.ParamFormats, c.eqb.ResultFormats)
+			// Copy ResultFormats because SendQueryStatement stores the slice for later use, and eqb.Build reuses the
+			// backing array on the next iteration.
+			resultFormats := make([]int16, len(c.eqb.ResultFormats))
+			copy(resultFormats, c.eqb.ResultFormats)
+			pipeline.SendQueryStatement(bi.sd, c.eqb.ParamValues, c.eqb.ParamFormats, resultFormats)
 		}
 	}
 
@@ -1272,7 +1277,7 @@ func (c *Conn) sanitizeForSimpleQuery(sql string, args ...any) (string, error) {
 	return sanitize.SanitizeSQL(sql, valueArgs...)
 }
 
-// LoadType inspects the database for typeName and produces a pgtype.Type suitable for registration. typeName must be
+// LoadType inspects the database for typeName and produces a [pgtype.Type] suitable for registration. typeName must be
 // the name of a type where the underlying type(s) is already understood by pgx. It is for derived types. In particular,
 // typeName must be one of the following:
 //   - An array type name of a type that is already registered. e.g. "_foo" when "foo" is registered.

@@ -52,6 +52,7 @@ type Frontend struct {
 	readyForQuery                   ReadyForQuery
 	rowDescription                  RowDescription
 	portalSuspended                 PortalSuspended
+	negotiateProtocolVersion        NegotiateProtocolVersion
 
 	bodyLen    int
 	maxBodyLen int // maxBodyLen is the maximum length of a message body in octets. If a message body exceeds this length, Receive will return an error.
@@ -230,7 +231,7 @@ func (f *Frontend) SendExecute(msg *Execute) {
 	f.wbuf = newBuf
 
 	if f.tracer != nil {
-		f.tracer.TraceQueryute('F', int32(len(f.wbuf)-prevLen), msg)
+		f.tracer.traceExecute('F', int32(len(f.wbuf)-prevLen), msg)
 	}
 }
 
@@ -312,7 +313,7 @@ func (f *Frontend) Receive() (BackendMessage, error) {
 
 		f.msgType = header[0]
 
-		msgLength := int(binary.BigEndian.Uint32(header[1:]))
+		msgLength := int(int32(binary.BigEndian.Uint32(header[1:])))
 		if msgLength < 4 {
 			return nil, fmt.Errorf("invalid message length: %d", msgLength)
 		}
@@ -383,6 +384,8 @@ func (f *Frontend) Receive() (BackendMessage, error) {
 		msg = &f.copyBothResponse
 	case 'Z':
 		msg = &f.readyForQuery
+	case 'v':
+		msg = &f.negotiateProtocolVersion
 	default:
 		return nil, fmt.Errorf("unknown message type: %c", f.msgType)
 	}

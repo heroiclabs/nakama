@@ -1,3 +1,71 @@
+# 5.9.2 (April 18, 2026)
+
+Fix SQL Injection via placeholder confusion with dollar quoted string literals (GHSA-j88v-2chj-qfwx)
+
+SQL injection can occur when:
+
+1. The non-default simple protocol is used.
+2. A dollar quoted string literal is used in the SQL query.
+3. That query contains text that would be would be interpreted outside as a placeholder outside of a string literal.
+4. The value of that placeholder is controllable by the attacker.
+
+e.g.
+
+```go
+attackValue := `$tag$; drop table canary; --`
+_, err = tx.Exec(ctx, `select $tag$ $1 $tag$, $1`, pgx.QueryExecModeSimpleProtocol, attackValue)
+```
+
+This is unlikely to occur outside of a contrived scenario.
+
+# 5.9.1 (March 22, 2026)
+
+* Fix: batch result format corruption when using cached prepared statements (reported by Dirkjan Bussink)
+
+# 5.9.0 (March 21, 2026)
+
+This release includes a number of new features such as SCRAM-SHA-256-PLUS support, OAuth authentication support, and
+PostgreSQL protocol 3.2 support.
+
+It significantly reduces the amount of network traffic when using prepared statements (which are used automatically by
+default) by avoiding unnecessary Describe Portal messages. This also reduces local memory usage.
+
+It also includes multiple fixes for potential DoS due to panic or OOM if connected to a malicious server that sends
+deliberately malformed messages.
+
+* Require Go 1.25+
+* Add SCRAM-SHA-256-PLUS support (Adam Brightwell)
+* Add OAuth authentication support for PostgreSQL 18 (David Schneider)
+* Add PostgreSQL protocol 3.2 support (Dirkjan Bussink)
+* Add tsvector type support (Adam Brightwell)
+* Skip Describe Portal for cached prepared statements reducing network round trips
+* Make LoadTypes query easier to support on "postgres-like" servers (Jelte Fennema-Nio)
+* Default empty user to current OS user matching libpq behavior (ShivangSrivastava)
+* Optimize LRU statement cache with custom linked list and node pooling (Mathias Bogaert)
+* Optimize date scanning by replacing regex with manual parsing (Mathias Bogaert)
+* Optimize pgio append/set functions with direct byte shifts (Mathias Bogaert)
+* Make RowsAffected faster (Abhishek Chanda)
+* Fix: Pipeline.Close panic when server sends multiple FATAL errors (Varun Chawla)
+* Fix: ContextWatcher goroutine leak (Hank Donnay)
+* Fix: stdlib discard connections with open transactions in ResetSession (Jeremy Schneider)
+* Fix: pipelineBatchResults.Exec silently swallowing lastRows error
+* Fix: ColumnTypeLength using BPCharArrayOID instead of BPCharOID
+* Fix: TSVector text encoding returning nil for valid empty tsvector
+* Fix: wrong error messages for Int2 and Int4 underflow
+* Fix: Numeric nil Int pointer dereference with Valid: true
+* Fix: reversed strings.ContainsAny arguments in Numeric.ScanScientific
+* Fix: message length parsing on 32-bit platforms
+* Fix: FunctionCallResponse.Decode mishandling of signed result size
+* Fix: returning wrong error in configTLS when DecryptPEMBlock fails (Maxim Motyshen)
+* Fix: misleading ParseConfig error when default_query_exec_mode is invalid (Skarm)
+* Fix: missed Unwatch in Pipeline error paths
+* Clarify too many failed acquire attempts error message
+* Better error wrapping with context and SQL statement (Aneesh Makala)
+* Enable govet and ineffassign linters (Federico Guerinoni)
+* Guard against various malformed binary messages (arrays, hstore, multirange, protocol messages)
+* Fix various godoc comments (ferhat elmas)
+* Fix typos in comments (Oleksandr Redko)
+
 # 5.8.0 (December 26, 2025)
 
 * Require Go 1.24+
