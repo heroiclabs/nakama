@@ -74,7 +74,7 @@ if [[ -z "${RULE_IDX}" || "${RULE_IDX}" == "null" ]]; then
 fi
 log "  → host '${HOST}' is rule index ${RULE_IDX}"
 
-# Already patched? Skip.
+# Already patched with correct backend? Skip.
 ALREADY="$(
   kubectl -n "${NS}" get ingress "${INGRESS}" -o json |
   jq --argjson i "${RULE_IDX}" --arg p "${DASHBOARD_PATH}" '
@@ -82,7 +82,44 @@ ALREADY="$(
   '
 )"
 if [[ "${ALREADY}" == "true" ]]; then
-  log "  → Path '${DASHBOARD_PATH}' already present on host '${HOST}'. Nothing to patch."
+  PATH_IDX="$(
+    kubectl -n "${NS}" get ingress "${INGRESS}" -o json |
+    jq --argjson i "${RULE_IDX}" --arg p "${DASHBOARD_PATH}" '
+      .spec.rules[$i].http.paths
+      | to_entries
+      | map(select(.value.path == $p))
+      | .[0].key // empty
+    '
+  )"
+  CURRENT_BACKEND="$(
+    kubectl -n "${NS}" get ingress "${INGRESS}" -o json |
+    jq -r --argjson i "${RULE_IDX}" --arg p "${DASHBOARD_PATH}" '
+      .spec.rules[$i].http.paths[]
+      | select(.path == $p)
+      | "\(.backend.service.name):\(.backend.service.port.number)"
+    ' | head -n1
+  )"
+  EXPECTED_BACKEND="${BACKEND_SVC}:${BACKEND_PORT}"
+  if [[ "${CURRENT_BACKEND}" == "${EXPECTED_BACKEND}" ]]; then
+    log "  → Path '${DASHBOARD_PATH}' already present with correct backend (${EXPECTED_BACKEND}). Nothing to patch."
+  else
+    log "  → Path '${DASHBOARD_PATH}' exists but backend is '${CURRENT_BACKEND}' (expected '${EXPECTED_BACKEND}'). Replacing route."
+    PATCH="$(
+      jq -n --argjson i "${RULE_IDX}" \
+            --argjson j "${PATH_IDX}" \
+            --arg     svc  "${BACKEND_SVC}" \
+            --argjson port "${BACKEND_PORT}" '
+        [{
+          op:    "replace",
+          path:  ("/spec/rules/" + ($i|tostring) + "/http/paths/" + ($j|tostring) + "/backend"),
+          value: {
+            service: { name: $svc, port: { number: $port } }
+          }
+        }]
+      '
+    )"
+    kubectl -n "${NS}" patch ingress "${INGRESS}" --type=json --patch "${PATCH}"
+  fi
 else
   log "  → Adding path '${DASHBOARD_PATH}' → svc/${BACKEND_SVC}:${BACKEND_PORT}"
   PATCH="$(
