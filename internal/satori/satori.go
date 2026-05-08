@@ -289,10 +289,10 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 	req.SetBasicAuth(s.apiKey, "")
 	if len(ipAddress) > 0 && ipAddress[0] != "" {
 		if ipAddr := net.ParseIP(ipAddress[0]); ipAddr != nil {
-			req.Header.Set("X-Forwarded-For", ipAddr.String())
+			req.Header.Set("X-Client-IP", ipAddr.String())
 		}
 	} else if ipAddr, ok := ctx.Value(runtime.RUNTIME_CTX_CLIENT_IP).(string); ok {
-		req.Header.Set("X-Forwarded-For", ipAddr)
+		req.Header.Set("X-Client-IP", ipAddr)
 	}
 
 	res, err := s.httpc.Do(req)
