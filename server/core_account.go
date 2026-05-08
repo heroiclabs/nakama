@@ -488,8 +488,50 @@ func ImportAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRe
 		// Check if importing a completely new account, and create it if needed.
 		if userID == uuid.Nil {
 			query := `
-INSERT INTO users (id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, wallet, email, password, facebook_id, google_id, gamecenter_id, steam_id, custom_id, create_time, update_time, verify_time, disable_time)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`
+INSERT INTO users (
+	id,
+	username,
+	display_name,
+	avatar_url,
+	lang_tag,
+	location,
+	timezone,
+	metadata,
+	wallet,
+	email,
+	password,
+	facebook_id,
+	google_id,
+	gamecenter_id,
+	steam_id,
+	custom_id,
+	create_time,
+	update_time,
+	verify_time,
+	disable_time
+)
+VALUES (
+	$1,
+	$2,
+	nullif(trim($3), ''),
+	nullif(trim($4), ''),
+	$5,
+	nullif(trim($6), ''),
+	nullif(trim($7), ''),
+	coalesce(nullif(trim($8), '')::jsonb, '{}'::jsonb),
+	coalesce(nullif(trim($9), '')::jsonb, '{}'::jsonb),
+	nullif(trim($10), ''),
+	nullif(trim($11), '')::bytea,
+	nullif(trim($12), ''),
+	nullif(trim($13), ''),
+	nullif(trim($14), ''),
+	nullif(trim($15), ''),
+	nullif(trim($16), ''),
+	$17,
+	$18,
+	$19,
+	$20
+)`
 			_, err := tx.ExecContext(ctx, query, data.Account.User.Id, data.Account.User.Username, data.Account.User.DisplayName, data.Account.User.AvatarUrl, data.Account.User.LangTag,
 				data.Account.User.Location, data.Account.User.Timezone, data.Account.User.Metadata, data.Account.Wallet, data.Account.Email, "", data.Account.User.FacebookId,
 				data.Account.User.GoogleId, data.Account.User.GamecenterId, data.Account.User.SteamId, data.Account.CustomId, data.Account.User.CreateTime.AsTime(),
@@ -498,8 +540,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $
 				if errors.Is(err, context.Canceled) {
 					return err
 				}
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) {
+				if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 					if pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_pkey") {
 						return errors.New("User identifier already exists.")
 					}
