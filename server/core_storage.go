@@ -586,18 +586,16 @@ func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, me
 		var writeErr error
 		sortedWrites, acks, writeErr = storageWriteObjects(ctx, logger, metrics, tx, authoritativeWrite, ops)
 		if writeErr != nil {
-			if writeErr == runtime.ErrStorageRejectedVersion || writeErr == runtime.ErrStorageRejectedPermission {
+			if errors.Is(writeErr, runtime.ErrStorageRejectedVersion) || errors.Is(writeErr, runtime.ErrStorageRejectedPermission) {
 				logger.Debug("Error writing storage objects.", zap.Error(writeErr))
 				return StatusError(codes.InvalidArgument, "Storage write rejected.", writeErr)
-			} else {
-				logger.Error("Error writing storage objects.", zap.Error(writeErr))
 			}
 			return writeErr
 		}
 
 		return nil
 	}); err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return nil, e.Code(), e.Cause()
 		}
 		logger.Error("Error writing storage objects.", zap.Error(err))
