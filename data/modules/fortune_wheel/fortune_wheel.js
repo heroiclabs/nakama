@@ -41,8 +41,9 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
         var state = getWheelState(nk, userId);
         var canSpin = canUserSpin(state);
 
-        // --- V2: Read ad-spin daily record ---
+        // --- V2: Read ad-spin cycle record ---
         var adState = getAdSpinState(nk, userId);
+        adState = normalizeAdStateForCurrentCycle(nk, userId, state, adState, logger);
         var now = Math.floor(Date.now() / 1000);
         var nextAdSpinTime = 0;
         if (adState.lastSpinAt > 0) {
@@ -62,6 +63,9 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
             }
         }
 
+        var effectiveAdSpinsUsed = organicSpinDone ? adState.spinsUsed : 0;
+        var effectiveNextAdSpinTime = (organicSpinDone && nextAdSpinTime > now) ? nextAdSpinTime : 0;
+
         return JSON.stringify({
             success: true,
             canSpin: canSpin,
@@ -71,10 +75,10 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
             cooldownDays: COOLDOWN_DAYS,
             // V2 fields
             organicSpinDone: organicSpinDone,
-            adSpinsUsed: adState.spinsUsed,
+            adSpinsUsed: effectiveAdSpinsUsed,
             adSpinsMax: AD_SPINS_MAX,
             adCooldownSeconds: AD_COOLDOWN_SECONDS,
-            nextAdSpinTime: nextAdSpinTime > now ? nextAdSpinTime : 0,
+            nextAdSpinTime: effectiveNextAdSpinTime,
             cycleEndsAt: state.nextSpinTime || null,
             segments: SEGMENTS.map(function(s) {
                 return { type: s.type, amount: s.amount, label: s.label };
@@ -134,6 +138,17 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         } catch (saveErr) {
             logger.warn("fortune_wheel_spin: concurrent spin detected for " + userId + " — " + saveErr.message);
             return JSON.stringify({ success: false, error: "Spin already in progress. Please try again." });
+        }
+
+        // New organic cycle starts here: reset ad-spin counters for this cycle.
+        try {
+            var currentAdState = getAdSpinState(nk, userId);
+            currentAdState.spinsUsed = 0;
+            currentAdState.lastSpinAt = 0;
+            currentAdState.cycleStart = getCurrentCycleStartIso(state.nextSpinTime);
+            saveAdSpinState(nk, userId, currentAdState);
+        } catch (adResetErr) {
+            logger.warn("fortune_wheel_spin: ad cycle reset failed for " + userId + " — " + adResetErr.message);
         }
 
         // State claimed successfully — now grant reward (safe: double-grant impossible)
@@ -197,13 +212,23 @@ function canUserSpin(state) {
 }
 
 /**
- * V2: Read the current-cycle ad-spin record.
- * Returns { spinsUsed: number, lastSpinAt: number (unix epoch seconds) }
+ * Returns current cycle start ISO from nextSpinTime.
+ * If nextSpinTime is missing/invalid, returns empty string.
+ */
+function getCurrentCycleStartIso(nextSpinTimeIso) {
+    if (!nextSpinTimeIso) return "";
+    var nextSpin = new Date(nextSpinTimeIso);
+    if (isNaN(nextSpin.getTime())) return "";
+    var cycleStart = new Date(nextSpin.getTime() - (COOLDOWN_DAYS * 24 * 60 * 60 * 1000));
+    return cycleStart.toISOString();
+}
+
+/**
+ * V2: Read the ad-spin cycle record with version.
+ * Returns { spinsUsed, lastSpinAt, cycleStart, _version }
  */
 function getAdSpinState(nk, userId) {
     try {
-        // Ad spins are tracked per cycle, not per day in V2.
-        // We use a single "cycle_state" key that gets reset when the organic cycle resets.
         var records = nk.storageRead([{
             collection: "fortune_wheel_ad_spins",
             key: "cycle_state",
@@ -213,11 +238,70 @@ function getAdSpinState(nk, userId) {
             var val = records[0].value || {};
             return {
                 spinsUsed: val.spinsUsed || 0,
-                lastSpinAt: val.lastSpinAt || 0
+                lastSpinAt: val.lastSpinAt || 0,
+                cycleStart: val.cycleStart || "",
+                _version: records[0].version || ""
             };
         }
     } catch(e) { /* no record yet */ }
-    return { spinsUsed: 0, lastSpinAt: 0 };
+    return { spinsUsed: 0, lastSpinAt: 0, cycleStart: "", _version: "*" };
+}
+
+/**
+ * Persist ad-spin cycle state using optimistic concurrency.
+ */
+function saveAdSpinState(nk, userId, state) {
+    var version = state._version || "*";
+    var payload = {
+        spinsUsed: state.spinsUsed || 0,
+        lastSpinAt: state.lastSpinAt || 0,
+        cycleStart: state.cycleStart || ""
+    };
+
+    nk.storageWrite([{
+        collection: "fortune_wheel_ad_spins",
+        key: "cycle_state",
+        userId: userId,
+        value: payload,
+        version: version,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+/**
+ * Ensures ad-state belongs to the current organic cycle.
+ * If stale, resets to zero for the active cycle.
+ */
+function normalizeAdStateForCurrentCycle(nk, userId, wheelState, adState, logger) {
+    if (!wheelState || !wheelState.organicSpinDone || !wheelState.nextSpinTime) {
+        return { spinsUsed: 0, lastSpinAt: 0, cycleStart: "", _version: adState._version || "*" };
+    }
+
+    var expectedCycleStart = getCurrentCycleStartIso(wheelState.nextSpinTime);
+    if (!expectedCycleStart) {
+        return adState;
+    }
+
+    if (adState.cycleStart === expectedCycleStart) {
+        return adState;
+    }
+
+    var resetState = {
+        spinsUsed: 0,
+        lastSpinAt: 0,
+        cycleStart: expectedCycleStart,
+        _version: adState._version || "*"
+    };
+
+    try {
+        saveAdSpinState(nk, userId, resetState);
+        logger.info("fortune_wheel_get_state: reset stale ad cycle for " + userId);
+        return resetState;
+    } catch (e) {
+        logger.warn("fortune_wheel_get_state: failed to reset stale ad cycle for " + userId + " — " + e.message);
+        return resetState;
+    }
 }
 
 /**

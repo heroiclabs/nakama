@@ -34006,6 +34006,78 @@ function calculatePerformanceRating(accuracy, avgTime, won) {
 /**
  * Update user's aggregate statistics
  */
+function syncProfileStatsToMetadata(nk, logger, userId, stats) {
+    if (!userId || !stats) return;
+
+    try {
+        var totalGamesPlayed = parseInt(stats.totalGames || 0, 10);
+        var totalWins = parseInt(stats.totalWins || 0, 10);
+        var currentStreak = parseInt(stats.currentStreak || 0, 10);
+        var longestStreak = parseInt(stats.longestStreak || 0, 10);
+        var computedWinRate = totalGamesPlayed > 0
+            ? Math.round((totalWins / totalGamesPlayed) * 100)
+            : 0;
+
+        // Primary metadata record used by get_player_metadata in live Unity flow.
+        var metaRecords = nk.storageRead([{
+            collection: "player_metadata",
+            key: "metadata",
+            userId: userId
+        }]);
+        var metadata = (metaRecords && metaRecords.length > 0 && metaRecords[0].value)
+            ? metaRecords[0].value
+            : {};
+
+        metadata.totalGamesPlayed = totalGamesPlayed;
+        metadata.totalWins = totalWins;
+        metadata.currentStreak = currentStreak;
+        metadata.longestStreak = longestStreak;
+        metadata.winRate = computedWinRate;
+        metadata.updatedAt = new Date().toISOString();
+
+        nk.storageWrite([{
+            collection: "player_metadata",
+            key: "metadata",
+            userId: userId,
+            value: metadata,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+
+        // Keep unified user_identity record in sync when present.
+        try {
+            var identityRecords = nk.storageRead([{
+                collection: "player_metadata",
+                key: "user_identity",
+                userId: userId
+            }]);
+
+            if (identityRecords && identityRecords.length > 0 && identityRecords[0].value) {
+                var identityMeta = identityRecords[0].value;
+                identityMeta.totalGamesPlayed = totalGamesPlayed;
+                identityMeta.totalWins = totalWins;
+                identityMeta.currentStreak = currentStreak;
+                identityMeta.longestStreak = longestStreak;
+                identityMeta.winRate = computedWinRate;
+                identityMeta.updated_at = new Date().toISOString();
+
+                nk.storageWrite([{
+                    collection: "player_metadata",
+                    key: "user_identity",
+                    userId: userId,
+                    value: identityMeta,
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+            }
+        } catch (identityErr) {
+            logger.warn("[QuizResults] user_identity sync skipped: " + identityErr.message);
+        }
+    } catch (err) {
+        logger.warn("[QuizResults] Failed to sync profile metadata stats: " + err.message);
+    }
+}
+
 function updateUserStats(nk, logger, userId, gameId, result, metrics) {
     var collection = getUserStatsCollection(gameId);
     var key = "stats_" + userId;
@@ -34077,6 +34149,7 @@ function updateUserStats(nk, logger, userId, gameId, result, metrics) {
     
     // Save stats
     utils.writeStorage(nk, logger, collection, key, userId, stats);
+    syncProfileStatsToMetadata(nk, logger, userId, stats);
     
     return stats;
 }
@@ -46733,6 +46806,7 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
     stats.updatedAt = getCurrentTimestamp();
 
     writeStorage(nk, logger, collection, key, userId, stats);
+    syncProfileStatsToMetadata(nk, logger, userId, stats);
 
     return stats;
 }
@@ -64535,11 +64609,58 @@ function rpcGetPlayerStats(ctx, logger, nk, payload) {
     try {
         var data = payload ? JSON.parse(payload) : {};
         var targetUserId = data.userId || ctx.userId;
-        var records = nk.storageRead([{ collection: 'player_stats', key: 'stats', userId: targetUserId }]);
-        var stats = (records && records.length > 0) ? JSON.parse(records[0].value) : {
-            userId: targetUserId, totalGamesPlayed: 0, totalCorrectAnswers: 0, totalQuestions: 0,
-            winRate: 0, currentStreak: 0, bestStreak: 0, averageScore: 0, favoriteCategory: '', lastPlayedAt: 0
+        var stats = {
+            userId: targetUserId, totalGamesPlayed: 0, totalWins: 0, totalCorrectAnswers: 0, totalQuestionsAnswered: 0,
+            winRate: 0, currentStreak: 0, longestStreak: 0, totalXP: 0, currentLevel: 1, averageScore: 0,
+            favoriteCategory: '', lastPlayedAt: 0
         };
+
+        // 1) Prefer canonical profile metadata store (what ProfileScreen reads).
+        try {
+            var metaRecords = nk.storageRead([{ collection: 'player_metadata', key: 'metadata', userId: targetUserId }]);
+            if (metaRecords && metaRecords.length > 0 && metaRecords[0].value) {
+                var meta = metaRecords[0].value;
+                stats.totalGamesPlayed = parseInt(meta.totalGamesPlayed || meta.totalGames || 0, 10) || 0;
+                stats.totalWins = parseInt(meta.totalWins || 0, 10) || 0;
+                stats.currentStreak = parseInt(meta.currentStreak || 0, 10) || 0;
+                stats.longestStreak = parseInt(meta.longestStreak || 0, 10) || 0;
+                stats.totalXP = parseInt(meta.xp || meta.totalXP || 0, 10) || 0;
+                stats.currentLevel = parseInt(meta.level || 1, 10) || 1;
+                stats.favoriteCategory = meta.favoriteCategory || '';
+                if (stats.totalGamesPlayed > 0) {
+                    stats.winRate = Math.round((stats.totalWins / stats.totalGamesPlayed) * 100);
+                }
+            }
+        } catch (metaErr) {
+            logger.warn('[Profile] get_player_stats metadata read failed: ' + metaErr.message);
+        }
+
+        // 2) Merge quiz_stats storage as fallback/supplementary source.
+        try {
+            var records = nk.storageRead([{ collection: 'player_stats', key: 'stats', userId: targetUserId }]);
+            if (records && records.length > 0 && records[0].value) {
+                var rawStats = records[0].value;
+                var stored = (typeof rawStats === 'string') ? JSON.parse(rawStats) : rawStats;
+                if (stored && typeof stored === 'object') {
+                    if (!stats.totalGamesPlayed) stats.totalGamesPlayed = parseInt(stored.totalGamesPlayed || stored.totalGames || 0, 10) || 0;
+                    if (!stats.totalWins) stats.totalWins = parseInt(stored.totalWins || 0, 10) || 0;
+                    if (!stats.currentStreak) stats.currentStreak = parseInt(stored.currentStreak || 0, 10) || 0;
+                    if (!stats.longestStreak) stats.longestStreak = parseInt(stored.longestStreak || stored.bestStreak || 0, 10) || 0;
+                    if (!stats.totalCorrectAnswers) stats.totalCorrectAnswers = parseInt(stored.totalCorrectAnswers || 0, 10) || 0;
+                    if (!stats.totalQuestionsAnswered) stats.totalQuestionsAnswered = parseInt(stored.totalQuestionsAnswered || stored.totalQuestions || 0, 10) || 0;
+                    if (!stats.totalXP) stats.totalXP = parseInt(stored.totalXP || stored.xp || 0, 10) || 0;
+                    if (!stats.favoriteCategory && stored.favoriteCategory) stats.favoriteCategory = stored.favoriteCategory;
+                    if (!stats.lastPlayedAt && stored.lastPlayedAt) stats.lastPlayedAt = stored.lastPlayedAt;
+                }
+            }
+        } catch (storedErr) {
+            logger.warn('[Profile] get_player_stats player_stats fallback read failed: ' + storedErr.message);
+        }
+
+        if (stats.totalGamesPlayed > 0) {
+            stats.winRate = Math.round((stats.totalWins / stats.totalGamesPlayed) * 100);
+        }
+
         try {
             var accts = nk.accountsGetId([targetUserId]);
             if (accts && accts.length > 0) {
@@ -79738,6 +79859,18 @@ var LegacyPlayer;
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
         var metadata = getPlayerMetadata(nk, userId);
+        var parseIntField = function(value) {
+            if (value === null || value === undefined || value === "") return null;
+            var parsed = parseInt(value, 10);
+            return isNaN(parsed) ? null : parsed;
+        };
+        var assignInt = function(source, sourceKey, targetKey) {
+            if (!source || source[sourceKey] === undefined) return;
+            var parsed = parseIntField(source[sourceKey]);
+            if (parsed !== null) {
+                metadata[targetKey] = parsed;
+            }
+        };
         if (data.displayName !== undefined)
             metadata.displayName = data.displayName;
         if (data.avatarUrl !== undefined)
@@ -79752,13 +79885,49 @@ var LegacyPlayer;
             metadata.bio = data.bio;
         if (data.favoriteGame !== undefined)
             metadata.favoriteGame = data.favoriteGame;
+
+        // Canonical stats fields used by QuizVerse profile StatsRow.
+        assignInt(data, "level", "level");
+        assignInt(data, "xp", "xp");
+        assignInt(data, "totalXP", "xp");
+        assignInt(data, "total_xp", "xp");
+        assignInt(data, "totalGamesPlayed", "totalGamesPlayed");
+        assignInt(data, "total_games_played", "totalGamesPlayed");
+        assignInt(data, "totalWins", "totalWins");
+        assignInt(data, "total_wins", "totalWins");
+        assignInt(data, "currentStreak", "currentStreak");
+        assignInt(data, "current_streak", "currentStreak");
+        assignInt(data, "longestStreak", "longestStreak");
+        assignInt(data, "longest_streak", "longestStreak");
+
         if (data.customData !== undefined) {
             if (!metadata.customData)
                 metadata.customData = {};
             for (var k in data.customData) {
                 metadata.customData[k] = data.customData[k];
             }
+
+            // Backward compatibility: promote known stat keys from customData
+            // into top-level metadata so Unity profile can read them directly.
+            assignInt(data.customData, "level", "level");
+            assignInt(data.customData, "xp", "xp");
+            assignInt(data.customData, "totalXP", "xp");
+            assignInt(data.customData, "total_xp", "xp");
+            assignInt(data.customData, "totalGamesPlayed", "totalGamesPlayed");
+            assignInt(data.customData, "total_games_played", "totalGamesPlayed");
+            assignInt(data.customData, "totalWins", "totalWins");
+            assignInt(data.customData, "total_wins", "totalWins");
+            assignInt(data.customData, "currentStreak", "currentStreak");
+            assignInt(data.customData, "current_streak", "currentStreak");
+            assignInt(data.customData, "longestStreak", "longestStreak");
+            assignInt(data.customData, "longest_streak", "longestStreak");
         }
+
+        // Keep totalXP mirror for backward compatibility with older readers.
+        if (metadata.xp !== undefined && metadata.xp !== null) {
+            metadata.totalXP = metadata.xp;
+        }
+
         if (data.displayName || data.avatarUrl) {
             try {
                 // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
