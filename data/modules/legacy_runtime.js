@@ -22340,20 +22340,60 @@ function rpcStreakShieldFreeze(ctx, logger, nk, payload) {
         var userId = ctx.userId;
         var storage = nk.storageRead([{ collection: 'streak_shield', key: 'state', userId: userId }]);
         var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { active: false, freezesUsed: 0 };
-        state.active = true; state.frozenAt = Math.floor(Date.now() / 1000); state.freezesUsed = (state.freezesUsed || 0) + 1;
+        var now = new Date();
+        var monthKey = now.getUTCFullYear() + '-' + ((now.getUTCMonth() + 1 < 10) ? '0' : '') + (now.getUTCMonth() + 1);
+        if (!state.freezeMonthKey || state.freezeMonthKey !== monthKey) {
+            state.freezeMonthKey = monthKey;
+            state.freezesUsed = 0;
+        }
+        var freezeLimitMonthly = 2;
+        if ((state.freezesUsed || 0) >= freezeLimitMonthly) {
+            var resetAtLimit = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
+            return JSON.stringify({
+                success: false,
+                code: 'freeze_limit_reached',
+                message: 'Monthly freeze limit reached',
+                freezesUsedThisMonth: state.freezesUsed || 0,
+                freezeMonthKey: state.freezeMonthKey || monthKey,
+                freezeResetsAtUtc: resetAtLimit.toISOString()
+            });
+        }
+        state.active = true;
+        state.frozenAt = Math.floor(now.getTime() / 1000);
+        state.freezesUsed = (state.freezesUsed || 0) + 1;
         nk.storageWrite([{ collection: 'streak_shield', key: 'state', userId: userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
-        return JSON.stringify({ success: true, state: state });
+        var resetAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
+        return JSON.stringify({
+            success: true,
+            code: 'ok',
+            message: 'streak freeze applied',
+            state: state,
+            freezesUsedThisMonth: state.freezesUsed || 0,
+            freezeMonthKey: state.freezeMonthKey || monthKey,
+            freezeResetsAtUtc: resetAt.toISOString()
+        });
     } catch(e) { logger.error('[StreakShield] freeze error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
 }
 
 function rpcStreakShieldRepair(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
+        var data = payload ? JSON.parse(payload) : {};
+        var viaAd = !!data.via_ad;
         var storage = nk.storageRead([{ collection: 'streak_shield', key: 'state', userId: userId }]);
         var state = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { active: false, repairsUsed: 0 };
-        state.active = false; state.repairedAt = Math.floor(Date.now() / 1000); state.repairsUsed = (state.repairsUsed || 0) + 1;
+        var now = new Date();
+        state.active = false;
+        state.repairedAt = Math.floor(now.getTime() / 1000);
+        state.repairsUsed = (state.repairsUsed || 0) + 1;
         nk.storageWrite([{ collection: 'streak_shield', key: 'state', userId: userId, value: JSON.stringify(state), permissionRead: 1, permissionWrite: 0 }]);
-        return JSON.stringify({ success: true, state: state });
+        return JSON.stringify({
+            success: true,
+            code: 'ok',
+            message: 'streak repaired',
+            viaAd: viaAd,
+            state: state
+        });
     } catch(e) { logger.error('[StreakShield] repair error: ' + e.message); return JSON.stringify({ success: false, error: e.message }); }
 }
 

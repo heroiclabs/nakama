@@ -5,8 +5,8 @@
 /**
  * Streak Repair & Wager System — Production-Ready
  *
- * streak_repair: Pay gems to restore a broken streak (24h window, 3/month max)
- * streak_wager: Bet gems on maintaining your streak (Day 10+ unlock, up to 3x multiplier)
+ * streak_repair: Pay coins to restore a broken streak (24h window, 3/month max)
+ * streak_wager: Bet coins on maintaining your streak (Day 10+ unlock, up to 3x multiplier)
  *
  * Storage: collection="streak_data", key="{userId}_{gameId}"
  * Wallet: Uses nk.walletUpdate for atomic gem deduction/award
@@ -14,12 +14,12 @@
 
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
 
-var STREAK_REPAIR_COST = 100;       // gems
+var STREAK_REPAIR_COST = 200;       // coins
 var REPAIR_WINDOW_HOURS = 24;
 var MAX_REPAIRS_PER_MONTH = 3;
 var WAGER_MIN_STREAK_DAY = 10;
 var WAGER_MAX_MULTIPLIER = 3.0;
-var WAGER_MIN_AMOUNT = 10;
+var WAGER_MIN_AMOUNT = 50;
 var WAGER_MAX_AMOUNT = 500;
 var STREAK_STORAGE_COLLECTION = 'streak_data';
 
@@ -131,8 +131,8 @@ function rpcStreakRepair(ctx, logger, nk, payload) {
     // Check wallet balance atomically
     var repairCost = STREAK_REPAIR_COST;
     try {
-        // Deduct gems — nk.walletUpdate will fail if insufficient
-        var walletResult = nk.walletUpdate(ctx.userId, { gems: -repairCost }, {
+        // Deduct coins — nk.walletUpdate will fail if insufficient
+        var walletResult = nk.walletUpdate(ctx.userId, { coins: -repairCost }, {
             reason: 'streak_repair',
             gameId: gameId,
             streakDay: streakData.currentDay || 0
@@ -149,14 +149,14 @@ function rpcStreakRepair(ctx, logger, nk, payload) {
         if (!writeStreakData(nk, logger, ctx.userId, gameId, streakData)) {
             // Rollback wallet if storage fails
             try {
-                nk.walletUpdate(ctx.userId, { gems: repairCost }, { reason: 'streak_repair_rollback' }, false);
+                nk.walletUpdate(ctx.userId, { coins: repairCost }, { reason: 'streak_repair_rollback' }, false);
             } catch (rollbackErr) {
                 logger.error('[StreakV2] CRITICAL: Rollback failed for ' + ctx.userId + ': ' + rollbackErr.message);
             }
             return errorResponseV2('Failed to save streak data');
         }
 
-        logger.info('[StreakV2] Streak repaired for ' + ctx.userId + ', cost: ' + repairCost + ' gems');
+        logger.info('[StreakV2] Streak repaired for ' + ctx.userId + ', cost: ' + repairCost + ' coins');
 
         return JSON.stringify({
             success: true,
@@ -177,13 +177,13 @@ function rpcStreakRepair(ctx, logger, nk, payload) {
                 var account = nk.accountGetId(ctx.userId);
                 if (account && account.wallet) {
                     var wallet = JSON.parse(account.wallet);
-                    balance = wallet.gems || 0;
+                    balance = wallet.coins || 0;
                 }
             } catch (e) { /* ignore */ }
 
             return JSON.stringify({
                 success: false,
-                error: 'insufficient_gems',
+                error: 'insufficient_coins',
                 cost: repairCost,
                 balance: balance
             });
@@ -246,10 +246,10 @@ function rpcStreakWager(ctx, logger, nk, payload) {
 
         // Validate wager amount
         if (isNaN(wagerAmount) || wagerAmount < WAGER_MIN_AMOUNT) {
-            return errorResponseV2('Minimum wager is ' + WAGER_MIN_AMOUNT + ' gems');
+            return errorResponseV2('Minimum wager is ' + WAGER_MIN_AMOUNT + ' coins');
         }
         if (wagerAmount > WAGER_MAX_AMOUNT) {
-            return errorResponseV2('Maximum wager is ' + WAGER_MAX_AMOUNT + ' gems');
+            return errorResponseV2('Maximum wager is ' + WAGER_MAX_AMOUNT + ' coins');
         }
 
         // Clamp multiplier
@@ -261,9 +261,9 @@ function rpcStreakWager(ctx, logger, nk, payload) {
             return errorResponseV2('Cannot wager on a broken streak');
         }
 
-        // Deduct gems
+        // Deduct coins
         try {
-            nk.walletUpdate(ctx.userId, { gems: -wagerAmount }, {
+            nk.walletUpdate(ctx.userId, { coins: -wagerAmount }, {
                 reason: 'streak_wager_place',
                 gameId: gameId,
                 streakDay: streakData.currentDay
@@ -274,13 +274,13 @@ function rpcStreakWager(ctx, logger, nk, payload) {
                 var account = nk.accountGetId(ctx.userId);
                 if (account && account.wallet) {
                     var w = JSON.parse(account.wallet);
-                    balance = w.gems || 0;
+                    balance = w.coins || 0;
                 }
             } catch (e) { /* ignore */ }
 
             return JSON.stringify({
                 success: false,
-                error: 'insufficient_gems',
+                error: 'insufficient_coins',
                 cost: wagerAmount,
                 balance: balance
             });
@@ -304,14 +304,14 @@ function rpcStreakWager(ctx, logger, nk, payload) {
         if (!writeStreakData(nk, logger, ctx.userId, gameId, streakData)) {
             // Rollback wallet
             try {
-                nk.walletUpdate(ctx.userId, { gems: wagerAmount }, { reason: 'streak_wager_rollback' }, false);
+                nk.walletUpdate(ctx.userId, { coins: wagerAmount }, { reason: 'streak_wager_rollback' }, false);
             } catch (rollbackErr) {
                 logger.error('[StreakV2] CRITICAL: Wager rollback failed for ' + ctx.userId);
             }
             return errorResponseV2('Failed to save wager');
         }
 
-        logger.info('[StreakV2] Wager placed: ' + wagerId + ' by ' + ctx.userId + ' (' + wagerAmount + ' gems x' + multiplier + ')');
+        logger.info('[StreakV2] Wager placed: ' + wagerId + ' by ' + ctx.userId + ' (' + wagerAmount + ' coins x' + multiplier + ')');
 
         return JSON.stringify({
             success: true,
@@ -320,7 +320,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
             multiplier: multiplier,
             potentialWinnings: Math.round(wagerAmount * multiplier),
             expiresAt: tomorrow.toISOString(),
-            gemsDeducted: wagerAmount,
+            coinsDeducted: wagerAmount,
             timestamp: now.toISOString()
         });
     }
@@ -349,7 +349,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
         if (result === 'won') {
             winnings = Math.round(wager.amount * wager.multiplier);
             try {
-                nk.walletUpdate(ctx.userId, { gems: winnings }, {
+                nk.walletUpdate(ctx.userId, { coins: winnings }, {
                     reason: 'streak_wager_won',
                     wagerId: wager.wagerId,
                     multiplier: wager.multiplier
@@ -386,7 +386,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
         writeStreakData(nk, logger, ctx.userId, gameId, streakData);
 
         logger.info('[StreakV2] Wager resolved: ' + wager.wagerId + ' = ' + result +
-                     (result === 'won' ? ' (+' + winnings + ' gems)' : ''));
+                     (result === 'won' ? ' (+' + winnings + ' coins)' : ''));
 
         return JSON.stringify({
             success: true,
@@ -395,7 +395,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
             wagerAmount: wager.amount,
             multiplier: wager.multiplier,
             winnings: winnings,
-            gemsAwarded: result === 'won' ? winnings : 0,
+            coinsAwarded: result === 'won' ? winnings : 0,
             totalWagers: streakData.totalWagers,
             totalWagersWon: streakData.totalWagersWon,
             timestamp: now.toISOString()
