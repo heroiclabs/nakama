@@ -3883,9 +3883,11 @@
             if (!host) return;
             try {
                 // Phase 6 — period → days for the milestone scan window. The
-                // server still pages backwards through analytics_rollup_daily
-                // (rollup-preferred), so 1Y / All-time is cheap (≤ 365 doc reads).
-                const daysByPeriod = { '30d': 30, '90d': 90, '1y': 365, 'all': 365 * 5 };
+                // server still issues N storage reads (one per day) against the
+                // analytics_rollup_daily collection, so we cap "all-time" at
+                // 3 years (~1095 reads ≈ 2-3 s) instead of the unbounded 5+
+                // we'd otherwise pass. Investor demos rarely need older data.
+                const daysByPeriod = { '30d': 30, '90d': 90, '1y': 365, 'all': 1095 };
                 const days = daysByPeriod[period] || 30;
                 const data = await callRpc('analytics_retention_milestones', {
                     days: days, ...getGamePayload()
@@ -4305,7 +4307,15 @@
             if (!host) return;
             try {
                 const data = await callRpc('analytics_history_lifetime_read', getGamePayload());
-                if (!data || data.error || !data.doc) {
+                // Real RPC failure (auth, network, server). Distinguished from
+                // "no doc yet" so the operator sees the actual error instead of
+                // a misleading "run analytics_history_recompute" hint.
+                if (!data || data.error) {
+                    host.innerHTML = `<div class="error">Lifetime read failed: ${(data && data.error) || 'unknown'}</div>`;
+                    if (range) range.textContent = 'error';
+                    return;
+                }
+                if (!data.doc) {
                     host.innerHTML = `
                         <div class="kpi-card" style="grid-column: span 2;">
                             <div class="icon">🌐</div>
@@ -4314,7 +4324,7 @@
                                 Not computed yet — run <code>analytics_history_recompute</code> once after this deploy.
                             </div>
                         </div>`;
-                    if (range) range.textContent = data?.hint || 'no data yet';
+                    if (range) range.textContent = data.hint || 'no data yet';
                     return;
                 }
                 const d = data.doc;
@@ -4364,7 +4374,14 @@
             const data = await callRpc('analytics_history_monthly_read', {
                 months, ...getGamePayload()
             });
-            if (!data || data.error || !data.series || data.series.length === 0) {
+            // Surface real RPC errors verbatim. The "no rollups yet" hint is
+            // only correct when the call succeeds but every monthly slot is
+            // missing — months_found===0 — not when auth/server failed.
+            if (!data || data.error) {
+                document.getElementById('revenueKpis').innerHTML = `<div class="error">Long-tail revenue read failed: ${(data && data.error) || 'unknown'}</div>`;
+                return;
+            }
+            if (!data.series || data.months_found === 0) {
                 document.getElementById('revenueKpis').innerHTML = `
                     <div class="kpi-card" style="grid-column: span 2;">
                         <div class="icon">⏳</div>
@@ -4474,9 +4491,20 @@
         };
 
         async function loadArchive() {
-            // First-load just renders the lifetime strip; the search is
-            // explicit (operator-driven) so we don't accidentally scan
-            // millions of events on every tab open.
+            // Reset the search state before rendering so a game switch
+            // doesn't leave the user staring at the previous scope's results
+            // (loadArchive runs on every refreshAll → loadedTabs.clear cycle).
+            _archiveState.cursor = null;
+            _archiveState.rows = [];
+            const meta = document.getElementById('archiveResultMeta');
+            const content = document.getElementById('archiveResultContent');
+            const nextBtn = document.getElementById('archiveBrowserNextBtn');
+            if (meta) meta.innerHTML = 'Pick a date range (or leave blank for all-time), optionally filter by user / event name, then click <strong>Search</strong>.';
+            if (content) content.innerHTML = '<div class="loading">Awaiting search…</div>';
+            if (nextBtn) nextBtn.disabled = true;
+            // First-load renders the lifetime strip; the search is explicit
+            // (operator-driven) so we don't accidentally scan millions of
+            // events on every tab open.
             loadArchiveLifetime().catch(() => {});
         }
 
@@ -4485,7 +4513,11 @@
             if (!host) return;
             try {
                 const data = await callRpc('analytics_history_lifetime_read', getGamePayload());
-                if (!data || data.error || !data.doc) {
+                if (!data || data.error) {
+                    host.innerHTML = `<div class="error">Lifetime read failed: ${(data && data.error) || 'unknown'}</div>`;
+                    return;
+                }
+                if (!data.doc) {
                     host.innerHTML = `
                         <div class="kpi-card" style="grid-column: span 2;">
                             <div class="icon">⏳</div>
