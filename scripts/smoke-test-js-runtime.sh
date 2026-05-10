@@ -191,7 +191,85 @@ EOF
         NS="${2:?Usage: $0 cluster <namespace> <deployment>}"
         DEPLOY="${3:?Usage: $0 cluster <namespace> <deployment>}"
         echo "[smoke] Waiting for rollout of $DEPLOY in $NS…"
+
+        # ── Diagnostic capture on rollout failure (build #258 root-cause aid) ──
+        # `kubectl rollout status … --timeout=10m` exits non-zero with no
+        # context if the new pod fails to become Ready inside the deadline.
+        # The buildspec then auto-rolls back, so by the time anyone looks at
+        # the CodeBuild log, the failing pod is gone — root cause unknown.
+        # Capture pod state, events, and logs from BOTH the failing new
+        # ReplicaSet pods and the still-good old pods BEFORE returning.
+        # `set -e` is on at script scope, so we wrap rollout in `set +e`
+        # to keep going on failure, then re-enable `set -e` afterwards.
+        set +e
         kubectl rollout status "deployment/$DEPLOY" -n "$NS" --timeout=10m
+        ROLLOUT_RC=$?
+        set -e
+        if [ "$ROLLOUT_RC" -ne 0 ]; then
+            echo
+            echo "════════════════════════════════════════════════════════════════"
+            echo "✗ rollout did not finish in 10 minutes — capturing diagnostics"
+            echo "════════════════════════════════════════════════════════════════"
+            echo
+            echo "── Deployment status ──"
+            kubectl get deployment "$DEPLOY" -n "$NS" -o wide || true
+            echo
+            echo "── ReplicaSets (newest first) ──"
+            kubectl get rs -n "$NS" -l "app=$DEPLOY" \
+                --sort-by='.metadata.creationTimestamp' \
+                -o custom-columns=NAME:.metadata.name,DESIRED:.spec.replicas,CURRENT:.status.replicas,READY:.status.readyReplicas,AGE:.metadata.creationTimestamp \
+                | tail -5 || true
+            echo
+            echo "── All pods (look for non-Running, non-Ready, restartCount > 0) ──"
+            kubectl get pods -n "$NS" -l "app=$DEPLOY,!job-name" -o wide \
+                --sort-by='.metadata.creationTimestamp' || true
+            echo
+            echo "── Recent deployment events ──"
+            kubectl get events -n "$NS" \
+                --field-selector "involvedObject.kind=Deployment,involvedObject.name=$DEPLOY" \
+                --sort-by='.lastTimestamp' | tail -20 || true
+            echo
+            # For each NEW pod (created in the last 15 min), dump describe + logs.
+            # We do this for every "new" pod regardless of status because the
+            # interesting failure modes are: Pending (scheduling), CrashLoopBackOff
+            # (logs needed), OOMKilled (kubectl describe needed), and ImagePullBackOff.
+            CUTOFF=$(date -u -d '15 minutes ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+                  || date -u -v-15M '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+                  || echo '')
+            NEW_PODS=$(kubectl get pods -n "$NS" -l "app=$DEPLOY,!job-name" \
+                --sort-by='.metadata.creationTimestamp' \
+                -o jsonpath='{range .items[*]}{.metadata.name} {.metadata.creationTimestamp}{"\n"}{end}' \
+                | awk -v cutoff="$CUTOFF" '
+                    cutoff == "" || $2 >= cutoff { print $1 }
+                  ' | tail -3)
+            if [ -z "$NEW_PODS" ]; then
+                # Fallback: just inspect the 2 newest pods unconditionally.
+                NEW_PODS=$(kubectl get pods -n "$NS" -l "app=$DEPLOY,!job-name" \
+                    --sort-by='.metadata.creationTimestamp' \
+                    -o jsonpath='{.items[*].metadata.name}' \
+                    | tr ' ' '\n' | tail -2)
+            fi
+            for POD in $NEW_PODS; do
+                echo "════════════════════════════════════════════════════════════════"
+                echo "Pod: $POD"
+                echo "════════════════════════════════════════════════════════════════"
+                echo "── kubectl describe (events, container statuses, restartCount) ──"
+                kubectl describe pod -n "$NS" "$POD" \
+                    | sed -n '/^Containers:/,/^Conditions:/p; /^Events:/,$p' || true
+                echo
+                echo "── Current container logs (last 200 lines) ──"
+                kubectl logs -n "$NS" "$POD" --tail=200 --all-containers=true 2>&1 || true
+                echo
+                echo "── Previous container logs (if it crashed and restarted) ──"
+                kubectl logs -n "$NS" "$POD" --tail=200 --all-containers=true --previous 2>&1 \
+                    | sed -n '1,100p' || true
+                echo
+            done
+            echo "════════════════════════════════════════════════════════════════"
+            echo "End of diagnostics — buildspec will now auto-rollback."
+            echo "════════════════════════════════════════════════════════════════"
+            exit 1
+        fi
 
         # Pick the newest READY pod that belongs to the DEPLOYMENT (not a
         # Job/CronJob). A previous version of this script used
