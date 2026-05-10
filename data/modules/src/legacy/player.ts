@@ -74,7 +74,20 @@ namespace LegacyPlayer {
     }
 
     savePlayerMetadata(nk, userId, metadata);
-    return RpcHelpers.successResponse({ metadata: metadata });
+
+    // Best-effort sync to UserMgmt. Never fails the RPC — Nakama state is the
+    // source of truth for game data; UserMgmt is the source of truth for
+    // identity (firstName/lastName/etc). Sync result is surfaced to the caller
+    // under `userMgmtSync` so the client can decide whether to warn the user.
+    var syncFields: { [key: string]: any } = {};
+    if (data.displayName !== undefined) syncFields.userName = data.displayName;
+    if (data.firstName !== undefined) syncFields.firstName = data.firstName;
+    if (data.lastName !== undefined) syncFields.lastName = data.lastName;
+    if (data.age !== undefined) syncFields.age = data.age;
+    if (data.phoneNumber !== undefined) syncFields.phoneNumber = data.phoneNumber;
+    var syncResult = LegacyUserMgmtSync.pushProfile(nk, logger, userId, String(data._cognito_jwt || ""), syncFields);
+
+    return RpcHelpers.successResponse({ metadata: metadata, userMgmtSync: syncResult });
   }
 
   function rpcChangeUsername(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -89,7 +102,8 @@ namespace LegacyPlayer {
 
     try {
       nk.accountUpdateId(userId, username, null, null, null, null, null);
-      return RpcHelpers.successResponse({ username: username });
+      var syncResult = LegacyUserMgmtSync.pushProfile(nk, logger, userId, String(data._cognito_jwt || ""), { userName: username });
+      return RpcHelpers.successResponse({ username: username, userMgmtSync: syncResult });
     } catch (err: any) {
       var msg = err.message || "";
       if (msg.indexOf("unique") !== -1 || msg.indexOf("exists") !== -1 || msg.indexOf("taken") !== -1) {
