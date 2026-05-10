@@ -136,15 +136,28 @@ namespace LegacyNotifScheduler {
     return { state: state };
   };
 
-  // Spawn one scheduler match for this Nakama process. Called from InitModule
-  // via the registered LegacyPush.register() path. Idempotent within a single
-  // process: matchCreate returns a new id even if called twice, but we only
-  // call it once at boot.
+  // Spawn one scheduler match for this Nakama process. Called LAZILY from
+  // the first nakama_js_health invocation after boot (NOT from InitModule —
+  // see main.ts comment for why). Idempotent across repeated calls within
+  // the same Goja VM via the `_spawned` flag — k8s liveness probes hit
+  // nakama_js_health every 30 s and we only want one match per process.
+  //
+  // `nk.matchCreate` returns a fresh match id every time it's called, so
+  // without this flag a 30-second probe cadence would create 2 matches/min
+  // (~2880/day) across the deployment. Each match holds a Goja loop
+  // running at 1 Hz, so leaking them would trash CPU.
+  export var _spawned = false;
   export function spawnSchedulerMatch(logger: nkruntime.Logger, nk: nkruntime.Nakama): void {
+    if (_spawned) return;
     try {
       var matchId = nk.matchCreate(MATCH_NAME, {});
+      _spawned = true;
       logger.info("[NotifScheduler] Scheduler match spawned: %s", matchId);
     } catch (e: any) {
+      // Mark spawned even on failure to avoid log-spam every 30 s. A real
+      // failure here is non-fatal — the cron RPCs remain callable via HTTP
+      // for ops to fire manually, and the next pod restart will retry.
+      _spawned = true;
       logger.error("[NotifScheduler] Failed to spawn scheduler match: %s", e && e.message ? e.message : String(e));
     }
   }

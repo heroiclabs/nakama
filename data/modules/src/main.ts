@@ -173,12 +173,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
     logger.info("[Legacy] Registering notification scheduler match...");
     LegacyNotifScheduler.register(initializer);
-    // Spawn one in-process scheduler match per pod. The match runs forever,
-    // ticks at 1 Hz, and dispatches the five notif_cron_* RPCs at their own
-    // cadence. Replaces external K8s CronJob / EventBridge scheduling.
-    // Per-user `notif_send_markers` storage dedup makes this safe across
-    // multiple Nakama replicas (first writer wins, others see the marker).
-    LegacyNotifScheduler.spawnSchedulerMatch(logger, nk);
+    // NB: `nk.matchCreate()` cannot be called from inside InitModule —
+    // Nakama's match-registry isn't fully wired up until InitModule
+    // returns, so the call throws a Go-level error that the JS try/catch
+    // can't recover (which rolls back EVERY registerRpc call in the
+    // bundle, including nakama_js_health → smoke-test 404, build #199).
+    // Spawn is now deferred to the first nakama_js_health tick after
+    // boot (k8s liveness probe runs every 30 s, so the match is up
+    // within 30 s of the pod becoming Ready). See src/shared/health.ts.
 
     logger.info("[Legacy] Registering player RPCs...");
     LegacyPlayer.register(initializer);

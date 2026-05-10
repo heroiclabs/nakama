@@ -49,6 +49,20 @@ namespace JsRuntimeHealth {
     _nk: nkruntime.Nakama,
     _payload: string,
   ): string {
+    // Lazy boot the in-process notification scheduler match. matchCreate
+    // can't be called from InitModule (Nakama panics — see main.ts), so
+    // we piggy-back on the k8s liveness probe (which hits this endpoint
+    // every 30 s) to spawn it on the first post-boot tick. The function
+    // is guarded by an internal `_spawned` flag so repeated probe ticks
+    // are no-ops once the match is up.
+    try {
+      if (typeof LegacyNotifScheduler !== "undefined" &&
+          LegacyNotifScheduler &&
+          typeof LegacyNotifScheduler.spawnSchedulerMatch === "function") {
+        LegacyNotifScheduler.spawnSchedulerMatch(_logger, _nk);
+      }
+    } catch (_e) { /* never block the health probe on this */ }
+
     var tsOwned = (typeof __TS_OWNED_RPCS !== "undefined" && __TS_OWNED_RPCS) ? __TS_OWNED_RPCS : {};
     var tsOwnedCount = 0;
     for (var k in tsOwned) {

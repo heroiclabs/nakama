@@ -930,6 +930,7 @@ declare namespace LegacyNotifScheduler {
     export var matchLoop: nkruntime.MatchLoopFunction<SchedulerState>;
     export var matchSignal: nkruntime.MatchSignalFunction<SchedulerState>;
     export var matchTerminate: nkruntime.MatchTerminateFunction<SchedulerState>;
+    export var _spawned: boolean;
     export function spawnSchedulerMatch(logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
     export function register(initializer: nkruntime.Initializer): void;
     export {};

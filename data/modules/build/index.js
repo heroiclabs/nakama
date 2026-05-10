@@ -144,12 +144,14 @@ function InitModule(ctx, logger, nk, initializer) {
         LegacyPush.register(initializer);
         logger.info("[Legacy] Registering notification scheduler match...");
         LegacyNotifScheduler.register(initializer);
-        // Spawn one in-process scheduler match per pod. The match runs forever,
-        // ticks at 1 Hz, and dispatches the five notif_cron_* RPCs at their own
-        // cadence. Replaces external K8s CronJob / EventBridge scheduling.
-        // Per-user `notif_send_markers` storage dedup makes this safe across
-        // multiple Nakama replicas (first writer wins, others see the marker).
-        LegacyNotifScheduler.spawnSchedulerMatch(logger, nk);
+        // NB: `nk.matchCreate()` cannot be called from inside InitModule —
+        // Nakama's match-registry isn't fully wired up until InitModule
+        // returns, so the call throws a Go-level error that the JS try/catch
+        // can't recover (which rolls back EVERY registerRpc call in the
+        // bundle, including nakama_js_health → smoke-test 404, build #199).
+        // Spawn is now deferred to the first nakama_js_health tick after
+        // boot (k8s liveness probe runs every 30 s, so the match is up
+        // within 30 s of the pod becoming Ready). See src/shared/health.ts.
         logger.info("[Legacy] Registering player RPCs...");
         LegacyPlayer.register(initializer);
         logger.info("[Legacy] Registering chat RPCs...");
@@ -13092,16 +13094,30 @@ var LegacyNotifScheduler;
         logger.warn("[NotifScheduler] match terminating — grace=%ds", graceSeconds);
         return { state: state };
     };
-    // Spawn one scheduler match for this Nakama process. Called from InitModule
-    // via the registered LegacyPush.register() path. Idempotent within a single
-    // process: matchCreate returns a new id even if called twice, but we only
-    // call it once at boot.
+    // Spawn one scheduler match for this Nakama process. Called LAZILY from
+    // the first nakama_js_health invocation after boot (NOT from InitModule —
+    // see main.ts comment for why). Idempotent across repeated calls within
+    // the same Goja VM via the `_spawned` flag — k8s liveness probes hit
+    // nakama_js_health every 30 s and we only want one match per process.
+    //
+    // `nk.matchCreate` returns a fresh match id every time it's called, so
+    // without this flag a 30-second probe cadence would create 2 matches/min
+    // (~2880/day) across the deployment. Each match holds a Goja loop
+    // running at 1 Hz, so leaking them would trash CPU.
+    LegacyNotifScheduler._spawned = false;
     function spawnSchedulerMatch(logger, nk) {
+        if (LegacyNotifScheduler._spawned)
+            return;
         try {
             var matchId = nk.matchCreate(LegacyNotifScheduler.MATCH_NAME, {});
+            LegacyNotifScheduler._spawned = true;
             logger.info("[NotifScheduler] Scheduler match spawned: %s", matchId);
         }
         catch (e) {
+            // Mark spawned even on failure to avoid log-spam every 30 s. A real
+            // failure here is non-fatal — the cron RPCs remain callable via HTTP
+            // for ops to fire manually, and the next pod restart will retry.
+            LegacyNotifScheduler._spawned = true;
             logger.error("[NotifScheduler] Failed to spawn scheduler match: %s", e && e.message ? e.message : String(e));
         }
     }
@@ -28367,6 +28383,20 @@ var JsRuntimeHealth;
     }
     JsRuntimeHealth.register = register;
     function rpcHealth(_ctx, _logger, _nk, _payload) {
+        // Lazy boot the in-process notification scheduler match. matchCreate
+        // can't be called from InitModule (Nakama panics — see main.ts), so
+        // we piggy-back on the k8s liveness probe (which hits this endpoint
+        // every 30 s) to spawn it on the first post-boot tick. The function
+        // is guarded by an internal `_spawned` flag so repeated probe ticks
+        // are no-ops once the match is up.
+        try {
+            if (typeof LegacyNotifScheduler !== "undefined" &&
+                LegacyNotifScheduler &&
+                typeof LegacyNotifScheduler.spawnSchedulerMatch === "function") {
+                LegacyNotifScheduler.spawnSchedulerMatch(_logger, _nk);
+            }
+        }
+        catch (_e) { /* never block the health probe on this */ }
         var tsOwned = (typeof __TS_OWNED_RPCS !== "undefined" && __TS_OWNED_RPCS) ? __TS_OWNED_RPCS : {};
         var tsOwnedCount = 0;
         for (var k in tsOwned) {
