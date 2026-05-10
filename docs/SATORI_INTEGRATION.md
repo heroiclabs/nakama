@@ -9,6 +9,19 @@
 > cluster had stale `ADMIN_*` / `SATORI_*` env vars set. New diagnostic RPC
 > `analytics_creds_check` returns fingerprints of the values the running pod is
 > actually using.
+>
+> **v3.1 patch note (same session):** The dashboard frontend hardcoded
+> `serverKey: 'defaultkey'`, but prod Nakama runs with `--runtime.http_key`
+> sourced from k8s Secret `nakama-secret/http_key` (a non-default value). The
+> mismatch caused Nakama's HTTP layer to return `401 "HTTP key invalid"` before
+> our `admin_login` JS even ran — the dashboard rendered that as a generic
+> "Invalid credentials" toast, making it look like a bad password. **Fix:**
+> CodeBuild's `pre_build` phase now reads the real http_key from the secret
+> and sed-replaces the placeholder in `web/analytics-dashboard/index.html`
+> before docker build. The Dockerfile then overlays the patched file onto
+> `console/ui/dist/analytics.html` (which `//go:embed`'s into the binary), so
+> the served dashboard always uses the cluster's actual key — automatically,
+> with zero kubectl on the developer's side.
 
 This is the runbook for getting analytics flowing to **both** dashboards:
 
@@ -149,7 +162,7 @@ it generates a new password, hash, and dashboard secret, then writes them to
 # satori_diag RPC publishes one test event and returns the HTTP response.
 # No auth gate (intentional — single ignored event is cheaper than a 401 round-trip).
 curl -X POST \
-  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/satori_diag?http_key=defaultkey" \
+  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/satori_diag?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"payload":"{}"}'
 
@@ -166,7 +179,7 @@ curl -X POST \
 ```bash
 # Authenticate as admin to mint a session token
 ADMIN_TOKEN=$(curl -s -X POST \
-  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/admin_login?http_key=defaultkey" \
+  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/admin_login?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"payload":"{\"username\":\"ivx-admin\",\"password\":\"<plaintext>\"}"}' \
   | jq -r '.payload | fromjson | .token')
@@ -189,6 +202,24 @@ If you push, the build succeeds, but login still says invalid OR Satori still
 shows zero events, run these in order. Each is no-auth (or self-mints a token)
 so they work even when login is broken.
 
+### Step 0 — find the real prod http_key (needed for every step below)
+
+The prod cluster's `--runtime.http_key` is NOT `defaultkey` — Nakama 401s every
+no-auth RPC otherwise. Read it once and export to your shell:
+
+```bash
+# Requires kubectl access to the aicart namespace.
+HTTP_KEY=$(kubectl -n aicart get secret nakama-secret \
+  -o jsonpath='{.data.http_key}' | base64 -d)
+echo "key fingerprint: $(printf '%s' "$HTTP_KEY" | head -c 4)…(len=$(printf '%s' "$HTTP_KEY" | wc -c))"
+```
+
+If you don't have kubectl: tail the latest CodeBuild logs — the `pre_build`
+phase prints the same fingerprint right after "http_key fingerprint=…".
+Use that to sanity-check the value you have.
+
+All curl commands below use `?http_key=$HTTP_KEY`.
+
 ### Step 1 — confirm the new image is actually running
 
 ```bash
@@ -198,7 +229,7 @@ kubectl -n aicart get deployment intelliverse-nakama \
 # Expected: image tag matches the latest commit SHA you pushed.
 
 # HTTP path (no kubectl needed) — every pod tags health response with build sha
-curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/nakama_js_health?http_key=defaultkey" \
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/nakama_js_health?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' -d '""' | jq
 # Expected: { "payload": "{\"ok\":true,\"build\":\"<sha>\",...}" }
 # If sha is OLD → CodeBuild patched ECR but kubectl set image hasn't restarted
@@ -209,7 +240,7 @@ curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/nakama_js_health?http_key
 ### Step 2 — confirm what credentials the pod is using (no auth needed)
 
 ```bash
-curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_creds_check?http_key=defaultkey" \
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_creds_check?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' -d '""' | jq -r '.payload | fromjson'
 ```
 
@@ -248,7 +279,7 @@ What to check:
 ### Step 3 — confirm Satori is actually reachable + auth works
 
 ```bash
-curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/satori_diag?http_key=defaultkey" \
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/satori_diag?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' -d '""' | jq -r '.payload | fromjson'
 ```
 
@@ -278,7 +309,7 @@ If `success=false`:
 ### Step 4 — confirm backfill is progressing
 
 ```bash
-curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_status?http_key=defaultkey" \
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_status?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' -d '""' | jq -r '.payload | fromjson'
 ```
 
@@ -293,7 +324,7 @@ If `phase` doesn't advance for 30+ minutes:
 
 ```bash
 # Force a tick (bypasses the 5-min "done" debounce)
-curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_kick?http_key=defaultkey" \
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_kick?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' -d '""' | jq -r '.payload | fromjson'
 ```
 
@@ -336,7 +367,7 @@ The `analytics_auto_status` RPC is read-only and unauthenticated:
 
 ```bash
 curl -s -X POST \
-  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_status?http_key=defaultkey" \
+  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_status?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"payload":"{}"}' \
   | jq '.payload | fromjson'
@@ -366,7 +397,7 @@ Watch progress:
 
 ```bash
 while : ; do
-  curl -s -X POST "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_status?http_key=defaultkey" \
+  curl -s -X POST "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_status?http_key=$HTTP_KEY" \
     -H 'Content-Type: application/json' -d '{"payload":"{}"}' \
     | jq -r '.payload | fromjson | "\(.phase) \(.progress_pct)% ticks=\(.ticks) cursor=\(.cursor)"'
   sleep 10
@@ -381,7 +412,7 @@ If the dashboard hasn't been opened and there's no analytics traffic yet
 
 ```bash
 curl -X POST \
-  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_kick?http_key=defaultkey" \
+  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_kick?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"payload":"{\"force\":true}"}' \
   | jq '.payload | fromjson'
@@ -397,7 +428,7 @@ bug in `events_replay`), call `analytics_auto_reset`. It's admin-gated:
 ```bash
 DASHBOARD_SECRET="<AA_FALLBACK_DASHBOARD_SECRET from analytics_admin.js>"
 curl -X POST \
-  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_reset?http_key=defaultkey" \
+  "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_reset?http_key=$HTTP_KEY" \
   -H 'Content-Type: application/json' \
   -d "{\"payload\":\"{\\\"dashboard_secret\\\":\\\"$DASHBOARD_SECRET\\\"}\"}"
 # Next piggyback re-runs init → identity → … from scratch.

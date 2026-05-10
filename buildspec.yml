@@ -62,6 +62,57 @@ phases:
       - echo "=== Configuring kubectl for EKS ==="
       - aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name "$EKS_CLUSTER_NAME"
       - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}' || true
+      # ─── Bake the prod runtime http_key into the dashboard frontend ───
+      # Why: the in-house dashboard at /analytics.html calls admin_login
+      # anonymously, which Nakama gates with `?http_key=`. The frontend
+      # currently hardcodes `serverKey: 'defaultkey'`, but the prod
+      # Deployment runs with --runtime.http_key sourced from the k8s
+      # Secret nakama-secret/http_key (a non-default value). The mismatch
+      # causes Nakama to return HTTP 401 "HTTP key invalid" before our
+      # admin_login JS even runs, and the dashboard renders that as a
+      # generic "Invalid credentials" toast — making it look like a bad
+      # password when the request never made it past the HTTP layer.
+      #
+      # Fix: read the cluster's actual http_key from the secret and patch
+      # web/analytics-dashboard/index.html before docker build runs.
+      # Dockerfile.production stage 2 then overlays the patched file onto
+      # console/ui/dist/analytics.html (which is //go:embed'd into the
+      # binary). Result: every build is automatically wired to whatever
+      # http_key the cluster currently uses, no manual rotation, no
+      # frontend rebuild needed when the secret rotates.
+      #
+      # If the secret doesn't exist or is empty, we fall back to
+      # `defaultkey` (matches docker-compose for local dev) and log a
+      # WARN. The frontend still ships, just won't auth in prod —
+      # operators see the warning in CodeBuild logs and know to fix the
+      # secret.
+      - echo "=== Reading prod runtime http_key from nakama-secret ==="
+      - >
+        RUNTIME_HTTP_KEY=$(kubectl get secret nakama-secret -n "$K8S_NAMESPACE"
+        -o jsonpath='{.data.http_key}' 2>/dev/null | base64 -d 2>/dev/null || true)
+      - |
+        if [ -z "$RUNTIME_HTTP_KEY" ]; then
+          echo "WARN: secret/nakama-secret key 'http_key' not found or empty — falling back to 'defaultkey' (prod login will fail until the secret is set)"
+          RUNTIME_HTTP_KEY="defaultkey"
+        fi
+      - HTTP_KEY_FP="$(printf '%s' "$RUNTIME_HTTP_KEY" | head -c 4)…(len=$(printf '%s' "$RUNTIME_HTTP_KEY" | wc -c))"
+      - echo "http_key fingerprint=$HTTP_KEY_FP"
+      - echo "=== Patching web/analytics-dashboard/index.html serverKey ==="
+      - |
+        if [ -f web/analytics-dashboard/index.html ]; then
+          # Use | as sed delim so any '/' in the key doesn't terminate the pattern.
+          # Single-quoted in source so we match only the literal hardcoded value.
+          BEFORE=$(grep -c "serverKey: 'defaultkey'" web/analytics-dashboard/index.html || true)
+          sed -i "s|serverKey: 'defaultkey'|serverKey: '${RUNTIME_HTTP_KEY}'|g" web/analytics-dashboard/index.html
+          AFTER=$(grep -c "serverKey: '${RUNTIME_HTTP_KEY}'" web/analytics-dashboard/index.html || true)
+          echo "serverKey occurrences before=$BEFORE  after=$AFTER  (expect equal & non-zero)"
+          if [ "$BEFORE" -eq 0 ] || [ "$AFTER" -eq 0 ]; then
+            echo "FATAL: dashboard frontend serverKey patch failed — the literal serverKey: 'defaultkey' was not found in web/analytics-dashboard/index.html. Refusing to ship a broken dashboard."
+            exit 1
+          fi
+        else
+          echo "WARN: web/analytics-dashboard/index.html missing — Dockerfile overlay will be a no-op and the embedded legacy dashboard will be served"
+        fi
 
   build:
     # CodeBuild's default phase semantics: post_build runs even if build

@@ -2054,6 +2054,15 @@
         // username/password in this file was a security hole and has been removed.
         // Credentials are checked against bcrypt-hashed ADMIN_PASSWORD_HASH
         // passed to the runtime via docker-compose -> --runtime.env.
+        //
+        // The serverKey value below is a BUILD-TIME PLACEHOLDER. CodeBuild's
+        // pre_build phase (see buildspec.yml) reads the actual prod runtime
+        // http_key from the k8s Secret nakama-secret/http_key and sed-replaces
+        // the literal placeholder before docker build. So the production-served
+        // analytics.html ALWAYS has the cluster's real http_key, keeping it in
+        // lockstep with --runtime.http_key even when ops rotate the secret.
+        // For local dev (docker-compose), the runtime is set to the placeholder
+        // value explicitly, so the file works as-is without patching.
         const CONFIG = {
             serverUrl: 'https://nakama-rest.intelli-verse-x.ai',
             serverKey: 'defaultkey',
