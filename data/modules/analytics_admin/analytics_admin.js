@@ -284,6 +284,15 @@ function rpcAdminLogin(ctx, logger, nk, payload) {
         }
     } catch (e) { /* swallow */ }
 
+    // Phase 5 — segments auto-tick. Recomputes the win-back + pre-IAP
+    // Satori segments incrementally on every dashboard open (5-minute
+    // throttle, 2 GPA pages per tick). Failures don't block login.
+    try {
+        if (typeof segAutoRunIfNeeded === "function") {
+            segAutoRunIfNeeded(ctx, nk, logger);
+        }
+    } catch (e) { /* swallow */ }
+
     return aaOk({
         token: token,
         userId: userId,

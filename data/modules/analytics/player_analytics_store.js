@@ -59,7 +59,13 @@ function gpaCreateEmptyDoc(gameId, userId) {
             spend_usd: 0, last_iap_utc: 0, iap_count: 0,
             ad_views: 0, ad_clicks: 0, rewarded_ads: 0,
             reward_tier: "bronze",
-            coins_earned: 0, coins_spent: 0
+            coins_earned: 0, coins_spent: 0,
+            // Phase 5 (2026-05) — paywall + IAP funnel telemetry. Powers
+            // the pre-IAP nudge segment ("paywall shown >=1 AND iap_count
+            // === 0"). last_paywall_utc is unix-seconds.
+            paywall_shown_count: 0, paywall_last_utc: 0,
+            paywall_dismissed_count: 0,
+            iap_started_count: 0, iap_failed_count: 0
         },
         consent: "unknown",
         att_status: "unknown",
@@ -356,6 +362,23 @@ function gpaUpsertEvent(nk, logger, ev) {
         }
         if (evName === "ad_reward_granted" || evName === "ad_completed") {
             doc.money.rewarded_ads = (doc.money.rewarded_ads || 0) + 1;
+        }
+        // ── Monetization: Paywall + IAP funnel (Phase 5) ─────────────
+        // These counters drive the pre-IAP nudge Satori segment. Tracked
+        // per-user in GPA so the nightly sweep can match without doing
+        // an event scan.
+        if (evName === "paywall_shown") {
+            doc.money.paywall_shown_count = (doc.money.paywall_shown_count || 0) + 1;
+            doc.money.paywall_last_utc = ev.unixTimestamp || nowUtc;
+        }
+        if (evName === "paywall_dismissed") {
+            doc.money.paywall_dismissed_count = (doc.money.paywall_dismissed_count || 0) + 1;
+        }
+        if (evName === "purchase_started" || evName === "iap_started") {
+            doc.money.iap_started_count = (doc.money.iap_started_count || 0) + 1;
+        }
+        if (evName === "purchase_failed" || evName === "iap_failed") {
+            doc.money.iap_failed_count = (doc.money.iap_failed_count || 0) + 1;
         }
         // ── Monetization: IAP events ─────────────────────────────────
         if (evName === "iap_completed" || evName === "purchase_completed") {
